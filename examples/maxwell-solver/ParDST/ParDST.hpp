@@ -3,6 +3,7 @@
 #include "../common/PML.hpp"
 #include "../DST/DST.hpp"
 #include "DofMapsDST.hpp"
+#include "../common/complex_coeff.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -15,6 +16,7 @@ public:
        NEUMANN,
        DIRICHLET
    };
+   // Constructor with only real valued coefficients
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
        double omega_, 
        int nrlayers_,
@@ -22,6 +24,14 @@ public:
        MatrixCoefficient * MQc_, MatrixCoefficient * MQm_,
        int nx_=2, int ny_=2, int nz_=2, 
        BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
+   // Constructor with only complex valued coefficients
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, 
+       int nrlayers_,
+       ComplexCoefficient * Qc_, ComplexCoefficient * Qm_ ,
+       MatrixComplexCoefficient * MQc_, MatrixComplexCoefficient * MQm_,
+       int nx_=2, int ny_=2, int nz_=2, 
+       BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);       
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ParDST();
@@ -41,16 +51,17 @@ private:
    int dim = 2;
    double omega = 0.5;
    int nrlayers;
-   Coefficient * Qc=nullptr;
-   Coefficient * Qm=nullptr;
-   MatrixCoefficient * MQc=nullptr;
-   MatrixCoefficient * MQm=nullptr;
+
+   ComplexCoefficient * Qc=nullptr;
+   ComplexCoefficient * Qm=nullptr;
+   MatrixComplexCoefficient * MQc=nullptr;
+   MatrixComplexCoefficient * MQm=nullptr;
+   int nx,ny,nz;
    BCType bc_type = BCType::DIRICHLET;
    Coefficient * LossCoeff=nullptr;
    
    int ovlpnrlayers;
    int nrsubdomains = 0;
-   int nx,ny,nz;
    Array<int> nxyz;
    Sweep * sweeps = nullptr;
    DofMaps * dmaps = nullptr;

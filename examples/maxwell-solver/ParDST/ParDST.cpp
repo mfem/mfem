@@ -8,13 +8,32 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
          MatrixCoefficient * MQc_, MatrixCoefficient * MQm_,
          int nx_, int ny_, int nz_, 
          BCType bc_type_, Coefficient * LossCoeff_)
+: Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
+     bf(bf_), Pmllength(Pmllength_), omega(omega_), 
+     nrlayers(nrlayers_),
+     nx(nx_), ny(ny_), nz(nz_),
+     bc_type(bc_type_), LossCoeff(LossCoeff_)
+{
+   if (Qc_) Qc = new ComplexCoefficient(Qc_,nullptr);
+   if (Qm_) Qm = new ComplexCoefficient(Qm_,nullptr);
+   if (MQc_) MQc = new MatrixComplexCoefficient(MQc_,nullptr);
+   if (MQm_) MQm = new MatrixComplexCoefficient(MQm_,nullptr);
+
+   Init();
+}
+
+ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+         double omega_, int nrlayers_ , 
+         ComplexCoefficient * Qc_, ComplexCoefficient * Qm_ ,
+         MatrixComplexCoefficient * MQc_, MatrixComplexCoefficient * MQm_,
+         int nx_, int ny_, int nz_, 
+         BCType bc_type_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
      nrlayers(nrlayers_),
-     Qc(Qc_), Qm(Qm_), MQc(MQc_), MQm(MQm_),
+     Qc(Qc_), Qm(Qm_), MQc(MQc_), MQm(MQm_), nx(nx_), ny(ny_), nz(nz_),
      bc_type(bc_type_), LossCoeff(LossCoeff_)
 {
-   nx = nx_; ny = ny_; nz = nz_;
    Init();
 }
 
@@ -341,8 +360,8 @@ void ParDST::SetHelmholtzPmlSystemMatrix(int ip)
    PmlCoefficient detJ_im(pml_detJ_Im,&pml);
    ProductCoefficient c2_re0(sigma, detJ_re);
    ProductCoefficient c2_im0(sigma, detJ_im);
-   ProductCoefficient c2_re(c2_re0, *Qm);
-   ProductCoefficient c2_im(c2_im0, *Qm);
+   ProductCoefficient c2_re(c2_re0, *Qm->real());
+   ProductCoefficient c2_im(c2_im0, *Qm->real());
    sqf[ip] = new SesquilinearForm (dmaps->fes[ip],bf->GetConvention());
 
    sqf[ip]->AddDomainIntegrator(new DiffusionIntegrator(c1_re),
@@ -416,69 +435,66 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    ConstantCoefficient muinv(1.0/mu);
    ConstantCoefficient omeg(-pow(omega, 2)* epsilon);
 
-   Coefficient * amu = nullptr;
-   RestrictedCoefficient * restr_amu = nullptr;
-   ScalarMatrixProductCoefficient * Amu = nullptr;
-   MatrixRestrictedCoefficient * restr_Amu = nullptr; 
+   ComplexCoefficient * amu = nullptr;
+   RestrictedComplexCoefficient * restr_amu = nullptr;
+   ScalarMatrixProductComplexCoefficient * Amu = nullptr;
+   MatrixRestrictedComplexCoefficient * restr_Amu = nullptr; 
 
    if (Qc)
    {
-      amu = new ProductCoefficient(muinv,*Qc);
-      restr_amu = new RestrictedCoefficient(*amu,attr);
+      amu = new ProductComplexCoefficient(&muinv,Qc);
+      restr_amu = new RestrictedComplexCoefficient(amu,attr);
    }
    else if (MQc)
    {
-      Amu = new ScalarMatrixProductCoefficient(muinv,*MQc);
-      restr_Amu = new MatrixRestrictedCoefficient(*Amu,attr);
+      Amu = new ScalarMatrixProductComplexCoefficient(&muinv,MQc);
+      restr_Amu = new MatrixRestrictedComplexCoefficient(Amu,attr);
    }
    else
    {
-      amu = &muinv;
-      restr_amu = new RestrictedCoefficient(*amu,attr);
+      amu = new ComplexCoefficient(&muinv,nullptr);
+      restr_amu = new RestrictedComplexCoefficient(amu,attr);
    }
 
-   Coefficient * ws_re = nullptr;
-   // Coefficient * ws_im = nullptr;
-   MatrixCoefficient * Mws_re = nullptr;
-   // MatrixCoefficient * Mws_im = nullptr;
-   RestrictedCoefficient * restr_wsomeg_re = nullptr;
-   MatrixRestrictedCoefficient * restr_Mwsomeg_re = nullptr;
+   ComplexCoefficient * ws = nullptr;
+   MatrixComplexCoefficient * Mws = nullptr;
+   RestrictedComplexCoefficient * restr_wsomeg = nullptr;
+   MatrixRestrictedComplexCoefficient * restr_Mwsomeg = nullptr;
    RestrictedCoefficient * restr_loss = nullptr;
    if (Qm)
    {
-      ws_re = new ProductCoefficient(*Qm,omeg);
-      restr_wsomeg_re = new RestrictedCoefficient(*ws_re,attr);
+      ws = new ProductComplexCoefficient(Qm,&omeg);
+      restr_wsomeg = new RestrictedComplexCoefficient(ws,attr);
    }
    else if (MQm)
    {
-      Mws_re = new ScalarMatrixProductCoefficient(omeg,*MQm);
-      restr_Mwsomeg_re = new MatrixRestrictedCoefficient(*Mws_re,attr);
+      Mws = new ScalarMatrixProductComplexCoefficient(&omeg,MQm);
+      restr_Mwsomeg = new MatrixRestrictedComplexCoefficient(Mws,attr);
    }
    else
    {
-      ws_re = &omeg;
-      restr_wsomeg_re = new RestrictedCoefficient(*ws_re,attr);
+      ws = new ComplexCoefficient(&omeg,nullptr);
+      restr_wsomeg = new RestrictedComplexCoefficient(ws,attr);
    }
-
 
    sqf[ip] = new SesquilinearForm(dmaps->fes[ip],bf->GetConvention());
    sqf[ip]->SetDiagonalPolicy(mfem::Matrix::DIAG_ONE);
 
    if (MQc)
    {
-      sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(*restr_Amu),NULL);
+      sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(*restr_Amu->real()),NULL);
    }
    else
    {
-      sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(*restr_amu),NULL);
+      sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(*restr_amu->real()),NULL);
    }
    if (MQm)
    {
-      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_Mwsomeg_re),NULL);
+      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_Mwsomeg->real()),NULL);
    }
    else
    {
-      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_wsomeg_re),NULL);
+      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_wsomeg->real()),NULL);
    }
 
    if (LossCoeff) 
@@ -487,59 +503,51 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
       sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*LossCoeff));      
    }
 
-   PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
-   PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
+   MatrixComplexCoefficient * pml_c1 = new MatrixComplexCoefficient(
+      new PmlMatrixCoefficient(cdim,detJ_inv_JT_J_Re, &pml), 
+      new PmlMatrixCoefficient(cdim,detJ_inv_JT_J_Im, &pml),true,true);
 
+   MatrixComplexCoefficient * c1 = nullptr;
 
-   MatrixCoefficient * c1_Re = nullptr;
-   MatrixCoefficient * c1_Im = nullptr;
 
    if (MQc)
    {
-      c1_Re = new MatrixMatrixProductCoefficient(*Amu,pml_c1_Re);
-      c1_Im = new MatrixMatrixProductCoefficient(*Amu,pml_c1_Im);
+      c1 = new MatrixMatrixProductComplexCoefficient(Amu,pml_c1);
    }
    else
    {
-      c1_Re = new ScalarMatrixProductCoefficient(*amu,pml_c1_Re);
-      c1_Im = new ScalarMatrixProductCoefficient(*amu,pml_c1_Im);
+      c1 = new ScalarMatrixProductComplexCoefficient(amu,pml_c1);
    }
 
-   MatrixRestrictedCoefficient restr_c1_Re(*c1_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c1_Im(*c1_Im,attrPML);
+   MatrixRestrictedComplexCoefficient restr_c1(c1,attrPML);
 
-   PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
-   PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
-   ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
-   ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
+   MatrixComplexCoefficient * pml_c2 = new MatrixComplexCoefficient(
+   new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Re,&pml), 
+   new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Im,&pml), true, true);
 
-   MatrixCoefficient * c2_Re=nullptr;
-   MatrixCoefficient * c2_Im=nullptr;
+   ScalarMatrixProductComplexCoefficient c0(&omeg,pml_c2);
+
+   MatrixComplexCoefficient * c2 = nullptr;
 
    if (Qm)
    {
-      c2_Re = new ScalarMatrixProductCoefficient(*Qm,c2_Re0);
-      c2_Im = new ScalarMatrixProductCoefficient(*Qm,c2_Im0);
+      c2 = new ScalarMatrixProductComplexCoefficient(Qm,&c0);
    }
    else if (MQm)
    {
-      c2_Re = new MatrixMatrixProductCoefficient(*MQm,c2_Re0);
-      c2_Im = new MatrixMatrixProductCoefficient(*MQm,c2_Im0);
+      c2 = new MatrixMatrixProductComplexCoefficient(MQm,&c0);
    }
    else
    {
-      c2_Re = &c2_Re0;
-      c2_Im = &c2_Im0;
+      c2 = &c0;
    }
    
-   MatrixRestrictedCoefficient restr_c2_Re(*c2_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c2_Im(*c2_Im,attrPML);
+   MatrixRestrictedComplexCoefficient restr_c2(c2,attrPML);
 
-
-   sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
-                                new CurlCurlIntegrator(restr_c1_Im));
-   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
-                                new VectorFEMassIntegrator(restr_c2_Im));
+   sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(*restr_c1.real()),
+                                new CurlCurlIntegrator(*restr_c1.imag()));
+   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_c2.real()),
+                                new VectorFEMassIntegrator(*restr_c2.imag()));
    sqf[ip]->Assemble();
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
@@ -555,23 +563,21 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
       delete Amu;
    }
 
-   delete c1_Re;
-   delete c1_Im;
+   delete c1;
 
    if (Qm)
    {
-      delete restr_wsomeg_re;
-      delete ws_re;
+      delete restr_wsomeg;
+      delete ws;
    }
    else if (MQm)
    {
-      delete restr_Mwsomeg_re;
-      delete Mws_re;
+      delete restr_Mwsomeg;
+      delete Mws;
    }
    if (Qm || MQm)
    {
-      delete c2_Re;
-      delete c2_Im;
+      delete c2;
    }
    if (LossCoeff)  delete restr_loss;
 }

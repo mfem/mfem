@@ -195,7 +195,6 @@ int main(int argc, char *argv[])
    comp_bdr.SetSize(dim,2);
    comp_bdr = pml.GetCompDomainBdr(); 
 
-
    // 6. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
@@ -369,8 +368,6 @@ int main(int argc, char *argv[])
 
    a.Assemble(0);
 
-   
-
    OperatorHandle Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
@@ -392,11 +389,18 @@ int main(int argc, char *argv[])
                   (mat_curlcoeff) ? Alpha->real() : nullptr,
                   (mat_masscoeff) ? Mws->real() : nullptr,
                   nx, ny, nz, bct, &lossCoef);
-   chrono.Stop();
-   double t1 = chrono.RealTime();
+   
+   // S = new ParDST(&a,lengths, omega, nrlayers, 
+   //                (mat_curlcoeff) ? nullptr : alpha, 
+   //                (mat_masscoeff) ? nullptr : ws,
+   //                (mat_curlcoeff) ? Alpha : nullptr,
+   //                (mat_masscoeff) ? Mws : nullptr,
+   //                nx, ny, nz, bct, &lossCoef);                  
+   // chrono.Stop();
+   // double t1 = chrono.RealTime();
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
    // X = 0.0;
 	GMRESSolver gmres(MPI_COMM_WORLD);
 	// gmres.iterative_mode = true;
@@ -407,10 +411,10 @@ int main(int argc, char *argv[])
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
    delete S;
-   chrono.Stop();
-   double t2 = chrono.RealTime();
+   // chrono.Stop();
+   // double t2 = chrono.RealTime();
 
-   MPI_Barrier(MPI_COMM_WORLD);
+   // MPI_Barrier(MPI_COMM_WORLD);
 
 
    // cout << " myid: " << myid 
