@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -100,6 +100,7 @@ $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OB
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # Template rule for devices

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@ TEST_CASE("Test order of boundary integrators",
    // Create a simple mesh
    int dim = 2, nx = 2, ny = 2, order = 2;
    Element::Type e_type = Element::QUADRILATERAL;
-   Mesh mesh(nx, ny, e_type);
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, e_type);
 
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);

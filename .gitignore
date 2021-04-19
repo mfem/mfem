@@ -44,8 +44,8 @@ doc/warnings.log
 
 # Example and miniapp binaries and outputs
 
-examples/ex[1-9]
-examples/ex[1-9]p
+examples/ex[0-9]
+examples/ex[0-9]p
 examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
@@ -66,6 +66,7 @@ examples/sol_u.*
 examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
+examples/ex6p-checkpoint.*
 examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
@@ -101,6 +102,8 @@ examples/Example23*
 examples/ex25.mesh
 examples/ex25-*.gf
 examples/ex25p-*.*
+examples/ex28_*
+examples/ex28p_*
 
 examples/amgx/ex1
 examples/amgx/ex1p
@@ -237,6 +240,9 @@ miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
+miniapps/shifted/distance
+miniapps/shifted/ParaViewDistance
+
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
@@ -263,6 +269,8 @@ miniapps/toys/life.mesh
 miniapps/toys/lissajous.mesh
 miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
+
+miniapps/solvers/block-solvers
 
 # Unit test binary and outputs
 tests/unit/output_meshes

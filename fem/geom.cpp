@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -945,7 +945,7 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
    int i, j, k, l, m;
 
    Times = std::max(Times, 1);
-   ETimes = std::max(ETimes, 1);
+   ETimes = Geometry::Dimension[Geom] <= 1 ? 0 : std::max(ETimes, 1);
    const double *cp = poly1d.GetPoints(Times, BasisType::GetNodalBasis(type));
 
    RefinedGeometry *RG = FindInRGeom(Geom, Times, ETimes, type);
@@ -1165,24 +1165,31 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
          Array<int> vi((n+1)*(n+1)*(n+1));
          vi = -1;
          m = 0;
-         for (k = 0; k <= n; k++)
-            for (j = 0; j <= k; j++)
-               for (i = 0; i <= j; i++)
+
+         // vertices are given in lexicographic ordering on the reference
+         // element
+         for (int kk = 0; kk <= n; kk++)
+            for (int jj = 0; jj <= n-kk; jj++)
+               for (int ii = 0; ii <= n-jj-kk; ii++)
                {
                   IntegrationPoint &ip = RG->RefPts.IntPoint(m);
-                  // map the coordinates to the reference tetrahedron
-                  // (0,0,0) -> (0,0,0)
-                  // (0,0,1) -> (1,0,0)
-                  // (1,1,1) -> (0,1,0)
-                  // (0,1,1) -> (0,0,1)
-                  double w = cp[k-j] + cp[i] + cp[j-i] + cp[Times-k];
-                  ip.x = cp[k-j]/w;
-                  ip.y = cp[i]/w;
-                  ip.z = cp[j-i]/w;
+                  double w = cp[ii] + cp[jj] + cp[kk] + cp[Times-ii-jj-kk];
+                  ip.x = cp[ii]/w;
+                  ip.y = cp[jj]/w;
+                  ip.z = cp[kk]/w;
+                  // (ii,jj,kk) are coordinates in the reference tetrahedron,
+                  // transform to coordinates (i,j,k) in the auxiliary
+                  // tetrahedron defined by (0,0,0), (0,0,1), (1,1,1), (0,1,1)
+                  int i = jj;
+                  int j = jj+kk;
+                  int k = ii+jj+kk;
                   l = i + (j + k * (n+1)) * (n+1);
+                  // map from linear Cartesian hex index in the auxiliary tet
+                  // to lexicographic in the reference tet
                   vi[l] = m;
                   m++;
                }
+
          if (m != (n+3)*(n+2)*(n+1)/6)
          {
             mfem_error("GeometryRefiner::Refine() for TETRAHEDRON #1");
@@ -1269,18 +1276,9 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
                for (i = 0; i <= n-j; i++, l++)
                {
                   IntegrationPoint &ip = RG->RefPts.IntPoint(l);
-                  if (type == 0)
-                  {
-                     ip.x = double(i) / n;
-                     ip.y = double(j) / n;
-                     ip.z = double(k) / n;
-                  }
-                  else
-                  {
-                     ip.x = cp[i]/(cp[i] + cp[j] + cp[n-i-j]);
-                     ip.y = cp[j]/(cp[i] + cp[j] + cp[n-i-j]);
-                     ip.z = cp[k];
-                  }
+                  ip.x = cp[i]/(cp[i] + cp[j] + cp[n-i-j]);
+                  ip.y = cp[j]/(cp[i] + cp[j] + cp[n-i-j]);
+                  ip.z = cp[k];
                   m++;
                }
          if (m != (n+1)*(n+1)*(n+2)/2)

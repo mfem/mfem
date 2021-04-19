@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -98,25 +98,26 @@ TEST_CASE("direct-serial","[CUDA]")
    const int ne = 2;
    for (dim = 1; dim < 4; ++dim)
    {
-      Mesh* mesh;
+      Mesh mesh;
       if (dim == 1)
       {
-         mesh = new Mesh(ne,  1.0);
+         mesh = Mesh::MakeCartesian1D(ne,  1.0);
       }
       else if (dim == 2)
       {
-         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+         mesh = Mesh::MakeCartesian2D(
+                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       }
       else
       {
-         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                         1.0);
+         mesh = Mesh::MakeCartesian3D(
+                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       }
       int order = 3;
       FiniteElementCollection* fec = new H1_FECollection(order, dim);
-      FiniteElementSpace fespace(mesh, fec);
+      FiniteElementSpace fespace(&mesh, fec);
       Array<int> ess_tdof_list;
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -154,7 +155,6 @@ TEST_CASE("direct-serial","[CUDA]")
       double err = x.ComputeH1Error(&uex,&grad);
       REQUIRE(err < 1.e-12);
       delete fec;
-      delete mesh;
    }
 }
 
@@ -169,23 +169,24 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
    const int ne = 2;
    for (dim = 1; dim < 4; ++dim)
    {
-      Mesh* mesh;
+      Mesh mesh;
       if (dim == 1)
       {
-         mesh = new Mesh(ne,  1.0);
+         mesh = Mesh::MakeCartesian1D(ne,  1.0);
       }
       else if (dim == 2)
       {
-         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+         mesh = Mesh::MakeCartesian2D(
+                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       }
       else
       {
-         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                         1.0);
+         mesh = Mesh::MakeCartesian3D(
+                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       }
 
-      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
       int order = 3;
       FiniteElementCollection* fec = new H1_FECollection(order, dim);
       ParFiniteElementSpace fespace(pmesh, fec);

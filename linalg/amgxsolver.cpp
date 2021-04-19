@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -227,6 +227,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + " }\n" + "}\n";
+      // use a zero initial guess in Mult()
+      iterative_mode = false;
    }
    else if (amgxMode == AMGX_MODE::SOLVER)
    {
@@ -269,6 +271,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + "   } \n" + "} \n";
+      // use the user-specified vector as an initial guess in Mult()
+      iterative_mode = true;
    }
    else
    {
@@ -604,7 +608,7 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
 
    Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
-   const Array<int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
+   const Array<HYPRE_Int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
 
    // Column index must be int64_t so we must promote here
    Array<int64_t> loc_J((int)A_csr->num_nonzeros);
@@ -616,13 +620,19 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    // Assumes one GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-      return SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
+      SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    // Assumes teams of MPI ranks are sharing a GPU
    if (mpi_gpu_mode == "mpi-teams")
    {
-      return SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
+      SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    mfem_error("Unsupported MPI_GPU combination \n");
@@ -882,7 +892,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
    // Set initial guess to zero
    X.UseDevice(true);
-   X = 0.0;
+   if (!iterative_mode) { X = 0.0; }
 
    // Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
@@ -1013,7 +1023,7 @@ void AmgXSolver::Finalize()
 #endif
    }
 
-   // re-set necessary variables in case users want to reuse the variable of
+   // reset necessary variables in case users want to reuse the variable of
    // this instance for a new instance
 #ifdef MFEM_USE_MPI
    gpuProc = MPI_UNDEFINED;
