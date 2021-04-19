@@ -324,7 +324,11 @@ int main(int argc, char *argv[])
       chrono.Clear();
       chrono.Start();
       ParDST::BCType bct = (bc_type == 1)? ParDST::BCType::DIRICHLET : ParDST::BCType::NEUMANN;
-      ParDST S(&a,lengths,omega, &ws,nrlayers,nx,ny,nz, bct);
+      // ParDST S(&a,lengths,omega, &ws,nrlayers,nx,ny,nz, bct);
+
+      ParDST S(&a,lengths, omega, nrlayers,&one, &ws,nullptr,nullptr, nx, ny, nz, bct);
+
+
       // ParDST Slor(&a_lor,lengths,omega, &ws,nrlayers,nx,ny,nz);
       chrono.Stop();
       double t1 = chrono.RealTime();

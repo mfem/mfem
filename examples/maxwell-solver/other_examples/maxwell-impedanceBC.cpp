@@ -29,7 +29,7 @@ int dim;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/beam-hex.mesh";
+   const char *mesh_file = "../../../data/beam-hex.mesh";
    // const char *mesh_file = "../../data/beam-tet.mesh";
    int order = 2;
    int ref_levels = 2;
@@ -224,6 +224,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
    }
    if (prob_kind == 0)
    {
+      MFEM_VERIFY(dim == 3,"This solution is only for 3D problems");
       complex<double> zi = complex<double>(0., 1.);
       double k10 = sqrt(omega * omega - M_PI * M_PI);
       E[1] = -zi * omega / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
