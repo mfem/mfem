@@ -55,9 +55,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 
 # Testing: Specific execution options
 ex1-test-seq: ex1
-	@$(call mfem-test,$<,, Serial example)
+	@$(call mfem-test,$<,, Caliper serial example)
 ex1p-test-par: ex1p
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
+	@$(call mfem-test,$<, $(RUN_MPI), Caliper parallel example)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
