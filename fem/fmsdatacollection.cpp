@@ -31,7 +31,7 @@ FMSDataCollection::FMSDataCollection(const std::string& coll_name,
    : DataCollection(coll_name, mesh),
      fms_protocol("ascii")
 {
-   appendRankToFileName = true; // always include rank in file names
+   appendRankToFileName = false; // always include rank in file names
    cycle = 0;                   // always include cycle in directory names
 }
 
@@ -149,9 +149,17 @@ void FMSDataCollection::SetProtocol(const std::string &protocol)
 
 std::string FMSDataCollection::RootFileName()
 {
-   std::string res = prefix_path + name + "_" +
-                     to_padded_string(cycle, pad_digits_cycle) +
-                     ".fms";
+   std::string res;
+   if (pad_digits_cycle)
+   {
+      res = prefix_path + name + "_" +
+            to_padded_string(cycle, pad_digits_cycle) +
+            ".fms";
+   }
+   else
+   {
+      res = prefix_path + name + ".fms";
+   }
    return res;
 }
 
