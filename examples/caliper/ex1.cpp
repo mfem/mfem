@@ -196,11 +196,11 @@ int main(int argc, char *argv[])
    //     static condensation, etc.
    if (static_cond) { a.EnableStaticCondensation(); }
    a.Assemble();
-   MFEM_PERF_END("Set up the bilinear form");
 
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   MFEM_PERF_END("Set up the bilinear form");
 
    cout << "Size of linear system: " << A->Height() << endl;
 
