@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
    cali::ConfigManager mgr;
    // Caliper instrumentation
    MFEM_PERF_FUNCTION;
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
