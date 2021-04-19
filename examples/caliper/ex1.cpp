@@ -92,7 +92,6 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&cali_config, "-p", "--caliper",
                   "Caliper configuration string.");
-  
 
    args.Parse();
    if (!args.Good())
