@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
    // Define Caliper ConfigManager
    cali::ConfigManager mgr;
-   //Caliper instrumentation
+   // Caliper instrumentation
    MFEM_PERF_FUNCTION;
 
    // 2. Parse command-line options.
