@@ -204,6 +204,18 @@ public:
        in addition to the overloaded operator()(int). */
    inline operator const double *() const { return data; }
 
+   /// STL-like begin.
+   inline double *begin() { return data; }
+
+   /// STL-like end.
+   inline double *end() { return data + size; }
+
+   /// STL-like begin (const version).
+   inline const double *begin() const { return data; }
+
+   /// STL-like end (const version).
+   inline const double *end() const { return data + size; }
+
    /// Return a reference to the Memory object used by the Vector.
    Memory<double> &GetMemory() { return data; }
 
