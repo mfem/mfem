@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -126,6 +126,15 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
    _SetDataAndSize_();
    own_ParVector = 1;
+}
+
+void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
+{
+   if (own_ParVector) { hypre_ParVectorDestroy(x); }
+   Destroy();
+   x = y;
+   _SetDataAndSize_();
+   own_ParVector = owner;
 }
 
 Vector * HypreParVector::GlobalVector() const
@@ -926,6 +935,15 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const
    cmap = A->col_map_offd;
 }
 
+void HypreParMatrix::MergeDiagAndOffd(SparseMatrix &merged)
+{
+   SparseMatrix tmp_wrapper;
+   hypre_CSRMatrix *hypre_merged = hypre_MergeDiagAndOffd(A);
+   MakeWrapper(hypre_merged, tmp_wrapper);
+   merged = tmp_wrapper;
+   hypre_CSRMatrixDestroy(hypre_merged);
+}
+
 void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
                                bool interleaved_rows,
                                bool interleaved_cols) const
@@ -965,6 +983,46 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 
    return new HypreParMatrix(At);
 }
+
+#if MFEM_HYPRE_VERSION >= 21800
+HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
+                                                 double threshhold) const
+{
+   if (!(A->comm))
+   {
+      hypre_MatvecCommPkgCreate(A);
+   }
+
+   hypre_ParCSRMatrix *submat;
+
+   // Get number of rows stored on this processor
+   int local_num_vars = hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A));
+
+   // Form hypre CF-splitting array designating submatrix as F-points (-1)
+   Array<HYPRE_Int> CF_marker(local_num_vars);
+   CF_marker = 1;
+   for (int j=0; j<indices.Size(); j++)
+   {
+      if (indices[j] > local_num_vars)
+      {
+         MFEM_WARNING("WARNING : " << indices[j] << " > " << local_num_vars);
+      }
+      CF_marker[indices[j]] = -1;
+   }
+
+   // Construct cpts_global array on hypre matrix structure
+   HYPRE_BigInt *cpts_global;
+   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+                              CF_marker, NULL, &cpts_global);
+
+   // Extract submatrix into *submat
+   hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
+                                        "FF", &submat, threshhold);
+
+   mfem_hypre_TFree(cpts_global);
+   return new HypreParMatrix(submat);
+}
+#endif
 
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b)
@@ -1366,6 +1424,49 @@ void HypreParMatrix::Threshold(double threshold)
    width = GetNumCols();
 }
 
+void HypreParMatrix::DropSmallEntries(double tol)
+{
+   HYPRE_Int err = 0;
+
+#if MFEM_HYPRE_VERSION < 21400
+
+   double threshold = 0.0;
+   if (tol > 0.0)
+   {
+      HYPRE_Int *diag_I = A->diag->i,    *offd_I = A->offd->i;
+      double    *diag_d = A->diag->data, *offd_d = A->offd->data;
+      HYPRE_Int local_num_rows = A->diag->num_rows;
+      double max_l2_row_norm = 0.0;
+      Vector row;
+      for (HYPRE_Int r = 0; r < local_num_rows; r++)
+      {
+         row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r]);
+         double l2_row_norm = row.Norml2();
+         row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r]);
+         l2_row_norm = std::hypot(l2_row_norm, row.Norml2());
+         max_l2_row_norm = std::max(max_l2_row_norm, l2_row_norm);
+      }
+      double loc_max_l2_row_norm = max_l2_row_norm;
+      MPI_Allreduce(&loc_max_l2_row_norm, &max_l2_row_norm, 1, MPI_DOUBLE,
+                    MPI_MAX, A->comm);
+      threshold = tol * max_l2_row_norm;
+   }
+
+   Threshold(threshold);
+
+#elif MFEM_HYPRE_VERSION < 21800
+
+   err = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+
+#else
+
+   err = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+
+#endif
+
+   MFEM_VERIFY(!err, "error encountered: error code = " << err);
+}
+
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
                                        const HypreParVector &X,
                                        HypreParVector &B)
@@ -1569,6 +1670,36 @@ void HypreParMatrix::Destroy()
    }
 }
 
+#if MFEM_HYPRE_VERSION >= 21800
+
+void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
+                       const Vector *b, HypreParVector *d,
+                       int blocksize, BlockInverseScaleJob job)
+{
+   if (job == BlockInverseScaleJob::MATRIX_ONLY ||
+       job == BlockInverseScaleJob::MATRIX_AND_RHS)
+   {
+      hypre_ParCSRMatrix *C_hypre;
+      hypre_ParcsrBdiagInvScal(*A, blocksize, &C_hypre);
+      hypre_ParCSRMatrixDropSmallEntries(C_hypre, 1e-15, 1);
+      C->WrapHypreParCSRMatrix(C_hypre);
+   }
+
+   if (job == BlockInverseScaleJob::RHS_ONLY ||
+       job == BlockInverseScaleJob::MATRIX_AND_RHS)
+   {
+      HypreParVector b_Hypre(A->GetComm(),
+                             A->GetGlobalNumRows(),
+                             b->GetData(), A->GetRowStarts());
+      hypre_ParVector *d_hypre;
+      hypre_ParvecBdiagInvScal(b_Hypre, blocksize, &d_hypre, *A);
+
+      d->WrapHypreParVector(d_hypre, true);
+   }
+}
+
+#endif
+
 #if MFEM_HYPRE_VERSION < 21400
 
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
@@ -1604,7 +1735,6 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 {
    hypre_ParCSRMatrix *C;
    hypre_ParcsrAdd(alpha, A, beta, B, &C);
-   hypre_MatvecCommPkgCreate(C);
 
    return new HypreParMatrix(C);
 }
@@ -1613,8 +1743,6 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix *C;
    hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
-
-   hypre_MatvecCommPkgCreate(C);
 
    return new HypreParMatrix(C);
 }
@@ -2817,6 +2945,11 @@ void HypreGMRES::SetTol(double tol)
    HYPRE_GMRESSetTol(gmres_solver, tol);
 }
 
+void HypreGMRES::SetAbsTol(double tol)
+{
+   HYPRE_GMRESSetAbsoluteTol(gmres_solver, tol);
+}
+
 void HypreGMRES::SetMaxIter(int max_iter)
 {
    HYPRE_GMRESSetMaxIter(gmres_solver, max_iter);
@@ -3620,6 +3753,116 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
    error_mode = IGNORE_HYPRE_ERRORS;
 }
 
+#if MFEM_HYPRE_VERSION >= 21800
+
+void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
+                                         const std::string &prerelax,
+                                         const std::string &postrelax)
+{
+   // Hypre parameters
+   int Sabs = 0;
+   int interp_type = 100;
+   int relax_type = 10;
+   int coarsen_type = 6;
+   double strength_tolC = 0.1;
+   double strength_tolR = 0.01;
+   double filter_tolR = 0.0;
+   double filterA_tol = 0.0;
+
+   // Set relaxation on specified grid points
+   int ns_down, ns_up, ns_coarse;
+   if (distanceR > 0)
+   {
+      ns_down = prerelax.length();
+      ns_up = postrelax.length();
+      ns_coarse = 1;
+
+      // Array to store relaxation scheme and pass to Hypre
+      HYPRE_Int **grid_relax_points = mfem_hypre_TAlloc(HYPRE_Int*, 4);
+      grid_relax_points[0] = NULL;
+      grid_relax_points[1] = mfem_hypre_TAlloc(HYPRE_Int, ns_down);
+      grid_relax_points[2] = mfem_hypre_TAlloc(HYPRE_Int, ns_up);
+      grid_relax_points[3] = mfem_hypre_TAlloc(HYPRE_Int, 1);
+      grid_relax_points[3][0] = 0;
+
+      // set down relax scheme
+      for (int i = 0; i<ns_down; i++)
+      {
+         if (prerelax[i] == 'F')
+         {
+            grid_relax_points[1][i] = -1;
+         }
+         else if (prerelax[i] == 'C')
+         {
+            grid_relax_points[1][i] = 1;
+         }
+         else if (prerelax[i] == 'A')
+         {
+            grid_relax_points[1][i] = 0;
+         }
+      }
+
+      // set up relax scheme
+      for (int i = 0; i<ns_up; i++)
+      {
+         if (postrelax[i] == 'F')
+         {
+            grid_relax_points[2][i] = -1;
+         }
+         else if (postrelax[i] == 'C')
+         {
+            grid_relax_points[2][i] = 1;
+         }
+         else if (postrelax[i] == 'A')
+         {
+            grid_relax_points[2][i] = 0;
+         }
+      }
+
+      HYPRE_BoomerAMGSetRestriction(amg_precond, distanceR);
+
+      HYPRE_BoomerAMGSetGridRelaxPoints(amg_precond, grid_relax_points);
+
+      HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
+   }
+
+   if (Sabs)
+   {
+      HYPRE_BoomerAMGSetSabs(amg_precond, Sabs);
+   }
+
+   HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
+
+   // does not support aggressive coarsening
+   HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+
+   HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
+
+   if (distanceR > 0)
+   {
+      HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
+      HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filter_tolR);
+   }
+
+   if (relax_type > -1)
+   {
+      HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+   }
+
+   if (distanceR > 0)
+   {
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_coarse, 3);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
+
+      HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
+      // type = -1: drop based on row inf-norm
+      HYPRE_BoomerAMGSetADropType(amg_precond, -1);
+   }
+}
+
+#endif
+
 HypreBoomerAMG::~HypreBoomerAMG()
 {
    for (int i = 0; i < rbms.Size(); i++)
@@ -3668,6 +3911,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int p = 1;
    if (edge_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = edge_fespace->GetFaceOrder(0);
@@ -3675,7 +3919,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       }
       else
       {
-         p = edge_fespace->GetOrder(0);
+         p = edge_fespace->GetElementOrder(0);
       }
    }
 
@@ -3708,7 +3952,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
                                                                    vert_fec);
 
    // generate and set the vertex coordinates
-   if (p == 1)
+   if (p == 1 && pmesh->GetNodes() == NULL)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -3764,7 +4008,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 
    // generate and set the Nedelec interpolation matrices
    Pi = Pix = Piy = Piz = NULL;
-   if (p > 1)
+   if (p > 1 || pmesh->GetNodes() != NULL)
    {
       ParFiniteElementSpace *vert_fespace_d
          = new ParFiniteElementSpace(pmesh, vert_fec, sdim, Ordering::byVDIM);
@@ -3897,13 +4141,14 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int p = 1;
    if (face_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = face_fespace->GetFaceOrder(0) + 1;
       }
       else
       {
-         p = face_fespace->GetOrder(0);
+         p = face_fespace->GetElementOrder(0);
       }
    }
 
@@ -3934,7 +4179,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
                                                                    edge_fec);
 
    // generate and set the vertex coordinates
-   if (p == 1)
+   if (p == 1 && pmesh->GetNodes() == NULL)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -3999,7 +4244,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    // generate and set the Nedelec and Raviart-Thomas interpolation matrices
    RT_Pi = RT_Pix = RT_Piy = RT_Piz = NULL;
    ND_Pi = ND_Pix = ND_Piy = ND_Piz = NULL;
-   if (p > 1)
+   if (p > 1 || pmesh->GetNodes() != NULL)
    {
       ParFiniteElementSpace *vert_fespace_d
          = new ParFiniteElementSpace(pmesh, vert_fec, 3, Ordering::byVDIM);

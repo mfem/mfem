@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -117,10 +117,10 @@ EXAMPLE_SUBDIRS = amgx ginkgo hiop petsc pumi sundials superlu
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint
+MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
-MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys)
+MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys shifted)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -401,7 +401,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/libceed
+DIRS = general linalg linalg/simd mesh fem fem/ceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -567,8 +567,8 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install libCEED q-function headers
-	mkdir -p $(PREFIX_INC)/mfem/fem/libceed
-	$(INSTALL) -m 640 $(SRC)fem/libceed/*.h $(PREFIX_INC)/mfem/fem/libceed
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed
+	$(INSTALL) -m 640 $(SRC)fem/ceed/*.h $(PREFIX_INC)/mfem/fem/ceed
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -685,9 +685,11 @@ status info:
 ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 2.05.1"
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
-FORMAT_FILES += "tests/unit/*.cpp"
-FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
+FORMAT_FILES += tests/unit/*.cpp
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
+FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
+FORMAT_LIST = $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
@@ -725,7 +727,7 @@ style:
 	 fi
 	@err_code=0;\
 	$(call mfem_check_command,\
-	    $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
+	    $(ASTYLE) $(FORMAT_LIST) | grep Formatted,\
 	    "No source files were changed",\
 	    "Please make sure the changes are committed");\
 	echo "Checking for use of std::cout...";\
