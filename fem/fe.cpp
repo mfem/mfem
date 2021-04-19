@@ -11611,11 +11611,10 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cb_type, const int ob_type)
    : VectorTensorFiniteElement(3, 3*p*(p + 1)*(p + 1), p, cb_type, ob_type,
                                H_CURL, DofMapType::L2_DOF_MAP),
-     dof2tk(dof)
+     dof2tk(dof), cp(poly1d.ClosedPoints(p, cb_type))
 {
    dof_map.SetSize(dof);
 
-   const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dof3 = dof/3;
 
@@ -11823,6 +11822,73 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
             }
             Nodes.IntPoint(idx).Set3(cp[i], cp[j], op[k]);
          }
+}
+
+void ND_HexahedronElement::Project_Integrated_ND(const double *tk,
+                                                 const Array<int> &d2t,
+                                                 VectorCoefficient &vc,
+                                                 ElementTransformation &Trans,
+                                                 Vector &dofs) const
+{
+   MFEM_VERIFY(obasis1d.IsIntegratedType(), "Not integrated type");
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, vc.GetVDim());
+
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, order);
+   const int nqpt = ir.GetNPoints();
+
+   IntegrationPoint ip3d;
+
+   int o = 0;
+   for (int c = 0; c < 3; ++c)  // loop over x, y, z components
+   {
+      const int im = c == 0 ? order - 1 : order;
+      const int jm = c == 1 ? order - 1 : order;
+      const int km = c == 2 ? order - 1 : order;
+
+      for (int k = 0; k <= km; k++)
+         for (int j = 0; j <= jm; j++)
+            for (int i = 0; i <= im; i++)
+            {
+               int idx;
+               if ((idx = dof_map[o++]) < 0)
+               {
+                  idx = -1 - idx;
+               }
+
+               const int id1 = c == 0 ? i : (c == 1 ? j : k);
+               const double h = cp[id1+1] - cp[id1];
+
+               double val = 0.0;
+
+               for (int q = 0; q < nqpt; q++)
+               {
+                  const IntegrationPoint &ip1d = ir.IntPoint(q);
+
+                  if (c == 0)
+                  {
+                     ip3d.Set3(cp[i] + (h*ip1d.x), cp[j], cp[k]);
+                  }
+                  else if (c == 1)
+                  {
+                     ip3d.Set3(cp[i], cp[j] + (h*ip1d.x), cp[k]);
+                  }
+                  else
+                  {
+                     ip3d.Set3(cp[i], cp[j], cp[k] + (h*ip1d.x));
+                  }
+
+                  Trans.SetIntPoint(&ip3d);
+                  vc.Eval(xk, Trans, ip3d);
+
+                  // xk^t J tk
+                  const double ipval = Trans.Jacobian().InnerProduct(tk + d2t[idx]*dim, vk);
+                  val += ip1d.weight * ipval;
+               }
+
+               dofs(idx) = val*h;
+            }
+   }
 }
 
 void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
@@ -12189,12 +12255,10 @@ void ND_QuadrilateralElement::Project_Integrated_ND(const double *tk,
 
    IntegrationPoint ip2d;
 
-   const int p = order;
-
    int o = 0;
    // x-components
-   for (int j = 0; j <= p; j++)
-      for (int i = 0; i < p; i++)
+   for (int j = 0; j <= order; j++)
+      for (int i = 0; i < order; i++)
       {
          int idx;
          if ((idx = dof_map[o++]) < 0)
@@ -12223,8 +12287,8 @@ void ND_QuadrilateralElement::Project_Integrated_ND(const double *tk,
          dofs(idx) = val*h;
       }
    // y-components
-   for (int j = 0; j < p; j++)
-      for (int i = 0; i <= p; i++)
+   for (int j = 0; j < order; j++)
+      for (int i = 0; i <= order; i++)
       {
          int idx;
          if ((idx = dof_map[o++]) < 0)
