@@ -17,14 +17,19 @@ using namespace mfem;
 #ifdef MFEM_USE_FMS
 TEST_CASE("Load FMS datacollection", "[FMS]")
 {
-   FMSDataCollection fms_dc("../../data/star-q3.fms");
+   FMSDataCollection fms_dc("../../data/star-q3");
+   fms_dc.SetPadDigits(0);
+   fms_dc.SetPadDigitsCycle(0);
+   fms_dc.Load();
 }
 
 TEST_CASE("Compare FMS mesh from file")
 {
    auto mfem_mesh = new Mesh("../../data/star-q3.mesh");
 
-   FMSDataCollection fms_dc("../../data/fms_test_dc");
+   FMSDataCollection fms_dc("../../data/star-q3");
+   fms_dc.SetPadDigits(0);
+   fms_dc.SetPadDigitsCycle(0);
    fms_dc.Load();
    auto fms_mesh = fms_dc.GetMesh();
 
