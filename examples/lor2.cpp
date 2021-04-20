@@ -139,6 +139,7 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    int order = 3;
    const char *fe = "n";
+   bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -146,6 +147,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&exact_sol, "-p", "--problem", "Exact solution.");
    args.AddOption(&fe, "-fe", "--fe-type", "FE type. n for Hcurl, r for Hdiv");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    bool ND;
@@ -198,8 +202,29 @@ int main(int argc, char *argv[])
    cg.Mult(B, X);
    a.RecoverFEMSolution(X, b, x);
 
-   double er = x.ComputeL2Error(exact_coeff);
-   std::cout << "L^2 error: " << er << '\n';
+   double err = x.ComputeL2Error(exact_coeff);
+   std::cout << "L^2 error: " << err << '\n';
+
+   // Save the refined mesh and the solution. This output can be viewed
+   // later using GLVis: "glvis -m refined.mesh -g sol.gf".
+   {
+      ofstream mesh_ofs("refined.mesh");
+      mesh_ofs.precision(8);
+      mesh.Print(mesh_ofs);
+      ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
+   }
+
+   // Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << flush;
+   }
 
    ParaViewDataCollection dc("LOR", &mesh);
    dc.SetPrefixPath("ParaView");
