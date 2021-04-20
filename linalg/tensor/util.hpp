@@ -20,18 +20,21 @@ static constexpr int Error = -1;
 
 /// Getter for the N-th dimension value
 template <int N, int... Dims>
-struct Dim;
+struct get_value_v;
 
 template <int Dim0, int... Dims>
-struct Dim<0, Dim0, Dims...>
+struct get_value_v<0, Dim0, Dims...>
 {
-   static constexpr int val = Dim0;
+   static constexpr int value = Dim0;
 };
 template <int N, int Dim0, int... Dims>
-struct Dim<N, Dim0, Dims...>
+struct get_value_v<N, Dim0, Dims...>
 {
-   static constexpr int val = Dim<N-1,Dims...>::val;
+   static constexpr int value = get_value_v<N-1,Dims...>::value;
 };
+
+template <int N, int... Dims>
+constexpr int get_value = get_value_v<N,Dims...>::value;
 
 /// Compute the product of a list of values
 template <typename T>

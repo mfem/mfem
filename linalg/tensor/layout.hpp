@@ -155,7 +155,7 @@ public:
    constexpr int Size() const
    {
       static_assert(N>=0 && N<sizeof...(Sizes),"Accessed size is higher than the rank of the Tensor.");
-      return Dim<N,Sizes...>::val;
+      return get_value<N,Sizes...>;
    }
 
 private:
@@ -166,7 +166,7 @@ private:
       template <typename... Idx>
       static inline int eval(int first, Idx... args)
       {
-         return first + Dim<Cpt-1,Dims...>::val * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
+         return first + get_value<Cpt-1,Dims...> * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
       }
    };
 
@@ -248,7 +248,7 @@ public:
    constexpr int Size() const
    {
       static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
-      return Dim<N,DimX,DimY>::val;
+      return get_value<N,DimX,DimY>;
    }
 };
 
@@ -280,7 +280,7 @@ public:
    constexpr int Size() const
    {
       static_assert(N>=0 && N<rank(DimX,DimY,Dims...),"Accessed size is higher than the rank of the Tensor.");
-      return Dim<N,DimX,DimY,Dims...>::val;
+      return get_value<N,DimX,DimY,Dims...>;
    }
 };
 
@@ -825,21 +825,21 @@ struct get_layout_size;
 template <int N, int... Dims>
 struct get_layout_size<N, StaticLayout<Dims...>>
 {
-   static constexpr int value = Dim<N, Dims...>::val;
+   static constexpr int value = get_value<N, Dims...>;
+};
+
 };
 
 template <int N, int BatchSize, int... Dims>
 struct get_layout_size<N, BlockLayout<BatchSize, Dims...>>
 {
-   static constexpr int value = Dim<N, Dims...>::val;
+   static constexpr int value = get_value<N, Dims...>;
 };
 
 template <int N, int I, typename Layout>
 struct get_layout_size<N,RestrictedLayout<I,Layout>>
 {
-   static constexpr int value = N<I?
-      get_layout_size<N,Layout>::value :
-      get_layout_size<N+1,Layout>::value;
+   static constexpr int value = get_layout_size<N+(N>=I),Layout>::value;
 };
 
 // get_layout_batch_size
