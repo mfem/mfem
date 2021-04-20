@@ -21,8 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-BLOCK_COMMON_SRC = div_free_solver.cpp
-BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
+BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
+BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
 SER_MINIAPPS = lor
 PAR_MINIAPPS = block-solvers plor
@@ -37,12 +37,17 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
+all: $(MINIAPPS)
+
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp $(BLOCK_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(BLOCK_COMMON_OBJ) $(MFEM_LIBS)
+%: $(SRC)%.cpp
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
+
+block-solvers: $(BLOCK_SOLVERS_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
