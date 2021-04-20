@@ -65,7 +65,7 @@ struct Vel : VectorCoefficient
       double x = xyz[0]; double y = xyz[1]; double z = xyz[2];
       (void)z; // Get rid of warning
       v[2] = 0.0;
-      switch(f)
+      switch (f)
       {
          case Fn::CONST_XYZ: v[0] = 1.0; v[1] = 1.0; v[2] = 1.0; break;
          case Fn::CONST_Y: v[0] = 0.0; v[1] = 1.0; break;

@@ -21,9 +21,33 @@ void E_exact(const Vector &xvec, Vector &E)
    }
    else if (exact_sol == 1)
    {
-      E(0) = x * y * (1.0-y) * z * (1.0-z);
-      E(1) = x * y * (1.0-x) * z * (1.0-z);
-      E(2) = x * z * (1.0-x) * y * (1.0-y);
+      if (dim == 3)
+      {
+         E(0) = x * y * (1.0-y) * z * (1.0-z);
+         E(1) = x * y * (1.0-x) * z * (1.0-z);
+         E(2) = x * z * (1.0-x) * y * (1.0-y);
+      }
+      else
+      {
+         E(0) = y * (1.0-y);
+         E(1) = x * (1.0-x);
+      }
+   }
+   else if (exact_sol == 2)
+   {
+      E[0] = cos(2*pi*x)*cos(4*pi*y);
+      E[1] = cos(4*pi*x)*cos(2*pi*y);
+   }
+   else if (exact_sol == 3)
+   {
+      constexpr double kappa = 2.0 * pi;
+
+      if (dim == 3)
+      {
+         E(0) = sin(kappa * y);
+         E(1) = sin(kappa * z);
+         E(2) = sin(kappa * x);
+      }
    }
    else
    {
@@ -56,13 +80,39 @@ void f_exact(const Vector &xvec, Vector &f)
    }
    else if (exact_sol == 1)
    {
-      f(0) = x * y * (1.0-y) * z * (1.0-z);
-      f(1) = x * y * (1.0-x) * z * (1.0-z);
-      f(2) = x * z * (1.0-x) * y * (1.0-y);
+      if (dim == 3)
+      {
+         f(0) = x * y * (1.0-y) * z * (1.0-z);
+         f(1) = x * y * (1.0-x) * z * (1.0-z);
+         f(2) = x * z * (1.0-x) * y * (1.0-y);
 
-      f(0) += y * (1.0-y) + z * (1.0-z);
-      f(1) += x * (1.0-x) + z * (1.0-z);
-      f(2) += x * (1.0-x) + y * (1.0-y);
+         f(0) += y * (1.0-y) + z * (1.0-z);
+         f(1) += x * (1.0-x) + z * (1.0-z);
+         f(2) += x * (1.0-x) + y * (1.0-y);
+      }
+      else
+      {
+         f(0) = y * (1.0-y);
+         f(1) = x * (1.0-x);
+
+         f(0) += 2.0;
+         f(1) += 2.0;
+      }
+   }
+   else if (exact_sol == 2)
+   {
+      f[0] = 8*pi2*sin(4*pi*x)*sin(2*pi*y) + (1 + 16*pi2)*cos(2*pi*x)*cos(4*pi*y);
+      f[1] = 8*pi2*sin(2*pi*x)*sin(4*pi*y) + (1 + 16*pi2)*cos(4*pi*x)*cos(2*pi*y);
+   }
+   else if (exact_sol == 3)
+   {
+      constexpr double kappa = 2.0 * pi;
+      if (dim == 3)
+      {
+         f(0) = (1. + kappa * kappa) * sin(kappa * y);
+         f(1) = (1. + kappa * kappa) * sin(kappa * z);
+         f(2) = (1. + kappa * kappa) * sin(kappa * x);
+      }
    }
    else
    {
@@ -85,6 +135,8 @@ void f_exact(const Vector &xvec, Vector &f)
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
+   const int myid = mpi.WorldRank();
+   const int num_procs = mpi.WorldSize();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -92,6 +144,7 @@ int main(int argc, char *argv[])
    int order = 3;
    const char *fe = "n";
    bool hybridization = false;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -101,6 +154,9 @@ int main(int argc, char *argv[])
    args.AddOption(&fe, "-fe", "--fe-type", "FE type. n for Hcurl, r for Hdiv");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -147,7 +203,8 @@ int main(int argc, char *argv[])
    b.Assemble();
 
    GridFunction x(&fes);
-   x = 0.0;
+   VectorFunctionCoefficient exact_coeff(dim, E_exact);
+   x.ProjectCoefficient(exact_coeff);
 
    Vector X, B;
    OperatorHandle A;
@@ -182,9 +239,35 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X, b, x);
 
-   VectorFunctionCoefficient exact_coeff(dim, E_exact);
-   double er = x.ComputeL2Error(exact_coeff);
-   std::cout << "L^2 error: " << er << '\n';
+   double err = x.ComputeL2Error(exact_coeff);
+   std::cout << "L^2 error: " << err << '\n';
+
+   // Save the refined mesh and the solution in parallel. This output can
+   // be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   {
+      ostringstream mesh_name, sol_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      mesh.Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
+   }
+
+   // Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << flush;
+   }
 
    ParaViewDataCollection dc("LOR", &mesh);
    dc.SetPrefixPath("ParaView");
