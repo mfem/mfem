@@ -288,15 +288,31 @@ int main(int argc, char *argv[])
          cout << "done." << endl;
          cout << "Size of linear system: " << A.M() << endl;
       }
+      PetscPCGSolver *pcg = new PetscPCGSolver(A);
+
       // The preconditioner for the PCG solver defined below is specified in the
       // PETSc config file, rc_ex2p, since a Krylov solver in PETSc can also
       // customize its preconditioner.
-      PetscPCGSolver *pcg = new PetscPCGSolver(A);
+      PetscPreconditioner *prec = NULL;
+      if (use_nonoverlapping)
+      {
+         // Auxiliary class for BDDC customization
+         PetscBDDCSolverParams opts;
+         // Inform the solver about the finite element space
+         opts.SetSpace(fespace);
+         // Inform the solver about essential dofs
+         opts.SetEssBdrDofs(&ess_tdof_list);
+         // Create a BDDC solver with parameters
+         prec = new PetscBDDCSolver(A,opts);
+         pcg->SetPreconditioner(*prec);
+      }
+
       pcg->SetMaxIter(500);
       pcg->SetTol(1e-8);
       pcg->SetPrintLevel(2);
       pcg->Mult(B, X);
       delete pcg;
+      delete prec;
    }
 
    // 14. Recover the parallel grid function corresponding to X. This is the
