@@ -64,8 +64,14 @@ void* HipMemAlloc(void **d_ptr, size_t bytes);
 /// Allocates managed device memory
 void* HipMallocManaged(void **d_ptr, size_t bytes);
 
+/// Allocates page-locked (pinned) host memory
+void* HipMemAllocHostPinned(void **ptr, size_t bytes);
+
 /// Frees device memory
 void* HipMemFree(void *d_ptr);
+
+/// Frees page-locked (pinned) host memory and returns destination ptr.
+void* HipMemFreeHostPinned(void *ptr);
 
 /// Copies memory from Host to Device
 void* HipMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
