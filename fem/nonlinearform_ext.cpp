@@ -131,6 +131,7 @@ void PANonlinearFormExtension::Gradient::Update()
    height = width = ext.Height();
 }
 
+
 MFNonlinearFormExtension::MFNonlinearFormExtension(const NonlinearForm *form):
    NonlinearFormExtension(form), fes(*form->FESpace())
 {
