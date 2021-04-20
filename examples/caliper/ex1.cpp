@@ -1,4 +1,5 @@
 //                                MFEM Example 1
+//                             Caliper Modification
 //
 // Compile with: make ex1
 //
@@ -40,17 +41,17 @@
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
-// Description: This example is a copy of ex1 instrumented with Caliper.   
-// Any option supported by the Caliper ConfigManager can be passed to the 
-// code using a configuration string after -p or --caliper flag. For more 
-// information, the users are referred to the Caliper documentation. 
-// Examples:
-// 		ex1 --caliper runtime-report 
-// 		ex1 --caliper runtime-report,mem.highwatermark
+// Description: This example is a copy of Example 1 instrumented with the
+//              Caliper performance profilinh library. Any option supported by
+//              the Caliper ConfigManager can be passed to the code using a
+//              configuration string after -p or --caliper flag. For more
+//              information, see the Caliper documentation.
 //
-//The first run will return the default report and the second run will
-//return in addition to the default output the memory high-water mark.
+// Examples: ex1 --caliper runtime-report
+//           ex1 --caliper runtime-report,mem.highwatermark
 //
+// The first run will return the default report. The second run will also output
+// the memory high-water mark and time spent in MPI routines.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -61,7 +62,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // Define Caliper ConfigManager	
+   // Define Caliper ConfigManager
    cali::ConfigManager mgr;
    // Caliper instrumentation
    MFEM_PERF_FUNCTION;
@@ -105,7 +106,7 @@ int main(int argc, char *argv[])
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
-   
+
    // Caliper configuration
    mgr.add(cali_config);
    mgr.start();
