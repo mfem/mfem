@@ -157,13 +157,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    bool ND = false;
    if (string(fe) == "n") { ND = true; }
@@ -240,7 +234,7 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    double err = x.ComputeL2Error(exact_coeff);
-   std::cout << "L^2 error: " << err << '\n';
+   if (mpi.Root()) { std::cout << "L^2 error: " << err << '\n'; }
 
    // Save the refined mesh and the solution in parallel. This output can
    // be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".

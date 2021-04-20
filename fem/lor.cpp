@@ -74,19 +74,10 @@ int LORBase::GetLOROrder() const
    return (type == L2 || type == RT) ? 0 : 1;
 }
 
-void LORBase::ConstructDofPermutation() const
+void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 {
    FESpaceType type = GetFESpaceType();
-
-   if (type == H1)
-   {
-      // H1: no permutation necessary, return identity
-      perm.SetSize(fes->GetVSize());
-      for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
-      return;
-   }
-
-   FiniteElementSpace &fes_lor = *fes;
+   MFEM_VERIFY(type != H1 && type != L2, "");
 
    auto get_dof_map = [](FiniteElementSpace &fes, int i)
    {
@@ -96,13 +87,14 @@ void LORBase::ConstructDofPermutation() const
       return tfe->GetDofMap();
    };
 
-   // TODO: PARALLEL?
-   perm.SetSize(fes_lor.GetVSize());
-   Array<int> vdof_ho, vdof_lor;
-
+   FiniteElementSpace &fes_lor = *fes;
    Mesh &mesh_lor = *fes_lor.GetMesh();
    int dim = mesh_lor.Dimension();
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
+
+   perm_.SetSize(fes_lor.GetVSize());
+
+   Array<int> vdof_ho, vdof_lor;
    for (int ilor=0; ilor<mesh_lor.GetNE(); ++ilor)
    {
       int iho = cf_tr.embeddings[ilor].parent;
@@ -113,7 +105,7 @@ void LORBase::ConstructDofPermutation() const
 
       if (type == L2)
       {
-         perm[vdof_lor[0]] = vdof_ho[lor_index];
+         perm_[vdof_lor[0]] = vdof_ho[lor_index];
          continue;
       }
 
@@ -146,7 +138,7 @@ void LORBase::ConstructDofPermutation() const
                int s4 = idof_ho < 0 ? -1 : 1;
                int s = s1*s2*s3*s4;
                i = absdof(idof_ho);
-               perm[absdof(idof_lor)] = s < 0 ? -1-absdof(i) : absdof(i);
+               perm_[absdof(idof_lor)] = s < 0 ? -1-absdof(i) : absdof(i);
             }
          }
       };
@@ -186,6 +178,43 @@ void LORBase::ConstructDofPermutation() const
    }
 }
 
+void LORBase::ConstructDofPermutation() const
+{
+   FESpaceType type = GetFESpaceType();
+   if (type == H1 || type == L2)
+   {
+      // H1 and L2: no permutation necessary, return identity
+      perm.SetSize(fes->GetTrueVSize());
+      for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
+      return;
+   }
+
+   ParFiniteElementSpace *pfes_ho
+      = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
+   ParFiniteElementSpace *pfes_lor = dynamic_cast<ParFiniteElementSpace*>(fes);
+   if (pfes_ho && pfes_lor)
+   {
+      Array<int> l_perm;
+      ConstructLocalDofPermutation(l_perm);
+      perm.SetSize(pfes_lor->GetTrueVSize());
+      for (int i=0; i<l_perm.Size(); ++i)
+      {
+         int j = l_perm[i];
+         int s = j < 0 ? -1 : 1;
+         int t_i = pfes_lor->GetLocalTDofNumber(i);
+         int t_j = pfes_ho->GetLocalTDofNumber(absdof(j));
+         // Either t_i and t_j both -1, or both non-negative
+         MFEM_ASSERT(t_i*t_j >= 0, "");
+         if (t_i < 0) { continue; }
+         perm[t_i] = s < 0 ? -1 - t_j : t_j;
+      }
+   }
+   else
+   {
+      ConstructLocalDofPermutation(perm);
+   }
+}
+
 const Array<int> &LORBase::GetDofPermutation() const
 {
    if (perm.Size() == 0) { ConstructDofPermutation(); }
@@ -194,7 +223,10 @@ const Array<int> &LORBase::GetDofPermutation() const
 
 bool LORBase::RequiresDofPermutation() const
 {
-   return (GetFESpaceType() == H1) ? false : true;
+   // TODO: check if there are cases where L2 requires permutation, or can
+   // return false in L2 case too.
+   FESpaceType type = GetFESpaceType();
+   return (type == H1 || type == L2) ? false : true;
 }
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
