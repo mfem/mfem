@@ -507,6 +507,14 @@ MFEM_USE_MKL_CPARDISO = YES/NO
    MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
    OpenMP capabilities are disabled at link time.
 
+MFEM_USE_CALIPER = YES/NO
+   Enables the interface to Caliper. Caliper is a library to integrate
+   performance profiling capabilities into applications. To use Caliper,
+   developers mark code regions of interest using either Caliper's annotation
+   API or their equivalent in MFEM. Applications can then enable performance
+   profiling at runtime with Caliper's configuration API. Alternatively, one
+   can configure Caliper through environment variables or config files.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -715,6 +723,11 @@ The specific libraries and their options are:
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
   Versions: RAJA >= 0.13.0.
 
+- Caliper (optional), used when MFEM_USE_CALIPER = YES.
+  URL: https://github.com/LLNL/Caliper
+  Options: CALIPER_DIR
+  Versions: CALIPER >= 2.5.0, older versions may work too.
+
 - Umpire, used when MFEM_USE_UMPIRE = YES.
   Umpire requires camp when the Umpire version is >= 3.0.0.
   URL: https://github.com/LLNL/Umpire
@@ -866,6 +879,7 @@ MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
+MFEM_USE_CALIPER
 
 The following options are CMake specific:
 
@@ -919,6 +933,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - RAJA
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
+ - CALIPER
 
 The following built-in CMake packages are also used:
 

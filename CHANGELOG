@@ -30,6 +30,9 @@ Version 4.2.1 (development)
     MemoryManager::SetUmpireDevice2AllocatorName.
   * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
 
+- Added support for Caliper: a library to integrate performance profiling
+  capabilities into applications. See examples/caliper for more details.
+
 - Added support for explicit vectorization in the high-performance templated
   code for Fujitsu's A64FX ARM microprocessor architecture.
 
