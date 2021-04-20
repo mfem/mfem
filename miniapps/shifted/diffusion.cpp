@@ -22,10 +22,8 @@
 //     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
 //
 #include "mfem.hpp"
-#include <fstream>
-#include <iostream>
-#include "sbm-aux.hpp"
 #include "../common/mfem-common.hpp"
+#include "sbm-aux.hpp"
 #include "sbm_solver.hpp"
 #include "marking.hpp"
 #include "dist_solver.hpp"
@@ -122,19 +120,16 @@ int main(int argc, char *argv[])
         << pfespace.GetTrueVSize() << endl;
 
    // Define the solution vector x as a finite element grid function
-   // corresponding to fespace. Initialize x with initial guess of zero,
-   // which satisfies the boundary conditions.
+   // corresponding to pfespace.
    ParGridFunction x(&pfespace);
    // ParGridFunction for level_set_value.
    ParGridFunction level_set_val(&pfespace);
 
    // Determine if each element in the ParMesh is inside the actual domain,
-   // partially cut by the actual domain boundary, or completely outside
-   // the domain.
+   // partially cut by its boundary, or completely outside the domain.
    Dist_Level_Set_Coefficient dist_fun_level_coef(level_set_type);
    level_set_val.ProjectCoefficient(dist_fun_level_coef);
    level_set_val.ExchangeFaceNbrData();
-
    ShiftedFaceMarker marker(pmesh, level_set_val, pfespace, include_cut_cell);
    Array<int> elem_marker;
    marker.MarkElements(elem_marker);
@@ -160,7 +155,7 @@ int main(int argc, char *argv[])
    Array<int> sbm_dofs; // Array of dofs on SBM faces
    marker.ListShiftedFaceDofs(elem_marker, sbm_dofs);
 
-   // Now we add interior faces that are on processor boundaries.
+   // Visualize the shifted boundary face dofs.
    if (visualization)
    {
       ParGridFunction face_dofs(&pfespace);
@@ -176,20 +171,19 @@ int main(int argc, char *argv[])
                              "Shifted Face Dofs", 0, s, s, s, "Rjmp");
    }
 
-   // Make a list of inactive tdofs that will be eleminated from the system.
+   // Make a list of inactive tdofs that will be eliminated from the system.
    Array<int> ess_tdof_list;
    Array<int> ess_shift_bdr;
    marker.ListEssentialTDofs(elem_marker, sbm_dofs, ess_tdof_list,
                              ess_shift_bdr);
 
-   // Compute Distance Vector - Use analytic distance vectors for now.
-   auto distance_vec_space = new ParFiniteElementSpace(pfespace.GetParMesh(),
-                                                       pfespace.FEColl(), dim);
-   ParGridFunction distance(distance_vec_space);
-
+   // Compute distance vector to the actual boundary.
+   ParFiniteElementSpace distance_vec_space(&pmesh, &fec, dim);
+   ParGridFunction distance(&distance_vec_space);
    VectorCoefficient *dist_vec = NULL;
    if (level_set_type == 4)
    {
+      // Discrete distance vector.
       double dx = AvgElementSize(pmesh);
       ParGridFunction filt_gf(&pfespace);
       PDEFilter *filter = new PDEFilter(pmesh, 2.0 * dx);
@@ -214,10 +208,12 @@ int main(int argc, char *argv[])
    }
    else
    {
+      // Analytic distance vector.
       dist_vec = new Dist_Vector_Coefficient(dim, level_set_type);
       distance.ProjectDiscCoefficient(*dist_vec);
    }
 
+   // Visualize the distance vector.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -271,10 +267,7 @@ int main(int argc, char *argv[])
    {
       rhs_f = new FunctionCoefficient(rhs_fun_xy_sinusoidal);
    }
-   else
-   {
-      MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
-   }
+   else { MFEM_ABORT("RHS function not set for level set type.\n"); }
    b.AddDomainIntegrator(new DomainLFIntegrator(*rhs_f), ess_elem);
 
    // Dirichlet BC that must be imposed on the true boundary.
@@ -312,7 +305,6 @@ int main(int argc, char *argv[])
    // domain integrator and SBM integrator.
    ParBilinearForm a(&pfespace);
    ConstantCoefficient one(1.);
-
    a.AddDomainIntegrator(new DiffusionIntegrator(one), ess_elem);
    a.AddInteriorFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha,
                                                            *dist_vec,
@@ -329,7 +321,7 @@ int main(int argc, char *argv[])
    a.KeepNbrBlock();
    a.Assemble();
 
-   // Project the exact solution as an initial condition for dirichlet boundaries.
+   // Project the exact solution as an initial condition for Dirichlet boundary.
    x.ProjectCoefficient(*dbcCoef);
 
    // Form the linear system and solve it.
@@ -373,42 +365,41 @@ int main(int argc, char *argv[])
    }
 
    // Construct an error gridfunction if the exact solution is known.
-   ParGridFunction err(x);
-   Vector pxyz(dim);
-   pxyz(0) = 0.;
-   for (int i = 0; i < nodes_cnt; i++)
+   if (level_set_type == 2 || level_set_type == 3)
    {
-      pxyz(0) = vxyz(i);;
-      pxyz(1) = vxyz(i+nodes_cnt);
-      double exact_val = 0.;
-      if (level_set_type == 1)
+      ParGridFunction err(x);
+      Vector pxyz(dim);
+      pxyz(0) = 0.;
+      for (int i = 0; i < nodes_cnt; i++)
       {
-         exact_val = dirichlet_velocity_circle(pxyz);
+         pxyz(0) = vxyz(i);
+         pxyz(1) = vxyz(i+nodes_cnt);
+         double exact_val = 0.;
+         if (level_set_type == 2)
+         {
+            exact_val = dirichlet_velocity_xy_exponent(pxyz);
+         }
+         else if (level_set_type == 3)
+         {
+            exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
+         }
+         err(i) = std::fabs(x(i) - exact_val);
       }
-      else if (level_set_type == 2)
-      {
-         exact_val = dirichlet_velocity_xy_exponent(pxyz);
-      }
-      else if (level_set_type == 3)
-      {
-         exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
-      }
-      err(i) = std::fabs(x(i) - exact_val);
-   }
 
-   if (visualization && (level_set_type == 2 || level_set_type == 3))
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
-      socketstream sol_sock;
-      common::VisualizeField(sol_sock, vishost, visport, err,
-                             "Error", 2*s, 0, s, s, "Rj");
-   }
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916, s = 350;
+         socketstream sol_sock;
+         common::VisualizeField(sol_sock, vishost, visport, err,
+                                "Error", 2*s, 0, s, s, "Rj");
+      }
 
-   double global_error = x.ComputeL2Error(*dbcCoef);
-   if (myid == 0 && (level_set_type == 2 || level_set_type == 3))
-   {
-      std::cout << " Global error - L2 norm: " << global_error << endl;
+      const double global_error = x.ComputeL2Error(*dbcCoef);
+      if (myid == 0)
+      {
+         std::cout << " Global error - L2 norm: " << global_error << endl;
+      }
    }
 
    // Free the used memory.
@@ -417,7 +408,6 @@ int main(int argc, char *argv[])
    delete dbcCoef;
    delete rhs_f;
    delete dist_vec;
-   delete distance_vec_space;
 
    MPI_Finalize();
 
