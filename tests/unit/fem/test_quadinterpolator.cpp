@@ -10,34 +10,37 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
-static bool testQuadratureInterpolator(const int dim, const int nx,
+static bool testQuadratureInterpolator(const int dim,
+                                       const int p,
+                                       const int q,
                                        const QVectorLayout q_layout,
-                                       const int mesh_order,
-                                       const int quadrature_order)
+                                       const int nx, const int ny, const int nz)
 {
    const int vdim = dim;
    const int seed = 0x100001b3;
    const int ordering = Ordering::byNODES;
 
    REQUIRE((dim == 2 || dim == 3));
-   Mesh *mesh = dim == 2 ? new Mesh(nx,nx, Element::QUADRILATERAL):
-                dim == 3 ? new Mesh(nx,nx,nx, Element::HEXAHEDRON): nullptr;
-   mesh->SetCurvature(mesh_order, false, dim, ordering);
+   Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(nx, Element::SEGMENT) :
+               dim == 2 ? Mesh::MakeCartesian2D(nx,ny, Element::QUADRILATERAL):
+               Mesh::MakeCartesian3D(nx,nx,nz, Element::HEXAHEDRON);
 
-   const H1_FECollection fec(mesh_order, dim);
-   FiniteElementSpace sfes(mesh, &fec, 1, ordering);
-   FiniteElementSpace vfes(mesh, &fec, vdim, ordering);
+   mesh.SetCurvature(p, false, dim, ordering);
+
+   const H1_FECollection fec(p, dim);
+   FiniteElementSpace sfes(&mesh, &fec, 1, ordering);
+   FiniteElementSpace vfes(&mesh, &fec, vdim, ordering);
 
    GridFunction x(&sfes);
    x.Randomize(seed);
 
    GridFunction nodes(&vfes);
-   mesh->SetNodalFESpace(&vfes);
-   mesh->SetNodalGridFunction(&nodes);
+   mesh.SetNodalFESpace(&vfes);
+   mesh.SetNodalGridFunction(&nodes);
    {
       Array<int> dofs, vdofs;
       GridFunction rdm(&vfes);
@@ -45,10 +48,10 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
       rdm.Randomize(seed);
       rdm -= 0.5;
       h0 = infinity();
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
          vfes.GetElementDofs(i, dofs);
-         const double hi = mesh->GetElementSize(i);
+         const double hi = mesh.GetElementSize(i);
          for (int j = 0; j < dofs.Size(); j++)
          {
             h0(dofs[j]) = std::min(h0(dofs[j]), hi);
@@ -69,12 +72,12 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
       nodes -= rdm;
    }
 
-   const Geometry::Type GeomType = mesh->GetElementBaseGeometry(0);
-   const IntegrationRule &ir(IntRules.Get(GeomType, quadrature_order));
+   const Geometry::Type GeomType = mesh.GetElementBaseGeometry(0);
+   const IntegrationRule &ir = IntRules.Get(GeomType, q);
    const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
 
-   const int NE(mesh->GetNE());
+   const int NE(mesh.GetNE());
    const int NQ(ir.GetNPoints());
    const int ND(sfes.GetFE(0)->GetDof());
    REQUIRE(ND == vfes.GetFE(0)->GetDof());
@@ -128,9 +131,9 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
          sqi->PhysDerivatives(xe, sq_pdr_t);
          pdr[1] = sq_pdr_t*sq_pdr_t;
       }
-      REQUIRE(val[0] == Approx(val[1]));
-      REQUIRE(der[0] == Approx(der[1]));
-      REQUIRE(pdr[0] == Approx(pdr[1]));
+      REQUIRE(val[0] == MFEM_Approx(val[1]));
+      REQUIRE(der[0] == MFEM_Approx(der[1]));
+      REQUIRE(pdr[0] == MFEM_Approx(pdr[1]));
    }
 
    {
@@ -179,35 +182,23 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
          vqi->PhysDerivatives(ne, vq_pdr_t);
          pdr[1] = vq_pdr_t*vq_pdr_t;
       }
-      REQUIRE(val[0] == Approx(val[1]));
-      REQUIRE(der[0] == Approx(der[1]));
-      REQUIRE(det[0] == Approx(det[1]));
-      REQUIRE(pdr[0] == Approx(pdr[1]));
+      REQUIRE(val[0] == MFEM_Approx(val[1]));
+      REQUIRE(der[0] == MFEM_Approx(der[1]));
+      REQUIRE(det[0] == MFEM_Approx(det[1]));
+      REQUIRE(pdr[0] == MFEM_Approx(pdr[1]));
    }
 
-   delete mesh;
    return true;
 }
 
 TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator]")
 {
-   constexpr const int D = 3;
-   constexpr const int n = 5;
-   constexpr const int P = 5;
-   constexpr const int Q = 6;
-   const auto QLayouts = { QVectorLayout::byNODES, QVectorLayout::byVDIM };
-
-   for (int d = 2; d <= D; d+=1) // dimension
-   {
-      for (int p = 1; p <= P; p+=1) // mesh order
-      {
-         for (int q = p; q <= Q; q+=1) // quadrature order
-         {
-            for (auto l: QLayouts) // Q layout
-            {
-               REQUIRE(testQuadratureInterpolator(d,n,l,p,q));
-            }
-         }
-      }
-   }
+   const auto d = GENERATE(2,3); // dimension
+   const auto p = GENERATE(range(1,8)); // element order
+   const auto q = GENERATE_COPY(range(p+1,10)); // quadrature order
+   const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
+   const auto nx = GENERATE(3,4); // number of element in x
+   const auto ny = GENERATE(5,6); // number of element in y
+   const auto nz = GENERATE(1,3); // number of element in z
+   REQUIRE(testQuadratureInterpolator(d, p, q, l, nx, ny, nz));
 } // TEST_CASE "QuadratureInterpolator"
