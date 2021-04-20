@@ -189,6 +189,7 @@ void LORBase::ConstructDofPermutation() const
       return;
    }
 
+#ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes_ho
       = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
    ParFiniteElementSpace *pfes_lor = dynamic_cast<ParFiniteElementSpace*>(fes);
@@ -210,6 +211,7 @@ void LORBase::ConstructDofPermutation() const
       }
    }
    else
+#endif
    {
       ConstructLocalDofPermutation(perm);
    }
