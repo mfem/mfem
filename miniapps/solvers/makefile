@@ -24,12 +24,13 @@ MFEM_LIB_FILE = mfem_is_not_built
 BLOCK_COMMON_SRC = div_free_solver.cpp
 BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = block-solvers
+SER_MINIAPPS = lor
+PAR_MINIAPPS = block-solvers plor
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SER_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(SER_MINIAPPS) $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -68,7 +69,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS)
+	rm -f *.o *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

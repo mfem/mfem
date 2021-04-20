@@ -61,3 +61,18 @@ The solvers for the above block system include:
 
              P^{-1} = [ diag(M)^{-1}     0    ]
                       [  0             AMG(S) ]
+
+# Low-Order Refined Solvers
+
+The miniapp `lor` (and its parallel counterpart `plor`) demonstrate the use of
+the `LOR` and `LORSolver` classes for the low-order refined preconditioning of
+high-order diffusion problems. Preconditioners for H1, H(curl), H(div), and L2
+finite element spaces are constructed.
+
+In serial, a direct solver is used for the LOR system if MFEM is compiled with
+SuiteSparse support (otherwise a simple Gauss-Seidel smoother is constructed
+using the low-order system).
+
+In paralle, hypre's scalable AMG solvers are used for the low-order systems:
+`HypreBoomerAMG` is used for H1 and L2 spaces, `HypreAMS` is used for H(curl)
+(and H(div) in 2D), and `HypreADS` is used for H(div) in 3D.
