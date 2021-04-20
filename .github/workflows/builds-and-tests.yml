@@ -82,7 +82,7 @@ jobs:
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get lcov (Linux)
-      if: matrix.coverage == 'YES' && matrix.os == 'ubuntu-18.04'
+      if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-18.04'
       run: |
         sudo apt-get install lcov
 
@@ -98,7 +98,7 @@ jobs:
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get MPI (MacOS)
-      if: matrix.coverage == 'YES' && matrix.os == 'macos-10.15'
+      if: matrix.codecov == 'YES' && matrix.os == 'macos-10.15'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install lcov
