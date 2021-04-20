@@ -12,67 +12,52 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/shifted/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/caliper,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
-
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SHIFTED_COMMON_SRC = dist_solver.cpp
-SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
-
-PAR_MINIAPPS = distance
+SEQ_EXAMPLES = ex1
+PAR_EXAMPLES = ex1p
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   EXAMPLES = $(SEQ_EXAMPLES)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
-
-COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
-
-# If MFEM_SHARED is set, add the ../common rpath
-COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all lib-common clean clean-build clean-exec
+.PHONY: all clean clean-build clean-exec
 
 # Remove built-in rule
 %: %.cpp
-%.o: %.cpp
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Replace the default implicit rule for *.cpp files
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-%: %.o $(SHIFTED_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(COMMON_LIB) $(MFEM_LIBS)
+all: $(EXAMPLES)
 
-all: $(MINIAPPS)
-
-# Rule for building lib-common
-lib-common:
-	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
-
-MFEM_TESTS = MINIAPPS
+MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := Shifted miniapp
 %-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
 %-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
+	@$(call mfem-test,$<,, Serial example)
+
+# Testing: Specific execution options
+ex1-test-seq: ex1
+	@$(call mfem-test,$<,, Caliper serial example)
+ex1p-test-par: ex1p
+	@$(call mfem-test,$<, $(RUN_MPI), Caliper parallel example)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -80,11 +65,12 @@ TEST_NAME := Shifted miniapp
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec
+clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
 clean-build:
-	rm -f *.o *~ distance
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf ParaViewDistance
+	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh
+	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.*

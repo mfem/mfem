@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
-   bool use_transfer = false;
+   bool use_pointwise_transfer = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -92,8 +92,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&useH1, "-h1", "--use-h1", "-l2", "--use-l2",
                   "Use H1 spaces instead of L2.");
-   args.AddOption(&use_transfer, "-t", "--use-pointwise-transfer", "-no-t",
-                  "--dont-use-pointwise-transfer",
+   args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
+                  "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
    args.Parse();
    if (!args.Good())
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
          cerr << "Switching the H1 LOR space order from 0 to 1\n";
       }
       fec = new H1_FECollection(order-1, dim);
-      fec_lor = new H1_FECollection(lorder, dim);
+      fec_lor = new L2_FECollection(lorder, dim);
    }
    else
    {
@@ -143,6 +143,15 @@ int main(int argc, char *argv[])
    VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
+   BilinearForm M_ho(&fespace);
+   M_ho.AddDomainIntegrator(new MassIntegrator);
+   M_ho.Assemble();
+   M_ho.Finalize();
+
+   BilinearForm M_lor(&fespace_lor);
+   M_lor.AddDomainIntegrator(new MassIntegrator);
+   M_lor.Assemble();
+   M_lor.Finalize();
 
    // HO projections
    direction = "HO -> LOR @ HO";
@@ -152,7 +161,7 @@ int main(int argc, char *argv[])
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
    GridTransfer *gt;
-   if (use_transfer)
+   if (use_pointwise_transfer)
    {
       gt = new InterpolationGridTransfer(fespace, fespace_lor);
    }
@@ -178,7 +187,20 @@ int main(int argc, char *argv[])
 
    rho_prev -= rho;
    cout.precision(12);
-   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl << endl;
+   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+
+   // HO* to LOR* dual fields
+   GridFunction ones(&fespace), ones_lor(&fespace_lor);
+   ones = 1.0;
+   ones_lor = 1.0;
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   if (!use_pointwise_transfer)
+   {
+      M_ho.Mult(rho, M_rho);
+      P.MultTranspose(M_rho, M_rho_lor);
+      cout << "HO -> LOR dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
+           << endl << endl;
+   }
 
    // LOR projections
    direction = "LOR -> HO @ LOR";
@@ -203,6 +225,15 @@ int main(int argc, char *argv[])
    rho_lor_prev -= rho_lor;
    cout.precision(12);
    cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+
+   // LOR* to HO* dual fields
+   if (!use_pointwise_transfer)
+   {
+      M_lor.Mult(rho_lor, M_rho_lor);
+      R.MultTranspose(M_rho_lor, M_rho);
+      cout << "LOR -> HO dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
+           << '\n';
+   }
 
    delete fec;
    delete fec_lor;
