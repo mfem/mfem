@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,10 +24,13 @@
 #include "blockoperator.hpp"
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
+#include "symmat.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
+#include "constraints.hpp"
+#include "auxiliary.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"
@@ -48,6 +51,10 @@
 #ifdef MFEM_USE_MPI
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
+
+#ifdef MFEM_USE_MUMPS
+#include "mumps.hpp"
+#endif
 
 #ifdef MFEM_USE_PETSC
 #include "petsc.hpp"

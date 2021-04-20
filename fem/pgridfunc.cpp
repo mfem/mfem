@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -471,6 +471,25 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 }
 
+void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   int ne = fes->GetNE();
+   if (el >= ne)
+   {
+      MFEM_ASSERT(face_nbr_data.Size() > 0,
+                  "ParGridFunction::GetElementDofValues: ExchangeFaceNbrData "
+                  "must be called before accessing face neighbor elements.");
+      // Face neighbor element
+      Array<int> dof_idx;
+      pfes->GetFaceNbrElementVDofs(el - ne, dof_idx);
+      face_nbr_data.GetSubVector(dof_idx, dof_vals);
+   }
+   else
+   {
+      GridFunction::GetElementDofValues(el, dof_vals);
+   }
+}
+
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
@@ -657,12 +676,12 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 
 double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                                Coefficient *ell_coeff,
-                                               double Nu,
+                                               JumpScaling jump_scaling,
                                                const IntegrationRule *irs[]) const
 {
    const_cast<ParGridFunction *>(this)->ExchangeFaceNbrData();
 
-   int fdof, dim, intorder, k;
+   int fdof, intorder, k;
    ElementTransformation *transf;
    Vector shape, el_dofs, err_val, ell_coeff_val;
    Array<int> vdofs;
@@ -670,7 +689,6 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    double error = 0.0;
 
    ParMesh *mesh = pfes->GetParMesh();
-   dim = mesh->Dimension();
 
    std::map<int,int> local_to_shared;
    for (int i = 0; i < mesh->GetNSharedFaces(); ++i)
@@ -687,6 +705,7 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       mesh->GetFaceElements(i, &iel1, &iel2);
       mesh->GetFaceInfos(i, &info1, &info2);
 
+      double h = mesh->GetElementSize(iel1);
       intorder = fes->GetFE(iel1)->GetOrder();
 
       FaceElementTransformations *face_elem_transf;
@@ -703,11 +722,10 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
          }
          shared_face = true;
          shared_face_factor = 0.5;
+         h = std::min(h, mesh->GetFaceNbrElementSize(iel2));
       }
       else
       {
-         face_elem_transf = mesh->GetFaceElementTransformations(i);
-
          if (iel2 >= 0)
          {
             fe2 = pfes->GetFE(iel2);
@@ -715,12 +733,15 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             {
                intorder = k;
             }
+            h = std::min(h, mesh->GetElementSize(iel2));
          }
          else
          {
             fe2 = NULL;
          }
+         face_elem_transf = mesh->GetFaceElementTransformations(i);
       }
+      int p = intorder;
 
       intorder = 2 * intorder;  // <-------------
       const IntegrationRule *ir;
@@ -806,8 +827,9 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
-         error += shared_face_factor*(ip.weight * Nu * ell_coeff_val(j) *
-                                      pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+         double nu = jump_scaling.Eval(h, p);
+         error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
+                                      transf->Weight() *
                                       err_val(j) * err_val(j));
       }
    }
@@ -832,6 +854,28 @@ void ParGridFunction::Save(std::ostream &out) const
    }
 }
 
+void ParGridFunction::Save(const char *fname, int precision) const
+{
+   int rank = pfes->GetMyRank();
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+void ParGridFunction::SaveAsOne(const char *fname, int precision) const
+{
+   ofstream ofs;
+   int rank = pfes->GetMyRank();
+   if (rank == 0)
+   {
+      ofs.open(fname);
+      ofs.precision(precision);
+   }
+   SaveAsOne(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParGridFunction::Save(adios2stream &out,
                            const std::string& variable_name,
@@ -852,7 +896,7 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-void ParGridFunction::SaveAsOne(std::ostream &out)
+void ParGridFunction::SaveAsOne(std::ostream &out) const
 {
    int i, p;
 

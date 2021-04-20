@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -76,7 +76,7 @@ BilinearForm::BilinearForm(FiniteElementSpace * f)
    precompute_sparsity = 0;
    diag_policy = DIAG_KEEP;
 
-   assembly = AssemblyLevel::LEGACYFULL;
+   assembly = AssemblyLevel::LEGACY;
    batch = 1;
    ext = NULL;
 }
@@ -94,7 +94,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    precompute_sparsity = ps;
    diag_policy = DIAG_KEEP;
 
-   assembly = AssemblyLevel::LEGACYFULL;
+   assembly = AssemblyLevel::LEGACY;
    batch = 1;
    ext = NULL;
 
@@ -121,7 +121,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
-      case AssemblyLevel::LEGACYFULL:
+      case AssemblyLevel::LEGACY:
          break;
       case AssemblyLevel::FULL:
          ext = new FABilinearFormExtension(this);
@@ -143,7 +143,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;
-   if (assembly != AssemblyLevel::LEGACYFULL)
+   if (assembly != AssemblyLevel::LEGACY)
    {
       static_cond = NULL;
       MFEM_WARNING("Static condensation not supported for this assembly level");
@@ -168,7 +168,7 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        const Array<int> &ess_tdof_list)
 {
    delete hybridization;
-   if (assembly != AssemblyLevel::LEGACYFULL)
+   if (assembly != AssemblyLevel::LEGACY)
    {
       delete constr_integ;
       hybridization = NULL;
@@ -223,7 +223,7 @@ MatrixInverse * BilinearForm::Inverse() const
 
 void BilinearForm::Finalize (int skip_zeros)
 {
-   if (assembly == AssemblyLevel::LEGACYFULL)
+   if (assembly == AssemblyLevel::LEGACY)
    {
       if (!static_cond) { mat->Finalize(skip_zeros); }
       if (mat_e) { mat_e->Finalize(skip_zeros); }
@@ -621,53 +621,31 @@ void BilinearForm::ConformingAssemble()
 
 void BilinearForm::AssembleDiagonal(Vector &diag) const
 {
-   if (ext)
+   MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+               "Vector for holding diagonal has wrong size!");
+   const SparseMatrix *cP = fes->GetConformingProlongation();
+   if (!ext)
    {
-      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
-                  "Vector for holding diagonal has wrong size!");
-      const Operator *P = fes->GetProlongationMatrix();
-      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
-      // where |P^T| has the entry-wise absolute values of the conforming
-      // prolongation transpose operator.
-      if (P && !fes->Conforming())
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleDiagonal(local_diag);
-         const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
-#ifdef MFEM_USE_MPI
-         const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
-#endif
-         if (SP)
-         {
-            SP->AbsMultTranspose(local_diag, diag);
-         }
-#ifdef MFEM_USE_MPI
-         else if (HP)
-         {
-            HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
-         }
-#endif
-         else
-         {
-            MFEM_ABORT("Prolongation matrix has unexpected type.");
-         }
-         return;
-      }
-      if (!IsIdentityProlongation(P))
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleDiagonal(local_diag);
-         P->MultTranspose(local_diag, diag);
-      }
-      else
-      {
-         ext->AssembleDiagonal(diag);
-      }
-   }
-   else
-   {
+      MFEM_ASSERT(mat, "the BilinearForm is not assembled!");
+      MFEM_ASSERT(cP == nullptr || mat->Height() == cP->Width(),
+                  "BilinearForm::ConformingAssemble() is not called!");
       mat->GetDiag(diag);
+      return;
    }
+   // Here, we have extension, ext.
+   if (!cP)
+   {
+      ext->AssembleDiagonal(diag);
+      return;
+   }
+   // Here, we have extension, ext, and conforming prolongation, cP.
+
+   // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_l,
+   // where |P^T| has the entry-wise absolute values of the conforming
+   // prolongation transpose operator.
+   Vector local_diag(cP->Height());
+   ext->AssembleDiagonal(local_diag);
+   cP->AbsMultTranspose(local_diag, diag);
 }
 
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
@@ -1109,7 +1087,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 0;
-   assembly = AssemblyLevel::LEGACYFULL;
+   assembly = AssemblyLevel::LEGACY;
    ext = NULL;
 }
 
@@ -1134,7 +1112,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    bbfi_marker = mbf->bbfi_marker;
    btfbfi_marker = mbf->btfbfi_marker;
 
-   assembly = AssemblyLevel::LEGACYFULL;
+   assembly = AssemblyLevel::LEGACY;
    ext = NULL;
 }
 
@@ -1147,7 +1125,7 @@ void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
-      case AssemblyLevel::LEGACYFULL:
+      case AssemblyLevel::LEGACY:
          break;
       case AssemblyLevel::FULL:
          // ext = new FAMixedBilinearFormExtension(this);
@@ -1219,7 +1197,7 @@ void MixedBilinearForm::AddMultTranspose(const Vector & x, Vector & y,
 
 MatrixInverse * MixedBilinearForm::Inverse() const
 {
-   if (assembly != AssemblyLevel::LEGACYFULL)
+   if (assembly != AssemblyLevel::LEGACY)
    {
       MFEM_WARNING("MixedBilinearForm::Inverse not possible with this assembly level!");
       return NULL;
@@ -1232,7 +1210,7 @@ MatrixInverse * MixedBilinearForm::Inverse() const
 
 void MixedBilinearForm::Finalize (int skip_zeros)
 {
-   if (assembly == AssemblyLevel::LEGACYFULL)
+   if (assembly == AssemblyLevel::LEGACY)
    {
       mat -> Finalize (skip_zeros);
    }
@@ -1437,9 +1415,9 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          ftr = mesh->GetBdrFaceTransformations(i);
          if (ftr)
          {
-            trial_fes->GetFaceVDofs(i, tr_vdofs);
+            trial_fes->GetFaceVDofs(ftr->ElementNo, tr_vdofs);
             test_fes->GetElementVDofs(ftr->Elem1No, te_vdofs);
-            trial_face_fe = trial_fes->GetFaceElement(i);
+            trial_face_fe = trial_fes->GetFaceElement(ftr->ElementNo);
             test_fe1 = test_fes->GetFE(ftr->Elem1No);
             // The test_fe2 object is really a dummy and not used on the
             // boundaries, but we can't dereference a NULL pointer, and we don't
@@ -1509,7 +1487,7 @@ void MixedBilinearForm::AssembleDiagonal_ADAt(const Vector &D,
 
 void MixedBilinearForm::ConformingAssemble()
 {
-   if (assembly != AssemblyLevel::LEGACYFULL)
+   if (assembly != AssemblyLevel::LEGACY)
    {
       MFEM_WARNING("Conforming assemble not supported for this assembly level!");
       return;
@@ -1770,9 +1748,41 @@ MixedBilinearForm::~MixedBilinearForm()
    delete ext;
 }
 
+void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::LEGACY:
+      case AssemblyLevel::FULL:
+         // Use the original implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PADiscreteLinearOperatorExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
 
 void DiscreteLinearOperator::Assemble(int skip_zeros)
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    Array<int> dom_vdofs, ran_vdofs;
    ElementTransformation *T;
    const FiniteElement *dom_fe, *ran_fe;

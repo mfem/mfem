@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -457,6 +457,48 @@ public:
    void Init(TimeDependentOperator &_f) override;
 
    void Step(Vector &x, double &t, double &dt) override;
+};
+
+
+/** Two stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. A-stable. */
+class TrapezoidalRuleSolver : public ODESolver
+{
+protected:
+   Vector k, y;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. L-stable. */
+class ESDIRK32Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 3. A-stable. */
+class ESDIRK33Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
 };
 
 
