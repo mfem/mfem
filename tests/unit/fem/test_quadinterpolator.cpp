@@ -194,8 +194,8 @@ static bool testQuadratureInterpolator(const int dim,
 TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator]")
 {
    const auto d = GENERATE(2,3); // dimension
-   const auto p = GENERATE(range(1,8)); // element order
-   const auto q = GENERATE_COPY(range(p+1,9)); // quadrature order
+   const auto p = GENERATE(range(1,5)); // element order
+   const auto q = GENERATE_COPY(range(p+1,6)); // quadrature order
    const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
    const auto nx = GENERATE(3,4); // number of element in x
    const auto ny = GENERATE(5,6); // number of element in y
