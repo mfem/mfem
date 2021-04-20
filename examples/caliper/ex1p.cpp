@@ -1,4 +1,5 @@
 //                       MFEM Example 1 - Parallel Version
+//                             Caliper Modification
 //
 // Compile with: make ex1p
 //
@@ -36,18 +37,17 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
-// Description: This example is a copy of ex1 instrumented with Caliper.
-// Any option supported by the Caliper ConfigManager can be passed to the
-// code using a configuration string after -p or --caliper flag. For more
-// information, the users are referred to the Caliper documentation.
-// Examples:
-//              mpirun -np 4 ex1p --caliper runtime-report
-//              mpirun -np 4 ex1p --caliper runtime-report,mem.highwatermark,mpi-report
+// Description: This example is a copy of Example 1 instrumented with the
+//              Caliper performance profilinh library. Any option supported by
+//              the Caliper ConfigManager can be passed to the code using a
+//              configuration string after -p or --caliper flag. For more
+//              information, see the Caliper documentation.
 //
-//The first run will return the default report and the second run will
-//return in addition to the default output the memory high-water mark and time
-//spent in MPI routines.
-
+// Examples:  mpirun -np 4 ex1p --caliper runtime-report
+//            mpirun -np 4 ex1p --caliper runtime-report,mem.highwatermark,mpi-report
+//
+// The first run will return the default report. The second run will also output
+// the memory high-water mark and time spent in MPI routines.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
    // Define Caliper ConfigManager
    cali::ConfigManager mgr;
-   //Caliper instrumentation
+   // Caliper instrumentation
    MFEM_PERF_FUNCTION;
 
    // 2. Parse command-line options.
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   //Caliper configuration
+   // Caliper configuration
    mgr.add(cali_config);
    mgr.start();
 

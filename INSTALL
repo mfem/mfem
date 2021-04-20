@@ -508,11 +508,11 @@ MFEM_USE_MKL_CPARDISO = YES/NO
    OpenMP capabilities are disabled at link time.
 
 MFEM_USE_CALIPER = YES/NO
-   Enables the interface to Caliper. Caliper is a library to integrate 
-   performance profiling capabilities into applications. To use Caliper, 
-   developers mark code regions of interest using either Caliper's annotation 
-   API or their equivalent in MFEM. Applications can then enable performance 
-   profiling at runtime with Caliper's configuration API. Alternatively, one 
+   Enables the interface to Caliper. Caliper is a library to integrate
+   performance profiling capabilities into applications. To use Caliper,
+   developers mark code regions of interest using either Caliper's annotation
+   API or their equivalent in MFEM. Applications can then enable performance
+   profiling at runtime with Caliper's configuration API. Alternatively, one
    can configure Caliper through environment variables or config files.
 
 MFEM_BUILD_TAG = (any value)
@@ -726,6 +726,7 @@ The specific libraries and their options are:
 - Caliper (optional), used when MFEM_USE_CALIPER = YES.
   URL: https://github.com/LLNL/Caliper
   Options: CALIPER_DIR
+  Versions: CALIPER >= 2.5.0, older versions may work too.
 
 - Umpire, used when MFEM_USE_UMPIRE = YES.
   Umpire requires camp when the Umpire version is >= 3.0.0.
