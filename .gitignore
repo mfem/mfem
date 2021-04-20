@@ -271,6 +271,11 @@ miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
 miniapps/solvers/block-solvers
+miniapps/solvers/lor
+miniapps/solvers/plor
+miniapps/solvers/ParaView
+miniapps/solvers/mesh.*
+miniapps/solvers/sol.*
 
 # Unit test binary and outputs
 tests/unit/output_meshes
