@@ -11,38 +11,53 @@
 Version 4.3, released on April 30, 2021
 =======================================
 
-- Added initial support for GPU-accelerated versions of PETSc that works with
-  MFEM_USE_CUDA if PETSc has been configured with CUDA support. Examples 1 and 9
-  in the examples/petsc directory have been modified to work with --device cuda.
-  Examples with GAMG (ex1p) and SLEPc (ex11p) are also provided.
+Discretization improvements
+---------------------------
+- Variable order spaces, p- and hp-refinement. This is the initial (serial)
+  support for variable-order FiniteElementCollection and FiniteElementSpace.
+  The new method FiniteElementSpace::SetElementOrder can be called to set an
+  arbitrary order for each mesh element. The conforming interpolation matrix
+  will now automatically constrain p- and hp- interfaces, enabling general
+  hp-refinement in both 2D and 3D, on uniform or mixed NC meshes. Support for
+  parallel variable-order spaces will follow shortly.
 
-- Memory management:
-  * Added method Device::SetMemoryTypes that can be used to change the default
-    host and device MemoryTypes before Device setup.
-  * In class MemoryManager, added methods GetDualMemoryType and
-    SetDualMemoryType; dual MemoryTypes are used to determine the second
-    MemoryType (host or device) when only one MemoryType is specified in methods
-    of class Memory.
-  * Added Memory constructor for setting both the host and device MemoryTypes.
-  * Switched the default behavior of device memory allocations so that they
-    are deferred until the device pointer is needed.
-  * Added a second Umpire device MemoryType, DEVICE_UMPIRE_2, with
-    corresponding allocator that can be set with the method
-    MemoryManager::SetUmpireDevice2AllocatorName.
-  * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
+- Added support for transferring dual fields between high-order and low-order
+  refined finite element spaces using the transposed versions of the
+  L2ProjectionGridTransfer operators. This functionality is illustrated in the
+  lor-transfer miniapp.
 
-- Added support for Caliper: a library to integrate performance profiling
-  capabilities into applications. See examples/caliper for more details.
+- Improved libCEED integration, including support for VectorCoefficient,
+  ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
 
-- Added support for explicit vectorization in the high-performance templated
-  code for Fujitsu's A64FX ARM microprocessor architecture.
+- Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
+  linear interpolators and GridFunction "GetValue" methods.
 
-- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
-  diffusion problems with the Ceed backend.
+- Changed the interface for the error estimator and implemented the parallel
+  Kelly error indicator for scalar-valued problems.
 
-- Introduced new options for the mesh-explorer miniapp to visualize the actual
-  element attributes in parallel meshes while retaining the visualization of
-  the domain decomposition.
+- Added support for the "BR2" discontinuous Galerkin discretization for
+  diffusion via DGDiffusionBR2Integrator (see Example 14/14p).
+
+- Added convective and skew-symmetric integrators for the nonlinear term in the
+  Navier-Stokes equations.
+
+- Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
+  efficient evaluation of symmetric matrix coefficients. This replaces the now
+  deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
+  for clarity, which is a typedef of VectorCoefficient.
+
+- Added support for nonscalar coefficient with VectorDiffusionIntegrator.
+
+Linear and nonlinear solvers
+----------------------------
+- Added support for AMG preconditioners for non-symmetric systems (e.g.
+  advection-dominated problems) using hypre's approximate ideal restriction
+  (AIR) AMG. Requires hypre version 2.14.0 or newer. Usage is illustrated in
+  example 9/9p.
+
+- Generalized the Multigrid class to support non-geometric multigrid. Previous
+  functionality, based on FiniteElementSpaceHierarchy, is now available in the
+  derived class GeometricMultigrid.
 
 - Introduced solver interface for linear problems with constraints, a few
   concrete solvers that implement the interface, and a demonstration of their
@@ -53,25 +68,25 @@ Version 4.3, released on April 30, 2021
   as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348). See
   Example 3p and linalg/auxiliary.?pp.
 
-- Added a new miniapp block-solvers that compares the performance of various
-  solvers for mixed finite element discretization of the second order scalar
-  elliptic equations. Currently available solvers in the miniapp include a
-  block-diagonal preconditioner that is based on approximate Schur complement
-  (implemented in ex5p), and a newly implemented solver DivFreeSolver, which
-  exploits a multilevel decomposition of the Raviart-Thomas space and its
-  divergence-free subspace. See the miniapps/solvers directory for more details.
-
-- Added a new miniapp for computing (signed) distance functions to a point
-  source or zero level set. See miniapps/shifted/distance.cpp.
-
-- Added matrix-free GPU-enabled implementations of GradientInterpolator and
-  IdentityInterpolator.
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
 
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
 
 - Added three ESDIRK time integrators: implicit trapezoid rule, L-stable
   ESDIRK-32, and A-stable ESDIRK-33.
+
+- Implemented a variable step-size IMEX (VSSIMEX) method for the Navier miniapp.
+
+- Implemented an adaptive linear solver tolerance option for NewtonSolver based
+  on the algorithm of Eisenstat and Walker.
+
+Meshing improvements
+--------------------
+- Added support for reading high-order Lagrange meshes in VTK format. Arbitrary-
+  orders and all element types are supported. See the VTK blog for more info:
+  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf.
 
 - Introduced a new non-conforming mesh format that fixes known inconsistencies
   of legacy "MFEM mesh v1.1" NC format and works consistently in both serial and
@@ -81,87 +96,13 @@ Version 4.3, released on April 30, 2021
   NC data files are compatible with serial code, e.g., can be viewed with serial
   GLVis. Loading of legacy NC mesh files is still supported.
 
-- Added support for 1D non-conforming meshes (which can be useful for parallel
-  load balancing and derefinement).
-
-- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
-  help identify elements with poor mesh quality.
-
-- Added support for the "BR2" discontinuous Galerkin discretization for
-  diffusion via DGDiffusionBR2Integrator (see Example 14/14p).
-
-- Generalized the Multigrid class to support non-geometric multigrid. The
-  previous functionality, based on FiniteElementSpaceHierarchy, is now available
-  in the derived class GeometricMultigrid.
-
-- Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
-
-- Implemented a filter method for the Navier miniapp to stabilize highly
-  turbulent flows in direct numerical simulation.
-
-- Added HIP support to the CMake build system.
-
-- Added support for reading high-order Lagrange meshes in VTK format. Arbitrary-
-  orders and all element types are supported. See the VTK blog for more info:
-  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf.
-
-- Added support for reading VTK meshes in XML format.
-
-- Added partial assembly and device support to Example 25/25p, with diagonal
-  preconditioning.
-
-- Implemented a variable step-size IMEX (VSSIMEX) method for the Navier miniapp.
-
 - Added new mesh quality metrics and improved the untangling capabilities of the
   TMOP-based mesh optimization algorithms.
-
-- Added convective and skew-symmetric integrators for the nonlinear term in the
-  Navier-Stokes equations.
-
-- Changed the interface for the error estimator.
-
-- Implemented the parallel Kelly error indicator for scalar-valued problems.
-
-- Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
-  efficient evaluation of symmetric matrix coefficients. This replaces the now
-  deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
-  for clarity, which is a typedef of VectorCoefficient.
-
-- Added support for AMG preconditioners for non-symmetric systems (e.g.
-  advection-dominated problems) using hypre's approximate ideal restriction
-  (AIR) AMG. Requires hypre version 2.14.0 or newer. Usage is illustrated in
-  example 9/9p.
-
-- Implemented an adaptive linear solver tolerance option for NewtonSolver based
-  on the algorithm of Eisenstat and Walker.
-
-- Added support for nonscalar coefficient with VectorDiffusionIntegrator.
-
-- Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
-  linear interpolators and GridFunction "GetValue" methods.
-
-- Variable order spaces, p- and hp-refinement. This is the initial (serial)
-  support for variable-order FiniteElementCollection and FiniteElementSpace.
-  The new method FiniteElementSpace::SetElementOrder can be called to set an
-  arbitrary order for each mesh element. The conforming interpolation matrix
-  will now automatically constrain p- and hp- interfaces, enabling general
-  hp-refinement in both 2D and 3D, on uniform or mixed NC meshes. Support for
-  parallel variable-order spaces will follow shortly.
 
 - Added support for creating refined meshes for all element types (e.g. by
   splitting high-order elements into low-order refined elements), including
   mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
   supports meshes with any element geometry.
-
-- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
-
-- Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
-  see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
-  see navier/cht. Note that gslib v1.0.7 is require (see INSTALL for details).
-
-- Added a new, very simple example (ex0 and parallel version ex0p). This
-  example solves a simple Poisson problem using H1 elements (the same problem as
-  ex1), but is intended to be extremely simple and approachable for new users.
 
 - Meshes consisting of any type of elements (including mixed meshes) can be
   converted to all-simplex meshes using Mesh::MakeSimplicial.
@@ -171,25 +112,93 @@ Version 4.3, released on April 30, 2021
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
 
-- Added support for transferring dual fields between high-order and low-order
-  refined finite element spaces using the transposed versions of the
-  L2ProjectionGridTransfer operators. This functionality is illustrated in the
-  lor-transfer miniapp.
+- Added support for 1D non-conforming meshes (which can be useful for parallel
+  load balancing and derefinement).
 
-libCEED integration improvements
---------------------------------
-- Refactor the libCEED integration
+High-performance computing
+--------------------------
+- Added initial support for GPU-accelerated versions of PETSc that works with
+  MFEM_USE_CUDA if PETSc has been configured with CUDA support. Examples 1 and 9
+  in the examples/petsc directory have been modified to work with --device cuda.
+  Examples with GAMG (ex1p) and SLEPc (ex11p) are also provided.
 
-- Add support for VectorCoefficient with libCEED backends.
+- Added support for explicit vectorization in the high-performance templated
+  code for Fujitsu's A64FX ARM microprocessor architecture.
 
-- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with
-  libCEED backends.
+- Added method Device::SetMemoryTypes that can be used to change the default
+  host and device MemoryTypes before Device setup.
+
+- In class MemoryManager, added methods GetDualMemoryType and SetDualMemoryType;
+  dual MemoryTypes are used to determine the second MemoryType (host or device)
+  when only one MemoryType is specified in methods of class Memory.
+
+- Added Memory constructor for setting both the host and device MemoryTypes.
+
+- Switched the default behavior of device memory allocations so that they are
+  deferred until the device pointer is needed.
+
+- Added a second Umpire device MemoryType, DEVICE_UMPIRE_2, with corresponding
+  allocator that can be set with the method SetUmpireDevice2AllocatorName.
+
+- Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
+
+- Added matrix-free GPU-enabled implementations of GradientInterpolator and
+  IdentityInterpolator.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new, very simple example (ex0 and parallel version ex0p). This example
+  solves a simple Poisson problem using H1 elements (the same problem as ex1),
+  but is intended to be extremely simple and approachable for new users.
+
+- Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
+  see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
+  see navier/cht. Note that gslib v1.0.7 is require (see INSTALL for details).
+
+- Added a new miniapp for computing (signed) distance functions to a point
+  source or zero level set. See miniapps/shifted/distance.cpp.
+
+- Added a new miniapp block-solvers that compares the performance of various
+  solvers for mixed finite element discretization of the second order scalar
+  elliptic equations. Currently available solvers in the miniapp include a
+  block-diagonal preconditioner that is based on approximate Schur complement
+  (implemented in ex5p), and a newly implemented solver DivFreeSolver, which
+  exploits a multilevel decomposition of the Raviart-Thomas space and its
+  divergence-free subspace. See the miniapps/solvers directory for more details.
+
+- Introduced new options for the mesh-explorer miniapp to visualize the actual
+  element attributes in parallel meshes while retaining the visualization of the
+  domain decomposition.
+
+- Added partial assembly and device support to Example 25/25p, with diagonal
+  preconditioning.
+
+- Implemented a filter method for the Navier miniapp to stabilize highly
+  turbulent flows in direct numerical simulation.
+
+Miscellaneous
+-------------
+- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
+  help identify elements with poor mesh quality.
+
+- Added support for reading VTK meshes in XML format.
+
+- Added support for Caliper: a library to integrate performance profiling
+  capabilities into applications. See examples/caliper for more details.
+
+- Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
+
+- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
+
+- Added HIP support to the CMake build system.
+
+- Various other simplifications, extensions, and bugfixes in the code.
 
 
 Version 4.2, released on October 30, 2020
 =========================================
 
-High-Performance Computing
+High-performance computing
 --------------------------
 - Added support for explicit vectorization in the high-performance templated
   code, which can now take advantage of specific classes on the following
@@ -384,7 +393,7 @@ New and updated examples and miniapps
     L2, with partial assembly support in Example 24/24p.
   * Weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
 
-Data management and Visualization
+Data management and visualization
 ---------------------------------
 - Added support for ADIOS2 for parallel I/O with ParaView visualization. See
   Examples 5, 9, 12, 16. The classes adios2stream and ADIOS2DataCollection
