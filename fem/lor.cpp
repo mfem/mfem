@@ -205,7 +205,10 @@ void LORBase::ConstructDofPermutation() const
          int t_i = pfes_lor->GetLocalTDofNumber(i);
          int t_j = pfes_ho->GetLocalTDofNumber(absdof(j));
          // Either t_i and t_j both -1, or both non-negative
-         MFEM_ASSERT(t_i*t_j >= 0, "");
+         if ((t_i < 0 && t_j >=0) || (t_j < 0 && t_i >= 0))
+         {
+            MFEM_ABORT("Inconsistent DOF numbering");
+         }
          if (t_i < 0) { continue; }
          perm[t_i] = s < 0 ? -1 - t_j : t_j;
       }
