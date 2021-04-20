@@ -57,9 +57,13 @@ void SparseMatrix::ClearCuSparse()
 #ifdef MFEM_USE_CUDA
    if (initBuffers)
    {
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
       cusparseDestroySpMat(matA_descr);
       cusparseDestroyDnVec(vecX_descr);
       cusparseDestroyDnVec(vecY_descr);
+#else
+      cusparseDestroyMatDescr(matA_descr);
+#endif
       initBuffers = false;
    }
 #endif
@@ -660,6 +664,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Setup descriptors
       if (!initBuffers)
       {
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
          // Setup matrix descriptor
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
                            const_cast<int *>(d_I),
@@ -670,25 +675,34 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x),
                              CUDA_R_64F);
          cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
+#else
+         cusparseCreateMatDescr(&matA_descr);
+         cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
+         cusparseSetMatType(matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL);
+
+#endif
 
          initBuffers = true;
       }
-
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
+
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
                               CUSPARSE_CSRMV_ALG1, &newBufferSize);
+#endif
 
       // Check if we need to resize
       if (newBufferSize > bufferSize)
       {
          bufferSize = newBufferSize;
-         if (dBuffer != NULL) { CuMemFree(dBuffer); }
+         if (dBuffer != nullptr) { CuMemFree(dBuffer); }
          CuMemAlloc(&dBuffer, bufferSize);
       }
 
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
       // Update input/output vectors
       cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
       cusparseDnVecSetValues(vecY_descr, d_y);
@@ -696,6 +710,13 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Y = alpha A * X + beta * Y
       cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
                    vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
+#else
+      cusparseDcsrmv(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                     Height(), Width(), J.Capacity(),
+                     &alpha, matA_descr,
+                     const_cast<double *>(d_A), const_cast<int *>(d_I), const_cast<int *>(d_J),
+                     const_cast<double *>(d_x), &beta, d_y);
+#endif
 #endif
    }
    else
@@ -3212,9 +3233,7 @@ void SparseMatrix::Destroy()
 #endif
    delete At;
 
-#ifdef MFEM_USE_CUDA
    ClearCuSparse();
-#endif
 }
 
 int SparseMatrix::ActualWidth() const

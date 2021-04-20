@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CUDA
+#include <cusparse.h>
+#include <library_types.h>
 #include <cuda_runtime.h>
 #include <cuda.h>
 #endif
