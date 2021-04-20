@@ -45,6 +45,7 @@ option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
+option(MFEM_USE_FMS "Enable FMS usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
 option(MFEM_USE_HIOP "Enable HiOp" OFF)
@@ -182,6 +183,9 @@ set(SLEPC_DIR "${MFEM_DIR}/../slepc" CACHE PATH
 set(SLEPC_ARCH "arch-linux2-c-debug" CACHE STRING "SLEPC build architecture.")
 
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
+
+set(FMS_DIR "${MFEM_DIR}/../fms" CACHE PATH
+    "Path to the FMS library.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
