@@ -1080,35 +1080,35 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
       {
          // Gauss-Legendre is exact for 2*n-1
          n = Order/2 + 1;
-         quad_func.GaussLegendre(n, ir);
+         QuadratureFunctions1D::GaussLegendre(n, ir);
          break;
       }
       case Quadrature1D::GaussLobatto:
       {
          // Gauss-Lobatto is exact for 2*n-3
          n = Order/2 + 2;
-         quad_func.GaussLobatto(n, ir);
+         QuadratureFunctions1D::GaussLobatto(n, ir);
          break;
       }
       case Quadrature1D::OpenUniform:
       {
          // Open Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.OpenUniform(n, ir);
+         QuadratureFunctions1D::OpenUniform(n, ir);
          break;
       }
       case Quadrature1D::ClosedUniform:
       {
          // Closed Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.ClosedUniform(n, ir);
+         QuadratureFunctions1D::ClosedUniform(n, ir);
          break;
       }
       case Quadrature1D::OpenHalfUniform:
       {
          // Open half Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.OpenHalfUniform(n, ir);
+         QuadratureFunctions1D::OpenHalfUniform(n, ir);
          break;
       }
       default:
