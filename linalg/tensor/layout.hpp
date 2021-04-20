@@ -717,6 +717,44 @@ class RTLayout;
 /////////////////
 // Layout Traits
 
+// get_layout_rank
+template <typename Layout>
+struct get_layout_rank_v;
+
+template <int Rank>
+struct get_layout_rank_v<DynamicLayout<Rank>>
+{
+   static constexpr int value = Rank;
+};
+
+template <int... Dims>
+struct get_layout_rank_v<StaticLayout<Dims...>>
+{
+   static constexpr int value = sizeof...(Dims);
+};
+
+
+template <int BatchSize, int... Dims>
+struct get_layout_rank_v<BlockLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = sizeof...(Dims);
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_rank_v<DynamicBlockLayout<Rank, BatchSize>>
+{
+   static constexpr int value = Rank;
+};
+
+template <int I, typename Layout>
+struct get_layout_rank_v<RestrictedLayout<I,Layout>>
+{
+   static constexpr int value = get_layout_rank_v<Layout>::value - 1;
+};
+
+template <typename Layout>
+constexpr int get_layout_rank = get_layout_rank_v<Layout>::value;
+
 // is_dynamic_layout
 template <typename Layout>
 struct is_dynamic_layout
