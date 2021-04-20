@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = ex1
-PAR_EXAMPLES = ex1p 
+PAR_EXAMPLES = ex1p
 
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -41,7 +41,7 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES) 
+all: $(EXAMPLES)
 
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
