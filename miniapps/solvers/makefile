@@ -31,6 +31,7 @@ ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SER_MINIAPPS)
 else
    MINIAPPS = $(SER_MINIAPPS) $(PAR_MINIAPPS)
+   MFEM_TESTS = block-solvers
 endif
 
 .SUFFIXES:
@@ -54,7 +55,6 @@ block-solvers: $(BLOCK_SOLVERS_OBJ)
 
 all: $(MINIAPPS)
 
-MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
