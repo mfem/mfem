@@ -301,3 +301,7 @@ tests/par-mesh-format/ex1p
 
 # VPATH builds
 build-*/*
+
+# PETSc automated build
+petsc-build/*
+pkg.gitcommit

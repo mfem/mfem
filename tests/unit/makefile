@@ -120,6 +120,7 @@ $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OB
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # Template rule for devices

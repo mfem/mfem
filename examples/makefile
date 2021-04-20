@@ -54,6 +54,9 @@ endif
 ifeq ($(MFEM_USE_SUPERLU),YES)
    SUBDIRS += superlu
 endif
+ifeq ($(MFEM_USE_CALIPER),YES)
+   SUBDIRS += caliper
+endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
