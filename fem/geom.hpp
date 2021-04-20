@@ -107,6 +107,8 @@ public:
    static bool IsTensorProduct(Type geom)
    { return geom == SEGMENT || geom == SQUARE || geom == CUBE; }
 
+   /// Returns the Geometry::Type corresponding to a tensor-product of the
+   /// given dimension.
    static Type TensorProductGeometry(int dim)
    {
       switch (dim)
