@@ -28,6 +28,10 @@ protected:
    bool include_cut_cell;
    Array<int> ess_bdr;
 
+   // Alternative implementation of ListShiftedFaceDofs().
+   void ListShiftedFaceDofs2(const Array<int> &elem_marker,
+                             Array<int> &sface_dof_list);
+
 public:
    // Element type related to shifted boundaries (not interfaces).
    enum SBElementType {INSIDE, OUTSIDE, CUT};

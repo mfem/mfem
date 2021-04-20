@@ -84,6 +84,9 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
 void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
                                             Array<int> &sface_dof_list)
 {
+   //ListShiftedFaceDofs2(elem_marker, sface_dof_list);
+   //return;
+
    sface_dof_list.DeleteAll();
    Array<int> dofs; // work array
 
@@ -136,14 +139,11 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
    {
       for (int i = 0; i < pmesh.GetNBE(); i++)
       {
-         FaceElementTransformations *tr;
-         tr = pmesh.GetBdrFaceTransformations (i);
+         FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
-            int ne1 = tr->Elem1No;
-            int te1 = elem_marker[ne1];
             const int faceno = pmesh.GetBdrFace(i);
-            if (te1 == SBElementType::CUT)
+            if (elem_marker[tr->Elem1No] == SBElementType::CUT)
             {
                pfes_sltn.GetFaceDofs(faceno, dofs);
                sface_dof_list.Append(dofs);
@@ -260,6 +260,37 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
    Array<int> ess_tdofs;
    pfes_sltn.GetRestrictionMatrix()->BooleanMult(ess_vdofs, ess_tdofs);
    pfes_sltn.MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
+                                             Array<int> &sface_dof_list)
+{
+   sface_dof_list.DeleteAll();
+
+   L2_FECollection mat_coll(0, pmesh.Dimension());
+   ParFiniteElementSpace mat_fes(&pmesh, &mat_coll);
+   ParGridFunction mat(&mat_fes);
+   ParGridFunction marker_gf(&pfes_sltn);
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      // 0 is inside, 1 is outside.
+      mat(i) = 0.0;
+      if (elem_marker[i] == SBElementType::OUTSIDE)
+      { mat(i) = 1.0; }
+      if (elem_marker[i] == SBElementType::CUT && include_cut_cell == false)
+      { mat(i) = 1.0; }
+   }
+
+   GridFunctionCoefficient coeff_mat(&mat);
+   marker_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+
+   for (int j = 0; j < marker_gf.Size(); j++)
+   {
+      if (marker_gf(j) > 0.1 && marker_gf(j) < 0.9)
+      {
+         sface_dof_list.Append(j);
+      }
+   }
 }
 
 }
