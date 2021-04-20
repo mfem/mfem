@@ -82,10 +82,13 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
 }
 
 void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
-                                            Array<int> &sface_dof_list)
+                                            Array<int> &sface_dof_list) const
 {
-   //ListShiftedFaceDofs2(elem_marker, sface_dof_list);
-   //return;
+   if (func_dof_marking)
+   {
+      ListShiftedFaceDofs2(elem_marker, sface_dof_list);
+      return;
+   }
 
    sface_dof_list.DeleteAll();
    Array<int> dofs; // work array
@@ -125,16 +128,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
       }
    }
 
-   // Here we add boundary faces that we want to model as SBM faces and
-   // change the attribute of these faces.
-   ess_bdr.SetSize(pmesh.bdr_attributes.Max());
-   int pmesh_bdr_attr_max = 0;
-   if (ess_bdr.Size())
-   {
-      pmesh_bdr_attr_max = pmesh.bdr_attributes.Max();
-      ess_bdr = 1;
-   }
-   bool sbm_at_true_boundary = false;
+   // Add boundary faces that we want to model as SBM faces.
    if (include_cut_cell)
    {
       for (int i = 0; i < pmesh.GetNBE(); i++)
@@ -142,24 +136,13 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
-            const int faceno = pmesh.GetBdrFace(i);
             if (elem_marker[tr->Elem1No] == SBElementType::CUT)
             {
-               pfes_sltn.GetFaceDofs(faceno, dofs);
+               pfes_sltn.GetFaceDofs(pmesh.GetBdrFace(i), dofs);
                sface_dof_list.Append(dofs);
-               pmesh.SetBdrAttribute(i, pmesh_bdr_attr_max+1);
-               sbm_at_true_boundary = true;
             }
          }
       }
-   }
-   bool sbm_at_true_boundary_global = false;
-   MPI_Allreduce(&sbm_at_true_boundary, &sbm_at_true_boundary_global, 1, MPI_C_BOOL,
-                 MPI_LOR, MPI_COMM_WORLD);
-   if (sbm_at_true_boundary_global)
-   {
-      ess_bdr.Append(0);
-      pmesh.SetAttributes();
    }
 
    // Now we add interior faces that are on processor boundaries.
@@ -200,6 +183,39 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
                                            Array<int> &ess_tdof_list,
                                            Array<int> &ess_shift_bdr) const
 {
+   // Change the attribute of SBM faces that are on the boundary.
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   int pmesh_bdr_attr_max = 0;
+   if (ess_bdr.Size())
+   {
+      pmesh_bdr_attr_max = pmesh.bdr_attributes.Max();
+      ess_bdr = 1;
+   }
+   bool sbm_at_true_boundary = false;
+   if (include_cut_cell)
+   {
+      for (int i = 0; i < pmesh.GetNBE(); i++)
+      {
+         FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
+         if (tr != NULL)
+         {
+            if (elem_marker[tr->Elem1No] == SBElementType::CUT)
+            {
+               pmesh.SetBdrAttribute(i, pmesh_bdr_attr_max+1);
+               sbm_at_true_boundary = true;
+            }
+         }
+      }
+   }
+   bool sbm_at_true_boundary_global = false;
+   MPI_Allreduce(&sbm_at_true_boundary, &sbm_at_true_boundary_global, 1,
+                 MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
+   if (sbm_at_true_boundary_global)
+   {
+      ess_bdr.Append(0);
+      pmesh.SetAttributes();
+   }
+
    // Make a list of dofs on all boundaries
    ess_shift_bdr.SetSize(ess_bdr.Size());
    if (pmesh.bdr_attributes.Size())
@@ -266,7 +282,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
 }
 
 void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
-                                             Array<int> &sface_dof_list)
+                                             Array<int> &sface_dof_list) const
 {
    sface_dof_list.DeleteAll();
 
@@ -292,6 +308,24 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
       if (marker_gf(j) > 0.1 && marker_gf(j) < 0.9)
       {
          sface_dof_list.Append(j);
+      }
+   }
+
+   // Add boundary faces that we want to model as SBM faces.
+   if (include_cut_cell)
+   {
+      Array<int> dofs;
+      for (int i = 0; i < pmesh.GetNBE(); i++)
+      {
+         FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
+         if (tr != NULL)
+         {
+            if (elem_marker[tr->Elem1No] == SBElementType::CUT)
+            {
+               pfes_sltn.GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               sface_dof_list.Append(dofs);
+            }
+         }
       }
    }
 }
