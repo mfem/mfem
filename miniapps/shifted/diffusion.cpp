@@ -402,6 +402,10 @@ int main(int argc, char *argv[])
       }
    }
 
+   ConstantCoefficient zero(0.0);
+   const double norm = x.ComputeL2Error(zero);
+   if (myid == 0) { std::cout << norm << std::endl; }
+
    // Free the used memory.
    delete prec;
    delete S;
