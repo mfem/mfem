@@ -153,7 +153,10 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          }
       }
    }
-   if (sbm_at_true_boundary)
+   bool sbm_at_true_boundary_global = false;
+   MPI_Allreduce(&sbm_at_true_boundary, &sbm_at_true_boundary_global, 1, MPI_C_BOOL,
+                 MPI_LOR, MPI_COMM_WORLD);
+   if (sbm_at_true_boundary_global)
    {
       ess_bdr.Append(0);
       pmesh.SetAttributes();
