@@ -26,11 +26,13 @@ protected:
    ParGridFunction &ls_func;
    ParFiniteElementSpace &pfes_sltn;
    bool include_cut_cell;
-   Array<int> ess_bdr;
+
+   // Marking of face dofs by using an averaged continuous GridFunction.
+   const bool func_dof_marking = false;
 
    // Alternative implementation of ListShiftedFaceDofs().
    void ListShiftedFaceDofs2(const Array<int> &elem_marker,
-                             Array<int> &sface_dof_list);
+                             Array<int> &sface_dof_list) const;
 
 public:
    // Element type related to shifted boundaries (not interfaces).
@@ -40,12 +42,12 @@ public:
                      ParFiniteElementSpace &space_sltn,
                      bool include_cut_cell_)
       : pmesh(pm), ls_func(ls), pfes_sltn(space_sltn),
-        include_cut_cell(include_cut_cell_), ess_bdr() { }
+        include_cut_cell(include_cut_cell_) { }
 
    void MarkElements(Array<int> &elem_marker) const;
 
    void ListShiftedFaceDofs(const Array<int> &elem_marker,
-                            Array<int> &sface_dof_list);
+                            Array<int> &sface_dof_list) const;
 
    // Related to shifted boundary methods, where inactive dofs must be
    // eliminated from the system, based on the element markers.
