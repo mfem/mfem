@@ -67,8 +67,8 @@ struct get_config_dim_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
    static constexpr int value = Dim;
 };
 
-template <typename Tensor>
-constexpr int get_config_dim = get_config_dim_v<Tensor>::value;
+template <typename Config>
+constexpr int get_config_dim = get_config_dim_v<Config>::value;
 
 // is_tensor_config
 template <typename Config>
@@ -80,8 +80,8 @@ struct is_tensor_config_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
    static constexpr bool value = IsTensor;
 };
 
-template <typename Tensor>
-constexpr bool is_tensor_config = is_tensor_config_v<Tensor>::value;
+template <typename Config>
+constexpr bool is_tensor_config = is_tensor_config_v<Config>::value;
 
 // get_config_dofs
 template <typename Config>
@@ -93,8 +93,8 @@ struct get_config_dofs_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
    static constexpr int value = Dofs;
 };
 
-template <typename Tensor>
-constexpr int get_config_dofs = get_config_dofs_v<Tensor>::value;
+template <typename Config>
+constexpr int get_config_dofs = get_config_dofs_v<Config>::value;
 
 // get_config_quads
 template <typename Config>
@@ -106,8 +106,8 @@ struct get_config_quads_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
    static constexpr int value = Quads;
 };
 
-template <typename Tensor>
-constexpr int get_config_quads = get_config_quads_v<Tensor>::value;
+template <typename Config>
+constexpr int get_config_quads = get_config_quads_v<Config>::value;
 
 // get_config_batchsize
 template <typename Config>
@@ -119,8 +119,8 @@ struct get_config_batchsize_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
    static constexpr int value = BatchSize;
 };
 
-template <typename Tensor>
-constexpr int get_config_batchsize = get_config_batchsize_v<Tensor>::value;
+template <typename Config>
+constexpr int get_config_batchsize = get_config_batchsize_v<Config>::value;
 
 } // mfem namespace
 
