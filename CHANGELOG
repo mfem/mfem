@@ -8,8 +8,9 @@
                                https://mfem.org
 
 
-Version 4.2.1 (development)
-===========================
+Version 4.3, released on April 30, 2021
+=======================================
+
 - Added initial support for GPU-accelerated versions of PETSc that works with
   MFEM_USE_CUDA if PETSc has been configured with CUDA support. Examples 1 and 9
   in the examples/petsc directory have been modified to work with --device cuda.
