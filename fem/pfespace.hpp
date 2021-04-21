@@ -73,6 +73,11 @@ private:
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
 
+   /** Used to indicate that the space is nonconforming (even if the underlying
+       mesh has NULL @a ncmesh). This occurs in low-order preconditioning on
+       nonconforming meshes. */
+   bool nonconf_P;
+
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
    /// Optimized action-only restriction operator for conforming meshes. Owned.
@@ -182,6 +187,13 @@ private:
    /// <b>topologically identical</b> to the existing mesh. Used if the address
    /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
    virtual void UpdateMeshPointer(Mesh *new_mesh);
+
+   /// Copies the prolongation and restriction matrices from @a fes. Used for
+   /// low order preconditioning on non-conforming meshes. If the DOFs require
+   /// a permutation, it will be supplied by non-NULL @a perm. NULL @a perm
+   /// indicates that no permutation is required.
+   virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
+                                               const Array<int> *perm);
 
 public:
    // Face-neighbor data
@@ -381,8 +393,8 @@ public:
    void LoseDofOffsets() { dof_offsets.LoseData(); }
    void LoseTrueDofOffsets() { tdof_offsets.LoseData(); }
 
-   bool Conforming() const { return pmesh->pncmesh == NULL; }
-   bool Nonconforming() const { return pmesh->pncmesh != NULL; }
+   bool Conforming() const { return pmesh->pncmesh == NULL && !nonconf_P; }
+   bool Nonconforming() const { return pmesh->pncmesh != NULL || nonconf_P; }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the

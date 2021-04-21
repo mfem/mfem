@@ -100,6 +100,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    P = NULL;
    Pconf = NULL;
+   nonconf_P = false;
    Rconf = NULL;
    R_transpose = NULL;
    R = NULL;
@@ -2907,6 +2908,46 @@ void ParFiniteElementSpace::Destroy()
    face_nbr_ldof.Clear();
    face_nbr_glob_dof_map.DeleteAll();
    send_face_nbr_ldof.Clear();
+}
+
+void ParFiniteElementSpace::CopyProlongationAndRestriction(
+   const FiniteElementSpace &fes, const Array<int> *perm)
+{
+   const ParFiniteElementSpace *pfes
+      = dynamic_cast<const ParFiniteElementSpace*>(&fes);
+   MFEM_VERIFY(pfes != NULL, "");
+   MFEM_VERIFY(P == NULL, "");
+   MFEM_VERIFY(R == NULL, "");
+
+   SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
+   if (perm)
+   {
+      int n = perm->Size();
+      perm_mat = new SparseMatrix(n, n);
+      for (int i=0; i<n; ++i)
+      {
+         double s;
+         int j = DecodeDof((*perm)[i], s);
+         perm_mat->Set(i, j, s);
+      }
+      perm_mat->Finalize();
+      perm_mat_tr = Transpose(*perm_mat);
+   }
+
+   if (pfes->P != NULL)
+   {
+      if (perm) { P = pfes->P->LeftDiagMult(*perm_mat); }
+      else { P = new HypreParMatrix(*pfes->P); }
+      nonconf_P = true;
+   }
+   if (pfes->R != NULL)
+   {
+      if (perm) { R = Mult(*pfes->R, *perm_mat_tr); }
+      else { R = new SparseMatrix(*pfes->R); }
+   }
+
+   delete perm_mat;
+   delete perm_mat_tr;
 }
 
 void ParFiniteElementSpace::GetTrueTransferOperator(
