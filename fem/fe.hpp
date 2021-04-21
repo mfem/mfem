@@ -2858,6 +2858,7 @@ class RT_HexahedronElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2nk;
+   const double *cp;
 
 public:
    /** @brief Construct the RT_HexahedronElement of order @a p and closed and
@@ -2886,7 +2887,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
@@ -2900,6 +2904,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 

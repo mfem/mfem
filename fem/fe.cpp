@@ -10984,11 +10984,13 @@ RT_HexahedronElement::RT_HexahedronElement(const int p,
                                            const int ob_type)
    : VectorTensorFiniteElement(3, 3*(p + 1)*(p + 1)*(p + 2), p + 1, cb_type,
                                ob_type, H_DIV, DofMapType::L2_DOF_MAP),
-     dof2nk(dof)
+     dof2nk(dof),
+     cp(poly1d.ClosedPoints(p + 1, cb_type))
 {
+   if (obasis1d.IsIntegratedType()) { is_nodal = false; }
+
    dof_map.SetSize(dof);
 
-   const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
    const int dof3 = dof/3;
 
@@ -11305,6 +11307,56 @@ void RT_HexahedronElement::CalcDivShape(const IntegrationPoint &ip,
             }
             divshape(idx) = s*shape_ox(i)*shape_oy(j)*dshape_cz(k);
          }
+}
+
+void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
+                                             ElementTransformation &Trans,
+                                             Vector &dofs) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   double vq[Geometry::MaxDim];
+   Vector xq(vq, vc.GetVDim());
+
+   const IntegrationRule &ir2d = IntRules.Get(Geometry::SQUARE, order);
+   const int nqpt = ir2d.GetNPoints();
+
+   IntegrationPoint ip3d;
+
+   int o = 0;
+   for (int c = 0; c < 3; c++)
+   {
+      int im = (c == 0) ? order + 1 : order;
+      int jm = (c == 1) ? order + 1 : order;
+      int km = (c == 2) ? order + 1 : order;
+      for (int k = 0; k < km; k++)
+         for (int j = 0; j < jm; j++)
+            for (int i = 0; i < im; i++)
+            {
+               int idx = dof_map[o++];
+               if (idx < 0) { idx = -1 - idx; }
+               int ic1, ic2;
+               if (c == 0) { ic1 = j; ic2 = k; }
+               else if (c == 1) { ic1 = i; ic2 = k; }
+               else { ic1 = i; ic2 = j; }
+               const double h1 = cp[ic1+1] - cp[ic1];
+               const double h2 = cp[ic2+1] - cp[ic2];
+               double val = 0.0;
+               for (int q = 0; q < nqpt; q++)
+               {
+                  const IntegrationPoint &ip2d = ir2d.IntPoint(q);
+                  if (c == 0) { ip3d.Set3(cp[i], cp[j] + h1*ip2d.x, cp[j] + h2*ip2d.y); }
+                  else if (c == 1) { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j], cp[k] + h2*ip2d.y); }
+                  else { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j] + h2*ip2d.y, cp[k]); }
+                  Trans.SetIntPoint(&ip3d);
+                  vc.Eval(xq, Trans, ip3d);
+                  // nk^t adj(J) xq
+                  const double ipval
+                     = Trans.AdjugateJacobian().InnerProduct(vq, nk + dof2nk[idx]*dim);
+                  val += ip2d.weight*ipval;
+               }
+               dofs(idx) = val*h1*h2;
+            }
+   }
 }
 
 
