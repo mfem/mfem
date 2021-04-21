@@ -155,7 +155,7 @@ jobs:
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v1.0
+      uses: mfem/github-actions/build-mfem@testing/bernede1/optimized-actions
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
