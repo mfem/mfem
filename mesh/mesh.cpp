@@ -3617,7 +3617,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                   "Unsupported VTK format");
       ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
-   else if (mesh_type.rfind("<VTKFile ") == 0)
+   else if (mesh_type.rfind("<VTKFile ") == 0 || mesh_type.rfind("<?xml") == 0)
    {
       ReadXML_VTKMesh(input, curved, read_gf, finalize_topo, mesh_type);
    }
