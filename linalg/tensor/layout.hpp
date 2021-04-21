@@ -199,21 +199,32 @@ private:
 
 public:
    template <typename... Dims> MFEM_HOST_DEVICE
-   constexpr StaticELayout(Dims... args): last_size(GetLast(args...))
+   constexpr StaticELayout(int arg0, Dims... args)
+   : last_size(GetLast(arg0, args...))
    {
-      static_assert(sizeof...(Dims)==sizeof...(Sizes)+1, "Static and dynamic sizes don't match.");
+      static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
       // TODO verify that Dims == sizes in Debug mode
    }
 
-   template <typename Layout> MFEM_HOST_DEVICE
-   constexpr StaticELayout(const Layout& rhs)
-   : last_size(rhs.template Size<sizeof...(Sizes)>())
-   {
-      // for (int i = 0; i < Rank; i++)
-      // {
-      //    MFEM_ASSERT(Sizes...[i] == lhs.Size<i>());
-      // }
-   }
+   // MFEM_HOST_DEVICE
+   // constexpr StaticELayout(const StaticELayout& rhs)
+   // : last_size(rhs.last_size)
+   // {
+   //    // for (int i = 0; i < Rank; i++)
+   //    // {
+   //    //    MFEM_ASSERT(Sizes...[i] == lhs.Size<i>());
+   //    // }
+   // }
+
+   // template <typename Layout> MFEM_HOST_DEVICE
+   // constexpr StaticELayout(const Layout& rhs)
+   // : last_size(rhs.template Size<sizeof...(Sizes)>())
+   // {
+   //    // for (int i = 0; i < Rank; i++)
+   //    // {
+   //    //    MFEM_ASSERT(Sizes...[i] == lhs.Size<i>());
+   //    // }
+   // }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(Idx... idx) const
@@ -280,6 +291,7 @@ private:
       }
    };
 };
+
 /// Layout using a thread plane to distribute data
 template <int BatchSize, int... Dims>
 class BlockLayout;

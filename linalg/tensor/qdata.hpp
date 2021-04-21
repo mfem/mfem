@@ -155,7 +155,7 @@ public:
    template <typename Config>
    QData(double *x, Config &config, int ne)
    : InTensor<Dim+DimComp+1>(
-        Container(x,ne*pow(config.quads,Dim)*pow(Dim,DimComp)),
+        x,
         this->template initTensor<Layout>(config.quads,Dim,ne) )
    {
       // TODO static asserts Config values 
@@ -188,7 +188,7 @@ public:
    template <typename Config>
    QData(const double *x, Config &config, int ne)
    : InTensor<Dim+DimComp+1>(
-        Container(x,ne*config.quads*pow(Dim,DimComp)),
+        x,
         this->template initNonTensor<Layout>(config.quads,Dim,ne))
    {
       // TODO static asserts Config values 
@@ -283,7 +283,7 @@ public:
    template <typename Config>
    SymmQData(double *x, Config &config, int ne)
    : InTensor<Dim+DimComp+1>(
-        Container(x,ne*pow(config.quads,Dim)*Dim*(Dim+1)/2),
+        x,
         this->template initTensor<Layout>(config.quads,Dim*(Dim+1)/2,ne) )
    {
       // TODO static asserts Config values 
@@ -316,7 +316,7 @@ public:
    template <typename Config>
    SymmQData(const double *x, Config &config, int ne)
    : InTensor<Dim+DimComp+1>(
-        Container(x,ne*config.quads*Dim*(Dim+1)/2),
+        x,
         this->template initNonTensor<Layout>(config.quads,Dim*(Dim+1)/2,ne))
    {
       // TODO static asserts Config values 
