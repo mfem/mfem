@@ -10712,11 +10712,11 @@ RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
                                                  const int ob_type)
    : VectorTensorFiniteElement(2, 2*(p + 1)*(p + 2), p + 1, cb_type, ob_type,
                                H_DIV, DofMapType::L2_DOF_MAP),
-     dof2nk(dof)
+     dof2nk(dof),
+     cp(poly1d.ClosedPoints(p + 1, cb_type))
 {
    dof_map.SetSize(dof);
 
-   const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
    const int dof2 = dof/2;
 
@@ -10930,6 +10930,49 @@ void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
          }
          divshape(idx) = s*shape_ox(i)*dshape_cy(j);
       }
+}
+
+void RT_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
+                                                ElementTransformation &Trans,
+                                                Vector &dofs) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, vc.GetVDim());
+
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, order);
+   const int nqpt = ir.GetNPoints();
+
+   IntegrationPoint ip2d;
+
+   int o = 0;
+   for (int c = 0; c < 2; c++)
+   {
+      int im = (c == 0) ? order + 1 : order;
+      int jm = (c == 1) ? order + 1 : order;
+      for (int j = 0; j < jm; j++)
+         for (int i = 0; i < im; i++)
+         {
+            int idx = dof_map[o++];
+            if (idx < 0) { idx = -1 - idx; }
+            int ic = (c == 0) ? j : i;
+            const double h = cp[ic+1] - cp[ic];
+            double val = 0.0;
+            for (int k = 0; k < nqpt; k++)
+            {
+               const IntegrationPoint &ip1d = ir.IntPoint(k);
+               if (c == 0) { ip2d.Set2(cp[i], cp[j] + (h*ip1d.x)); }
+               else { ip2d.Set2(cp[i] + (h*ip1d.x), cp[j]); }
+               Trans.SetIntPoint(&ip2d);
+               vc.Eval(xk, Trans, ip2d);
+               // nk^t adj(J) xk
+               const double ipval = Trans.AdjugateJacobian().InnerProduct(vk,
+                                                                          nk + dof2nk[idx]*dim);
+               val += ip1d.weight*ipval;
+            }
+            dofs(idx) = val*h;
+         }
+   }
 }
 
 
@@ -11828,7 +11871,7 @@ void ND_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                                              ElementTransformation &Trans,
                                              Vector &dofs) const
 {
-   MFEM_VERIFY(obasis1d.IsIntegratedType(), "Not integrated type");
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
    double vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
@@ -12242,7 +12285,7 @@ void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
                                                 ElementTransformation &Trans,
                                                 Vector &dofs) const
 {
-   MFEM_VERIFY(obasis1d.IsIntegratedType(), "Not integrated type");
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
    double vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
