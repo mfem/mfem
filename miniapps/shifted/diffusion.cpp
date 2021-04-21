@@ -1,25 +1,43 @@
-﻿//            MFEM Shifted boundary method solver - Parallel Version
+﻿// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//      -----------------------------------------------------------------
+//      Shifted Boundary Miniapp: Finite element immersed boundary solver
+//      -----------------------------------------------------------------
+//
+// TODO - problem and approach descriptions, references.
 //
 // Compile with: make diffusion
 //
 // Sample runs:
 //   Problem 1: Circular hole of radius 0.2 at the center of the domain.
-//              -nabla^u = 1 with homogeneous boundary conditions
+//              Solves -nabla^u = 1 with homogeneous boundary conditions.
 //   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 1
 //   mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
-//              -nabla^u = f with inhomogeneous boundary conditions, f is setup
-//              such that u = x^p + y^p, where p = 2 by default.
-//   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 2 -vis -lst 2
+//              Solves -nabla^u = f with inhomogeneous boundary conditions, and
+//              f is setup such that u = x^p + y^p, where p = 2 by default.
+//              This is a 2D convergence test.
+//   mpirun -np 4 diffusion -rs 2 -o 2 -vis -lst 2
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
-//              -nabla^u = f with inhomogeneous boundary conditions, f is setup
-//              such that u = sin(pi*x*y)
-//   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 3
+//              Solves -nabla^u = f with inhomogeneous boundary conditions, and
+//              f is setup such that u = sin(pi*x*y).
+//              This is a 2D convergence test.
+//   mpirun -np 4 diffusion -rs 2 -o 1 -vis -lst 3
 //
 //   Problem 4: Complex 2D shape:
-//     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
+//              Solves -nabla^u = 1 with homogeneous boundary conditions.
+//   mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
 //
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -116,8 +134,11 @@ int main(int argc, char *argv[])
    }
    pmesh.SetNodes(vxyz);
    pfespace.ExchangeFaceNbrData();
-   cout << "Number of finite element unknowns: "
-        << pfespace.GetTrueVSize() << endl;
+   const int gtsize = pfespace.GlobalTrueVSize();
+   if (myid == 0)
+   {
+      cout << "Number of finite element unknowns: " << gtsize << endl;
+   }
 
    // Define the solution vector x as a finite element grid function
    // corresponding to pfespace.
@@ -329,19 +350,14 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   cout << "Size of linear system: " << A->Height() << endl;
-
-   Solver *S = NULL;
-   Solver *prec = NULL;
-   prec = new HypreBoomerAMG;
+   Solver *prec = new HypreBoomerAMG;
    BiCGSTABSolver *bicg = new BiCGSTABSolver(MPI_COMM_WORLD);
    bicg->SetRelTol(1e-12);
    bicg->SetMaxIter(2000);
    bicg->SetPrintLevel(1);
    bicg->SetPreconditioner(*prec);
    bicg->SetOperator(*A);
-   S = bicg;
-   S->Mult(B, X);
+   bicg->Mult(B, X);
 
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
@@ -398,17 +414,13 @@ int main(int argc, char *argv[])
       const double global_error = x.ComputeL2Error(*dbcCoef);
       if (myid == 0)
       {
-         std::cout << " Global error - L2 norm: " << global_error << endl;
+         std::cout << "Global L2 error: " << global_error << endl;
       }
    }
 
-   ConstantCoefficient zero(0.0);
-   const double norm = x.ComputeL2Error(zero);
-   if (myid == 0) { std::cout << norm << std::endl; }
-
    // Free the used memory.
    delete prec;
-   delete S;
+   delete bicg;
    delete dbcCoef;
    delete rhs_f;
    delete dist_vec;
