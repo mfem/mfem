@@ -18,7 +18,8 @@
 
 namespace mfem
 {
-
+// ALL THIS SHOULD BE REWRITTEN...
+// TODO Maybe remove this class?
 // TODO maybe D before Q?
 template <int Dim, bool IsTensor, typename TensorType>
 class BasisTensor : public TensorType
@@ -479,7 +480,7 @@ struct get_basis_quads_v<BasisTensor<Dim, IsTensor, TensorType>>
 };
 
 template <typename Basis>
-constexpr bool get_basis_quads = get_basis_quads_v<Basis>::value;
+constexpr int get_basis_quads = get_basis_quads_v<Basis>::value;
 
 // get_basis_dofs
 template <typename Basis>

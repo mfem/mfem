@@ -154,10 +154,10 @@ constexpr bool is_2d_threaded_tensor = is_2d_threaded_tensor_v<Tensor>::value;
 
 // get_tensor_size
 template <int N, typename Tensor>
-struct get_tensor_size_v
-{
-   static constexpr int value = Error;
-};
+struct get_tensor_size_v;
+// {
+//    static constexpr int value = Error;
+// };
 
 template <int N, int R, typename T, typename C, typename L>
 struct get_tensor_size_v<N, Tensor<R,T,C,L>>

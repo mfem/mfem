@@ -23,7 +23,6 @@ class DeviceContainer
 {
 protected:
    T* data;
-   int capacity;
 
 public:
    template <typename... Sizes>
@@ -33,22 +32,17 @@ public:
    }
 
    MFEM_HOST_DEVICE
-   DeviceContainer(T* data, int capacity) : data(data), capacity(capacity)
+   DeviceContainer(T* data) : data(data)
    { }
 
    MFEM_HOST_DEVICE
-   DeviceContainer(const DeviceContainer &rhs) : data(rhs.data), capacity(rhs.capacity)
+   DeviceContainer(const DeviceContainer &rhs) : data(rhs.data)
    { }
 
    MFEM_HOST_DEVICE
    T& operator[](int i) const
    {
       return data[ i ];
-   }
-
-   const int Capacity() const
-   {
-      return capacity;
    }
 };
 
@@ -58,7 +52,6 @@ class ReadContainer
 {
 private:
    const T* data;
-   int capacity;
 
 public:
    template <typename... Sizes>
@@ -68,22 +61,17 @@ public:
    }
 
    MFEM_HOST_DEVICE
-   ReadContainer(const T* data, int capacity) : data(data), capacity(capacity)
+   ReadContainer(const T* data) : data(data)
    { }
 
    MFEM_HOST_DEVICE
-   ReadContainer(const ReadContainer &rhs) : data(rhs.data), capacity(rhs.capacity)
+   ReadContainer(const ReadContainer &rhs) : data(rhs.data)
    { }
 
    MFEM_HOST_DEVICE
    const T& operator[](int i) const
    {
       return data[ i ];
-   }
-
-   const int Capacity() const
-   {
-      return capacity;
    }
 };
 
@@ -100,7 +88,7 @@ public:
 
    MemoryContainer(const MemoryContainer &rhs)
    {
-      if(rhs.Capacity>Capacity())
+      if(rhs.Capacity()>Capacity())
       {
          data.New(rhs.Capacity(), data.GetMemoryType());
       }
@@ -121,7 +109,7 @@ public:
       return data[ i ];
    }
 
-   const int Capacity() const
+   int Capacity() const
    {
       return data.Capacity();
    }
@@ -170,12 +158,6 @@ public:
    {
       return data[ i ];
    }
-
-   MFEM_HOST_DEVICE
-   constexpr int Capacity() const
-   {
-      return prod(Dims...);
-   }
 };
 
 /// Owning Container using shared memory on device and statically sized.
@@ -203,11 +185,6 @@ public:
    T& operator[](int i)
    {
       return data[ i ];
-   }
-
-   constexpr int Capacity() const
-   {
-      return prod(Dims...);
    }
 };
 
@@ -240,12 +217,6 @@ public:
       // TODO Verify in debug that i==0
       return data;
    }
-
-   MFEM_HOST_DEVICE
-   constexpr int Capacity() const
-   {
-      return 1;
-   }
 };
 
 /// 2D special case
@@ -272,12 +243,6 @@ public:
       // TODO Verify in debug that i==0
       return data;
    }
-
-   MFEM_HOST_DEVICE
-   constexpr int Capacity() const
-   {
-      return 1;
-   }
 };
 
 /// 3D and more general case
@@ -300,12 +265,6 @@ public:
    T& operator[](int i)
    {
       return data[ i ];
-   }
-
-   MFEM_HOST_DEVICE
-   constexpr int Capacity() const
-   {
-      return prod(Dims...);
    }
 };
 
@@ -331,12 +290,6 @@ public:
    {
       return data[ i ];
    }
-
-   MFEM_HOST_DEVICE
-   constexpr int Capacity() const
-   {
-      return data.Capacity();
-   }
 };
 
 /// A view Container
@@ -354,12 +307,6 @@ public:
    const T& operator[](int i) const
    {
       return data[ i ];
-   }
-
-   MFEM_HOST_DEVICE
-   constexpr int Capacity() const
-   {
-      return data.Capacity();
    }
 };
 

@@ -35,8 +35,8 @@ namespace mfem
        template <int... Sizes>,
        where Sizes... is the list of the sizes of the dimensions of the Tensor.
    */
-template <int Rank,
-          typename T = double,
+template <int Rank, // Remove, get from layout?
+          typename T = double, // Remove, get from container?
           typename Container = MemoryContainer<T>,
           typename Layout = DynamicLayout<Rank> >
 class Tensor: public Container, public Layout
@@ -61,6 +61,10 @@ public:
 
    MFEM_HOST_DEVICE
    Tensor(Container data, Layout index): Container(data), Layout(index) { }
+
+   template <typename... Sizes> MFEM_HOST_DEVICE
+   Tensor(T* ptr, Sizes... sizes)
+   : Container(ptr), Layout(sizes...) { }
 
    /// Copy Constructor
    MFEM_HOST_DEVICE
