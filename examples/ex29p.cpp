@@ -18,7 +18,8 @@
 //               This example demonstrates the use of finite element
 //               integrators on 2D domains with 3D coefficients.
 //
-//               We recommend viewing example 1 before viewing this example.
+//               We recommend viewing examples 1 and 7 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -69,6 +70,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    int order = 3;
    int mesh_type = 4; // Default to Quadrilateral mesh
+   int mesh_order = 3;
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
    bool static_cond = false;
@@ -77,6 +79,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_type, "-mt", "--mesh-type",
                   "Mesh type: 3 - Triangular, 4 - Quadrilateral.");
+   args.AddOption(&mesh_order, "-mo", "--mesh-order",
+                  "Geometric order of the curved mesh.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
@@ -120,33 +124,15 @@ int main(int argc, char *argv[])
    }
 
    // 6. Transform the mesh so that it has a more interesting geometry.
-   pmesh.SetCurvature(3);
+   pmesh.SetCurvature(mesh_order);
    pmesh.Transform(trans);
 
    // 7. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   bool delete_fec;
-   if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
-   }
-   else if (pmesh.GetNodes())
-   {
-      fec = pmesh.GetNodes()->OwnFEC();
-      delete_fec = false;
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
-   }
-   ParFiniteElementSpace fespace(&pmesh, fec);
-   cout << "Number of finite element unknowns: "
-        << fespace.GlobalTrueVSize() << endl;
+   //    Lagrange finite elements of the specified order.
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace fespace(&pmesh, &fec);
+   mfem::out << "Number of finite element unknowns: "
+             << fespace.GlobalTrueVSize() << endl;
 
    // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -193,7 +179,6 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   mfem::out << "done." << endl;
    mfem::out << "Size of linear system: "
              << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
 
@@ -218,7 +203,7 @@ int main(int argc, char *argv[])
 
    mfem::out << "|u - u_h|_2 = " << err << endl;
 
-   ParFiniteElementSpace flux_fespace(&pmesh, fec, 3);
+   ParFiniteElementSpace flux_fespace(&pmesh, &fec, 3);
    ParGridFunction flux(&flux_fespace);
    x.ComputeFlux(*integ, flux); flux *= -1.0;
 
@@ -268,12 +253,6 @@ int main(int argc, char *argv[])
                 << "keys vvv\n"
                 << "window_geometry 402 0 400 350\n"
                 << "window_title 'Flux'\n"  << flush;
-   }
-
-   // 18. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
    }
 
    return 0;
@@ -390,8 +369,8 @@ void trans(const Vector &x, Vector &r)
    }
    else
    {
-      cout << "side not recognized "
-           << x[0] << " " << x[1] << " " << x[2] << endl;
+      mfem::out << "side not recognized "
+                << x[0] << " " << x[1] << " " << x[2] << endl;
    }
 
    r[0] = cos(theta);
