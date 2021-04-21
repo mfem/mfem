@@ -26,6 +26,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    q_layout(QVectorLayout::byNODES),
    use_tensor_products(UsesTensorBasis(fes))
 {
+   d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
@@ -41,6 +42,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    q_layout(QVectorLayout::byNODES),
    use_tensor_products(UsesTensorBasis(fes))
 {
+   d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
