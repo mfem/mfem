@@ -66,6 +66,7 @@ protected:
    BilinearForm *a;
    OperatorHandle A;
    mutable Array<int> perm;
+   bool nonconforming = false;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
@@ -75,6 +76,10 @@ protected:
    /// Construct the permutation that maps LOR DOFs to high-order DOFs. See
    /// GetDofPermutation.
    void ConstructDofPermutation() const;
+
+   /// Sets up the prolongation and restriction operators required for
+   /// nonconforming spaces.
+   void SetupNonconforming();
 
    /// Return the type of finite element space: H1, ND, RT or L2.
    FESpaceType GetFESpaceType() const;
@@ -101,6 +106,8 @@ public:
 
    /// Returns true if the LOR spaces requires a DOF permutation (if the
    /// corresponding LOR and HO DOFs are numbered differently), false otherwise.
+   /// Note: permutations are not required in the case of nonconforming spaces,
+   /// since the DOF numbering is incorporated into the prolongation operators.
    bool RequiresDofPermutation() const;
 
    /// Returns the low-order refined finite element space.

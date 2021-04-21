@@ -231,7 +231,7 @@ bool LORBase::RequiresDofPermutation() const
    // TODO: check if there are cases where L2 requires permutation, or can
    // return false in L2 case too.
    FESpaceType type = GetFESpaceType();
-   return (type == H1 || type == L2) ? false : true;
+   return (type == H1 || type == L2 || nonconforming) ? false : true;
 }
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
@@ -279,6 +279,21 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
    ResetIntegrationRules(&BilinearForm::GetFBFI);
    ResetIntegrationRules(&BilinearForm::GetBBFI);
    ResetIntegrationRules(&BilinearForm::GetBFBFI);
+}
+
+void LORBase::SetupNonconforming()
+{
+   if (RequiresDofPermutation())
+   {
+      Array<int> p;
+      ConstructLocalDofPermutation(p);
+      fes->CopyProlongationAndRestriction(fes_ho, &p);
+   }
+   else
+   {
+      fes->CopyProlongationAndRestriction(fes_ho, NULL);
+   }
+   nonconforming = true;
 }
 
 LORBase::LORBase(FiniteElementSpace &fes_ho_)
@@ -331,6 +346,7 @@ LOR::LOR(FiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
 
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
+   if (fes_ho.Nonconforming()) { SetupNonconforming(); }
 }
 
 SparseMatrix &LOR::GetAssembledMatrix() const
@@ -365,6 +381,7 @@ ParLOR::ParLOR(ParFiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
+   if (fes_ho.Nonconforming()) { SetupNonconforming(); }
 }
 
 HypreParMatrix &ParLOR::GetAssembledMatrix() const

@@ -378,7 +378,7 @@ void ParBilinearForm::FormLinearSystem(
    else
    {
       // Variational restriction with P
-      X.SetSize(pfes->TrueVSize());
+      X.SetSize(P.Width());
       B.SetSize(X.Size());
       P.MultTranspose(b, B);
       R.Mult(x, X);
