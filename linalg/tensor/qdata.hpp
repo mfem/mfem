@@ -122,7 +122,7 @@ struct InitQData<T,false,Dim,DimComp,0,DimComp>
 };
 
 /// get_qdata_layout
-template <bool IsTensor, int Quads, int Dim, int VDim, int DimComp>
+template <bool IsTensor, int Quads, int Dim, int DimComp, int CompSize = Dim>
 struct get_qdata_layout_t;
 // {
 //    static constexpr int Rank = (IsTensor?Dim:1)+DimComp+1;
@@ -130,39 +130,39 @@ struct get_qdata_layout_t;
 // };
 
 // Tensor Dynamic
-template <int Dim, int VDim, int DimComp>
-struct get_qdata_layout_t<true, Dynamic, Dim, VDim, DimComp>
+template <int Dim, int DimComp, int CompSize>
+struct get_qdata_layout_t<true, Dynamic, Dim, DimComp, CompSize>
 {
    static constexpr int Rank = Dim+DimComp+1;
    using type = DynamicLayout<Rank>;
 };
 
 // Non-Tensor Dynamic
-template <int Dim, int VDim, int DimComp>
-struct get_qdata_layout_t<false, Dynamic, Dim, VDim, DimComp>
+template <int Dim, int DimComp, int CompSize>
+struct get_qdata_layout_t<false, Dynamic, Dim, DimComp, CompSize>
 {
    static constexpr int Rank = 1+DimComp+1;
    using type = DynamicLayout<Rank>;
 };
 
 // Tensor Static
-template <int Quads, int Dim, int VDim, int DimComp>
-struct get_qdata_layout_t<true, Quads, Dim, VDim, DimComp>
+template <int Quads, int Dim, int DimComp, int CompSize>
+struct get_qdata_layout_t<true, Quads, Dim, DimComp, CompSize>
 {
-   using sizes = append< int_repeat<Quads,Dim>, int_repeat<VDim,DimComp> >;
+   using sizes = append< int_repeat<Quads,Dim>, int_repeat<CompSize,DimComp> >;
    using type = instantiate< StaticELayout, sizes >;
 };
 
 // Non-Tensor Static
-template <int Quads, int Dim, int VDim, int DimComp>
-struct get_qdata_layout_t<false, Quads, Dim, VDim, DimComp>
+template <int Quads, int Dim, int DimComp, int CompSize>
+struct get_qdata_layout_t<false, Quads, Dim, DimComp, CompSize>
 {
-   using sizes = append< int_list<Quads>, int_repeat<VDim,DimComp> >;
+   using sizes = append< int_list<Quads>, int_repeat<CompSize,DimComp> >;
    using type = instantiate< StaticELayout, sizes >;
 };
 
-template <bool IsTensor, int Quads, int Dim, int VDim, int DimComp>
-using get_qdata_layout = typename get_qdata_layout_t<IsTensor,Quads,Dim,VDim,DimComp>::type;
+template <bool IsTensor, int Quads, int Dim, int DimComp, int CompSize = Dim>
+using get_qdata_layout = typename get_qdata_layout_t<IsTensor,Quads,Dim,DimComp,CompSize>::type;
 
 /// Functor to represent QData
 template <int DimComp, typename Config>
@@ -171,13 +171,13 @@ auto MakeQData(Config &config, double *x, int ne)
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Quads = get_config_quads<Config>;
-   constexpr int Rank = (IsTensor?Dim:1)+DimComp+1;
-   using Layout = get_qdata_layout<IsTensor,Quads,Dim,Dim,DimComp>;
+   constexpr int DiagDim = IsTensor ? Dim : 1;
+   constexpr int Rank = DiagDim+DimComp+1;
+   using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp>;
    using QDataTensor = Tensor<Rank,
                               double,
                               DeviceContainer<double>,
                               Layout >;
-   constexpr int DiagDim = IsTensor? Dim : 1;
    using QD = QData<DiagDim,QDataTensor>;
    return InitQData<QD,IsTensor,Dim,DimComp>::make(x,config.quads,Dim,ne);
 }
@@ -188,13 +188,13 @@ auto MakeQData(Config &config, const double *x, int ne)
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Quads = get_config_quads<Config>;
-   constexpr int Rank = (IsTensor?Dim:1)+DimComp+1;
-   using Layout = get_qdata_layout<IsTensor,Quads,Dim,Dim,DimComp>;
+   constexpr int DiagDim = IsTensor ? Dim : 1;
+   constexpr int Rank = DiagDim+DimComp+1;
+   using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp>;
    using QDataTensor = Tensor<Rank,
                               double,
                               ReadContainer<double>,
                               Layout >;
-   constexpr int DiagDim = IsTensor? Dim : 1;
    using QD = QData<DiagDim,QDataTensor>;
    return InitQData<QD,IsTensor,Dim,DimComp>::
       make(const_cast<double*>(x),config.quads,Dim,ne);
@@ -210,7 +210,7 @@ auto MakeSymmQData(Config &config, double *x, int ne)
    constexpr int DiagDim = IsTensor ? Dim : 1;
    constexpr int Rank = DiagDim+DimComp+1;
    constexpr int SymmSize = Dim*(Dim+1)/2;
-   using Layout = get_qdata_layout<IsTensor,Quads,Dim,SymmSize,DimComp>;
+   using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp,SymmSize>;
    using QDataTensor = Tensor<Rank,
                               double,
                               DeviceContainer<double>,
@@ -229,7 +229,7 @@ auto MakeSymmQData(Config &config, const double *x, int ne)
    constexpr int DiagDim = IsTensor? Dim : 1;
    constexpr int Rank = DiagDim+DimComp+1;
    constexpr int SymmSize = Dim*(Dim+1)/2;
-   using Layout = get_qdata_layout<IsTensor,Quads,Dim,SymmSize,DimComp>;
+   using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp,SymmSize>;
    using QDataTensor = Tensor<Rank,
                               double,
                               ReadContainer<double>,
