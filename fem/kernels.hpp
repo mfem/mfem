@@ -22,7 +22,7 @@ namespace kernels
 {
 
 // Experimental helper functions for MFEM_FORALL FEM kernels
-// For the 2D functions, NBZ is tied to '1' for now
+// For the 2D functions, NBZ should be tied to '1' for now
 namespace internal
 {
 
@@ -31,7 +31,7 @@ template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
                                     const ConstDeviceMatrix &b,
                                     const ConstDeviceMatrix &g,
-                                    double sBG[2][MQ1*MD1])
+                                    double (&sBG)[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix B(sBG[0], MD1, MQ1);
@@ -55,7 +55,7 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<4, const double> &x,
-                                   double sm[NBZ][MD1*MD1])
+                                   double (&sm)[NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix X(sm[tidz], MD1, MD1);
@@ -74,7 +74,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<4, const double> &X,
-                                   double sX[2][NBZ][MD1*MD1])
+                                   double (&sX)[2][NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix X0(sX[0][tidz], MD1, MD1);
@@ -94,9 +94,9 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
 /// 2D Gradient, 1/2
 template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
-                                   const double sBG[2][MQ1*MD1],
-                                   const double sX[2][NBZ][MD1*MD1],
-                                   double sDQ[4][NBZ][MD1*MQ1])
+                                   const double (&sBG)[2][MQ1*MD1],
+                                   const double (&sX)[2][NBZ][MD1*MD1],
+                                   double (&sDQ)[4][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
@@ -137,9 +137,9 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
 /// 2D Gradient, 2/2
 template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
-                                   const double sBG[2][MQ1*MD1],
-                                   const double sDQ[4][NBZ][MD1*MQ1],
-                                   double sQQ[4][NBZ][MQ1*MQ1])
+                                   const double (&sBG)[2][MQ1*MD1],
+                                   const double (&sDQ)[4][NBZ][MD1*MQ1],
+                                   double (&sQQ)[4][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
@@ -180,7 +180,7 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
 /// Pull 2D Gradient
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void PullGrad(const int qx, const int qy,
-                                      const double sQQ[4][NBZ][MQ1*MQ1],
+                                      const double (&sQQ)[4][NBZ][MQ1*MQ1],
                                       double *Jpr)
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -199,7 +199,7 @@ MFEM_HOST_DEVICE inline void PullGrad(const int qx, const int qy,
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<5, const double> &x,
-                                   double sm[MD1*MD1*MD1])
+                                   double (&sm)[MD1*MD1*MD1])
 {
    DeviceTensor<3,double> X(sm, MD1, MD1, MD1);
 
@@ -220,7 +220,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<5, const double> &X,
-                                   double sm[3][MD1*MD1*MD1])
+                                   double (*sm)[MD1*MD1*MD1])
 {
    DeviceTensor<3,double> Xx(sm[0], MD1, MD1, MD1);
    DeviceTensor<3,double> Xy(sm[1], MD1, MD1, MD1);
@@ -244,9 +244,9 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
 /// 3D Gradient, 1/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
-                                   const double sBG[2][MQ1*MD1],
-                                   const double sDDD[3][MD1*MD1*MD1],
-                                   double sDDQ[9][MD1*MD1*MQ1])
+                                   const double (*sBG)[MQ1*MD1],
+                                   const double (*sDDD)[MD1*MD1*MD1],
+                                   double (*sDDQ)[MD1*MD1*MQ1])
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
@@ -299,9 +299,9 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
 /// 3D Gradient, 2/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
-                                   const double sBG[2][MQ1*MD1],
-                                   const double sDDQ[9][MD1*MD1*MQ1],
-                                   double sDQQ[9][MD1*MQ1*MQ1])
+                                   const double (*sBG)[MQ1*MD1],
+                                   const double (*sDDQ)[MD1*MD1*MQ1],
+                                   double (*sDQQ)[MD1*MQ1*MQ1])
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
@@ -367,9 +367,9 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
 /// 3D Gradient, 3/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
-                                   const double sBG[2][MQ1*MD1],
-                                   const double sDQQ[9][MD1*MQ1*MQ1],
-                                   double sQQQ[9][MQ1*MQ1*MQ1])
+                                   const double (*sBG)[MQ1*MD1],
+                                   const double (*sDQQ)[MD1*MQ1*MQ1],
+                                   double (*sQQQ)[MQ1*MQ1*MQ1])
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
@@ -438,7 +438,7 @@ MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
 /// Pull 3D Gradient
 template<int MQ1>
 MFEM_HOST_DEVICE inline void PullGrad(const int x, const int y, const int z,
-                                      const double sQQQ[9][MQ1*MQ1*MQ1],
+                                      const double (*sQQQ)[MQ1*MQ1*MQ1],
                                       double *Jpr)
 {
    DeviceTensor<3,const double> XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
