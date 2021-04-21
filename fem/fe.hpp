@@ -3018,6 +3018,7 @@ class ND_HexahedronElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2tk;
+   const double *cp;
 
 public:
    /** @brief Construct the ND_HexahedronElement of order @a p and closed and
@@ -3054,14 +3055,8 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    {
-      if (obasis1d.IsIntegratedType())
-      {
-         Project_Integrated_ND(tk, dof2tk, vc, Trans, dofs);
-      }
-      else
-      {
-         Project_ND(tk, dof2tk, vc, Trans, dofs);
-      }
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    }
 
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
@@ -3087,14 +3082,10 @@ public:
                             DenseMatrix &curl) const
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 
-private:
-
-   void Project_Integrated_ND(const double *tk, const Array<int> &d2t,
-                              VectorCoefficient &vc,
-                              ElementTransformation &Trans,
-                              Vector &dofs) const;
-
-   const double *cp;
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -3108,6 +3099,7 @@ class ND_QuadrilateralElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2tk;
+   const double *cp;
 
 public:
    /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and
@@ -3136,14 +3128,8 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    {
-      if (obasis1d.IsIntegratedType())
-      {
-         Project_Integrated_ND(tk, dof2tk, vc, Trans, dofs);
-      }
-      else
-      {
-         Project_ND(tk, dof2tk, vc, Trans, dofs);
-      }
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3160,14 +3146,10 @@ public:
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 
-private:
-
-   void Project_Integrated_ND(const double *tk, const Array<int> &d2t,
-                              VectorCoefficient &vc,
-                              ElementTransformation &Trans,
-                              Vector &dofs) const;
-
-   const double *cp;
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
