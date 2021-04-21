@@ -44,7 +44,7 @@ all: $(MINIAPPS)
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp
+%: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 block-solvers: $(BLOCK_SOLVERS_OBJ)
@@ -52,8 +52,6 @@ block-solvers: $(BLOCK_SOLVERS_OBJ)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
-
-all: $(MINIAPPS)
 
 include $(MFEM_TEST_MK)
 
