@@ -174,7 +174,7 @@ static void Derivatives3D(const int NE,
 
       for (int c = 0; c < VDIM; ++c)
       {
-         kernels::internal::LoadX<MD1>(e,D1D,c,x,sm0[2]);
+         kernels::internal::LoadX<MD1>(e,D1D,c,x,X);//sm0[2]);
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
