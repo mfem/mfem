@@ -162,51 +162,40 @@ DRLRefiner::DRLRefiner(GridFunction& u_) : u(u_)
    PyRun_SimpleString("if not hasattr(sys, 'argv'):\n"
                       "  sys.argv  = ['']");
 
-   printf("importing rllib_eval python module... ");
    PyObject* eval_mod = PyImport_ImportModule("rllib_eval");
    if (eval_mod == 0) {
       PyErr_Print();
       exit(1);
    }
-   printf("ok.\n");
 
-   printf("getting evaluator class... ");
    PyObject* eval_class = PyObject_GetAttrString(eval_mod, "Evaluator");
    if (eval_class == 0) {
       PyErr_Print();
       exit(1);
    }
-   printf("ok.\n");
    Py_DECREF(eval_mod);
 
-   printf("making empty arg list... ");
    PyObject* args = Py_BuildValue("()");
    if (args == 0) {
       PyErr_Print();
       exit(1);
    }
-   printf("ok.\n");
 
-   printf("instantiating eval object... ");
    PyObject* eval_obj = PyEval_CallObject(eval_class, args);
    if (eval_obj == NULL) {
       PyErr_Print();
       exit(1);
    }
-   printf("ok.\n");
 
-   printf("getting eval method from eval object...\n");
    eval_method = PyObject_GetAttrString(eval_obj, "eval");
    if (eval_method == 0) {
       PyErr_Print();
       exit(1);
    }
-   printf("ok.\n");
 }
 
 int DRLRefiner::ApplyImpl(Mesh &mesh)
 {
-   printf("starting drl refiner... \n");
    marked_elements.SetSize(0);
 
    double ref_w = 2.0;
@@ -238,10 +227,6 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
       Array<IntegrationPoint> ips;
       int n = mesh.FindPoints(m, elems, ips, false);
 
-      // printf("n = %d\n",n);
-      // printf("# elems %d\n",elems.Size());
-      // printf("# ips %d\n",ips.Size());
-
       // Build observation from GridFunction using elements, ips
       double* obs = new double[42*42];
       n = 0;
@@ -260,20 +245,10 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
             n++;
          }
       }
-      //printf("complete = %d\n",complete);
 
       // apply policy: state -> action
       bool refine = false;
       if (complete) {
-
-         if (k == 81) {
-            printf("element %d",k);
-            for (int j = 0; j < 42; j++) {
-               for (int i = 0; i < 42; i++) {
-                  printf("(%d,%d) %f\n",i,j,obs[i+42*j]);
-               }
-            }
-         }
 
          // convert to numpy array
          npy_intp dims[3];
@@ -294,7 +269,6 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
          // parse integer return value
          int action_val;
          PyArg_Parse(action, "i", &action_val);
-         printf("action for element %d is %d\n", k, action_val);
          refine = bool(action_val);
       }
 
