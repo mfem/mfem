@@ -53,18 +53,18 @@ static void Det2D(const int NE,
       MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e,D1D,X,XY);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
 
-      kernels::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+      kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+      kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double J[4];
-            kernels::PullGrad<MQ1,NBZ>(qx,qy,QQ,J);
+            kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,J);
             Y(qx,qy,e) = kernels::Det<2>(J);
          }
       }
@@ -119,12 +119,12 @@ static void Det3D(const int NE,
       double (*DQQ)[MD1*MQ1*MQ1] = (double (*)[MD1*MQ1*MQ1]) (lm0);
       double (*QQQ)[MQ1*MQ1*MQ1] = (double (*)[MQ1*MQ1*MQ1]) (lm1);
 
-      kernels::LoadX<MD1>(e,D1D,X,DDD);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
+      kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
 
-      kernels::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
-      kernels::GradY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
-      kernels::GradZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
+      kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
+      kernels::internal::GradY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
+      kernels::internal::GradZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -133,7 +133,7 @@ static void Det3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double J[9];
-               kernels::PullGrad<MQ1>(qx,qy,qz, QQQ, J);
+               kernels::internal::PullGrad<MQ1>(qx,qy,qz, QQQ, J);
                Y(qx,qy,qz,e) = kernels::Det<3>(J);
             }
          }

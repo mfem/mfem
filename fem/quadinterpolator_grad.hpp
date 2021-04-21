@@ -54,7 +54,7 @@ static void Derivatives2D(const int NE,
 
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double BG[2][MQ1*MD1];
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
       DeviceMatrix B(BG[0], MD1, MQ1);
       DeviceMatrix G(BG[1], MD1, MQ1);
 
@@ -67,7 +67,7 @@ static void Derivatives2D(const int NE,
 
       for (int c = 0; c < VDIM; ++c)
       {
-         kernels::LoadX<MD1,NBZ>(e,D1D,c,x,XY);
+         kernels::internal::LoadX<MD1,NBZ>(e,D1D,c,x,XY);
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -159,7 +159,7 @@ static void Derivatives3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
       DeviceMatrix B(BG[0], MD1, MQ1);
       DeviceMatrix G(BG[1], MD1, MQ1);
 
@@ -174,7 +174,7 @@ static void Derivatives3D(const int NE,
 
       for (int c = 0; c < VDIM; ++c)
       {
-         kernels::LoadX<MD1>(e,D1D,c,x,sm0[2]);
+         kernels::internal::LoadX<MD1>(e,D1D,c,x,sm0[2]);
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)

@@ -21,11 +21,16 @@ namespace mfem
 namespace kernels
 {
 
+// Experimental helper functions for MFEM_FORALL FEM kernels
+// For the 2D functions, NBZ is tied to '1' for now
+namespace internal
+{
+
 /// Load B1d & G1d matrices into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
-                                    const ConstDeviceMatrix b,
-                                    const ConstDeviceMatrix g,
+                                    const ConstDeviceMatrix &b,
+                                    const ConstDeviceMatrix &g,
                                     double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -49,7 +54,7 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
 /// Load 2D input scalar into shared memory, with comp
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
-                                   const DeviceTensor<4, const double> x,
+                                   const DeviceTensor<4, const double> &x,
                                    double sm[NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -68,7 +73,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
 /// Load 2D input vector into shared memory
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
-                                   const DeviceTensor<4, const double> X,
+                                   const DeviceTensor<4, const double> &X,
                                    double sX[2][NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -193,7 +198,7 @@ MFEM_HOST_DEVICE inline void PullGrad(const int qx, const int qy,
 /// Load 3D scalar input vector into shared memory, with comp
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
-                                   const DeviceTensor<5, const double> x,
+                                   const DeviceTensor<5, const double> &x,
                                    double sm[MD1*MD1*MD1])
 {
    DeviceTensor<3,double> X(sm, MD1, MD1, MD1);
@@ -214,7 +219,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
 /// Load 3D input vector into shared memory
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
-                                   const DeviceTensor<5, const double> X,
+                                   const DeviceTensor<5, const double> &X,
                                    double sm[3][MD1*MD1*MD1])
 {
    DeviceTensor<3,double> Xx(sm[0], MD1, MD1, MD1);
@@ -456,6 +461,8 @@ MFEM_HOST_DEVICE inline void PullGrad(const int x, const int y, const int z,
    Jpr[5] = XzBGB(x,y,z);
    Jpr[8] = XzGBB(x,y,z);
 }
+
+} // namespace kernels::internal
 
 } // namespace kernels
 
