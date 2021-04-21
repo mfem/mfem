@@ -838,6 +838,7 @@ private:
                            DenseMatrix &dshape) const;
 
 protected:
+   bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix J, Jinv;
    mutable DenseMatrix curlshape, curlshape_J;
@@ -959,10 +960,18 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
+   void LocalL2Projection_RT(const VectorFiniteElement &cfe,
+                             ElementTransformation &Trans,
+                             DenseMatrix &I) const;
+
    void LocalInterpolation_RT(const VectorFiniteElement &cfe,
                               const double *nk, const Array<int> &d2n,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
+
+   void LocalL2Projection_ND(const VectorFiniteElement &cfe,
+                             ElementTransformation &Trans,
+                             DenseMatrix &I) const;
 
    void LocalInterpolation_ND(const VectorFiniteElement &cfe,
                               const double *tk, const Array<int> &d2t,
@@ -989,10 +998,10 @@ public:
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #else
       FiniteElement(D, G, Do, O, F), Jinv(D)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #endif
 };
 
