@@ -56,8 +56,9 @@ class HeatDistanceSolver : public DistanceSolver
 {
 public:
    HeatDistanceSolver(double diff_coeff, bool use_pa_, bool use_ceed_)
-     : DistanceSolver(), use_pa(use_pa_), use_ceed(use_ceed_), parameter_t(diff_coeff),
-       smooth_steps(0), diffuse_iter(1), transform(true), vis_glvis(false) { }
+      : DistanceSolver(), use_pa(use_pa_), use_ceed(use_ceed_),
+        parameter_t(diff_coeff),
+        smooth_steps(0), diffuse_iter(1), transform(true), vis_glvis(false) { }
 
    // The computed distance is not "signed". In addition to the standard usage
    // (with zero level sets), this function can be applied to point sources when

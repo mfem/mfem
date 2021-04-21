@@ -161,8 +161,8 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    ParGridFunction diffused_source(&pfes);
    for (int i = 0; i < diffuse_iter; i++)
    {
-     OperatorPtr A;
-     Vector B, X;
+      OperatorPtr A;
+      Vector B, X;
 
       // Set up RHS.
       ParLinearForm b(&pfes);
@@ -193,15 +193,15 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       if (use_pa)
       {
 #ifdef MFEM_USE_CEED
-        if (use_ceed)
-        {
-          prec = new ceed::AlgebraicSolver(a_d, ess_tdof_list);
-        }
-        else
+         if (use_ceed)
+         {
+            prec = new ceed::AlgebraicSolver(a_d, ess_tdof_list);
+         }
+         else
 #endif
-        {
-          prec = new OperatorJacobiSmoother(a_d, ess_tdof_list);
-        }
+         {
+            prec = new OperatorJacobiSmoother(a_d, ess_tdof_list);
+         }
       }
       else
       {
@@ -231,15 +231,15 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       if (use_pa)
       {
 #ifdef MFEM_USE_CEED
-        if (use_ceed)
-        {
-          prec2 = new ceed::AlgebraicSolver(a_d, ess_tdof_list);
-        }
-        else
+         if (use_ceed)
+         {
+            prec2 = new ceed::AlgebraicSolver(a_d, ess_tdof_list);
+         }
+         else
 #endif
-        {
-          prec2 = new OperatorJacobiSmoother(a_d, ess_tdof_list);
-        }
+         {
+            prec2 = new OperatorJacobiSmoother(a_d, ess_tdof_list);
+         }
       }
       else
       {
@@ -270,17 +270,17 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
    // Step 2 - solve for the distance using the normalized gradient.
    {
-     OperatorPtr A;
-     Vector B, X;
+      OperatorPtr A;
+      Vector B, X;
 
-     //printf("\n \n Performing step 2 \n \n");
-     std::cout<<"\n \n Perfoming step 2"<<"\n"<<std::endl;
+      //printf("\n \n Performing step 2 \n \n");
+      std::cout<<"\n \n Perfoming step 2"<<"\n"<<std::endl;
       // RHS - normalized gradient.
       ParLinearForm b2(&pfes);
       NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
       b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
       //printf("\n \n Performing step 2 - 1 \n \n");
-     std::cout<<"\n \n Perfoming step 2 - 1"<<"\n"<<std::endl;
+      std::cout<<"\n \n Perfoming step 2 - 1"<<"\n"<<std::endl;
       b2.Assemble();
       std::cout<<"\n \n Perfoming step 2 - 2"<<"\n"<<std::endl;
       //printf("\n \n Performing step 2 - 2 \n \n");
@@ -299,15 +299,15 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       if (use_pa)
       {
 #ifdef MFEM_USE_CEED
-        if (use_ceed)
-        {
-          prec = new ceed::AlgebraicSolver(a2, no_ess_tdofs);
-        }
-        else
+         if (use_ceed)
+         {
+            prec = new ceed::AlgebraicSolver(a2, no_ess_tdofs);
+         }
+         else
 #endif
-        {
-          prec = new OperatorJacobiSmoother(a2, no_ess_tdofs);
-        }
+         {
+            prec = new OperatorJacobiSmoother(a2, no_ess_tdofs);
+         }
       }
       else
       {
