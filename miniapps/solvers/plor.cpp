@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi;
 
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int ser_ref_levels = 1, par_ref_levels = 1;
    int order = 3;
    const char *fe = "h";
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
    else if (string(fe) == "n") { ND = true; }
    else if (string(fe) == "r") { RT = true; }
    else if (string(fe) == "l") { L2 = true; }
-   else { MFEM_ABORT("Bad FE type. Must be 'n' or 'r'."); }
+   else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
    Mesh serial_mesh(mesh_file, 1, 1);
    dim = serial_mesh.Dimension();
