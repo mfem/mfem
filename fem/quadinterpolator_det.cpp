@@ -80,7 +80,8 @@ static void Det3D(const int NE,
                   double *y,
                   const int vdim = 1,
                   const int d1d = 0,
-                  const int q1d = 0)
+                  const int q1d = 0,
+                  Vector *d_buff = nullptr) // used only with SMEM = false
 {
    constexpr int DIM = 3;
    static constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -100,10 +101,8 @@ static void Det3D(const int NE,
    double *GM = nullptr;
    if (!SMEM)
    {
-      static Vector gmem;
-      gmem.SetSize(2*MSZ*GRID);
-      gmem.UseDevice(true);
-      GM = gmem.Write();
+      d_buff->SetSize(2*MSZ*GRID);
+      GM = d_buff->Write();
    }
 
    MFEM_FORALL_3D_GRID(e, NE, Q1D, Q1D, Q1D, GRID,
@@ -205,7 +204,8 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
                if (D1D <= MD && Q1D <= MQ)
                { return Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D); }
                // Last fall-back will use global memory
-               return Det3D<0,0,MAX_D1D,MAX_Q1D,false>(NE,B,G,X,Y,vdim,D1D,Q1D);
+               return Det3D<0,0,MAX_D1D,MAX_Q1D,false>(
+                         NE,B,G,X,Y,vdim,D1D,Q1D,&d_buffer);
             }
          }
       }
