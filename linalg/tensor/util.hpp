@@ -163,6 +163,19 @@ struct rerepeat<V1, 0, V2, 0, TT>
    using type = TT<>;
 };
 
+/// Get the last value
+template <typename T> MFEM_HOST_DEVICE
+T GetLast(T first)
+{
+   return first;
+}
+
+template <typename T, typename... Ts> MFEM_HOST_DEVICE
+auto GetLast(T first, Ts... rest)
+{
+   return GetLast(rest...);
+}
+
 } // mfem namespace
 
 #endif // MFEM_TENSOR_UTIL
