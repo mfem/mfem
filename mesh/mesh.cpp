@@ -3529,7 +3529,6 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    Clear();
 
-   istream::pos_type beginning_pos = input.tellg();
    string mesh_type;
    input >> ws;
    getline(input, mesh_type);
@@ -3618,11 +3617,9 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                   "Unsupported VTK format");
       ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
-   else if (mesh_type.rfind("<VTKFile ") == 0)
+   else if (mesh_type.rfind("<VTKFile ") == 0 || mesh_type.rfind("<?xml") == 0)
    {
-      // Go back to beginning of stream
-      input.seekg(beginning_pos);
-      ReadXML_VTKMesh(input, curved, read_gf, finalize_topo);
+      ReadXML_VTKMesh(input, curved, read_gf, finalize_topo, mesh_type);
    }
    else if (mesh_type == "MFEM NURBS mesh v1.0")
    {
