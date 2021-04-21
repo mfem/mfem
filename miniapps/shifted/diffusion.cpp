@@ -13,7 +13,20 @@
 //      Shifted Boundary Miniapp: Finite element immersed boundary solver
 //      -----------------------------------------------------------------
 //
-// TODO - problem and approach descriptions, references.
+// This miniapp solves the Poisson problem with prescribed boundary conditions
+// on a surrogate domain using a high-order extension of the shifted boundary
+// method [1]. Using a level-set prescribed to represent the true boundary,
+// a distance function is computed for the immersed background mesh. A
+// surrogate domain is also computed to solve the Poisson problem, based on the
+// intersection of the zero level-set with the background mesh. The distance
+// function is used with a Taylor expansion to enforce Dirichlet boundary
+// conditions on the (non-aligned) mesh faces of the surrogate domain,
+// therefore "shifting" the location where boundary conditions are imposed.
+//
+// [1] Atallah, Nabil M., Claudio Canuto, and Guglielmo Scovazzi. "The
+// second-generation Shifted Boundary Method and its numerical analysis."
+// Computer Methods in Applied Mechanics and Engineering 372 (2020): 113341.
+//
 //
 // Compile with: make diffusion
 //
@@ -32,7 +45,12 @@
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
 //              Solves -nabla^u = f with inhomogeneous boundary conditions, and
 //              f is setup such that u = sin(pi*x*y).
-//              This is a 2D convergence test.
+//              This is a 2D convergence test. Second-order can be demonstrated
+//              by changing the refinement level (-rs) for the sample run below.
+//              Higher-order convergence can be realized by also increasing the
+//              order (-o) of the finite element space and the number of
+//              high-order terms (-ho) to be included from the Taylor expansion
+//              used to enfore the boundary conditions.
 //   mpirun -np 4 diffusion -rs 2 -o 1 -vis -lst 3
 //
 //   Problem 4: Complex 2D shape:
