@@ -135,11 +135,13 @@ Vector &Vector::operator=(const Vector &v)
    UseDevice(v.UseDevice());
 #else
    SetSize(v.Size());
-   const bool use_dev = UseDevice() || v.UseDevice();
+   bool vuse = v.UseDevice();
+   const bool use_dev = UseDevice() || vuse;
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
    if (use_dev) { Write(); }
    data.CopyFrom(v.data, v.Size());
+   v.UseDevice(vuse);
 #endif
    return *this;
 }

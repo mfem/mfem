@@ -105,10 +105,10 @@ public:
 
        Some derived classes, e.g. GridFunction, enable the use of the
        mfem::Device by default. */
-   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
+   virtual void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
    /// Return the device flag of the Memory object used by the Vector
-   bool UseDevice() const { return data.UseDevice(); }
+   virtual bool UseDevice() const { return data.UseDevice(); }
 
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
@@ -412,27 +412,27 @@ public:
    virtual ~Vector();
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
-   const double *Read(bool on_dev = true) const
+   virtual const double *Read(bool on_dev = true) const
    { return mfem::Read(data, size, on_dev); }
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), false).
-   const double *HostRead() const
+   virtual const double *HostRead() const
    { return mfem::Read(data, size, false); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), on_dev).
-   double *Write(bool on_dev = true)
+   virtual double *Write(bool on_dev = true)
    { return mfem::Write(data, size, on_dev); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), false).
-   double *HostWrite()
+   virtual double *HostWrite()
    { return mfem::Write(data, size, false); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), on_dev).
-   double *ReadWrite(bool on_dev = true)
+   virtual double *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, size, on_dev); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
-   double *HostReadWrite()
+   virtual double *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
