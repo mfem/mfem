@@ -199,10 +199,8 @@ MFEM_HOST_DEVICE inline void PullGrad(const int qx, const int qy,
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<5, const double> &x,
-                                   double (&sm)[MD1*MD1*MD1])
+                                   DeviceTensor<3> &X)
 {
-   DeviceTensor<3,double> X(sm, MD1, MD1, MD1);
-
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
       MFEM_FOREACH_THREAD(dy,y,D1D)
