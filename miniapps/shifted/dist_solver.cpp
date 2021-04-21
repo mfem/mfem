@@ -79,6 +79,8 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
    const int dim = pfes.GetMesh()->Dimension();
    const int size = dist_s.Size();
 
+   dist_s.HostReadWrite();
+   dist_v.HostReadWrite();
    ParGridFunction der(&pfes);
    Vector magn(size);
    magn = 0.0;
@@ -122,7 +124,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
                                                ParGridFunction &distance)
 {
    ParFiniteElementSpace &pfes = *distance.ParFESpace();
-
+   distance.Read();
    auto check_h1 = dynamic_cast<const H1_FECollection *>(pfes.FEColl());
    MFEM_VERIFY(check_h1 && pfes.GetVDim() == 1,
                "This solver supports only scalar H1 spaces.");
@@ -154,13 +156,14 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(100);
    cg.SetPrintLevel(cg_print_lvl);
-   OperatorPtr A;
-   Vector B, X;
 
    // Step 1 - diffuse.
    ParGridFunction diffused_source(&pfes);
    for (int i = 0; i < diffuse_iter; i++)
    {
+     OperatorPtr A;
+     Vector B, X;
+
       // Set up RHS.
       ParLinearForm b(&pfes);
       GridFunctionCoefficient src_coeff(&source);
@@ -251,24 +254,36 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       a_n.RecoverFEMSolution(X, b, u_neumann);
       delete prec2;
 
+      const double *h_u_neumann = u_neumann.HostRead();
+      const double *h_u_dirichlet = u_dirichlet.HostRead();
+      double *h_diffused_source = diffused_source.HostWrite();
       for (int i = 0; i < diffused_source.Size(); i++)
       {
          // This assumes that the magnitudes of the two solutions are somewhat
          // similar; otherwise one of the solutions would dominate and the BC
          // won't look correct. To avoid this, it's good to have the source
          // away from the boundary (i.e. have more resolution).
-         diffused_source(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
+         h_diffused_source[i] = 0.5 * (h_u_neumann[i] + h_u_dirichlet[i]);
       }
       source = diffused_source;
    }
 
    // Step 2 - solve for the distance using the normalized gradient.
    {
+     OperatorPtr A;
+     Vector B, X;
+
+     //printf("\n \n Performing step 2 \n \n");
+     std::cout<<"\n \n Perfoming step 2"<<"\n"<<std::endl;
       // RHS - normalized gradient.
       ParLinearForm b2(&pfes);
       NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
       b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
+      //printf("\n \n Performing step 2 - 1 \n \n");
+     std::cout<<"\n \n Perfoming step 2 - 1"<<"\n"<<std::endl;
       b2.Assemble();
+      std::cout<<"\n \n Perfoming step 2 - 2"<<"\n"<<std::endl;
+      //printf("\n \n Performing step 2 - 2 \n \n");
 
       // LHS - diffusion.
       ParBilinearForm a2(&pfes);
@@ -301,8 +316,8 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       }
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
-      cg.Mult(B, X);
       cg.SetMaxIter(2000);
+      cg.Mult(B, X);
       a2.RecoverFEMSolution(X, b2, distance);
       delete prec;
    }

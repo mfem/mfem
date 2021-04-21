@@ -1302,6 +1302,7 @@ void GridFunction::ProjectVectorFieldOn(GridFunction &vec_field, int comp)
 
 void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
 {
+   HostRead();
    FiniteElementSpace * der_fes = der.FESpace();
    ElementTransformation * transf;
    Array<int> overlap(der_fes->GetVSize());
@@ -1317,7 +1318,9 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
    }
    der = 0.0;
 
+   der.HostReadWrite();
    comp--;
+   const double *h_data = HostRead();
    for (i = 0; i < der_fes->GetNE(); i++)
    {
       const FiniteElement *der_fe = der_fes->GetFE(i);
@@ -1335,7 +1338,7 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
       transf = fes->GetElementTransformation(i);
       for (j = 0; j < dof; j++)
          loc_func(j) = ( (ind=vdofs[comp*dof+j]) >= 0 ) ?
-                       (data[ind]) : (-data[-1-ind]);
+                       (h_data[ind]) : (-h_data[-1-ind]);
       for (k = 0; k < der_dof; k++)
       {
          const IntegrationPoint &ip = ir.IntPoint(k);
