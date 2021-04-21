@@ -11824,11 +11824,9 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
          }
 }
 
-void ND_HexahedronElement::Project_Integrated_ND(const double *tk,
-                                                 const Array<int> &d2t,
-                                                 VectorCoefficient &vc,
-                                                 ElementTransformation &Trans,
-                                                 Vector &dofs) const
+void ND_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
+                                             ElementTransformation &Trans,
+                                             Vector &dofs) const
 {
    MFEM_VERIFY(obasis1d.IsIntegratedType(), "Not integrated type");
    double vk[Geometry::MaxDim];
@@ -11882,7 +11880,7 @@ void ND_HexahedronElement::Project_Integrated_ND(const double *tk,
                   vc.Eval(xk, Trans, ip3d);
 
                   // xk^t J tk
-                  const double ipval = Trans.Jacobian().InnerProduct(tk + d2t[idx]*dim, vk);
+                  const double ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
                   val += ip1d.weight * ipval;
                }
 
@@ -12240,11 +12238,9 @@ ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
       }
 }
 
-void ND_QuadrilateralElement::Project_Integrated_ND(const double *tk,
-                                                    const Array<int> &d2t,
-                                                    VectorCoefficient &vc,
-                                                    ElementTransformation &Trans,
-                                                    Vector &dofs) const
+void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
+                                                ElementTransformation &Trans,
+                                                Vector &dofs) const
 {
    MFEM_VERIFY(obasis1d.IsIntegratedType(), "Not integrated type");
    double vk[Geometry::MaxDim];
@@ -12280,7 +12276,7 @@ void ND_QuadrilateralElement::Project_Integrated_ND(const double *tk,
             vc.Eval(xk, Trans, ip2d);
 
             // xk^t J tk
-            const double ipval = Trans.Jacobian().InnerProduct(tk + d2t[idx]*dim, vk);
+            const double ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
             val += ip1d.weight * ipval;
          }
 
@@ -12310,7 +12306,7 @@ void ND_QuadrilateralElement::Project_Integrated_ND(const double *tk,
             vc.Eval(xk, Trans, ip2d);
 
             // xk^t J tk
-            const double ipval = Trans.Jacobian().InnerProduct(tk + d2t[idx]*dim, vk);
+            const double ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
             val += ip1d.weight * ipval;
          }
 
