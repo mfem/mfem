@@ -271,8 +271,8 @@ miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
 miniapps/solvers/block-solvers
-miniapps/solvers/lor
-miniapps/solvers/plor
+miniapps/solvers/lor_solvers
+miniapps/solvers/plor_solvers
 miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
