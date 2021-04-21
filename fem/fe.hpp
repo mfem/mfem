@@ -2180,6 +2180,20 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   {
+      if (basis1d.IsIntegratedType())
+      {
+         CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this);
+      }
+      else
+      {
+         NodalFiniteElement::GetTransferMatrix(fe, Trans, I);
+      }
+   }
 };
 
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
