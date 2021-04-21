@@ -16,8 +16,8 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS div_free_solver.hpp
     LIBRARIES mfem)
 
-  add_mfem_miniapp(plor
-    MAIN plor.cpp
+  add_mfem_miniapp(plor_solvers
+    MAIN plor_solvers.cpp
     EXTRA_HEADERS lor_mms.hpp
     LIBRARIES mfem)
 
@@ -38,7 +38,7 @@ if (MFEM_USE_MPI)
     ${MPIEXEC_POSTFLAGS})
 endif()
 
-add_mfem_miniapp(lor
-  MAIN lor.cpp
+add_mfem_miniapp(lor_solvers
+  MAIN lor_solvers.cpp
   EXTRA_HEADERS lor_mms.hpp
   LIBRARIES mfem)
