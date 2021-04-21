@@ -190,6 +190,96 @@ private:
    };
 };
 
+/// A static layout with the last dimension dynamic (typically for element index)
+template<int... Sizes>
+class StaticELayout
+{
+private:
+   const int last_size;
+
+public:
+   template <typename... Dims> MFEM_HOST_DEVICE
+   constexpr StaticELayout(Dims... args): last_size(GetLast(args...))
+   {
+      static_assert(sizeof...(Dims)==sizeof...(Sizes)+1, "Static and dynamic sizes don't match.");
+      // TODO verify that Dims == sizes in Debug mode
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr StaticELayout(const Layout& rhs)
+   : last_size(rhs.template Size<sizeof...(Sizes)>())
+   {
+      // for (int i = 0; i < Rank; i++)
+      // {
+      //    MFEM_ASSERT(Sizes...[i] == lhs.Size<i>());
+      // }
+   }
+
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int index(Idx... idx) const
+   {
+      static_assert(sizeof...(Sizes)+1==sizeof...(Idx), "Wrong number of arguments.");
+      return StaticTensorIndex<Sizes...>::eval(idx...);
+   }
+
+   template <int N>
+   int Size() const
+   {
+      static_assert(N>=0 && N<sizeof...(Sizes)+1,"Accessed size is higher than the rank of the Tensor.");
+      // return N==sizeof...(Sizes) ? last_size : Dim<N,Sizes...>::val;
+      return LayoutSize<N>::eval(last_size);
+   }
+
+private:
+   // LayoutSize
+   template <int N>
+   struct LayoutSize
+   {
+      static int eval(int last_size)
+      {
+         return get_value<N,Sizes...>;
+      }
+   };
+
+   template <>
+   struct LayoutSize<sizeof...(Sizes)>
+   {
+      static int eval(int last_size)
+      {
+         return last_size;
+      }
+   };
+
+   //Compute the index inside a Tensor
+   template<int Cpt, int rank, int... Dims>
+   struct StaticIndex
+   {
+      template <typename... Idx>
+      static inline int eval(int first, Idx... args)
+      {
+         return first + get_value<Cpt-1,Dims...> * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
+      }
+   };
+
+   template<int rank, int... Dims>
+   struct StaticIndex<rank,rank,Dims...>
+   {
+      static inline int eval(int first)
+      {
+         return first;
+      }
+   };
+
+   template<int... Dims>
+   struct StaticTensorIndex
+   {
+      template <typename... Idx>
+      static inline int eval(Idx... args)
+      {
+         return StaticIndex<1,sizeof...(Dims)+1,Dims...>::eval(args...);
+      }
+   };
+};
 /// Layout using a thread plane to distribute data
 template <int BatchSize, int... Dims>
 class BlockLayout;
@@ -733,6 +823,11 @@ struct get_layout_rank_v<StaticLayout<Dims...>>
    static constexpr int value = sizeof...(Dims);
 };
 
+template <int... Dims>
+struct get_layout_rank_v<StaticELayout<Dims...>>
+{
+   static constexpr int value = sizeof...(Dims)+1;
+};
 
 template <int BatchSize, int... Dims>
 struct get_layout_rank_v<BlockLayout<BatchSize, Dims...>>
@@ -800,6 +895,12 @@ struct is_static_layout<StaticLayout<Dims...>>
    static constexpr bool value = true;
 };
 
+template<int... Dims>
+struct is_static_layout<StaticELayout<Dims...>>
+{
+   static constexpr bool value = true;
+};
+
 template <int N, typename Layout>
 struct is_static_layout<RestrictedLayout<N,Layout>>
 {
@@ -815,6 +916,12 @@ struct is_serial_layout
 
 template<int... Dims>
 struct is_serial_layout<StaticLayout<Dims...>>
+{
+   static constexpr bool value = true;
+};
+
+template<int... Dims>
+struct is_serial_layout<StaticELayout<Dims...>>
 {
    static constexpr bool value = true;
 };
@@ -866,6 +973,10 @@ struct get_layout_size<N, StaticLayout<Dims...>>
    static constexpr int value = get_value<N, Dims...>;
 };
 
+template <int N, int... Dims>
+struct get_layout_size<N, StaticELayout<Dims...>>
+{
+   static constexpr int value = get_value<N, Dims...>;
 };
 
 template <int N, int BatchSize, int... Dims>
