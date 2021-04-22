@@ -536,6 +536,7 @@ directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
 The specific libraries and their options are:
 
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
+  See also the "Specific options for hypre" section at the end of this file.
   URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
   Versions: HYPRE >= 2.10.0b.
@@ -969,3 +970,17 @@ MFEM_MPIEXEC    = mpirun # default
 MFEM_MPIEXEC_NP = -np    # default
 MFEM_MPIEXEC    = srun   # example for platforms using SLURM
 MFEM_MPIEXEC_NP = -n     # example for platforms using SLURM
+
+
+Specific options for hypre
+==========================
+The hypre library has multiple options to define local and global index storage
+sizes. By default, all indices are stored as an architecture aware integer. For
+most platforms, this will be 32-bit. This limits the maximum number of global
+degrees of freedom in a vector or matrix to the maximum representable number in
+32-bit. In order to be able to solve larger problems there are two options.
+Compiling hypre with the option '--enable-bigint' defines the local and global
+index storage to be 64-bit. This is convenient, but results in more memory usage
+than necessary. Compiling hypre with the option '--enable-mixedint' defines the
+local index storage to be 32-bit, while using a 64-bit storage for global
+indices. The '--enable-mixedint' option is currently only tested on ex1p.
