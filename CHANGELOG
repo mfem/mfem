@@ -175,6 +175,10 @@ Version 4.2.1 (development)
   L2ProjectionGridTransfer operators. This functionality is illustrated in the
   lor-transfer miniapp.
 
+- Added initial support for hypre's mixed integer capability. This allows to use
+  different data types for local and global indices to save memory with large
+  problem sizes.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
