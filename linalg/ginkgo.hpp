@@ -511,7 +511,8 @@ public:
    virtual ~GinkgoPreconditioner() = default;
 
    /**
-    * Generate the preconditioner for the given matrix @p op.
+    * Generate the preconditioner for the given matrix @p op,
+    * which must be of MFEM SparseMatrix type.
     * Calling this function is only required when creating a
     * preconditioner for use with another MFEM solver; to use with
     * a Ginkgo solver, get the LinOpFactory  pointer through @p GetFactory()
