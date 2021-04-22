@@ -46,26 +46,37 @@ jobs:
   builds-and-tests:
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15]
-        target: [debug, optim]
-        mpi: [sequential, parallel]
-        build-system: [make]
-        # 'include' allows us to
-        # - add a variable without creating a new matrix dimension.
-        # - add a new combination ('build-system: cmake' case here)
-        #
-        # note: we will gather coverage info for any non-debug run except the
-        # CMake build.
         include:
-          - target: debug
-            codecov: NO
-          - target: optim
-            codecov: YES
           - os: ubuntu-18.04
             target: optim
-            codecov: NO
             mpi: parallel
-            build-system: cmake
+            build-system: make
+            codecov: YES
+          - os: macos-10.15
+            target: optim
+            mpi: parallel
+            build-system: make
+            codecov: YES
+        #        os: [ubuntu-18.04, macos-10.15]
+        #        target: [debug, optim]
+        #        mpi: [sequential, parallel]
+        #        build-system: [make]
+        #        # 'include' allows us to
+        #        # - add a variable without creating a new matrix dimension.
+        #        # - add a new combination ('build-system: cmake' case here)
+        #        #
+        #        # note: we will gather coverage info for any non-debug run except the
+        #        # CMake build.
+        #        include:
+        #          - target: debug
+        #            codecov: NO
+        #          - target: optim
+        #            codecov: YES
+        #          - os: ubuntu-18.04
+        #            target: optim
+        #            codecov: NO
+        #            mpi: parallel
+        #            build-system: cmake
     name: ${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
     runs-on: ${{ matrix.os }}
