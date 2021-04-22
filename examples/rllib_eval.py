@@ -47,13 +47,12 @@ class Evaluator():
 
         # Create agent from checkpoint
         self.agent = ppo.PPOTrainer(config,env=DummyEnv)
-#        self.agent.restore("DRLRefinePolicy/checkpoint_115/checkpoint-115")
-        self.agent.restore("PPO_5x5_H1_thresh1.e-4/checkpoint_485/checkpoint-485")
+        self.agent.restore("DRLRefinePolicy/checkpoint_210/checkpoint-210")
 
         self.env = DummyEnv({})
 
     def eval(self,obs):
-        pick = self.agent.compute_action(obs, explore = False)
+        pick = self.agent.compute_action(obs, explore=False)
         return pick
 
 #evaluator = Evaluator()
