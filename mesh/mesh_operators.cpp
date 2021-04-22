@@ -198,6 +198,8 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
 {
    marked_elements.SetSize(0);
 
+   const int imgsz = 42;
+
    double ref_w = 2.0;
    assert(obs_x == obs_y);
    int ref_n = obs_x;
@@ -211,7 +213,7 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
       ElementTransformation* trk = mesh.GetElementTransformation(k);
       IntegrationPoint ipk;
       Vector xk(2);
-      DenseMatrix m(2,42*42);
+      DenseMatrix m(2,imgsz*imgsz);
       int c = 0;
       for (int j = 0; j < obs_y; ++j) {
          ipk.y = ref_lo +(j+0.5)*ref_dx;
@@ -228,19 +230,78 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
       int n = mesh.FindPoints(m, elems, ips, false);
 
       // Build observation from GridFunction using elements, ips
-      double* obs = new double[42*42];
+      double* obs1 = new double[imgsz*imgsz];
       n = 0;
       bool complete = true;
       for (int j = 0; j < obs_y; ++j) {
          for (int i = 0; i < obs_x; ++i) {
             int el = elems[n];
             if (el == -1) {
-               obs[i+42*j] = 0.0;
+               obs1[i*imgsz+j] = 0.0;
                complete = false;
             }
             else {
                IntegrationPoint& ip = ips[n];
-               obs[i+42*j] = u.GetValue(el, ip);
+               obs1[i*imgsz+j] = u.GetValue(el, ip);
+            }
+            n++;
+         }
+      }
+
+      // TODO: More efficient way to do the below mirroring
+
+      // invert i
+      double* obs2 = new double[imgsz*imgsz];
+      n = 0;
+      complete = true;
+      for (int j = 0; j < obs_y; ++j) {
+         for (int i = obs_x-1; i >= 0; --i) {
+            int el = elems[n];
+            if (el == -1) {
+               obs2[i*imgsz+j] = 0.0;
+               complete = false;
+            }
+            else {
+               IntegrationPoint& ip = ips[n];
+               obs2[i*imgsz+j] = u.GetValue(el, ip);
+            }
+            n++;
+         }
+      }
+
+      // invert j
+      double* obs3 = new double[imgsz*imgsz];
+      n = 0;
+      complete = true;
+      for (int j = obs_y-1; j >= 0; --j) {
+         for (int i = 0; i < obs_x; ++i) {
+            int el = elems[n];
+            if (el == -1) {
+               obs3[i*imgsz+j] = 0.0;
+               complete = false;
+            }
+            else {
+               IntegrationPoint& ip = ips[n];
+               obs3[i*imgsz+j] = u.GetValue(el, ip);
+            }
+            n++;
+         }
+      }
+
+      // invert i and j
+      double* obs4 = new double[imgsz*imgsz];
+      n = 0;
+      complete = true;
+      for (int j = obs_y-1; j >= 0; --j) {
+         for (int i = obs_x-1; i >= 0; --i) {
+            int el = elems[n];
+            if (el == -1) {
+               obs4[i*imgsz+j] = 0.0;
+               complete = false;
+            }
+            else {
+               IntegrationPoint& ip = ips[n];
+               obs4[i*imgsz+j] = u.GetValue(el, ip);
             }
             n++;
          }
@@ -252,24 +313,54 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
 
          // convert to numpy array
          npy_intp dims[3];
-         dims[0] = 42;
-         dims[1] = 42;
+         dims[0] = imgsz;
+         dims[1] = imgsz;
          dims[2] = 1;
-         PyObject *pArray = PyArray_SimpleNewFromData(
-            3, dims, NPY_DOUBLE, reinterpret_cast<void*>(obs));
-         if (pArray == NULL) {
-            printf("pArray NULL!\n");
-         }
-         PyObject* action = PyObject_CallFunctionObjArgs(eval_method,pArray,NULL);
-         if (action == 0) {
+
+         PyObject *pArray1 = PyArray_SimpleNewFromData(
+            3, dims, NPY_DOUBLE, reinterpret_cast<void*>(obs1));
+         if (pArray1 == NULL) printf("pArray1 NULL!\n");
+
+         PyObject *pArray2 = PyArray_SimpleNewFromData(
+            3, dims, NPY_DOUBLE, reinterpret_cast<void*>(obs2));
+         if (pArray2 == NULL) printf("pArray2 NULL!\n");
+
+         PyObject *pArray3 = PyArray_SimpleNewFromData(
+            3, dims, NPY_DOUBLE, reinterpret_cast<void*>(obs3));
+         if (pArray3 == NULL) printf("pArray3 NULL!\n");
+
+         PyObject *pArray4 = PyArray_SimpleNewFromData(
+            3, dims, NPY_DOUBLE, reinterpret_cast<void*>(obs4));
+         if (pArray4 == NULL) printf("pArray4 NULL!\n");
+
+         PyObject* action1 = PyObject_CallFunctionObjArgs(
+            eval_method, pArray1, nullptr);
+         PyObject* action2 = PyObject_CallFunctionObjArgs(
+            eval_method, pArray2, nullptr);
+         PyObject* action3 = PyObject_CallFunctionObjArgs(
+            eval_method, pArray3, nullptr);
+         PyObject* action4 = PyObject_CallFunctionObjArgs(
+            eval_method, pArray4, nullptr);
+
+         if (action1 == 0 || action2 == 0) {
             PyErr_Print();
             exit(1);
          }
 
          // parse integer return value
-         int action_val;
-         PyArg_Parse(action, "i", &action_val);
-         refine = bool(action_val);
+         int action1_val;
+         PyArg_Parse(action1, "i", &action1_val);
+         int action2_val;
+         PyArg_Parse(action2, "i", &action2_val);
+         int action3_val;
+         PyArg_Parse(action3, "i", &action3_val);
+         int action4_val;
+         PyArg_Parse(action4, "i", &action4_val);
+         refine =
+            bool(action1_val) ||
+            bool(action2_val) ||
+            bool(action3_val) ||
+            bool(action4_val);
       }
 
       if (refine) {
@@ -278,6 +369,7 @@ int DRLRefiner::ApplyImpl(Mesh &mesh)
    }
 
    long int num_marked_elements = mesh.ReduceInt(marked_elements.Size());
+   printf("marked %d elements\n",num_marked_elements);
    if (num_marked_elements == 0) { return STOP; }
 
    bool nonconforming = true;
