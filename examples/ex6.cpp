@@ -52,6 +52,33 @@
 using namespace std;
 using namespace mfem;
 
+// Initial condition
+double rhs_function(const Vector &x)
+{
+   int dim = x.Size();
+
+   double x0 = x(0)-0.5;
+   double y0 = x(1)-0.5;
+
+   double w1 = 0.04;
+   double w2 = 0.20;
+
+   if (x(0) > 0.5-w1 && x(0) < 0.5+w1 &&
+       x(1) > 0.5-w2 && x(1) < 0.5+w2 ) {
+      return 100.0;
+   }
+   if (x(1) > 0.5-w1 && x(1) < 0.5+w1 &&
+       x(0) > 0.5-w2 && x(0) < 0.5+w2 ) {
+      return 100.0;
+   }
+   // double r = sqrt(x0*x0 +y0*y0);
+   // if (r < 0.2 && r > 0.1) {
+   //    return 100.0;
+   // }
+
+   return 0.0;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -61,7 +88,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
 
-#define MFEM_USE_RLLIB
+#ifdef MFEM_USE_RLLIB
    Py_Initialize();
    import_array(); // numpy init
 #endif
@@ -110,8 +137,8 @@ int main(int argc, char *argv[])
       mesh.SetCurvature(2);
    }
    else {
-      mesh.UniformRefinement();
-      mesh.UniformRefinement();
+      // mesh.UniformRefinement();
+      //mesh.UniformRefinement();
       mesh.EnsureNCMesh();
    }
 
@@ -131,12 +158,13 @@ int main(int argc, char *argv[])
    }
    LinearForm b(&fespace);
 
+   FunctionCoefficient rhs(rhs_function);
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
    BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
    a.AddDomainIntegrator(integ);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
 
    // 7. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
@@ -165,7 +193,8 @@ int main(int argc, char *argv[])
    //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
    FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
    ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
+   //KellyErrorEstimator estimator2(*integ, x, flux_fespace);
+   //estimator.SetAnisotropic();
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
@@ -174,14 +203,14 @@ int main(int argc, char *argv[])
 
 #if 0
    ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.7);
+   refiner.SetTotalErrorFraction(0.40);
 #else
    DRLRefiner refiner(x);
 #endif
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
+   const int max_dofs = 1000;
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
@@ -242,7 +271,7 @@ int main(int argc, char *argv[])
          sol_sock << "solution\n" << mesh << x << flush;
       }
 
-      if (cdofs > max_dofs)
+      if (cdofs > max_dofs || it == 3)
       {
          cout << "Reached the maximum number of dofs. Stop." << endl;
          break;
