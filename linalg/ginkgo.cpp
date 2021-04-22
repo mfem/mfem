@@ -49,10 +49,8 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
             executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
          }
          else
-            mfem::err <<
-                      "gko::CudaExecutor::get_num_devices() did not report "
-                      << "any valid devices"
-                      << std::endl;
+            mfem::err << "gko::CudaExecutor::get_num_devices() did not report "
+                      << "any valid devices" << std::endl;
          break;
       }
       case GinkgoExecutor::HIP:
@@ -62,16 +60,12 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
             executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
          }
          else
-            mfem::err <<
-                      "gko::HipExecutor::get_num_devices() did not report "
-                      << "any valid devices"
-                      << std::endl;
+            mfem::err << "gko::HipExecutor::get_num_devices() did not report "
+                      << "any valid devices" << std::endl;
          break;
       }
       default:
-         mfem::err <<
-                   "Invalid ExecType specificed"
-                   << std::endl;
+         mfem::err << "Invalid ExecType specificed" << std::endl;
    }
 }
 
@@ -86,10 +80,8 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
          executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
       }
       else
-         mfem::err <<
-                   "gko::CudaExecutor::get_num_devices() did not report "
-                   << "any valid devices"
-                   << std::endl;
+         mfem::err << "gko::CudaExecutor::get_num_devices() did not report "
+                   << "any valid devices" << std::endl;
    }
    else if (mfem_device.Allows(Backend::HIP_MASK))
    {
@@ -98,10 +90,8 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
          executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
       }
       else
-         mfem::err <<
-                   "gko::HipExecutor::get_num_devices() did not report "
-                   << "any valid devices"
-                   << std::endl;
+         mfem::err << "gko::HipExecutor::get_num_devices() did not report "
+                   << "any valid devices" << std::endl;
    }
    else
    {
