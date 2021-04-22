@@ -163,6 +163,22 @@ struct rerepeat<V1, 0, V2, 0, TT>
    using type = TT<>;
 };
 
+/// IfThenElse
+template <bool Cond, typename TrueType, typename FalseType>
+struct IfThenElse_t
+{
+   using type = TrueType;
+};
+
+template <typename TrueType, typename FalseType>
+struct IfThenElse_t<false, TrueType, FalseType>
+{
+   using type = FalseType;
+};
+
+template <bool Cond, typename TrueType, typename FalseType>
+using IfThenElse = typename IfThenElse_t<Cond,TrueType,FalseType>::type;
+
 /// Get the last value
 template <typename T> MFEM_HOST_DEVICE
 T GetLast(T first)
