@@ -977,10 +977,12 @@ Specific options for hypre
 The hypre library has multiple options to define local and global index storage
 sizes. By default, all indices are stored as an architecture aware integer. For
 most platforms, this will be 32-bit. This limits the maximum number of global
-degrees of freedom in a vector or matrix to the maximum representable number in
-32-bit. In order to be able to solve larger problems there are two options.
-Compiling hypre with the option '--enable-bigint' defines the local and global
-index storage to be 64-bit. This is convenient, but results in more memory usage
-than necessary. Compiling hypre with the option '--enable-mixedint' defines the
-local index storage to be 32-bit, while using a 64-bit storage for global
-indices. The '--enable-mixedint' option is currently only tested on ex1p.
+degrees of freedom in a vector or matrix to about 2 billion. In order to solve
+larger problems, there are two options:
+
+1. Building hypre with '--enable-bigint' defines the local and global indices to
+   be 64-bit. This is convenient, but requires more memory than necessary.
+
+2. Building hypre with '--enable-mixedint' defines the local indiced to be
+   32-bit, while using a 64-bit storage for global indices. This option is
+   currently tested only in ex1p, and may not work in more general settings.

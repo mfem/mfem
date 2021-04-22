@@ -175,10 +175,11 @@ Version 4.2.1 (development)
   L2ProjectionGridTransfer operators. This functionality is illustrated in the
   lor-transfer miniapp.
 
-- Added initial support for hypre's mixed integer capability. This allows to use
-  different data types for local and global indices to save memory with large
-  problem sizes. (This requires that hypre is configured with the
-  --enable-mixedint option.)
+- Added initial support for hypre's mixed integer (mixedint) capability, which
+  uses different data types for local and global indices in order to save memory
+  in large problems. This capability requires that hypre was configured with the
+  --enable-mixedint option. Note that this option is currently tested only in
+  ex1p and may not work in more general settings.
 
 libCEED integration improvements
 --------------------------------
