@@ -181,7 +181,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 void LORBase::ConstructDofPermutation() const
 {
    FESpaceType type = GetFESpaceType();
-   if (type == H1 || type == L2)
+   if (type == H1 || type == L2 || nonconforming)
    {
       // H1 and L2: no permutation necessary, return identity
       perm.SetSize(fes->GetTrueVSize());
@@ -228,15 +228,13 @@ const Array<int> &LORBase::GetDofPermutation() const
 
 bool LORBase::RequiresDofPermutation() const
 {
-   // TODO: check if there are cases where L2 requires permutation, or can
-   // return false in L2 case too.
    FESpaceType type = GetFESpaceType();
    return (type == H1 || type == L2 || nonconforming) ? false : true;
 }
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
-   MFEM_VERIFY(a != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
    return A;
 }
 
@@ -247,7 +245,6 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
                   &BilinearForm::AddDomainIntegrator, ir_el);
    AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
                   &BilinearForm::AddInteriorFaceIntegrator, ir_face);
-
    AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
                             &BilinearForm::GetBBFI_Marker,
                             &BilinearForm::AddBoundaryIntegrator, ir_face);
@@ -328,7 +325,6 @@ LOR::LOR(BilinearForm &a_ho_, const Array<int> &ess_tdof_list, int ref_type)
    : LOR(*a_ho_.FESpace(), ref_type)
 {
    a = new BilinearForm(fes);
-   A.SetType(Operator::MFEM_SPARSEMAT);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
@@ -347,11 +343,13 @@ LOR::LOR(FiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
    if (fes_ho.Nonconforming()) { SetupNonconforming(); }
+
+   A.SetType(Operator::MFEM_SPARSEMAT);
 }
 
 SparseMatrix &LOR::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
    return *A.As<SparseMatrix>();
 }
 
@@ -361,7 +359,6 @@ ParLOR::ParLOR(ParBilinearForm &a_ho_, const Array<int> &ess_tdof_list,
                int ref_type) : ParLOR(*a_ho_.ParFESpace(), ref_type)
 {
    a = new ParBilinearForm(static_cast<ParFiniteElementSpace*>(fes));
-   A.SetType(Operator::Hypre_ParCSR);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
@@ -382,11 +379,13 @@ ParLOR::ParLOR(ParFiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
    if (fes_ho.Nonconforming()) { SetupNonconforming(); }
+
+   A.SetType(Operator::Hypre_ParCSR);
 }
 
 HypreParMatrix &ParLOR::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 

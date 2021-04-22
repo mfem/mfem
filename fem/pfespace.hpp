@@ -188,10 +188,11 @@ private:
    /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
    virtual void UpdateMeshPointer(Mesh *new_mesh);
 
-   /// Copies the prolongation and restriction matrices from @a fes. Used for
-   /// low order preconditioning on non-conforming meshes. If the DOFs require
-   /// a permutation, it will be supplied by non-NULL @a perm. NULL @a perm
-   /// indicates that no permutation is required.
+   /// Copies the prolongation and restriction matrices from @a fes.
+   ///
+   /// Used for low order preconditioning on non-conforming meshes. If the DOFs
+   /// require a permutation, it will be supplied by non-NULL @a perm. NULL @a
+   /// perm indicates that no permutation is required.
    virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
                                                const Array<int> *perm);
 
