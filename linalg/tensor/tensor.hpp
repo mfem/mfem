@@ -18,6 +18,7 @@
 #include "util.hpp"
 #include "tensor_traits.hpp"
 #include "foreach.hpp"
+#include <iostream>
 
 namespace mfem
 {
@@ -185,6 +186,16 @@ public:
    {
       return Tensor<Rank,T,DeviceContainer<T>,Layout>(this->ReadWriteData(),
                                                       *this);
+   }
+
+   friend std::ostream& operator<<(std::ostream &os, const Tensor &t)
+   {
+      Foreach<Rank>::ApplyUnOp(t,[&](auto &lhs, auto... idx)
+      {
+         os << lhs(idx...) << " ";
+      });
+      os << std::endl;
+      return os;
    }
 };
 
