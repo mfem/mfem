@@ -25,7 +25,7 @@
 namespace mfem
 {
 
-namespace GinkgoWrappers
+namespace Ginkgo
 {
 
 GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
@@ -1183,7 +1183,7 @@ MFEMPreconditioner::MFEMPreconditioner(
    has_generated_precond = true;
 }
 
-} // namespace GinkgoWrappers
+} // namespace Ginkgo
 
 } // namespace mfem
 

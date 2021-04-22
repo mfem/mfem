@@ -31,7 +31,7 @@
 
 namespace mfem
 {
-namespace GinkgoWrappers
+namespace Ginkgo
 {
 /**
 * Helper class for a case where a wrapped MFEM Vector
@@ -54,7 +54,7 @@ public:
 * data, and is necessary to use MFEM Operators with Ginkgo
 * solvers.
 *
-* @ingroup GinkgoWrappers
+* @ingroup Ginkgo
 */
 
 class VectorWrapper : public gko::matrix::Dense<double>
@@ -203,7 +203,7 @@ private:
 * are of the VectorWrapper type.
 * Note that this class does NOT take ownership of the MFEM Operator.
 *
-* @ingroup GinkgoWrappers
+* @ingroup Ginkgo
 */
 class OperatorWrapper
    : public gko::EnableLinOp<OperatorWrapper>,
@@ -263,7 +263,7 @@ double compute_norm(const gko::matrix::Dense<ValueType> *b)
  * custom-logger example to understand how to write and modify your own loggers
  * with Ginkgo.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 template <typename ValueType=double>
 struct ResidualLogger : gko::log::Logger
@@ -424,7 +424,7 @@ private:
 
 /**
 * This class wraps a Ginkgo Executor for use in MFEM.
-* Note that objects in the GinkgoWrappers namespace intended to work
+* Note that objects in the Ginkgo namespace intended to work
 * together, e.g. a Ginkgo solver and preconditioner, should use the same
 * GinkgoExecutor object.  In general, most users will want to create
 * one GinkgoExecutor object for use with all Ginkgo-related objects.
@@ -482,7 +482,7 @@ private:
 * at the Ginkgo documentation and manual pages,
 * https://ginkgo-project.github.io/ginkgo/doc/develop.
 *
-* @ingroup GinkgoWrappers
+* @ingroup Ginkgo
 */
 class GinkgoPreconditioner : public Solver
 {
@@ -588,7 +588,7 @@ protected:
 * Ginkgo implements is available at the Ginkgo documentation and manual pages,
 * https://ginkgo-project.github.io/ginkgo/doc/develop.
 *
-* @ingroup GinkgoWrappers
+* @ingroup Ginkgo
 */
 class GinkgoIterativeSolver : public Solver
 {
@@ -744,7 +744,7 @@ private:
 /**
  * An implementation of the solver interface using the Ginkgo CG solver.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class CGSolver : public GinkgoIterativeSolver
 {
@@ -790,7 +790,7 @@ public:
 /**
  * An implementation of the solver interface using the Ginkgo BiCGStab solver.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class BICGSTABSolver : public GinkgoIterativeSolver
 {
@@ -839,7 +839,7 @@ public:
  * CGS or the conjugate gradient square method is an iterative type Krylov
  * subspace method which is suitable for general systems.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class CGSSolver : public GinkgoIterativeSolver
 {
@@ -895,7 +895,7 @@ public:
  * vectors spanning the Krylov subspace. This increases the computational cost
  * of every Krylov solver iteration but allows for non-constant preconditioners.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class FCGSolver : public GinkgoIterativeSolver
 {
@@ -940,7 +940,7 @@ public:
 /**
  * An implementation of the solver interface using the Ginkgo GMRES solver.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class GMRESSolver : public GinkgoIterativeSolver
 {
@@ -998,11 +998,11 @@ using gko::solver::cb_gmres::storage_precision;
  * is "compressed" by storing in a lower precision.  Currently, computations
  * are always performed in double precision when using this MFEM integration.
  * The Ginkgo storage precision options are accessed
- * through GinkgoWrappers::storage_precision::*.  The default choice
- * is GinkgoWrappers::storage_precision::reduce1, i.e., store in float
+ * through Ginkgo::storage_precision::*.  The default choice
+ * is Ginkgo::storage_precision::reduce1, i.e., store in float
  * instead of double.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class CBGMRESSolver : public GinkgoIterativeSolver
 {
@@ -1074,7 +1074,7 @@ protected:
  * method to approximate the error of the current solution via the current
  * residual.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class IRSolver : public GinkgoIterativeSolver
 {
@@ -1121,7 +1121,7 @@ public:
  * An implementation of the preconditioner interface using the Ginkgo Jacobi
  * preconditioner.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class JacobiPreconditioner : public GinkgoPreconditioner
 {
@@ -1147,7 +1147,7 @@ public:
  * An implementation of the preconditioner interface using the Ginkgo
  * Incomplete LU preconditioner (ILU(0)).
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class IluPreconditioner : public GinkgoPreconditioner
 {
@@ -1186,7 +1186,7 @@ public:
  * When the preconditioner is applied, these ISAI matrices are applied
  * through matrix-vector multiplication.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class IluIsaiPreconditioner : public GinkgoPreconditioner
 {
@@ -1224,7 +1224,7 @@ public:
  * An implementation of the preconditioner interface using the Ginkgo
  * Incomplete Cholesky preconditioner (IC(0)).
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class IcPreconditioner : public GinkgoPreconditioner
 {
@@ -1263,7 +1263,7 @@ public:
  * When the preconditioner is applied, these ISAI matrices are applied
  * through matrix-vector multiplication.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class IcIsaiPreconditioner : public GinkgoPreconditioner
 {
@@ -1300,7 +1300,7 @@ public:
 /**
  * A wrapper that allows Ginkgo to use MFEM preconditioners.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 class MFEMPreconditioner : public GinkgoPreconditioner
 {
@@ -1323,12 +1323,12 @@ public:
     */
    virtual void SetOperator(const Operator &op)
    {
-      MFEM_ABORT("GinkgoWrappers::MFEMPreconditioner must be constructed "
+      MFEM_ABORT("Ginkgo::MFEMPreconditioner must be constructed "
                  "with the MFEM Operator that it will wrap as an argument;\n"
                  "calling SetOperator() is not allowed.");
    };
 };
-} // namespace GinkgoWrappers
+} // namespace Ginkgo
 
 }
 
