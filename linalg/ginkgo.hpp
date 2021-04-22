@@ -581,8 +581,9 @@ protected:
 };
 
 /**
-* This class forms the base class for all of Ginkgo's iterative solvers.  The
-* various derived classes only take the additional data that is specific to them
+* This class forms the base class for all of Ginkgo's iterative solvers.
+* It is not intended to be used directly by MFEM applications. The various
+* derived classes only take the additional data that is specific to them
 * and solve the given linear system. The entire collection of solvers that
 * Ginkgo implements is available at the Ginkgo documentation and manual pages,
 * https://ginkgo-project.github.io/ginkgo/doc/develop.
@@ -596,6 +597,11 @@ public:
     * Constructor.
     *
     * The @p exec defines the paradigm where the solution is computed.
+    * @p use_implicit_res_norm is for internal use by the derived classes
+    * for specific Ginkgo solvers; it indicates whether the solver makes
+    * an implicit residual norm estimate available for convergence checking.
+    * Each derived class automatically sets the correct value when calling this
+    * base class constructor.
     *
     */
    GinkgoIterativeSolver(GinkgoExecutor &exec, int print_iter,
