@@ -52,36 +52,76 @@
 using namespace std;
 using namespace mfem;
 
-// Initial condition
-double rhs_function(const Vector &x)
+int problem; // problem number
+
+// Returns either rhs function f, or exact solution u.
+
+double rhs_function(const Vector &x, bool exact = false)
 {
    int dim = x.Size();
 
-   double x0 = x(0)-0.5;
-   double y0 = x(1)-0.5;
+   if (0 == problem) {
 
-   double w1 = 0.04;
-   double w2 = 0.20;
+      // Gaussian peak: NIST, Peak 2D
+      // u = e^(-alpha*(x^2+y^2)), alpha = 1e3 or alpha = 1e5
 
-   if (x(0) > 0.5-w1 && x(0) < 0.5+w1 &&
-       x(1) > 0.5-w2 && x(1) < 0.5+w2 ) {
-      return 100.0;
+      double xc = 0.5;
+      double yc = 0.5;
+
+      double x0 = x(0)-xc;
+      double y0 = x(1)-yc;
+
+      double alpha = 1000;
+
+      double xx = x0*x0;
+      double yy = y0*y0;
+
+      if (exact) {
+
+         double u = exp(-alpha*(xx+yy));
+
+         return u;
+      }
+      else {
+
+         double f =
+            alpha*(4.*alpha*xx -2.0)*exp(-alpha*(xx+yy)) +
+            alpha*(4.*alpha*yy -2.0)*exp(-alpha*(xx+yy));
+
+         return -f;
+      }
    }
-   if (x(1) > 0.5-w1 && x(1) < 0.5+w1 &&
-       x(0) > 0.5-w2 && x(0) < 0.5+w2 ) {
-      return 100.0;
-   }
-   // double r = sqrt(x0*x0 +y0*y0);
-   // if (r < 0.2 && r > 0.1) {
-   //    return 100.0;
-   // }
+   if (1 == problem) {
 
-   return 0.0;
+      // cross-shaped source
+
+      double x0 = x(0)-0.5;
+      double y0 = x(1)-0.5;
+
+      double w1 = 0.04;
+      double w2 = 0.20;
+
+      if (x(0) > 0.5-w1 && x(0) < 0.5+w1 &&
+          x(1) > 0.5-w2 && x(1) < 0.5+w2 ) {
+         return 100.0;
+      }
+      if (x(1) > 0.5-w1 && x(1) < 0.5+w1 &&
+          x(0) > 0.5-w2 && x(0) < 0.5+w2 ) {
+         return 100.0;
+      }
+      return 0.0;
+   }
+}
+
+double exact_soln(const Vector& x)
+{
+   return rhs_function(x, true);
 }
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
+   problem = 0;
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
@@ -96,6 +136,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&problem, "-p", "--problem",
+                  "Problem setup to use. See options in rhs_function().");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -147,6 +189,11 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
+   // Create 0-order L2 gridfunction to hold errors
+   L2_FECollection fec0(0, dim);
+   FiniteElementSpace fes0(&mesh, &fec0);
+   GridFunction err(&fes0);
+
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
@@ -159,6 +206,7 @@ int main(int argc, char *argv[])
    LinearForm b(&fespace);
 
    FunctionCoefficient rhs(rhs_function);
+   FunctionCoefficient exact(exact_soln);
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
@@ -181,9 +229,11 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
+   socketstream err_sock;
    if (visualization)
    {
       sol_sock.open(vishost, visport);
+      err_sock.open(vishost, visport);
    }
 
    // 10. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
@@ -201,9 +251,9 @@ int main(int argc, char *argv[])
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
 
-#if 0
+#if 1
    ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.40);
+   refiner.SetTotalErrorFraction(0.10);
 #else
    DRLRefiner refiner(x);
 #endif
@@ -264,11 +314,20 @@ int main(int argc, char *argv[])
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       a.RecoverFEMSolution(X, b, x);
 
+      // Compute error against exact solution
+
+      x.ComputeElementL2Errors(exact, err);
+
       // 19. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
          sol_sock.precision(8);
          sol_sock << "solution\n" << mesh << x << flush;
+      }
+      if (visualization && err_sock.good())
+      {
+         err_sock.precision(8);
+         err_sock << "solution\n" << mesh << err << flush;
       }
 
       if (cdofs > max_dofs || it == 3)
@@ -296,7 +355,9 @@ int main(int argc, char *argv[])
       //     Internally, FiniteElementSpace::Update() calculates an
       //     interpolation matrix which is then used by GridFunction::Update().
       fespace.Update();
+      fes0.Update();
       x.Update();
+      err.Update();
 
       // 22. Inform also the bilinear and linear forms that the space has
       //     changed.
