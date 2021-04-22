@@ -32,17 +32,19 @@ private:
    const IntegrationRule *ir_el, *ir_face;
    std::map<BilinearFormIntegrator*, const IntegrationRule*> ir_map;
 
-   /// Adds all the integrators from the member data @a a to the BilinearForm
-   /// @a a_to. Marks @a a_to as using external integrators. If the mesh
-   /// consists of tensor product elements, temporarily changes the integration
-   /// rules of the integrators to use collocated quadrature for better
-   /// conditioning of the LOR system.
+   /// Adds all the integrators from the BilinearForm @a a_from to @a a_to. If
+   /// the mesh consists of tensor product elements, temporarily changes the
+   /// integration rules of the integrators to use collocated quadrature for
+   /// better conditioning of the %LOR system.
    void AddIntegrators(BilinearForm &a_from,
                        BilinearForm &a_to,
                        GetIntegratorsFn get_integrators,
                        AddIntegratorFn add_integrator,
                        const IntegrationRule *ir);
 
+   /// Adds all the integrators from the BilinearForm @a a_from to @a a_to,
+   /// using the same marker lists (e.g. for integrators only applied to
+   /// certain boundary attributes). @sa LORBase::AddIntegrators
    void AddIntegratorsAndMarkers(BilinearForm &a_from,
                                  BilinearForm &a_to,
                                  GetIntegratorsFn get_integrators,
@@ -51,7 +53,7 @@ private:
                                  const IntegrationRule *ir);
 
    /// Resets the integration rules of the integrators of @a a to their original
-   /// values.
+   /// values (after temporarily changing them for %LOR assembly).
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
    static inline int absdof(int i) { return i < 0 ? -1-i : i; }
@@ -73,7 +75,7 @@ protected:
    /// ConstructDofPermutation and GetDofPermutation).
    void ConstructLocalDofPermutation(Array<int> &perm_) const;
 
-   /// Construct the permutation that maps LOR DOFs to high-order DOFs. See
+   /// Construct the permutation that maps %LOR DOFs to high-order DOFs. See
    /// GetDofPermutation.
    void ConstructDofPermutation() const;
 
@@ -81,31 +83,35 @@ protected:
    /// nonconforming spaces.
    void SetupNonconforming();
 
-   /// Return the type of finite element space: H1, ND, RT or L2.
+   /// Returns the type of finite element space: H1, ND, RT or L2.
    FESpaceType GetFESpaceType() const;
 
-   /// Return the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
+   /// Returns the order of the %LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
 
    LORBase(FiniteElementSpace &fes_ho_);
 
 public:
-   /// Return the assembled LOR system
+   /// Returns the assembled %LOR system.
    const OperatorHandle &GetAssembledSystem() const;
 
-   /// Assemble the LOR system.
+   /// Assembles the %LOR system.
    void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
-   /// Returns the permutation that maps LOR DOFs to high-order DOFs. This
-   /// permutation is constructed the first time it is requested. For H1 finite
-   /// element spaces, this is the identity. For vector finite element spaces,
-   /// this permutation is nontrivial. Returns an array @a perm such that, given
-   /// an index @a i of a LOR dof, @a perm[i] is the index of the corresponding
-   /// HO dof.
+   /// @brief Returns the permutation that maps %LOR DOFs to high-order DOFs.
+   ///
+   /// This permutation is constructed the first time it is requested, and then
+   /// is cached. For H1 and L2 finite element spaces (or for nonconforming
+   /// spaces) this is the identity. In these cases, RequiresDofPermutation will
+   /// return false. However, if the DOF permutation is requested, an identity
+   /// permutation will be built and returned.
+   /// For vector finite element spaces (ND and RT), the DOF permutation is
+   /// nontrivial. Returns an array @a perm such that, given an index @a i of a
+   /// %LOR dof, @a perm[i] is the index of the corresponding HO dof.
    const Array<int> &GetDofPermutation() const;
 
-   /// Returns true if the LOR spaces requires a DOF permutation (if the
-   /// corresponding LOR and HO DOFs are numbered differently), false otherwise.
+   /// Returns true if the %LOR spaces requires a DOF permutation (if the
+   /// corresponding %LOR and HO DOFs are numbered differently), false otherwise.
    /// Note: permutations are not required in the case of nonconforming spaces,
    /// since the DOF numbering is incorporated into the prolongation operators.
    bool RequiresDofPermutation() const;
@@ -120,18 +126,22 @@ public:
 class LOR : public LORBase
 {
 public:
-   /// Construct the low-order refined version of @a a_ho using the given list
-   /// of essential DOFs. The mesh is refined using the refinement type
+   /// @brief Construct the low-order refined version of @a a_ho using the given list
+   /// of essential DOFs.
+   ///
+   /// The mesh is refined using the refinement type
    /// specified by @a ref_type (see Mesh::MakeRefined).
    LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
        int ref_type=BasisType::GaussLobatto);
 
-   /// Construct a low-order refined version of the FiniteElementSpace @a
-   /// fes_ho. The mesh is refined using the refinement type
+   /// @brief Construct a low-order refined version of the FiniteElementSpace @a
+   /// fes_ho.
+   ///
+   /// The mesh is refined using the refinement type
    /// specified by @a ref_type (see Mesh::MakeRefined).
    LOR(FiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
 
-   /// Return the assembled LOR operator as a SparseMatrix
+   /// Return the assembled %LOR operator as a SparseMatrix.
    SparseMatrix &GetAssembledMatrix() const;
 };
 
@@ -141,20 +151,25 @@ public:
 class ParLOR : public LORBase
 {
 public:
-   /// Construct the low-order refined version of @a a_ho using the given list
-   /// of essential DOFs. The mesh is refined using the refinement type
+   /// @brief Construct the low-order refined version of @a a_ho using the given
+   /// list of essential DOFs.
+   ///
+   /// The mesh is refined using the refinement type
    /// specified by @a ref_type (see ParMesh::MakeRefined).
    ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
           int ref_type=BasisType::GaussLobatto);
 
-   /// Construct a low-order refined version of the ParFiniteElementSpace @a
-   /// pfes_ho. The mesh is refined using the refinement type specified by @a
+   /// @brief Construct a low-order refined version of the ParFiniteElementSpace
+   /// @a pfes_ho.
+   ///
+   /// The mesh is refined using the refinement type specified by @a
    /// ref_type (see ParMesh::MakeRefined).
    ParLOR(ParFiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
 
-   /// Return the assembled LOR operator as a HypreParMatrix.
+   /// Return the assembled %LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix() const;
 
+   /// Return the %LOR ParFiniteElementSpace.
    ParFiniteElementSpace &GetParFESpace() const;
 };
 
@@ -172,8 +187,8 @@ protected:
    SolverType solver;
    mutable Vector px, py;
 public:
-   /// Create a solver of type @a SolverType, formed using the assembled
-   /// SparseMatrix of the LOR version of @a a_ho. @see LOR
+   /// @brief Create a solver of type @a SolverType, formed using the assembled
+   /// SparseMatrix of the %LOR version of @a a_ho. @see LOR
    LORSolver(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
@@ -182,8 +197,8 @@ public:
    }
 
 #ifdef MFEM_USE_MPI
-   /// Create a solver of type @a SolverType, formed using the assembled
-   /// HypreParMatrix of the LOR version of @a a_ho. @see ParLOR
+   /// @brief Create a solver of type @a SolverType, formed using the assembled
+   /// HypreParMatrix of the %LOR version of @a a_ho. @see ParLOR
    LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
@@ -192,8 +207,10 @@ public:
    }
 #endif
 
-   /// Create a solver of type @a SolverType using Operator @a op and arguments
-   /// @a args. The object @a lor_ will be used for DOF permutations.
+   /// @brief Create a solver of type @a SolverType using Operator @a op and
+   /// arguments @a args.
+   ///
+   /// The object @a lor_ will be used for DOF permutations.
    template <typename... Args>
    LORSolver(const Operator &op, LORBase &lor_, Args... args) : solver(args...)
    {
@@ -202,9 +219,10 @@ public:
       SetOperator(op);
    }
 
-   /// Create a solver of type @a SolverType using the assembled LOR operator
-   /// represented by @a lor_. The given @a args will be used as arguments to
-   /// the solver constructor.
+   /// @brief Create a solver of type @a SolverType using the assembled %LOR
+   /// operator represented by @a lor_.
+   ///
+   /// The given @a args will be used as arguments to the solver constructor.
    template <typename... Args>
    LORSolver(LORBase &lor_, Args... args)
       : LORSolver(*lor_.GetAssembledSystem(), lor_, args...) { }
@@ -241,13 +259,13 @@ public:
       }
    }
 
-   /** @brief Enable or disable the DOF permutation (enabled by default).
-
-       The corresponding LOR and high-order DOFs may not have the same numbering
-       (for example, when using ND or RT spaces), and so a permutation is
-       required when applying the LOR solver as a preconditioner for the
-       high-order problem. This permutation can be disabled (for example, in
-       order to precondition the low-order problem directly). */
+   /// @brief Enable or disable the DOF permutation (enabled by default).
+   ///
+   /// The corresponding %LOR and high-order DOFs may not have the same
+   /// numbering (for example, when using ND or RT spaces), and so a permutation
+   /// is required when applying the %LOR solver as a preconditioner for the
+   /// high-order problem. This permutation can be disabled (for example, in
+   /// order to precondition the low-order problem directly).
    void UsePermutation(bool use_permutation_)
    {
       use_permutation = use_permutation_;
