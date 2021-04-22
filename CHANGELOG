@@ -177,7 +177,8 @@ Version 4.2.1 (development)
 
 - Added initial support for hypre's mixed integer capability. This allows to use
   different data types for local and global indices to save memory with large
-  problem sizes.
+  problem sizes. (This requires that hypre is configured with the
+  --enable-mixedint option.)
 
 libCEED integration improvements
 --------------------------------
