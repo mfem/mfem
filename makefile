@@ -207,6 +207,7 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 MFEM_COVERAGE_FLAGS =
 ifeq ($(MFEM_COVERAGE),YES)
    MFEM_COVERAGE_FLAGS = --coverage -fPIC -g
+endif
 
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
