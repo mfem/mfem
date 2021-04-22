@@ -204,6 +204,10 @@ ifeq ($(MFEM_DEBUG),YES)
 endif
 CXXFLAGS ?= $(OPTIM_FLAGS)
 
+MFEM_COVERAGE_FLAGS =
+ifeq ($(MFEM_COVERAGE),YES)
+   MFEM_COVERAGE_FLAGS = --coverage -fPIC -g
+
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
    MFEM_HOST_CXX = $(CXX)
@@ -426,7 +430,7 @@ lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
- $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
+ $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF) $(MFEM_COVERAGE_FLAGS)
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
