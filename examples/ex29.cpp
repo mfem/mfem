@@ -18,7 +18,8 @@
 //               This example demonstrates the use of finite element
 //               integrators on 2D domains with 3D coefficients.
 //
-//               We recommend viewing example 1 before viewing this example.
+//               We recommend viewing examples 1 and 7 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int order = 3;
    int mesh_type = 4; // Default to Quadrilateral mesh
+   int mesh_order = 3;
    int ref_levels = 0;
    bool static_cond = false;
    bool visualization = true;
@@ -72,11 +74,12 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_type, "-mt", "--mesh-type",
                   "Mesh type: 3 - Triangular, 4 - Quadrilateral.");
+   args.AddOption(&mesh_order, "-mo", "--mesh-order",
+                  "Geometric order of the curved mesh.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
+                  "Finite element order (polynomial degree).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -103,31 +106,13 @@ int main(int argc, char *argv[])
    }
 
    // 4. Transform the mesh so that it has a more interesting geometry.
-   mesh->SetCurvature(3);
+   mesh->SetCurvature(mesh_order);
    mesh->Transform(trans);
 
    // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   bool delete_fec;
-   if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
-   }
-   else if (mesh->GetNodes())
-   {
-      fec = mesh->GetNodes()->OwnFEC();
-      delete_fec = false;
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
-   }
-   FiniteElementSpace fespace(mesh, fec);
+   //    Lagrange finite elements of the specified order.
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fespace(mesh, &fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
@@ -190,16 +175,16 @@ int main(int argc, char *argv[])
    FunctionCoefficient uCoef(uExact);
    double err = x.ComputeL2Error(uCoef);
 
-   mfem::out << "|u - u_h|_2 = " << err << endl;
+   cout << "|u - u_h|_2 = " << err << endl;
 
-   FiniteElementSpace flux_fespace(mesh, fec, 3);
+   FiniteElementSpace flux_fespace(mesh, &fec, 3);
    GridFunction flux(&flux_fespace);
    x.ComputeFlux(*integ, flux); flux *= -1.0;
 
    VectorFunctionCoefficient fluxCoef(3, fluxExact);
    double flux_err = flux.ComputeL2Error(fluxCoef);
 
-   mfem::out << "|f - f_h|_2 = " << flux_err << endl;
+   cout << "|f - f_h|_2 = " << flux_err << endl;
 
    // 14. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -229,10 +214,6 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
-   }
    delete mesh;
 
    return 0;
