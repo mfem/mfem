@@ -205,11 +205,11 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_GINKGO
          // Solve the linear system with CG + IC from Ginkgo,
          // or CG from Ginkgo + Gauss-Seidel from MFEM.
-         GinkgoWrappers::GinkgoExecutor exec(device);
+         Ginkgo::GinkgoExecutor exec(device);
          if (use_ginkgo_precond) // Also use Ginkgo preconditioner.
          {
-            GinkgoWrappers::IcPreconditioner ginkgo_precond(exec, "paric", 30);
-            GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+            Ginkgo::IcPreconditioner ginkgo_precond(exec, "paric", 30);
+            Ginkgo::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
                                                    ginkgo_precond);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
@@ -217,8 +217,8 @@ int main(int argc, char *argv[])
          else  //Create MFEM preconditioner and wrap it for Ginkgo's use.
          {
             DSmoother M((SparseMatrix&)(*A));
-            GinkgoWrappers::MFEMPreconditioner gko_M(exec, M);
-            GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+            Ginkgo::MFEMPreconditioner gko_M(exec, M);
+            Ginkgo::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
                                                    gko_M);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
@@ -227,8 +227,8 @@ int main(int argc, char *argv[])
       }
       else if (use_ginkgo_precond)  // Test using a Ginkgo preconditioner with an MFEM solver.
       {
-         GinkgoWrappers::GinkgoExecutor exec(device);
-         GinkgoWrappers::IcPreconditioner M(exec, "paric", 30);
+         Ginkgo::GinkgoExecutor exec(device);
+         Ginkgo::IcPreconditioner M(exec, "paric", 30);
          M.SetOperator(*(A.Ptr()));  // Generate the preconditioner for the matrix A.
          PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
       }
@@ -255,10 +255,10 @@ int main(int argc, char *argv[])
          if (use_ginkgo_solver)
          {
 #ifdef MFEM_USE_GINKGO
-            GinkgoWrappers::GinkgoExecutor exec(device);
+            Ginkgo::GinkgoExecutor exec(device);
             // wrap MFEM preconditioner for Ginkgo's use.
-            GinkgoWrappers::MFEMPreconditioner gko_M(exec, M);
-            GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+            Ginkgo::MFEMPreconditioner gko_M(exec, M);
+            Ginkgo::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
                                                    gko_M);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
