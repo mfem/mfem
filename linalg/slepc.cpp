@@ -16,12 +16,12 @@
 #ifdef MFEM_USE_SLEPC
 
 #include "linalg.hpp"
-
+#include "petscinternals.hpp"
 #include "slepc.h"
 
-#include "petscinternals.hpp"
-
 static PetscErrorCode ierr;
+
+using namespace std;
 
 namespace mfem
 {
@@ -39,6 +39,13 @@ void MFEMInitializeSlepc(int *argc,char*** argv)
 void MFEMInitializeSlepc(int *argc,char ***argv,const char rc_file[],
                          const char help[])
 {
+   if (mfem::Device::Allows(mfem::Backend::CUDA_MASK))
+   {
+      // Tell PETSc to use the same CUDA device as MFEM:
+      ierr = PetscOptionsSetValue(NULL,"-cuda_device",
+                                  to_string(mfem::Device::GetId()).c_str());
+      MFEM_VERIFY(!ierr,"Unable to set initial option value to PETSc");
+   }
    ierr = SlepcInitialize(argc,argv,rc_file,help);
    MFEM_VERIFY(!ierr,"Unable to initialize SLEPc");
 }
@@ -81,7 +88,6 @@ void SlepcEigenSolver::SetOperator(const PetscParMatrix &op)
 
    VR = new PetscParVector(op, true, false);
    VC = new PetscParVector(op, true, false);
-
 }
 
 void SlepcEigenSolver::SetOperators(const PetscParMatrix &op,
@@ -156,9 +162,9 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr) const
    MFEM_ASSERT(vr.Size() == VR->Size(), "invalid vr.Size() = " << vr.Size()
                << ", expected size = " << VR->Size());
 
-   VR->PlaceArray(vr.GetData());
+   VR->PlaceMemory(vr.GetMemory());
    ierr = EPSGetEigenvector(eps,i,*VR,NULL); PCHKERRQ(eps,ierr);
-   VR->ResetArray();
+   VR->ResetMemory();
 
 }
 
@@ -172,11 +178,11 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr,
    MFEM_ASSERT(vc.Size() == VC->Size(), "invalid vc.Size() = " << vc.Size()
                << ", expected size = " << VC->Size());
 
-   VR->PlaceArray(vr.GetData());
-   VC->PlaceArray(vc.GetData());
+   VR->PlaceArray(vr.GetMemory());
+   VC->PlaceArray(vc.GetMemory());
    ierr = EPSGetEigenvector(eps,i,*VR,*VC); PCHKERRQ(eps,ierr);
-   VR->ResetArray();
-   VC->ResetArray();
+   VR->ResetMemory();
+   VC->ResetMemory();
 }
 
 int SlepcEigenSolver::GetNumConverged()

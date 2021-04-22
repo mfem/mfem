@@ -621,53 +621,31 @@ void BilinearForm::ConformingAssemble()
 
 void BilinearForm::AssembleDiagonal(Vector &diag) const
 {
-   if (ext)
+   MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+               "Vector for holding diagonal has wrong size!");
+   const SparseMatrix *cP = fes->GetConformingProlongation();
+   if (!ext)
    {
-      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
-                  "Vector for holding diagonal has wrong size!");
-      const Operator *P = fes->GetProlongationMatrix();
-      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
-      // where |P^T| has the entry-wise absolute values of the conforming
-      // prolongation transpose operator.
-      if (P && !fes->Conforming())
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleDiagonal(local_diag);
-         const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
-#ifdef MFEM_USE_MPI
-         const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
-#endif
-         if (SP)
-         {
-            SP->AbsMultTranspose(local_diag, diag);
-         }
-#ifdef MFEM_USE_MPI
-         else if (HP)
-         {
-            HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
-         }
-#endif
-         else
-         {
-            MFEM_ABORT("Prolongation matrix has unexpected type.");
-         }
-         return;
-      }
-      if (!IsIdentityProlongation(P))
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleDiagonal(local_diag);
-         P->MultTranspose(local_diag, diag);
-      }
-      else
-      {
-         ext->AssembleDiagonal(diag);
-      }
-   }
-   else
-   {
+      MFEM_ASSERT(mat, "the BilinearForm is not assembled!");
+      MFEM_ASSERT(cP == nullptr || mat->Height() == cP->Width(),
+                  "BilinearForm::ConformingAssemble() is not called!");
       mat->GetDiag(diag);
+      return;
    }
+   // Here, we have extension, ext.
+   if (!cP)
+   {
+      ext->AssembleDiagonal(diag);
+      return;
+   }
+   // Here, we have extension, ext, and conforming prolongation, cP.
+
+   // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_l,
+   // where |P^T| has the entry-wise absolute values of the conforming
+   // prolongation transpose operator.
+   Vector local_diag(cP->Height());
+   ext->AssembleDiagonal(local_diag);
+   cP->AbsMultTranspose(local_diag, diag);
 }
 
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
