@@ -47,7 +47,7 @@ public:
 };
 
 /// A structure to call the constructor of T with the right sizes...
-template <typename T, bool IsTensor, int Dim, int VDim, int N=1>
+template <typename T, bool IsTensor, int Dim, int VDim, int N=0>
 struct InitDof;
 
 // Tensor
@@ -72,7 +72,7 @@ struct InitDof<T,true,Dim,VDim,Dim>
 };
 
 template <typename T, int Dim>
-struct InitDof<T,Dim,0,Dim>
+struct InitDof<T,true,Dim,0,Dim>
 {
    template <typename... Sizes>
    static T make(double *x, int dofs, int ne, Sizes... sizes)
