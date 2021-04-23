@@ -245,6 +245,7 @@ template <typename T, typename Container>
 class ViewContainer
 {
 private:
+   // using T = get_container_type<Container>;
    Container &data;
 
 public:
@@ -269,6 +270,7 @@ template <typename T, typename Container>
 class ConstViewContainer
 {
 private:
+   // using T = get_container_type<Container>;
    const Container &data;
 
 public:
@@ -285,42 +287,157 @@ public:
 ////////////////////
 // Container Traits
 
+// get_container_type
+template <typename Container>
+struct get_container_type_t;
+
+template <typename T>
+struct get_container_type_t<DeviceContainer<T>>
+{
+   using type = T;
+};
+
+template <typename T>
+struct get_container_type_t<ReadContainer<T>>
+{
+   using type = T;
+};
+
+template <typename T>
+struct get_container_type_t<MemoryContainer<T>>
+{
+   using type = T;
+};
+
+template <typename T, int... Dims>
+struct get_container_type_t<StaticContainer<T,Dims...>>
+{
+   using type = T;
+};
+
+template <typename T, int... Dims>
+struct get_container_type_t<BlockContainer<T,Dims...>>
+{
+   using type = T;
+};
+
+template <typename T, typename Container>
+struct get_container_type_t<ViewContainer<T,Container>>
+{
+   using type = T;
+};
+
+template <typename T, typename Container>
+struct get_container_type_t<ConstViewContainer<T,Container>>
+{
+   using type = T;
+};
+
+template <typename Container>
+using get_container_type = typename get_container_type_t<Container>::type;
+
+// get_container_sizes
+template <typename Container>
+struct get_container_sizes_t;
+
+template <typename T, int... Dims>
+struct get_container_sizes_t<StaticContainer<T, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <typename T, int... Dims>
+struct get_container_sizes_t<BlockContainer<T, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <typename T, typename Container>
+struct get_container_sizes_t<ViewContainer<T, Container>>
+{
+   using type = typename get_container_sizes_t<Container>::type;
+};
+
+template <typename T, typename Container>
+struct get_container_sizes_t<ConstViewContainer<T, Container>>
+{
+   using type = typename get_container_sizes_t<Container>::type;
+};
+
+template <typename Container>
+using get_container_sizes = typename get_container_sizes_t<Container>::type;
+
+// get_unsized_container
+template <typename Container>
+struct get_unsized_container;
+
+template <typename T, int... Dims>
+struct get_unsized_container<StaticContainer<T, Dims...>>
+{
+   template <int... Sizes>
+   using type = StaticContainer<T, Sizes...>;
+};
+
+template <typename T, int... Dims>
+struct get_unsized_container<BlockContainer<T, Dims...>>
+{
+   template <int... Sizes>
+   using type = BlockContainer<T, Sizes...>;
+};
+
+template <typename T, typename Container>
+struct get_unsized_container<ViewContainer<T, Container>>
+{
+   template <int... Sizes>
+   using type = typename get_unsized_container<Container>::template type<Sizes...>;
+};
+
+template <typename T, typename Container>
+struct get_unsized_container<ConstViewContainer<T, Container>>
+{
+   template <int... Sizes>
+   using type = typename get_unsized_container<Container>::template type<Sizes...>;
+};
+
 // is_pointer_container
 template <typename Container>
-struct is_pointer_container
+struct is_pointer_container_v
 {
    static constexpr bool value = false;
 };
 
 template <typename T>
-struct is_pointer_container<DeviceContainer<T>>
+struct is_pointer_container_v<DeviceContainer<T>>
 {
    static constexpr bool value = true;
 };
 
 template <typename T>
-struct is_pointer_container<ReadContainer<T>>
+struct is_pointer_container_v<ReadContainer<T>>
 {
    static constexpr bool value = true;
 };
 
 template <typename T>
-struct is_pointer_container<MemoryContainer<T>>
+struct is_pointer_container_v<MemoryContainer<T>>
 {
    static constexpr bool value = true;
 };
 
 template <typename T, typename Container>
-struct is_pointer_container<ViewContainer<T,Container>>
+struct is_pointer_container_v<ViewContainer<T,Container>>
 {
-   static constexpr bool value = is_pointer_container<Container>::value;
+   static constexpr bool value = is_pointer_container_v<Container>::value;
 };
 
 template <typename T, typename Container>
-struct is_pointer_container<ConstViewContainer<T,Container>>
+struct is_pointer_container_v<ConstViewContainer<T,Container>>
 {
-   static constexpr bool value = is_pointer_container<Container>::value;
+   static constexpr bool value = is_pointer_container_v<Container>::value;
 };
+
+template <typename Tensor>
+constexpr bool is_pointer_container = is_pointer_container_v<Tensor>::value;
 
 } // namespace mfem
 

@@ -864,169 +864,230 @@ constexpr int get_layout_rank = get_layout_rank_v<Layout>::value;
 
 // is_dynamic_layout
 template <typename Layout>
-struct is_dynamic_layout
+struct is_dynamic_layout_v
 {
    static constexpr bool value = false;
 };
 
 template<int Rank>
-struct is_dynamic_layout<DynamicLayout<Rank>>
+struct is_dynamic_layout_v<DynamicLayout<Rank>>
 {
    static constexpr bool value = true;
 };
 
 template <int Rank, int BatchSize>
-struct is_dynamic_layout<DynamicBlockLayout<Rank,BatchSize>>
+struct is_dynamic_layout_v<DynamicBlockLayout<Rank,BatchSize>>
 {
    static constexpr bool value = true;
 };
 
 
 template <int N, typename Layout>
-struct is_dynamic_layout<RestrictedLayout<N,Layout>>
+struct is_dynamic_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_dynamic_layout<Layout>::value;
+   static constexpr bool value = is_dynamic_layout_v<Layout>::value;
 };
+
+template <typename Layout>
+constexpr bool is_dynamic_layout = is_dynamic_layout_v<Layout>::value;
 
 // is_static_layout
 template <typename Layout>
-struct is_static_layout
+struct is_static_layout_v
 {
    static constexpr bool value = false;
 };
 
 template <int BatchSize, int... Dims>
-struct is_static_layout<BlockLayout<BatchSize,Dims...>>
+struct is_static_layout_v<BlockLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
 
 template<int... Dims>
-struct is_static_layout<StaticLayout<Dims...>>
+struct is_static_layout_v<StaticLayout<Dims...>>
 {
    static constexpr bool value = true;
 };
 
 template<int... Dims>
-struct is_static_layout<StaticELayout<Dims...>>
+struct is_static_layout_v<StaticELayout<Dims...>>
 {
    static constexpr bool value = true;
 };
 
 template <int N, typename Layout>
-struct is_static_layout<RestrictedLayout<N,Layout>>
+struct is_static_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_static_layout<Layout>::value;
+   static constexpr bool value = is_static_layout_v<Layout>::value;
 };
+
+template <typename Layout>
+constexpr bool is_static_layout = is_static_layout_v<Layout>::value;
 
 // is_serial_layout
 template <typename Layout>
-struct is_serial_layout
+struct is_serial_layout_v
 {
    static constexpr bool value = false;
 };
 
 template<int... Dims>
-struct is_serial_layout<StaticLayout<Dims...>>
+struct is_serial_layout_v<StaticLayout<Dims...>>
 {
    static constexpr bool value = true;
 };
 
 template<int... Dims>
-struct is_serial_layout<StaticELayout<Dims...>>
+struct is_serial_layout_v<StaticELayout<Dims...>>
 {
    static constexpr bool value = true;
 };
 
 template <int Rank>
-struct is_serial_layout<DynamicLayout<Rank>>
+struct is_serial_layout_v<DynamicLayout<Rank>>
 {
    static constexpr bool value = true;
 };
 
 template <int N, typename Layout>
-struct is_serial_layout<RestrictedLayout<N,Layout>>
+struct is_serial_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_serial_layout<Layout>::value;
+   static constexpr bool value = is_serial_layout_v<Layout>::value;
 };
+
+template <typename Layout>
+constexpr bool is_serial_layout = is_serial_layout_v<Layout>::value;
 
 // is_2d_threaded_layout
 template <typename Layout>
-struct is_2d_threaded_layout
+struct is_2d_threaded_layout_v
 {
    static constexpr bool value = false;
 };
 
 template <int BatchSize, int... Dims>
-struct is_2d_threaded_layout<BlockLayout<BatchSize,Dims...>>
+struct is_2d_threaded_layout_v<BlockLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
 
 template <int Rank, int BatchSize>
-struct is_2d_threaded_layout<DynamicBlockLayout<Rank,BatchSize>>
+struct is_2d_threaded_layout_v<DynamicBlockLayout<Rank,BatchSize>>
 {
    static constexpr bool value = true;
 };
 
 template <int N, typename Layout>
-struct is_2d_threaded_layout<RestrictedLayout<N,Layout>>
+struct is_2d_threaded_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_2d_threaded_layout<Layout>::value;
+   static constexpr bool value = is_2d_threaded_layout_v<Layout>::value;
 };
+
+template <typename Layout>
+constexpr bool is_2d_threaded_layout = is_2d_threaded_layout_v<Layout>::value;
 
 // get_layout_size
 template <int N, typename Layout>
-struct get_layout_size;
+struct get_layout_size_v;
 
 template <int N, int... Dims>
-struct get_layout_size<N, StaticLayout<Dims...>>
+struct get_layout_size_v<N, StaticLayout<Dims...>>
 {
    static constexpr int value = get_value<N, Dims...>;
 };
 
 template <int N, int... Dims>
-struct get_layout_size<N, StaticELayout<Dims...>>
+struct get_layout_size_v<N, StaticELayout<Dims...>>
 {
    static constexpr int value = get_value<N, Dims...>;
 };
 
 template <int N, int BatchSize, int... Dims>
-struct get_layout_size<N, BlockLayout<BatchSize, Dims...>>
+struct get_layout_size_v<N, BlockLayout<BatchSize, Dims...>>
 {
    static constexpr int value = get_value<N, Dims...>;
 };
 
 template <int N, int I, typename Layout>
-struct get_layout_size<N,RestrictedLayout<I,Layout>>
+struct get_layout_size_v<N,RestrictedLayout<I,Layout>>
 {
-   static constexpr int value = get_layout_size<N+(N>=I),Layout>::value;
+   static constexpr int value = get_layout_size_v<N+(N>=I),Layout>::value;
 };
+
+template <int N, typename Layout>
+constexpr int get_layout_size = get_layout_size_v<N,Layout>::value;
+
+// get_layout_sizes
+template <typename Layout>
+struct get_layout_sizes_t;
+
+template <int Rank>
+struct get_layout_sizes_t<DynamicLayout<Rank>>
+{
+   using type = int_repeat<Dynamic,Rank>;
+};
+
+template <int... Dims>
+struct get_layout_sizes_t<StaticLayout<Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <int... Dims>
+struct get_layout_sizes_t<StaticELayout<Dims...>>
+{
+   using type = int_list<Dims...,Dynamic>;
+};
+
+template <int BatchSize, int... Dims>
+struct get_layout_sizes_t<BlockLayout<BatchSize, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_sizes_t<DynamicBlockLayout<Rank,BatchSize>>
+{
+   using type = int_repeat<Dynamic,Rank>;
+};
+
+template <int N, typename Layout>
+struct get_layout_sizes_t<RestrictedLayout<N,Layout>>
+{
+   using type = remove< N, typename get_layout_sizes_t<Layout>::type >;
+};
+
+template <typename Layout>
+using get_layout_sizes = typename get_layout_sizes_t<Layout>::type;
 
 // get_layout_batch_size
 template <typename Layout>
-struct get_layout_batch_size
+struct get_layout_batch_size_v
 {
    static constexpr int value = 1;
 };
 
 template <int BatchSize, int... Dims>
-struct get_layout_batch_size<BlockLayout<BatchSize, Dims...>>
+struct get_layout_batch_size_v<BlockLayout<BatchSize, Dims...>>
 {
    static constexpr int value = BatchSize;
 };
 
 template <int Rank, int BatchSize>
-struct get_layout_batch_size<DynamicBlockLayout<Rank, BatchSize>>
+struct get_layout_batch_size_v<DynamicBlockLayout<Rank, BatchSize>>
 {
    static constexpr int value = BatchSize;
 };
 
 template <int N, typename Layout>
-struct get_layout_batch_size<RestrictedLayout<N, Layout>>
+struct get_layout_batch_size_v<RestrictedLayout<N, Layout>>
 {
-   static constexpr int value = get_layout_batch_size<Layout>::value;
+   static constexpr int value = get_layout_batch_size_v<Layout>::value;
 };
+
+template <typename Layout>
+constexpr int get_layout_batch_size = get_layout_batch_size_v<Layout>::value;
 
 } // namespace mfem
 

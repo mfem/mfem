@@ -180,12 +180,8 @@ auto MakeDoFs(Config &config, double *x, int ne)
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Dofs = get_config_dofs<Config>;
-   constexpr int Rank = (IsTensor?Dim:1)+(VDim>0)+1;
    using Layout = get_dof_layout<IsTensor,Dofs,Dim,VDim>;
-   using DofTensor = Tensor<Rank,
-                            double,
-                            DeviceContainer<double>,
-                            Layout >;
+   using DofTensor = Tensor<DeviceContainer<double>,Layout>;
    using Dof = DegreesOfFreedom<DofTensor>;
    return InitDof<Dof,IsTensor,Dim,VDim>::make(x,config.dofs,ne);
 }
@@ -196,14 +192,11 @@ auto MakeDoFs(Config &config, const double *x, int ne)
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Dofs = get_config_dofs<Config>;
-   constexpr int Rank = (IsTensor?Dim:1)+(VDim>0)+1;
    using Layout = get_dof_layout<IsTensor,Dofs,Dim,VDim>;
-   using DofTensor = Tensor<Rank,
-                            double,
-                            ReadContainer<double>,
-                            Layout >;
+   using DofTensor = Tensor<ReadContainer<double>,Layout>;
    using Dof = DegreesOfFreedom<DofTensor>;
-   return InitDof<Dof,IsTensor,Dim,VDim>::make(const_cast<double*>(x),config.dofs,ne);
+   return InitDof<Dof,IsTensor,Dim,VDim>::
+      make(const_cast<double*>(x),config.dofs,ne);
 }
 
 } // mfem namespace

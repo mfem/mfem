@@ -172,12 +172,8 @@ auto MakeQData(Config &config, double *x, int ne)
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Quads = get_config_quads<Config>;
    constexpr int DiagDim = IsTensor ? Dim : 1;
-   constexpr int Rank = DiagDim+DimComp+1;
    using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp>;
-   using QDataTensor = Tensor<Rank,
-                              double,
-                              DeviceContainer<double>,
-                              Layout >;
+   using QDataTensor = Tensor<DeviceContainer<double>,Layout>;
    using QD = QData<DiagDim,QDataTensor>;
    return InitQData<QD,IsTensor,Dim,DimComp>::make(x,config.quads,Dim,ne);
 }
@@ -189,12 +185,8 @@ auto MakeQData(Config &config, const double *x, int ne)
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Quads = get_config_quads<Config>;
    constexpr int DiagDim = IsTensor ? Dim : 1;
-   constexpr int Rank = DiagDim+DimComp+1;
    using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp>;
-   using QDataTensor = Tensor<Rank,
-                              double,
-                              ReadContainer<double>,
-                              Layout >;
+   using QDataTensor = Tensor<ReadContainer<double>,Layout>;
    using QD = QData<DiagDim,QDataTensor>;
    return InitQData<QD,IsTensor,Dim,DimComp>::
       make(const_cast<double*>(x),config.quads,Dim,ne);
@@ -208,13 +200,9 @@ auto MakeSymmQData(Config &config, double *x, int ne)
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Quads = get_config_quads<Config>;
    constexpr int DiagDim = IsTensor ? Dim : 1;
-   constexpr int Rank = DiagDim+DimComp+1;
    constexpr int SymmSize = Dim*(Dim+1)/2;
    using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp,SymmSize>;
-   using QDataTensor = Tensor<Rank,
-                              double,
-                              DeviceContainer<double>,
-                              Layout >;
+   using QDataTensor = Tensor<DeviceContainer<double>,Layout>;
    using QD = SymmQData<DiagDim,QDataTensor>;
    return InitQData<QD,IsTensor,Dim,DimComp>::
       make(x,config.quads,SymmSize,ne);
@@ -227,13 +215,9 @@ auto MakeSymmQData(Config &config, const double *x, int ne)
    constexpr bool IsTensor = is_tensor_config<Config>;
    constexpr int Quads = get_config_quads<Config>;
    constexpr int DiagDim = IsTensor? Dim : 1;
-   constexpr int Rank = DiagDim+DimComp+1;
    constexpr int SymmSize = Dim*(Dim+1)/2;
    using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp,SymmSize>;
-   using QDataTensor = Tensor<Rank,
-                              double,
-                              ReadContainer<double>,
-                              Layout >;
+   using QDataTensor = Tensor<ReadContainer<double>,Layout>;
    using QD = SymmQData<DiagDim,QDataTensor>;
    return InitQData<QD,IsTensor,Dim,DimComp>::
       make(const_cast<double*>(x),config.quads,SymmSize,ne);
