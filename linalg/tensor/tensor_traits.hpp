@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <int Rank, typename T, typename Container, typename Layout>
+template <typename Container, typename Layout>
 class Tensor;
 
 /////////////////
@@ -27,20 +27,20 @@ class Tensor;
 template <typename Tensor>
 struct get_tensor_rank_v
 {
-   static constexpr int value = Error;
+   static constexpr int value = get_layout_rank<typename Tensor::layout>;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_rank_v<Tensor<Rank,T,C,L>>
-{
-   static constexpr int value = Rank;
-};
+// template <typename C, typename L>
+// struct get_tensor_rank_v<Tensor<C,L>>
+// {
+//    static constexpr int value = Rank;
+// };
 
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_rank_v<const Tensor<Rank,T,C,L>>
-{
-   static constexpr int value = Rank;
-};
+// template <typename C, typename L>
+// struct get_tensor_rank_v<const Tensor<C,L>>
+// {
+//    static constexpr int value = Rank;
+// };
 
 template <typename Tensor>
 constexpr int get_tensor_rank = get_tensor_rank_v<Tensor>::value;
@@ -49,20 +49,23 @@ constexpr int get_tensor_rank = get_tensor_rank_v<Tensor>::value;
 template <typename Tensor>
 struct get_tensor_value_type_t;
 
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_value_type_t<Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct get_tensor_value_type_t<Tensor<C,L>>
 {
-   using type = T;
+   using type = get_container_type<C>;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_value_type_t<const Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct get_tensor_value_type_t<const Tensor<C,L>>
 {
-   using type = T;
+   using type = get_container_type<C>;
 };
 
 template <typename Tensor>
 using get_tensor_value_type = typename get_tensor_value_type_t<Tensor>::type;
+
+template <typename Tensor>
+using get_tensor_type = typename get_tensor_value_type_t<Tensor>::type;
 
 // is_dynamic_tensor
 template <typename Tensor>
@@ -71,16 +74,16 @@ struct is_dynamic_tensor_v
    static constexpr bool value = false;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_dynamic_tensor_v<Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_dynamic_tensor_v<Tensor<C,L>>
 {
-   static constexpr bool value = is_dynamic_layout<L>::value;
+   static constexpr bool value = is_dynamic_layout<L>;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_dynamic_tensor_v<const Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_dynamic_tensor_v<const Tensor<C,L>>
 {
-   static constexpr bool value = is_dynamic_layout<L>::value;
+   static constexpr bool value = is_dynamic_layout<L>;
 };
 
 template <typename Tensor>
@@ -93,16 +96,16 @@ struct is_static_tensor_v
    static constexpr bool value = false;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_static_tensor_v<Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_static_tensor_v<Tensor<C,L>>
 {
-   static constexpr bool value = is_static_layout<L>::value;
+   static constexpr bool value = is_static_layout<L>;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_static_tensor_v<const Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_static_tensor_v<const Tensor<C,L>>
 {
-   static constexpr bool value = is_static_layout<L>::value;
+   static constexpr bool value = is_static_layout<L>;
 };
 
 template <typename Tensor>
@@ -115,16 +118,16 @@ struct is_serial_tensor_v
    static constexpr bool value = false;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_serial_tensor_v<Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_serial_tensor_v<Tensor<C,L>>
 {
-   static constexpr bool value = is_serial_layout<L>::value;
+   static constexpr bool value = is_serial_layout<L>;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_serial_tensor_v<const Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_serial_tensor_v<const Tensor<C,L>>
 {
-   static constexpr bool value = is_serial_layout<L>::value;
+   static constexpr bool value = is_serial_layout<L>;
 };
 
 template <typename Tensor>
@@ -137,16 +140,16 @@ struct is_2d_threaded_tensor_v
    static constexpr bool value = false;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_2d_threaded_tensor_v<Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_2d_threaded_tensor_v<Tensor<C,L>>
 {
-   static constexpr bool value = is_2d_threaded_layout<L>::value;
+   static constexpr bool value = is_2d_threaded_layout<L>;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct is_2d_threaded_tensor_v<const Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct is_2d_threaded_tensor_v<const Tensor<C,L>>
 {
-   static constexpr bool value = is_2d_threaded_layout<L>::value;
+   static constexpr bool value = is_2d_threaded_layout<L>;
 };
 
 template <typename Tensor>
@@ -159,16 +162,16 @@ struct get_tensor_size_v;
 //    static constexpr int value = Error;
 // };
 
-template <int N, int R, typename T, typename C, typename L>
-struct get_tensor_size_v<N, Tensor<R,T,C,L>>
+template <int N, typename C, typename L>
+struct get_tensor_size_v<N, Tensor<C,L>>
 {
-   static constexpr int value = get_layout_size<N, L>::value;
+   static constexpr int value = get_layout_size<N, L>;
 };
 
-template <int N, int R, typename T, typename C, typename L>
-struct get_tensor_size_v<N, const Tensor<R,T,C,L>>
+template <int N, typename C, typename L>
+struct get_tensor_size_v<N, const Tensor<C,L>>
 {
-   static constexpr int value = get_layout_size<N, L>::value;
+   static constexpr int value = get_layout_size<N, L>;
 };
 
 template <int N, typename Tensor>
@@ -181,16 +184,16 @@ struct get_tensor_batch_size_v
    static constexpr int value = Error;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_batch_size_v<Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct get_tensor_batch_size_v<Tensor<C,L>>
 {
-   static constexpr int value = get_layout_batch_size<L>::value;
+   static constexpr int value = get_layout_batch_size<L>;
 };
 
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_batch_size_v<const Tensor<Rank,T,C,L>>
+template <typename C, typename L>
+struct get_tensor_batch_size_v<const Tensor<C,L>>
 {
-   static constexpr int value = get_layout_batch_size<L>::value;
+   static constexpr int value = get_layout_batch_size<L>;
 };
 
 template <typename Tensor>
@@ -203,16 +206,16 @@ struct has_pointer_container_v
    static constexpr bool value = false;
 };
 
-template <int R, typename T, typename C, typename L>
-struct has_pointer_container_v<Tensor<R,T,C,L>>
+template <typename C, typename L>
+struct has_pointer_container_v<Tensor<C,L>>
 {
-   static constexpr bool value = is_pointer_container<C>::value;
+   static constexpr bool value = is_pointer_container<C>;
 };
 
-template <int R, typename T, typename C, typename L>
-struct has_pointer_container_v<const Tensor<R,T,C,L>>
+template <typename C, typename L>
+struct has_pointer_container_v<const Tensor<C,L>>
 {
-   static constexpr bool value = is_pointer_container<C>::value;
+   static constexpr bool value = is_pointer_container<C>;
 };
 
 template <typename Tensor>

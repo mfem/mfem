@@ -48,13 +48,13 @@ template <int Rank,
           template <typename,int...> class Container,
           template <int...> class Layout,
           int... Sizes>
-auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tl,
-                 Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tr)
+auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Rank>> &tl,
+                 Tensor<Container<T,Sizes...>,Layout<Rank>> &tr)
 {
    using ResContainer = Container<T,Sizes...,2>;
    using ResLayout = Layout<Rank+1>;
    ResLayout layout = MakeLayout(tl, 2);
-   Tensor<Rank+1, T, ResContainer, ResLayout> res(layout);
+   Tensor<ResContainer, ResLayout> res(layout);
    res.template Get<Rank>(0) = tl;
    res.template Get<Rank>(1) = tr;
    return res;
@@ -65,48 +65,48 @@ template <int Rank,
           template <typename,int...> class Container,
           template <int...> class Layout,
           int... Sizes>
-auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tl,
-                 Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tm,
-                 Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tr)
+auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Rank>> &tl,
+                 Tensor<Container<T,Sizes...>,Layout<Rank>> &tm,
+                 Tensor<Container<T,Sizes...>,Layout<Rank>> &tr)
 {
    using ResContainer = Container<T,Sizes...,3>;
    using ResLayout = Layout<Rank+1>;
    ResLayout layout = MakeLayout(tl, 3);
-   Tensor<Rank+1, T, ResContainer, ResLayout> res(layout);
+   Tensor<ResContainer, ResLayout> res(layout);
    res.template Get<Rank>(0) = tl;
    res.template Get<Rank>(1) = tm;
    res.template Get<Rank>(2) = tr;
    return res;
 }
 
-template <int Rank,
-          typename T,
+template <typename T,
           template <typename,int...> class Container,
           template <int...> class Layout,
           int... Sizes>
-auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>> &tl,
-                 Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>> &tr)
+auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tl,
+                 Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tr)
 {
    using ResContainer = Container<T,Sizes...,2>;
    using ResLayout = Layout<Sizes...,2>;
-   Tensor<Rank+1, T, ResContainer, ResLayout> res;
+   Tensor<ResContainer, ResLayout> res;
+   constexpr int Rank = get_layout_rank<ResLayout>;
    res.template Get<Rank>(0) = tl;
    res.template Get<Rank>(1) = tr;
    return res;
 }
 
-template <int Rank,
-          typename T,
+template <typename T,
           template <typename,int...> class Container,
           template <int...> class Layout,
           int... Sizes>
-auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>> &tl,
-                 Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>> &tm,
-                 Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>> &tr)
+auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tl,
+                 Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tm,
+                 Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tr)
 {
    using ResContainer = Container<T,Sizes...,3>;
    using ResLayout = Layout<Sizes...,3>;
-   Tensor<Rank+1, T, ResContainer, ResLayout> res;
+   Tensor<ResContainer, ResLayout> res;
+   constexpr int Rank = get_layout_rank<ResLayout>;
    res.template Get<Rank>(0) = tl;
    res.template Get<Rank>(1) = tm;
    res.template Get<Rank>(2) = tr;
