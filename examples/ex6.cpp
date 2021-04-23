@@ -52,7 +52,7 @@
 using namespace std;
 using namespace mfem;
 
-int problem; // problem number
+int problem; // problem number, controls source term and bdry condition
 
 // Returns either rhs function f, or exact solution u.
 
@@ -62,7 +62,7 @@ double rhs_function(const Vector &x, bool exact = false)
 
    if (0 == problem) {
 
-      // Gaussian peak: NIST, Peak 2D
+      // NIST: "Peak 2D" problem
       // u = e^(-alpha*(x^2+y^2)), alpha = 1e3 or alpha = 1e5
 
       double xc = 0.5;
@@ -93,6 +93,50 @@ double rhs_function(const Vector &x, bool exact = false)
    }
    if (1 == problem) {
 
+      // NIST "arctan circular wavefront" problem, w/ minor
+      // modifications.
+
+      double r0 = 0.25;
+      double a = 100.0;
+      double h = 1./3.;
+      double c = 0.5;
+
+      double x0 = 0.5;
+      double y0 = 0.5;
+
+      double dx = x(0)-x0;
+      double dy = x(1)-y0;
+      double dxdx = dx*dx;
+      double dydy = dy*dy;
+      double r = sqrt(dxdx+dydy);
+
+      if (exact) {
+         double u = c +h*atan(a*(r-r0));
+         return u;
+      }
+      else {
+         double aa = a*a;
+         double dr = r-r0;
+         double drdr = dr*dr;
+         double rr = r*r;
+         double t = 1+aa*drdr;
+         double tt = t*t;
+
+         double fx =
+            a/(t*r) -
+            a*dxdx/(t*rr*r) -
+            2*aa*a*dxdx*dr/(tt*rr);
+
+         double fy =
+            a/(t*r) -
+            a*dydy/(t*rr*r) -
+            2*aa*a*dydy*dr/(tt*rr);
+
+         return -h*(fx+fy);
+      }
+   }
+   if (2 == problem) {
+
       // cross-shaped source
 
       double x0 = x(0)-0.5;
@@ -111,11 +155,25 @@ double rhs_function(const Vector &x, bool exact = false)
       }
       return 0.0;
    }
+
+   return 1.0; // default
 }
 
 double exact_soln(const Vector& x)
 {
    return rhs_function(x, true);
+}
+
+double bdry_function(const Vector& x)
+{
+   if (problem == 0) {
+      return 0.0;
+   }
+   if (problem == 1) {
+      return 1.0;
+   }
+
+   return 0.0; // default
 }
 
 int main(int argc, char *argv[])
@@ -207,8 +265,8 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient rhs(rhs_function);
    FunctionCoefficient exact(exact_soln);
+   FunctionCoefficient bdry(bdry_function);
    ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
 
    BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
    a.AddDomainIntegrator(integ);
@@ -273,7 +331,7 @@ int main(int argc, char *argv[])
       // 14. Set Dirichlet boundary values in the GridFunction x.
       //     Determine the list of Dirichlet true DOFs in the linear system.
       Array<int> ess_tdof_list;
-      x.ProjectBdrCoefficient(zero, ess_bdr);
+      x.ProjectBdrCoefficient(bdry, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       // 15. Assemble the stiffness matrix.
