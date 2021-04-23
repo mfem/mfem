@@ -231,8 +231,8 @@ TEST_CASE("Nedelec Segment Finite Element",
       }
       SECTION("Sizes for p = " + std::to_string(p))
       {
-         REQUIRE( fe.GetDof()   == p );
-         REQUIRE( fe.GetOrder() == p );
+         REQUIRE( fe.GetDof()   == p   );
+         REQUIRE( fe.GetOrder() == p-1 );
       }
    }
 }
