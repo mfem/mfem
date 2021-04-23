@@ -2868,6 +2868,61 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
    }
 }
 
+void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C)
+{
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bh = B.Height();
+   const int bw = B.Width();
+
+   C.SetSize(ah*bh,aw*bw);
+   const double * ad = A.Data();
+   const double * bd = B.Data();
+   double * cd = C.Data();
+
+   for (int ja = 0; ja<aw; ++ja)
+      for (int jb = 0; jb<bw; ++jb)
+         for (int ia = 0; ia<ah; ++ia)
+            for (int ib = 0; ib<bh; ++ib)
+               cd[bh*ia + ib + ah*bh*(bw*ja + jb)] 
+                        = ad[ia + ja * ah] * bd[ib + jb*bh];
+}
+
+
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r, Vector & z)
+{
+   const int nA = A.Height();
+   const int mA = A.Width();
+   const int nB = B.Height();
+   const int mB = B.Width();
+   const int nr = r.Size();
+   MFEM_VERIFY(nr == mA*mB, "Wrong size of Vector r");
+   z.SetSize(nA*nB);
+   DenseMatrix R(r.GetData(),mB,mA);
+   DenseMatrix X(nB,mA);
+   DenseMatrix Y(z.GetData(),nB,nA);
+   Mult(B,R,X);
+   MultABt(X,A,Y);
+}
+
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R, DenseMatrix & Z)
+{
+   const int nA = A.Height();
+   const int nB = B.Height();
+   const int nR = R.Height();
+   const int mR = R.Width();
+   Z.SetSize(nA*nB,mR);
+   Vector r(nR);
+   Vector z(nA*nB);
+   double * dataR = R.Data();
+   double * dataZ = Z.Data();
+   for (int i = 0; i<mR; i++)
+   {
+      r.SetData(&dataR[i*nR]);
+      z.SetData(&dataZ[i*nA*nB]);
+      KronMult(A,B,r,z);
+   }
+}
 
 bool LUFactors::Factor(int m, double TOL)
 {

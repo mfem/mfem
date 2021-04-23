@@ -523,6 +523,17 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 /// VVt += a * v v^t
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
+/// C = A ⊗ B
+void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C);
+
+/// z = (A ⊗ B) r  = vec(B R A^T), where R := vec^-1 (r)
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r, Vector & z);
+
+/// z = (A ⊗ B) R  
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R, DenseMatrix & Z);
+
+/// z = ( A ⊗ B ⊗ C ) r 
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C, const Vector &r, Vector & z);
 
 /** Class that can compute LU factorization of external data and perform various
     operations with the factored data. */

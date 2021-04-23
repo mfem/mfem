@@ -239,6 +239,91 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
 }
 
+DenseMatrix * KroneckerProduct(const DenseMatrix & A, const DenseMatrix & B)
+{
+   const int nrowsA = A.NumRows();
+   const int ncolsA = A.NumCols();
+   const int nrowsB = B.NumRows();
+   const int ncolsB = B.NumCols();
+
+   DenseMatrix * C = new DenseMatrix(nrowsA*nrowsB,ncolsA*ncolsB);
+   // Fill the entries of the matrix
+   for (int ia = 0; ia<nrowsA; ++ia)
+   {
+      for (int ja = 0; ja<ncolsA; ++ja)
+      {
+         for (int ib = 0; ib<nrowsB; ++ib)
+         {
+            for (int jb = 0; jb<ncolsB; ++jb)
+            {
+               (*C)(nrowsB*ia + ib ,ncolsB*ja + jb) = A(ia,ja) * B(ib,jb); 
+            }
+         }
+      }
+   }
+   return C;
+}
+
+TEST_CASE("KronMult methods",
+          "[DenseMatrix]")
+{
+   double tol = 1e-12;
+   int nA = 3, mA = 4;
+   int nB = 5, mB = 6;
+   DenseMatrix A(nA,mA);
+   DenseMatrix B(nB,mB);
+   
+   for (int i = 0; i<nA; i++)
+      for (int j = 0; j<mA; j++)
+         A(i,j) = ((double)rand()/(double)RAND_MAX);
+
+   for (int i = 0; i<nB; i++)
+      for (int j = 0; j<mB; j++)
+         B(i,j) = ((double)rand()/(double)RAND_MAX);
+
+   DenseMatrix C;
+   KronProd(A,B,C);
+
+   // (A ⊗ B) r
+   SECTION("KronMultABr")
+   {
+      Vector r(mA*mB); r.Randomize();
+      MFEM_VERIFY(r.Size() == C.Width(), "Check r size");
+      Vector z0(C.Height());
+      C.Mult(r,z0);
+
+      Vector z1;
+      KronMult(A,B,r,z1);
+      MFEM_VERIFY(z0.Size() == z1.Size(), "Check z1 size");
+      z0-=z1;
+      REQUIRE(z0.Norml2() < tol);
+   }
+   // (A ⊗ B) R
+   SECTION("KronMultABR")
+   {
+      int nR = mA*mB;
+      int mR = 7;
+      DenseMatrix R(nR, mR); 
+      for (int i = 0; i<nR; i++)
+         for (int j = 0; j<mR; j++)
+            R(i,j) = ((double)rand()/(double)RAND_MAX);
+
+      DenseMatrix Z0(nA*nB,mR); 
+      Mult(C,R,Z0);
+
+      DenseMatrix Z1; 
+      KronMult(A,B,R,Z1);
+      MFEM_VERIFY(Z0.Height() == Z1.Height() && 
+                  Z0.Width() == Z1.Width(), "Check z1 size");
+      Z0-=Z1;
+
+      REQUIRE(Z0.MaxMaxNorm() < tol);
+
+   }
+}
+
+
+
 
 TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 {
