@@ -3,7 +3,7 @@ codecov:
 
 coverage:
   precision: 2
-  round: down
+  round: nearest
   range: "0...100"
   status:
     patch: off
@@ -13,10 +13,4 @@ coverage:
         threshold: 1%  # allows variations around the target
 
 comment:
-  layout: "reach,diff"
-  behavior: default
-  require_changes: false
-  require_base: yes
-  require_head: yes
-  branches:
-    - "master"
+  off:
