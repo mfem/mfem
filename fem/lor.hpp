@@ -212,7 +212,8 @@ public:
    ///
    /// The object @a lor_ will be used for DOF permutations.
    template <typename... Args>
-   LORSolver(const Operator &op, LORBase &lor_, Args... args) : solver(args...)
+   LORSolver(const Operator &op, LORBase &lor_, Args&&... args)
+   : solver(args...)
    {
       lor = &lor_;
       own_lor = false;
@@ -224,7 +225,7 @@ public:
    ///
    /// The given @a args will be used as arguments to the solver constructor.
    template <typename... Args>
-   LORSolver(LORBase &lor_, Args... args)
+   LORSolver(LORBase &lor_, Args&&... args)
       : LORSolver(*lor_.GetAssembledSystem(), lor_, args...) { }
 
    void SetOperator(const Operator &op)
