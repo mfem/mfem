@@ -24,8 +24,6 @@ namespace mfem
 {
 
 /** A tensor class
-    @a Rank is the rank of the Tensor,
-    @a T is the type of elements stored,
     @a Container is the type of data container, they can either be statically or
        dynamically allocated,
     @a Layout is a class that represents the data layout
@@ -36,14 +34,13 @@ namespace mfem
        template <int... Sizes>,
        where Sizes... is the list of the sizes of the dimensions of the Tensor.
    */
-template <int Rank, // Remove, get from layout?
-          typename T = double, // Remove, get from container?
-          typename Container = MemoryContainer<T>,
-          typename Layout = DynamicLayout<Rank> >
+template <typename Container,
+          typename Layout>
 class Tensor: public Container, public Layout
 {
 public:
-   using type = T;
+   static constexpr int Rank = get_layout_rank<Layout>;
+   using T = get_container_type<Container>;
    using container = Container;
    using layout = Layout;
 
@@ -99,7 +96,7 @@ public:
 
    /// Initialization of a Tensor to a constant value.
    MFEM_HOST_DEVICE inline
-   Tensor<Rank,T,Container,Layout>& operator=(const T &val)
+   Tensor<Container,Layout>& operator=(const T &val)
    {
       Foreach<Rank>::ApplyUnOp(*this,[&](auto &lhs, auto... idx)
       {
@@ -109,7 +106,7 @@ public:
    }
 
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
-   Tensor<Rank,T,Container,Layout>& operator=(const OtherTensor &rhs)
+   Tensor<Container,Layout>& operator=(const OtherTensor &rhs)
    {
       Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
@@ -119,7 +116,7 @@ public:
    }
 
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
-   Tensor<Rank,T,Container,Layout>& operator+=(const OtherTensor &rhs)
+   Tensor<Container,Layout>& operator+=(const OtherTensor &rhs)
    {
       Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
@@ -138,7 +135,7 @@ public:
       static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
       using C = ViewContainer<T,Container>;
       using L = RestrictedLayout<N,Layout>;
-      using RestrictedTensor = Tensor<Rank-1,T,C,L>;
+      using RestrictedTensor = Tensor<C,L>;
       C data(*this);
       L layout(idx,*this);
       return RestrictedTensor(data,layout);
@@ -150,7 +147,7 @@ public:
       static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
       using C = ConstViewContainer<T,Container>;
       using L = RestrictedLayout<N,Layout>;
-      using RestrictedTensor = Tensor<Rank-1,T,C,L>;
+      using RestrictedTensor = Tensor<C,L>;
       C data(*this);
       L layout(idx,*this);
       return RestrictedTensor(data,layout);
@@ -172,20 +169,19 @@ public:
    /// Generate a Tensor that be read on device
    auto Read()
    {
-      return Tensor<Rank,T,ReadContainer<T>,Layout>(this->ReadData(),*this);
+      return Tensor<ReadContainer<T>,Layout>(this->ReadData(),*this);
    }
 
    /// Generate a Tensor that be writen on device (read is unsafe)
    auto Write()
    {
-      return Tensor<Rank,T,DeviceContainer<T>,Layout>(this->WriteData(),*this);
+      return Tensor<DeviceContainer<T>,Layout>(this->WriteData(),*this);
    }
 
    /// Generate a Tensor that be read and writen on device
    auto ReadWrite()
    {
-      return Tensor<Rank,T,DeviceContainer<T>,Layout>(this->ReadWriteData(),
-                                                      *this);
+      return Tensor<DeviceContainer<T>,Layout>(this->ReadWriteData(),*this);
    }
 
    friend std::ostream& operator<<(std::ostream &os, const Tensor &t)
@@ -204,9 +200,7 @@ public:
 
 /// Dynamically sized Tensor
 template <int Rank, typename T, int MaxSize = pow(16,Rank)>
-using DynamicTensor = Tensor<Rank,
-                             T,
-                             StaticContainer<T, MaxSize>,
+using DynamicTensor = Tensor<StaticContainer<T, MaxSize>,
                              DynamicLayout<Rank> >;
 
 template <int Rank, int MaxSize = pow(16,Rank)>
@@ -214,9 +208,7 @@ using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
 
 /// Statically sized Tensor
 template <typename T, int... Sizes>
-using StaticTensor = Tensor<sizeof...(Sizes),
-                            T,
-                            StaticContainer<T, Sizes...>,
+using StaticTensor = Tensor<StaticContainer<T, Sizes...>,
                             StaticLayout<Sizes...> >;
 
 template <int... Sizes>
@@ -229,27 +221,21 @@ using StaticDTensor = StaticTensor<double,Sizes...>;
 template <int Rank, typename T, int BatchSize, int MaxSize = 16>
 struct DynamicBlockTensor_t
 {
-   using type = Tensor<Rank,
-                       T,
-                       BlockContainer<T, MaxSize, MaxSize, pow(MaxSize,Rank-2)>,
+   using type = Tensor<BlockContainer<T, MaxSize, MaxSize, pow(MaxSize,Rank-2)>,
                        DynamicBlockLayout<Rank,BatchSize> >;
 };
 
 template <typename T, int BatchSize, int MaxSize>
 struct DynamicBlockTensor_t<2,T,BatchSize,MaxSize>
 {
-   using type = Tensor<2,
-                       T,
-                       BlockContainer<T, MaxSize, MaxSize>,
+   using type = Tensor<BlockContainer<T, MaxSize, MaxSize>,
                        DynamicBlockLayout<2,BatchSize> >;
 };
 
 template <typename T, int BatchSize, int MaxSize>
 struct DynamicBlockTensor_t<1,T,BatchSize,MaxSize>
 {
-   using type = Tensor<1,
-                       T,
-                       BlockContainer<T, MaxSize>,
+   using type = Tensor<BlockContainer<T, MaxSize>,
                        DynamicBlockLayout<1,BatchSize> >;
 };
 
@@ -261,9 +247,7 @@ using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
 
 /// A Tensor statically distributed over a plane of threads
 template <typename T, int BatchSize, int... Sizes>
-using StaticBlockTensor = Tensor<sizeof...(Sizes),
-                                 T,
-                                 BlockContainer<T, Sizes...>,
+using StaticBlockTensor = Tensor<BlockContainer<T, Sizes...>,
                                  BlockLayout<BatchSize, Sizes...> >;
 
 template <int BatchSize, int... Sizes>
@@ -272,9 +256,7 @@ using StaticBlockDTensor = StaticBlockTensor<double,BatchSize,Sizes...>;
 /// A tensor using a read write access pointer and a dynamic data layout.
 // Backward compatible if renamed in DeviceTensor
 template <int Rank, typename T>
-using MyDeviceTensor = Tensor<Rank,
-                              T,
-                              DeviceContainer<T>,
+using MyDeviceTensor = Tensor<DeviceContainer<T>,
                               DynamicLayout<Rank> >;
 
 template <int Rank>
@@ -282,9 +264,7 @@ using DeviceDTensor = MyDeviceTensor<Rank,double>;
 
 /// A tensor using a read only const pointer and a dynamic data layout.
 template <int Rank, typename T>
-using ReadTensor = Tensor<Rank,
-                          T,
-                          ReadContainer<T>,
+using ReadTensor = Tensor<ReadContainer<T>,
                           DynamicLayout<Rank> >;
 
 template <int Rank>
