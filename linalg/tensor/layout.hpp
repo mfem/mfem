@@ -1018,6 +1018,49 @@ struct get_layout_size_v<N,RestrictedLayout<I,Layout>>
 template <int N, typename Layout>
 constexpr int get_layout_size = get_layout_size_v<N,Layout>::value;
 
+// get_layout_sizes
+template <typename Layout>
+struct get_layout_sizes_t;
+
+template <int Rank>
+struct get_layout_sizes_t<DynamicLayout<Rank>>
+{
+   using type = int_repeat<Dynamic,Rank>;
+};
+
+template <int... Dims>
+struct get_layout_sizes_t<StaticLayout<Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <int... Dims>
+struct get_layout_sizes_t<StaticELayout<Dims...>>
+{
+   using type = int_list<Dims...,Dynamic>;
+};
+
+template <int BatchSize, int... Dims>
+struct get_layout_sizes_t<BlockLayout<BatchSize, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_sizes_t<DynamicBlockLayout<Rank,BatchSize>>
+{
+   using type = int_repeat<Dynamic,Rank>;
+};
+
+template <int N, typename Layout>
+struct get_layout_sizes_t<RestrictedLayout<N,Layout>>
+{
+   using type = remove< N, typename get_layout_sizes_t<Layout>::type >;
+};
+
+template <typename Layout>
+using get_layout_sizes = typename get_layout_sizes_t<Layout>::type;
+
 // get_layout_batch_size
 template <typename Layout>
 struct get_layout_batch_size_v
