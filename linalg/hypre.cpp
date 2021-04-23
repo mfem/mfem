@@ -2897,7 +2897,8 @@ HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
    SetDefaultOptions();
 }
 
-HypreGMRES::HypreGMRES(const HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
+HypreGMRES::HypreGMRES(const HypreParMatrix &_A)
+   : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -3062,7 +3063,8 @@ HypreFGMRES::HypreFGMRES(MPI_Comm comm) : precond(NULL)
    SetDefaultOptions();
 }
 
-HypreFGMRES::HypreFGMRES(const HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
+HypreFGMRES::HypreFGMRES(const HypreParMatrix &_A)
+   : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
