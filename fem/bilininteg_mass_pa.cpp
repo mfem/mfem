@@ -21,6 +21,13 @@
 #include "../linalg/tensor/interp.hpp"
 #include "../linalg/tensor/cwisemult.hpp"
 
+#include "../linalg/tensor/config.hpp"
+#include "../linalg/tensor/basis.hpp"
+#include "../linalg/tensor/dof.hpp"
+#include "../linalg/tensor/qdata.hpp"
+#include "../linalg/tensor/interp.hpp"
+#include "../linalg/tensor/cwisemult.hpp"
+
 using namespace std;
 
 namespace mfem
