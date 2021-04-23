@@ -105,15 +105,17 @@ public:
    /// spaces) this is the identity. In these cases, RequiresDofPermutation will
    /// return false. However, if the DOF permutation is requested, an identity
    /// permutation will be built and returned.
+   ///
    /// For vector finite element spaces (ND and RT), the DOF permutation is
    /// nontrivial. Returns an array @a perm such that, given an index @a i of a
    /// %LOR dof, @a perm[i] is the index of the corresponding HO dof.
    const Array<int> &GetDofPermutation() const;
 
    /// Returns true if the %LOR spaces requires a DOF permutation (if the
-   /// corresponding %LOR and HO DOFs are numbered differently), false otherwise.
-   /// Note: permutations are not required in the case of nonconforming spaces,
-   /// since the DOF numbering is incorporated into the prolongation operators.
+   /// corresponding %LOR and HO DOFs are numbered differently), false
+   /// otherwise. Note: permutations are not required in the case of
+   /// nonconforming spaces, since the DOF numbering is incorporated into the
+   /// prolongation operators.
    bool RequiresDofPermutation() const;
 
    /// Returns the low-order refined finite element space.
@@ -126,19 +128,19 @@ public:
 class LOR : public LORBase
 {
 public:
-   /// @brief Construct the low-order refined version of @a a_ho using the given list
-   /// of essential DOFs.
+   /// @brief Construct the low-order refined version of @a a_ho using the given
+   /// list of essential DOFs.
    ///
-   /// The mesh is refined using the refinement type
-   /// specified by @a ref_type (see Mesh::MakeRefined).
+   /// The mesh is refined using the refinement type specified by @a ref_type
+   /// (see Mesh::MakeRefined).
    LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
        int ref_type=BasisType::GaussLobatto);
 
    /// @brief Construct a low-order refined version of the FiniteElementSpace @a
    /// fes_ho.
    ///
-   /// The mesh is refined using the refinement type
-   /// specified by @a ref_type (see Mesh::MakeRefined).
+   /// The mesh is refined using the refinement type specified by @a ref_type
+   /// (see Mesh::MakeRefined).
    LOR(FiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
 
    /// Return the assembled %LOR operator as a SparseMatrix.
@@ -154,16 +156,16 @@ public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
    ///
-   /// The mesh is refined using the refinement type
-   /// specified by @a ref_type (see ParMesh::MakeRefined).
+   /// The mesh is refined using the refinement type specified by @a ref_type
+   /// (see ParMesh::MakeRefined).
    ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
           int ref_type=BasisType::GaussLobatto);
 
    /// @brief Construct a low-order refined version of the ParFiniteElementSpace
    /// @a pfes_ho.
    ///
-   /// The mesh is refined using the refinement type specified by @a
-   /// ref_type (see ParMesh::MakeRefined).
+   /// The mesh is refined using the refinement type specified by @a ref_type
+   /// (see ParMesh::MakeRefined).
    ParLOR(ParFiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
 
    /// Return the assembled %LOR operator as a HypreParMatrix.
@@ -212,8 +214,7 @@ public:
    ///
    /// The object @a lor_ will be used for DOF permutations.
    template <typename... Args>
-   LORSolver(const Operator &op, LORBase &lor_, Args&&... args)
-   : solver(args...)
+   LORSolver(const Operator &op, LORBase &lor_, Args&&... args) : solver(args...)
    {
       lor = &lor_;
       own_lor = false;
