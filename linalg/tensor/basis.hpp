@@ -30,21 +30,21 @@ public:
 
 /// Represent the rank 2 tensor containing B1d or G1d with dynamic sizes
 template <int Dim>
-using DynamicBasisTensor = BasisTensor<Dim,true,DynamicSharedDTensor<2>>;
+using DynamicBasisTensor = BasisTensor<Dim,true,DynamicDTensor<2>>;
 
 /// Represent the rank 2 tensor containing B1d or G1d with static sizes
 template <int Dim, int Q, int D>
-using StaticBasisTensor = BasisTensor<Dim,true,StaticSharedDTensor<Q,D>>;
+using StaticBasisTensor = BasisTensor<Dim,true,StaticDTensor<Q,D>>;
 
 /// Represent the rank 2 tensor containing B or G with dynamic sizes
 template <int Dim>
 using DynamicBasisNonTensor = BasisTensor<Dim,
                                           false,
-                                          DynamicSharedDTensor<2,pow(16,2*Dim)>>;
+                                          DynamicDTensor<2,pow(16,2*Dim)>>;
 
 /// Represent the rank 2 tensor containing B or G with static sizes
 template <int Dim, int Q, int D>
-using StaticBasisNonTensor = BasisTensor<Dim,false,StaticSharedDTensor<Q,D>>;
+using StaticBasisNonTensor = BasisTensor<Dim,false,StaticDTensor<Q,D>>;
 
 /// A structure to access the rank 2 tensor B, G, and B1d, G1d in the tensor case.
 template <int Dim, bool IsTensor, int Dofs, int Quads>
@@ -298,7 +298,7 @@ struct Basis<Dim,false,Dofs,Quads>
    auto GetG() const
    {
       // TODO change type
-      StaticSharedDTensor<quads,dofs,dim> s_G(quads,dofs,dim);
+      StaticDTensor<quads,dofs,dim> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -315,7 +315,7 @@ struct Basis<Dim,false,Dofs,Quads>
    auto GetGt() const
    {
       // TODO change type
-      StaticSharedDTensor<dofs,quads,dim> s_Gt(dofs,quads,dim);
+      StaticDTensor<dofs,quads,dim> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)

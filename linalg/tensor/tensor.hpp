@@ -225,27 +225,6 @@ using dTensor = StaticTensor<double,Sizes...>; // TODO remove
 template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
 
-// TODO deprecate (Can't have __shared__ inside an object)
-/// A dynamically sized Tensor using a static amount of shared memory.
-template <int Rank, typename T, int MaxSize = 16>
-using DynamicSharedTensor = Tensor<Rank,
-                                   T,
-                                   StaticSharedContainer<T, pow(MaxSize,Rank)>,
-                                   DynamicLayout<Rank> >;
-
-template <int Rank, int MaxSize = 16>
-using DynamicSharedDTensor = DynamicSharedTensor<Rank,double,MaxSize>;
-
-/// A statically sized Tensor using shared memory.
-template <typename T, int... Sizes>
-using StaticSharedTensor = Tensor<sizeof...(Sizes),
-                                  T,
-                                  StaticSharedContainer<T, Sizes...>,
-                                  StaticLayout<Sizes...> >;
-
-template <int... Sizes>
-using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
-
 /// A Tensor dynamically distributed over a plane of threads
 template <int Rank, typename T, int BatchSize, int MaxSize = 16>
 struct DynamicBlockTensor_t
