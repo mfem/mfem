@@ -39,7 +39,6 @@ template <typename Container,
 class Tensor: public Container, public Layout
 {
 public:
-   static constexpr int Rank = get_layout_rank<Layout>;
    using T = get_container_type<Container>;
    using container = Container;
    using layout = Layout;
@@ -72,7 +71,8 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE
    Tensor(const OtherTensor &rhs): Container(), Layout(rhs)
    {
-      Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      Foreach<get_layout_rank<Layout>>::ApplyBinOp(
+         *this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
          lhs(idx...) = rhs(idx...);
       });
@@ -82,7 +82,8 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    T& operator()(Idx... args)
    {
-      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
+      static_assert(get_layout_rank<Layout> == sizeof...(Idx),
+                    "Wrong number of indices");
       return this->operator[]( this->index(args...) );
    }
 
@@ -90,7 +91,8 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    const T& operator()(Idx... args) const
    {
-      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
+      static_assert(get_layout_rank<Layout> == sizeof...(Idx),
+                    "Wrong number of indices");
       return this->operator[]( this->index(args...) );
    }
 
@@ -98,7 +100,8 @@ public:
    MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator=(const T &val)
    {
-      Foreach<Rank>::ApplyUnOp(*this,[&](auto &lhs, auto... idx)
+      Foreach<get_layout_rank<Layout>>::ApplyUnOp(
+         *this,[&](auto &lhs, auto... idx)
       {
          lhs(idx...) = val;
       });
@@ -108,7 +111,8 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator=(const OtherTensor &rhs)
    {
-      Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      Foreach<get_layout_rank<Layout>>::ApplyBinOp(
+         *this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
          lhs(idx...) = rhs(idx...);
       });
@@ -118,7 +122,8 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator+=(const OtherTensor &rhs)
    {
-      Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      Foreach<get_layout_rank<Layout>>::ApplyBinOp(
+         *this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
          lhs(idx...) += rhs(idx...);
       });
@@ -132,7 +137,8 @@ public:
    template <int N>
    auto Get(int idx)
    {
-      static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
+      static_assert(N>=0 && N<get_layout_rank<Layout>,
+         "Cannot access this dimension with Get");
       using C = ViewContainer<T,Container>;
       using L = RestrictedLayout<N,Layout>;
       using RestrictedTensor = Tensor<C,L>;
@@ -144,7 +150,8 @@ public:
    template <int N>
    auto Get(int idx) const
    {
-      static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
+      static_assert(N>=0 && N<get_layout_rank<Layout>,
+         "Cannot access this dimension with Get");
       using C = ConstViewContainer<T,Container>;
       using L = RestrictedLayout<N,Layout>;
       using RestrictedTensor = Tensor<C,L>;
@@ -186,7 +193,7 @@ public:
 
    friend std::ostream& operator<<(std::ostream &os, const Tensor &t)
    {
-      Foreach<Rank>::ApplyUnOp(t,[&](auto &lhs, auto... idx)
+      Foreach<get_layout_rank<Layout>>::ApplyUnOp(t,[&](auto &lhs, auto... idx)
       {
          os << lhs(idx...) << " ";
       });
