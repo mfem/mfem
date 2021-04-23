@@ -287,6 +287,7 @@ public:
 ////////////////////
 // Container Traits
 
+// get_container_type
 template <typename Container>
 struct get_container_type_t;
 
@@ -334,6 +335,69 @@ struct get_container_type_t<ConstViewContainer<T,Container>>
 
 template <typename Container>
 using get_container_type = typename get_container_type_t<Container>::type;
+
+// get_container_sizes
+template <typename Container>
+struct get_container_sizes_t;
+
+template <typename T, int... Dims>
+struct get_container_sizes_t<StaticContainer<T, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <typename T, int... Dims>
+struct get_container_sizes_t<BlockContainer<T, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <typename T, typename Container>
+struct get_container_sizes_t<ViewContainer<T, Container>>
+{
+   using type = typename get_container_sizes_t<Container>::type;
+};
+
+template <typename T, typename Container>
+struct get_container_sizes_t<ConstViewContainer<T, Container>>
+{
+   using type = typename get_container_sizes_t<Container>::type;
+};
+
+template <typename Container>
+using get_container_sizes = typename get_container_sizes_t<Container>::type;
+
+// get_unsized_container
+template <typename Container>
+struct get_unsized_container;
+
+template <typename T, int... Dims>
+struct get_unsized_container<StaticContainer<T, Dims...>>
+{
+   template <int... Sizes>
+   using type = StaticContainer<T, Sizes...>;
+};
+
+template <typename T, int... Dims>
+struct get_unsized_container<BlockContainer<T, Dims...>>
+{
+   template <int... Sizes>
+   using type = BlockContainer<T, Sizes...>;
+};
+
+template <typename T, typename Container>
+struct get_unsized_container<ViewContainer<T, Container>>
+{
+   template <int... Sizes>
+   using type = typename get_unsized_container<Container>::template type<Sizes...>;
+};
+
+template <typename T, typename Container>
+struct get_unsized_container<ConstViewContainer<T, Container>>
+{
+   template <int... Sizes>
+   using type = typename get_unsized_container<Container>::template type<Sizes...>;
+};
 
 // is_pointer_container
 template <typename Container>
