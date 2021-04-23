@@ -112,23 +112,22 @@ using instantiate = typename instantiate_t<TT,T>::type;
 
 /// Append an int value to a type list
 template<int, typename>
-struct append_to_type_seq { };
+struct append_to_type_seq_t { };
 
 template<int V, int... Vs, template<int...> class TT>
-struct append_to_type_seq<V, TT<Vs...>>
+struct append_to_type_seq_t<V, TT<Vs...>>
 {
    using type = TT<Vs..., V>;
 };
+
+template<int Val, typename T>
+using append_to_type_seq = typename append_to_type_seq_t<Val, T>::type;
 
 /// Append the value V N times
 template<int V, int N, template<int...> class TT>
 struct repeat
 {
-   using type = typename
-      append_to_type_seq<
-         V,
-         typename repeat<V, N-1, TT>::type
-         >::type;
+   using type = append_to_type_seq<V, typename repeat<V, N-1, TT>::type>;
 };
 
 template<int V, template<int...> class TT>
@@ -141,20 +140,18 @@ struct repeat<V, 0, TT>
 template<int V1, int N1, int V2, int N2, template<int...> class TT>
 struct rerepeat
 {
-   using type = typename append_to_type_seq<
+   using type = append_to_type_seq<
       V1,
-      typename rerepeat<V1, N1-1, V2, N2, TT>::type
-      >::type;
+      typename rerepeat<V1, N1-1, V2, N2, TT>::type>;
 };
 
 template<int V1, int V2, int N2, template<int...> class TT>
 struct rerepeat<V1, 0, V2, N2, TT>
 {
-   using type = typename
-      append_to_type_seq<
-         V2,
-         typename rerepeat<V1, 0, V2, N2-1, TT>::type
-         >::type;
+   using type = append_to_type_seq<
+      V2,
+      typename rerepeat<V1, 0, V2, N2-1, TT>::type
+      >;
 };
 
 template<int V1, int V2, template<int...> class TT>
@@ -162,6 +159,27 @@ struct rerepeat<V1, 0, V2, 0, TT>
 {
    using type = TT<>;
 };
+
+/// Remove the Nth value in an int_list
+template <int N, typename Tail, typename Head = int_list<>>
+struct remove_t;
+
+template <int N, int Val, int... TailVals, int... HeadVals>
+struct remove_t<N, int_list<Val,TailVals...>, int_list<HeadVals...>>
+{
+   using type = typename remove_t<N-1,
+                                  int_list<TailVals...>,
+                                  int_list<HeadVals...,Val>>::type;
+};
+
+template <int Val, int... TailVals, int... HeadVals>
+struct remove_t<0, int_list<Val,TailVals...>, int_list<HeadVals...>>
+{
+   using type = append< int_list<HeadVals...>, int_list<TailVals...> >;
+};
+
+template <int N, typename Vals>
+using remove = typename remove_t<N, Vals>::type;
 
 /// IfThenElse
 template <bool Cond, typename TrueType, typename FalseType>
