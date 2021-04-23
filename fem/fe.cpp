@@ -12604,7 +12604,7 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 const double ND_SegmentElement::tk[1] = { 1. };
 
 ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
-   : VectorFiniteElement(1, Geometry::SEGMENT, p, p,
+   : VectorFiniteElement(1, Geometry::SEGMENT, p, p - 1,
                          H_CURL, FunctionSpace::Pk),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
      dof2tk(dof)
