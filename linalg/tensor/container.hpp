@@ -160,34 +160,6 @@ public:
    }
 };
 
-/// Owning Container using shared memory on device and statically sized.
-template <typename T, int... Dims>
-class StaticSharedContainer
-{
-private:
-// TODO might have to take into account some sort of number of elements
-   MFEM_SHARED T data[prod(Dims...)];
-public:
-   template <typename... Sizes> MFEM_HOST_DEVICE
-   StaticSharedContainer(int size0, Sizes... sizes)
-   {
-      // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
-      // TODO verify that Dims == sizes in Debug mode
-   }
-
-   MFEM_HOST_DEVICE
-   const T& operator[](int i) const
-   {
-      return data[ i ];
-   }
-
-   MFEM_HOST_DEVICE
-   T& operator[](int i)
-   {
-      return data[ i ];
-   }
-};
-
 /// Statically sized owning Container distributed over a plane of threads.
 /// TODO This should only be used on device in combination with BlockLayout.
 template <typename T, int... Dims>
