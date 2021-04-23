@@ -12,6 +12,7 @@
 #include "hash.hpp"
 
 #ifdef MFEM_USE_GNUTLS
+#include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
 #if GNUTLS_VERSION_NUMBER >= 0x020a00
 #define HAVE_GNUTLS_HASH_FUNCTIONS
