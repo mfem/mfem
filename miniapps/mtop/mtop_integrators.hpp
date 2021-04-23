@@ -158,6 +158,21 @@ public:
         hh(3,3)=0.0;
     }
 
+    virtual
+    void QFlux(ElementTransformation &T, const IntegrationPoint &ip,
+               Vector &dd, Vector &grad, Vector &flux)
+    {
+        double di=diff.Eval(T,ip);
+        double rz=PointHeavisideProj::Project(dd[0],eta,beta);
+        double fd=di*((1.0-rhomin)*std::pow(rz,powerc)+rhomin);
+
+        flux.SetSize(grad.Size());
+        for(int i=0;i<grad.Size();i++)
+        {
+            flux[i]=fd*grad[i];
+        }
+    }
+
 private:
     mfem::Coefficient& diff; //diffusion coefficient
     mfem::Coefficient& load; //load coeficient
@@ -477,6 +492,165 @@ public:
 
 private:
      mfem::Coefficient& load;
+
+};
+
+
+
+class DiffusionFluxCoefficient:public mfem::VectorCoefficient
+{
+public:
+        DiffusionFluxCoefficient(QLinearDiffusion& qfun_, int vdim):VectorCoefficient(vdim)
+        {
+            qfun=&qfun_;
+            coef=nullptr;
+            dd.SetSize(1);
+            gtmp.SetSize(vdim);
+        }
+
+        DiffusionFluxCoefficient(mfem::Coefficient& dcoef,int  vdim):VectorCoefficient(vdim)
+        {
+            qfun=nullptr;
+            coef=&dcoef;
+            dd.SetSize(1);
+            gtmp.SetSize(vdim);
+        }
+
+        void SetDensity(mfem::Coefficient& dens_)
+        {
+            dens=&dens_;
+        }
+
+        void SetGradient(mfem::VectorCoefficient& grad_)
+        {
+            grad=&grad_;
+        }
+
+        virtual
+        void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+        {
+            if(qfun==nullptr)
+            {
+                //use the standard coefficient
+                dd[0]=coef->Eval(T,ip);
+                grad->Eval(gtmp,T,ip);
+                for(int i=0;i<V.Size();i++)
+                {
+                    V[i]=dd[0]*gtmp[i];
+                }
+            }else{
+                grad->Eval(gtmp,T,ip);
+                dd[0]=dens->Eval(T,ip);
+                qfun->QFlux(T,ip,dd,gtmp,V);
+            }
+
+        }
+
+private:
+        QLinearDiffusion* qfun;
+        mfem::Coefficient* coef;
+        mfem::VectorCoefficient* grad;
+        mfem::Coefficient* dens;
+        mfem::Vector dd;
+        mfem::Vector gtmp;
+};
+
+class DiffusionStrongResidual:public mfem::Coefficient
+{
+public:
+
+    DiffusionStrongResidual(mfem::ParMesh* pmesh_, QLinearDiffusion& qfun, mfem::Coefficient& load_, int order)
+                        :pmesh(pmesh_)
+    {
+        flux=new DiffusionFluxCoefficient(qfun,pmesh->SpaceDimension());
+        load=&load_;
+        ffec=new mfem::L2_FECollection(order,pmesh->SpaceDimension());
+        ffes=new mfem::ParFiniteElementSpace(pmesh,ffec,pmesh->SpaceDimension());
+        fgf=new mfem::ParGridFunction(ffes);
+        divc=new mfem::DivergenceGridFunctionCoefficient(fgf);
+
+        grad=nullptr;
+
+
+    }
+
+    DiffusionStrongResidual(mfem::ParMesh* pmesh_, mfem::Coefficient& coef, mfem::Coefficient& load_, int order)
+                        :pmesh(pmesh_)
+    {
+        flux=new DiffusionFluxCoefficient(coef,pmesh->SpaceDimension());
+        load=&load_;
+        ffec=new mfem::L2_FECollection(order,pmesh->SpaceDimension());
+        ffes=new mfem::ParFiniteElementSpace(pmesh,ffec,pmesh->SpaceDimension());
+        fgf=new mfem::ParGridFunction(ffes);
+        divc=new mfem::DivergenceGridFunctionCoefficient(fgf);
+
+        grad=nullptr;
+
+
+    }
+
+
+    void SetDensity(mfem::Coefficient& dens_)
+    {
+        flux->SetDensity(dens_);
+    }
+
+    void SetState(mfem::GridFunction& sol_)
+    {
+        //set the gradient
+        if(grad==nullptr)
+        {
+            grad=new GradientGridFunctionCoefficient(&sol_);
+        }else
+        {
+            grad->SetGridFunction(&sol_);
+        }
+        //compute the flux
+        flux->SetGradient(*grad);
+        fgf->ProjectCoefficient(*flux);
+    }
+
+    virtual
+    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        double res=0.0;
+        res=load->Eval(T,ip);
+        res=res+divc->Eval(T,ip);
+
+        return res;
+    }
+
+    virtual
+    ~DiffusionStrongResidual()
+    {
+        if(grad!=nullptr)
+        {
+            delete grad;
+        }
+
+        delete divc;
+
+        delete fgf;
+        delete ffes;
+        delete ffec;
+        delete flux;
+    }
+
+
+
+private:
+    mfem::ParMesh* pmesh;
+
+    DiffusionFluxCoefficient* flux;
+    mfem::Coefficient* load;
+    mfem::Coefficient* dens;
+    mfem::GradientGridFunctionCoefficient* grad;
+    mfem::DivergenceGridFunctionCoefficient* divc;
+
+    mfem::L2_FECollection* ffec;
+    mfem::ParFiniteElementSpace* ffes;
+    mfem::ParGridFunction* fgf;
+
 
 };
 
