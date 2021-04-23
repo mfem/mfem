@@ -1710,87 +1710,107 @@ void ParNCMesh::Rebalance(const Array<int> *custom_partition)
    Prune();
 }
 
-void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
-                                     bool record_comm)
-{
-   bool sfc = (target_elements >= 0);
 
+template<typename Type>
+void ParNCMesh::SynchronizeElementData(Array<Type> &elem_data)
+{
    UpdateLayers();
 
-   // *** STEP 1: communicate new rank assignments for the ghost layer ***
+   typedef ElementValueMessage<int, false, 156> ElementDataMessage;
+   typedef std::map<int, ElementDataMessage> ElementDataMessageMap;
 
-   NeighborElementRankMessage::Map send_ghost_ranks, recv_ghost_ranks;
+   ElementDataMessageMap send_msgs, recv_msgs;
 
+   // sort the ghost layer so we can process element chunks by neighbor rank
    ghost_layer.Sort([&](const int a, const int b)
    {
       return elements[a].rank < elements[b].rank;
    });
 
+   Array<int> rank_neighbors;
+
+   // loop over neighbor ranks and their elements
+   int begin = 0, end = 0;
+   while (end < ghost_layer.Size())
    {
-      Array<int> rank_neighbors;
+      // find range of elements belonging to one rank
+      int rank = elements[ghost_layer[begin]].rank;
+      while (end < ghost_layer.Size() &&
+             elements[ghost_layer[end]].rank == rank) { end++; }
 
-      // loop over neighbor ranks and their elements
-      int begin = 0, end = 0;
-      while (end < ghost_layer.Size())
+      Array<int> rank_elems;
+      rank_elems.MakeRef(&ghost_layer[begin], end - begin);
+
+      // find elements within boundary_layer that are neighbors to 'rank'
+      rank_neighbors.SetSize(0);
+      NeighborExpand(rank_elems, rank_neighbors, &boundary_layer);
+
+      // send a message with boundary element data
+      ElementDataMessage& msg = send_msgs[rank];
+      msg.SetNCMesh(this);
+
+      msg.Reserve(rank_neighbors.Size());
+      for (int i = 0; i < rank_neighbors.Size(); i++)
       {
-         // find range of elements belonging to one rank
-         int rank = elements[ghost_layer[begin]].rank;
-         while (end < ghost_layer.Size() &&
-                elements[ghost_layer[end]].rank == rank) { end++; }
-
-         Array<int> rank_elems;
-         rank_elems.MakeRef(&ghost_layer[begin], end - begin);
-
-         // find elements within boundary_layer that are neighbors to 'rank'
-         rank_neighbors.SetSize(0);
-         NeighborExpand(rank_elems, rank_neighbors, &boundary_layer);
-
-         // send a message with new rank assignments within 'rank_neighbors'
-         NeighborElementRankMessage& msg = send_ghost_ranks[rank];
-         msg.SetNCMesh(this);
-
-         msg.Reserve(rank_neighbors.Size());
-         for (int i = 0; i < rank_neighbors.Size(); i++)
-         {
-            int elem = rank_neighbors[i];
-            msg.AddElementRank(elem, new_ranks[elements[elem].index]);
-         }
-
-         msg.Isend(rank, MyComm);
-
-         // prepare to receive a message from the neighbor too, these will
-         // be new the new rank assignments for our ghost layer
-         recv_ghost_ranks[rank].SetNCMesh(this);
-
-         begin = end;
+         int elem = rank_neighbors[i];
+         msg.Add(elem, elem_data[elements[elem].index]);
       }
+
+      msg.Isend(rank, MyComm);
+
+      // prepare to receive a message from the neighbor too, these will
+      // be new the new rank assignments for our ghost layer
+      recv_msgs[rank].SetNCMesh(this);
+
+      begin = end;
    }
 
-   NeighborElementRankMessage::RecvAll(recv_ghost_ranks, MyComm);
+   ElementDataMessage::RecvAll(recv_msgs, MyComm);
 
    // read new ranks for the ghost layer from messages received
-   NeighborElementRankMessage::Map::iterator it;
-   for (it = recv_ghost_ranks.begin(); it != recv_ghost_ranks.end(); ++it)
+   elem_data.SetSize(NElements + NGhostElements);
+   for (auto it = recv_msgs.begin(); it != recv_msgs.end(); ++it)
    {
-      NeighborElementRankMessage &msg = it->second;
+      ElementDataMessage &msg = it->second;
       for (int i = 0; i < msg.Size(); i++)
       {
          int ghost_index = elements[msg.elements[i]].index;
          MFEM_ASSERT(element_type[ghost_index] == 2, "");
-         new_ranks[ghost_index] = msg.values[i];
+         elem_data[ghost_index] = msg.values[i];
       }
    }
 
-   recv_ghost_ranks.clear();
+   ElementDataMessage::WaitAllSent(send_msgs);
+}
+
+// instantiate SynchronizeElementData for int and double
+template void ParNCMesh::SynchronizeElementData<int>(Array<int> &);
+template void ParNCMesh::SynchronizeElementData<double>(Array<double> &);
+
+
+void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
+                                     bool record_comm)
+{
+   bool sfc = (target_elements >= 0);
+
+   // *** STEP 1: communicate new rank assignments for the ghost layer ***
+
+   /* Note that this is the most expensive step, as each rank sends and receives
+      one message per neighbor. In the case of SFC partitioning, however, the
+      array 'new_ranks' is not arbitrary and the synchronization of ghost
+      element rank assignments could in the future be done with a specialized
+      algorithm with a tree-like communication pattern with fewer messages. */
+
+   SynchronizeElementData(new_ranks);
 
    // *** STEP 2: send elements that no longer belong to us to new assignees ***
 
-   /* The result thus far is just the array 'new_ranks' containing new owners
-      for elements that we currently own plus new owners for the ghost layer.
-      Next we keep elements that still belong to us and send ElementSets with
-      the remaining elements to their new owners. Each batch of elements needs
-      to be sent together with their neighbors so the receiver also gets a
-      ghost layer that is up to date (this is why we needed Step 1). */
+   /* Now the array 'new_ranks' containing new owners both for elements that we
+      currently own, and for elements in our ghost layer. Next we keep elements
+      that still belong to us and send ElementSets with the remaining elements
+      to their new owners. Each batch of elements needs to be sent together with
+      their neighbors so the receiver also gets a ghost layer that is up to date
+      (this is why we needed Step 1). */
 
    int received_elements = 0;
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -1968,7 +1988,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       Update();
    }
 
-   NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
+   //NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
 
 #ifdef MFEM_DEBUG
    int glob_sent, glob_recv;

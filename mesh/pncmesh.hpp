@@ -217,6 +217,12 @@ public:
        CoarseFineTransformations::embeddings array in parallel. */
    const Array<int>& GetDerefineOldRanks() const { return old_index_or_rank; }
 
+   /** Exchange generic per-element data in the ghost layers of all neighbors.
+       'elem_data' should hold at least NElements values on input. On output it
+       will be enlarged if needed to also hold the ghost element data received.*/
+   template<typename Type>
+   void SynchronizeElementData(Array<Type> &elem_data);
+
    /** Exchange element data for derefinements that straddle processor
        boundaries. 'elem_data' is enlarged and filled with ghost values. */
    template<typename Type>
@@ -474,12 +480,12 @@ protected: // implementation
    /** Used in Step 2 of Rebalance() to synchronize new rank assignments in
     *  the ghost layer.
     */
-   class NeighborElementRankMessage : public ElementValueMessage<int, false, 156>
+   /*class NeighborElementRankMessage : public ElementValueMessage<int, false, 156>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
       typedef std::map<int, NeighborElementRankMessage> Map;
-   };
+   };*/
 
    /** Used by Rebalance() to send elements and their ranks. Note that
     *  RefTypes == true which means the refinement hierarchy will be recreated
