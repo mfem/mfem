@@ -6,7 +6,7 @@ extern int dim, problem;
 namespace mfem
 {
 
-double f_exact(const Vector &xvec)
+double f(const Vector &xvec)
 {
    double x=xvec[0], y=xvec[1], z;
    if (dim == 3) { z = xvec[2]; }
@@ -35,7 +35,7 @@ double f_exact(const Vector &xvec)
    }
 }
 
-void f_exact_vec(const Vector &xvec, Vector &f)
+void f_vec(const Vector &xvec, Vector &f)
 {
    double x=xvec[0], y=xvec[1], z;
    if (dim == 3) { z = xvec[2]; }

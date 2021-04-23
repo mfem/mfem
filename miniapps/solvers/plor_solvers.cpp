@@ -89,15 +89,15 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    ParLinearForm b(&fes);
+   FunctionCoefficient f_coeff(f);
+   VectorFunctionCoefficient f_vec_coeff(dim, f_vec);
    if (H1 || L2)
    {
-      FunctionCoefficient f_coeff(f_exact);
       b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
    }
    else
    {
-      VectorFunctionCoefficient f_coeff(dim, f_exact_vec);
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_coeff));
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff));
    }
    b.Assemble();
 
