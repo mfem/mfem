@@ -210,6 +210,131 @@ auto GetLast(T first, Ts... rest)
    return GetLast(rest...);
 }
 
+/// Layout utility classes
+
+/// A Class to compute the real index from the multi-indices of a DynamicLayout
+template <int Dim, int N = 1>
+struct DynamicLayoutIndex
+{
+   template <typename... Args> MFEM_HOST_DEVICE
+   static inline int eval(const int* sizes, int first, Args... args)
+   {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+      MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
+#endif
+      return first + sizes[N - 1] * DynamicLayoutIndex<Dim,N+1>::eval(sizes, args...);
+   }
+};
+
+// Terminal case
+template <int Dim>
+struct DynamicLayoutIndex<Dim, Dim>
+{
+   MFEM_HOST_DEVICE
+   static inline int eval(const int* sizes, int first)
+   {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
+#endif
+      return first;
+   }
+};
+
+/// A class to initialize the size of a DynamicLayout
+template <int Dim, int N = 1>
+struct InitDynamicLayout
+{
+   template <typename... Args>
+   static inline void result(int* sizes, int first, Args... args)
+   {
+      sizes[N - 1] = first;
+      InitDynamicLayout<Dim,N+1>::result(sizes, args...);
+   }
+
+   template <typename Layout>
+   static inline void result(int* sizes, const Layout &rhs)
+   {
+      sizes[N - 1] = rhs.template Size<N-1>();
+      InitDynamicLayout<Dim,N+1>::result(sizes, rhs);
+   }
+};
+
+// Terminal case
+template <int Dim>
+struct InitDynamicLayout<Dim, Dim>
+{
+   template <typename... Args>
+   static inline void result(int* sizes, int first, Args... args)
+   {
+      sizes[Dim - 1] = first;
+   }
+
+   template <typename Layout>
+   static inline void result(int* sizes, const Layout &rhs)
+   {
+      sizes[Dim - 1] = rhs.template Size<Dim-1>();
+   }
+};
+
+//Compute the index inside a StaticLayout
+template<int Cpt, int rank, int... Dims>
+struct StaticIndex
+{
+   template <typename... Idx>
+   static inline int eval(int first, Idx... args)
+   {
+      return first + get_value<Cpt-1,Dims...> * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
+   }
+};
+
+template<int rank, int... Dims>
+struct StaticIndex<rank,rank,Dims...>
+{
+   static inline int eval(int first)
+   {
+      return first;
+   }
+};
+
+template<int... Dims>
+struct StaticLayoutIndex
+{
+   template <typename... Idx>
+   static inline int eval(Idx... args)
+   {
+      return StaticIndex<1,sizeof...(Dims),Dims...>::eval(args...);
+   }
+};
+
+template<int... Dims>
+struct StaticELayoutIndex
+{
+   template <typename... Idx>
+   static inline int eval(Idx... args)
+   {
+      return StaticIndex<1,sizeof...(Dims)+1,Dims...>::eval(args...);
+   }
+};
+
+// StaticELayoutSize
+template <int StaticSize, int N, int... Sizes>
+struct StaticELayoutSize
+{
+   static int eval(int last_size)
+   {
+      return get_value<N,Sizes...>;
+   }
+};
+
+template <int StaticSize, int... Sizes>
+struct StaticELayoutSize<StaticSize, StaticSize, Sizes...>
+{
+   static int eval(int last_size)
+   {
+      return last_size;
+   }
+};
+
 } // mfem namespace
 
 #endif // MFEM_TENSOR_UTIL

@@ -28,20 +28,20 @@ public:
    template <typename... Sizes> MFEM_HOST_DEVICE
    DynamicLayout(int arg0, Sizes... args)
    {
-      Init<Rank>::result(sizes, arg0, args...);
+      InitDynamicLayout<Rank>::result(sizes, arg0, args...);
    }
 
    template <typename Layout>
    DynamicLayout(const Layout &rhs)
    {
-      Init<Rank>::result(sizes,rhs);
+      InitDynamicLayout<Rank>::result(sizes,rhs);
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
    int index(Idx... idx) const
    {
       static_assert(Rank==sizeof...(Idx), "Wrong number of arguments.");
-      return DynamicTensorIndex<Rank>::eval(sizes, idx...);
+      return DynamicLayoutIndex<Rank>::eval(sizes, idx...);
    }
 
    template <int N>
@@ -50,75 +50,6 @@ public:
       static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
       return sizes[N];
    }
-
-private:
-   /// A Class to compute the real index from the multi-indices of a tensor
-   template <int Dim, int N = 1>
-   class DynamicTensorIndex
-   {
-   public:
-      template <typename... Args> MFEM_HOST_DEVICE
-      static inline int eval(const int* sizes, int first, Args... args)
-      {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
-   #endif
-         return first + sizes[N - 1] * DynamicTensorIndex<Dim,N+1>::eval(sizes, args...);
-      }
-   };
-
-   // Terminal case
-   template <int Dim>
-   class DynamicTensorIndex<Dim, Dim>
-   {
-   public:
-      MFEM_HOST_DEVICE
-      static inline int eval(const int* sizes, int first)
-      {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
-   #endif
-         return first;
-      }
-   };
-
-   /// A class to initialize the size of a Tensor
-   template <int Dim, int N = 1>
-   class Init
-   {
-   public:
-      template <typename... Args>
-      static inline void result(int* sizes, int first, Args... args)
-      {
-         sizes[N - 1] = first;
-         Init<Dim,N+1>::result(sizes, args...);
-      }
-
-      template <typename Layout>
-      static inline void result(int* sizes, const Layout &rhs)
-      {
-         sizes[N - 1] = rhs.template Size<N-1>();
-         Init<Dim,N+1>::result(sizes, rhs);
-      }
-   };
-
-   // Terminal case
-   template <int Dim>
-   class Init<Dim, Dim>
-   {
-   public:
-      template <typename... Args>
-      static inline void result(int* sizes, int first, Args... args)
-      {
-         sizes[Dim - 1] = first;
-      }
-
-      template <typename Layout>
-      static inline void result(int* sizes, const Layout &rhs)
-      {
-         sizes[Dim - 1] = rhs.template Size<Dim-1>();
-      }
-   };
 };
 
 /// A static layout
@@ -148,7 +79,7 @@ public:
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       static_assert(sizeof...(Sizes)==sizeof...(Idx), "Wrong number of arguments.");
    #endif
-      return StaticTensorIndex<Sizes...>::eval(idx...);
+      return StaticLayoutIndex<Sizes...>::eval(idx...);
    }
 
    template <int N>
@@ -157,37 +88,6 @@ public:
       static_assert(N>=0 && N<sizeof...(Sizes),"Accessed size is higher than the rank of the Tensor.");
       return get_value<N,Sizes...>;
    }
-
-private:
-   //Compute the index inside a Tensor
-   template<int Cpt, int rank, int... Dims>
-   struct StaticIndex
-   {
-      template <typename... Idx>
-      static inline int eval(int first, Idx... args)
-      {
-         return first + get_value<Cpt-1,Dims...> * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
-      }
-   };
-
-   template<int rank, int... Dims>
-   struct StaticIndex<rank,rank,Dims...>
-   {
-      static inline int eval(int first)
-      {
-         return first;
-      }
-   };
-
-   template<int... Dims>
-   struct StaticTensorIndex
-   {
-      template <typename... Idx>
-      static inline int eval(Idx... args)
-      {
-         return StaticIndex<1,sizeof...(Dims),Dims...>::eval(args...);
-      }
-   };
 };
 
 /// A static layout with the last dimension dynamic (typically for element index)
@@ -202,7 +102,8 @@ public:
    constexpr StaticELayout(int arg0, Dims... args)
    : last_size(GetLast(arg0, args...))
    {
-      static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
+      static_assert(sizeof...(Dims)==sizeof...(Sizes),
+         "Static and dynamic sizes don't match.");
       // TODO verify that Dims == sizes in Debug mode
    }
 
@@ -230,7 +131,7 @@ public:
    constexpr int index(Idx... idx) const
    {
       static_assert(sizeof...(Sizes)+1==sizeof...(Idx), "Wrong number of arguments.");
-      return StaticTensorIndex<Sizes...>::eval(idx...);
+      return StaticELayoutIndex<Sizes...>::eval(idx...);
    }
 
    template <int N>
@@ -238,58 +139,8 @@ public:
    {
       static_assert(N>=0 && N<sizeof...(Sizes)+1,"Accessed size is higher than the rank of the Tensor.");
       // return N==sizeof...(Sizes) ? last_size : Dim<N,Sizes...>::val;
-      return LayoutSize<N>::eval(last_size);
+      return StaticELayoutSize<sizeof...(Sizes),N,Sizes...>::eval(last_size);
    }
-
-private:
-   // LayoutSize
-   template <int N>
-   struct LayoutSize
-   {
-      static int eval(int last_size)
-      {
-         return get_value<N,Sizes...>;
-      }
-   };
-
-   template <>
-   struct LayoutSize<sizeof...(Sizes)>
-   {
-      static int eval(int last_size)
-      {
-         return last_size;
-      }
-   };
-
-   //Compute the index inside a Tensor
-   template<int Cpt, int rank, int... Dims>
-   struct StaticIndex
-   {
-      template <typename... Idx>
-      static inline int eval(int first, Idx... args)
-      {
-         return first + get_value<Cpt-1,Dims...> * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
-      }
-   };
-
-   template<int rank, int... Dims>
-   struct StaticIndex<rank,rank,Dims...>
-   {
-      static inline int eval(int first)
-      {
-         return first;
-      }
-   };
-
-   template<int... Dims>
-   struct StaticTensorIndex
-   {
-      template <typename... Idx>
-      static inline int eval(Idx... args)
-      {
-         return StaticIndex<1,sizeof...(Dims)+1,Dims...>::eval(args...);
-      }
-   };
 };
 
 /// Layout using a thread plane to distribute data
@@ -504,14 +355,7 @@ public:
    constexpr int Size() const
    {
       static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
-      if (N==0)
-      {
-         return size0;
-      }
-      else
-      {
-         return size1;
-      }
+      return N==0? size0 : size1;
    }
 };
 
