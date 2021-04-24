@@ -31,7 +31,7 @@ public:
       InitDynamicLayout<Rank>::result(sizes, arg0, args...);
    }
 
-   template <typename Layout>
+   template <typename Layout> MFEM_HOST_DEVICE
    DynamicLayout(const Layout &rhs)
    {
       InitDynamicLayout<Rank>::result(sizes,rhs);
@@ -44,7 +44,7 @@ public:
       return DynamicLayoutIndex<Rank>::eval(sizes, idx...);
    }
 
-   template <int N>
+   template <int N> MFEM_HOST_DEVICE inline
    int Size() const
    {
       static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
@@ -82,7 +82,7 @@ public:
       return StaticLayoutIndex<Sizes...>::eval(idx...);
    }
 
-   template <int N>
+   template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       static_assert(N>=0 && N<sizeof...(Sizes),"Accessed size is higher than the rank of the Tensor.");
@@ -134,7 +134,7 @@ public:
       return StaticELayoutIndex<Sizes...>::eval(idx...);
    }
 
-   template <int N>
+   template <int N> MFEM_HOST_DEVICE inline
    int Size() const
    {
       static_assert(N>=0 && N<sizeof...(Sizes)+1,"Accessed size is higher than the rank of the Tensor.");
@@ -404,7 +404,7 @@ public:
       return layout.index(i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    int Size() const
    {
       return layout.template Size<M+1>();
@@ -431,7 +431,7 @@ public:
       return layout.index(idx0,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<1?M:M+1)>();
@@ -458,7 +458,7 @@ public:
       return layout.index(idx0,idx1,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<2?M:M+1)>();
@@ -485,7 +485,7 @@ public:
       return layout.index(idx0,idx1,idx2,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<3?M:M+1)>();
@@ -512,7 +512,7 @@ public:
       return layout.index(idx0,idx1,idx2,idx3,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<4?M:M+1)>();
@@ -539,7 +539,7 @@ public:
       return layout.index(idx0,idx1,idx2,idx3,idx4,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<5?M:M+1)>();
@@ -566,7 +566,7 @@ public:
       return layout.index(idx0,idx1,idx2,idx3,idx4,idx5,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<6?M:M+1)>();
@@ -593,7 +593,7 @@ public:
       return layout.index(idx0,idx1,idx2,idx3,idx4,idx5,idx6,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<7?M:M+1)>();
@@ -620,7 +620,7 @@ public:
       return layout.index(idx0,idx1,idx2,idx3,idx4,idx5,idx6,idx7,i,idx...);
    }
 
-   template <int M>
+   template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       return layout.template Size<(M<8?M:M+1)>();

@@ -25,6 +25,7 @@ template <int DRank, // The rank of diagonal values
 class DiagonalTensor: public Tensor<Container,Layout>
 {
 public:
+   MFEM_HOST_DEVICE
    DiagonalTensor(const Tensor<Container,Layout> &t)
    : Tensor<Container,Layout>(t)
    { }
@@ -33,7 +34,7 @@ public:
    // private inheritance then?
 };
 
-template <int DRank, typename Tensor>
+template <int DRank, typename Tensor> MFEM_HOST_DEVICE inline
 auto makeDiagonalTensor(const Tensor &t)
 {
    return DiagonalTensor<DRank,
@@ -118,6 +119,7 @@ template <int DRank, // The rank of diagonal values
 class DiagonalSymmetricTensor: public Tensor<Container,Layout>
 {
 public:
+   MFEM_HOST_DEVICE
    DiagonalSymmetricTensor(const Tensor<Container,Layout> &t)
    : Tensor<Container,Layout>(t)
    { }
@@ -126,7 +128,7 @@ public:
    // private inheritance then?
 };
 
-template <int DRank, typename Tensor>
+template <int DRank, typename Tensor> MFEM_HOST_DEVICE inline
 auto makeDiagonalSymmetricTensor(const Tensor &t)
 {
    return DiagonalSymmetricTensor<DRank,

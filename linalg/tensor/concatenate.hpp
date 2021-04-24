@@ -20,7 +20,7 @@ namespace mfem
 template <int Rank, int N = 1>
 struct AddSize
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static auto init(const DynamicLayout<Rank> &in, Sizes... sizes)
    {
       return AddSize<Rank,N+1>::init(in, in.template Size<Rank-N>(), sizes...);
@@ -30,14 +30,14 @@ struct AddSize
 template <int Rank>
 struct AddSize<Rank,Rank>
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static auto init(const DynamicLayout<Rank> &in, Sizes... sizes)
    {
       return DynamicLayout<sizeof...(Sizes)+1>(in.template Size<0>(), sizes...);
    }
 };
 
-template <int Rank, typename... ExtraSizes>
+template <int Rank, typename... ExtraSizes> MFEM_HOST_DEVICE inline
 auto MakeLayout(const DynamicLayout<Rank> &in, ExtraSizes... sizes)
 {
    return AddSize<Rank>::init(in, sizes...);
@@ -47,7 +47,7 @@ template <int Rank,
           typename T,
           template <typename,int...> class Container,
           template <int...> class Layout,
-          int... Sizes>
+          int... Sizes> MFEM_HOST_DEVICE inline
 auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Rank>> &tl,
                  Tensor<Container<T,Sizes...>,Layout<Rank>> &tr)
 {
@@ -64,7 +64,7 @@ template <int Rank,
           typename T,
           template <typename,int...> class Container,
           template <int...> class Layout,
-          int... Sizes>
+          int... Sizes> MFEM_HOST_DEVICE inline
 auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Rank>> &tl,
                  Tensor<Container<T,Sizes...>,Layout<Rank>> &tm,
                  Tensor<Container<T,Sizes...>,Layout<Rank>> &tr)
@@ -82,7 +82,7 @@ auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Rank>> &tl,
 template <typename T,
           template <typename,int...> class Container,
           template <int...> class Layout,
-          int... Sizes>
+          int... Sizes> MFEM_HOST_DEVICE inline
 auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tl,
                  Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tr)
 {
@@ -98,7 +98,7 @@ auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tl,
 template <typename T,
           template <typename,int...> class Container,
           template <int...> class Layout,
-          int... Sizes>
+          int... Sizes> MFEM_HOST_DEVICE inline
 auto Concatenate(Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tl,
                  Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tm,
                  Tensor<Container<T,Sizes...>,Layout<Sizes...>> &tr)

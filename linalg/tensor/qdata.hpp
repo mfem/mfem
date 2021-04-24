@@ -26,7 +26,7 @@ class QData
 : public QuadTensor
 {
 public:
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE
    QData(double *x, Sizes... sizes)
    : QuadTensor(x, sizes...)
    {
@@ -34,12 +34,14 @@ public:
    }
 
    /// Returns a Tensor corresponding to the QData of element e
+   MFEM_HOST_DEVICE inline
    auto operator()(int e) const
    {
       constexpr int Rank = get_tensor_rank<QuadTensor>;
       return makeDiagonalTensor<DiagDim>(this->template Get<Rank-1>(e));
    }
 
+   MFEM_HOST_DEVICE inline
    auto operator()(int e)
    {
       constexpr int Rank = get_tensor_rank<QuadTensor>;
@@ -53,7 +55,7 @@ class SymmQData
 : public QuadTensor
 {
 public:
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE
    SymmQData(double *x, Sizes... sizes)
    : QuadTensor(x, sizes...)
    {
@@ -61,12 +63,14 @@ public:
    }
 
    /// Returns a Tensor corresponding to the DoFs of element e
+   MFEM_HOST_DEVICE inline
    auto operator()(int e) const
    {
       constexpr int Rank = get_tensor_rank<QuadTensor>;
       return makeDiagonalSymmetricTensor<DiagDim>(this->template Get<Rank-1>(e));
    }
 
+   MFEM_HOST_DEVICE inline
    auto operator()(int e)
    {
       constexpr int Rank = get_tensor_rank<QuadTensor>;
@@ -79,7 +83,7 @@ public:
 template <typename T, bool IsTensor, int Dim, int DimComp, int NDim=0, int NComp=0>
 struct InitQData
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static T make(double *x, int quads, int dim, int ne, Sizes... sizes)
    {
       return InitQData<T,IsTensor,Dim,DimComp,NDim,NComp+1>::
@@ -91,7 +95,7 @@ struct InitQData
 template <typename T, int Dim, int DimComp, int NDim>
 struct InitQData<T,true,Dim,DimComp,NDim,DimComp>
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static T make(double *x, int quads, int dim, int ne, Sizes... sizes)
    {
       return InitQData<T,true,Dim,DimComp,NDim+1,DimComp>::
@@ -103,7 +107,7 @@ struct InitQData<T,true,Dim,DimComp,NDim,DimComp>
 template <typename T, int Dim, int DimComp>
 struct InitQData<T,true,Dim,DimComp,Dim,DimComp>
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static T make(double *x, int quads, int dim, int ne, Sizes... sizes)
    {
       return T(x, sizes..., ne);
@@ -114,7 +118,7 @@ struct InitQData<T,true,Dim,DimComp,Dim,DimComp>
 template <typename T, int Dim, int DimComp>
 struct InitQData<T,false,Dim,DimComp,0,DimComp>
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static T make(double *x, int quads, int dim, int ne, Sizes... sizes)
    {
       return T(x, quads, sizes..., ne);

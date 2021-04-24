@@ -216,8 +216,8 @@ auto GetLast(T first, Ts... rest)
 template <int Dim, int N = 1>
 struct DynamicLayoutIndex
 {
-   template <typename... Args> MFEM_HOST_DEVICE
-   static inline int eval(const int* sizes, int first, Args... args)
+   template <typename... Args> MFEM_HOST_DEVICE inline
+   static int eval(const int* sizes, int first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
@@ -230,8 +230,8 @@ struct DynamicLayoutIndex
 template <int Dim>
 struct DynamicLayoutIndex<Dim, Dim>
 {
-   MFEM_HOST_DEVICE
-   static inline int eval(const int* sizes, int first)
+   MFEM_HOST_DEVICE inline
+   static int eval(const int* sizes, int first)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
@@ -244,15 +244,15 @@ struct DynamicLayoutIndex<Dim, Dim>
 template <int Dim, int N = 1>
 struct InitDynamicLayout
 {
-   template <typename... Args>
-   static inline void result(int* sizes, int first, Args... args)
+   template <typename... Args> MFEM_HOST_DEVICE inline
+   static void result(int* sizes, int first, Args... args)
    {
       sizes[N - 1] = first;
       InitDynamicLayout<Dim,N+1>::result(sizes, args...);
    }
 
-   template <typename Layout>
-   static inline void result(int* sizes, const Layout &rhs)
+   template <typename Layout> MFEM_HOST_DEVICE inline
+   static void result(int* sizes, const Layout &rhs)
    {
       sizes[N - 1] = rhs.template Size<N-1>();
       InitDynamicLayout<Dim,N+1>::result(sizes, rhs);
@@ -263,14 +263,14 @@ struct InitDynamicLayout
 template <int Dim>
 struct InitDynamicLayout<Dim, Dim>
 {
-   template <typename... Args>
-   static inline void result(int* sizes, int first, Args... args)
+   template <typename... Args> MFEM_HOST_DEVICE inline
+   static void result(int* sizes, int first, Args... args)
    {
       sizes[Dim - 1] = first;
    }
 
-   template <typename Layout>
-   static inline void result(int* sizes, const Layout &rhs)
+   template <typename Layout> MFEM_HOST_DEVICE inline
+   static void result(int* sizes, const Layout &rhs)
    {
       sizes[Dim - 1] = rhs.template Size<Dim-1>();
    }
@@ -280,8 +280,8 @@ struct InitDynamicLayout<Dim, Dim>
 template<int Cpt, int rank, int... Dims>
 struct StaticIndex
 {
-   template <typename... Idx>
-   static inline int eval(int first, Idx... args)
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   static int eval(int first, Idx... args)
    {
       return first + get_value<Cpt-1,Dims...> * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
    }
@@ -290,7 +290,8 @@ struct StaticIndex
 template<int rank, int... Dims>
 struct StaticIndex<rank,rank,Dims...>
 {
-   static inline int eval(int first)
+   MFEM_HOST_DEVICE inline
+   static int eval(int first)
    {
       return first;
    }
@@ -299,8 +300,8 @@ struct StaticIndex<rank,rank,Dims...>
 template<int... Dims>
 struct StaticLayoutIndex
 {
-   template <typename... Idx>
-   static inline int eval(Idx... args)
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   static int eval(Idx... args)
    {
       return StaticIndex<1,sizeof...(Dims),Dims...>::eval(args...);
    }
@@ -309,8 +310,8 @@ struct StaticLayoutIndex
 template<int... Dims>
 struct StaticELayoutIndex
 {
-   template <typename... Idx>
-   static inline int eval(Idx... args)
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   static int eval(Idx... args)
    {
       return StaticIndex<1,sizeof...(Dims)+1,Dims...>::eval(args...);
    }
@@ -320,6 +321,7 @@ struct StaticELayoutIndex
 template <int StaticSize, int N, int... Sizes>
 struct StaticELayoutSize
 {
+   MFEM_HOST_DEVICE inline
    static int eval(int last_size)
    {
       return get_value<N,Sizes...>;
@@ -329,6 +331,7 @@ struct StaticELayoutSize
 template <int StaticSize, int... Sizes>
 struct StaticELayoutSize<StaticSize, StaticSize, Sizes...>
 {
+   MFEM_HOST_DEVICE inline
    static int eval(int last_size)
    {
       return last_size;
