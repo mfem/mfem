@@ -70,7 +70,9 @@ void QuadratureInterpolator::Eval2D(const int NE,
    MFEM_VERIFY(ND <= MAX_ND2D, "");
    MFEM_VERIFY(NQ <= MAX_NQ2D, "");
    MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
-   MFEM_VERIFY((!geom) || (eval_flags & PHYSICAL_DERIVATIVES), "");
+   MFEM_VERIFY(bool(geom) == bool(eval_flags & PHYSICAL_DERIVATIVES),
+               "'geom' must be given (non-null) only when evaluating physical"
+               " derivatives");
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 2, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 2, 2, NE);
@@ -208,7 +210,9 @@ void QuadratureInterpolator::Eval3D(const int NE,
    MFEM_VERIFY(ND <= MAX_ND3D, "");
    MFEM_VERIFY(NQ <= MAX_NQ3D, "");
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
-   MFEM_VERIFY((!geom) || (eval_flags & PHYSICAL_DERIVATIVES), "");
+   MFEM_VERIFY(bool(geom) == bool(eval_flags & PHYSICAL_DERIVATIVES),
+               "'geom' must be given (non-null) only when evaluating physical"
+               " derivatives");
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 3, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 3, 3, NE);
