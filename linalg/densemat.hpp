@@ -527,13 +527,16 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C);
 
 /// z = (A ⊗ B) r  = vec(B R A^T), where R := vec^-1 (r)
-void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r, Vector & z);
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r,
+              Vector & z);
 
-/// z = (A ⊗ B) R  
-void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R, DenseMatrix & Z);
+/// z = (A ⊗ B) R
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
+              DenseMatrix & Z);
 
-/// z = ( A ⊗ B ⊗ C ) r 
-void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C, const Vector &r, Vector & z);
+/// z = ( A ⊗ B ⊗ C ) r
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
+              const Vector &r, Vector & z);
 
 /** Class that can compute LU factorization of external data and perform various
     operations with the factored data. */
@@ -695,6 +698,18 @@ public:
    /// Destroys dense inverse matrix.
    virtual ~DenseMatrixInverse();
 };
+
+/// z = (A^-1 ⊗ B^-1) r  = vec(B^-1 R A^-T), where R := vec^-1 (r)
+void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
+              const Vector &r, Vector & z);
+
+/// z = (A^-1 ⊗ B^-1) R
+void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
+              const DenseMatrix &R, DenseMatrix & Z);
+
+/// z = ( A^-1 ⊗ B^-1 ⊗ C^-1 ) r
+void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
+              const DenseMatrixInverse &Cinv, const Vector &r, Vector & z);
 
 
 class DenseMatrixEigensystem

@@ -2884,12 +2884,12 @@ void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C)
       for (int jb = 0; jb<bw; ++jb)
          for (int ia = 0; ia<ah; ++ia)
             for (int ib = 0; ib<bh; ++ib)
-               cd[bh*ia + ib + ah*bh*(bw*ja + jb)] 
-                        = ad[ia + ja * ah] * bd[ib + jb*bh];
+               cd[bh*ia + ib + ah*bh*(bw*ja + jb)]
+                  = ad[ia + ja * ah] * bd[ib + jb*bh];
 }
 
-
-void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r, Vector & z)
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r,
+              Vector & z)
 {
    const int nA = A.Height();
    const int mA = A.Width();
@@ -2905,7 +2905,8 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r, Vecto
    MultABt(X,A,Y);
 }
 
-void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R, DenseMatrix & Z)
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
+              DenseMatrix & Z)
 {
    const int nA = A.Height();
    const int nB = B.Height();
@@ -2922,6 +2923,29 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R, 
       z.SetData(&dataZ[i*nA*nB]);
       KronMult(A,B,r,z);
    }
+}
+
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
+              const Vector &r, Vector &z)
+{
+   const int nA = A.Height();
+   const int mA = A.Width();
+   const int nB = B.Height();
+   const int mB = B.Width();
+   const int nC = C.Height();
+   const int mC = C.Width();
+   const int nr = r.Size();
+   MFEM_VERIFY(nr == mA*mB*mC, "Wrong size of Vector r");
+   z.SetSize(nA*nB*nC);
+
+   double * dataR = r.GetData();
+   DenseMatrix R(dataR,mC,mA*mB);
+   DenseMatrix X(nC,mA*mB);
+   Mult(C,R,X);
+   X.Transpose();
+   DenseMatrix Z(z.GetData(),mA*mB,nC);
+   KronMult(A,B,X,Z);
+   Z.Transpose();
 }
 
 bool LUFactors::Factor(int m, double TOL)
@@ -3372,6 +3396,60 @@ DenseMatrixInverse::~DenseMatrixInverse()
 {
    delete [] lu.data;
    delete [] lu.ipiv;
+}
+
+void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
+              const Vector &r, Vector & z)
+{
+   // A and B are square matrices
+   z.SetSize(r.Size());
+   int nA = A.Height();
+   int nB = B.Height();
+   DenseMatrix R(r.GetData(),nB,nA);
+   DenseMatrix X(nB,nA);
+   B.Mult(R,X);
+   X.Transpose();
+   DenseMatrix Y(z.GetData(),nA,nB);
+   A.Mult(X,Y);
+   Y.Transpose();
+}
+
+void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
+              const DenseMatrix &R, DenseMatrix & Z)
+{
+   // A and B are square matrices
+   int nR = R.Height();
+   int mR = R.Width();
+   Z.SetSize(nR,mR);
+   Vector r(nR);
+   Vector z(nR);
+   double * dataR = R.GetData();
+   double * dataZ = Z.GetData();
+   for (int i = 0; i<mR; i++)
+   {
+      r.SetData(&dataR[i*nR]);
+      z.SetData(&dataZ[i*nR]);
+      KronMult(A,B,r,z);
+   }
+}
+
+void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
+              const DenseMatrixInverse &C, const Vector &r, Vector & z)
+{
+   // A, B and C are square matrices
+   int n = r.Size();
+   z.SetSize(n);
+   int nA = A.Height();
+   int nB = B.Height();
+   int nC = C.Height();
+   double * dataR = r.GetData();
+   DenseMatrix R(dataR,nC,nA*nB);
+   DenseMatrix X(nC,nA*nB);
+   C.Mult(R,X);
+   X.Transpose();
+   DenseMatrix Z(z.GetData(),nC,nA*nB);
+   KronMult(A,B,X,Z);
+   Z.Transpose();
 }
 
 

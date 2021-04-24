@@ -239,31 +239,6 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
 }
 
-DenseMatrix * KroneckerProduct(const DenseMatrix & A, const DenseMatrix & B)
-{
-   const int nrowsA = A.NumRows();
-   const int ncolsA = A.NumCols();
-   const int nrowsB = B.NumRows();
-   const int ncolsB = B.NumCols();
-
-   DenseMatrix * C = new DenseMatrix(nrowsA*nrowsB,ncolsA*ncolsB);
-   // Fill the entries of the matrix
-   for (int ia = 0; ia<nrowsA; ++ia)
-   {
-      for (int ja = 0; ja<ncolsA; ++ja)
-      {
-         for (int ib = 0; ib<nrowsB; ++ib)
-         {
-            for (int jb = 0; jb<ncolsB; ++jb)
-            {
-               (*C)(nrowsB*ia + ib ,ncolsB*ja + jb) = A(ia,ja) * B(ib,jb); 
-            }
-         }
-      }
-   }
-   return C;
-}
-
 TEST_CASE("KronMult methods",
           "[DenseMatrix]")
 {
@@ -272,25 +247,29 @@ TEST_CASE("KronMult methods",
    int nB = 5, mB = 6;
    DenseMatrix A(nA,mA);
    DenseMatrix B(nB,mB);
-   
+
    for (int i = 0; i<nA; i++)
       for (int j = 0; j<mA; j++)
+      {
          A(i,j) = ((double)rand()/(double)RAND_MAX);
+      }
 
    for (int i = 0; i<nB; i++)
       for (int j = 0; j<mB; j++)
+      {
          B(i,j) = ((double)rand()/(double)RAND_MAX);
+      }
 
-   DenseMatrix C;
-   KronProd(A,B,C);
+   DenseMatrix AB;
+   KronProd(A,B,AB);
 
    // (A ⊗ B) r
    SECTION("KronMultABr")
    {
       Vector r(mA*mB); r.Randomize();
-      MFEM_VERIFY(r.Size() == C.Width(), "Check r size");
-      Vector z0(C.Height());
-      C.Mult(r,z0);
+      MFEM_VERIFY(r.Size() == AB.Width(), "Check r size");
+      Vector z0(AB.Height());
+      AB.Mult(r,z0);
 
       Vector z1;
       KronMult(A,B,r,z1);
@@ -303,27 +282,137 @@ TEST_CASE("KronMult methods",
    {
       int nR = mA*mB;
       int mR = 7;
-      DenseMatrix R(nR, mR); 
+      DenseMatrix R(nR, mR);
       for (int i = 0; i<nR; i++)
          for (int j = 0; j<mR; j++)
+         {
             R(i,j) = ((double)rand()/(double)RAND_MAX);
+         }
 
-      DenseMatrix Z0(nA*nB,mR); 
-      Mult(C,R,Z0);
+      DenseMatrix Z0(nA*nB,mR);
+      Mult(AB,R,Z0);
 
-      DenseMatrix Z1; 
+      DenseMatrix Z1;
       KronMult(A,B,R,Z1);
-      MFEM_VERIFY(Z0.Height() == Z1.Height() && 
+      MFEM_VERIFY(Z0.Height() == Z1.Height() &&
                   Z0.Width() == Z1.Width(), "Check z1 size");
       Z0-=Z1;
 
       REQUIRE(Z0.MaxMaxNorm() < tol);
 
    }
+
+   // (A ⊗ B ⊗ C) r
+   SECTION("KronMultABCr")
+   {
+      int nC = 7, mC = 2;
+      DenseMatrix C(nC, mC);
+      for (int i = 0; i<nC; i++)
+         for (int j = 0; j<mC; j++)
+         {
+            C(i,j) = ((double)rand()/(double)RAND_MAX);
+         }
+
+      DenseMatrix ABC;
+      KronProd(AB,C,ABC);
+      Vector r(mA*mB*mC); r.Randomize();
+      MFEM_VERIFY(r.Size() == ABC.Width(), "Check r size");
+      Vector z0(nA*nB*nC);
+      ABC.Mult(r,z0);
+
+      Vector z1;
+      KronMult(A,B,C,r,z1);
+      MFEM_VERIFY(z0.Size() == z1.Size(), "Check z1 size");
+      z0-=z1;
+      REQUIRE(z0.Norml2() < tol);
+   }
 }
 
+TEST_CASE("KronMultInv methods",
+          "[DenseMatrixInverse]")
+{
+   double tol = 1e-12;
+   double AData[9] = { 1.0, 0.2, 3.4, -2.0, -1.0, 3.1, 0.7, 1.4, -0.9 };
+   double BData[4] = { -10.1, 5.7, -3.0, 4.2 };
+   int nA = 3;
+   int nB = 2;
+   DenseMatrix A(AData,nA,nA);
+   DenseMatrix B(BData,nB,nB);
 
+   DenseMatrixInverse Ainv(A);
+   DenseMatrixInverse Binv(B);
 
+   DenseMatrix AB;
+   KronProd(A,B,AB);
+
+   // (A^-1 ⊗ B^-1) r
+   SECTION("KronMultInvABr")
+   {
+
+      Vector r(nA*nB); r.Randomize();
+      MFEM_VERIFY(r.Size() == AB.Width(), "Check r size");
+      Vector z0(AB.Height());
+      DenseMatrixInverse ABinv(AB);
+      ABinv.Mult(r,z0);
+
+      Vector z1;
+      KronMult(Ainv,Binv,r,z1);
+      MFEM_VERIFY(z0.Size() == z1.Size(), "Check z1 size");
+      z0-=z1;
+      REQUIRE(z0.Norml2() < tol);
+   }
+   // (A^-1 ⊗ B^-1) R
+   SECTION("KronMultInvABR")
+   {
+      int nR = nA*nB;
+      int mR = 7;
+      DenseMatrix R(nR, mR);
+      for (int i = 0; i<nR; i++)
+         for (int j = 0; j<mR; j++)
+         {
+            R(i,j) = ((double)rand()/(double)RAND_MAX);
+         }
+
+      DenseMatrixInverse ABinv(AB);
+      DenseMatrix Z0(nA*nB,mR);
+      ABinv.Mult(R,Z0);
+
+      DenseMatrix Z1;
+      KronMult(Ainv,Binv,R,Z1);
+      MFEM_VERIFY(Z0.Height() == Z1.Height() &&
+                  Z0.Width() == Z1.Width(), "Check z1 size");
+      Z0-=Z1;
+
+      REQUIRE(Z0.MaxMaxNorm() < tol);
+   }
+
+   // (A^-1 ⊗ B^-1 ⊗ C^-1) r
+   SECTION("KronMultInvABCr")
+   {
+      double CData[16] = { -2.1, 1.6, -3.4,  17.5,
+                           -7.1, 1.3, -7.5, -12.5,
+                           0.5, 5.7, -6.0, -0.5,
+                           9.2, 0.3, -1.4, -14.9
+                         };
+      int nC = 4;
+      DenseMatrix C(CData,nC,nC);
+
+      DenseMatrix ABC;
+      KronProd(AB,C,ABC);
+      DenseMatrixInverse ABCInv(ABC);
+      Vector r(nA*nB*nC); r.Randomize();
+      MFEM_VERIFY(r.Size() == ABC.Width(), "Check r size");
+      Vector z0(nA*nB*nC);
+      ABCInv.Mult(r,z0);
+
+      DenseMatrixInverse Cinv(C);
+      Vector z1;
+      KronMult(Ainv,Binv,Cinv,r,z1);
+      MFEM_VERIFY(z0.Size() == z1.Size(), "Check z1 size");
+      z0-=z1;
+      REQUIRE(z0.Norml2() < tol);
+   }
+}
 
 TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 {
