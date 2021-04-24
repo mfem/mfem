@@ -134,8 +134,7 @@ void QuadratureInterpolator::Eval2D(const int NE,
                   D[c+VDIM*1] += s_e * wy;
                }
             }
-            if ((eval_flags & DERIVATIVES) ||
-                (eval_flags & PHYSICAL_DERIVATIVES))
+            if (eval_flags & DERIVATIVES)
             {
                for (int c = 0; c < VDIM; c++)
                {
@@ -275,8 +274,7 @@ void QuadratureInterpolator::Eval3D(const int NE,
                   D[c+VDIM*2] += s_e * wz;
                }
             }
-            if ((eval_flags & DERIVATIVES) ||
-                (eval_flags & PHYSICAL_DERIVATIVES))
+            if (eval_flags & DERIVATIVES)
             {
                for (int c = 0; c < VDIM; c++)
                {

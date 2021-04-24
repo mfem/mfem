@@ -73,32 +73,41 @@ public:
                           const QuadratureSpace &qs);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
-       elements, e.g. quads and hexes. */
+       elements, e.g. quads and hexes. By default, tensor product evaluations
+       are enabled. */
+   /** @sa EnableTensorProducts(), UsesTensorProducts(). */
    void DisableTensorProducts(bool disable = true) const
    { use_tensor_products = !disable; }
 
    /** @brief Enable the use of tensor product evaluations, for tensor-product
-       elements, e.g. quads and hexes. */
+       elements, e.g. quads and hexes. By default, this option is enabled. */
+   /** @sa DisableTensorProducts(), UsesTensorProducts(). */
    void EnableTensorProducts() const { use_tensor_products = true; }
 
-   /** @brief Query the current evaluation mode. */
+   /** @brief Query the current tensor product evaluation mode. */
+   /** @sa DisableTensorProducts(), EnableTensorProducts(). */
    bool UsesTensorProducts() const { return use_tensor_products; }
 
    /** @brief Query the current output Q-vector layout. The default value is
        QVectorLayout::byNODES. */
+   /** @sa SetOutputLayout(). */
    QVectorLayout GetOutputLayout() const { return q_layout; }
 
    /** @brief Set the desired output Q-vector layout. The default value is
        QVectorLayout::byNODES. */
+   /** @sa GetOutputLayout(). */
    void SetOutputLayout(QVectorLayout layout) const { q_layout = layout; }
 
    /// Interpolate the E-vector @a e_vec to quadrature points.
    /** The @a eval_flags are a bitwise mask of constants from the EvalFlags
        enumeration. When the VALUES flag is set, the values at quadrature points
-       are computed and stored in the Vector @a q_val. Similarly, when the flag
-       DERIVATIVES is set, the derivatives are computed and stored in @a q_der.
-       When the DETERMINANTS flags is set, it is assumed that the derivatives
-       form a matrix at each quadrature point (i.e. the associated
+       are computed and stored in the Vector @a q_val. Similarly, when one of
+       the flags DERIVATIVES or PHYSICAL_DERIVATIVES is set, the derivatives
+       (with respect to reference or physical coordinates, respectively) are
+       computed and stored in @a q_der. Only one of the flags DERIVATIVES or
+       PHYSICAL_DERIVATIVES can be set in a call. When the DETERMINANTS flag is
+       set, it is assumed that the derivatives (with respect to reference
+       coordinates) form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det. */
    void Mult(const Vector &e_vec, unsigned eval_flags,
@@ -107,15 +116,16 @@ public:
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
 
-   /** @brief Interpolate the derivatives of the E-vector @a e_vec at quadrature
-       points. */
+   /** @brief Interpolate the derivatives (with respect to reference
+       coordinates) of the E-vector @a e_vec at quadrature points. */
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
-   /// Compute the determinant of the E-vector @a e_vec at quadrature points.
+   /** @brief Compute the determinants of the derivatives (with respect to
+       reference coordinates) of the E-vector @a e_vec at quadrature points. */
    void Determinants(const Vector &e_vec, Vector &q_det) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
@@ -124,7 +134,7 @@ public:
 
    // Compute kernels follow (cannot be private or protected with nvcc)
 
-   /// Template compute kernel for 2D.
+   /// Template compute kernel for 2D. (non-tensor product version)
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval2D(const int NE,
                       const int vdim,
@@ -137,7 +147,7 @@ public:
                       Vector &q_det,
                       const int eval_flags);
 
-   /// Template compute kernel for 3D.
+   /// Template compute kernel for 3D. (non-tensor product version)
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval3D(const int NE,
                       const int vdim,
@@ -150,15 +160,15 @@ public:
                       Vector &q_det,
                       const int eval_flags);
 
-   /// Template compute kernel for Values.
+   /// Template compute kernel for Values. (tensor product version)
    template <QVectorLayout>
    void Values(const Vector &e_vec, Vector &q_val) const;
 
-   /// Template compute kernel for Derivatives.
+   /// Template compute kernel for Derivatives. (tensor product version)
    template <QVectorLayout>
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
-   /// Template compute kernel for PhysDerivatives.
+   /// Template compute kernel for PhysDerivatives. (tensor product version)
    template <QVectorLayout>
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 };
