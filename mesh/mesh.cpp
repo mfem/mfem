@@ -7281,7 +7281,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    Array<Element*> new_boundary;
 
    vertices.SetSize(oelem + hex_counter);
-   new_elements.SetSize(8 * NumOfElements + pyr_counter);
+   new_elements.SetSize(8 * NumOfElements + 2 * pyr_counter);
    CoarseFineTr.embeddings.SetSize(new_elements.Size());
 
    hex_counter = 0;
@@ -7593,6 +7593,10 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                            oedge+e[7], v[4], attr);
 
             new_elements[j++] =
+               new Pyramid(oedge+e[7], oedge+e[6], oedge+e[5],
+                           oedge+e[4], oface+qf0, attr);
+
+            new_elements[j++] =
                new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
                                oface+qf0, attr);
 
@@ -7741,7 +7745,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    }
    mfem::Swap(boundary, new_boundary);
 
-   static const double A = 0.0, B = 0.5, C = 1.0;
+   static const double A = 0.0, B = 0.5, C = 1.0, D = -1.0;
    static double tet_children[3*4*16] =
    {
       A,A,A, B,A,A, A,B,A, A,A,B,
@@ -7766,6 +7770,19 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
       A,A,B, A,B,A, A,B,B, B,B,A,
       A,A,B, A,B,B, B,A,B, B,B,A,
       A,A,B, B,A,B, B,A,A, B,B,A
+   };
+   static double pyr_children[3*5*10] =
+   {
+      A,A,A, B,A,A, B,B,A, A,B,A, A,A,B,
+      B,A,A, C,A,A, C,B,A, B,B,A, B,A,B,
+      B,B,A, C,B,A, C,C,A, B,C,A, B,B,B,
+      A,B,A, B,B,A, B,C,A, A,C,A, A,B,B,
+      A,A,B, B,A,B, B,B,B, A,B,B, A,A,C,
+      A,B,B, B,B,B, B,A,B, A,A,B, B,B,A,
+      B,A,A, A,A,B, B,A,B, B,B,A, D,D,D,
+      C,B,A, B,A,B, B,B,B, B,B,A, D,D,D,
+      B,C,A, B,B,B, A,B,B, B,B,A, D,D,D,
+      A,B,A, A,B,B, A,A,B, B,B,A, D,D,D
    };
    static double pri_children[3*6*8] =
    {
@@ -7792,6 +7809,8 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
    CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
    .UseExternalData(tet_children, 3, 4, 16);
+   CoarseFineTr.point_matrices[Geometry::PYRAMID]
+   .UseExternalData(pyr_children, 3, 5, 10);
    CoarseFineTr.point_matrices[Geometry::PRISM]
    .UseExternalData(pri_children, 3, 6, 8);
    CoarseFineTr.point_matrices[Geometry::CUBE]
@@ -7808,7 +7827,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    }
 
    NumOfVertices    = vertices.Size();
-   NumOfElements    = 8 * NumOfElements + pyr_counter;
+   NumOfElements    = 8 * NumOfElements + 2 * pyr_counter;
    NumOfBdrElements = 4 * NumOfBdrElements;
 
    GetElementToFaceTable();
