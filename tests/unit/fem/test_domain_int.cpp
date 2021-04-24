@@ -64,7 +64,8 @@ enum MeshType
    TETRAHEDRA = 13,
    WEDGE4 = 14,
    MIXED3D6 = 15,
-   MIXED3D8 = 16
+   MIXED3D8 = 16,
+   PYRAMID = 17
 };
 
 Mesh * GetMesh(MeshType type);
@@ -75,10 +76,10 @@ TEST_CASE("Domain Integration (Scalar Field)",
           "[GridFunction]"
           "[LinearForm]")
 {
-   int order = 3;
+   int order = 2;
 
    for (int mt = (int)MeshType::SEGMENT;
-        mt <= (int)MeshType::MIXED3D8; mt++)
+        mt <= (int)MeshType::PYRAMID; mt++)
    {
       Mesh *mesh = GetMesh((MeshType)mt);
       int  dim = mesh->Dimension();
@@ -91,47 +92,52 @@ TEST_CASE("Domain Integration (Scalar Field)",
          if (ft == (int)FEType::ND_FEC || ft == (int)FEType::RT_FEC)
          { continue; }
 
-         FiniteElementCollection *fec = NULL;
-         switch ((FEType)ft)
+         SECTION("Integrating field type " + std::to_string(ft) +
+                 " on mesh type " + std::to_string(mt))
          {
-            case FEType::H1_FEC:
-               fec = new H1_FECollection(order, dim);
-               break;
-            case FEType::L2V_FEC:
-               fec = new L2_FECollection(order-1, dim);
-               break;
-            case FEType::L2I_FEC:
-               fec = new L2_FECollection(order-1, dim, BasisType::GaussLegendre,
-                                         FiniteElement::INTEGRAL);
-               break;
-            default:
-               MFEM_ABORT("Invalid vector FE type");
+
+            FiniteElementCollection *fec = NULL;
+            switch ((FEType)ft)
+            {
+               case FEType::H1_FEC:
+                  fec = new H1_FECollection(order, dim);
+                  break;
+               case FEType::L2V_FEC:
+                  fec = new L2_FECollection(order-1, dim);
+                  break;
+               case FEType::L2I_FEC:
+                  fec = new L2_FECollection(order-1, dim, BasisType::GaussLegendre,
+                                            FiniteElement::INTEGRAL);
+                  break;
+               default:
+                  MFEM_ABORT("Invalid vector FE type");
+            }
+            FiniteElementSpace fespace(mesh, fec);
+
+            GridFunction u(&fespace);
+            u.ProjectCoefficient(oneCoef);
+
+            LinearForm b(&fespace);
+            b.AddDomainIntegrator(new DomainLFIntegrator(oneCoef));
+            b.Assemble();
+
+            double id = b(u);
+
+            if (dim == 1)
+            {
+               REQUIRE(id == MFEM_Approx( 5.0));
+            }
+            else if (dim == 2)
+            {
+               REQUIRE(id == MFEM_Approx(15.0));
+            }
+            else
+            {
+               REQUIRE(id == MFEM_Approx(30.0));
+            }
+
+            delete fec;
          }
-         FiniteElementSpace fespace(mesh, fec);
-
-         GridFunction u(&fespace);
-         u.ProjectCoefficient(oneCoef);
-
-         LinearForm b(&fespace);
-         b.AddDomainIntegrator(new DomainLFIntegrator(oneCoef));
-         b.Assemble();
-
-         double id = b(u);
-
-         if (dim == 1)
-         {
-            REQUIRE(id == MFEM_Approx( 5.0));
-         }
-         else if (dim == 2)
-         {
-            REQUIRE(id == MFEM_Approx(15.0));
-         }
-         else
-         {
-            REQUIRE(id == MFEM_Approx(30.0));
-         }
-
-         delete fec;
       }
 
       delete mesh;
@@ -797,6 +803,40 @@ Mesh * GetMesh(MeshType type)
          mesh->AddTet(v);
          v[0] = 8; v[1] = 2; v[2] = 7; v[3] = 5;
          mesh->AddTet(v);
+         break;
+      case PYRAMID:
+         mesh = new Mesh(3, 9, 6);
+         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.5 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+
+         v[0] = 0; v[1] = 1; v[2] = 2; v[3] = 3; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 0; v[1] = 5; v[2] = 6; v[3] = 1; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 1; v[1] = 6; v[2] = 7; v[3] = 2; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 2; v[1] = 7; v[2] = 8; v[3] = 3; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 3; v[1] = 8; v[2] = 5; v[3] = 0; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 8; v[1] = 7; v[2] = 6; v[3] = 5; v[4] = 4;
+         mesh->AddPyramid(v);
          break;
    }
    mesh->FinalizeTopology();
