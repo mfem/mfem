@@ -134,7 +134,7 @@ public:
    // Call it Extract?
 
    /// Lazy accessor for the sub-Tensor extracted from idx in Nth dimension.
-   template <int N>
+   template <int N> MFEM_HOST_DEVICE inline
    auto Get(int idx)
    {
       static_assert(N>=0 && N<get_layout_rank<Layout>,
@@ -147,7 +147,7 @@ public:
       return RestrictedTensor(data,layout);
    }
 
-   template <int N>
+   template <int N> MFEM_HOST_DEVICE inline
    auto Get(int idx) const
    {
       static_assert(N>=0 && N<get_layout_rank<Layout>,

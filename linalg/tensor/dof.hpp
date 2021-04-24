@@ -25,7 +25,7 @@ class DegreesOfFreedom
 : public DofTensor
 {
 public:
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE
    DegreesOfFreedom(double *x, Sizes... sizes)
    : DofTensor(x, sizes...)
    {
@@ -33,12 +33,14 @@ public:
    }
 
    /// Returns a Tensor corresponding to the DoFs of element e
+   MFEM_HOST_DEVICE inline
    auto operator()(int e) const
    {
       constexpr int Rank = get_tensor_rank<DofTensor>;
       return this->template Get<Rank-1>(e);
    }
 
+   MFEM_HOST_DEVICE inline
    auto operator()(int e)
    {
       constexpr int Rank = get_tensor_rank<DofTensor>;
@@ -54,7 +56,7 @@ struct InitDof;
 template <typename T, int Dim, int VDim, int N>
 struct InitDof<T,true,Dim,VDim,N>
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static T make(double *x, int dofs, int ne, Sizes... sizes)
    {
       return InitDof<T,true,Dim,VDim,N+1>::make(x, dofs, ne, dofs, sizes...);
@@ -64,7 +66,7 @@ struct InitDof<T,true,Dim,VDim,N>
 template <typename T, int Dim, int VDim>
 struct InitDof<T,true,Dim,VDim,Dim>
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static T make(double *x, int dofs, int ne, Sizes... sizes)
    {
       return T(x, sizes..., VDim, ne);
@@ -74,7 +76,7 @@ struct InitDof<T,true,Dim,VDim,Dim>
 template <typename T, int Dim>
 struct InitDof<T,true,Dim,0,Dim>
 {
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
    static T make(double *x, int dofs, int ne, Sizes... sizes)
    {
       return T(x, sizes..., ne);
@@ -85,6 +87,7 @@ struct InitDof<T,true,Dim,0,Dim>
 template <typename T, int Dim>
 struct InitDof<T,false,Dim,0,1>
 {
+   MFEM_HOST_DEVICE inline
    static T make(double *x, int dofs, int ne)
    {
       return T(x, dofs, ne);
@@ -94,6 +97,7 @@ struct InitDof<T,false,Dim,0,1>
 template <typename T, int Dim, int VDim>
 struct InitDof<T,false,Dim,VDim,1>
 {
+   MFEM_HOST_DEVICE inline
    static T make(double *x, int dofs, int ne)
    {
       return T(x, dofs, VDim, ne);

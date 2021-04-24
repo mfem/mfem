@@ -1937,12 +1937,12 @@ static void ApplyDiff(const int ne,
    // TODO SRank = 1 until we really support symmetric layout...
    const auto D = MakeSymmQData<1>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   // MFEM_FORALL(e,ne,
-   for (int e = 0; e<ne; e++)
+   MFEM_FORALL(e,ne,
+   // for (int e = 0; e<ne; e++)
    // forall(e, ne, config,
    {
       Y(e) += transpose(grad(B)) * ( D(e) * ( grad(B) * X(e) ) );
-   }//);
+   });
 }
 
 static void PADiffusionApply(const int dim,

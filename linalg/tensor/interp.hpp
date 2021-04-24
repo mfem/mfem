@@ -24,7 +24,7 @@ namespace mfem
 {
 
 // Non-tensor
-template <int Dim, int D, int Q, typename Dofs>
+template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const Basis<Dim,false,D,Q> &basis, const Dofs &u)
 {
    // TODO declare some __shared__/MFEM_SHARED memory for the basis?
@@ -34,7 +34,7 @@ auto operator*(const Basis<Dim,false,D,Q> &basis, const Dofs &u)
 }
 
 // 1D Tensor
-template <int D, int Q, typename Dofs>
+template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const Basis<1,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
@@ -42,7 +42,7 @@ auto operator*(const Basis<1,true,D,Q> &basis, const Dofs &u)
 }
 
 // 2D Tensor
-template <int D, int Q, typename Dofs>
+template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
@@ -51,7 +51,7 @@ auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
 }
 
 // 3D Tensor
-template <int D, int Q, typename Dofs>
+template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
@@ -61,7 +61,7 @@ auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
 }
 
 // Non-tensor
-template <int Dim, int D, int Q, typename Dofs>
+template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<Dim,false,D,Q> &basis, const Dofs &u)
 {
    auto Bt = basis.GetBt();
@@ -69,7 +69,7 @@ auto operator*(const BasisTranspose<Dim,false,D,Q> &basis, const Dofs &u)
 }
 
 // 1D Tensor
-template <int D, int Q, typename Dofs>
+template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<1,true,D,Q> &basis, const Dofs &u)
 {
    auto Bt = basis.GetBt();
@@ -77,7 +77,7 @@ auto operator*(const BasisTranspose<1,true,D,Q> &basis, const Dofs &u)
 }
 
 // 2D Tensor
-template <int D, int Q, typename Dofs>
+template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
    auto Bt = basis.GetBt();
@@ -86,7 +86,7 @@ auto operator*(const BasisTranspose<2,true,D,Q> &basis, const Dofs &u)
 }
 
 // 3D Tensor
-template <int D, int Q, typename Dofs>
+template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
    auto Bt = basis.GetBt();

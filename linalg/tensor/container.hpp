@@ -25,7 +25,7 @@ protected:
    T* data;
 
 public:
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE
    DeviceContainer(int size0, Sizes... sizes) : data(nullptr)
    {
       // static_assert(false,"Read Container are not supposed to be created like this");
@@ -54,7 +54,7 @@ private:
    const T* data;
 
 public:
-   template <typename... Sizes>
+   template <typename... Sizes> MFEM_HOST_DEVICE
    ReadContainer(int size0, Sizes... sizes) : data(nullptr)
    {
       // static_assert(false,"Read Container are not supposed to be created like this");
@@ -138,6 +138,7 @@ private:
    T data[prod(Dims...)];
 
 public:
+   MFEM_HOST_DEVICE
    StaticContainer() { }
 
    template <typename... Sizes> MFEM_HOST_DEVICE
@@ -223,6 +224,7 @@ class BlockContainer<T,DimX,DimY,Dims...>
 {
 private:
    StaticContainer<T,Dims...> data;
+
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
    BlockContainer(int size0, int size1, Sizes... sizes): data(sizes...) { }

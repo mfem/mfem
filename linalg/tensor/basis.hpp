@@ -25,6 +25,7 @@ template <int Dim, bool IsTensor, typename TensorType>
 class BasisTensor : public TensorType
 {
 public:
+   MFEM_HOST_DEVICE
    BasisTensor(int quads, int dofs): TensorType(quads,dofs) { }
 };
 
@@ -65,6 +66,7 @@ struct Basis<Dim,true,Dynamic,Dynamic>
    const double *G;
    const double *Gt;
 
+   MFEM_HOST_DEVICE inline
    auto GetB() const
    {
       DynamicBasisTensor<Dim> s_B(quads1D,dofs1D);
@@ -78,6 +80,7 @@ struct Basis<Dim,true,Dynamic,Dynamic>
       return s_B;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetBt() const
    {
       DynamicBasisTensor<Dim> s_Bt(dofs1D,quads1D);
@@ -91,6 +94,7 @@ struct Basis<Dim,true,Dynamic,Dynamic>
       return s_Bt;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetG() const
    {
       DynamicBasisTensor<Dim> s_G(quads1D,dofs1D);
@@ -104,6 +108,7 @@ struct Basis<Dim,true,Dynamic,Dynamic>
       return s_G;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetGt() const
    {
       DynamicBasisTensor<Dim> s_Gt(dofs1D,quads1D);
@@ -132,6 +137,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    const double *G;
    const double *Gt;
 
+   MFEM_HOST_DEVICE inline
    auto GetB() const
    {
       StaticBasisTensor<dim,quads1D,dofs1D> s_B(quads1D,dofs1D);
@@ -145,6 +151,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
       return s_B;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetBt() const
    {
       StaticBasisTensor<dim,dofs1D,quads1D> s_Bt(dofs1D,quads1D);
@@ -158,6 +165,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
       return s_Bt;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetG() const
    {
       StaticBasisTensor<dim,quads1D,dofs1D> s_G(quads1D,dofs1D);
@@ -171,6 +179,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
       return s_G;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetGt() const
    {
       StaticBasisTensor<dim,dofs1D,quads1D> s_Gt(dofs1D,quads1D);
@@ -198,6 +207,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
    const double *G;
    const double *Gt;
 
+   MFEM_HOST_DEVICE inline
    auto GetB() const
    {
       DynamicBasisTensor<Dim> s_B(quads,dofs);
@@ -211,6 +221,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
       return s_B;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetBt() const
    {
       DynamicBasisTensor<Dim> s_Bt(dofs,quads);
@@ -224,6 +235,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
       return s_Bt;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetG() const
    {
       DynamicBasisTensor<Dim> s_G(quads,dofs,dim);
@@ -240,6 +252,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
       return s_G;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetGt() const
    {
       DynamicBasisTensor<Dim> s_Gt(dofs,quads,dim);
@@ -269,6 +282,7 @@ struct Basis<Dim,false,Dofs,Quads>
    const double *G;
    const double *Gt;
 
+   MFEM_HOST_DEVICE inline
    auto GetB() const
    {
       StaticBasisTensor<dim,quads,dofs> s_B(quads,dofs);
@@ -282,6 +296,7 @@ struct Basis<Dim,false,Dofs,Quads>
       return s_B;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetBt() const
    {
       StaticBasisTensor<dim,quads,dofs> s_Bt(dofs,quads);
@@ -295,6 +310,7 @@ struct Basis<Dim,false,Dofs,Quads>
       return s_Bt;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetG() const
    {
       // TODO change type
@@ -312,6 +328,7 @@ struct Basis<Dim,false,Dofs,Quads>
       return s_G;
    }
 
+   MFEM_HOST_DEVICE inline
    auto GetGt() const
    {
       // TODO change type
@@ -384,6 +401,7 @@ auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct BasisTranspose : public Basis<Dim,IsTensor,Dofs,Quads>
 {
+   MFEM_HOST_DEVICE
    BasisTranspose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
    { }
@@ -393,6 +411,7 @@ struct BasisTranspose : public Basis<Dim,IsTensor,Dofs,Quads>
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct BasisGradient : public Basis<Dim,IsTensor,Dofs,Quads>
 {
+   MFEM_HOST_DEVICE
    BasisGradient(Basis<Dim,IsTensor,Dofs,Quads> &basis)
    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
    { }
@@ -402,42 +421,45 @@ struct BasisGradient : public Basis<Dim,IsTensor,Dofs,Quads>
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct BasisGradientTranspose : public Basis<Dim,IsTensor,Dofs,Quads>
 {
+   MFEM_HOST_DEVICE
    BasisGradientTranspose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
    { }
 
+   MFEM_HOST_DEVICE
    BasisGradientTranspose(BasisTranspose<Dim,IsTensor,Dofs,Quads> &basis)
    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
    { }
 
+   MFEM_HOST_DEVICE
    BasisGradientTranspose(BasisGradient<Dim,IsTensor,Dofs,Quads> &basis)
    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
    { }
 };
 
 /// Functor to transpose a Basis
-template <int Dim, bool IsTensor, int Dofs, int Quads>
+template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto transpose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
 {
    return BasisTranspose<Dim,IsTensor,Dofs,Quads>(basis);
 }
 
 /// Functor to transpose a Basis gradient
-template <int Dim, bool IsTensor, int Dofs, int Quads>
+template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto transpose(BasisGradient<Dim,IsTensor,Dofs,Quads> G)
 {
    return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>(G);
 }
 
 /// Functor to represent a Basis gradient
-template <int Dim, bool IsTensor, int Dofs, int Quads>
+template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto grad(Basis<Dim,IsTensor,Dofs,Quads> &basis)
 {
    return BasisGradient<Dim,IsTensor,Dofs,Quads>(basis);
 }
 
 /// Functor to represent a transposed Basis gradient
-template <int Dim, bool IsTensor, int Dofs, int Quads>
+template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto grad(BasisTranspose<Dim,IsTensor,Dofs,Quads> &Bt)
 {
    return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>(Bt);
