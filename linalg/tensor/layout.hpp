@@ -237,33 +237,6 @@ public:
    }
 };
 
-template <int N, int Rank>
-struct BlockSize
-{
-   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
-   {
-      return layout.template Size<N-2>();
-   }
-};
-
-template <int Rank>
-struct BlockSize<0, Rank>
-{
-   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
-   {
-      return size0;
-   }
-};
-
-template <int Rank>
-struct BlockSize<1, Rank>
-{
-   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
-   {
-      return size1;
-   }
-};
-
 template <int Rank, int BatchSize>
 class DynamicBlockLayout
 {
@@ -293,7 +266,7 @@ public:
    constexpr int Size() const
    {
       static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
-      return BlockSize<N,Rank>::eval(size0,size1,layout);
+      return DynamicBlockLayoutSize<N,Rank>::eval(size0,size1,layout);
    }
 };
 
