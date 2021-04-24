@@ -335,6 +335,39 @@ struct StaticELayoutSize<StaticSize, StaticSize, Sizes...>
    }
 };
 
+template <int Rank>
+class DynamicLayout;
+
+template <int N, int Rank>
+struct DynamicBlockLayoutSize
+{
+   MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   {
+      return layout.template Size<N-2>();
+   }
+};
+
+template <int Rank>
+struct DynamicBlockLayoutSize<0, Rank>
+{
+   MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   {
+      return size0;
+   }
+};
+
+template <int Rank>
+struct DynamicBlockLayoutSize<1, Rank>
+{
+   MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   {
+      return size1;
+   }
+};
+
 } // mfem namespace
 
 #endif // MFEM_TENSOR_UTIL
