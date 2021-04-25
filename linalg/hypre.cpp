@@ -1638,6 +1638,7 @@ void HypreParMatrix::PrintHash(std::ostream &out) const
          hf.AppendInts(csr->j, csr_nnz);
          out << hf.GetHash() << '\n';
       }
+#if MFEM_HYPRE_VERSION >= 21600
       out << csr_name << " big j hash : ";
       if (csr->big_j == nullptr)
       {
@@ -1648,6 +1649,7 @@ void HypreParMatrix::PrintHash(std::ostream &out) const
          hf.AppendInts(csr->big_j, csr_nnz);
          out << hf.GetHash() << '\n';
       }
+#endif
       out << csr_name << " data  hash : ";
       if (csr->data == nullptr)
       {
