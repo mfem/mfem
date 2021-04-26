@@ -10,26 +10,29 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
+#include "quadinterpolator_dispatch.hpp"
 #include "quadinterpolator_eval.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../linalg/kernels.hpp"
 
 namespace mfem
 {
 
-template<>
-void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
-   const Vector &e_vec, Vector &q_val) const
+namespace internal
 {
-   const int NE = fespace->GetNE();
+
+namespace quadrature_interpolator
+{
+
+// Tensor-product evaluation of quadrature point values: dispatch function.
+// Instantiation for the case QVectorLayout::byNODES.
+template<>
+void TensorValues<QVectorLayout::byNODES>(const int NE,
+                                          const int vdim,
+                                          const DofToQuad &maps,
+                                          const Vector &e_vec,
+                                          Vector &q_val)
+{
    if (NE == 0) { return; }
-   const int vdim = fespace->GetVDim();
-   const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe = fespace->GetFE(0);
-   const IntegrationRule *ir =
-      IntRule ? IntRule : &qspace->GetElementIntRule(0);
-   const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
    const double *B = maps.B.Read();
@@ -130,5 +133,9 @@ void QuadratureInterpolator::Values<QVectorLayout::byNODES>(
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Kernel not supported yet");
 }
+
+} // namespace quadrature_interpolator
+
+} // namespace internal
 
 } // namespace mfem

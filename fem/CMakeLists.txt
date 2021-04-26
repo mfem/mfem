@@ -119,6 +119,7 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
+  quadinterpolator_dispatch.hpp
   quadinterpolator_eval.hpp
   quadinterpolator_face.hpp
   quadinterpolator_grad.hpp
