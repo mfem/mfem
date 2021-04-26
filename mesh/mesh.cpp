@@ -11222,7 +11222,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 GeometricFactors::GeometricFactors(const Mesh &mesh, const IntegrationRule &ir,
                                    int flags, MemoryType d_mt)
-: mesh(mesh), IntRule(ir)
+   : mesh(mesh), IntRule(ir)
 {
    computed_factors = flags;
 
