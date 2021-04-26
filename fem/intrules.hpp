@@ -274,7 +274,7 @@ public:
       {
          if (Size() == rhs.Size())
          {
-            for (size_t i = 0; i < Size(); i++)
+            for (int i = 0; i < Size(); i++)
             {
                if ((*this)[i] != rhs[i])
                {
