@@ -272,21 +272,7 @@ public:
    {
       if (this==&rhs)
       {
-         if (Size() == rhs.Size())
-         {
-            for (int i = 0; i < Size(); i++)
-            {
-               if ((*this)[i] != rhs[i])
-               {
-                  return false;
-               }
-            }
-            return true;
-         }
-         else
-         {
-            return false;
-         }
+         return static_cast<Array<IntegrationPoint>>(*this) == static_cast<Array<IntegrationPoint>>(rhs);
       }
       else
       {
