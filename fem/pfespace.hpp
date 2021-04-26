@@ -68,13 +68,8 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
-   /// The matrix P (interpolation from true dof to dof). Owned.
-   mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
-
-   /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
-   mutable SparseMatrix *R;
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -147,7 +142,7 @@ private:
                        Array<HYPRE_Int> &col_starts) const;
 
    /// Build the P and R matrices.
-   virtual void Build_Dof_TrueDof_Matrix() const;
+   void Build_Dof_TrueDof_Matrix() const;
 
    /** Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
        Constructs the matrices P and R, the DOF and true DOF offset arrays,
@@ -172,6 +167,11 @@ private:
    HypreParMatrix* ParallelDerefinementMatrix(int old_ndofs,
                                               const Table *old_elem_dof);
 
+protected:
+/// The matrix P (interpolation from true dof to dof). Owned.
+   mutable HypreParMatrix *P;
+    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
+   mutable SparseMatrix *R;
 public:
    // Face-neighbor data
    // Number of face-neighbor dofs
@@ -288,7 +288,7 @@ public:
 
    /** Create and return a new HypreParVector on the true dofs, which is
        owned by (i.e. it must be destroyed by) the calling function. */
-   HypreParVector *NewTrueDofVector()
+   virtual HypreParVector *NewTrueDofVector()
    { return (new HypreParVector(MyComm,GlobalTrueVSize(),GetTrueDofOffsets()));}
 
    /// Scale a vector of true dofs
