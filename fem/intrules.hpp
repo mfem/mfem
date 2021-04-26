@@ -272,7 +272,8 @@ public:
    {
       if (this==&rhs)
       {
-         return static_cast<Array<IntegrationPoint>>(*this) == static_cast<Array<IntegrationPoint>>(rhs);
+         return static_cast<Array<IntegrationPoint>>(*this) ==
+                static_cast<Array<IntegrationPoint>>(rhs);
       }
       else
       {
