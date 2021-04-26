@@ -178,4 +178,5 @@ jobs:
       with:
         name: ${{ matrix.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
-        coverage-directories: "fem general linalg mesh"
+        directories: "fem general linalg mesh"
+        config_files: .codecov
