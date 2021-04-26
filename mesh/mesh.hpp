@@ -855,13 +855,14 @@ public:
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
-       integration rule. */
-   /** If the device MemoryType parameter @a d_mt is specified, then the
-       returned object will use that type unless it was previously allocated
-       with a different type. The IntegrationRule used with GetGeometricFactors
+       integration rule.
+       The IntegrationRule used with GetGeometricFactors
        needs to remain valid until the internally stored GeometricFactors
        objects are destroyed (by either calling Mesh::DeleteGeometricFactors or
-       the Mesh destructor).*/
+       the Mesh destructor).
+       If the device MemoryType parameter @a d_mt is specified, then the
+       returned object will use that type unless it was previously allocated
+       with a different type. */
    const GeometricFactors* GetGeometricFactors(
       const IntegrationRule& ir,
       const int flags,
