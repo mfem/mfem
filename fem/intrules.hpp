@@ -266,26 +266,6 @@ public:
        a call like this: `IntPoint(i).weight`. */
    const Array<double> &GetWeights() const;
 
-   /// Returns true if the two IntegrationRules are equal.
-   /** Different memory addresses will always result in false. */
-   bool operator==(const IntegrationRule &rhs) const
-   {
-      if (this==&rhs)
-      {
-         return static_cast<Array<IntegrationPoint>>(*this) ==
-                static_cast<Array<IntegrationPoint>>(rhs);
-      }
-      else
-      {
-         return false;
-      }
-   }
-
-   bool operator!=(const IntegrationRule &rhs) const
-   {
-      return !(*this==rhs);
-   }
-
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
