@@ -88,7 +88,7 @@ public:
    bool operator==(const IntegrationPoint &rhs) const
    {
       return x==rhs.x && y==rhs.y && z==rhs.z && weight==rhs.weight &&
-         index==rhs.index;
+             index==rhs.index;
    }
 
    bool operator!=(const IntegrationPoint &rhs) const
