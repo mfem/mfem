@@ -856,6 +856,7 @@ public:
 
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule.
+
        The IntegrationRule used with GetGeometricFactors
        needs to remain valid until the internally stored GeometricFactors
        objects are destroyed (by either calling Mesh::DeleteGeometricFactors or
@@ -869,10 +870,12 @@ public:
       MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
-       to the given integration rule. The IntegrationRule used with
-       GetFaceGeometricFactors needs to remain valid until the internally stored
-       FaceGeometricFactors objects are destroyed (by either calling
-       Mesh::DeleteGeometricFactors or the Mesh destructor).*/
+       to the given integration rule.
+
+       The IntegrationRule used with GetFaceGeometricFactors needs to remain
+       valid until the internally stored FaceGeometricFactors objects are
+       destroyed (by either calling Mesh::DeleteGeometricFactors or the Mesh
+       destructor).*/
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
                                                        const int flags,
                                                        FaceType type);
