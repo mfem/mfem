@@ -179,4 +179,4 @@ jobs:
         name: ${{ matrix.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
         directories: "fem general linalg mesh"
-        config_files: .codecov.yml
+        config_file: .codecov.yml
