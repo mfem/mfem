@@ -784,7 +784,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    for (int i = 0; i < geom_factors.Size(); i++)
    {
       GeometricFactors *gf = geom_factors[i];
-      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags)
+      if (gf->IntRule == ir && (gf->computed_factors & flags) == flags)
       {
          return gf;
       }
@@ -792,7 +792,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
 
    this->EnsureNodes();
 
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags, d_mt);
+   GeometricFactors *gf = new GeometricFactors(*this, ir, flags, d_mt);
    geom_factors.Append(gf);
    return gf;
 }
@@ -804,7 +804,7 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    for (int i = 0; i < face_geom_factors.Size(); i++)
    {
       FaceGeometricFactors *gf = face_geom_factors[i];
-      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags &&
+      if (gf->IntRule == ir && (gf->computed_factors & flags) == flags &&
           gf->type==type)
       {
          return gf;
@@ -813,7 +813,7 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
 
    this->EnsureNodes();
 
-   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type);
+   FaceGeometricFactors *gf = new FaceGeometricFactors(*this, ir, flags, type);
    face_geom_factors.Append(gf);
    return gf;
 }
@@ -11220,14 +11220,13 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 }
 
 
-GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
+GeometricFactors::GeometricFactors(const Mesh &mesh, const IntegrationRule &ir,
                                    int flags, MemoryType d_mt)
+: mesh(mesh), IntRule(ir)
 {
-   this->mesh = mesh;
-   IntRule = &ir;
    computed_factors = flags;
 
-   const GridFunction *nodes = mesh->GetNodes();
+   const GridFunction *nodes = mesh.GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
    const int dim  = fe->GetDim();
@@ -11275,16 +11274,14 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
-FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
+FaceGeometricFactors::FaceGeometricFactors(const Mesh &mesh,
                                            const IntegrationRule &ir,
                                            int flags, FaceType type)
-   : type(type)
+   : mesh(mesh), IntRule(ir), type(type)
 {
-   this->mesh = mesh;
-   IntRule = &ir;
    computed_factors = flags;
 
-   const GridFunction *nodes = mesh->GetNodes();
+   const GridFunction *nodes = mesh.GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const int vdim = fespace->GetVDim();
    const int NF   = fespace->GetNFbyType(type);

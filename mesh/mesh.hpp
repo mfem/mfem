@@ -1529,8 +1529,8 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 class GeometricFactors
 {
 public:
-   const Mesh *mesh;
-   const IntegrationRule *IntRule;
+   const Mesh &mesh;
+   const IntegrationRule &IntRule;
    int computed_factors;
 
    enum FactorFlags
@@ -1540,7 +1540,7 @@ public:
       DETERMINANTS = 1 << 2,
    };
 
-   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+   GeometricFactors(const Mesh &mesh, const IntegrationRule &ir, int flags,
                     MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
@@ -1574,8 +1574,8 @@ public:
 class FaceGeometricFactors
 {
 public:
-   const Mesh *mesh;
-   const IntegrationRule *IntRule;
+   const Mesh &mesh;
+   const IntegrationRule &IntRule;
    int computed_factors;
    FaceType type;
 
@@ -1587,7 +1587,7 @@ public:
       NORMALS      = 1 << 3,
    };
 
-   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+   FaceGeometricFactors(const Mesh &mesh, const IntegrationRule &ir, int flags,
                         FaceType type);
 
    /// Mapped (physical) coordinates of all quadrature points.
