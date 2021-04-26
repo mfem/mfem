@@ -20,6 +20,12 @@ using namespace mfem;
 namespace mfem
 {
 
+namespace internal
+{
+
+namespace quadrature_interpolator
+{
+
 template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void Det2D(const int NE,
                   const double *b,
@@ -140,82 +146,78 @@ static void Det3D(const int NE,
    });
 }
 
-void QuadratureInterpolator::Determinants(const Vector &e_vec,
-                                          Vector &q_det) const
+// Tensor-product evaluation of quadrature point determinants: dispatch
+// function.
+void TensorDeterminants(const int NE,
+                        const int vdim,
+                        const DofToQuad &maps,
+                        const Vector &e_vec,
+                        Vector &q_det,
+                        Vector &d_buff)
 {
-   if (use_tensor_products)
+   if (NE == 0) { return; }
+   const int dim = maps.FE->GetDim();
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const double *B = maps.B.Read();
+   const double *G = maps.G.Read();
+   const double *X = e_vec.Read();
+   double *Y = q_det.Write();
+
+   const int id = (vdim<<8) | (D1D<<4) | Q1D;
+
+   if (dim == 2)
    {
-      const int NE = fespace->GetNE();
-      if (NE == 0) { return; }
-      const int vdim = fespace->GetVDim();
-      const int dim = fespace->GetMesh()->Dimension();
-      const FiniteElement *fe = fespace->GetFE(0);
-      const IntegrationRule *ir =
-         IntRule ? IntRule : &qspace->GetElementIntRule(0);
-      const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
-      const int D1D = maps.ndof;
-      const int Q1D = maps.nqpt;
-      const double *B = maps.B.Read();
-      const double *G = maps.G.Read();
-      const double *X = e_vec.Read();
-      double *Y = q_det.Write();
-
-      const int id = (vdim<<8) | (D1D<<4) | Q1D;
-
-      if (dim == 2)
+      switch (id)
       {
-         switch (id)
+         case 0x222: return Det2D<2,2>(NE,B,G,X,Y);
+         case 0x223: return Det2D<2,3>(NE,B,G,X,Y);
+         case 0x224: return Det2D<2,4>(NE,B,G,X,Y);
+         case 0x226: return Det2D<2,6>(NE,B,G,X,Y);
+         case 0x234: return Det2D<3,4>(NE,B,G,X,Y);
+         case 0x236: return Det2D<3,6>(NE,B,G,X,Y);
+         case 0x244: return Det2D<4,4>(NE,B,G,X,Y);
+         case 0x246: return Det2D<4,6>(NE,B,G,X,Y);
+         case 0x256: return Det2D<5,6>(NE,B,G,X,Y);
+         default:
          {
-            case 0x222: return Det2D<2,2>(NE,B,G,X,Y);
-            case 0x223: return Det2D<2,3>(NE,B,G,X,Y);
-            case 0x224: return Det2D<2,4>(NE,B,G,X,Y);
-            case 0x226: return Det2D<2,6>(NE,B,G,X,Y);
-            case 0x234: return Det2D<3,4>(NE,B,G,X,Y);
-            case 0x236: return Det2D<3,6>(NE,B,G,X,Y);
-            case 0x244: return Det2D<4,4>(NE,B,G,X,Y);
-            case 0x246: return Det2D<4,6>(NE,B,G,X,Y);
-            case 0x256: return Det2D<5,6>(NE,B,G,X,Y);
-            default:
-            {
-               constexpr int MD = MAX_D1D;
-               constexpr int MQ = MAX_Q1D;
-               MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                           << " are not supported!");
-               MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
-                           << MQ << " 1D points are not supported!");
-               Det2D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D);
-               return;
-            }
+            constexpr int MD = MAX_D1D;
+            constexpr int MQ = MAX_Q1D;
+            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
+                        << " are not supported!");
+            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
+                        << MQ << " 1D points are not supported!");
+            Det2D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D);
+            return;
          }
       }
-      if (dim == 3)
+   }
+   if (dim == 3)
+   {
+      switch (id)
       {
-         switch (id)
+         case 0x324: return Det3D<2,4>(NE,B,G,X,Y);
+         case 0x333: return Det3D<3,3>(NE,B,G,X,Y);
+         case 0x335: return Det3D<3,5>(NE,B,G,X,Y);
+         case 0x336: return Det3D<3,6>(NE,B,G,X,Y);
+         default:
          {
-            case 0x324: return Det3D<2,4>(NE,B,G,X,Y);
-            case 0x333: return Det3D<3,3>(NE,B,G,X,Y);
-            case 0x335: return Det3D<3,5>(NE,B,G,X,Y);
-            case 0x336: return Det3D<3,6>(NE,B,G,X,Y);
-            default:
-            {
-               constexpr int MD = 6;
-               constexpr int MQ = 6;
-               // Highest orders that fit in shared mememory
-               if (D1D <= MD && Q1D <= MQ)
-               { return Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D); }
-               // Last fall-back will use global memory
-               return Det3D<0,0,MAX_D1D,MAX_Q1D,false>(
-                         NE,B,G,X,Y,vdim,D1D,Q1D,&d_buffer);
-            }
+            constexpr int MD = 6;
+            constexpr int MQ = 6;
+            // Highest orders that fit in shared mememory
+            if (D1D <= MD && Q1D <= MQ)
+            { return Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D); }
+            // Last fall-back will use global memory
+            return Det3D<0,0,MAX_D1D,MAX_Q1D,false>(
+                      NE,B,G,X,Y,vdim,D1D,Q1D,&d_buff);
          }
       }
-      MFEM_ABORT("Kernel " << std::hex << id << std::dec << " not supported yet");
    }
-   else
-   {
-      Vector empty;
-      Mult(e_vec, DETERMINANTS, empty, empty, q_det);
-   }
+   MFEM_ABORT("Kernel " << std::hex << id << std::dec << " not supported yet");
 }
+
+} // namespace quadrature_interpolator
+
+} // namespace internal
 
 } // namespace mfem

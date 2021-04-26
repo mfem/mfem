@@ -20,8 +20,8 @@ namespace mfem
 /// Type describing possible layouts for Q-vectors.
 enum class QVectorLayout
 {
-   byNODES,  ///< NQPT x VDIM x NE
-   byVDIM    ///< VDIM x NQPT x NE
+   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
+   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
 };
 
 /** @brief A class that performs interpolation from an E-vector to quadrature
@@ -46,6 +46,7 @@ protected:
    mutable bool use_tensor_products;   ///< Tensor product evaluation mode
    mutable Vector d_buffer;            ///< Auxiliary device buffer
 
+public:
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 3;
@@ -54,7 +55,6 @@ protected:
    static const int MAX_ND3D = 1000;
    static const int MAX_VDIM3D = 3;
 
-public:
    enum EvalFlags
    {
       VALUES       = 1 << 0,  ///< Evaluate the values at quadrature points
@@ -109,7 +109,13 @@ public:
        set, it is assumed that the derivatives (with respect to reference
        coordinates) form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
-       and stored in @a q_det. */
+       and stored in @a q_det.
+
+       The layout of the input E-vector, @a e_vec, must be consistent with the
+       evaluation mode: if tensor-product evaluations are enabled, then
+       tensor-product elements, must use the ElementDofOrdering::LEXICOGRAPHIC
+       layout; otherwise -- ElementDofOrdering::NATIVE layout. See
+       FiniteElementSpace::GetElementRestriction(). */
    void Mult(const Vector &e_vec, unsigned eval_flags,
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
@@ -131,46 +137,6 @@ public:
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
-
-   // Compute kernels follow (cannot be private or protected with nvcc)
-
-   /// Template compute kernel for 2D. (non-tensor product version)
-   template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
-   static void Eval2D(const int NE,
-                      const int vdim,
-                      const QVectorLayout q_layout,
-                      const GeometricFactors *geom,
-                      const DofToQuad &maps,
-                      const Vector &e_vec,
-                      Vector &q_val,
-                      Vector &q_der,
-                      Vector &q_det,
-                      const int eval_flags);
-
-   /// Template compute kernel for 3D. (non-tensor product version)
-   template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
-   static void Eval3D(const int NE,
-                      const int vdim,
-                      const QVectorLayout q_layout,
-                      const GeometricFactors *geom,
-                      const DofToQuad &maps,
-                      const Vector &e_vec,
-                      Vector &q_val,
-                      Vector &q_der,
-                      Vector &q_det,
-                      const int eval_flags);
-
-   /// Template compute kernel for Values. (tensor product version)
-   template <QVectorLayout>
-   void Values(const Vector &e_vec, Vector &q_val) const;
-
-   /// Template compute kernel for Derivatives. (tensor product version)
-   template <QVectorLayout>
-   void Derivatives(const Vector &e_vec, Vector &q_der) const;
-
-   /// Template compute kernel for PhysDerivatives. (tensor product version)
-   template <QVectorLayout>
-   void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 };
 
 }

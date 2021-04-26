@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// Internal header, included only by .cpp files.
+// Template function implementations.
+
 #include "quadinterpolator.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
@@ -18,6 +21,13 @@
 namespace mfem
 {
 
+namespace internal
+{
+
+namespace quadrature_interpolator
+{
+
+// Template compute kernel for derivatives in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
@@ -125,6 +135,7 @@ static void Derivatives2D(const int NE,
    });
 }
 
+// Template compute kernel for derivatives in 3D: tensor product version.
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int MAX_D1D = 0, int MAX_Q1D = 0>
@@ -267,5 +278,9 @@ static void Derivatives3D(const int NE,
       }
    });
 }
+
+} // namespace quadrature_interpolator
+
+} // namespace internal
 
 } // namespace mfem

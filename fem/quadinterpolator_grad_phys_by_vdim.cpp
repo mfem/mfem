@@ -9,35 +9,39 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "quadinterpolator.hpp"
+#include "quadinterpolator_dispatch.hpp"
 #include "quadinterpolator_grad.hpp"
 
 namespace mfem
 {
 
-template<>
-void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
-   const Vector &e_vec, Vector &q_der) const
+namespace internal
 {
-   const int NE = fespace->GetNE();
-   if (NE == 0) { return; }
-   Mesh *mesh = fespace->GetMesh();
-   const int vdim = fespace->GetVDim();
-   const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe = fespace->GetFE(0);
-   const IntegrationRule *ir =
-      IntRule ? IntRule : &qspace->GetElementIntRule(0);
-   constexpr DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
-   const GeometricFactors *geom =
-      mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
 
+namespace quadrature_interpolator
+{
+
+// Tensor-product evaluation of quadrature point physical derivatives: dispatch
+// function.
+// Instantiation for the case QVectorLayout::byVDIM.
+template<>
+void TensorPhysDerivatives<QVectorLayout::byVDIM>(const int NE,
+                                                  const int vdim,
+                                                  const DofToQuad &maps,
+                                                  const GeometricFactors &geom,
+                                                  const Vector &e_vec,
+                                                  Vector &q_der)
+{
+   if (NE == 0) { return; }
+   const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
 
+   MFEM_ASSERT(geom.mesh->SpaceDimension() == dim, "");
+
    const double *B = maps.B.Read();
    const double *G = maps.G.Read();
-   const double *J = geom->J.Read();
+   const double *J = geom.J.Read();
    const double *X = e_vec.Read();
    double *Y = q_der.Write();
 
@@ -98,5 +102,9 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Unknown kernel");
 }
+
+} // namespace quadrature_interpolator
+
+} // namespace internal
 
 } // namespace mfem

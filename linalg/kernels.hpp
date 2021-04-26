@@ -27,7 +27,7 @@
 
 // Many methods of the DenseMatrix class and some of the Vector class call these
 // kernels directly on the host, see the implementations in linalg/densemat.cpp
-// and linalag.vector.cpp.
+// and linalag/vector.cpp.
 
 namespace mfem
 {
