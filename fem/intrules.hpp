@@ -84,6 +84,17 @@ public:
    void Set1w(const double x1, const double w) { x = x1; weight = w; }
 
    void Set1w(const double *p) { x = p[0]; weight = p[1]; }
+
+   bool operator==(const IntegrationPoint &rhs) const
+   {
+      return x==rhs.x && y==rhs.y && z==rhs.z && weight==rhs.weight &&
+         index==rhs.index;
+   }
+
+   bool operator!=(const IntegrationPoint &rhs) const
+   {
+      return !(*this==rhs);
+   }
 };
 
 /// Class for an integration rule - an Array of IntegrationPoint.
@@ -254,6 +265,39 @@ public:
    /** If a contiguous array is not required, the weights can be accessed with
        a call like this: `IntPoint(i).weight`. */
    const Array<double> &GetWeights() const;
+
+   /// Returns true if the two IntegrationRules are equal.
+   /** Different memory addresses will always result in false. */
+   bool operator==(const IntegrationRule &rhs) const
+   {
+      if (this==&rhs)
+      {
+         if (Size() == rhs.Size())
+         {
+            for (size_t i = 0; i < Size(); i++)
+            {
+               if ((*this)[i] != rhs[i])
+               {
+                  return false;
+               }
+            }
+            return true;
+         }
+         else
+         {
+            return false;
+         }
+      }
+      else
+      {
+         return false;
+      }
+   }
+
+   bool operator!=(const IntegrationRule &rhs) const
+   {
+      return !(*this==rhs);
+   }
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
