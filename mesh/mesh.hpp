@@ -152,6 +152,9 @@ protected:
 
    Array<FaceInfo> faces_info;
    Array<NCFaceInfo> nc_faces_info;
+   // This array stores the face orientation of non-conforming slave faces, the
+   // orientation of the slave face should be accessed with the ncface index
+   // given by Mesh::GetFaceInfos.
    Array<int> nc_faces_orientation;
 
    Table *el_to_edge;
