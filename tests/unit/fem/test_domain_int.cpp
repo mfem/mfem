@@ -243,7 +243,7 @@ TEST_CASE("Domain Integration (Vector Field)",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("Domain Integration in Parallel (Scalar Field)",
           "[H1_FECollection]"
           "[L2_FECollection]"
@@ -263,7 +263,7 @@ TEST_CASE("Domain Integration in Parallel (Scalar Field)",
         mt <= (int)MeshType::MIXED3D8; mt++)
    {
       Mesh *mesh = GetMesh((MeshType)mt);
-      int  dim = mesh->Dimension();
+      int dim = mesh->Dimension();
       while (mesh->GetNE() < num_procs)
       {
          mesh->UniformRefinement();
