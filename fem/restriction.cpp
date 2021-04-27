@@ -1857,10 +1857,12 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, 2, nf);
       auto interp_config_ptr = interp_config.Read();
       auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      static constexpr int max_nd = 16*16;
+      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL(face, nf,
       {
-         double dofs[nd];
-         double res[nd];
+         double dofs[max_nd];
+         double res[max_nd];
          const int side = 1;
          const int config = interp_config_ptr[face];
          if ( config!=conforming ) // Interpolation from fine to coarse
