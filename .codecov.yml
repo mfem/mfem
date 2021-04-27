@@ -12,5 +12,4 @@ coverage:
         target: auto   # compares coverage to the previous base commit
         threshold: 1%  # allows variations around the target
 
-comment:
-  off:
+comment: false
