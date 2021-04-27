@@ -45,6 +45,8 @@
 //    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe n
 //    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r
 //    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l
+//    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe h -rs 0 -o 2
+//    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe l -rs 0 -o 2
 
 #include "mfem.hpp"
 #include <fstream>
@@ -99,6 +101,9 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int l = 0; l < par_ref_levels; l++) { mesh.UniformRefinement(); }
    serial_mesh.Clear();
+
+   if (mesh.ncmesh && (RT || ND))
+   { MFEM_ABORT("LOR AMS and ADS solvers are not supported with AMR meshes."); }
 
    FunctionCoefficient f_coeff(f), u_coeff(u);
    VectorFunctionCoefficient f_vec_coeff(dim, f_vec), u_vec_coeff(dim, u_vec);
