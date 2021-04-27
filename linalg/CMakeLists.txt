@@ -17,6 +17,7 @@ list(APPEND SRCS
   complex_operator.cpp
   constraints.cpp
   densemat.cpp
+  fdsolver.cpp
   symmat.cpp
   handle.cpp
   matrix.cpp
@@ -38,6 +39,7 @@ list(APPEND HDRS
   densemat.hpp
   symmat.hpp
   dtensor.hpp
+  fdsolver.hpp
   handle.hpp
   invariants.hpp
   kernels.hpp

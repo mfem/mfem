@@ -716,9 +716,12 @@ class DenseMatrixEigensystem
 {
    DenseMatrix &mat;
    Vector      EVal;
+   // Possible non zero imaginary part of Eigenvalues
+   Vector      EVali;
    DenseMatrix EVect;
    Vector ev;
    int n;
+   bool sym;
 
 #ifdef MFEM_USE_LAPACK
    double *work;
@@ -728,10 +731,10 @@ class DenseMatrixEigensystem
 
 public:
 
-   DenseMatrixEigensystem(DenseMatrix &m);
+   DenseMatrixEigensystem(DenseMatrix &m, bool sym_ = false);
    DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
-   Vector &Eigenvalues() { return EVal; }
+   Vector &Eigenvalues(bool imag = false) { return imag ? EVal : EVali; }
    DenseMatrix &Eigenvectors() { return EVect; }
    double Eigenvalue(int i) { return EVal(i); }
    const Vector &Eigenvector(int i)

@@ -50,6 +50,10 @@ dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
         double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
         int *IWORK, int *LIWORK, int *INFO);
 extern "C" void
+dgeev_(const char * jobvl, const char * jobvr, int *n, double * A, int * lda, 
+       double * wr, double * wl, double * vl, int * ldvl, double * vr, int * ldvr, 
+       double * work, int * lwork, int * info);        
+extern "C" void
 dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
        double *WORK, int *LWORK, int *INFO);
 extern "C" void
@@ -3453,8 +3457,8 @@ void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
 }
 
 
-DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
-   : mat(m)
+DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m, bool sym_)
+   : mat(m), sym(sym_)
 {
    n = mat.Width();
    EVal.SetSize(n);
@@ -3463,12 +3467,21 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
 
 #ifdef MFEM_USE_LAPACK
    jobz = 'V';
-   uplo = 'U';
    lwork = -1;
    double qwork;
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-          &qwork, &lwork, &info);
-
+   if (sym)
+   {
+      uplo = 'U';
+      dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+             &qwork, &lwork, &info);
+   }
+   else
+   {
+      char jobvl = 'N';
+      int ldvl = 1;
+      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(), 
+             nullptr, &ldvl, EVect.GetData(), &n, &qwork, &lwork, &info);   
+   }
    lwork = (int) qwork;
    work = new double[lwork];
 #endif
@@ -3480,6 +3493,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
      n(other.n)
 {
 #ifdef MFEM_USE_LAPACK
+   sym = other.sym;
    jobz = other.jobz;
    uplo = other.uplo;
    lwork = other.lwork;
@@ -3498,13 +3512,24 @@ void DenseMatrixEigensystem::Eval()
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   EVect = mat;
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-          work, &lwork, &info);
-
+   if(sym)
+   {
+      EVect = mat;
+      dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+             work, &lwork, &info);
+   }
+   else
+   {
+      char jobvl = 'N';
+      int ldvl = 1;
+      
+      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(), 
+             nullptr, &ldvl, EVect.GetData(), &n, work, &lwork, &info);   
+   }
    if (info != 0)
    {
-      mfem::err << "DenseMatrixEigensystem::Eval(): DSYEV error code: "
+      string lpck = (sym) ? "DSYEV" : "DGEEV";
+      mfem::err << "DenseMatrixEigensystem::Eval(): " << lpck << "error code: "
                 << info << endl;
       mfem_error();
    }
