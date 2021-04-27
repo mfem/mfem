@@ -317,7 +317,7 @@ protected:
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
-                        bool &finalize_topo);
+                        bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
@@ -1457,6 +1457,10 @@ public:
    /// Print the mesh to the given stream using the default MFEM mesh format.
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
+
+   /// Save the mesh to a file using Mesh::Print. The given @a precision will be
+   /// used for ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
 
    /// Print the mesh to the given stream using the adios2 bp format
 #ifdef MFEM_USE_ADIOS2

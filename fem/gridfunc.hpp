@@ -374,6 +374,10 @@ public:
        on that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, only
+       projecting onto elements with the given @a attribute */
+   void ProjectCoefficient(VectorCoefficient &vcoeff, int attribute);
+
    /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
        but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
@@ -670,6 +674,10 @@ public:
 
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
+
+   /// Save the GridFunction to a file. The given @a precision will be used for
+   /// ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
 
 #ifdef MFEM_USE_ADIOS2
    /// Save the GridFunction to a binary output stream using adios2 bp format.
