@@ -64,7 +64,7 @@ void fluxExact(const Vector &x, Vector &f)
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   MPI_Session mpi;
+   MPI_Session mpi(argc, argv);
    int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
 
@@ -126,11 +126,8 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
-   if (myid == 0)
-   {
-      cout << "Number of finite element unknowns: "
-           << fespace.GlobalTrueVSize() << endl;
-   }
+   HYPRE_Int total_num_dofs = fespace.GlobalTrueVSize();
+   if (mpi.Root()) { cout << "Number of unknowns: " << total_num_dofs << endl; }
 
    // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -368,11 +365,8 @@ void trans(const Vector &x, Vector &r)
    }
    else
    {
-      if (myid == 0)
-      {
-         cout << "side not recognized "
-              << x[0] << " " << x[1] << " " << x[2] << endl;
-      }
+      cerr << "side not recognized "
+           << x[0] << " " << x[1] << " " << x[2] << endl;
    }
 
    r[0] = cos(theta);
