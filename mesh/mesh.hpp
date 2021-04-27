@@ -91,6 +91,55 @@ protected:
    Array<Element *> boundary;
    Array<Element *> faces;
 
+   /** @brief This structure stores the low level information necessary to
+       interpret the configuration of elements on a specific face. This
+       information is accessed through Mesh::GetFaceElements and
+       Mesh::GetFaceInfos.
+
+       Each face contains information on the indices, local reference faces,
+       orientations, and potential non-conformity for the two neighboring
+       elements on a face.
+       Each face can either be an interior, boundary, or shared interior face.
+       Each interior face is shared by two elements referred as Elem1 and Elem2.
+       For boundary faces only the information on Elem1 is relevant.
+       Shared interior faces correspond to faces where Elem1 and Elem2 are
+       distributed on different MPI ranks.
+       Regarding conformity, three cases are distinguished, conforming faces,
+       non-conforming slave faces, and non-conforming master faces. Master and
+       slave referring to the coarse and fine elements respectively on a
+       non-conforming face.
+       Non-conforming slave faces always have the slave element as Elem1 and
+       the master element as Elem2. On the other side, non-conforming master
+       faces always have the master element as Elem1, and one of the slave
+       element as Elem2.
+
+       The indices of Elem1 and Elem2 can be indirectly extracted from
+       FaceInfo::Elem1No and FaceInfo::Elem2No, read the note below for special
+       cases on the index of Elem2.
+       
+       The local face identifiants are deciphered from FaceInfo::Elem1Inf and
+       FaceInfo::Elem2Inf through the formula: LocalFaceIndex = ElemInf/64,
+       the semantic of the computed local face identifiant can be found in
+       fem/geom.cpp. The local face identifiant corresponds to an index
+       in the Constants<Geometry>::Edges arrays for 2D element geometries, and
+       to an index in the Constants<Geometry>::FaceVert arrays for 3D element
+       geometries.
+
+       The orientation of each element relative to a face is obtained through
+       the formula: Orientation = ElemInf%64, the semantic of the orientation
+       can also be found in fem/geom.cpp. The orientation corresponds to
+       an index in the Constants<Geometry>::Orient arrays, providing the
+       sequence of vertices identifying the orientation of an edge/face. By
+       convention the orientation of Elem1 is always set to 0, serving as the
+       reference orientation. The orientation of Elem2 relatively to Elem1 is
+       therefore determined just by using the orientation of Elem2. An important
+       special case is the one of non-conforming slave faces, the orientation
+       is always set to 0 due to a different processing of orientations in
+       NCMesh, and should therefore be disregarded. For this reason, an extra
+       array contains the orientations of non-conforming slave faces:
+       nc_faces_orientation. The orientation in this specific case is accessed
+       using the FaceInfo::NCFace integer as an index into nc_faces_orientation.
+       */
    struct FaceInfo
    {
       // Inf = 64 * LocalFaceIndex + FaceOrientation
