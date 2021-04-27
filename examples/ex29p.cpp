@@ -64,8 +64,9 @@ void fluxExact(const Vector &x, Vector &f)
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   MPI_Session mpi;
-   if (!mpi.Root()) { cout.Disable(); cerr.Disable(); }
+   MPI_Session mpi(argc, argv);
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    int order = 3;
@@ -93,13 +94,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    // 3. Construct a quadrilateral or triangular mesh with the topology of a
    //    cylindrical surface.
@@ -131,8 +126,8 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
-   cout << "Number of finite element unknowns: "
-        << fespace.GlobalTrueVSize() << endl;
+   HYPRE_Int total_num_dofs = fespace.GlobalTrueVSize();
+   if (mpi.Root()) { cout << "Number of unknowns: " << total_num_dofs << endl; }
 
    // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -179,8 +174,11 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   cout << "Size of linear system: "
-        << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+   if (myid == 0)
+   {
+      cout << "Size of linear system: "
+           << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+   }
 
    // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
    //     preconditioner from hypre.
@@ -201,7 +199,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient uCoef(uExact);
    double err = x.ComputeL2Error(uCoef);
 
-   cout << "|u - u_h|_2 = " << err << endl;
+   if (myid == 0) { cout << "|u - u_h|_2 = " << err << endl; }
 
    ParFiniteElementSpace flux_fespace(&pmesh, &fec, 3);
    ParGridFunction flux(&flux_fespace);
@@ -210,15 +208,15 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient fluxCoef(3, fluxExact);
    double flux_err = flux.ComputeL2Error(fluxCoef);
 
-   cout << "|f - f_h|_2 = " << flux_err << endl;
+   if (myid == 0) { cout << "|f - f_h|_2 = " << flux_err << endl; }
 
    // 16. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name, flux_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
-      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
-      flux_name << "flux." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      flux_name << "flux." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -239,15 +237,13 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << mpi.WorldSize()
-               << " " << mpi.WorldRank() << "\n";
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x
                << "window_title 'Solution'\n" << flush;
 
       socketstream flux_sock(vishost, visport);
-      flux_sock << "parallel " << mpi.WorldSize()
-                << " " << mpi.WorldRank() << "\n";
+      flux_sock << "parallel " << num_procs << " " << myid << "\n";
       flux_sock.precision(8);
       flux_sock << "solution\n" << pmesh << flux
                 << "keys vvv\n"
@@ -369,7 +365,7 @@ void trans(const Vector &x, Vector &r)
    }
    else
    {
-      cout << "side not recognized "
+      cerr << "side not recognized "
            << x[0] << " " << x[1] << " " << x[2] << endl;
    }
 
