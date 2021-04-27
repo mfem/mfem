@@ -848,7 +848,7 @@ public:
 
    const HypreParMatrix* GetData() const { return A; }
 
-   /// Deprecated. Use %ref HypreTriSolve::GetData() const
+   /// Deprecated. Use HypreTriSolve::GetData() const instead.
    MFEM_DEPRECATED HypreParMatrix* GetData()
    { return const_cast<HypreParMatrix*>(A); }
 
@@ -1046,7 +1046,7 @@ public:
 
    const HypreParMatrix* GetData() const { return A; }
 
-   /// Deprecated. Use %ref HypreDiagScale::GetData() const
+   /// Deprecated. Use HypreDiagScale::GetData() const instead.
    MFEM_DEPRECATED HypreParMatrix* GetData()
    { return const_cast<HypreParMatrix*>(A); }
 
