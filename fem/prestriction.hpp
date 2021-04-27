@@ -62,8 +62,8 @@ class ParNCL2FaceRestriction : public NCL2FaceRestriction
 {
 public:
    ParNCL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
-                        FaceType type,
-                        L2FaceValues m = L2FaceValues::DoubleValued);
+                          FaceType type,
+                          L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */

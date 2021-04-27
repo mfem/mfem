@@ -1090,8 +1090,8 @@ void Mesh::GetFaceInformation(int f, FaceInformation &info) const
       else // ncface >= 0
       {
          info.location = e2==-1 ?
-                        FaceLocation::Interior :
-                        FaceLocation::Shared;
+                         FaceLocation::Interior :
+                         FaceLocation::Shared;
          info.conformity = FaceConformity::NonConformingMaster;
          info.elem_2_index = e2==-1 ? e2 : -1 - e2;
       }
@@ -4809,7 +4809,8 @@ int Mesh::GetNFbyType(FaceType type) const
 {
    const bool isInt = type==FaceType::Interior;
    int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
-   if (nf<0) {
+   if (nf<0)
+   {
       if (Conforming())
       {
          int e1, e2;
@@ -4820,7 +4821,7 @@ int Mesh::GetNFbyType(FaceType type) const
             GetFaceElements(f, &e1, &e2);
             GetFaceInfos(f, &inf1, &inf2);
             if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-               (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
+                (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
          }
       }
       else

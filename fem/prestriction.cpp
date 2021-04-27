@@ -98,8 +98,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          face_id1 = face_id2 = 0;  // suppress compiler warning
       }
       if (type==FaceType::Interior &&
-         (info.location==Mesh::FaceLocation::Interior ||
-         info.location==Mesh::FaceLocation::Shared) )
+          (info.location==Mesh::FaceLocation::Interior ||
+           info.location==Mesh::FaceLocation::Shared) )
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -144,7 +144,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          f_ind++;
       }
       else if (type==FaceType::Boundary &&
-              info.location==Mesh::FaceLocation::Boundary)
+               info.location==Mesh::FaceLocation::Boundary)
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -181,10 +181,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
       if ((type==FaceType::Interior &&
-          (info.location==Mesh::FaceLocation::Interior ||
-          info.location==Mesh::FaceLocation::Shared) ) ||
+           (info.location==Mesh::FaceLocation::Interior ||
+            info.location==Mesh::FaceLocation::Shared) ) ||
           (type==FaceType::Boundary &&
-          info.location==Mesh::FaceLocation::Boundary) )
+           info.location==Mesh::FaceLocation::Boundary) )
       {
          GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
@@ -201,11 +201,11 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             {
                for (int d = 0; d < dof; ++d)
                {
-                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation, dof1d, d);
-                     const int did = faceMap2[pd];
-                     const int gid = elementMap[e2*elem_dofs + did];
-                     ++offsets[gid + 1];
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
+                  const int did = faceMap2[pd];
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  ++offsets[gid + 1];
                }
             }
          }
@@ -227,10 +227,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
       if ((type==FaceType::Interior &&
-          (info.location==Mesh::FaceLocation::Interior ||
-          info.location==Mesh::FaceLocation::Shared) ) ||
+           (info.location==Mesh::FaceLocation::Interior ||
+            info.location==Mesh::FaceLocation::Shared) ) ||
           (type==FaceType::Boundary &&
-          info.location==Mesh::FaceLocation::Boundary) )
+           info.location==Mesh::FaceLocation::Boundary) )
       {
          GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
@@ -535,9 +535,9 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
 }
 
 ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                           ElementDofOrdering e_ordering,
-                                           FaceType type,
-                                           L2FaceValues m)
+                                               ElementDofOrdering e_ordering,
+                                               FaceType type,
+                                               L2FaceValues m)
    : NCL2FaceRestriction(fes, type, m)
 {
    if (nf==0) { return; }
@@ -608,12 +608,12 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
       else
       {
          MFEM_ABORT("FaceRestriction not yet implemented for this type of "
-                     "element.");
+                    "element.");
          // TODO Something with GetFaceDofs?
       }
       if (type==FaceType::Interior &&
-         (info.location==Mesh::FaceLocation::Interior ||
-         info.location==Mesh::FaceLocation::Shared) )
+          (info.location==Mesh::FaceLocation::Interior ||
+           info.location==Mesh::FaceLocation::Shared) )
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -677,7 +677,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                            y_max = 1-piv;
                         }
                      }
-                        break;
+                     break;
                      case Geometry::SEGMENT:
                      {
                         MFEM_ASSERT(ptMat->Height()==1, "Unexpected PtMat height.");
@@ -698,7 +698,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                            x_max = x1;
                         }
                      }
-                        break;
+                     break;
                      default: MFEM_ABORT("unsupported geometry");
                   }
                   const IntegrationRule & nodes = trace_fe->GetNodes();
@@ -763,7 +763,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
          f_ind++;
       }
       else if (type==FaceType::Boundary &&
-              info.location==Mesh::FaceLocation::Boundary)
+               info.location==Mesh::FaceLocation::Boundary)
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -802,10 +802,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
       if ((type==FaceType::Interior &&
-          (info.location==Mesh::FaceLocation::Interior ||
-          info.location==Mesh::FaceLocation::Shared) ) ||
+           (info.location==Mesh::FaceLocation::Interior ||
+            info.location==Mesh::FaceLocation::Shared) ) ||
           (type==FaceType::Boundary &&
-          info.location==Mesh::FaceLocation::Boundary) )
+           info.location==Mesh::FaceLocation::Boundary) )
       {
          GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
@@ -818,13 +818,13 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
             gather_indices[offsets[gid]++] = lid;
          }
          if (m==L2FaceValues::DoubleValued &&
-            type==FaceType::Interior &&
-            info.location==Mesh::FaceLocation::Interior)
+             type==FaceType::Interior &&
+             info.location==Mesh::FaceLocation::Interior)
          {
             for (int d = 0; d < dof; ++d)
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                          orientation, dof1d, d);
+                                            orientation, dof1d, d);
                const int did = faceMap2[pd];
                const int gid = elementMap[e2*elem_dofs + did];
                const int lid = dof*f_ind + d;
@@ -877,7 +877,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const bool t = byvdim;
    const int threshold = ndofs;
    const int nsdofs = pfes.GetFaceNbrVSize();
-   
+
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       auto d_indices1 = scatter_indices1.Read();
@@ -907,7 +907,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   else if (idx>=threshold) // shared interior face
                   {
                      dofs[dof] = d_x_shared(t?c:(idx-threshold),
-                                          t?(idx-threshold):c);
+                                            t?(idx-threshold):c);
                   }
                   else // true boundary
                   {
@@ -982,27 +982,27 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 }
 
 void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
-                                 const bool keep_nbr_block) const
+                                   const bool keep_nbr_block) const
 {
    MFEM_ABORT("Not yet implemented.");
 }
 
 void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
-                                 SparseMatrix &face_mat) const
+                                   SparseMatrix &face_mat) const
 {
    MFEM_ABORT("Not yet implemented.");
 }
 
 void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
-                                        SparseMatrix &mat,
-                                        const bool keep_nbr_block) const
+                                          SparseMatrix &mat,
+                                          const bool keep_nbr_block) const
 {
    MFEM_ABORT("Not yet implemented.");
 }
 
 void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
-                                        SparseMatrix &mat,
-                                        SparseMatrix &face_mat) const
+                                          SparseMatrix &mat,
+                                          SparseMatrix &face_mat) const
 {
    MFEM_ABORT("Not yet implemented.");
 }
