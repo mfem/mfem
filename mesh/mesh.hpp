@@ -870,7 +870,7 @@ public:
       MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
-       to the given integration rule. 
+       to the given integration rule.
 
        The IntegrationRule used with GetFaceGeometricFactors
        needs to remain valid until the internally stored FaceGeometricFactors
