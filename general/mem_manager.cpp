@@ -1252,7 +1252,8 @@ void MemoryManager::Insert(void *h_ptr, size_t bytes,
    if (res.second == false)
    {
       auto &m = res.first->second;
-      MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt && m.d_mt == d_mt,
+      MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt &&
+                  (m.d_mt == d_mt || d_mt == MemoryType::DEFAULT),
                   "Address already present with different attributes!");
    }
 #endif
