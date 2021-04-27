@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
    // 1. Initialize MPI.
    MPI_Session mpi;
    int num_procs = mpi.WorldSize();
-   int myid = myid;
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    int order = 3;
