@@ -1,3 +1,51 @@
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//                     ---------------------------------
+//                     Low-Order Refined Solvers Miniapp
+//                     ---------------------------------
+//
+// This miniapp illustrates the use of low-order refined preconditioners for
+// finite element problems defined using H1, H(curl), H(div), or L2 finite
+// element spaces. The following problems are solved, depending on the chosen
+// finite element space:
+//
+// H1 and L2: definite Helmholtz problem, u - Delta u = f
+//            (in L2 discretized using the symmetric interior penalty DG method)
+//
+// H(curl):   definite Maxwell problem, u + curl curl u = f
+//
+// H(div):    grad-div problem, u - grad(div u) = f
+//
+// In each case, the high-order finite element problem is preconditioned using a
+// low-order finite element discretization defined on a Gauss-Lobatto refined
+// mesh. The low-order problem is solved using a direct solver if MFEM is
+// compiled with Suite Sparse enabled, or with one iteration of symmetric
+// Gauss-Seidel smoothing otherwise.
+//
+// For vector finite element spaces, the special "Integrated" basis type is used
+// to obtain spectral equivalence between the high-order and low-order refined
+// discretizations.
+//
+// The action of the high-order operator is computed using MFEM's partial
+// assembly/matrix-free algorithms (except in the case of L2, which remains
+// future work).
+//
+// Sample runs:
+//
+//    lor_solvers -fe h
+//    lor_solvers -fe n
+//    lor_solvers -fe r
+//    lor_solvers -fe l
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -8,8 +56,7 @@
 using namespace std;
 using namespace mfem;
 
-int problem = 0;
-int dim = 0;
+bool grad_div_problem = false;
 
 int main(int argc, char *argv[])
 {
@@ -24,8 +71,6 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
-   args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use. Possible values are 0 or 1.");
    args.AddOption(&fe, "-fe", "--fe-type",
                   "FE type. h for H1, n for Hcurl, r for Hdiv, l for L2");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -40,9 +85,16 @@ int main(int argc, char *argv[])
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
+   if (RT) { grad_div_problem = true; }
+   double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
+
    Mesh mesh(mesh_file, 1, 1);
-   dim = mesh.Dimension();
+   int dim = mesh.Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
    for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
+
+   FunctionCoefficient f_coeff(f), u_coeff(u);
+   VectorFunctionCoefficient f_vec_coeff(dim, f_vec), u_vec_coeff(dim, u_vec);
 
    int b1 = BasisType::GaussLobatto, b2 = BasisType::Integrated;
    unique_ptr<FiniteElementCollection> fec;
@@ -55,6 +107,7 @@ int main(int argc, char *argv[])
    cout << "Number of DOFs: " << fes.GetTrueVSize() << endl;
 
    Array<int> ess_dofs;
+   // In DG, boundary conditions are enforced weakly, so no essential DOFs.
    if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
 
    BilinearForm a(&fes);
@@ -72,7 +125,6 @@ int main(int argc, char *argv[])
    else if (RT) { a.AddDomainIntegrator(new DivDivIntegrator); }
    else if (L2)
    {
-      double kappa = (order+1)*(order+1);
       a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(-1.0, kappa));
       a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(-1.0, kappa));
    }
@@ -81,20 +133,18 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    LinearForm b(&fes);
-   FunctionCoefficient f_coeff(f);
-   VectorFunctionCoefficient f_vec_coeff(dim, f_vec);
-   if (H1 || L2)
+   if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
+   else { b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff)); }
+   if (L2)
    {
-      b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
-   }
-   else
-   {
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff));
+      // DG boundary conditions are enforced weakly with this integrator.
+      b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_coeff, -1.0, kappa));
    }
    b.Assemble();
 
    GridFunction x(&fes);
-   x = 0.0;
+   if (H1 || L2) { x.ProjectCoefficient(u_coeff);}
+   else { x.ProjectCoefficient(u_vec_coeff); }
 
    Vector X, B;
    OperatorHandle A;
@@ -109,13 +159,17 @@ int main(int argc, char *argv[])
    CGSolver cg;
    cg.SetAbsTol(0.0);
    cg.SetRelTol(1e-12);
-   cg.SetMaxIter(100);
+   cg.SetMaxIter(500);
    cg.SetPrintLevel(1);
    cg.SetOperator(*A);
    cg.SetPreconditioner(solv_lor);
    cg.Mult(B, X);
 
    a.RecoverFEMSolution(X, b, x);
+
+   double er =
+      (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
+   cout << "L2 error: " << er << endl;
 
    // Save the solution and mesh to disk. The output can be viewed using GLVis
    // as follows: "glvis -m mesh.mesh -g sol.gf"

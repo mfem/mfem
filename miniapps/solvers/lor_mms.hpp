@@ -1,80 +1,91 @@
 #ifndef __LOR_MMS_HPP__
 #define __LOR_MMS_HPP__
 
-extern int dim, problem;
+extern bool grad_div_problem;
 
 namespace mfem
 {
 
+static constexpr double pi = M_PI, pi2 = M_PI*M_PI;
+
+// Exact solution for definite Helmholtz problem with RHS corresponding to f
+// defined below.
+double u(const Vector &xvec)
+{
+   int dim = xvec.Size();
+   double x = pi*xvec[0], y = pi*xvec[1];
+   if (dim == 2) { return sin(x)*sin(y); }
+   else { double z = pi*xvec[2]; return sin(x)*sin(y)*sin(z); }
+}
+
 double f(const Vector &xvec)
 {
-   double x=xvec[0], y=xvec[1], z;
-   if (dim == 3) { z = xvec[2]; }
-   if (problem == 0)
+   int dim = xvec.Size();
+   double x = pi*xvec[0], y = pi*xvec[1];
+
+   if (dim == 2)
    {
-      if (dim == 3)
-      {
-         return y*(1.0 - y) + z*(1.0 - z) + x*y*(1.0 - y)*z*(1.0 - z);
-      }
-      else
-      {
-         return y*(1.0 - y) + 2.0;
-      }
+      return sin(x)*sin(y) + 2*pi2*sin(x)*sin(y);
    }
-   else
+   else // dim == 3
    {
-      constexpr double kappa = 2.0*M_PI;
-      if (dim == 3)
-      {
-         return sin(kappa*x)*sin(kappa*y)*sin(kappa*z);
-      }
-      else
-      {
-         return sin(kappa*x)*sin(kappa*y);
-      }
+      double z = pi*xvec[2];
+      return sin(x)*sin(y)*sin(z) + 3*pi2*sin(x)*sin(y)*sin(z);
+   }
+}
+
+// Exact solution for definite Maxwell and grad-div problems with RHS
+// corresponding to f_vec below.
+void u_vec(const Vector &xvec, Vector &u)
+{
+   int dim = xvec.Size();
+   double x = pi*xvec[0], y = pi*xvec[1];
+   if (dim == 2)
+   {
+      u[0] = cos(x)*sin(y);
+      u[1] = sin(x)*cos(y);
+   }
+   else // dim == 3
+   {
+      double z = pi*xvec[2];
+      u[0] = cos(x)*sin(y)*sin(z);
+      u[1] = sin(x)*cos(y)*sin(z);
+      u[2] = sin(x)*sin(y)*cos(z);
    }
 }
 
 void f_vec(const Vector &xvec, Vector &f)
 {
-   double x=xvec[0], y=xvec[1], z;
-   if (dim == 3) { z = xvec[2]; }
-
-   if (problem == 0)
+   int dim = xvec.Size();
+   double x = pi*xvec[0], y = pi*xvec[1];
+   if (grad_div_problem)
    {
-      if (dim == 3)
+      if (dim == 2)
       {
-         f(0) = x*y*(1.0 - y)*z*(1.0 - z);
-         f(1) = x*y*(1.0 - x)*z*(1.0 - z);
-         f(2) = x*z*(1.0 - x)*y*(1.0 - y);
-
-         f(0) += y*(1.0 - y) + z*(1.0 - z);
-         f(1) += x*(1.0 - x) + z*(1.0 - z);
-         f(2) += x*(1.0 - x) + y*(1.0 - y);
+         f[0] = cos(x)*sin(y) + 2*pi2*cos(x)*sin(y);
+         f[1] = cos(y)*sin(x) + 2*pi2*cos(y)*sin(x);
       }
-      else
+      else // dim == 3
       {
-         f(0) = y*(1.0 - y);
-         f(1) = x*(1.0 - x);
-
-         f(0) += 2.0;
-         f(1) += 2.0;
+         double z = pi*xvec[2];
+         f[0] = cos(x)*sin(y)*sin(z) + 3*pi2*cos(x)*sin(y)*sin(z);
+         f[1] = cos(y)*sin(x)*sin(z) + 3*pi2*cos(y)*sin(x)*sin(z);
+         f[2] = cos(z)*sin(x)*sin(y) + 3*pi2*cos(z)*sin(x)*sin(y);
       }
    }
    else
    {
-      constexpr double kappa = 2.0*M_PI;
-      if (dim == 3)
+      if (dim == 2)
       {
-         f(0) = (1.0 + 2.0*kappa*kappa)*sin(kappa*y)*sin(kappa*z);
-         f(1) = (1.0 + 2.0*kappa*kappa)*sin(kappa*x)*sin(kappa*z);
-         f(2) = (1.0 + 2.0*kappa*kappa)*sin(kappa*x)*sin(kappa*y);
+         f[0] = cos(x)*sin(y);
+         f[1] = sin(x)*cos(y);
       }
-      else
+      else // dim == 3
       {
-         f(0) = (1. + kappa*kappa)*sin(kappa*y);
-         f(1) = (1. + kappa*kappa)*sin(kappa*x);
-         if (xvec.Size() == 3) { f(2) = 0.0; }
+         double z = pi*xvec[2];
+         f[0] = cos(x)*sin(y)*sin(z);
+         f[1] = sin(x)*cos(y)*sin(z);
+         f[2] = sin(x)*sin(y)*cos(z);
       }
    }
 }
