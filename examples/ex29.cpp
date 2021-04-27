@@ -85,13 +85,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    // 2. Construct a quadrilateral or triangular mesh with the topology of a
    //    cylindrical surface.
