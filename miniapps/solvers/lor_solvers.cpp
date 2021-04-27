@@ -45,6 +45,10 @@
 //    lor_solvers -fe n
 //    lor_solvers -fe r
 //    lor_solvers -fe l
+//    lor_solvers -m ../../data/amr-quad.mesh -fe h
+//    lor_solvers -m ../../data/amr-quad.mesh -fe n
+//    lor_solvers -m ../../data/amr-quad.mesh -fe r
+//    lor_solvers -m ../../data/amr-quad.mesh -fe l
 
 #include "mfem.hpp"
 #include <fstream>
