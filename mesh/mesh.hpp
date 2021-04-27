@@ -95,6 +95,8 @@ protected:
        interpret the configuration of elements on a specific face. This
        information is accessed through Mesh::GetFaceElements and
        Mesh::GetFaceInfos.
+       For accessing higher level deciphered information
+       look at Mesh::FaceInformation, and its accessor Mesh::GetFaceInformation.
 
        Each face contains information on the indices, local reference faces,
        orientations, and potential non-conformity for the two neighboring
@@ -1205,6 +1207,40 @@ public:
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
+
+   /** This enumerated type is used to describe interior, boundary, or shared
+       interior faces. */
+   enum class FaceLocation {Interior, Shared, Boundary};
+   /** This enumerated type is used to describe if a face is a conforming face,
+       a non-conforming slave face, or a non-conforming master face. */
+   enum class FaceConformity {Conforming,
+                              NonConformingMaster,
+                              NonConformingSlave};
+   /** @brief This structure is used as a human readable output format that
+       decipheres the information contained in Mesh::FaceInfo when using the 
+       Mesh::GetFaceInformation method.
+
+       The element indices in this structure don't need further processing,
+       contrary to the ones obtained through Mesh::GetFacesElements and can
+       directly be used as Elem1 and Elem2 indices.
+       Likewise the orientations for Elem1 and Elem2 already take into account
+       special cases and can be used as is.
+   */
+   struct FaceInformation
+   {
+      FaceLocation location; // Interior, shared-interior, boundary
+      FaceConformity conformity; // Conforming, non-conforming master or slave
+      int elem_1_index, elem_2_index; // Elem1 and Elem2 indices
+      int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
+      int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
+      int ncface;
+   };
+
+   /** This method aims to provide face information in a deciphered format, i.e.
+       Mesh::FaceInformation, compared to the raw encoded information returned
+       by Mesh::GetFaceElements and Mesh::GetFaceInfos. */
+   void GetFaceInformation(int f, FaceInformation &info) const;
+
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
