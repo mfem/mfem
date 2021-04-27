@@ -5591,12 +5591,13 @@ int NCMesh::CountTopLevelNodes() const
    return ntop;
 }
 
-NCMesh::NCMesh(std::istream &input, int version, int &curved)
+NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
 {
+   is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
    {
-      LoadLegacyFormat(input, curved);
+      LoadLegacyFormat(input, curved, is_nc);
       Legacy = true;
       return;
    }
@@ -5734,6 +5735,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
                   "Invalid mesh file: not all top-level nodes are covered by "
                   "the 'coordinates' section of the mesh file.");
+      curved = 0;
    }
    else if (ident == "nodes")
    {
@@ -5852,7 +5854,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    InitRootState(root_count);
 }
 
-void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
+void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
 {
    MFEM_ASSERT(elements.Size() == 0, "");
    MFEM_ASSERT(nodes.Size() == 0, "");
@@ -5908,9 +5910,16 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    if (ident == "vertex_parents")
    {
       LoadVertexParents(input);
+      is_nc = 1;
 
       skip_comment_lines(input, '#');
       input >> ident;
+   }
+   else
+   {
+      // no "vertex_parents" section: this file needs to be treated as a
+      // conforming mesh for complete backward compatibility with MFEM 4.2
+      is_nc = 0;
    }
 
    // load element hierarchy
@@ -5930,16 +5939,17 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // load vertices
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-   input >> count;
+   int nvert;
+   input >> nvert;
    input >> std::ws >> ident;
    if (ident != "nodes")
    {
       spaceDim = atoi(ident.c_str());
 
-      coordinates.SetSize(3*count);
+      coordinates.SetSize(3*nvert);
       coordinates = 0.0;
 
-      for (int i = 0; i < count; i++)
+      for (int i = 0; i < nvert; i++)
       {
          for (int j = 0; j < spaceDim; j++)
          {
@@ -5993,6 +6003,13 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // force file leaf order
    Swap(leaf_elements, file_leaf_elements);
+
+   // make sure Mesh::NVertices is equal to "nvert" from the file (in case of
+   // unused vertices), see also GetMeshComponents
+   if (nvert > vertex_nodeId.Size())
+   {
+      vertex_nodeId.SetSize(nvert, -1);
+   }
 }
 
 void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const

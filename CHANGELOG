@@ -10,6 +10,11 @@
 
 Version 4.2.1 (development)
 ===========================
+- Added initial support for GPU-accelerated versions of PETSc that works with
+  MFEM_USE_CUDA if PETSc has been configured with CUDA support. Examples 1 and 9
+  in the examples/petsc directory have been modified to work with --device cuda.
+  Examples with GAMG (ex1p) and SLEPc (ex11p) are also provided.
+
 - Memory management:
   * Added method Device::SetMemoryTypes that can be used to change the default
     host and device MemoryTypes before Device setup.
@@ -24,6 +29,9 @@ Version 4.2.1 (development)
     corresponding allocator that can be set with the method
     MemoryManager::SetUmpireDevice2AllocatorName.
   * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
+
+- Added support for Caliper: a library to integrate performance profiling
+  capabilities into applications. See examples/caliper for more details.
 
 - Added support for explicit vectorization in the high-performance templated
   code for Fujitsu's A64FX ARM microprocessor architecture.
@@ -146,6 +154,14 @@ Version 4.2.1 (development)
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
+- Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
+  see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
+  see navier/cht. Note that gslib v1.0.7 is require (see INSTALL for details).
+
+- Added a new, very simple example (ex0 and parallel version ex0p). This
+  example solves a simple Poisson problem using H1 elements (the same problem as
+  ex1), but is intended to be extremely simple and approachable for new users.
+
 - Meshes consisting of any type of elements (including mixed meshes) can be
   converted to all-simplex meshes using Mesh::MakeSimplicial.
 
@@ -154,13 +170,19 @@ Version 4.2.1 (development)
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
 
+- Added support for transferring dual fields between high-order and low-order
+  refined finite element spaces using the transposed versions of the
+  L2ProjectionGridTransfer operators. This functionality is illustrated in the
+  lor-transfer miniapp.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
 
 - Add support for VectorCoefficient with libCEED backends.
 
-- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
+- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with
+  libCEED backends.
 
 
 Version 4.2, released on October 30, 2020
