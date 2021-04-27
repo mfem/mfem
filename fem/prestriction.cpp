@@ -62,11 +62,13 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
    }
+   // End of verifications
+   Mesh &mesh = *fes.GetMesh();
    const Table& e2dTable = pfes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
+   Mesh::FaceInformation info;
    int e1, e2;
-   int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
    const int dof1d = pfes.GetFE(0)->GetOrder()+1;
@@ -76,15 +78,15 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    int f_ind=0;
    for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      mesh.GetFaceInformation(f, info);
+      e1 = info.elem_1_index;
+      e2 = info.elem_2_index;
+      face_id1 = info.elem_1_local_face;
+      face_id2 = info.elem_2_local_face;
+      orientation = info.elem_2_orientation;
       if (dof_reorder)
       {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
          GetFaceDofs(dim, face_id1, dof1d, faceMap1); // only for hex
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2); // only for hex
       }
       else
@@ -96,7 +98,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          face_id1 = face_id2 = 0;  // suppress compiler warning
       }
       if (type==FaceType::Interior &&
-          (e2>=0 || (e2<0 && inf2>=0) )) // interior/shared face
+         (info.location==Mesh::FaceLocation::Interior ||
+         info.location==Mesh::FaceLocation::Shared) )
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -108,7 +111,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          if (m==L2FaceValues::DoubleValued)
          {
-            if (e2>=0) // interior face
+            if (info.location==Mesh::FaceLocation::Interior)
             {
                for (int d = 0; d < dof; ++d)
                {
@@ -121,11 +124,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                   scatter_indices2[lid] = gid;
                }
             }
-            else if (inf2>=0) // shared interior
+            else if (info.location==Mesh::FaceLocation::Shared)
             {
-               const int se2 = -1 - e2;
                Array<int> sharedDofs;
-               pfes.GetFaceNbrElementVDofs(se2, sharedDofs);
+               pfes.GetFaceNbrElementVDofs(e2, sharedDofs);
                for (int d = 0; d < dof; ++d)
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
@@ -141,7 +143,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          f_ind++;
       }
-      else if (type==FaceType::Boundary && e2<0 && inf2<0) // true boundary
+      else if (type==FaceType::Boundary &&
+              info.location==Mesh::FaceLocation::Boundary)
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -171,16 +174,19 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      mesh.GetFaceInformation(f, info);
+      e1 = info.elem_1_index;
+      e2 = info.elem_2_index;
+      face_id1 = info.elem_1_local_face;
+      face_id2 = info.elem_2_local_face;
+      orientation = info.elem_2_orientation;
+      if ((type==FaceType::Interior &&
+          (info.location==Mesh::FaceLocation::Interior ||
+          info.location==Mesh::FaceLocation::Shared) ) ||
+          (type==FaceType::Boundary &&
+          info.location==Mesh::FaceLocation::Boundary) )
       {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
          GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
          {
@@ -190,7 +196,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          if (m==L2FaceValues::DoubleValued)
          {
-            if (type==FaceType::Interior && e2>=0) // interior face
+            if (type==FaceType::Interior &&
+                info.location==Mesh::FaceLocation::Interior)
             {
                for (int d = 0; d < dof; ++d)
                {
@@ -213,16 +220,19 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      mesh.GetFaceInformation(f, info);
+      e1 = info.elem_1_index;
+      e2 = info.elem_2_index;
+      face_id1 = info.elem_1_local_face;
+      face_id2 = info.elem_2_local_face;
+      orientation = info.elem_2_orientation;
+      if ((type==FaceType::Interior &&
+          (info.location==Mesh::FaceLocation::Interior ||
+          info.location==Mesh::FaceLocation::Shared) ) ||
+          (type==FaceType::Boundary &&
+          info.location==Mesh::FaceLocation::Boundary) )
       {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
          GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
          {
@@ -234,9 +244,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          if (m==L2FaceValues::DoubleValued)
          {
-            for (int d = 0; d < dof; ++d)
+            if (type==FaceType::Interior &&
+                info.location==Mesh::FaceLocation::Interior)
             {
-               if (type==FaceType::Interior && e2>=0) // interior face
+               for (int d = 0; d < dof; ++d)
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, d);
@@ -530,7 +541,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    : NCL2FaceRestriction(fes, type, m)
 {
    if (nf==0) { return; }
-   // If fespace == L2
+   // If fespace==L2
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
    const FiniteElement *fe = pfes.GetFE(0);
@@ -543,7 +554,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    // Assuming all finite elements are using Gauss-Lobatto dofs
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = pfes.GetVSize();
-   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const bool dof_reorder = (e_ordering==ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
       MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
@@ -565,11 +576,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    const Table& e2dTable = pfes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
+   Mesh::FaceInformation info;
    int e1, e2;
-   int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
-   int ncface;
    const int dof1d = pfes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = pfes.GetFE(0)->GetDof();
    const int dim = pfes.GetMesh()->SpaceDimension();
@@ -584,17 +594,16 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
+      mesh.GetFaceInformation(f, info);
+      e1 = info.elem_1_index;
+      e2 = info.elem_2_index;
+      face_id1 = info.elem_1_local_face;
+      face_id2 = info.elem_2_local_face;
+      orientation = info.elem_2_orientation;
       if (dof_reorder)
       {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
          GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for hex
-         if(ncface>-1) orientation = mesh.GetNCFacesOrientation(ncface);
       }
       else
       {
@@ -602,7 +611,9 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                      "element.");
          // TODO Something with GetFaceDofs?
       }
-      if ( type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0)) ) // Interior face
+      if (type==FaceType::Interior &&
+         (info.location==Mesh::FaceLocation::Interior ||
+         info.location==Mesh::FaceLocation::Shared) )
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -614,16 +625,16 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          if ( m==L2FaceValues::DoubleValued )
          {
-            if ( ncface==-1 ) // Conforming face
+            if ( info.conformity==Mesh::FaceConformity::Conforming )
             {
                interp_config[f_ind] = conforming;
             }
             else // Non-conforming face
             {
-               const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(ncface);
+               const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
                Key key(ptMat, face_id2);
                auto itr = interp_map.find(key);
-               if (itr == interp_map.end())
+               if (itr==interp_map.end())
                {
                   // Computation of the interpolation matrix from coarse face to
                   // fine face.
@@ -638,8 +649,8 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                   {
                      case Geometry::SQUARE:
                      {
-                        MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
-                        MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
+                        MFEM_ASSERT(ptMat->Height()==2, "Unexpected PtMat height.");
+                        MFEM_ASSERT(ptMat->Width()==4, "Unexpected PtMat width.");
                         x_min = x_max = (*ptMat)(0,0);
                         y_min = y_max = (*ptMat)(1,0);
                         for (size_t v = 1; v < 4; v++)
@@ -669,8 +680,8 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                         break;
                      case Geometry::SEGMENT:
                      {
-                        MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
-                        MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
+                        MFEM_ASSERT(ptMat->Height()==1, "Unexpected PtMat height.");
+                        MFEM_ASSERT(ptMat->Width()==2, "Unexpected PtMat width.");
                         bool invert = face_id2==2 || face_id2==3;
                         double a = (*ptMat)(0,0);
                         double b = (*ptMat)(0,1);
@@ -718,7 +729,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                   interp_config[f_ind] = itr->second.first;
                }
             }
-            if (e2>=0) // interior face
+            if (info.location==Mesh::FaceLocation::Interior)
             {
                for (int d = 0; d < dof; ++d)
                {
@@ -732,11 +743,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                   ++offsets[gid + 1];
                }
             }
-            else if (inf2>=0) // shared interior
+            else if (info.location==Mesh::FaceLocation::Shared)
             {
-               const int se2 = -1 - e2;
                Array<int> sharedDofs;
-               pfes.GetFaceNbrElementVDofs(se2, sharedDofs);
+               pfes.GetFaceNbrElementVDofs(e2, sharedDofs);
                for (int d = 0; d < dof; ++d)
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
@@ -752,7 +762,8 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          f_ind++;
       }
-      else if ( type==FaceType::Boundary && e2<0 && ncface==-1 && inf2<0 )
+      else if (type==FaceType::Boundary &&
+              info.location==Mesh::FaceLocation::Boundary)
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -784,18 +795,20 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && ncface==-1 && inf2<0))
+      mesh.GetFaceInformation(f, info);
+      e1 = info.elem_1_index;
+      e2 = info.elem_2_index;
+      face_id1 = info.elem_1_local_face;
+      face_id2 = info.elem_2_local_face;
+      orientation = info.elem_2_orientation;
+      if ((type==FaceType::Interior &&
+          (info.location==Mesh::FaceLocation::Interior ||
+          info.location==Mesh::FaceLocation::Shared) ) ||
+          (type==FaceType::Boundary &&
+          info.location==Mesh::FaceLocation::Boundary) )
       {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
          GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
-         if(ncface>-1) orientation = mesh.GetNCFacesOrientation(ncface);
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
@@ -804,7 +817,9 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
             // We don't shift lid to express that it's e1 of f
             gather_indices[offsets[gid]++] = lid;
          }
-         if (m==L2FaceValues::DoubleValued && type==FaceType::Interior && e2>=0)
+         if (m==L2FaceValues::DoubleValued &&
+            type==FaceType::Interior &&
+            info.location==Mesh::FaceLocation::Interior)
          {
             for (int d = 0; d < dof; ++d)
             {
