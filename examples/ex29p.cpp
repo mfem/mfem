@@ -11,12 +11,12 @@
 //               finite element discretization of a PDE on a 2 dimensional
 //               surface embedded in a 3 dimensional domain. In this case we
 //               solve the Laplace problem -Div(sigma Grad u) = 1, with
-//               homogeneous Dirichlet boundary conditions, where sigma
-//               is an anisotropic diffusion constant defined as a 3x3 matrix
+//               homogeneous Dirichlet boundary conditions, where sigma is an
+//               anisotropic diffusion constant defined as a 3x3 matrix
 //               coefficient.
 //
-//               This example demonstrates the use of finite element
-//               integrators on 2D domains with 3D coefficients.
+//               This example demonstrates the use of finite element integrators
+//               on 2D domains with 3D coefficients.
 //
 //               We recommend viewing examples 1 and 7 before viewing this
 //               example.
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   if (!mpi.Root()) { cout.Disable(); cerr.Disable(); }
 
    // 2. Parse command-line options.
    int order = 3;
@@ -96,10 +96,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(mfem::out);
+      args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(mfem::out);
+   args.PrintOptions(cout);
 
    // 3. Construct a quadrilateral or triangular mesh with the topology of a
    //    cylindrical surface.
@@ -131,8 +131,8 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
-   mfem::out << "Number of finite element unknowns: "
-             << fespace.GlobalTrueVSize() << endl;
+   cout << "Number of finite element unknowns: "
+        << fespace.GlobalTrueVSize() << endl;
 
    // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -179,8 +179,8 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   mfem::out << "Size of linear system: "
-             << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+   cout << "Size of linear system: "
+        << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
 
    // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
    //     preconditioner from hypre.
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient uCoef(uExact);
    double err = x.ComputeL2Error(uCoef);
 
-   mfem::out << "|u - u_h|_2 = " << err << endl;
+   cout << "|u - u_h|_2 = " << err << endl;
 
    ParFiniteElementSpace flux_fespace(&pmesh, &fec, 3);
    ParGridFunction flux(&flux_fespace);
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient fluxCoef(3, fluxExact);
    double flux_err = flux.ComputeL2Error(fluxCoef);
 
-   mfem::out << "|f - f_h|_2 = " << flux_err << endl;
+   cout << "|f - f_h|_2 = " << flux_err << endl;
 
    // 16. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -np <np> -m mesh -g sol".
@@ -258,8 +258,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-// Defines a mesh consisting of four flat rectangular surfaces connected
-// to form a loop.
+// Defines a mesh consisting of four flat rectangular surfaces connected to form
+// a loop.
 Mesh * GetMesh(int type)
 {
    Mesh * mesh = NULL;
@@ -343,8 +343,8 @@ Mesh * GetMesh(int type)
    return mesh;
 }
 
-// Transforms the four-sided loop into a curved cylinder with skewed top
-// and base.
+// Transforms the four-sided loop into a curved cylinder with skewed top and
+// base.
 void trans(const Vector &x, Vector &r)
 {
    r.SetSize(3);
@@ -369,8 +369,8 @@ void trans(const Vector &x, Vector &r)
    }
    else
    {
-      mfem::out << "side not recognized "
-                << x[0] << " " << x[1] << " " << x[2] << endl;
+      cout << "side not recognized "
+           << x[0] << " " << x[1] << " " << x[2] << endl;
    }
 
    r[0] = cos(theta);

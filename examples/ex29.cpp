@@ -11,12 +11,12 @@
 //               finite element discretization of a PDE on a 2 dimensional
 //               surface embedded in a 3 dimensional domain. In this case we
 //               solve the Laplace problem -Div(sigma Grad u) = 1, with
-//               homogeneous Dirichlet boundary conditions, where sigma
-//               is an anisotropic diffusion constant defined as a 3x3 matrix
+//               homogeneous Dirichlet boundary conditions, where sigma is an
+//               anisotropic diffusion constant defined as a 3x3 matrix
 //               coefficient.
 //
-//               This example demonstrates the use of finite element
-//               integrators on 2D domains with 3D coefficients.
+//               This example demonstrates the use of finite element integrators
+//               on 2D domains with 3D coefficients.
 //
 //               We recommend viewing examples 1 and 7 before viewing this
 //               example.
@@ -219,8 +219,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-// Defines a mesh consisting of four flat rectangular surfaces connected
-// to form a loop.
+// Defines a mesh consisting of four flat rectangular surfaces connected to form
+// a loop.
 Mesh * GetMesh(int type)
 {
    Mesh * mesh = NULL;
@@ -304,8 +304,8 @@ Mesh * GetMesh(int type)
    return mesh;
 }
 
-// Transforms the four-sided loop into a curved cylinder with skewed top
-// and base.
+// Transforms the four-sided loop into a curved cylinder with skewed top and
+// base.
 void trans(const Vector &x, Vector &r)
 {
    r.SetSize(3);
