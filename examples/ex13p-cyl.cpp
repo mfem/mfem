@@ -121,28 +121,30 @@ int main(int argc, char *argv[])
    // 3. Prepare a rectangular mesh with the desired dimensions and element
    //    type.  Other 2D meshes could be used but then we couldn't check the
    //    eigenvalues.
-   Mesh *mesh = new Mesh(nr, nz, el_type);
-   int dim = mesh->Dimension();
-
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement (2 by default, or
-   //    specified on the command line with -rs).
-   for (int lev = 0; lev < ser_ref_levels; lev++)
+   ParMesh pmesh;
    {
-      mesh->UniformRefinement();
-   }
+      Mesh mesh = Mesh::MakeCartesian2D(nr, nz, el_type);
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution (1 time by
-   //    default, or specified on the command line with -rp). Once the parallel
-   //    mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-   for (int lev = 0; lev < par_ref_levels; lev++)
-   {
-      pmesh->UniformRefinement();
+      // 4. Refine the serial mesh on all processors to increase the resolution. In
+      //    this example we do 'ref_levels' of uniform refinement (2 by default, or
+      //    specified on the command line with -rs).
+      for (int lev = 0; lev < ser_ref_levels; lev++)
+      {
+         mesh.UniformRefinement();
+      }
+
+      // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+      //    this mesh further in parallel to increase the resolution (1 time by
+      //    default, or specified on the command line with -rp). Once the parallel
+      //    mesh is defined, the serial mesh can be deleted.
+      pmesh = ParMesh(MPI_COMM_WORLD, mesh);
+      for (int lev = 0; lev < par_ref_levels; lev++)
+      {
+         pmesh.UniformRefinement();
+      }
+      pmesh.ReorientTetMesh();
    }
-   pmesh->ReorientTetMesh();
+   int dim = pmesh.Dimension();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements (ND) of the specified order. We also
@@ -152,9 +154,9 @@ int main(int argc, char *argv[])
    L2_FECollection fec_rt(order - 1, dim,
                           BasisType::GaussLegendre, FiniteElement::INTEGRAL);
    L2_FECollection fec_l2(order - 1, dim);
-   ParFiniteElementSpace fespace_nd(pmesh, &fec_nd);
-   ParFiniteElementSpace fespace_rt(pmesh, &fec_rt);
-   ParFiniteElementSpace fespace_l2(pmesh, &fec_l2);
+   ParFiniteElementSpace fespace_nd(&pmesh, &fec_nd);
+   ParFiniteElementSpace fespace_rt(&pmesh, &fec_rt);
+   ParFiniteElementSpace fespace_l2(&pmesh, &fec_l2);
    HYPRE_Int size = fespace_nd.GlobalTrueVSize();
    if (myid == 0)
    {
@@ -171,7 +173,7 @@ int main(int argc, char *argv[])
    //    of the computational range. After serial and parallel assembly we
    //    extract the corresponding parallel matrices A and M.
    FunctionCoefficient rhoCoef(rhoFunc);
-   Array<int> ess_bdr(pmesh->bdr_attributes.Size());
+   Array<int> ess_bdr(pmesh.bdr_attributes.Size());
    ess_bdr = 1;
    ess_bdr[3] = 0;
 
@@ -222,13 +224,13 @@ int main(int argc, char *argv[])
    ParDiscreteLinearOperator curl(&fespace_nd, &fespace_rt);
    curl.AddDomainInterpolator(new CurlInterpolator());
    curl.Assemble();
+   curl.Finalize();
 
-   /*
    // This is one workaround for GLVis limitations
    ParGridFunction dx_l2(&fespace_l2);
 
    GridFunctionCoefficient dxCoef(&dx);
-   */
+
    if ( myid == 0 )
    {
       cout << "\nRelative error in eigenvalues:\n";
@@ -252,7 +254,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh.Print(mesh_ofs);
 
       for (int i=0; i<nev; i++)
       {
@@ -291,20 +293,21 @@ int main(int argc, char *argv[])
          x = ame->GetEigenvector(i);
 
          curl.Mult(x, dx);
-         // dx_l2.ProjectCoefficient(dxCoef);
+         dx_l2.ProjectCoefficient(dxCoef);
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
-                   << "solution\n" << *pmesh << x << flush
+                   << "solution\n" << pmesh << x << flush
                    << "window_title 'Eigenmode " << i+1 << '/' << nev
-                   << ", Lambda = " << eigenvalues[i] << "'" << endl;
-         /*
+                   << ", Lambda = " << eigenvalues[i] << "' "
+                   << "keys vvv\n" << flush;
+
          // Limitations in the GridFunction and GLVis prevent this from working
          curl_sock << "parallel " << num_procs << " " << myid << "\n"
-                   << "solution\n" << *pmesh << dx_l2 << flush
+                   << "solution\n" << pmesh << dx_l2 << flush
                    << "window_title 'Curl of Eigenmode " << i+1 << '/' << nev
-                   << ", Lambda = " << eigenvalues[i] << "'"
-                   << "window_geometry 400 0 400 350" << endl;
-         */
+                   << ", Lambda = " << eigenvalues[i] << "' "
+                   << "window_geometry 400 0 400 350\n" << flush;
+
          char c;
          if (myid == 0)
          {
@@ -326,8 +329,6 @@ int main(int argc, char *argv[])
    delete ams;
    delete M;
    delete A;
-
-   delete pmesh;
 
    MPI_Finalize();
 
