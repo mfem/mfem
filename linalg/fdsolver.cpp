@@ -30,10 +30,12 @@ void KronMultInvDiag(const Vector & a, const Vector & b, Vector & dinv)
 
    for (int j = 0; j<m; j++)
       for (int i = 0; i<n; i++)
-         dinv(i*m+j) = 1./(a(i) + b(j));  
+      {
+         dinv(i*m+j) = 1./(a(i) + b(j));
+      }
 }
 
-void KronMultInvDiag(const Vector & a, const Vector & b, 
+void KronMultInvDiag(const Vector & a, const Vector & b,
                      const Vector & c, Vector & dinv)
 {
    int n = a.Size(), m = b.Size(), l = c.Size();
@@ -42,17 +44,21 @@ void KronMultInvDiag(const Vector & a, const Vector & b,
    for (int k = 0; k<l; k++)
       for (int j = 0; j<m; j++)
          for (int i = 0; i<n; i++)
+         {
             dinv(i*m*l+j*l+k) = 1.0/(a(i) + b(j) + c(k));
+         }
 }
 
 FDSolver::FDSolver(Array<DenseMatrix *> A_, Array<DenseMatrix *> B_)
-: A(A_), B(B_)
+   : A(A_), B(B_)
 {
    if (A.Size() && B.Size())
+   {
       MFEM_VERIFY(A.Size() == B.Size(), "FDSolver: Incompatible Dimensions");
-   
+   }
+
    size = A[0]->Height();
-   if (size) Setup();
+   if (size) { Setup(); }
 }
 
 void FDSolver::Setup()
@@ -64,9 +70,9 @@ void FDSolver::Setup()
    {
       Sd[i] = nullptr;
       int j = dim-i-1;
-      if (B[j]->Height()) 
+      if (B[j]->Height())
       {
-         Sd[i] = new DenseMatrixInverse(*B[j]);   
+         Sd[i] = new DenseMatrixInverse(*B[j]);
       }
    }
    if (A.Size())
@@ -78,7 +84,7 @@ void FDSolver::Setup()
          int j = dim-i-1;
          int n = A[j]->Height();
          D[i] = new DenseMatrix(n);
-         if(n)
+         if (n)
          {
             // B_i^-1 * A_i^-1
             Sd[i]->Mult(*A[j],*D[i]);

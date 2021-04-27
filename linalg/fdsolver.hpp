@@ -18,41 +18,41 @@
 namespace mfem
 {
 
-   /// Computes the inverse diagonal dinv = (a⊗I + I⊗b)^-1 
-   /// where a, b are diagonal matrices and I is the identity of the 
-   /// appropriate size
-   void KronMultInvDiag(const Vector & a, const Vector & b, Vector & dinv);
+/// Computes the inverse diagonal dinv = (a⊗I + I⊗b)^-1
+/// where a, b are diagonal matrices and I is the identity of the
+/// appropriate size
+void KronMultInvDiag(const Vector & a, const Vector & b, Vector & dinv);
 
-   /// Computes the inverse diagonal dinv = (a⊗I⊗I + I⊗b⊗I + I⊗I⊗c)^-1 
-   /// where a, b, c are diagonal matrices and I is the identity of the 
-   /// appropriate size
-   void KronMultInvDiag(const Vector & a, const Vector & b, 
-                        const Vector & c, Vector & dinv);
+/// Computes the inverse diagonal dinv = (a⊗I⊗I + I⊗b⊗I + I⊗I⊗c)^-1
+/// where a, b, c are diagonal matrices and I is the identity of the
+/// appropriate size
+void KronMultInvDiag(const Vector & a, const Vector & b,
+                     const Vector & c, Vector & dinv);
 
 
-   /// In 2D it solves the system (A_0 ⊗ B_1 + B_0 ⊗ A_1) x = y  
-   /// In 3D it solves the system (A_0 ⊗ B_1 ⊗ B_2 + B_0 ⊗ A_1 ⊗ B_2  + B_0 ⊗ B_1 ⊗ A_2 ) x = y  
-   class FDSolver: public Solver
-   {
-   private:
-      // dimension
-      int dim = 2;   
-      int size;
-      Array<DenseMatrix *> A;      
-      Array<DenseMatrix *> B; 
-      Array<DenseMatrixInverse *> SQinv; 
-      Array<DenseMatrix *> SQ; 
-      Array<DenseMatrixInverse *> Sd;
-      Array<Vector * > Diag;
-      mutable Vector dinv;
-      Array<DenseMatrix * > Q;
-      void Setup();
-   public:
-      FDSolver(Array<DenseMatrix *> A_, Array<DenseMatrix *> B_);
-      virtual void SetOperator(const Operator &op) {}
-      virtual void Mult(const Vector &r, Vector &z) const;
-      virtual ~FDSolver();
-   };                        
+/// In 2D it solves the system (A_0 ⊗ B_1 + B_0 ⊗ A_1) x = y
+/// In 3D it solves the system (A_0 ⊗ B_1 ⊗ B_2 + B_0 ⊗ A_1 ⊗ B_2  + B_0 ⊗ B_1 ⊗ A_2 ) x = y
+class FDSolver: public Solver
+{
+private:
+   // dimension
+   int dim = 2;
+   int size;
+   Array<DenseMatrix *> A;
+   Array<DenseMatrix *> B;
+   Array<DenseMatrixInverse *> SQinv;
+   Array<DenseMatrix *> SQ;
+   Array<DenseMatrixInverse *> Sd;
+   Array<Vector * > Diag;
+   mutable Vector dinv;
+   Array<DenseMatrix * > Q;
+   void Setup();
+public:
+   FDSolver(Array<DenseMatrix *> A_, Array<DenseMatrix *> B_);
+   virtual void SetOperator(const Operator &op) {}
+   virtual void Mult(const Vector &r, Vector &z) const;
+   virtual ~FDSolver();
+};
 }
 
 

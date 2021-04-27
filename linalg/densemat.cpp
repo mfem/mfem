@@ -50,9 +50,9 @@ dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
         double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
         int *IWORK, int *LIWORK, int *INFO);
 extern "C" void
-dgeev_(const char * jobvl, const char * jobvr, int *n, double * A, int * lda, 
-       double * wr, double * wl, double * vl, int * ldvl, double * vr, int * ldvr, 
-       double * work, int * lwork, int * info);        
+dgeev_(const char * jobvl, const char * jobvr, int *n, double * A, int * lda,
+       double * wr, double * wl, double * vl, int * ldvl, double * vr, int * ldvr,
+       double * work, int * lwork, int * info);
 extern "C" void
 dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
        double *WORK, int *LWORK, int *INFO);
@@ -3479,8 +3479,8 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m, bool sym_)
    {
       char jobvl = 'N';
       int ldvl = 1;
-      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(), 
-             nullptr, &ldvl, EVect.GetData(), &n, &qwork, &lwork, &info);   
+      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(),
+             nullptr, &ldvl, EVect.GetData(), &n, &qwork, &lwork, &info);
    }
    lwork = (int) qwork;
    work = new double[lwork];
@@ -3512,7 +3512,7 @@ void DenseMatrixEigensystem::Eval()
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   if(sym)
+   if (sym)
    {
       EVect = mat;
       dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
@@ -3522,9 +3522,9 @@ void DenseMatrixEigensystem::Eval()
    {
       char jobvl = 'N';
       int ldvl = 1;
-      
-      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(), 
-             nullptr, &ldvl, EVect.GetData(), &n, work, &lwork, &info);   
+
+      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(),
+             nullptr, &ldvl, EVect.GetData(), &n, work, &lwork, &info);
    }
    if (info != 0)
    {
