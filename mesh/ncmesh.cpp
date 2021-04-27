@@ -4321,7 +4321,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
    if (!transforms.embeddings.Size())
    {
       transforms.Clear();
-      transforms.embeddings.SetSize(leaf_elements.Size());
+      transforms.embeddings.SetSize(leaf_elements.Size() - GetNumGhostElements());
 
       std::string ref_path;
       ref_path.reserve(100);
@@ -4493,6 +4493,11 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    for (int i = 0; i < fine_ne; i++)
    {
       coarse_to_fine.GetJ()[i] = cf_j[i].two;
+   }
+
+   if (fine_mesh.GetLastOperation() == Mesh::Operation::DEREFINE)
+   {
+      return;
    }
 
    using internal::RefType;
