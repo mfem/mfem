@@ -1517,7 +1517,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       else
       {
          MFEM_ABORT("FaceRestriction not yet implemented for this type of "
-                     "element.");
+                    "element.");
          // TODO Something with GetFaceDofs?
       }
       if ( type==FaceType::Interior &&
@@ -1585,7 +1585,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                            y_max = 1-piv;
                         }
                      }
-                        break;
+                     break;
                      case Geometry::SEGMENT:
                      {
                         MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
@@ -1606,7 +1606,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                            x_max = x1;
                         }
                      }
-                        break;
+                     break;
                      default: MFEM_ABORT("unsupported geometry");
                   }
                   const IntegrationRule & nodes = trace_fe->GetNodes();
@@ -1640,7 +1640,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             for (int d = 0; d < dof; ++d)
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                             orientation, dof1d, d);
+                                            orientation, dof1d, d);
                const int face_dof = faceMap2[pd];
                const int gid = elementMap[e2*elem_dofs + face_dof];
                const int lid = dof*f_ind + d;
@@ -1710,7 +1710,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          for (int d = 0; d < dof; ++d)
          {
             const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                       orientation, dof1d, d);
+                                         orientation, dof1d, d);
             const int did = faceMap2[pd];
             const int gid = elementMap[e2*elem_dofs + did];
             const int lid = dof*f_ind + d;
@@ -1942,14 +1942,15 @@ void NCL2FaceRestriction::FillI(SparseMatrix &mat,
 }
 
 void NCL2FaceRestriction::FillJAndData(const Vector &ea_data,
-                                     SparseMatrix &mat,
-                                     const bool keep_nbr_block) const
+                                       SparseMatrix &mat,
+                                       const bool keep_nbr_block) const
 {
    MFEM_ABORT("Not yet implemented.");
 }
 
 void NCL2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
-                                                         Vector &ea_data) const
+                                                           Vector &ea_data)
+                                                           const
 {
    MFEM_ABORT("Not yet implemented.");
 }

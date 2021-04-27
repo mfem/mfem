@@ -118,7 +118,7 @@ protected:
        The indices of Elem1 and Elem2 can be indirectly extracted from
        FaceInfo::Elem1No and FaceInfo::Elem2No, read the note below for special
        cases on the index of Elem2.
-       
+
        The local face identifiants are deciphered from FaceInfo::Elem1Inf and
        FaceInfo::Elem2Inf through the formula: LocalFaceIndex = ElemInf/64,
        the semantic of the computed local face identifiant can be found in
@@ -1215,9 +1215,10 @@ public:
        a non-conforming slave face, or a non-conforming master face. */
    enum class FaceConformity {Conforming,
                               NonConformingMaster,
-                              NonConformingSlave};
+                              NonConformingSlave
+                             };
    /** @brief This structure is used as a human readable output format that
-       decipheres the information contained in Mesh::FaceInfo when using the 
+       decipheres the information contained in Mesh::FaceInfo when using the
        Mesh::GetFaceInformation method.
 
        The element indices in this structure don't need further processing,
