@@ -1950,7 +1950,7 @@ void NCL2FaceRestriction::FillJAndData(const Vector &ea_data,
 
 void NCL2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
                                                            Vector &ea_data)
-                                                           const
+const
 {
    MFEM_ABORT("Not yet implemented.");
 }
