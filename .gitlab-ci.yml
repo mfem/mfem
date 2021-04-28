@@ -228,4 +228,4 @@ setup:
 # The list on jobs is defined in machine-specific files.
 include:
   - local: .gitlab/quartz.yml
-    #  - local: .gitlab/lassen.yml
+  - local: .gitlab/lassen.yml
