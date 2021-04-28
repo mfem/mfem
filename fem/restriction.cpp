@@ -1906,7 +1906,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
                {
                   dofs[dof] = d_x(dof, c, side, face);
                }
-               MFEM_SYNC_THREAD
+               MFEM_SYNC_THREAD;
                MFEM_FOREACH_THREAD(dofOut,x,nd)
                {
                   double res = 0.0;
@@ -1916,7 +1916,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
                   }
                   d_x(dofOut, c, side, face) = res;
                }
-               MFEM_SYNC_THREAD
+               MFEM_SYNC_THREAD;
             }
          }
       });
