@@ -4967,6 +4967,37 @@ int NCMesh::GetElementSizeReduction(int i) const
    return reduction;
 }
 
+void NCMesh::GetElementEdges(int i, Array<int> &edges) const
+{
+   const Element &el = elements[leaf_elements[i]];
+   const GeomInfo& gi = GI[el.Geom()];
+
+   edges.SetSize(gi.ne);
+   for (int i = 0; i < gi.ne; i++)
+   {
+      const int* ev = gi.edges[i];
+      const Node *node = nodes.Find(el.node[ev[0]], el.node[ev[1]]);
+      MFEM_ASSERT(node, "edge not found");
+      edges[i] = node->edge_index;
+   }
+}
+
+void NCMesh::GetElementFaces(int i, Array<int> &faces) const
+{
+   const Element &el = elements[leaf_elements[i]];
+   const GeomInfo& gi = GI[el.Geom()];
+
+   faces.SetSize(gi.nf);
+   for (int i = 0; i < gi.nf; i++)
+   {
+      const int* fv = gi.faces[i];
+      const Face *face = this->faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                          el.node[fv[2]], el.node[fv[3]]);
+      MFEM_ASSERT(face, "face not found");
+      faces[i] = face->index;
+   }
+}
+
 void NCMesh::GetElementFacesAttributes(int i,
                                        Array<int> &faces,
                                        Array<int> &fattr) const

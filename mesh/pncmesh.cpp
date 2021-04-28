@@ -1716,7 +1716,7 @@ void ParNCMesh::SynchronizeElementData(Array<Type> &elem_data)
 {
    UpdateLayers();
 
-   typedef ElementValueMessage<int, false, 156> ElementDataMessage;
+   typedef ElementValueMessage<Type, false, 156> ElementDataMessage;
    typedef std::map<int, ElementDataMessage> ElementDataMessageMap;
 
    ElementDataMessageMap send_msgs, recv_msgs;
@@ -1783,7 +1783,8 @@ void ParNCMesh::SynchronizeElementData(Array<Type> &elem_data)
    ElementDataMessage::WaitAllSent(send_msgs);
 }
 
-// instantiate SynchronizeElementData for int and double
+// instantiate SynchronizeElementData for common types
+template void ParNCMesh::SynchronizeElementData<char>(Array<char> &);
 template void ParNCMesh::SynchronizeElementData<int>(Array<int> &);
 template void ParNCMesh::SynchronizeElementData<double>(Array<double> &);
 

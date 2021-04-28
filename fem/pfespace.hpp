@@ -68,6 +68,14 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
+   /** Variable order space: these are additional ghost DOF variants
+       induced by ghost elements (for both ghost and non-ghost edges/faces).
+       See also: var_edge_dofs and var_face_dofs in the base class. */
+   Table ghost_var_edge_dofs;
+   Table ghost_var_face_dofs;
+
+   //Array<char> ghost_var_edge_orders, ghost_var_face_orders;
+
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
@@ -110,6 +118,9 @@ private:
 
    void ApplyLDofSigns(Array<int> &dofs) const;
    void ApplyLDofSigns(Table &el_dof) const;
+
+   void CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
+                                   Array<VarOrderBits> &ghost_face_orders) const;
 
    typedef NCMesh::MeshId MeshId;
    typedef ParNCMesh::GroupId GroupId;
@@ -191,6 +202,9 @@ public:
    // Local face-neighbor data: face-neighbor to ldof
    Table send_face_nbr_ldof;
 
+   ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
+                         int dim = 1, int ordering = Ordering::byNODES);
+
    /** @brief Copy constructor: deep copy all data from @a orig except the
        ParMesh, the FiniteElementCollection, and some derived data. */
    /** If the @a pmesh or @a fec pointers are NULL (default), then the new
@@ -228,9 +242,6 @@ public:
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementSpace *global_fes,
                          const int *partitioning,
                          const FiniteElementCollection *f = NULL);
-
-   ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
-                         int dim = 1, int ordering = Ordering::byNODES);
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** The parameter @a ext will be deleted by this constructor, replaced by a

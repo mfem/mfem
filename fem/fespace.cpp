@@ -2127,6 +2127,9 @@ void FiniteElementSpace
       return;
    }
 
+   // TODO: move the rest of this function to a virtual function that is
+   // overloaded in parallel to generalize the propagation across CPU boundaries
+
    // Iterate while minimum orders propagate by master/slave relations
    // (and new orders also propagate from faces to incident edges).
    // See https://github.com/mfem/mfem/pull/1423#issuecomment-638930559

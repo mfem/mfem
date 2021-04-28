@@ -340,6 +340,12 @@ public:
        stretching and curvature). */
    int GetElementSizeReduction(int i) const;
 
+   /// Return the indices of edges of element 'i' (in Mesh numbering).
+   void GetElementEdges(int i, Array<int> &edges) const;
+
+   /// Return the indices of faces of element 'i' (in Mesh numbering).
+   void GetElementFaces(int i, Array<int> &faces) const;
+
    /// Return the faces and face attributes of leaf element 'i'.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;

@@ -129,6 +129,11 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    }
 }
 
+bool NeedDoubleFaces()
+{
+   return true; // TODO
+}
+
 void ParFiniteElementSpace::Construct()
 {
    MFEM_VERIFY(!IsVariableOrder(), "variable orders are not implemented"
@@ -148,12 +153,30 @@ void ParFiniteElementSpace::Construct()
    {
       pncmesh = pmesh->pncmesh;
 
-      // Initialize 'gcomm' for the cut (aka "partially conforming") space.
-      // In the process, the array 'ldof_ltdof' is also initialized (for the cut
-      // space) and used; however, it will be overwritten below with the real
-      // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
-      // cut space.
-      ConstructTrueDofs();
+      int dim = pmesh->Dimension();
+      int order = fec->GetOrder();
+
+      if (!IsVariableOrder())
+      {
+         // Initialize 'gcomm' for the cut (aka "partially conforming") space.
+         // In the process, the array 'ldof_ltdof' is also initialized (for the cut
+         // space) and used; however, it will be overwritten below with the real
+         // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
+         // cut space.
+         ConstructTrueDofs();
+      }
+      else
+      {
+         // Exchange ghost element orders
+         pncmesh->SynchronizeElementData(elem_order);
+         // TODO: what to do with gcomm and the cut space groups?
+      }
+
+      Array<VarOrderBits> ghost_edge_orders, ghost_face_orders;
+      if (IsVariableOrder() || NeedDoubleFaces())
+      {
+         CalcGhostEdgeFaceVarOrders(ghost_edge_orders, ghost_face_orders);
+      }
 
       ngedofs = ngfdofs = 0;
 
@@ -161,16 +184,32 @@ void ParFiniteElementSpace::Construct()
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
 
-      if (pmesh->Dimension() > 1)
+      // assign ghost edge DOFs
+      if (dim > 1)
       {
-         ngedofs = pncmesh->GetNGhostEdges()
-                   * fec->DofForGeometry(Geometry::SEGMENT);
+         if (IsVariableOrder())
+         {
+            MakeDofTable(1, ghost_edge_orders, ghost_var_edge_dofs, NULL);
+         }
+         else // the simple case: all edges are of the same order
+         {
+            ngedofs = pncmesh->GetNGhostEdges()
+                      * fec->GetNumDof(Geometry::SEGMENT, order);
+         }
       }
 
-      if (pmesh->Dimension() > 2)
+      // assign ghost face DOFs
+      if (dim > 2)
       {
-         int stride = fec->DofForGeometry(Geometry::SQUARE);
-         ngfdofs = pncmesh->GetNGhostFaces() * stride;
+         if (IsVariableOrder() || NeedDoubleFaces())
+         {
+            MakeDofTable(2, ghost_face_orders, ghost_var_face_dofs, NULL);
+         }
+         else
+         {
+            ngfdofs = pncmesh->GetNGhostFaces()
+                      * fec->GetNumDof(Geometry::SQUARE, order);
+         }
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -187,6 +226,75 @@ void ParFiniteElementSpace::Construct()
       // and the point where the P matrix is actually needed.
    }
 }
+
+
+static bool OrderExists(int i, int order,
+                         const Table &var_dofs, const Array<char> &var_orders)
+{
+   int beg = var_dofs.GetI()[i];
+   int end = var_dofs.GetI()[i+1];
+   for (int j = beg; j < end; j++)
+   {
+      if (var_orders[j] == order) { return true; }
+   }
+   return false;
+}
+
+
+void ParFiniteElementSpace
+::CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
+                             Array<VarOrderBits> &ghost_face_orders) const
+{
+   MFEM_VERIFY(Nonconforming(), "");
+
+   //MFEM_ASSERT(IsVariableOrder(), "");
+   //MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
+
+   ghost_edge_orders.SetSize(mesh->GetNEdges() + pncmesh->GetNGhostEdges());
+   ghost_face_orders.SetSize(mesh->GetNFaces() + pncmesh->GetNGhostFaces());
+
+   ghost_edge_orders = 0;
+   ghost_face_orders = 0;
+
+   // See FiniteElementSpace::CalcEdgeFaceVarOrders for the general idea. Here
+   // we process ghost elements to detect edge/face orders that were missed by
+   // the serial procedure.
+   Array<int> E, F;
+   for (int i = 0; i < pncmesh->GetNGhostElements(); i++)
+   {
+      int ghost = mesh->GetNE() + i;
+      int order = IsVariableOrder() ? elem_order[ghost] : fec->GetOrder();
+
+      MFEM_ASSERT(order <= MaxVarOrder, "");
+      VarOrderBits mask = (VarOrderBits(1) << order);
+
+      pncmesh->GetElementEdges(ghost, E);
+      for (int j = 0; j < E.Size(); j++)
+      {
+         if (E[j] < mesh->GetNEdges() &&
+             OrderExists(E[j], order, var_edge_dofs, var_edge_orders))
+         {
+            continue; // order already covered by var_edge_dofs
+         }
+         ghost_edge_orders[E[j]] |= mask;
+      }
+
+      if (mesh->Dimension() > 2)
+      {
+         pncmesh->GetElementFaces(ghost, F);
+         for (int j = 0; j < F.Size(); j++)
+         {
+            if (F[j] < mesh->GetNFaces() &&
+                OrderExists(F[j], order, var_face_dofs, var_face_orders))
+            {
+               continue; // order already covered by var_face_dofs
+            }
+            ghost_face_orders[F[j]] |= mask;
+         }
+      }
+   }
+}
+
 
 void ParFiniteElementSpace::PrintPartitionStats()
 {
