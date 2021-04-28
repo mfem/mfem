@@ -151,6 +151,9 @@
 // Enable MFEM functionality based on the ADIOS2 library
 #cmakedefine MFEM_USE_ADIOS2
 
+// Enable MFEM functionality based on the Caliper library
+#cmakedefine MFEM_USE_CALIPER
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.

@@ -2377,6 +2377,26 @@ void GridFunction::ProjectCoefficient(
    }
 }
 
+void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
+{
+   int i;
+   Array<int> vdofs;
+   Vector vals;
+
+   for (i = 0; i < fes->GetNE(); i++)
+   {
+      if (fes->GetAttribute(i) != attribute)
+      {
+         continue;
+      }
+
+      fes->GetElementVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+      SetSubVector(vdofs, vals);
+   }
+}
+
 void GridFunction::ProjectCoefficient(Coefficient *coeff[])
 {
    int i, j, fdof, d, ind, vdim;
@@ -3486,6 +3506,13 @@ void GridFunction::Save(std::ostream &out) const
       Vector::Print(out, fes->GetVDim());
    }
    out.flush();
+}
+
+void GridFunction::Save(const char *fname, int precision) const
+{
+   ofstream ofs(fname);
+   ofs.precision(precision);
+   Save(ofs);
 }
 
 #ifdef MFEM_USE_ADIOS2

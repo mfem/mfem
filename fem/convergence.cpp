@@ -85,7 +85,7 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
 #endif
    if (!tdofs) { tdofs = gf->FESpace()->GetTrueVSize(); }
    ndofs.Append(tdofs);
-   double L2Err;
+   double L2Err = 1.;
    if (scalar_u)
    {
       L2Err = gf->ComputeL2Error(*scalar_u);
