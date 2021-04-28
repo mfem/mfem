@@ -956,7 +956,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                         dofs[dof] = 0.0;
                      }
                   }
-                  MFEM_SYNC_THREAD
+                  MFEM_SYNC_THREAD;
                   MFEM_FOREACH_THREAD(dofOut,x,nd)
                   for (int dofOut = 0; dofOut<nd; dofOut++)
                   {
@@ -967,7 +967,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      }
                      d_y(dofOut, c, side, face) = res;
                   }
-                  MFEM_SYNC_THREAD
+                  MFEM_SYNC_THREAD;
                }
             }
          }

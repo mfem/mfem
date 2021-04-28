@@ -1823,7 +1823,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      const int idx = side==0 ? d_indices1[i] : d_indices2[i];
                      dofs[dof] = d_x(t?c:idx, t?idx:c);
                   }
-                  MFEM_SYNC_THREAD
+                  MFEM_SYNC_THREAD;
                   MFEM_FOREACH_THREAD(dofOut,x,nd)
                   {
                      double res = 0.0;
@@ -1833,7 +1833,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      }
                      d_y(dofOut, c, side, face) = res;
                   }
-                  MFEM_SYNC_THREAD
+                  MFEM_SYNC_THREAD;
                }
             }
          }
