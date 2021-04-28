@@ -600,6 +600,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
       face_id1 = info.elem_1_local_face;
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
+      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
+      {
+         continue;
+      }
       if (dof_reorder)
       {
          GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
@@ -801,6 +805,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
       face_id1 = info.elem_1_local_face;
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
+      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
+      {
+         continue;
+      }
       if ((type==FaceType::Interior &&
            (info.location==Mesh::FaceLocation::Interior ||
             info.location==Mesh::FaceLocation::Shared) ) ||
