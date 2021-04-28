@@ -49,78 +49,94 @@ void KronMultInvDiag(const Vector & a, const Vector & b,
          }
 }
 
-FDSolver::FDSolver(Array<DenseMatrix *> A_, Array<DenseMatrix *> B_)
-   : A(A_), B(B_)
+void KronMultInvDiag(const Array<Vector *> & X, Vector & diag)
 {
-   if (A.Size() && B.Size())
+   int dim = X.Size();
+   if (dim == 2)
    {
-      MFEM_VERIFY(A.Size() == B.Size(), "FDSolver: Incompatible Dimensions");
+      KronMultInvDiag(*X[0], *X[1], diag);
    }
-
-   size = A[0]->Height();
-   if (size) { Setup(); }
+   else if (dim == 3)
+   {
+      KronMultInvDiag(*X[0], *X[1], *X[2], diag);
+   }
+   else
+   {
+      MFEM_ABORT("KronMultInvDiag::Wrong dimension");
+   }
 }
 
-void FDSolver::Setup()
+FDSolver::FDSolver(const Array<DenseMatrix *> & A,
+                   const Array<DenseMatrix *> & B)
 {
-   dim = B.Size();
-   Sd.SetSize(dim);
-   Array<DenseMatrix * > D(dim); // D[i] = B[i]^-1 * A[i]
-   for (int i=0; i<dim; i++)
+   MFEM_ASSERT(A.Size() == B.Size(), "DenseFDSolver: Incompatible Dimensions");
+   dim = A.Size();
+
+   int solver_size = 1;
+   for (int i = 0; i<dim; i++)
    {
-      Sd[i] = nullptr;
-      int j = dim-i-1;
-      if (B[j]->Height())
-      {
-         Sd[i] = new DenseMatrixInverse(*B[j]);
-      }
+      MFEM_ASSERT(A[i]->Height() == A[i]->Width(),
+                  "DenseFDSolver: Matrix is not square");
+      MFEM_ASSERT(B[i]->Height() == B[i]->Width(),
+                  "DenseFDSolver: Matrix is not square");
+      MFEM_ASSERT(A[i]->Height() == B[i]->Height(),
+                  "DenseFDSolver: Matrices A and B have incompatible size");
+      solver_size *= A[i]->Height();
    }
-   if (A.Size())
+   this->height = solver_size;
+   this->width  = solver_size;
+   if (solver_size) { Setup(A,B); }
+}
+
+void FDSolver::Setup(const Array<DenseMatrix *> & A,
+                     const Array<DenseMatrix *> & B)
+{
+   EigSystem.SetSize(dim);
+   eigv.SetSize(dim);
+   Array<Vector *> evalues(dim);
+   SQ.SetSize(dim);
+   DenseMatrix D;
+   for (int i = 0; i<dim; i++)
    {
-      SQ.SetSize(dim);
-      SQinv.SetSize(dim);
+      int j = dim-i-1;
+      DenseMatrixInverse Minv(*B[j]);
+      Minv.Mult(*A[j],D);
+      EigSystem[i] = new DenseMatrixEigensystem(D);
+      EigSystem[i]->Eval();
+      evalues[i] = &EigSystem[i]->Eigenvalues();
+      eigv[i] = &EigSystem[i]->Eigenvectors();
+      DenseMatrixInverse Qinv(*eigv[i]);
+      DenseMatrix Sdinv;
+      Minv.GetInverseMatrix(Sdinv);
+      SQ[i] = new DenseMatrix;
+      Qinv.Mult(Sdinv,*SQ[i]);
+   }
+   KronMultInvDiag(evalues,dinv);
+}
+
+
+void FDSolver::Mult(const Vector & r,Vector & z) const
+{
+   MFEM_ASSERT(height == r.Size(),
+               "DenseFDSolver::Mult: Inconsistent vector size");
+   if (r.Size() == 0) { return; }
+   Vector rtemp;
+   KronMult(SQ,r,rtemp);
+   // 2. Diagonal solve;
+   rtemp *= dinv;
+   // 3. Modify RHS; z <-- (Q1 x Q2) rtemp
+   KronMult(eigv,rtemp,z);
+}
+
+FDSolver::~FDSolver()
+{
+   if (height)
+   {
       for (int i=0; i<dim; i++)
       {
-         int j = dim-i-1;
-         int n = A[j]->Height();
-         D[i] = new DenseMatrix(n);
-         if (n)
-         {
-            // B_i^-1 * A_i^-1
-            Sd[i]->Mult(*A[j],*D[i]);
-         }
+         delete SQ[i];
+         delete EigSystem[i];
       }
-      Q.SetSize(dim);
-      Diag.SetSize(dim);
-      int size = 1;
-      for (int i = 0; i<dim; i++)
-      {
-         SQ[i] = nullptr;
-         size *= D[i]->Height();
-         // Diag[i] = new Vector;
-         // Q[i] = new DenseMatrix;
-         if (D[i]->Height())
-         {
-            // D[i]->Eigensystem(*Diag[i],*Q[i]); // non-spd
-            DenseMatrixEigensystem Eig(*D[i]);
-            Diag[i] = new Vector(Eig.Eigenvalues()); // non-spd
-            Q[i] = new DenseMatrix(Eig.Eigenvectors()); // non-spd
-            DenseMatrixInverse Qinv(*Q[i]);
-            DenseMatrix Sdinv;
-            Sd[i]->GetInverseMatrix(Sdinv);
-            SQ[i] = new DenseMatrix;
-            Qinv.Mult(Sdinv,*SQ[i]);
-         }
-      }
-      if (dim == 2)
-      {
-         KronMultInvDiag(*Diag[0], *Diag[1], dinv);
-      }
-      else
-      {
-         KronMultInvDiag(*Diag[0], *Diag[1], *Diag[2], dinv);
-      }
-      for (int i=0; i<dim; i++) { delete D[i]; };
    }
 }
 

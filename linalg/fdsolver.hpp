@@ -29,31 +29,29 @@ void KronMultInvDiag(const Vector & a, const Vector & b, Vector & dinv);
 void KronMultInvDiag(const Vector & a, const Vector & b,
                      const Vector & c, Vector & dinv);
 
+void KronMultInvDiag(const Array<Vector *> & X, Vector & diag);
 
-/// In 2D it solves the system (A_0 ⊗ B_1 + B_0 ⊗ A_1) x = y
-/// In 3D it solves the system (A_0 ⊗ B_1 ⊗ B_2 + B_0 ⊗ A_1 ⊗ B_2  + B_0 ⊗ B_1 ⊗ A_2 ) x = y
+
+/// In 2D it solves the system (A_0 ⊗ B_1 + B_0 ⊗ A_1) z = r
+/// In 3D it solves the system
+///     (A_0 ⊗ B_1 ⊗ B_2 + B_0 ⊗ A_1 ⊗ B_2 + B_0 ⊗ B_1 ⊗ A_2 ) z = r
 class FDSolver: public Solver
 {
 private:
-   // dimension
    int dim = 2;
-   int size;
-   Array<DenseMatrix *> A;
-   Array<DenseMatrix *> B;
-   Array<DenseMatrixInverse *> SQinv;
+   Array<DenseMatrixEigensystem *> EigSystem;
+   Array<DenseMatrix *> eigv; // eigenvectors
    Array<DenseMatrix *> SQ;
-   Array<DenseMatrixInverse *> Sd;
-   Array<Vector * > Diag;
    mutable Vector dinv;
-   Array<DenseMatrix * > Q;
-   void Setup();
+   void Setup(const Array<DenseMatrix *> & A, const Array<DenseMatrix *> & B);
 public:
-   FDSolver(Array<DenseMatrix *> A_, Array<DenseMatrix *> B_);
+   FDSolver(const Array<DenseMatrix *> & A, const Array<DenseMatrix *> & B);
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~FDSolver();
 };
-}
+
+} // mfem name space
 
 
 #endif // MFEM_FDSOLVER
