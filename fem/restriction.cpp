@@ -1111,7 +1111,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          if (m==L2FaceValues::DoubleValued)
          {
             if (type==FaceType::Interior &&
-                  info.location==Mesh::FaceLocation::Interior)
+                info.location==Mesh::FaceLocation::Interior)
             {
                for (int d = 0; d < dof; ++d)
                {
@@ -1176,7 +1176,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             for (int d = 0; d < dof; ++d)
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                             orientation, dof1d, d);
+                                            orientation, dof1d, d);
                const int did = faceMap2[pd];
                const int gid = elementMap[e2*elem_dofs + did];
                ++offsets[gid + 1];
@@ -1225,7 +1225,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             for (int d = 0; d < dof; ++d)
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                          orientation, dof1d, d);
+                                            orientation, dof1d, d);
                const int did = faceMap2[pd];
                const int gid = elementMap[e2*elem_dofs + did];
                const int lid = dof*f_ind + d;
@@ -1740,7 +1740,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             for (int d = 0; d < dof; ++d)
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                          orientation, dof1d, d);
+                                            orientation, dof1d, d);
                const int did = faceMap2[pd];
                const int gid = elementMap[e2*elem_dofs + did];
                const int lid = dof*f_ind + d;
