@@ -11227,6 +11227,10 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    IntRule = &ir;
    computed_factors = flags;
 
+   MFEM_ASSERT(mesh->GetNumGeometries(mesh->Dimension()) <= 1,
+               "mixed meshes are not supported!");
+   MFEM_ASSERT(mesh->GetNodes(), "meshes without nodes are not supported!");
+
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
@@ -11241,34 +11245,33 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                         Device::GetDeviceMemoryType();
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, my_d_mt);
+      X.SetSize(vdim*NQ*NE, my_d_mt); // NQ x SDIM x NE
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, my_d_mt);
+      detJ.SetSize(NQ*NE, my_d_mt); // NQ x NE
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
+   // All X, J, and detJ use this layout:
    qi->SetOutputLayout(QVectorLayout::byNODES);
-   const bool use_tensor_products = qi->UsesTensorProducts();
-   if (use_tensor_products)
-   {
-      MFEM_VERIFY(mesh->GetNumGeometries(dim) == 1,
-                  "Mixed meshes are not supported in tensor mode!");
-   }
+   // Same as UsesTensorBasis(*fespace) but we already have GetFE(0):
+   const bool use_tensor_products = dynamic_cast<const TensorBasisElement*>(fe)
+                                    != nullptr;
+   qi->DisableTensorProducts(!use_tensor_products);
    const ElementDofOrdering e_ordering = use_tensor_products ?
                                          ElementDofOrdering::LEXICOGRAPHIC :
                                          ElementDofOrdering::NATIVE;
    const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
 
-   if (elem_restr)
+   if (elem_restr) // Always true as of 2021-04-27
    {
       Vector Enodes(vdim*ND*NE, my_d_mt);
       elem_restr->Mult(*nodes, Enodes);
