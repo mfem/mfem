@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
+   int dim = 2;
    int nr = 1;
    int nz = 1;
    int el_type_flag = 1;
@@ -144,7 +145,6 @@ int main(int argc, char *argv[])
       }
       pmesh.ReorientTetMesh();
    }
-   int dim = pmesh.Dimension();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements (ND) of the specified order. We also
