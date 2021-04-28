@@ -24,7 +24,6 @@ set(HDF5_ROOT ${HDF5_DIR} CACHE PATH "")
 # to be called for a second time
 set(HDF5_FOUND OFF)
 enable_language(C) # FindHDF5.cmake uses the C compiler
-set(NetCDF_REQUIRED_PACKAGES HDF5/C/HL)
 mfem_find_package(NetCDF NETCDF NETCDF_DIR "include" netcdf.h "lib" netcdf
   "Paths to headers required by NetCDF." "Libraries required by NetCDF.")
 # The HL extension libraries are in a separate variable and must precede
