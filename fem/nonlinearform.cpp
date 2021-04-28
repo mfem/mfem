@@ -973,7 +973,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
                fe[s] = fes[s]->GetFE(tr->Elem1No);
                fe2[s] = fe[s];
 
-               fes[s]->GetElementVDofs(i, *vdofs[s]);
+               fes[s]->GetElementVDofs(tr->Elem1No, *vdofs[s]);
                bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
             }
 

@@ -36,6 +36,7 @@ list(APPEND ALL_EXE_SRCS
   ex26.cpp
   ex27.cpp
   ex28.cpp
+  ex29.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -68,9 +69,11 @@ if (MFEM_USE_MPI)
     ex26p.cpp
     ex27p.cpp
     ex28p.cpp
+    ex29p.cpp
     ex1p-orth.cpp
     ex11p-cyl.cpp
     ex13p-cyl.cpp
+    ex13p-cyl-3d.cpp
     )
 endif()
 
@@ -154,6 +157,10 @@ endif()
 # Include the examples/sundials directory if SUNDIALS is enabled.
 if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
+endif()
+
+if(MFEM_USE_CALIPER)
+  add_subdirectory(caliper)
 endif()
 
 # Include the examples/superlu directory if SUPERLU is enabled.
