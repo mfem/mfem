@@ -244,19 +244,9 @@ protected:
    Array<Triple<int, int, int> > tmp_vertex_parents;
 
 public:
-   NCFaceInfo& GetNCFacesInfo(int i)
-   {
-      return nc_faces_info[i];
-   }
-
    const DenseMatrix* GetNCFacesPtMat(int i)
    {
       return nc_faces_info[i].PointMatrix;
-   }
-
-   int& GetNCFacesOrientation(int i)
-   {
-      return nc_faces_orientation[i];
    }
 
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
