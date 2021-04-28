@@ -3496,6 +3496,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m, bool sym_)
 {
    n = mat.Width();
    EVal.SetSize(n);
+   EVali.SetSize(n);
    EVect.SetSize(n);
    ev.SetDataAndSize(NULL, n);
 
@@ -3556,7 +3557,6 @@ void DenseMatrixEigensystem::Eval()
    {
       char jobvl = 'N';
       int ldvl = 1;
-
       dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(),
              nullptr, &ldvl, EVect.GetData(), &n, work, &lwork, &info);
    }
