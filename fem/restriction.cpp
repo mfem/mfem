@@ -1764,42 +1764,45 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL(face, nf,
+      MFEM_FORALL_3D(face, nf, nd, 1, 1,
       {
-         double dofs[max_nd];
-         double res[max_nd];
-         for (int c = 0; c < vd; ++c)
+         MFEM_SHARED double dofs[max_nd];
+         for (int side = 0; side < 2; side++)
          {
-            for (int side = 0; side < 2; side++)
+            const int config = side==0 ? conforming : interp_config_ptr[face];
+            if ( config==conforming ) // No interpolation needed
             {
-               for (int dof = 0; dof<nd; dof++)
+               MFEM_FOREACH_THREAD(dof,x,nd)
                {
                   const int i = face*nd + dof;
                   const int idx = side==0 ? d_indices1[i] : d_indices2[i];
-                  dofs[dof] = d_x(t?c:idx, t?idx:c);
-               }
-               const int config = side==0 ? conforming : interp_config_ptr[face];
-               if ( config==conforming ) // No interpolation needed
-               {
-                  for (int dof = 0; dof<nd; dof++)
+                  for (int c = 0; c < vd; ++c)
                   {
-                     d_y(dof, c, side, face) = dofs[dof];
+                     d_y(dof, c, side, face) = d_x(t?c:idx, t?idx:c);
                   }
                }
-               else // Interpolation from coarse to fine
+            }
+            else // Interpolation from coarse to fine
+            {
+               for (int c = 0; c < vd; ++c)
                {
-                  for (int dofOut = 0; dofOut<nd; dofOut++)
+                  MFEM_FOREACH_THREAD(dof,x,nd)
                   {
-                     res[dofOut] = 0.0;
+                     const int i = face*nd + dof;
+                     const int idx = side==0 ? d_indices1[i] : d_indices2[i];
+                     dofs[dof] = d_x(t?c:idx, t?idx:c);
+                  }
+                  MFEM_SYNC_THREAD
+                  MFEM_FOREACH_THREAD(dofOut,x,nd)
+                  {
+                     double res = 0.0;
                      for (int dofIn = 0; dofIn<nd; dofIn++)
                      {
-                        res[dofOut] += interp(dofOut, dofIn, config)*dofs[dofIn];
+                        res += interp(dofOut, dofIn, config)*dofs[dofIn];
                      }
+                     d_y(dofOut, c, side, face) = res;
                   }
-                  for (int dof = 0; dof<nd; dof++)
-                  {
-                     d_y(dof, c, side, face) = res[dof];
-                  }
+                  MFEM_SYNC_THREAD
                }
             }
          }
@@ -1859,32 +1862,30 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL(face, nf,
+      MFEM_FORALL_3D(face, nf, nd, 1, 1,
       {
-         double dofs[max_nd];
-         double res[max_nd];
+         MFEM_SHARED double dofs[max_nd];
          const int side = 1;
          const int config = interp_config_ptr[face];
          if ( config!=conforming ) // Interpolation from fine to coarse
          {
             for (int c = 0; c < vd; ++c)
             {
-               for (int dof = 0; dof<nd; dof++)
+               MFEM_FOREACH_THREAD(dof,x,nd)
                {
                   dofs[dof] = d_x(dof, c, side, face);
                }
-               for (int dofOut = 0; dofOut<nd; dofOut++)
+               MFEM_SYNC_THREAD
+               MFEM_FOREACH_THREAD(dofOut,x,nd)
                {
-                  res[dofOut] = 0.0;
+                  double res = 0.0;
                   for (int dofIn = 0; dofIn<nd; dofIn++)
                   {
-                     res[dofOut] += interp(dofIn, dofOut, config)*dofs[dofIn];
+                     res += interp(dofIn, dofOut, config)*dofs[dofIn];
                   }
+                  d_x(dofOut, c, side, face) = res;
                }
-               for (int dof = 0; dof<nd; dof++)
-               {
-                  d_x(dof, c, side, face) = res[dof];
-               }
+               MFEM_SYNC_THREAD
             }
          }
       });
