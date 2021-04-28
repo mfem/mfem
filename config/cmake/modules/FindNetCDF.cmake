@@ -15,8 +15,21 @@
 #   - NETCDF_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-# If HDF5 was already found (without HL), this won't re-fetch it
-# so we look for HL separately
-set(NetCDF_REQUIRED_PACKAGES HDF5/C/HL HDF5_HL)
+
+# FindHDF5.cmake uses HDF5_ROOT, so we "translate" from the MFEM convention
+set(HDF5_ROOT ${HDF5_DIR} CACHE PATH "")
+# We need to guard against the case where HDF5 was already found but without
+# the HL extensions (in which case mfem_find_package will treat the package
+# as already having been found), so we reset the variable to force FindHDF5.cmake
+# to be called for a second time
+set(HDF5_FOUND OFF)
+enable_language(C) # FindHDF5.cmake uses the C compiler
+set(NetCDF_REQUIRED_PACKAGES HDF5/C/HL)
 mfem_find_package(NetCDF NETCDF NETCDF_DIR "include" netcdf.h "lib" netcdf
   "Paths to headers required by NetCDF." "Libraries required by NetCDF.")
+# The HL extension libraries are in a separate variable and must precede
+# the "regular" hdf5 library, as hdf5_hl depends on hdf5
+# The netcdf library will always be the first element of NETCDF_LIBRARIES
+# and we need to insert after that library but before the hdf5 library, so
+# position 1 is used
+list(INSERT NETCDF_LIBRARIES 1 ${HDF5_C_LIBRARY_hdf5_hl})
