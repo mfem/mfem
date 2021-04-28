@@ -683,8 +683,8 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       {
          // A, X and B point to the same data as mat, x and b
          EliminateVDofsInRHS(ess_tdof_list, x, b);
-         X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
-         B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
+         X.MakeRef(x, 0, x.Size());
+         B.MakeRef(b, 0, b.Size());
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
       }
    }
