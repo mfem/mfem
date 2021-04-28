@@ -32,9 +32,9 @@ void KronMultInvDiag(const Vector & a, const Vector & b,
 void KronMultInvDiag(const Array<Vector *> & X, Vector & diag);
 
 
-/// In 2D it solves the system (A_0 ⊗ B_1 + B_0 ⊗ A_1) z = r
+/// In 2D it solves the system (A_1 ⊗ B_0 + B_1 ⊗ A_0) z = r
 /// In 3D it solves the system
-///     (A_0 ⊗ B_1 ⊗ B_2 + B_0 ⊗ A_1 ⊗ B_2 + B_0 ⊗ B_1 ⊗ A_2 ) z = r
+///     (A_2 ⊗ B_1 ⊗ B_0 + B_2 ⊗ A_1 ⊗ B_0 + B_2 ⊗ B_1 ⊗ A_0) z = r
 class FDSolver: public Solver
 {
 private:
