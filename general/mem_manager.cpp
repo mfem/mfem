@@ -768,7 +768,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
 {
    MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
-   MFEM_VERIFY(!alias, "Cannot register an alias!");
+   MFEM_ASSERT(!alias, "Cannot register an alias!");
    const bool is_host_mem = IsHostMemory(mt);
    const MemType h_mt = is_host_mem ? mt : GetDualMemoryType(mt);
    const MemType d_mt = is_host_mem ? MemoryType::DEFAULT : mt;
@@ -1490,7 +1490,6 @@ void MemoryManager::Configure(const MemoryType host_mt,
    host_mem_type = host_mt;
    device_mem_type = device_mt;
    configured = true;
-   register_alias_bases = (host_mem_type != device_mem_type);
 }
 
 void MemoryManager::Destroy()
@@ -1596,7 +1595,6 @@ MemoryManager mm;
 
 bool MemoryManager::exists = false;
 bool MemoryManager::configured = false;
-bool MemoryManager::register_alias_bases = false;
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
 MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
