@@ -1169,19 +1169,17 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             const int gid = elementMap[e1*elem_dofs + did];
             ++offsets[gid + 1];
          }
-         if (m==L2FaceValues::DoubleValued)
+         if (m==L2FaceValues::DoubleValued &&
+             type==FaceType::Interior &&
+             info.location==Mesh::FaceLocation::Interior)
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (type==FaceType::Interior &&
-                   info.location==Mesh::FaceLocation::Interior)
-               {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation, dof1d, d);
-                  const int did = faceMap2[pd];
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  ++offsets[gid + 1];
-               }
+               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                             orientation, dof1d, d);
+               const int did = faceMap2[pd];
+               const int gid = elementMap[e2*elem_dofs + did];
+               ++offsets[gid + 1];
             }
          }
          f_ind++;
@@ -1220,21 +1218,19 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             // We don't shift lid to express that it's e1 of f
             gather_indices[offsets[gid]++] = lid;
          }
-         if (m==L2FaceValues::DoubleValued)
+         if (m==L2FaceValues::DoubleValued &&
+             type==FaceType::Interior &&
+             info.location==Mesh::FaceLocation::Interior)
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (type==FaceType::Interior &&
-                  info.location==Mesh::FaceLocation::Interior) // interior face
-               {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                             orientation, dof1d, d);
-                  const int did = faceMap2[pd];
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  const int lid = dof*f_ind + d;
-                  // We shift lid to express that it's e2 of f
-                  gather_indices[offsets[gid]++] = nfdofs + lid;
-               }
+               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                          orientation, dof1d, d);
+               const int did = faceMap2[pd];
+               const int gid = elementMap[e2*elem_dofs + did];
+               const int lid = dof*f_ind + d;
+               // We shift lid to express that it's e2 of f
+               gather_indices[offsets[gid]++] = nfdofs + lid;
             }
          }
          f_ind++;
@@ -1530,6 +1526,10 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       face_id1 = info.elem_1_local_face;
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
+      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
+      {
+         continue;
+      }
       if (dof_reorder)
       {
          GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
@@ -1710,6 +1710,10 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       face_id1 = info.elem_1_local_face;
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
+      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
+      {
+         continue;
+      }
       if (info.location==Mesh::FaceLocation::Shared)
       {
          MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction.");
@@ -1730,8 +1734,8 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             gather_indices[offsets[gid]++] = lid;
          }
          if (m==L2FaceValues::DoubleValued &&
-            type==FaceType::Interior &&
-            info.location==Mesh::FaceLocation::Interior)
+             type==FaceType::Interior &&
+             info.location==Mesh::FaceLocation::Interior)
          {
             for (int d = 0; d < dof; ++d)
             {
