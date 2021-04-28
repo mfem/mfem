@@ -1989,8 +1989,6 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       Update();
    }
 
-   //NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
-
 #ifdef MFEM_DEBUG
    int glob_sent, glob_recv;
    MPI_Reduce(&nsent, &glob_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);

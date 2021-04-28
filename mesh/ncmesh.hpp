@@ -340,15 +340,14 @@ public:
        stretching and curvature). */
    int GetElementSizeReduction(int i) const;
 
-   /// Return the indices of edges of element 'i' (in Mesh numbering).
-   void GetElementEdges(int i, Array<int> &edges) const;
+   /// Return the indices of edges of element 'elem' (in Mesh numbering).
+   void GetElementEdges(int elem, Array<int> &edges) const;
 
-   /// Return the indices of faces of element 'i' (in Mesh numbering).
-   void GetElementFaces(int i, Array<int> &faces) const;
-
-   /// Return the faces and face attributes of leaf element 'i'.
-   void GetElementFacesAttributes(int i, Array<int> &faces,
-                                  Array<int> &fattr) const;
+   /** Return the indices of faces of element 'elem' (in Mesh numbering).
+       Optionally, the face attributes and face types can also be returned. */
+   void GetElementFaces(int elem, Array<int> &faces,
+                        Array<int> *attr = NULL,
+                        Array<Geometry::Type> *geom = NULL) const;
 
 
    /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.

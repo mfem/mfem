@@ -4967,9 +4967,9 @@ int NCMesh::GetElementSizeReduction(int i) const
    return reduction;
 }
 
-void NCMesh::GetElementEdges(int i, Array<int> &edges) const
+void NCMesh::GetElementEdges(int elem, Array<int> &edges) const
 {
-   const Element &el = elements[leaf_elements[i]];
+   const Element &el = elements[leaf_elements[elem]];
    const GeomInfo& gi = GI[el.Geom()];
 
    edges.SetSize(gi.ne);
@@ -4982,31 +4982,16 @@ void NCMesh::GetElementEdges(int i, Array<int> &edges) const
    }
 }
 
-void NCMesh::GetElementFaces(int i, Array<int> &faces) const
+void NCMesh::GetElementFaces(int elem, Array<int> &faces,
+                             Array<int> *attr,
+                             Array<mfem::Geometry::Type> *geom) const
 {
-   const Element &el = elements[leaf_elements[i]];
+   const Element &el = elements[leaf_elements[elem]];
    const GeomInfo& gi = GI[el.Geom()];
 
    faces.SetSize(gi.nf);
-   for (int i = 0; i < gi.nf; i++)
-   {
-      const int* fv = gi.faces[i];
-      const Face *face = this->faces.Find(el.node[fv[0]], el.node[fv[1]],
-                                          el.node[fv[2]], el.node[fv[3]]);
-      MFEM_ASSERT(face, "face not found");
-      faces[i] = face->index;
-   }
-}
-
-void NCMesh::GetElementFacesAttributes(int i,
-                                       Array<int> &faces,
-                                       Array<int> &fattr) const
-{
-   const Element &el = elements[leaf_elements[i]];
-   const GeomInfo& gi = GI[el.Geom()];
-
-   faces.SetSize(gi.nf);
-   fattr.SetSize(gi.nf);
+   if (attr) { attr->SetSize(gi.nf); }
+   if (geom) { attr->SetSize(gi.nf); }
 
    for (int i = 0; i < gi.nf; i++)
    {
@@ -5014,8 +4999,13 @@ void NCMesh::GetElementFacesAttributes(int i,
       const Face *face = this->faces.Find(el.node[fv[0]], el.node[fv[1]],
                                           el.node[fv[2]], el.node[fv[3]]);
       MFEM_ASSERT(face, "face not found");
+
       faces[i] = face->index;
-      fattr[i] = face->attribute;
+      if (attr) { (*attr)[i] = face->attribute; }
+      if (geom)
+      {
+         (*geom)[i] = (gi.nfv[i] == 3) ? Geometry::TRIANGLE : Geometry::SQUARE;
+      }
    }
 }
 

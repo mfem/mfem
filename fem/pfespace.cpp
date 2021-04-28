@@ -189,9 +189,10 @@ void ParFiniteElementSpace::Construct()
       {
          if (IsVariableOrder())
          {
-            MakeDofTable(1, ghost_edge_orders, ghost_var_edge_dofs, NULL);
+            ngedofs = MakeDofTable(1, ghost_edge_orders,
+                                   ghost_var_edge_dofs, NULL);
          }
-         else // the simple case: all edges are of the same order
+         else // the simple case: all ghost edges are of the same order
          {
             ngedofs = pncmesh->GetNGhostEdges()
                       * fec->GetNumDof(Geometry::SEGMENT, order);
@@ -203,7 +204,8 @@ void ParFiniteElementSpace::Construct()
       {
          if (IsVariableOrder() || NeedDoubleFaces())
          {
-            MakeDofTable(2, ghost_face_orders, ghost_var_face_dofs, NULL);
+            ngfdofs = MakeDofTable(2, ghost_face_orders,
+                                   ghost_var_face_dofs, NULL);
          }
          else
          {
@@ -250,16 +252,20 @@ void ParFiniteElementSpace
    //MFEM_ASSERT(IsVariableOrder(), "");
    //MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
 
+   bool ho_nedelec = true; // FIXME
+
    ghost_edge_orders.SetSize(mesh->GetNEdges() + pncmesh->GetNGhostEdges());
    ghost_face_orders.SetSize(mesh->GetNFaces() + pncmesh->GetNGhostFaces());
 
    ghost_edge_orders = 0;
    ghost_face_orders = 0;
 
+   Array<int> E, F, fattr;
+   Array<Geometry::Type> fgeom;
+
    // See FiniteElementSpace::CalcEdgeFaceVarOrders for the general idea. Here
    // we process ghost elements to detect edge/face orders that were missed by
    // the serial procedure.
-   Array<int> E, F;
    for (int i = 0; i < pncmesh->GetNGhostElements(); i++)
    {
       int ghost = mesh->GetNE() + i;
@@ -281,13 +287,19 @@ void ParFiniteElementSpace
 
       if (mesh->Dimension() > 2)
       {
-         pncmesh->GetElementFaces(ghost, F);
+         pncmesh->GetElementFaces(ghost, F, &fattr, &fgeom);
          for (int j = 0; j < F.Size(); j++)
          {
             if (F[j] < mesh->GetNFaces() &&
                 OrderExists(F[j], order, var_face_dofs, var_face_orders))
             {
-               continue; // order already covered by var_face_dofs
+               int ori = pncmesh->GetFaceOrientation(F[j]);
+               if (!ho_nedelec || fgeom[j] != Geometry::TRIANGLE
+                   || ori == 0 || ori == 5)
+               {
+                  continue; // order already covered by var_face_dofs
+                  // (also it is not the complex orientation Nedelec case)
+               }
             }
             ghost_face_orders[F[j]] |= mask;
          }
