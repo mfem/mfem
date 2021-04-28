@@ -1509,6 +1509,7 @@ void MemoryManager::Destroy()
    device_mem_type = MemoryType::HOST;
    exists = false;
    configured = false;
+   register_alias_bases = false;
 }
 
 void MemoryManager::RegisterCheck(void *ptr)
