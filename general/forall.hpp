@@ -60,6 +60,7 @@ const int MAX_Q1D = 14;
                  X,Y,Z)
 
 // MFEM_FORALL with a 3D CUDA block and grid
+// With G=0, this is the same as MFEM_FORALL_3D(i,N,X,Y,Z,...)
 #define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...)             \
    ForallWrap<3>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
@@ -165,7 +166,7 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (DEVICE, Resources(Teams(N), Threads(X, Y, Z)),
+   (DEVICE, Resources(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -281,9 +282,9 @@ void CuKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-void CuKernel2D(const int N, BODY body, const int BZ)
+void CuKernel2D(const int N, BODY body)
 {
-   const int k = blockIdx.x*BZ + threadIdx.z;
+   const int k = blockIdx.x*blockDim.z + threadIdx.z;
    if (k >= N) { return; }
    body(k);
 }
@@ -311,7 +312,7 @@ void CuWrap2D(const int N, DBODY &&d_body,
    MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   CuKernel2D<<<GRID,BLCK>>>(N,d_body,BZ);
+   CuKernel2D<<<GRID,BLCK>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -341,9 +342,9 @@ void HipKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-void HipKernel2D(const int N, BODY body, const int BZ)
+void HipKernel2D(const int N, BODY body)
 {
-   const int k = hipBlockIdx_x*BZ + hipThreadIdx_z;
+   const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
    if (k >= N) { return; }
    body(k);
 }
@@ -351,9 +352,7 @@ void HipKernel2D(const int N, BODY body, const int BZ)
 template <typename BODY> __global__ static
 void HipKernel3D(const int N, BODY body)
 {
-   const int k = hipBlockIdx_x;
-   if (k >= N) { return; }
-   body(k);
+   for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
 }
 
 template <const int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
@@ -372,7 +371,7 @@ void HipWrap2D(const int N, DBODY &&d_body,
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body,BZ);
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
