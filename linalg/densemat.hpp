@@ -538,6 +538,8 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
 void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
               const Vector &r, Vector & z);
 
+void KronMult(const Array<DenseMatrix *> & A, const Vector & r, Vector & z);
+
 /** Class that can compute LU factorization of external data and perform various
     operations with the factored data. */
 class LUFactors
@@ -711,6 +713,8 @@ void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
 void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
               const DenseMatrixInverse &Cinv, const Vector &r, Vector & z);
 
+void KronMult(const Array<DenseMatrixInverse *> & A, const Vector & r,
+              Vector & z);
 
 class DenseMatrixEigensystem
 {
@@ -734,7 +738,7 @@ public:
    DenseMatrixEigensystem(DenseMatrix &m, bool sym_ = false);
    DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
-   Vector &Eigenvalues(bool imag = false) { return imag ? EVal : EVali; }
+   Vector &Eigenvalues(bool imag = false) { return imag ? EVali : EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }
    double Eigenvalue(int i) { return EVal(i); }
    const Vector &Eigenvector(int i)

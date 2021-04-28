@@ -2952,6 +2952,23 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
    Z.Transpose();
 }
 
+void KronMult(const Array<DenseMatrix *> & A, const Vector & r, Vector & z)
+{
+   int dim = A.Size();
+   if (dim == 2)
+   {
+      KronMult(*A[0],*A[1],r,z);
+   }
+   else if (dim == 3)
+   {
+      KronMult(*A[0],*A[1],*A[2], r,z);
+   }
+   else
+   {
+      MFEM_ABORT("KronMult::Wrong dimension");
+   }
+}
+
 bool LUFactors::Factor(int m, double TOL)
 {
 #ifdef MFEM_USE_LAPACK
@@ -3456,6 +3473,23 @@ void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
    Z.Transpose();
 }
 
+void KronMult(const Array<DenseMatrixInverse *> & A, const Vector & r,
+              Vector & z)
+{
+   int dim = A.Size();
+   if (dim == 2)
+   {
+      KronMult(*A[0],*A[1],r,z);
+   }
+   else if (dim == 3)
+   {
+      KronMult(*A[0],*A[1],*A[2], r,z);
+   }
+   else
+   {
+      MFEM_ABORT("KronMult::Wrong dimension");
+   }
+}
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m, bool sym_)
    : mat(m), sym(sym_)
