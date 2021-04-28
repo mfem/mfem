@@ -271,6 +271,9 @@ public:
 
    Vector &operator+=(const Vector &v);
 
+   /// entry-wise mult
+   Vector &operator*=(const Vector &v);
+
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
 
