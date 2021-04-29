@@ -24,7 +24,7 @@ In the above examples, `LORSolver<T>` does a couple of things:
 * Creates a LOR mesh and finite element space
 * Assembles a LOR version of the bilinear form `a`
 * Creates a preconditioner of type `<T>` using the LOR-assembled version
-* Creates a DOF permutation (if requires) to transition between the LOR and high-order DOF numbering
+* Creates a DOF permutation (if required) to transition between the LOR and high-order DOF numbering
 
 ## Creating discretizations
 
