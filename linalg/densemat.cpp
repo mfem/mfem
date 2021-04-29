@@ -2917,15 +2917,14 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
    const int nR = R.Height();
    const int mR = R.Width();
    Z.SetSize(nA*nB,mR);
-   Vector r(nR);
-   Vector z(nA*nB);
+
+   Vector r,z;
    double * dataR = R.Data();
-   double * dataZ = Z.Data();
    for (int i = 0; i<mR; i++)
    {
-      r.SetData(&dataR[i*nR]);
-      z.SetData(&dataZ[i*nA*nB]);
+      r.SetDataAndSize(&dataR[i*nR],nR);
       KronMult(A,B,r,z);
+      Z.SetCol(i,z);   
    }
 }
 
