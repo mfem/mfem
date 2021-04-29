@@ -6596,6 +6596,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          for (i = 0; i < nparts; i++)
          {
             psize[i].one = 0;
+            psize[i].two = i;
          }
 
          for (i = 0; i < NumOfElements; i++)
