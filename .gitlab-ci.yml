@@ -103,7 +103,7 @@ setup:
 # allow pre-allocation the same way slurm does.
 .build_blueos_3_ppc64le_ib_script:
   script:
-    - lalloc 1 -W 15 tests/gitlab/build_and_test
+    - lalloc 1 -W 30 -q pdebug tests/gitlab/build_and_test
 
 # Shared script for baseline and sample-run-baseline, the value of BASELINE_TEST
 # differentiates between the two tests.
