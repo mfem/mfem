@@ -3557,7 +3557,8 @@ void DenseMatrixEigensystem::Eval()
    {
       char jobvl = 'N';
       int ldvl = 1;
-      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(),
+      DenseMatrix T = mat; // mat is overwritten by dgeev
+      dgeev_(&jobvl,&jobz,&n, T.GetData(), &n, EVal.GetData(), EVali.GetData(),
              nullptr, &ldvl, EVect.GetData(), &n, work, &lwork, &info);
    }
    if (info != 0)
