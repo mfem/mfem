@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
       fespaces->AddOrderRefinedLevel(collections.Last());
    }
 
-   HYPRE_Int size = fespaces->GetFinestFESpace().GlobalTrueVSize();
+   HYPRE_BigInt size = fespaces->GetFinestFESpace().GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
