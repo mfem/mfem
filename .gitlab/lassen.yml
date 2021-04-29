@@ -33,20 +33,20 @@
 #    SPEC: "%clang@9.0.0 +debug~cuda"
 #  extends: .build_and_test_on_lassen
 
-debug_xl_16_1_1_8:
-  variables:
-    SPEC: "%xl@16.1.1.8 +debug~cuda"
-  extends: .build_and_test_on_lassen
+#debug_xl_16_1_1_8:
+#  variables:
+#    SPEC: "%xl@16.1.1.8 +debug~cuda"
+#  extends: .build_and_test_on_lassen
 
 #debug_cuda_clang_9_0_0:
 #  variables:
 #    SPEC: "%clang@9.0.0 +debug+cuda"
 #  extends: .build_and_test_on_lassen
 
-debug_cuda_xl_16_1_1_8:
-  variables:
-    SPEC: "%xl@16.1.1.8 +debug+cuda cuda_arch=sm_70"
-  extends: .build_and_test_on_lassen
+#debug_cuda_xl_16_1_1_8:
+#  variables:
+#    SPEC: "%xl@16.1.1.8 +debug+cuda cuda_arch=sm_70"
+#  extends: .build_and_test_on_lassen
 
 #opt_cuda_clang_9_0_0:
 #  variables:
@@ -56,4 +56,4 @@ debug_cuda_xl_16_1_1_8:
 opt_cuda_xl_16_1_1_8:
   variables:
     SPEC: "%xl@16.1.1.8 +cuda cuda_arch=sm_70"
-cuda_arch  extends: .build_and_test_on_lassen
+  extends: .build_and_test_on_lassen
