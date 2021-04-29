@@ -98,9 +98,8 @@ void FDSolver::Setup(const Array<DenseMatrix *> & A,
    DenseMatrix D;
    for (int i = 0; i<dim; i++)
    {
-      int j = dim-i-1;
-      DenseMatrixInverse Minv(*B[j]);
-      Minv.Mult(*A[j],D);
+      DenseMatrixInverse Minv(*B[i]);
+      Minv.Mult(*A[i],D);
       EigSystem[i] = new DenseMatrixEigensystem(D);
       EigSystem[i]->Eval();
       evalues[i] = &EigSystem[i]->Eigenvalues();
