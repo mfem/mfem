@@ -3491,7 +3491,7 @@ void KronMult(const Array<DenseMatrixInverse *> & A, const Vector & r,
 }
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m, bool sym_)
-   : mat(m), sym(sym_)
+   : mat(m)
 {
    n = mat.Width();
    EVal.SetSize(n);
@@ -3500,6 +3500,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m, bool sym_)
    ev.SetDataAndSize(NULL, n);
 
 #ifdef MFEM_USE_LAPACK
+   sym = sym_;
    jobz = 'V';
    lwork = -1;
    double qwork;

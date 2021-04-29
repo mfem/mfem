@@ -725,9 +725,9 @@ class DenseMatrixEigensystem
    DenseMatrix EVect;
    Vector ev;
    int n;
-   bool sym;
 
 #ifdef MFEM_USE_LAPACK
+   bool sym;
    double *work;
    char jobz, uplo;
    int lwork, info;
