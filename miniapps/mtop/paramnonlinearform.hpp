@@ -39,6 +39,7 @@ public:
                                       const Array<const Vector *>&pelfun,
                                       const Array<Vector *> &elvec);
 
+   /// Perform the local action of the BlockNonlinearFormIntegrator on element faces	
    virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
                                    const Array<const FiniteElement *> &el2,
                                    const Array<const FiniteElement *> &pel1,
@@ -57,6 +58,7 @@ public:
                                          const Array<const Vector *>&pelfun,
                                          const Array<Vector *> &pelvec);
 
+   /// Perform the local action on the parameters of the BNLFormIntegrator on faces
    virtual void AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
                                       const Array<const FiniteElement *> &el2,
                                       const Array<const FiniteElement *> &pel1,
@@ -75,6 +77,7 @@ public:
                                     const Array<const Vector *>&pelfun,
                                     const Array2D<DenseMatrix *> &elmats);
 
+   /// Assemble the local gradient matrix on faces of the elements
    virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
                                  const Array<const FiniteElement *>&el2,
                                  const Array<const FiniteElement *> &pel1,
@@ -216,6 +219,7 @@ public:
    /// Return the @a k-th parametric FE space of the BlockNonlinearForm (const version).
    const FiniteElementSpace *ParamFESpace(int k) const { return paramfes[k]; }
 
+   /// Return the integrators 
    Array<ParametricBNLFormIntegrator*>& GetDNFI() { return dnfi;}
 
 
@@ -226,11 +230,13 @@ public:
 
    /// Return the regular dof offsets.
    const Array<int> &GetBlockOffsets() const { return block_offsets; }
+
    /// Return the true-dof offsets.
    const Array<int> &GetBlockTrueOffsets() const { return block_trueOffsets; }
 
    /// Return the regular dof offsets for the parameters.
    const Array<int> &ParamGetBlockOffsets() const { return paramblock_offsets; }
+
    /// Return the true-dof offsets for the parameters.
    const Array<int> &ParamGetBlockTrueOffsets() const { return paramblock_trueOffsets; }
 
@@ -251,13 +257,16 @@ public:
    void AddBdrFaceIntegrator(ParametricBNLFormIntegrator *nlfi,
                              Array<int> &bdr_marker);
 
+   /// Set the essential boundary conditions.
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
+   /// Set the essential boundary conditions on the parametric fields.
    virtual void SetParamEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                     Array<Vector *> &rhs);
 
 
+   /// Computes the energy for a state vector x.
    virtual double GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked

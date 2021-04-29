@@ -85,6 +85,7 @@ public:
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
 
+   /// Return the block gradient matrix for the given true-dof vector x
    virtual BlockOperator &GetGradient(const Vector &x) const;
 
    /** @brief Set the operator type id for the blocks of the parallel gradient
