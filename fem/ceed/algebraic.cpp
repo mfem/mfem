@@ -875,7 +875,7 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       }
       else
       {
-         HYPRE_Int global_tdof_number;
+         HYPRE_BigInt global_tdof_number;
          int g = ldof_group[i_ldof];
          if (HYPRE_AssumedPartitionCheck())
          {

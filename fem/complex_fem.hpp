@@ -433,7 +433,7 @@ protected:
    ParLinearForm * plfr;
    ParLinearForm * plfi;
 
-   HYPRE_Int * tdof_offsets;
+   HYPRE_BigInt * tdof_offsets;
 
 public:
 
