@@ -25,39 +25,41 @@ TEST_CASE("FDSolver",
                        0.82545, 0.39662, 0.57541
                       };
 
-   double A1Data[9] = {1.76079, 1.09434, 0.66492,
-                       1.09434, 0.68490, 0.39783,
-                       0.66492, 0.39783, 0.33214
-                      };
+   double A1Data[16] = {0.748236, 0.701663, 0.607517, 0.236740,
+                        0.701663, 0.809316, 0.713186, 0.256070,
+                        0.607517, 0.713186, 0.794221, 0.233943,
+                        0.236740, 0.256070, 0.233943, 0.083129
+                       };
 
    double B0Data[9] = {0.13483, 0.51389, 0.43052,
                        0.51389, 2.26750, 1.86331,
                        0.43052, 1.86331, 1.59869
                       };
 
-   double B1Data[9] = {1.7465, 1.5562, 1.0348,
-                       1.5562, 1.8469, 1.0277,
-                       1.0348, 1.0277, 1.1038
-                      };
+   double B1Data[16] = {0.94177, 1.02400, 1.14743, 0.35723,
+                        1.02400, 1.79087, 1.78708, 0.78304,
+                        1.14743, 1.78708, 2.06259, 0.80837,
+                        0.35723, 0.78304, 0.80837, 1.01798
+                       };
 
 
    SECTION("2D")
    {
       Array<DenseMatrix *> A(2), B(2);
       A[0] = new DenseMatrix(A0Data, 3, 3);
-      A[1] = new DenseMatrix(A1Data, 3, 3);
+      A[1] = new DenseMatrix(A1Data, 4, 4);
       B[0] = new DenseMatrix(B0Data, 3, 3);
-      B[1] = new DenseMatrix(B1Data, 3, 3);
+      B[1] = new DenseMatrix(B1Data, 4, 4);
 
-      Vector y(9); y.Randomize(1);
-      Vector x(9), diff(9);
+      Vector y(12); y.Randomize(1);
+      Vector x(12), diff(12);
 
       FDSolver S(A,B);
       S.Mult(y,x);
 
       DenseMatrix C1, C;
-      KronProd(*A[1], *B[0], C1);
-      KronProd(*B[1], *A[0], C);
+      KronProd(*A[0], *B[1], C1);
+      KronProd(*B[0], *A[1], C);
 
       C.Add(1., C1);
 
@@ -72,42 +74,36 @@ TEST_CASE("FDSolver",
          delete A[i];
          delete B[i];
       }
-
    }
 
 
    SECTION("3D")
    {
-      double A2Data[9] = {1.00809, 0.59668, 0.53709,
-                          0.59668, 0.60591, 0.21848,
-                          0.53709, 0.21848, 0.46415
-                         };
-      double B2Data[9] = {0.45356, 0.40794, 0.59722,
-                          0.40794, 0.79718, 0.55437,
-                          0.59722, 0.55437, 0.79653
-                         };
+      double A2Data[4] = {1.14593, 0.76119, 0.76119, 0.78993};
+      double B2Data[4] = {0.88088, 0.37899, 0.37899, 0.45096};
       Array<DenseMatrix *> A(3), B(3);
 
       A[0] = new DenseMatrix(A0Data, 3, 3);
-      A[1] = new DenseMatrix(A1Data, 3, 3);
-      A[2] = new DenseMatrix(A2Data, 3, 3);
+      A[1] = new DenseMatrix(A1Data, 4, 4);
+      A[2] = new DenseMatrix(A2Data, 2, 2);
       B[0] = new DenseMatrix(B0Data, 3, 3);
-      B[1] = new DenseMatrix(B1Data, 3, 3);
-      B[2] = new DenseMatrix(B2Data, 3, 3);
+      B[1] = new DenseMatrix(B1Data, 4, 4);
+      B[2] = new DenseMatrix(B2Data, 2, 2);
 
-      Vector y(27); y.Randomize(1);
-      Vector x(27), diff(27);
+      Vector y(24); y.Randomize(1);
+      Vector x(24), diff(24);
 
       FDSolver S(A,B);
       S.Mult(y,x);
 
       DenseMatrix Temp, C0, C1, C;
-      KronProd(*A[2], *B[1], Temp);
-      KronProd(Temp, *B[0], C0);
-      KronProd(*B[2], *A[1], Temp);
-      KronProd(Temp, *B[0], C1);
-      KronProd(*B[2], *B[1], Temp);
-      KronProd(Temp, *A[0], C);
+
+      KronProd(*A[0], *B[1], Temp);
+      KronProd(Temp, *B[2], C0);
+      KronProd(*B[0], *A[1], Temp);
+      KronProd(Temp, *B[2], C1);
+      KronProd(*B[0], *B[1], Temp);
+      KronProd(Temp, *A[2], C);
 
       C.Add(1.,C0);
       C.Add(1.,C1);

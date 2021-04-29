@@ -361,6 +361,7 @@ TEST_CASE("KronMultInv methods",
       z0-=z1;
       REQUIRE(z0.Norml2() < tol);
    }
+
    // (A^-1 ⊗ B^-1) R
    SECTION("KronMultInvABR")
    {
@@ -485,5 +486,86 @@ TEST_CASE("DenseTensor LinearSolve methods",
       {
          REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
       }
+   }
+}
+
+TEST_CASE("EigenSystem methods",
+          "[DenseMatrix]")
+{
+   double tol = 1e-12;
+   SECTION("SPD Matrix")
+   {
+      double AData[16] = {0.56806, 0.29211, 0.48315, 0.70024,
+                          0.29211, 0.85147, 0.68123, 0.70689,
+                          0.48315, 0.68123, 1.07229, 1.02681,
+                          0.70024, 0.70689, 1.02681, 1.15468
+                         };
+      DenseMatrix A(AData,4,4);
+      DenseMatrix V, AV(4);
+      Vector Lambda;
+      for (bool sym: { false, true })
+      {
+         DenseMatrixEigensystem  EigA(A,sym);
+         EigA.Eval();
+         V = EigA.Eigenvectors();
+         Lambda = EigA.Eigenvalues();
+         Mult(A,V,AV);
+         V.RightScaling(Lambda);
+         AV -= V;
+         REQUIRE(AV.MaxMaxNorm() < tol);
+      }
+   }
+
+   SECTION("Indefinite Matrix")
+   {
+      double AData[16] = {0.486278, 0.041135, 0.480727, 0.616026,
+                          0.523599, 0.119827, 0.087808, 0.415241,
+                          0.214454, 0.661631, 0.909626, 0.744259,
+                          0.107007, 0.630604, 0.077862, 0.221006
+                         };
+      DenseMatrix A(AData,4,4);
+      DenseMatrixEigensystem  EigA(A);
+      EigA.Eval();
+
+      Vector Lambda_r, Lambda_i;
+      // Real part of eigenvalues
+      Lambda_r = EigA.Eigenvalues();
+      // Imag part of eigenvalues
+      Lambda_i = EigA.Eigenvalues(true);
+
+      DenseMatrix V;
+      V = EigA.Eigenvectors();
+      // Real part of eigenvectors
+      DenseMatrix Vr(4), Vi(4);
+      Vr.SetCol(0,V.GetColumn(0));
+      Vr.SetCol(1,V.GetColumn(1));
+      Vr.SetCol(2,V.GetColumn(1));
+      Vr.SetCol(3,V.GetColumn(3));
+
+      // Imag part of eigenvectors
+      Vector vi(4); V.GetColumn(2,vi);
+      Vi.SetCol(0,0.);
+      Vi.SetCol(1,vi); vi *= -1.;
+      Vi.SetCol(2,vi);
+      Vi.SetCol(3,0.);
+
+      // Check that A*V = V * Lambda
+      // or A * (V_r + i V_i ) = (V_r + i V_i)*(Lamda_r + i Lambda_i)
+      // or  A * V_r = V_r * Lambda_r -  V_i * Lambda_i
+      // and A * V_i = V_r ( Lambda_i +  V_i * Lambda_r
+      DenseMatrix AVr(4), AVi(4);
+      Mult(A,Vr, AVr);
+      Mult(A,Vi, AVi);
+
+      DenseMatrix Vrlr = Vr; Vrlr.RightScaling(Lambda_r);
+      DenseMatrix Vrli = Vr; Vrli.RightScaling(Lambda_i);
+      DenseMatrix Vilr = Vi; Vilr.RightScaling(Lambda_r);
+      DenseMatrix Vili = Vi; Vili.RightScaling(Lambda_i);
+
+      AVr -= Vrlr; AVr+= Vili;
+      AVi -= Vrli; AVi-= Vilr;
+
+      REQUIRE(AVr.MaxMaxNorm() < tol);
+      REQUIRE(AVi.MaxMaxNorm() < tol);
    }
 }
