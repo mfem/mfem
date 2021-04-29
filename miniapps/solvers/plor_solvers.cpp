@@ -33,7 +33,13 @@
 //
 // For vector finite element spaces, the special "Integrated" basis type is used
 // to obtain spectral equivalence between the high-order and low-order refined
-// discretizations.
+// discretizations. This basis is defined in reference [1] and spectral
+// equivalence is shown in [2]:
+//
+// [1]. M. Gerritsma. Edge functions for spectral element methods. Spectral and
+//      High Order Methods for Partial Differential Equations (2010).
+// [2]. C. Dohrmann. Spectral equivalence properties of higher-order tensor
+//      product finite elements and applications to preconditioning. (2021)
 //
 // The action of the high-order operator is computed using MFEM's partial
 // assembly/matrix-free algorithms (except in the case of L2, which remains
