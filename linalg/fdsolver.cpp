@@ -9,16 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementation of sparse matrix
-
 #include "linalg.hpp"
-
-// #include <iostream>
-// #include <iomanip>
-// #include <cmath>
-// #include <algorithm>
-// #include <limits>
-// #include <cstring>
 
 namespace mfem
 {
@@ -65,6 +56,8 @@ void KronMultInvDiag(const Array<Vector *> & X, Vector & diag)
       MFEM_ABORT("KronMultInvDiag::Wrong dimension");
    }
 }
+
+#ifdef MFEM_USE_LAPACK
 
 FDSolver::FDSolver(const Array<DenseMatrix *> & A,
                    const Array<DenseMatrix *> & B)
@@ -139,5 +132,6 @@ FDSolver::~FDSolver()
    }
 }
 
+#endif // MFEM_USE_LAPACK
 
 } // namespace mfem

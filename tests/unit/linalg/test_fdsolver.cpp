@@ -14,6 +14,8 @@
 
 using namespace mfem;
 
+#ifdef MFEM_USE_LAPACK
+
 TEST_CASE("FDSolver",
           "[FDSolver]")
 {
@@ -121,3 +123,5 @@ TEST_CASE("FDSolver",
       }
    }
 }
+
+#endif // if MFEM_USE_LAPACK

@@ -489,6 +489,8 @@ TEST_CASE("DenseTensor LinearSolve methods",
    }
 }
 
+#ifdef MFEM_USE_LAPACK
+
 TEST_CASE("EigenSystem methods",
           "[DenseMatrix]")
 {
@@ -569,3 +571,5 @@ TEST_CASE("EigenSystem methods",
       REQUIRE(AVi.MaxMaxNorm() < tol);
    }
 }
+
+#endif // if MFEM_USE_LAPACK

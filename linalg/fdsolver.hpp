@@ -31,6 +31,7 @@ void KronMultInvDiag(const Vector & a, const Vector & b,
 
 void KronMultInvDiag(const Array<Vector *> & X, Vector & diag);
 
+#ifdef MFEM_USE_LAPACK
 
 /// In 2D it solves the system (A_0 ⊗ B_1 + B_0 ⊗ A_1) z = r
 /// In 3D it solves the system
@@ -50,6 +51,8 @@ public:
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~FDSolver();
 };
+
+#endif // MFEM_USE_LAPACK
 
 } // mfem name space
 
