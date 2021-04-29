@@ -2924,7 +2924,7 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
    {
       r.SetDataAndSize(&dataR[i*nR],nR);
       KronMult(A,B,r,z);
-      Z.SetCol(i,z);   
+      Z.SetCol(i,z);
    }
 }
 
