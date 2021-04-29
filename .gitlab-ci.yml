@@ -99,8 +99,10 @@ setup:
   script:
     - srun -p mi60 -t 15 -N 1 tests/gitlab/build_and_test
 
-# Lassen and Butte use a different job scheduler (spectrum lsf) that does not
+# Lassen uses a different job scheduler (spectrum lsf) that does not
 # allow pre-allocation the same way slurm does.
+# We use pdebug queue on lassen to speed-up the allocation.
+# However this would not be scalable to multiple builds.
 .build_blueos_3_ppc64le_ib_script:
   script:
     - lalloc 1 -W 30 -q pdebug tests/gitlab/build_and_test
