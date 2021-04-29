@@ -279,7 +279,7 @@ private:
    void getColStartStop(const HypreParMatrix * A_r,
                         const HypreParMatrix * A_i,
                         int & num_recv_procs,
-                        HYPRE_Int *& offd_col_start_stop) const;
+                        HYPRE_BigInt *& offd_col_start_stop) const;
 
    MPI_Comm comm_;
    int myid_;

@@ -728,6 +728,14 @@ void Vector::Print_HYPRE(std::ostream &out) const
    out.flags(old_fmt);
 }
 
+void Vector::PrintHash(std::ostream &out) const
+{
+   out << "size: " << size << '\n';
+   HashFunction hf;
+   hf.AppendDoubles(HostRead(), size);
+   out << "hash: " << hf.GetHash() << '\n';
+}
+
 void Vector::Randomize(int seed)
 {
    // static unsigned int seed = time(0);
