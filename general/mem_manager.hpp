@@ -604,6 +604,13 @@ private: // Static methods used by the Memory<T> class
                          MemoryType h_mt, MemoryType d_mt,
                          bool own, bool alias, unsigned &flags);
 
+   /** @brief If true, class Memory will register the base Memory when creating
+       aliases with Memory<T>::MakeAlias(). */
+   /** This value is initialized during configuration: it is set to true when
+       the default device memory type is not the same as the default host memory
+       type. */
+   static bool RegisterAliasBases() { return register_alias_bases; }
+
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
                       unsigned base_flags, unsigned &flags);
@@ -795,13 +802,6 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
-
-   /** @brief If true, class Memory will register the base Memory when creating
-       aliases with Memory<T>::MakeAlias(). */
-   /** This value is initialized during configuration: it is set to true when
-       the default device memory type is not the same as the default host memory
-       type. */
-   static bool GetRegisterAliasBases() { return register_alias_bases; }
 };
 
 
@@ -919,7 +919,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
    {
-      if (!MemoryManager::GetRegisterAliasBases())
+      if (!MemoryManager::RegisterAliasBases())
       {
          flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
          return;
