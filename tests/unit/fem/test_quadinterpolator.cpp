@@ -69,6 +69,7 @@ static bool testQuadratureInterpolator(const int dim,
             h0(dofs[j]) = std::min(h0(dofs[j]), hi);
          }
       }
+      rdm.HostReadWrite();
       for (int i = 0; i < vfes.GetNDofs(); i++)
       {
          for (int d = 0; d < dim; d++)
@@ -237,7 +238,9 @@ static bool testQuadratureInterpolator(const int dim,
    return true;
 }
 
-TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator]")
+TEST_CASE("QuadratureInterpolator",
+          "[QuadratureInterpolator]"
+          "[CUDA]")
 {
    const auto d = GENERATE(2,3); // dimension
    const auto p = GENERATE(range(1,7)); // element order, 1 <= p < 7
