@@ -47,7 +47,8 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -73,14 +74,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(mfem::out);
-      return 1;
-   }
-   args.PrintOptions(mfem::out);
+   args.ParseCheck();
 
    kappa = freq * M_PI;
 
@@ -127,7 +121,7 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_Int size = fespace.GlobalTrueVSize();
-   mfem::out << "Number of H(Curl) unknowns: " << size << endl;
+   if (mpi.Root()) { cout << "Number of H(Curl) unknowns: " << size << endl; }
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
@@ -189,9 +183,12 @@ int main(int argc, char *argv[])
    // 12. Solve the system AX=B using PCG with the AMS preconditioner from hypre
    if (ams)
    {
-      mfem::out << "Size of linear system: "
-                << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
-
+      if (mpi.Root())
+      {
+        cout << "Size of linear system: "
+	     << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+      }
+     
       HypreAMS ams(*A.As<HypreParMatrix>(), &fespace);
 
       HyprePCG pcg(*A.As<HypreParMatrix>());
@@ -204,9 +201,12 @@ int main(int argc, char *argv[])
    else
 #ifdef MFEM_USE_SUPERLU
    {
-      mfem::out << "Size of linear system: "
-                << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
-
+     if (mpi.Root())
+       {
+      cout << "Size of linear system: "
+	   << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+       }
+     
       SuperLURowLocMatrix A_SuperLU(*A.As<HypreParMatrix>());
       SuperLUSolver AInv(MPI_COMM_WORLD);
       AInv.SetOperator(A_SuperLU);
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
    }
 #else
    {
-      mfem::out << "No solvers available." << endl;
+      if (mpi.Root()) { cout << "No solvers available." << endl; }
       return 1;
    }
 #endif
@@ -226,7 +226,10 @@ int main(int argc, char *argv[])
    // 14. Compute and print the H(Curl) norm of the error.
    {
       double err = sol.ComputeHCurlError(&E, &CurlE);
-      mfem::out << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+      if (mpi.Root())
+      {
+	cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+      }
    }
 
 
@@ -234,8 +237,8 @@ int main(int argc, char *argv[])
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
-      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -296,17 +299,14 @@ int main(int argc, char *argv[])
          yComp.ProjectCoefficient(yCoef);
          zComp.ProjectCoefficient(zCoef);
 
-         x_sock << "parallel " << mpi.WorldSize() << " "
-                << mpi.WorldRank() << "\n"
+         x_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n" << pmesh << xComp << flush
                 << "window_title 'X component'" << endl;
-         y_sock << "parallel " << mpi.WorldSize() << " "
-                << mpi.WorldRank() << "\n"
+         y_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n" << pmesh << yComp << flush
                 << "window_geometry 403 0 400 350 "
                 << "window_title 'Y component'" << endl;
-         z_sock << "parallel " << mpi.WorldSize() << " "
-                << mpi.WorldRank() << "\n"
+         z_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n" << pmesh << zComp << flush
                 << "window_geometry 806 0 400 350 "
                 << "window_title 'Z component'" << endl;
@@ -317,13 +317,11 @@ int main(int argc, char *argv[])
          dyComp.ProjectCoefficient(dyCoef);
          dzComp.ProjectCoefficient(dzCoef);
 
-         dy_sock << "parallel " << mpi.WorldSize() << " "
-                 << mpi.WorldRank() << "\n"
+         dy_sock << "parallel " << num_procs << " " << myid << "\n"
                  << "solution\n" << pmesh << dyComp << flush
                  << "window_geometry 403 375 400 350 "
                  << "window_title 'Y component of Curl'" << endl;
-         dz_sock << "parallel " << mpi.WorldSize() << " "
-                 << mpi.WorldRank() << "\n"
+         dz_sock << "parallel " << num_procs << " " << myid << "\n"
                  << "solution\n" << pmesh << dzComp << flush
                  << "window_geometry 806 375 400 350 "
                  << "window_title 'Z component of Curl'" << endl;
@@ -363,13 +361,11 @@ int main(int argc, char *argv[])
          xyComp.ProjectCoefficient(xyCoef);
          zComp.ProjectCoefficient(zCoef);
 
-         xy_sock << "parallel " << mpi.WorldSize() << " "
-                 << mpi.WorldRank() << "\n";
+         xy_sock << "parallel " << num_procs << " " << myid << "\n";
          xy_sock.precision(8);
          xy_sock << "solution\n" << pmesh << xyComp
                  << "window_title 'XY components'\n" << flush;
-         z_sock << "parallel " << mpi.WorldSize() << " "
-                << mpi.WorldRank() << "\n"
+         z_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n" << pmesh << zComp << flush
                 << "window_geometry 403 0 400 350 "
                 << "window_title 'Z component'" << endl;
@@ -380,13 +376,11 @@ int main(int argc, char *argv[])
          dxyComp.ProjectCoefficient(dxyCoef);
          dzComp.ProjectCoefficient(dzCoef);
 
-         dxy_sock << "parallel " << mpi.WorldSize() << " "
-                  << mpi.WorldRank() << "\n"
+         dxy_sock << "parallel " << num_procs << " " << myid << "\n"
                   << "solution\n" << pmesh << dxyComp << flush
                   << "window_geometry 0 375 400 350 "
                   << "window_title 'XY components of Curl'" << endl;
-         dz_sock << "parallel " << mpi.WorldSize() << " "
-                 << mpi.WorldRank() << "\n"
+         dz_sock << "parallel " << num_procs << " " << myid << "\n"
                  << "solution\n" << pmesh << dzComp << flush
                  << "window_geometry 403 375 400 350 "
                  << "window_title 'Z component of Curl'" << endl;
@@ -404,13 +398,11 @@ int main(int argc, char *argv[])
 
          dsol.ProjectCoefficient(dsolCoef);
 
-         sol_sock << "parallel " << mpi.WorldSize() << " "
-                  << mpi.WorldRank() << "\n";
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
          sol_sock << "solution\n" << pmesh << sol
                   << "window_title 'Solution'" << flush << endl;
-         dsol_sock << "parallel " << mpi.WorldSize() << " "
-                   << mpi.WorldRank() << "\n"
+         dsol_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << pmesh << dsol << flush
                    << "window_geometry 0 375 400 350 "
                    << "window_title 'Curl of solution'" << endl;
