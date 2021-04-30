@@ -1,15 +1,15 @@
-//                       MFEM Example 29 - Parallel Version
+//                       MFEM Example 30 - Parallel Version
 //
-// Compile with: make ex29p
+// Compile with: make ex30p
 //
-// Sample runs:  mpirun -np 4 ex29p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex29p -m ../data/inline-segment.mesh -o 2
-//               mpirun -np 4 ex29p -m ../data/star.mesh
-//               mpirun -np 4 ex29p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex29p -m ../data/fichera.mesh -o 3 -rs 1 -rp 0
-//               mpirun -np 4 ex29p -m ../data/square-disc-nurbs.mesh -o 3
-//               mpirun -np 4 ex29p -m ../data/amr-quad.mesh -o 2 -rs 1
-//               mpirun -np 4 ex29p -m ../data/amr-hex.mesh -rs 1
+// Sample runs:  mpirun -np 4 ex30p -m ../data/inline-segment.mesh
+//               mpirun -np 4 ex30p -m ../data/inline-segment.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/star.mesh
+//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 3 -rs 1 -rp 0
+//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 3
+//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh -o 2 -rs 1
+//               mpirun -np 4 ex30p -m ../data/amr-hex.mesh -rs 1
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
