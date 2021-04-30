@@ -1025,7 +1025,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #endif
 
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
-                               double a, double b)
+                               double a, double b) const
 {
    x.HostRead();
    (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
@@ -1094,14 +1094,14 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
 }
 
 HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
-                               double a, double b)
+                               double a, double b) const
 {
    return hypre_ParCSRMatrixMatvec(a, A, (hypre_ParVector *) x, b,
                                    (hypre_ParVector *) y);
 }
 
 HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
-                                        double a, double b)
+                                        double a, double b) const
 {
    return hypre_ParCSRMatrixMatvecT(a, A, x, b, y);
 }
@@ -1513,7 +1513,8 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
    }
 }
 
-void HypreParMatrix::Print(const char *fname, HYPRE_Int offi, HYPRE_Int offj)
+void HypreParMatrix::Print(const char *fname, HYPRE_Int offi,
+                           HYPRE_Int offj) const
 {
    hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);
 }
