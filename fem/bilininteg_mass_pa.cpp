@@ -1200,7 +1200,8 @@ static void ApplyMass(const int ne,
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
    const auto D = MakeQData<0>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   MFEM_FORALL(e,ne,
+   // MFEM_FORALL(e,ne,
+   MFEM_FORALL_3D(e, ne, quads, quads, 1,
    // forall(e, ne, config,
    {
       Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );

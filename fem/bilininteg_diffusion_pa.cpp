@@ -1937,7 +1937,8 @@ static void ApplyDiff(const int ne,
    // TODO SRank = 1 until we really support symmetric layout...
    const auto D = MakeSymmQData<1>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   MFEM_FORALL(e,ne,
+   // MFEM_FORALL(e,ne,
+   MFEM_FORALL_3D(e, ne, quads, quads, 1,
    // for (int e = 0; e<ne; e++)
    // forall(e, ne, config,
    {
