@@ -88,7 +88,7 @@ jobs:
 
     - name: Set up Homebrew
       if: ( matrix.mpi == 'parallel' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
-      uses: Homebrew/actions/setup-homebrew@master
+      uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
     - name: get MPI (MacOS)
       if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
@@ -115,7 +115,7 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@master
+      uses: mfem/github-actions/build-hypre@v1.0
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
@@ -132,14 +132,14 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@master
+      uses: mfem/github-actions/build-metis@v1.0
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@master
+      uses: mfem/github-actions/build-mfem@v1.0
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -174,7 +174,7 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@testing/bernede1/codecov
+      uses: mfem/github-actions/upload-coverage@v1.0
       with:
         name: ${{ matrix.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
