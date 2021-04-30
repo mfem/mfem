@@ -1,0 +1,31 @@
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  precision: 2
+  round: nearest
+  range: "0...100"
+  status:
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+        base: auto
+        branches:
+          - master
+        if_ci_failed: ignore
+        only_pulls: true
+    project:
+      default:
+        target: auto   # compares coverage to the previous base commit
+        threshold: 1%  # allows variations around the target
+        base: auto
+        branches:
+          - master
+        if_ci_failed: error
+        only_pulls: true
+
+github_checks:
+  annotations: false
+
+comment: false
