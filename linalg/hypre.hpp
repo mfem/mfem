@@ -119,7 +119,7 @@ public:
    explicit HypreParVector(ParFiniteElementSpace *pfes);
 
    /// MPI communicator
-   MPI_Comm GetComm() { return x->comm; }
+   MPI_Comm GetComm() const { return x->comm; }
 
    /// Converts hypre's format to HypreParVector
    void WrapHypreParVector(hypre_ParVector *y, bool owner=true);
@@ -127,10 +127,10 @@ public:
    /// Returns the parallel row/column partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline HYPRE_BigInt *Partitioning() { return x->partitioning; }
+   inline HYPRE_BigInt *Partitioning() const { return x->partitioning; }
 
    /// Returns the global number of rows
-   inline HYPRE_BigInt GlobalSize() { return x->global_size; }
+   inline HYPRE_BigInt GlobalSize() const { return x->global_size; }
 
    /// Typecasting to hypre's hypre_ParVector*
    operator hypre_ParVector*() const { return x; }
@@ -470,13 +470,13 @@ public:
 
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
-                  double alpha = 1.0, double beta = 0.0);
+                  double alpha = 1.0, double beta = 0.0) const;
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HYPRE_ParVector x, HYPRE_ParVector y,
-                  double alpha = 1.0, double beta = 0.0);
+                  double alpha = 1.0, double beta = 0.0) const;
    /// Computes y = alpha * A^t * x + beta * y
    HYPRE_Int MultTranspose(HypreParVector &x, HypreParVector &y,
-                           double alpha = 1.0, double beta = 0.0);
+                           double alpha = 1.0, double beta = 0.0) const;
 
    void Mult(double a, const Vector &x, double b, Vector &y) const;
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
@@ -580,7 +580,7 @@ public:
    void EliminateRows(const Array<int> &rows);
 
    /// Prints the locally owned rows in parallel
-   void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
+   void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
    void Read(MPI_Comm comm, const char *fname);
    /// Read a matrix saved as a HYPRE_IJMatrix
@@ -729,7 +729,7 @@ public:
 
    HypreSmoother();
 
-   HypreSmoother(HypreParMatrix &_A, int type = l1GS,
+   HypreSmoother(const HypreParMatrix &_A, int type = l1GS,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
                  double poly_fraction = .3, int eig_est_cg_iter = 10);
@@ -793,7 +793,7 @@ public:
 
 protected:
    /// The linear system matrix
-   HypreParMatrix *A;
+   const HypreParMatrix *A;
 
    /// Right-hand side and solution vector
    mutable HypreParVector *B, *X;
@@ -807,7 +807,7 @@ protected:
 public:
    HypreSolver();
 
-   HypreSolver(HypreParMatrix *_A);
+   HypreSolver(const HypreParMatrix *_A);
 
    /// Typecast to HYPRE_Solver -- return the solver
    virtual operator HYPRE_Solver() const = 0;
@@ -847,7 +847,7 @@ class HypreTriSolve : public HypreSolver
 {
 public:
    HypreTriSolve() : HypreSolver() { }
-   explicit HypreTriSolve(HypreParMatrix &A) : HypreSolver(&A) { }
+   explicit HypreTriSolve(const HypreParMatrix &A) : HypreSolver(&A) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
@@ -855,7 +855,12 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSolve; }
 
-   HypreParMatrix* GetData() { return A; }
+   const HypreParMatrix* GetData() const { return A; }
+
+   /// Deprecated. Use HypreTriSolve::GetData() const instead.
+   MFEM_DEPRECATED HypreParMatrix* GetData()
+   { return const_cast<HypreParMatrix*>(A); }
+
    virtual ~HypreTriSolve() { }
 };
 #endif
@@ -871,7 +876,7 @@ private:
 public:
    HyprePCG(MPI_Comm comm);
 
-   HyprePCG(HypreParMatrix &_A);
+   HyprePCG(const HypreParMatrix &_A);
 
    virtual void SetOperator(const Operator &op);
 
@@ -894,7 +899,7 @@ public:
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
 
-   void GetNumIterations(int &num_iterations)
+   void GetNumIterations(int &num_iterations) const
    {
       HYPRE_Int num_it;
       HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_it);
@@ -932,7 +937,7 @@ private:
 public:
    HypreGMRES(MPI_Comm comm);
 
-   HypreGMRES(HypreParMatrix &_A);
+   HypreGMRES(const HypreParMatrix &_A);
 
    virtual void SetOperator(const Operator &op);
 
@@ -983,7 +988,7 @@ private:
 public:
    HypreFGMRES(MPI_Comm comm);
 
-   HypreFGMRES(HypreParMatrix &_A);
+   HypreFGMRES(const HypreParMatrix &_A);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1038,7 +1043,7 @@ class HypreDiagScale : public HypreSolver
 {
 public:
    HypreDiagScale() : HypreSolver() { }
-   explicit HypreDiagScale(HypreParMatrix &A) : HypreSolver(&A) { }
+   explicit HypreDiagScale(const HypreParMatrix &A) : HypreSolver(&A) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
    virtual void SetOperator(const Operator &op);
@@ -1048,7 +1053,12 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScale; }
 
-   HypreParMatrix* GetData() { return A; }
+   const HypreParMatrix* GetData() const { return A; }
+
+   /// Deprecated. Use HypreDiagScale::GetData() const instead.
+   MFEM_DEPRECATED HypreParMatrix* GetData()
+   { return const_cast<HypreParMatrix*>(A); }
+
    virtual ~HypreDiagScale() { }
 };
 
@@ -1069,7 +1079,7 @@ private:
 public:
    HypreParaSails(MPI_Comm comm);
 
-   HypreParaSails(HypreParMatrix &A);
+   HypreParaSails(const HypreParMatrix &A);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1110,7 +1120,7 @@ private:
 public:
    HypreEuclid(MPI_Comm comm);
 
-   HypreEuclid(HypreParMatrix &A);
+   HypreEuclid(const HypreParMatrix &A);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1207,7 +1217,7 @@ private:
 public:
    HypreBoomerAMG();
 
-   HypreBoomerAMG(HypreParMatrix &A);
+   HypreBoomerAMG(const HypreParMatrix &A);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1296,7 +1306,7 @@ public:
    void SetCycleType(int cycle_type)
    { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
 
-   void GetNumIterations(int &num_iterations)
+   void GetNumIterations(int &num_iterations) const
    {
       HYPRE_Int num_it;
       HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it);
@@ -1353,7 +1363,7 @@ private:
 public:
    HypreAMS(ParFiniteElementSpace *edge_fespace);
 
-   HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
+   HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1396,7 +1406,7 @@ private:
 public:
    HypreADS(ParFiniteElementSpace *face_fespace);
 
-   HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
+   HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1611,8 +1621,8 @@ public:
 
    // The following four methods support operators of type HypreParMatrix.
    void SetPreconditioner(HypreSolver & precond);
-   void SetOperator(HypreParMatrix & A);
-   void SetMassMatrix(HypreParMatrix & M);
+   void SetOperator(const HypreParMatrix & A);
+   void SetMassMatrix(const HypreParMatrix & M);
 
    /// Solve the eigenproblem
    void Solve();
