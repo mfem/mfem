@@ -68,14 +68,6 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
-   /** Variable order space: these are additional ghost DOF variants
-       induced by ghost elements (for both ghost and non-ghost edges/faces).
-       See also: var_edge_dofs and var_face_dofs in the base class. */
-   Table ghost_var_edge_dofs;
-   Table ghost_var_face_dofs;
-
-   //Array<char> ghost_var_edge_orders, ghost_var_face_orders;
-
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
@@ -89,6 +81,10 @@ private:
        (Device)ConformingProlongationOperator, for a non-conforming mesh
        this is a TransposeOperator wrapping R. */
    mutable Operator *R_transpose;
+
+   /// Variable order spaces: temporary ghost DOF storage for P construction.
+   Table ghost_var_dofs[2];
+   Array<char> ghost_var_orders[2];
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -122,6 +118,8 @@ private:
    void CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
                                    Array<VarOrderBits> &ghost_face_orders) const;
 
+   int FindVarDof(int entity, int index, int order, bool quiet = false) const;
+
    typedef NCMesh::MeshId MeshId;
    typedef ParNCMesh::GroupId GroupId;
 
@@ -133,8 +131,8 @@ private:
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
-   int  PackDof(int entity, int index, int edof) const;
-   void UnpackDof(int dof, int &entity, int &index, int &edof) const;
+   int  PackDof(int entity, int index, int order, int edof) const;
+   void UnpackDof(int dof, int &entity, int &index, int &variant, int &vdof) const;
 
 #ifdef MFEM_PMATRIX_STATS
    mutable int n_msgs_sent, n_msgs_recv;

@@ -2277,6 +2277,28 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
    return total_dofs;
 }
 
+int FiniteElementSpace::FindVarDof(int entity, int index, int order,
+                                   bool quiet) const
+{
+   const Table &var_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+   const auto &var_orders = (entity == 1) ? var_edge_orders : var_face_orders;
+
+   const int *I = var_dofs.GetI();
+   const int *J = var_dofs.GetJ();
+
+   for (int j = I[index]; j < I[index+1]; j++)
+   {
+      if (var_orders[j] == order) { return J[j]; }
+   }
+
+   if (!quiet)
+   {
+      MFEM_ABORT((entity == 1 ? "edge " : "face ") << index
+                 << " DOFs not found for order " << order);
+   }
+   return -1;
+}
+
 int FiniteElementSpace::FindDofs(const Table &var_dof_table,
                                  int row, int ndof) const
 {
