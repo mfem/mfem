@@ -127,10 +127,10 @@ public:
    /// Returns the parallel row/column partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline HYPRE_Int *Partitioning() { return x->partitioning; }
+   inline HYPRE_Int *Partitioning() const { return x->partitioning; }
 
    /// Returns the global number of rows
-   inline HYPRE_Int GlobalSize() { return x->global_size; }
+   inline HYPRE_Int GlobalSize() const { return x->global_size; }
 
    /// Typecasting to hypre's hypre_ParVector*
    operator hypre_ParVector*() const { return x; }
@@ -468,13 +468,13 @@ public:
 
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
-                  double alpha = 1.0, double beta = 0.0);
+                  double alpha = 1.0, double beta = 0.0) const;
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HYPRE_ParVector x, HYPRE_ParVector y,
-                  double alpha = 1.0, double beta = 0.0);
+                  double alpha = 1.0, double beta = 0.0) const;
    /// Computes y = alpha * A^t * x + beta * y
    HYPRE_Int MultTranspose(HypreParVector &x, HypreParVector &y,
-                           double alpha = 1.0, double beta = 0.0);
+                           double alpha = 1.0, double beta = 0.0) const;
 
    void Mult(double a, const Vector &x, double b, Vector &y) const;
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
@@ -578,7 +578,7 @@ public:
    void EliminateRows(const Array<int> &rows);
 
    /// Prints the locally owned rows in parallel
-   void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
+   void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
    void Read(MPI_Comm comm, const char *fname);
    /// Read a matrix saved as a HYPRE_IJMatrix
