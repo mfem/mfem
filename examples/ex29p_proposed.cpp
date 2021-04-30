@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    DenseMatrix sigmaMat(3);
    sigmaMat(0,0) = 2.0; sigmaMat(1,1) = 2.0; sigmaMat(2,2) = 2.0;
    sigmaMat(0,2) = 0.0; sigmaMat(2,0) = 0.0;
-   sigmaMat(0,1) = M_SQRT1_2; sigmaMat(1,0) = M_SQRT1_2;
+   sigmaMat(0,1) = M_SQRT1_2; sigmaMat(1,0) = M_SQRT1_2; // 1/sqrt(2) in cmath
    sigmaMat(1,2) = M_SQRT1_2; sigmaMat(2,1) = M_SQRT1_2;
 
    ConstantCoefficient muinv(1.0);
