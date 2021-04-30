@@ -41,7 +41,8 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -66,13 +67,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(mfem::out);
-      return 1;
-   }
-   args.PrintOptions(mfem::out);
+   args.ParseCheck();
 
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -123,8 +118,11 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace_rt(&pmesh, fec_rt);
    HYPRE_Int size_nd = fespace_nd.GlobalTrueVSize();
    HYPRE_Int size_rt = fespace_rt.GlobalTrueVSize();
-   mfem::out << "Number of H(Curl) unknowns: " << size_nd << endl;
-   mfem::out << "Number of H(Div) unknowns: " << size_rt << endl;
+   if (mpi.Root())
+   {
+      cout << "Number of H(Curl) unknowns: " << size_nd << endl;
+      cout << "Number of H(Div) unknowns: " << size_rt << endl;
+   }
 
    // 7. Set up the parallel bilinear forms a(.,.) and m(.,.) on the finite
    //    element space. The first corresponds to the curl curl, while the second
@@ -162,7 +160,10 @@ int main(int argc, char *argv[])
          // closed surface.
          a.AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
          shift = 1.0;
-         mfem::out << "Computing eigenvalues shifted by " << shift << endl;
+         if (mpi.Root())
+         {
+            cout << "Computing eigenvalues shifted by " << shift << endl;
+         }
       }
       a.Assemble();
       a.EliminateEssentialBCDiag(ess_bdr, 1.0);
@@ -213,7 +214,7 @@ int main(int argc, char *argv[])
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g mode".
    {
       ostringstream mesh_name, mode_name, mode_deriv_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -226,9 +227,9 @@ int main(int argc, char *argv[])
          curl.Mult(x, dx);
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
-                   << setfill('0') << setw(6) << mpi.WorldRank();
+                   << setfill('0') << setw(6) << myid;
          mode_deriv_name << "mode_deriv_" << setfill('0') << setw(2) << i << "."
-                         << setfill('0') << setw(6) << mpi.WorldRank();
+                         << setfill('0') << setw(6) << myid;
 
          ofstream mode_ofs(mode_name.str().c_str());
          mode_ofs.precision(8);
@@ -282,8 +283,11 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            mfem::out << "Eigenmode " << i+1 << '/' << nev
-                      << ", Lambda = " << eigenvalues[i] - shift << endl;
+            if (mpi.Root())
+            {
+               cout << "Eigenmode " << i+1 << '/' << nev
+                    << ", Lambda = " << eigenvalues[i] - shift << endl;
+            }
 
             // convert eigenvector from HypreParVector to ParGridFunction
             x = ame->GetEigenvector(i);
@@ -299,21 +303,18 @@ int main(int argc, char *argv[])
                yComp.ProjectCoefficient(yCoef);
                zComp.ProjectCoefficient(zCoef);
 
-               mode_x_sock << "parallel " << mpi.WorldSize() << " "
-                           << mpi.WorldRank() << "\n"
+               mode_x_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << xComp << flush
                            << "window_title 'Eigenmode " << i+1 << '/' << nev
                            << " X, Lambda = " << eigenvalues[i] - shift
                            << "'" << endl;
-               mode_y_sock << "parallel " << mpi.WorldSize() << " "
-                           << mpi.WorldRank() << "\n"
+               mode_y_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << yComp << flush
                            << "window_geometry 403 0 400 350 "
                            << "window_title 'Eigenmode " << i+1 << '/' << nev
                            << " Y, Lambda = " << eigenvalues[i] - shift
                            << "'" << endl;
-               mode_z_sock << "parallel " << mpi.WorldSize() << " "
-                           << mpi.WorldRank() << "\n"
+               mode_z_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << zComp << flush
                            << "window_geometry 806 0 400 350 "
                            << "window_title 'Eigenmode " << i+1 << '/' << nev
@@ -327,16 +328,14 @@ int main(int argc, char *argv[])
                dyComp.ProjectCoefficient(dyCoef);
                dzComp.ProjectCoefficient(dzCoef);
 
-               mode_dy_sock << "parallel " << mpi.WorldSize() << " "
-                            << mpi.WorldRank() << "\n"
+               mode_dy_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dyComp << flush
                             << "window_geometry 0 375 400 350 "
                             << "window_title 'Curl Eigenmode "
                             << i+1 << '/' << nev
                             << " Y, Lambda = " << eigenvalues[i] - shift
                             << "'" << endl;
-               mode_dz_sock << "parallel " << mpi.WorldSize() << " "
-                            << mpi.WorldRank() << "\n"
+               mode_dz_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dzComp << flush
                             << "window_geometry 403 375 400 350 "
                             << "window_title 'Curl Eigenmode "
@@ -345,9 +344,9 @@ int main(int argc, char *argv[])
                             << "'" << endl;
             }
             char c;
-            mfem::out << "press (q)uit or (c)ontinue --> " << flush;
             if (mpi.Root())
             {
+               cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
             }
             MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
@@ -398,8 +397,11 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            mfem::out << "Eigenmode " << i+1 << '/' << nev
-                      << ", Lambda = " << eigenvalues[i] - shift << endl;
+            if (mpi.Root())
+            {
+               cout << "Eigenmode " << i+1 << '/' << nev
+                    << ", Lambda = " << eigenvalues[i] - shift << endl;
+            }
 
             // convert eigenvector from HypreParVector to ParGridFunction
             x = ame->GetEigenvector(i);
@@ -413,15 +415,13 @@ int main(int argc, char *argv[])
                xyComp.ProjectCoefficient(xyCoef);
                zComp.ProjectCoefficient(zCoef);
 
-               mode_xy_sock << "parallel " << mpi.WorldSize() << " "
-                            << mpi.WorldRank() << "\n"
+               mode_xy_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << xyComp << flush
                             << "keys vvv "
                             << "window_title 'Eigenmode " << i+1 << '/' << nev
                             << " XY, Lambda = " << eigenvalues[i] - shift
                             << "'" << endl;
-               mode_z_sock << "parallel " << mpi.WorldSize() << " "
-                           << mpi.WorldRank() << "\n"
+               mode_z_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << zComp << flush
                            << "window_geometry 403 0 400 350 "
                            << "window_title 'Eigenmode " << i+1 << '/' << nev
@@ -435,8 +435,7 @@ int main(int argc, char *argv[])
                dxyComp.ProjectCoefficient(dxyCoef);
                dzComp.ProjectCoefficient(dzCoef);
 
-               mode_dxy_sock << "parallel " << mpi.WorldSize() << " "
-                             << mpi.WorldRank() << "\n"
+               mode_dxy_sock << "parallel " << num_procs << " " << myid << "\n"
                              << "solution\n" << pmesh << dxyComp << flush
                              << "keys vvv "
                              << "window_geometry 0 375 400 350 "
@@ -444,8 +443,7 @@ int main(int argc, char *argv[])
                              << i+1 << '/' << nev
                              << " XY, Lambda = " << eigenvalues[i] - shift
                              << "'" << endl;
-               mode_dz_sock << "parallel " << mpi.WorldSize() << " "
-                            << mpi.WorldRank() << "\n"
+               mode_dz_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dzComp << flush
                             << "window_geometry 403 375 400 350 "
                             << "window_title 'Curl Eigenmode "
@@ -454,9 +452,9 @@ int main(int argc, char *argv[])
                             << "'" << endl;
             }
             char c;
-            mfem::out << "press (q)uit or (c)ontinue --> " << flush;
             if (mpi.Root())
             {
+               cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
             }
             MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
@@ -490,14 +488,12 @@ int main(int argc, char *argv[])
             x = ame->GetEigenvector(i);
             curl.Mult(x, dx);
 
-            mode_sock << "parallel " << mpi.WorldSize() << " "
-                      << mpi.WorldRank() << "\n"
+            mode_sock << "parallel " << num_procs << " " << myid << "\n"
                       << "solution\n" << pmesh << x << flush
                       << "window_title 'Eigenmode " << i+1 << '/' << nev
                       << ", Lambda = " << eigenvalues[i] - shift
                       << "'" << endl;
-            mode_deriv_sock << "parallel " << mpi.WorldSize() << " "
-                            << mpi.WorldRank() << "\n"
+            mode_deriv_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dx << flush
                             << "window_geometry 0 375 400 350 "
                             << "window_title 'Curl Eigenmode "

@@ -185,10 +185,10 @@ int main(int argc, char *argv[])
    {
       if (mpi.Root())
       {
-        cout << "Size of linear system: "
-	     << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+         cout << "Size of linear system: "
+              << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
       }
-     
+
       HypreAMS ams(*A.As<HypreParMatrix>(), &fespace);
 
       HyprePCG pcg(*A.As<HypreParMatrix>());
@@ -201,12 +201,12 @@ int main(int argc, char *argv[])
    else
 #ifdef MFEM_USE_SUPERLU
    {
-     if (mpi.Root())
-       {
-      cout << "Size of linear system: "
-	   << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
-       }
-     
+      if (mpi.Root())
+      {
+         cout << "Size of linear system: "
+              << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+      }
+
       SuperLURowLocMatrix A_SuperLU(*A.As<HypreParMatrix>());
       SuperLUSolver AInv(MPI_COMM_WORLD);
       AInv.SetOperator(A_SuperLU);
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
       double err = sol.ComputeHCurlError(&E, &CurlE);
       if (mpi.Root())
       {
-	cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+         cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
       }
    }
 

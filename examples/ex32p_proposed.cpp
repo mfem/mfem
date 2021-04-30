@@ -44,7 +44,8 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -64,13 +65,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(mfem::out);
-      return 1;
-   }
-   args.PrintOptions(mfem::out);
+   args.ParseCheck();
 
    kappa = freq * M_PI;
 
@@ -149,9 +144,12 @@ int main(int argc, char *argv[])
       z_sock.open(vishost, visport);
       if (!xy_sock && !z_sock)
       {
-         mfem::out << "Unable to connect to GLVis server at "
-                   << vishost << ':' << visport << endl;
-         mfem::out << "GLVis visualization disabled.\n";
+         if (mpi.Root())
+         {
+            cout << "Unable to connect to GLVis server at "
+                 << vishost << ':' << visport << endl;
+            cout << "GLVis visualization disabled.\n";
+         }
          visualization = false;
       }
 
@@ -186,8 +184,11 @@ int main(int argc, char *argv[])
    for (int it = 0; it <= max_amr_its; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
-      mfem::out << "\nAMR iteration " << it << endl;
-      mfem::out << "Number of unknowns: " << global_dofs << endl;
+      if (mpi.Root())
+      {
+         cout << "\nAMR iteration " << it << endl;
+         cout << "Number of unknowns: " << global_dofs << endl;
+      }
 
       // 14. Assemble the right-hand side and determine the list of true
       //     (i.e. parallel conforming) essential boundary dofs.
@@ -232,7 +233,10 @@ int main(int argc, char *argv[])
       // 19. Compute and print the H(Curl) norm of the error.
       {
          double err = sol.ComputeHCurlError(&E, &CurlE);
-         mfem::out << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+         if (mpi.Root())
+         {
+            cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+         }
       }
 
       // 20. Send the solution by socket to a GLVis server.
@@ -260,8 +264,7 @@ int main(int argc, char *argv[])
          xyComp.ProjectCoefficient(xyCoef);
          zComp.ProjectCoefficient(zCoef);
 
-         xy_sock << "parallel " << mpi.WorldSize() << " "
-                 << mpi.WorldRank() << "\n";
+         xy_sock << "parallel " << num_procs << " " << myid << "\n";
          xy_sock << "solution\n" << pmesh << xyComp << flush;
          if (it == 0)
          {
@@ -270,8 +273,7 @@ int main(int argc, char *argv[])
                     << "window_title 'XY components'\n";
          }
 
-         z_sock << "parallel " << mpi.WorldSize() << " "
-                << mpi.WorldRank() << "\n"
+         z_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n" << pmesh << zComp << flush;
          if (it == 0)
          {
@@ -282,7 +284,10 @@ int main(int argc, char *argv[])
 
       if (global_dofs > max_dofs)
       {
-         mfem::out << "Reached the maximum number of dofs. Stop." << endl;
+         if (mpi.Root())
+         {
+            cout << "Reached the maximum number of dofs. Stop." << endl;
+         }
          break;
       }
 
@@ -293,7 +298,10 @@ int main(int argc, char *argv[])
       refiner.Apply(pmesh);
       if (refiner.Stop())
       {
-         mfem::out << "Stopping criterion satisfied. Stop." << endl;
+         if (mpi.Root())
+         {
+            cout << "Stopping criterion satisfied. Stop." << endl;
+         }
          break;
       }
 
