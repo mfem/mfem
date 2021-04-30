@@ -1,16 +1,16 @@
 
-//                       MFEM Example 30 - Parallel Version
+//                       MFEM Example 31 - Parallel Version
 //
-// Compile with: make ex30p
+// Compile with: make ex31p
 //
-// Sample runs:  mpirun -np 4 ex30p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex30p -m ../data/inline-segment.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/star.mesh
-//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2 -n 4 -rs 1
-//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh
-//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh -o 2 -rs 1
-//               mpirun -np 4 ex30p -m ../data/amr-hex.mesh -rs 1
-//               mpirun -np 4 ex30p -m ../data/fichera.mesh -rs 1
+// Sample runs:  mpirun -np 4 ex31p -m ../data/inline-segment.mesh
+//               mpirun -np 4 ex31p -m ../data/inline-segment.mesh -o 2
+//               mpirun -np 4 ex31p -m ../data/star.mesh
+//               mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 2 -n 4 -rs 1
+//               mpirun -np 4 ex31p -m ../data/square-disc-nurbs.mesh
+//               mpirun -np 4 ex31p -m ../data/amr-quad.mesh -o 2 -rs 1
+//               mpirun -np 4 ex31p -m ../data/amr-hex.mesh -rs 1
+//               mpirun -np 4 ex31p -m ../data/fichera.mesh -rs 1
 //
 // Description:  This example code solves the Maxwell (electromagnetic)
 //               eigenvalue problem curl curl E = lambda epsilon E with
@@ -27,7 +27,7 @@
 //               GLVis visualization window for multiple eigenfunctions is also
 //               illustrated.
 //
-//               We recommend viewing examples 29 and 13 before viewing this
+//               We recommend viewing examples 30 and 13 before viewing this
 //               example.
 
 #include "mfem.hpp"
