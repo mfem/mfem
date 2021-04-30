@@ -495,6 +495,10 @@ void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
    {
       rhss[l].SetSize(blk_Ps_[l]->NumCols());
       sols[l].SetSize(blk_Ps_[l]->NumCols());
+
+      sols[l] = 0.0;
+      rhss[l] = 0.0;
+
       blk_Ps_[l]->MultTranspose(rhss[l+1], rhss[l]);
    }
 
