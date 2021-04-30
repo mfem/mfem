@@ -4672,7 +4672,7 @@ HypreLOBPCG::SetMassMatrix(Operator & M)
 }
 
 void
-HypreLOBPCG::GetEigenvalues(Array<double> & eigs)
+HypreLOBPCG::GetEigenvalues(Array<double> & eigs) const
 {
    // Initialize eigenvalues array with marker values
    eigs.SetSize(nev);
@@ -4683,8 +4683,8 @@ HypreLOBPCG::GetEigenvalues(Array<double> & eigs)
    }
 }
 
-HypreParVector &
-HypreLOBPCG::GetEigenvector(unsigned int i)
+const HypreParVector &
+HypreLOBPCG::GetEigenvector(unsigned int i) const
 {
    return multi_vec->GetVector(i);
 }
@@ -4948,19 +4948,19 @@ void
 HypreAME::Solve()
 {
    HYPRE_AMESolve(ame_solver);
+
+   // Grab a pointer to the eigenvalues from AME
+   HYPRE_AMEGetEigenvalues(ame_solver,&eigenvalues);
+
+   // Grad a pointer to the eigenvectors from AME
+   HYPRE_AMEGetEigenvectors(ame_solver,&multi_vec);
 }
 
 void
-HypreAME::GetEigenvalues(Array<double> & eigs)
+HypreAME::GetEigenvalues(Array<double> & eigs) const
 {
    // Initialize eigenvalues array with marker values
    eigs.SetSize(nev); eigs = -1.0;
-
-   if ( eigenvalues == NULL )
-   {
-      // Grab eigenvalues from AME
-      HYPRE_AMEGetEigenvalues(ame_solver,&eigenvalues);
-   }
 
    // Copy eigenvalues to eigs array
    for (int i=0; i<nev; i++)
@@ -4970,24 +4970,18 @@ HypreAME::GetEigenvalues(Array<double> & eigs)
 }
 
 void
-HypreAME::createDummyVectors()
+HypreAME::createDummyVectors() const
 {
-   if ( multi_vec == NULL )
-   {
-      HYPRE_AMEGetEigenvectors(ame_solver,&multi_vec);
-   }
-
    eigenvectors = new HypreParVector*[nev];
    for (int i=0; i<nev; i++)
    {
       eigenvectors[i] = new HypreParVector(multi_vec[i]);
       eigenvectors[i]->SetOwnership(1);
    }
-
 }
 
-HypreParVector &
-HypreAME::GetEigenvector(unsigned int i)
+const HypreParVector &
+HypreAME::GetEigenvector(unsigned int i) const
 {
    if ( eigenvectors == NULL )
    {
