@@ -86,18 +86,18 @@ public:
    template <typename... Sizes>
    MemoryContainer(int size0, Sizes... sizes) : data(prod(size0,sizes...)) { }
 
-   MemoryContainer(const MemoryContainer &rhs)
-   {
-      if(rhs.Capacity()>Capacity())
-      {
-         data.New(rhs.Capacity(), data.GetMemoryType());
-      }
-      auto ptr = data.Write();
-      auto rhs_ptr = rhs.data.Read();
-      MFEM_FORALL(i, Capacity(),{
-         ptr[i] = rhs_ptr[i];
-      });
-   }
+   // MemoryContainer(const MemoryContainer &rhs)
+   // {
+   //    if(rhs.Capacity()>Capacity())
+   //    {
+   //       data.New(rhs.Capacity(), data.GetMemoryType());
+   //    }
+   //    auto ptr = data.Write();
+   //    auto rhs_ptr = rhs.data.Read();
+   //    MFEM_FORALL(i, Capacity(),{
+   //       ptr[i] = rhs_ptr[i];
+   //    });
+   // }
 
    const T& operator[](int i) const
    {
