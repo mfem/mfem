@@ -1995,28 +1995,6 @@ TEST_CASE("R2D Bilinear Vector Divergence Integrator",
             FunctionCoefficient divF3_coef(DivF3);
             REQUIRE( df_l2.ComputeL2Error(divF3_coef) < tol );
          }
-         /*
-              SECTION("Divergence of RT")
-              {
-                 RT_FECollection    fec_rt2(order - 1, dim);
-                 FiniteElementSpace fespace_rt2(&mesh, &fec_rt2);
-
-                 VectorFunctionCoefficient   F2_coef(2, F2);
-                 GridFunction f_rt2(&fespace_rt2); f_rt2.ProjectCoefficient(F2_coef);
-
-                 REQUIRE( f_rt2.ComputeL2Error(F2_coef) < tol );
-
-                 DivergenceGridFunctionCoefficient divF_coef(&f_rt2);
-
-                 L2_FECollection fec_l2(order - 1, dim);
-                 FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-                 GridFunction df_l2(&fespace_l2); df_l2.ProjectCoefficient(divF_coef);
-
-                 FunctionCoefficient divF2_coef(DivF2);
-                 REQUIRE( df_l2.ComputeL2Error(divF2_coef) < tol );
-              }
-         */
          SECTION("Mapping RT_R2D to RT_R2D")
          {
             BilinearForm m_rt(&fespace_rt);
