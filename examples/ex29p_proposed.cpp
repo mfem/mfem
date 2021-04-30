@@ -25,7 +25,7 @@
 //               discretization error when the exact solution is known. These
 //               restricted spaces allow the solution of 1D or 2D
 //               electromagnetic problems which involve 3D field vectors.  Such
-//               problems arise in plasma physics and crystalography.
+//               problems arise in plasma physics and crystallography.
 //
 //               We recommend viewing example 3 before viewing this example.
 

@@ -3294,9 +3294,8 @@ public:
 
 
 /// Arbitrary order Nedelec 3D elements in 1D on a point
-/** ND_R1D_PointElement provides a representation of a 3D Nedelec
-    basis where the vector field is assumed constant in the second and
-    third dimensions.
+/** ND_R1D_PointElement provides a representation of the trace of a three
+    component Nedelec basis restricted to 1D.
 */
 class ND_R1D_PointElement : public VectorFiniteElement
 {
@@ -3315,10 +3314,9 @@ public:
                            DenseMatrix &shape) const;
 };
 
-/// Arbitrary order Nedelec 3D elements in 1D on a segment
-/** ND_R1D_SegmentElement provides a representation of a 3D Nedelec
-    basis where the vector field is assumed constant in the second and
-    third dimensions.
+/// Arbitrary order, three component, Nedelec elements in 1D on a segment
+/** ND_R1D_SegmentElement provides a representation of a three component Nedelec
+    basis where the vector components vary along only one dimension.
 */
 class ND_R1D_SegmentElement : public VectorFiniteElement
 {
@@ -3395,10 +3393,10 @@ public:
 };
 
 
-/// Arbitrary order Raviart-Thomas 3D elements in 1D on a segment
-/** RT_R1D_SegmentElement provides a representation of a 3D Raviart-Thomas
-    basis where the vector field is assumed constant in the second and
-    third dimensions.
+/// Arbitrary order, three component, Raviart-Thomas elements in 1D on a segment
+/** RT_R1D_SegmentElement provides a representation of a three component
+    Raviart-Thomas basis where the vector components vary along only one
+    dimension.
 */
 class RT_R1D_SegmentElement : public VectorFiniteElement
 {
@@ -3437,34 +3435,6 @@ public:
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const;
-   /*
-    virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                       DenseMatrix &I) const
-    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
-    virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                     DenseMatrix &R) const
-    { LocalRestriction_RT(nk, dof2nk, Trans, R); }
-    virtual void GetTransferMatrix(const FiniteElement &fe,
-                                   ElementTransformation &Trans,
-                                   DenseMatrix &I) const
-    { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
-    using FiniteElement::Project;
-    virtual void Project(VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const
-    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                  Vector &dofs) const
-    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-    virtual void ProjectMatrixCoefficient(
-       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
-    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
-    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                         DenseMatrix &I) const
-    { Project_RT(nk, dof2nk, fe, Trans, I); }
-    virtual void ProjectCurl(const FiniteElement &fe,
-                             ElementTransformation &Trans,
-                             DenseMatrix &curl) const;
-   */
 };
 
 

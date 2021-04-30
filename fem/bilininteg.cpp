@@ -464,6 +464,27 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
    int   trial_vdim = GetTrialVDim(trial_fe);
    bool same_shapes = same_calc_shape && (&trial_fe == &test_fe);
 
+   if (MQ)
+   {
+      MFEM_VERIFY(MQ->GetHeight() == test_vdim,
+                  "Dimension mismatch in height of matrix coefficient.");
+      MFEM_VERIFY(MQ->GetWidth() == trial_vdim,
+                  "Dimension mismatch in width of matrix coefficient.");
+   }
+   if (DQ)
+   {
+      MFEM_VERIFY(trial_vdim == test_vdim,
+                  "Diagonal matrix coefficient requires matching "
+                  "test and trial vector dimensions.");
+      MFEM_VERIFY(DQ->GetVDim() == trial_vdim,
+                  "Dimension mismatch in diagonal matrix coefficient.");
+   }
+   if (VQ)
+   {
+      MFEM_VERIFY(VQ->GetVDim() == 3, "Vector coefficient must have "
+                  "dimension equal to three.");
+   }
+
 #ifdef MFEM_THREAD_SAFE
    Vector V(VQ ? VQ->GetVDim() : 0);
    Vector D(DQ ? DQ->GetVDim() : 0);
