@@ -573,6 +573,10 @@ private:
    /// True if Configure() was called.
    static bool configured;
 
+   /** @brief If true, class Memory will register the base Memory when creating
+       aliases with Memory<T>::MakeAlias(). */
+   static bool register_alias_bases;
+
    /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
    static const char * h_umpire_name;
@@ -599,6 +603,13 @@ private: // Static methods used by the Memory<T> class
    static void Register_(void *h_ptr, void *d_ptr, size_t bytes,
                          MemoryType h_mt, MemoryType d_mt,
                          bool own, bool alias, unsigned &flags);
+
+   /** @brief If true, class Memory will register the base Memory when creating
+       aliases with Memory<T>::MakeAlias(). */
+   /** This value is initialized during configuration: it is set to true when
+       the default device memory type is not the same as the default host memory
+       type. */
+   static bool RegisterAliasBases() { return register_alias_bases; }
 
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
@@ -907,13 +918,20 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
-   { flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE); }
-   else
    {
-      const size_t s_bytes = size*sizeof(T);
-      const size_t o_bytes = offset*sizeof(T);
-      MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
+      if (!MemoryManager::RegisterAliasBases())
+      {
+         flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
+         return;
+      }
+      // Register 'base':
+      MemoryManager::Register_(base.h_ptr, nullptr, base.capacity*sizeof(T),
+                               base.h_mt, base.flags & OWNS_HOST,
+                               base.flags & ALIAS, base.flags);
    }
+   const size_t s_bytes = size*sizeof(T);
+   const size_t o_bytes = offset*sizeof(T);
+   MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
 }
 
 template <typename T>
