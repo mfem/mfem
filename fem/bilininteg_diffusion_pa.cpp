@@ -1928,8 +1928,8 @@ static void ApplyDiff(const int ne,
                       const Vector &d,
                       const Vector &x,
                       Vector &y,
-                      int dofs = 0,
-                      int quads = 0)
+                      int dofs = Dofs,
+                      int quads = Quads)
 {
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
    auto B       = MakeBasis(config, b.Read(), bt.Read(), g.Read(), gt.Read());
