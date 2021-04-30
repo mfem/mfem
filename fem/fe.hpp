@@ -3293,7 +3293,7 @@ public:
 };
 
 
-/// Arbitrary order Nedelec 3D elements in 1D on a point
+/// A 0D Nedelec finite element for the boundary of a 1D domain
 /** ND_R1D_PointElement provides a representation of the trace of a three
     component Nedelec basis restricted to 1D.
 */
