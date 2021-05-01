@@ -1953,9 +1953,9 @@ protected:
    SymmetricMatrixCoefficient *SMQ;
 
 private:
-   Vector vec, pointflux, shape;
+   Vector vec, vecdxt, pointflux, shape;
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix dshape, dshapedxt, invdfdx, M, dshapedxt_m;
    DenseMatrix te_dshape, te_dshapedxt;
    Vector D;
 #endif
@@ -1984,7 +1984,6 @@ public:
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
       : Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL) { }
-
 
    /// Construct a diffusion integrator with a symmetric matrix coefficient q
    DiffusionIntegrator(SymmetricMatrixCoefficient &q)
@@ -2037,6 +2036,8 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
+
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2094,6 +2095,8 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
+
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2159,6 +2162,8 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
+
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 // Alias for @ConvectionIntegrator.
@@ -2249,6 +2254,7 @@ public:
    virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 
@@ -2698,6 +2704,7 @@ public:
    virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 /** Integrator for the linear elasticity form:
