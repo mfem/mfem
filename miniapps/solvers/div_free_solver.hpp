@@ -149,6 +149,8 @@ class SaddleSchwarzSmoother : public Solver
 public:
    /** SaddleSchwarzSmoother solves local saddle point problems defined on a
        list of non-overlapping aggregates (of elements).
+       @param M the [1,1] block of the saddle point system
+       @param B the [2,1] block of the saddle point system
        @param agg_hdivdof aggregate to H(div) dofs relation table (boolean matrix)
        @param agg_l2dof aggregate to L2 dofs relation table (boolean matrix)
        @param P_l2 prolongation matrix of the discrete L2 space

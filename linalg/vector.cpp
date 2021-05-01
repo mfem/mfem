@@ -135,11 +135,13 @@ Vector &Vector::operator=(const Vector &v)
    UseDevice(v.UseDevice());
 #else
    SetSize(v.Size());
-   const bool use_dev = UseDevice() || v.UseDevice();
+   bool vuse = v.UseDevice();
+   const bool use_dev = UseDevice() || vuse;
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
    if (use_dev) { Write(); }
    data.CopyFrom(v.data, v.Size());
+   v.UseDevice(vuse);
 #endif
    return *this;
 }
@@ -726,6 +728,14 @@ void Vector::Print_HYPRE(std::ostream &out) const
    out.flags(old_fmt);
 }
 
+void Vector::PrintHash(std::ostream &out) const
+{
+   out << "size: " << size << '\n';
+   HashFunction hf;
+   hf.AppendDoubles(HostRead(), size);
+   out << "hash: " << hf.GetHash() << '\n';
+}
+
 void Vector::Randomize(int seed)
 {
    // static unsigned int seed = time(0);
@@ -940,7 +950,7 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(dot_sz, MemoryType::DEVICE);
+   cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
    double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);

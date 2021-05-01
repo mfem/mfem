@@ -360,6 +360,11 @@ if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
 endif()
 
+# Caliper
+if (MFEM_USE_CALIPER)
+  find_package(Caliper REQUIRED)
+endif()
+
 # AMD HIP
 if (MFEM_USE_HIP)
   find_package(HIP REQUIRED)
@@ -403,10 +408,10 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE SuperLUDist MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+    SLEPC MESQUITE MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE MKL_CPARDISO AMGX)
+    CUSPARSE MKL_CPARDISO AMGX CALIPER)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -509,6 +514,8 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   endforeach()
 endif()
 
+set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
+
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
 #-------------------------------------------------------------------------------
@@ -559,16 +566,17 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 endif()
 
 # Add 'check' target - quick test
+set(MFEM_CHECK_TARGET_NAME ${MFEM_CUSTOM_TARGET_PREFIX}check)
 if (NOT MFEM_USE_MPI)
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1_ser\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1)
 else()
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1p\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1p)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1p)
 endif()
 
 #-------------------------------------------------------------------------------

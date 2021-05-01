@@ -50,8 +50,8 @@ inline void HypreParVector::_SetDataAndSize_()
                      hypre_VectorSize(hypre_ParVectorLocalVector(x))));
 }
 
-HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
-                               HYPRE_Int *col) : Vector()
+HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
+                               HYPRE_BigInt *col) : Vector()
 {
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
@@ -63,8 +63,8 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
    own_ParVector = 1;
 }
 
-HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
-                               double *_data, HYPRE_Int *col) : Vector()
+HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
+                               double *_data, HYPRE_BigInt *col) : Vector()
 {
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
@@ -279,7 +279,7 @@ char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 {
    int nnz = bool_csr->Size_of_connections();
-   double *data = new double[nnz];
+   double *data = Memory<double>(nnz);
    for (int i = 0; i < nnz; i++)
    {
       data[i] = 1.0;
@@ -303,15 +303,25 @@ char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
 {
    HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(hypre_csr);
+#if MFEM_HYPRE_VERSION >= 21600
+   if (hypre_CSRMatrixBigJ(hypre_csr))
+   {
+      for (HYPRE_Int j = 0; j < nnz; j++)
+      {
+         J[j] = internal::to_int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
+      }
+      return;
+   }
+#endif
    for (HYPRE_Int j = 0; j < nnz; j++)
    {
-      J[j] = int(hypre_CSRMatrixJ(hypre_csr)[j]);
+      J[j] = internal::to_int(hypre_CSRMatrixJ(hypre_csr)[j]);
    }
 }
 
 // Square block-diagonal constructor (4 arguments, v1)
-HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
-                               HYPRE_Int *row_starts, SparseMatrix *diag)
+HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
+                               HYPRE_BigInt *row_starts, SparseMatrix *diag)
    : Operator(diag->Height(), diag->Width())
 {
    Init();
@@ -346,9 +356,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
 
 // Rectangular block-diagonal constructor (6 arguments, v1)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
-                               HYPRE_Int global_num_rows,
-                               HYPRE_Int global_num_cols,
-                               HYPRE_Int *row_starts, HYPRE_Int *col_starts,
+                               HYPRE_BigInt global_num_rows,
+                               HYPRE_BigInt global_num_cols,
+                               HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
                                SparseMatrix *diag)
    : Operator(diag->Height(), diag->Width())
 {
@@ -383,11 +393,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
 // General rectangular constructor with diagonal and off-diagonal (8 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
-                               HYPRE_Int global_num_rows,
-                               HYPRE_Int global_num_cols,
-                               HYPRE_Int *row_starts, HYPRE_Int *col_starts,
+                               HYPRE_BigInt global_num_rows,
+                               HYPRE_BigInt global_num_cols,
+                               HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
                                SparseMatrix *diag, SparseMatrix *offd,
-                               HYPRE_Int *cmap)
+                               HYPRE_BigInt *cmap)
    : Operator(diag->Height(), diag->Width())
 {
    Init();
@@ -428,11 +438,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 // General rectangular constructor with diagonal and off-diagonal (13 arguments)
 HypreParMatrix::HypreParMatrix(
    MPI_Comm comm,
-   HYPRE_Int global_num_rows, HYPRE_Int global_num_cols,
-   HYPRE_Int *row_starts, HYPRE_Int *col_starts,
+   HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols,
+   HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
    HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
    HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
-   HYPRE_Int offd_num_cols, HYPRE_Int *offd_col_map)
+   HYPRE_Int offd_num_cols, HYPRE_BigInt *offd_col_map)
 {
    Init();
    A = hypre_ParCSRMatrixCreate(comm, global_num_rows, global_num_cols,
@@ -481,7 +491,7 @@ HypreParMatrix::HypreParMatrix(
 
 // Constructor from a CSR matrix on rank 0 (4 arguments, v2)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
-                               HYPRE_Int *row_starts, HYPRE_Int *col_starts,
+                               HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
                                SparseMatrix *sm_a)
 {
    MFEM_ASSERT(sm_a != NULL, "invalid input");
@@ -521,9 +531,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
 // Boolean, rectangular, block-diagonal constructor (6 arguments, v2)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
-                               HYPRE_Int global_num_rows,
-                               HYPRE_Int global_num_cols,
-                               HYPRE_Int *row_starts, HYPRE_Int *col_starts,
+                               HYPRE_BigInt global_num_rows,
+                               HYPRE_BigInt global_num_cols,
+                               HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
                                Table *diag)
 {
    Init();
@@ -561,10 +571,10 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 // Boolean, general rectangular constructor with diagonal and off-diagonal
 // (11 arguments)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
-                               HYPRE_Int *row, HYPRE_Int *col,
+                               HYPRE_BigInt *row, HYPRE_BigInt *col,
                                HYPRE_Int *i_diag, HYPRE_Int *j_diag,
                                HYPRE_Int *i_offd, HYPRE_Int *j_offd,
-                               HYPRE_Int *cmap, HYPRE_Int cmap_size)
+                               HYPRE_BigInt *cmap, HYPRE_Int cmap_size)
 {
    HYPRE_Int diag_nnz, offd_nnz;
 
@@ -641,15 +651,16 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 // General rectangular constructor with diagonal and off-diagonal constructed
 // from a CSR matrix that contains both diagonal and off-diagonal blocks
 // (9 arguments)
-HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
-                               HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
-                               double *data, HYPRE_Int *rows, HYPRE_Int *cols)
+HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
+                               HYPRE_BigInt glob_nrows,
+                               HYPRE_BigInt glob_ncols, int *I, HYPRE_BigInt *J,
+                               double *data, HYPRE_BigInt *rows, HYPRE_BigInt *cols)
 {
    Init();
 
    // Determine partitioning size, and my column start and end
    int part_size;
-   HYPRE_Int my_col_start, my_col_end; // my range: [my_col_start, my_col_end)
+   HYPRE_BigInt my_col_start, my_col_end; // my range: [my_col_start, my_col_end)
    if (HYPRE_AssumedPartitionCheck())
    {
       part_size = 2;
@@ -667,10 +678,10 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    }
 
    // Copy in the row and column partitionings
-   HYPRE_Int *row_starts, *col_starts;
+   HYPRE_BigInt *row_starts, *col_starts;
    if (rows == cols)
    {
-      row_starts = col_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = col_starts = mfem_hypre_TAlloc(HYPRE_BigInt, part_size);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -678,8 +689,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    }
    else
    {
-      row_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
-      col_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = mfem_hypre_TAlloc(HYPRE_BigInt, part_size);
+      col_starts = mfem_hypre_TAlloc(HYPRE_BigInt, part_size);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -690,23 +701,22 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    // Create a map for the off-diagonal indices - global to local. Count the
    // number of diagonal and off-diagonal entries.
    HYPRE_Int diag_nnz = 0, offd_nnz = 0, offd_num_cols = 0;
-   map<HYPRE_Int, HYPRE_Int> offd_map;
+   map<HYPRE_BigInt, HYPRE_Int> offd_map;
    for (HYPRE_Int j = 0, loc_nnz = I[nrows]; j < loc_nnz; j++)
    {
-      HYPRE_Int glob_col = J[j];
+      HYPRE_BigInt glob_col = J[j];
       if (my_col_start <= glob_col && glob_col < my_col_end)
       {
          diag_nnz++;
       }
       else
       {
-         offd_map.insert(pair<const HYPRE_Int, HYPRE_Int>(glob_col, -1));
+         offd_map.insert(pair<const HYPRE_BigInt, HYPRE_Int>(glob_col, -1));
          offd_nnz++;
       }
    }
    // count the number of columns in the off-diagonal and set the local indices
-   for (map<HYPRE_Int, HYPRE_Int>::iterator it = offd_map.begin();
-        it != offd_map.end(); ++it)
+   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
    {
       it->second = offd_num_cols++;
    }
@@ -717,7 +727,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                                 diag_nnz, offd_nnz);
    hypre_ParCSRMatrixInitialize(A);
 
-   HYPRE_Int *diag_i, *diag_j, *offd_i, *offd_j, *offd_col_map;
+   HYPRE_Int *diag_i, *diag_j, *offd_i, *offd_j;
+   HYPRE_BigInt *offd_col_map;
    double *diag_data, *offd_data;
    diag_i = A->diag->i;
    diag_j = A->diag->j;
@@ -734,7 +745,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
       offd_i[i] = offd_nnz;
       for (HYPRE_Int j_end = I[i+1]; j < j_end; j++)
       {
-         HYPRE_Int glob_col = J[j];
+         HYPRE_BigInt glob_col = J[j];
          if (my_col_start <= glob_col && glob_col < my_col_end)
          {
             diag_j[diag_nnz] = glob_col - my_col_start;
@@ -751,8 +762,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    }
    diag_i[nrows] = diag_nnz;
    offd_i[nrows] = offd_nnz;
-   for (map<HYPRE_Int, HYPRE_Int>::iterator it = offd_map.begin();
-        it != offd_map.end(); ++it)
+   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
    {
       offd_col_map[it->second] = it->first;
    }
@@ -835,8 +845,9 @@ void HypreParMatrix::CopyRowStarts()
       row_starts_size++; // num_proc + 1
    }
 
-   HYPRE_Int *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
-   HYPRE_Int *new_row_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_BigInt *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
+   HYPRE_BigInt *new_row_starts = mfem_hypre_CTAlloc(HYPRE_BigInt,
+                                                     row_starts_size);
    for (int i = 0; i < row_starts_size; i++)
    {
       new_row_starts[i] = old_row_starts[i];
@@ -872,8 +883,9 @@ void HypreParMatrix::CopyColStarts()
       col_starts_size++; // num_proc + 1
    }
 
-   HYPRE_Int *old_col_starts = hypre_ParCSRMatrixColStarts(A);
-   HYPRE_Int *new_col_starts = mfem_hypre_CTAlloc(HYPRE_Int, col_starts_size);
+   HYPRE_BigInt *old_col_starts = hypre_ParCSRMatrixColStarts(A);
+   HYPRE_BigInt *new_col_starts = mfem_hypre_CTAlloc(HYPRE_BigInt,
+                                                     col_starts_size);
    for (int i = 0; i < col_starts_size; i++)
    {
       new_col_starts[i] = old_col_starts[i];
@@ -929,7 +941,7 @@ void HypreParMatrix::GetDiag(SparseMatrix &diag) const
    MakeWrapper(A->diag, diag);
 }
 
-void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const
+void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_BigInt* &cmap) const
 {
    MakeWrapper(A->offd, offd);
    cmap = A->col_map_offd;
@@ -1137,7 +1149,7 @@ void HypreParMatrix::AbsMultTranspose(double a, const Vector &x,
 }
 
 HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
-                                             HYPRE_Int* row_starts) const
+                                             HYPRE_BigInt* row_starts) const
 {
    const bool assumed_partition = HYPRE_AssumedPartitionCheck();
    const bool row_starts_given = (row_starts != NULL);
@@ -1167,7 +1179,7 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
    // multiplication function, mfem::Mult(), called below.
 
    int part_size;
-   HYPRE_Int global_num_rows;
+   HYPRE_BigInt global_num_rows;
    if (assumed_partition)
    {
       part_size = 2;
@@ -1190,8 +1202,8 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
       part_size++;
    }
 
-   HYPRE_Int *col_starts = hypre_ParCSRMatrixColStarts(A);
-   HYPRE_Int *col_map_offd;
+   HYPRE_BigInt *col_starts = hypre_ParCSRMatrixColStarts(A);
+   HYPRE_BigInt *col_map_offd;
 
    // get the diag and offd blocks as SparseMatrix wrappers
    SparseMatrix A_diag, A_offd;
@@ -1205,10 +1217,10 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
    HypreParMatrix* DA =
       new HypreParMatrix(GetComm(),
                          global_num_rows, hypre_ParCSRMatrixGlobalNumCols(A),
-                         DuplicateAs<HYPRE_Int>(row_starts, part_size, false),
-                         DuplicateAs<HYPRE_Int>(col_starts, part_size, false),
+                         DuplicateAs<HYPRE_BigInt>(row_starts, part_size, false),
+                         DuplicateAs<HYPRE_BigInt>(col_starts, part_size, false),
                          DA_diag, DA_offd,
-                         DuplicateAs<HYPRE_Int>(col_map_offd, A_offd.Width()));
+                         DuplicateAs<HYPRE_BigInt>(col_map_offd, A_offd.Width()));
 
    // When HYPRE_BIGINT is defined, we want DA_{diag,offd} to delete their I and
    // J arrays but not their data arrays; when HYPRE_BIGINT is not defined, we
@@ -1356,9 +1368,9 @@ void HypreParMatrix::Threshold(double threshold)
    hypre_CSRMatrix * csr_A;
    hypre_CSRMatrix * csr_A_wo_z;
    hypre_ParCSRMatrix * parcsr_A_ptr;
-   HYPRE_Int * row_starts = NULL; HYPRE_Int * col_starts = NULL;
-   HYPRE_Int row_start = -1;   HYPRE_Int row_end = -1;
-   HYPRE_Int col_start = -1;   HYPRE_Int col_end = -1;
+   HYPRE_BigInt * row_starts = NULL; HYPRE_BigInt * col_starts = NULL;
+   HYPRE_BigInt row_start = -1;   HYPRE_BigInt row_end = -1;
+   HYPRE_BigInt col_start = -1;   HYPRE_BigInt col_end = -1;
 
    comm = hypre_ParCSRMatrixComm(A);
 
@@ -1371,8 +1383,8 @@ void HypreParMatrix::Threshold(double threshold)
 
    bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
    bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
-   HYPRE_Int global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
-   HYPRE_Int global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
+   HYPRE_BigInt global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
+   HYPRE_BigInt global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
    parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm, global_num_rows,
                                            global_num_cols,
                                            row_starts, col_starts,
@@ -1591,6 +1603,72 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
    MPI_Barrier(comm);
 }
 
+void HypreParMatrix::PrintHash(std::ostream &out) const
+{
+   HashFunction hf;
+
+   out << "global number of rows    : " << A->global_num_rows << '\n'
+       << "global number of columns : " << A->global_num_cols << '\n'
+       << "first row index : " << A->first_row_index << '\n'
+       << " last row index : " << A->last_row_index << '\n'
+       << "first col diag  : " << A->first_col_diag << '\n'
+       << " last col diag  : " << A->last_col_diag << '\n'
+       << "number of nonzeros : " << A->num_nonzeros << '\n';
+   // diagonal, off-diagonal
+   hypre_CSRMatrix *csr = A->diag;
+   const char *csr_name = "diag";
+   for (int m = 0; m < 2; m++)
+   {
+      auto csr_nnz = csr->i[csr->num_rows];
+      out << csr_name << " num rows : " << csr->num_rows << '\n'
+          << csr_name << " num cols : " << csr->num_cols << '\n'
+          << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
+          << csr_name << " i last   : " << csr_nnz
+          << (csr_nnz == csr->num_nonzeros ?
+              " [good]" : " [** BAD **]") << '\n';
+      hf.AppendInts(csr->i, csr->num_rows + 1);
+      out << csr_name << " i     hash : " << hf.GetHash() << '\n';
+      out << csr_name << " j     hash : ";
+      if (csr->j == nullptr)
+      {
+         out << "(null)\n";
+      }
+      else
+      {
+         hf.AppendInts(csr->j, csr_nnz);
+         out << hf.GetHash() << '\n';
+      }
+#if MFEM_HYPRE_VERSION >= 21600
+      out << csr_name << " big j hash : ";
+      if (csr->big_j == nullptr)
+      {
+         out << "(null)\n";
+      }
+      else
+      {
+         hf.AppendInts(csr->big_j, csr_nnz);
+         out << hf.GetHash() << '\n';
+      }
+#endif
+      out << csr_name << " data  hash : ";
+      if (csr->data == nullptr)
+      {
+         out << "(null)\n";
+      }
+      else
+      {
+         hf.AppendDoubles(csr->data, csr_nnz);
+         out << hf.GetHash() << '\n';
+      }
+
+      csr = A->offd;
+      csr_name = "offd";
+   }
+
+   hf.AppendInts(A->col_map_offd, A->offd->num_cols);
+   out << "col map offd hash : " << hf.GetHash() << '\n';
+}
+
 inline void delete_hypre_CSRMatrixData(hypre_CSRMatrix *M)
 {
    HYPRE_Complex *data = hypre_CSRMatrixData(M);
@@ -1599,9 +1677,9 @@ inline void delete_hypre_CSRMatrixData(hypre_CSRMatrix *M)
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
-   HYPRE_Int  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
+   HYPRE_BigInt  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
    int size = hypre_CSRMatrixNumCols(hypre_ParCSRMatrixOffd(A));
-   Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
+   Memory<HYPRE_BigInt>(A_col_map_offd, size, true).Delete();
 }
 
 inline void delete_hypre_CSRMatrixI(hypre_CSRMatrix *M)
@@ -1735,7 +1813,6 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 {
    hypre_ParCSRMatrix *C;
    hypre_ParcsrAdd(alpha, A, beta, B, &C);
-   hypre_MatvecCommPkgCreate(C);
 
    return new HypreParMatrix(C);
 }
@@ -1744,8 +1821,6 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix *C;
    hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
-
-   hypre_MatvecCommPkgCreate(C);
 
    return new HypreParMatrix(C);
 }
@@ -1828,10 +1903,10 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
                            const int num_loc, const Array<int> &offsets,
                            std::vector<int> &all_num_loc, const int numBlocks,
-                           std::vector<std::vector<HYPRE_Int>> &blockProcOffsets,
-                           std::vector<HYPRE_Int> &procOffsets,
+                           std::vector<std::vector<HYPRE_BigInt>> &blockProcOffsets,
+                           std::vector<HYPRE_BigInt> &procOffsets,
                            std::vector<std::vector<int>> &procBlockOffsets,
-                           HYPRE_Int &firstLocal, HYPRE_Int &globalNum)
+                           HYPRE_BigInt &firstLocal, HYPRE_BigInt &globalNum)
 {
    std::vector<std::vector<int>> all_block_num_loc(numBlocks);
 
@@ -1971,14 +2046,14 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
 
    std::vector<int> all_num_loc_rows(nprocs);
    std::vector<int> all_num_loc_cols(nprocs);
-   std::vector<HYPRE_Int> procRowOffsets(nprocs);
-   std::vector<HYPRE_Int> procColOffsets(nprocs);
-   std::vector<std::vector<HYPRE_Int>> blockRowProcOffsets(numBlockRows);
-   std::vector<std::vector<HYPRE_Int>> blockColProcOffsets(numBlockCols);
+   std::vector<HYPRE_BigInt> procRowOffsets(nprocs);
+   std::vector<HYPRE_BigInt> procColOffsets(nprocs);
+   std::vector<std::vector<HYPRE_BigInt>> blockRowProcOffsets(numBlockRows);
+   std::vector<std::vector<HYPRE_BigInt>> blockColProcOffsets(numBlockCols);
    std::vector<std::vector<int>> procBlockRowOffsets(nprocs);
    std::vector<std::vector<int>> procBlockColOffsets(nprocs);
 
-   HYPRE_Int first_loc_row, glob_nrows, first_loc_col, glob_ncols;
+   HYPRE_BigInt first_loc_row, glob_nrows, first_loc_col, glob_ncols;
    GatherBlockOffsetData(comm, rank, nprocs, num_loc_rows, rowOffsets,
                          all_num_loc_rows, numBlockRows, blockRowProcOffsets,
                          procRowOffsets, procBlockRowOffsets, first_loc_row,
@@ -2032,7 +2107,7 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
 
    const int nnz = opI[num_loc_rows];
 
-   std::vector<HYPRE_Int> opJ(nnz);
+   std::vector<HYPRE_BigInt> opJ(nnz);
    std::vector<double> data(nnz);
 
    // Loop over all blocks, to set matrix data.
@@ -2094,11 +2169,11 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
       }
    }
 
-   std::vector<HYPRE_Int> rowStarts2(2);
+   std::vector<HYPRE_BigInt> rowStarts2(2);
    rowStarts2[0] = first_loc_row;
    rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
 
-   std::vector<HYPRE_Int> colStarts2(2);
+   std::vector<HYPRE_BigInt> colStarts2(2);
    colStarts2[0] = first_loc_col;
    colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
 
@@ -2106,8 +2181,10 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                "only 'assumed partition' mode is supported");
 
    return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
-                             opI.data(), opJ.data(), data.data(),
-                             rowStarts2.data(), colStarts2.data());
+                             opI.data(), opJ.data(),
+                             data.data(),
+                             rowStarts2.data(),
+                             colStarts2.data());
 }
 
 void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
@@ -3914,6 +3991,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int p = 1;
    if (edge_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = edge_fespace->GetFaceOrder(0);
@@ -3921,7 +3999,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       }
       else
       {
-         p = edge_fespace->GetOrder(0);
+         p = edge_fespace->GetElementOrder(0);
       }
    }
 
@@ -4143,13 +4221,14 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int p = 1;
    if (face_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = face_fespace->GetFaceOrder(0) + 1;
       }
       else
       {
-         p = face_fespace->GetOrder(0);
+         p = face_fespace->GetElementOrder(0);
       }
    }
 
@@ -4536,24 +4615,24 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 void
 HypreLOBPCG::SetOperator(Operator & A)
 {
-   HYPRE_Int locSize = A.Width();
+   HYPRE_BigInt locSize = A.Width();
 
    if (HYPRE_AssumedPartitionCheck())
    {
-      part = new HYPRE_Int[2];
+      part = new HYPRE_BigInt[2];
 
-      MPI_Scan(&locSize, &part[1], 1, HYPRE_MPI_INT, MPI_SUM, comm);
+      MPI_Scan(&locSize, &part[1], 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
 
       part[0] = part[1] - locSize;
 
-      MPI_Allreduce(&locSize, &glbSize, 1, HYPRE_MPI_INT, MPI_SUM, comm);
+      MPI_Allreduce(&locSize, &glbSize, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
    }
    else
    {
-      part = new HYPRE_Int[numProcs+1];
+      part = new HYPRE_BigInt[numProcs+1];
 
-      MPI_Allgather(&locSize, 1, HYPRE_MPI_INT,
-                    &part[1], 1, HYPRE_MPI_INT, comm);
+      MPI_Allgather(&locSize, 1, HYPRE_MPI_BIG_INT,
+                    &part[1], 1, HYPRE_MPI_BIG_INT, comm);
 
       part[0] = 0;
       for (int i=0; i<numProcs; i++)
