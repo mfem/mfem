@@ -70,10 +70,10 @@ struct Basis<Dim,true,Dynamic,Dynamic>
    auto GetB() const
    {
       DynamicBasisTensor<Dim> s_B(quads1D,dofs1D);
-      for (int d = 0; d < dofs; d++)
+      for (int d = 0; d < dofs1D; d++)
       // MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
-         for (int q = 0; q < quads; q++)
+         for (int q = 0; q < quads1D; q++)
          // MFEM_FOREACH_THREAD(q,x,quads1D)
          {
             s_B(q,d) = B[q+quads1D*d];
@@ -86,10 +86,10 @@ struct Basis<Dim,true,Dynamic,Dynamic>
    auto GetBt() const
    {
       DynamicBasisTensor<Dim> s_Bt(dofs1D,quads1D);
-      for (int q = 0; q < quads; q++)
+      for (int q = 0; q < quads1D; q++)
       // MFEM_FOREACH_THREAD(q,y,quads1D)
       {
-         for (int d = 0; d < dofs; d++)
+         for (int d = 0; d < dofs1D; d++)
          // MFEM_FOREACH_THREAD(d,x,dofs1D)
          {
             s_Bt(d,q) = Bt[d+dofs1D*q];
@@ -102,10 +102,10 @@ struct Basis<Dim,true,Dynamic,Dynamic>
    auto GetG() const
    {
       DynamicBasisTensor<Dim> s_G(quads1D,dofs1D);
-      for (int d = 0; d < dofs; d++)
+      for (int d = 0; d < dofs1D; d++)
       // MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
-         for (int q = 0; q < quads; q++)
+         for (int q = 0; q < quads1D; q++)
          // MFEM_FOREACH_THREAD(q,x,quads1D)
          {
             s_G(q,d) = G[q+quads1D*d];
@@ -118,10 +118,10 @@ struct Basis<Dim,true,Dynamic,Dynamic>
    auto GetGt() const
    {
       DynamicBasisTensor<Dim> s_Gt(dofs1D,quads1D);
-      for (int q = 0; q < quads; q++)
+      for (int q = 0; q < quads1D; q++)
       // MFEM_FOREACH_THREAD(q,y,quads1D)
       {
-         for (int d = 0; d < dofs; d++)
+         for (int d = 0; d < dofs1D; d++)
          // MFEM_FOREACH_THREAD(d,x,dofs1D)
          {
             s_Gt(d,q) = Gt[d+dofs1D*q];
@@ -149,10 +149,10 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    auto GetB() const
    {
       StaticBasisTensor<dim,quads1D,dofs1D> s_B(quads1D,dofs1D);
-      for (int d = 0; d < dofs; d++)
+      for (int d = 0; d < dofs1D; d++)
       // MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
-         for (int q = 0; q < quads; q++)
+         for (int q = 0; q < quads1D; q++)
          // MFEM_FOREACH_THREAD(q,x,quads1D)
          {
             s_B(q,d) = B[q+quads1D*d];
@@ -165,10 +165,10 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    auto GetBt() const
    {
       StaticBasisTensor<dim,dofs1D,quads1D> s_Bt(dofs1D,quads1D);
-      for (int q = 0; q < quads; q++)
+      for (int q = 0; q < quads1D; q++)
       // MFEM_FOREACH_THREAD(q,y,quads1D)
       {
-         for (int d = 0; d < dofs; d++)
+         for (int d = 0; d < dofs1D; d++)
          // MFEM_FOREACH_THREAD(d,x,dofs1D)
          {
             s_Bt(d,q) = Bt[d+dofs1D*q];
@@ -181,10 +181,10 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    auto GetG() const
    {
       StaticBasisTensor<dim,quads1D,dofs1D> s_G(quads1D,dofs1D);
-      for (int d = 0; d < dofs; d++)
+      for (int d = 0; d < dofs1D; d++)
       // MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
-         for (int q = 0; q < quads; q++)
+         for (int q = 0; q < quads1D; q++)
          // MFEM_FOREACH_THREAD(q,x,quads1D)
          {
             s_G(q,d) = G[q+quads1D*d];
@@ -197,10 +197,10 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    auto GetGt() const
    {
       StaticBasisTensor<dim,dofs1D,quads1D> s_Gt(dofs1D,quads1D);
-      for (int q = 0; q < quads; q++)
+      for (int q = 0; q < quads1D; q++)
       // MFEM_FOREACH_THREAD(q,y,quads1D)
       {
-         for (int d = 0; d < dofs; d++)
+         for (int d = 0; d < dofs1D; d++)
          // MFEM_FOREACH_THREAD(d,x,dofs1D)
          {
             s_Gt(d,q) = Gt[d+dofs1D*q];
