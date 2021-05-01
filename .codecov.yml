@@ -13,7 +13,7 @@ coverage:
         base: auto
         branches:
           - master
-        if_ci_failed: ignore
+        if_ci_failed: success
         only_pulls: true
     project:
       default:
