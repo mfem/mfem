@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <type_traits>
 
 namespace mfem
 {
@@ -50,6 +51,18 @@ protected:
    int size;
 
    inline void GrowSize(int minsize);
+
+   static inline void TypeAssert()
+   {
+      // FIXME: we use Array with some non-trivial types:
+      // * mfem::NCMesh::MeshId
+
+      static_assert(std::is_trivial<T>::value, "type T must be trivial");
+
+      // Do we also assume that T "is_standard_layout"?
+      // Note that "is_pod" = "is_trivial" + "is_standard_layout", however,
+      // "is_pod" is deprecated in c++20.
+   }
 
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
@@ -83,7 +96,7 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Destructor
-   inline ~Array() { data.Delete(); }
+   inline ~Array() { TypeAssert(); data.Delete(); }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
