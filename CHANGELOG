@@ -98,6 +98,11 @@ Version 4.2.1 (development)
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
+- Added support for different modes of QuadratureInterpolator on GPU.
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
+  be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  Determinants methods.
+
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
