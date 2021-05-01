@@ -14,6 +14,7 @@
 
 #include "mfem.hpp"
 #include <memory>
+#include <vector>
 
 namespace mfem
 {
@@ -46,14 +47,14 @@ struct DFSParameters : IterSolveParameters
 /// Data for the divergence free solver
 struct DFSData
 {
-   Array<OperatorPtr> agg_hdivdof;    // agglomerates to H(div) dofs table
-   Array<OperatorPtr> agg_l2dof;      // agglomerates to L2 dofs table
-   Array<OperatorPtr> P_hdiv;         // Interpolation matrix for H(div) space
-   Array<OperatorPtr> P_l2;           // Interpolation matrix for L2 space
-   Array<OperatorPtr> P_hcurl;        // Interpolation for kernel space of div
-   Array<OperatorPtr> Q_l2;           // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
+   std::vector<OperatorPtr> agg_hdivdof;  // agglomerates to H(div) dofs table
+   std::vector<OperatorPtr> agg_l2dof;    // agglomerates to L2 dofs table
+   std::vector<OperatorPtr> P_hdiv;   // Interpolation matrix for H(div) space
+   std::vector<OperatorPtr> P_l2;     // Interpolation matrix for L2 space
+   std::vector<OperatorPtr> P_hcurl;  // Interpolation for kernel space of div
+   std::vector<OperatorPtr> Q_l2;     // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
    Array<int> coarsest_ess_hdivdofs;  // coarsest level essential H(div) dofs
-   Array<OperatorPtr> C;              // discrete curl: ND -> RT, map to Null(B)
+   std::vector<OperatorPtr> C;        // discrete curl: ND -> RT, map to Null(B)
    DFSParameters param;
 };
 
@@ -144,7 +145,7 @@ class SaddleSchwarzSmoother : public Solver
    mutable Array<int> offsets_loc_;
    mutable Array<int> hdivdofs_loc_;
    mutable Array<int> l2dofs_loc_;
-   Array<OperatorPtr> solvers_loc_;
+   std::vector<OperatorPtr> solvers_loc_;
 public:
    /** SaddleSchwarzSmoother solves local saddle point problems defined on a
        list of non-overlapping aggregates (of elements).
@@ -213,7 +214,7 @@ class DivFreeSolver : public DarcySolver
    DFSParameters param_;
    OperatorPtr BT_;
    BBTSolver BBT_solver_;
-   Array<Array<int>> ops_offsets_;
+   std::vector<Array<int>> ops_offsets_;
    Array<BlockOperator*> ops_;
    Array<BlockOperator*> blk_Ps_;
    Array<Solver*> smoothers_;
