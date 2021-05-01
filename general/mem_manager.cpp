@@ -1490,7 +1490,6 @@ void MemoryManager::Configure(const MemoryType host_mt,
    host_mem_type = host_mt;
    device_mem_type = device_mt;
    configured = true;
-   register_alias_bases = (host_mem_type != device_mem_type);
 }
 
 void MemoryManager::Destroy()
@@ -1509,7 +1508,6 @@ void MemoryManager::Destroy()
    device_mem_type = MemoryType::HOST;
    exists = false;
    configured = false;
-   register_alias_bases = false;
 }
 
 void MemoryManager::RegisterCheck(void *ptr)
@@ -1597,7 +1595,6 @@ MemoryManager mm;
 
 bool MemoryManager::exists = false;
 bool MemoryManager::configured = false;
-bool MemoryManager::register_alias_bases = false;
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
 MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
