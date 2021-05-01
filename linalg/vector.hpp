@@ -159,6 +159,13 @@ public:
    /// Reset the Vector to use the given external Memory @a mem and size @a s.
    /** If @a own_mem is false, the Vector will not own any of the pointers of
        @a mem.
+
+       This method should be considered to be for "expert" use only because it
+       may have hard to track implications for the new Vector object when
+       creating a non-owning Vector (i.e. @a own_mem == `false`) that points to
+       the memory of another Vector -- for such use cases we recommend the use
+       of the MakeRef() methods.
+
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
 
