@@ -100,8 +100,9 @@ TEST_CASE("FormLinearSystem/SolutionScope",
       bdr_attr_is_ess = 1;
       fes.GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list);
       REQUIRE(ess_tdof_list.Size() > 0);
-      // Setup solution initial guess satisfying the desired b.c.
-      sol.SetSubVector(ess_tdof_list, 0.0);
+      // Setup (on host) solution initial guess satisfying the desired b.c.
+      ConstantCoefficient zero(0.0);
+      sol.ProjectCoefficient(zero); // performed on host
       // Setup the linear system
       Vector B, X;
       OperatorPtr A;
