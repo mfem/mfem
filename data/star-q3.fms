@@ -1,5 +1,5 @@
 FMS: 100
-DataCollection/Name: Example5
+DataCollection/Name: star
 DataCollection/NumberOfFieldDescriptors: 1
 DataCollection/FieldDescriptors/0/Name: CoordsDescriptor
 DataCollection/FieldDescriptors/0/ComponentName: volume
