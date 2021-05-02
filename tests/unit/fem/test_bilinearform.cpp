@@ -65,3 +65,72 @@ TEST_CASE("Test order of boundary integrators",
       delete D;
    }
 }
+
+
+TEST_CASE("FormLinearSystem/SolutionScope",
+          "[BilinearForm]"
+          "[CUDA]")
+{
+   // Create a simple mesh and FE space
+   int dim = 2, nx = 2, ny = 2, order = 2;
+   Element::Type e_type = Element::QUADRILATERAL;
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, e_type);
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction sol(&fes);
+   int bdr_dof;
+
+   // Solve a PDE on the conforming mesh and FE space defined above, storing the
+   // result in 'sol'.
+   auto SolvePDE = [&](AssemblyLevel al)
+   {
+      // Linear form: rhs
+      ConstantCoefficient f(1.0);
+      LinearForm b(&fes);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
+      // Bilinear form: matrix
+      BilinearForm a(&fes);
+      a.AddDomainIntegrator(new DiffusionIntegrator);
+      a.SetAssemblyLevel(al);
+      a.Assemble();
+      // Setup b.c.
+      Array<int> ess_tdof_list;
+      REQUIRE(mesh.bdr_attributes.Max() > 0);
+      Array<int> bdr_attr_is_ess(mesh.bdr_attributes.Max());
+      bdr_attr_is_ess = 1;
+      fes.GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list);
+      REQUIRE(ess_tdof_list.Size() > 0);
+      // Setup solution initial guess satisfying the desired b.c.
+      sol.SetSubVector(ess_tdof_list, 0.0);
+      // Setup the linear system
+      Vector B, X;
+      OperatorPtr A;
+      const bool copy_interior = true; // interior(sol) --> interior(X)
+      a.FormLinearSystem(ess_tdof_list, sol, b, A, X, B, copy_interior);
+      // Solve the system
+      CGSolver cg;
+      cg.SetMaxIter(2000);
+      cg.SetRelTol(1e-8);
+      cg.SetAbsTol(0.0);
+      cg.SetPrintLevel(0);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      // Recover the solution
+      a.RecoverFEMSolution(X, b, sol);
+      // Initialize the bdr_dof to be checked
+      bdr_dof = ess_tdof_list[0]; // here, L-dof is the same T-dof
+   };
+
+   // Legacy full assembly
+   SolvePDE(AssemblyLevel::LEGACYFULL);
+   // Make sure the solution is still accessible after 'X' is destoyed
+   sol.HostRead();
+   REQUIRE(sol(bdr_dof) == 0.0);
+
+   // Partial assembly
+   SolvePDE(AssemblyLevel::PARTIAL);
+   // Make sure the solution is still accessible after 'X' is destoyed
+   sol.HostRead();
+   REQUIRE(sol(bdr_dof) == 0.0);
+}
