@@ -88,6 +88,7 @@ TEST_CASE("FormLinearSystem/SolutionScope",
       ConstantCoefficient f(1.0);
       LinearForm b(&fes);
       b.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.Assemble();
       // Bilinear form: matrix
       BilinearForm a(&fes);
       a.AddDomainIntegrator(new DiffusionIntegrator);
