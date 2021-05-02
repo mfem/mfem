@@ -333,6 +333,10 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 }
 
 
+/// Utility function similar to std::as_const in c++17.
+template <typename T> const T &AsConst(T &a) { return a; }
+
+
 template <class T>
 class Array2D;
 

@@ -78,12 +78,11 @@ TEST_CASE("FormLinearSystem/SolutionScope",
 
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);
-   GridFunction sol(&fes);
    int bdr_dof;
 
    // Solve a PDE on the conforming mesh and FE space defined above, storing the
    // result in 'sol'.
-   auto SolvePDE = [&](AssemblyLevel al)
+   auto SolvePDE = [&](AssemblyLevel al, GridFunction &sol)
    {
       // Linear form: rhs
       ConstantCoefficient f(1.0);
@@ -119,18 +118,25 @@ TEST_CASE("FormLinearSystem/SolutionScope",
       // Recover the solution
       a.RecoverFEMSolution(X, b, sol);
       // Initialize the bdr_dof to be checked
-      bdr_dof = ess_tdof_list[0]; // here, L-dof is the same T-dof
+      ess_tdof_list.HostRead();
+      bdr_dof = AsConst(ess_tdof_list)[0]; // here, L-dof is the same T-dof
    };
 
    // Legacy full assembly
-   SolvePDE(AssemblyLevel::LEGACYFULL);
-   // Make sure the solution is still accessible after 'X' is destoyed
-   sol.HostRead();
-   REQUIRE(sol(bdr_dof) == 0.0);
+   {
+      GridFunction sol(&fes);
+      SolvePDE(AssemblyLevel::LEGACYFULL, sol);
+      // Make sure the solution is still accessible after 'X' is destoyed
+      sol.HostRead();
+      REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
+   }
 
    // Partial assembly
-   SolvePDE(AssemblyLevel::PARTIAL);
-   // Make sure the solution is still accessible after 'X' is destoyed
-   sol.HostRead();
-   REQUIRE(sol(bdr_dof) == 0.0);
+   {
+      GridFunction sol(&fes);
+      SolvePDE(AssemblyLevel::PARTIAL, sol);
+      // Make sure the solution is still accessible after 'X' is destoyed
+      sol.HostRead();
+      REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
+   }
 }
