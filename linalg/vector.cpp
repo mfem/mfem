@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,6 +20,10 @@
 #if defined(MFEM_USE_MPI)
 #include <nvector/nvector_parallel.h>
 #endif
+#endif
+
+#ifdef MFEM_USE_OPENMP
+#include <omp.h>
 #endif
 
 #include <iostream>
@@ -131,11 +135,13 @@ Vector &Vector::operator=(const Vector &v)
    UseDevice(v.UseDevice());
 #else
    SetSize(v.Size());
-   const bool use_dev = UseDevice() || v.UseDevice();
+   bool vuse = v.UseDevice();
+   const bool use_dev = UseDevice() || vuse;
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
    if (use_dev) { Write(); }
    data.CopyFrom(v.data, v.Size());
+   v.UseDevice(vuse);
 #endif
    return *this;
 }
@@ -722,6 +728,14 @@ void Vector::Print_HYPRE(std::ostream &out) const
    out.flags(old_fmt);
 }
 
+void Vector::PrintHash(std::ostream &out) const
+{
+   out << "size: " << size << '\n';
+   HashFunction hf;
+   hf.AppendDoubles(HostRead(), size);
+   out << "hash: " << hf.GetHash() << '\n';
+}
+
 void Vector::Randomize(int seed)
 {
    // static unsigned int seed = time(0);
@@ -936,7 +950,7 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(dot_sz, MemoryType::DEVICE);
+   cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
    double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
@@ -1076,6 +1090,30 @@ double Vector::operator*(const Vector &v) const
 #ifdef MFEM_USE_OPENMP
    if (Device::Allows(Backend::OMP_MASK))
    {
+#define MFEM_USE_OPENMP_DETERMINISTIC_DOT
+#ifdef MFEM_USE_OPENMP_DETERMINISTIC_DOT
+      // By default, use a deterministic way of computing the dot product
+      static Vector th_dot;
+      #pragma omp parallel
+      {
+         const int nt = omp_get_num_threads();
+         #pragma omp master
+         th_dot.SetSize(nt);
+         const int tid    = omp_get_thread_num();
+         const int stride = (size + nt - 1)/nt;
+         const int start  = tid*stride;
+         const int stop   = std::min(start + stride, size);
+         double my_dot = 0.0;
+         for (int i = start; i < stop; i++)
+         {
+            my_dot += m_data[i] * v_data[i];
+         }
+         #pragma omp barrier
+         th_dot(tid) = my_dot;
+      }
+      return th_dot.Sum();
+#else
+      // The standard way of computing the dot product is non-deterministic
       double prod = 0.0;
       #pragma omp parallel for reduction(+:prod)
       for (int i = 0; i < size; i++)
@@ -1083,8 +1121,9 @@ double Vector::operator*(const Vector &v) const
          prod += m_data[i] * v_data[i];
       }
       return prod;
+#endif // MFEM_USE_OPENMP_DETERMINISTIC_DOT
    }
-#endif
+#endif // MFEM_USE_OPENMP
    if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;

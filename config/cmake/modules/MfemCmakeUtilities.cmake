@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -43,6 +43,24 @@ function(convert_filenames_to_full_paths NAMES)
   set(${NAMES} ${tmp_names} PARENT_SCOPE)
 endfunction()
 
+# Wrapper for add_executable that calls the HIP wrapper if applicable
+macro(mfem_add_executable NAME)
+  if (MFEM_USE_HIP)
+    hip_add_executable(${NAME} ${ARGN})
+  else()
+    add_executable(${NAME} ${ARGN})
+  endif()
+endmacro()
+
+# Wrapper for add_library that calls the HIP wrapper if applicable
+macro(mfem_add_library NAME)
+  if (MFEM_USE_HIP)
+    hip_add_library(${NAME} ${ARGN})
+  else()
+    add_library(${NAME} ${ARGN})
+  endif()
+endmacro()
+
 # Simple shortcut to add_custom_target() with option to add the target to the
 # main target.
 function(add_mfem_target TARGET_NAME ADD_TO_ALL)
@@ -56,7 +74,7 @@ function(add_mfem_target TARGET_NAME ADD_TO_ALL)
 endfunction()
 
 # Add mfem examples
-function(add_mfem_examples EXE_SRCS)
+macro(add_mfem_examples EXE_SRCS)
   set(EXE_PREFIX "")
   set(EXE_PREREQUISITE "")
   set(EXE_NEEDED_BY "")
@@ -72,13 +90,15 @@ function(add_mfem_examples EXE_SRCS)
   foreach(SRC_FILE IN LISTS ${EXE_SRCS})
     # If CUDA is enabled, tag source files to be compiled with nvcc.
     if (MFEM_USE_CUDA)
-      set_property(SOURCE ${SRC_FILE} PROPERTY LANGUAGE CUDA)
+      set_source_files_properties(${SRC_FILE} PROPERTIES LANGUAGE CUDA)
+    elseif(MFEM_USE_HIP)
+      set_source_files_properties(${SRC_FILE} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
     endif()
 
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
-    add_executable(${EXE_NAME} ${SRC_FILE})
+    mfem_add_executable(${EXE_NAME} ${SRC_FILE})
     add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
     if (EXE_NEEDED_BY)
       add_dependencies(${EXE_NEEDED_BY} ${EXE_NAME})
@@ -107,10 +127,10 @@ function(add_mfem_examples EXE_SRCS)
       endif()
     endif()
   endforeach(SRC_FILE)
-endfunction()
+endmacro()
 
 # A slightly more versatile function for adding miniapps to MFEM
-function(add_mfem_miniapp MFEM_EXE_NAME)
+macro(add_mfem_miniapp MFEM_EXE_NAME)
   # Parse the input arguments looking for the things we need
   set(POSSIBLE_ARGS "MAIN" "EXTRA_SOURCES" "EXTRA_HEADERS" "EXTRA_OPTIONS" "EXTRA_DEFINES" "LIBRARIES")
   set(CURRENT_ARG)
@@ -126,8 +146,7 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
 
   # If CUDA is enabled, tag source files to be compiled with nvcc.
   if (MFEM_USE_CUDA)
-    set_property(SOURCE ${MAIN_LIST} ${EXTRA_SOURCES_LIST}
-      PROPERTY LANGUAGE CUDA)
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES LANGUAGE CUDA)
     if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
       list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
     else()
@@ -137,11 +156,13 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
       endforeach()
       set(EXTRA_OPTIONS_LIST ${LIST_})
     endif()
+  elseif(MFEM_USE_HIP)
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
   endif()
 
   # Actually add the executable
-  add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
-    ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
+      ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
@@ -194,7 +215,7 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
         LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
     endif()
   endif()
-endfunction()
+endmacro()
 
 
 # Auxiliary function, used in mfem_find_package().
@@ -755,7 +776,13 @@ function(mfem_export_mk_files)
   set(MFEM_CXX ${CMAKE_CXX_COMPILER})
   set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
-  string(STRIP "${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
+  get_target_property(cxx_std mfem CXX_STANDARD)
+  # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
+  # property is set, then we need to use a variable like:
+  #    CMAKE_CXX11_EXTENSION_COMPILE_OPTION
+  set(cxx_std_flag ${CMAKE_CXX${cxx_std}_STANDARD_COMPILE_OPTION})
+  string(STRIP
+         "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
   set(MFEM_TPLFLAGS "")
   foreach(dir ${MFEM_TPL_INCLUDE_DIRS})

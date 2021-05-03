@@ -475,7 +475,7 @@ FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
    Array<int> ess_tdof_list;
-   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACYFULL)
+   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
    {
       M_prec = new DSmoother(M.SpMat());
       M_solver.SetOperator(M.SpMat());
