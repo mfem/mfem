@@ -10,6 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 list(APPEND SRCS
+  cut.cpp
   transferutils.cpp
   mortarassemble.cpp
   mortarassembler.cpp
@@ -18,6 +19,7 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  cut.hpp
   transferutils.hpp
   mortarassemble.hpp
   mortarassembler.hpp

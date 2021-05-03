@@ -1,5 +1,4 @@
 #include "mortarintegrator.hpp"
-#include "mortarassemble.hpp"
 
 namespace mfem
 {
@@ -13,7 +12,31 @@ void L2MortarIntegrator::AssembleElementMatrix(
    DenseMatrix          &elmat
 )
 {
-   MortarAssemble(trial, trial_ir, test, test_ir, test_Trans, elmat);
+      int tr_nd = trial.GetDof();
+      int te_nd = test.GetDof();
+      double w;
+
+      Vector shape, te_shape;
+
+      elmat.SetSize (te_nd, tr_nd);
+      shape.SetSize (tr_nd);
+      te_shape.SetSize (te_nd);
+
+      elmat = 0.0;
+      for (int i = 0; i < test_ir.GetNPoints(); i++)
+      {
+         const IntegrationPoint &trial_ip = trial_ir.IntPoint(i);
+         const IntegrationPoint &test_ip  = test_ir.IntPoint(i);
+         test_Trans.SetIntPoint (&test_ip);
+
+         trial.CalcShape(trial_ip, shape);
+         test.CalcShape(test_ip, te_shape);
+
+         w = test_Trans.Weight() * test_ip.weight;
+
+         te_shape *= w;
+         AddMultVWt(te_shape, shape, elmat);
+      }
 }
 
 
