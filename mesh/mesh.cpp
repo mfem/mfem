@@ -11269,6 +11269,62 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
+GeometricFactors::GeometricFactors(const GridFunction *nodes_,
+                                   const IntegrationRule &ir,
+                                   int flags, MemoryType d_mt)
+{
+   this->mesh = nullptr;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const GridFunction *nodes = nodes_;
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int dim  = fe->GetDim();
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int ND   = fe->GetDof();
+   const int NQ   = ir.GetNPoints();
+
+   // For now, we are not using tensor product evaluation
+   const Operator *elem_restr = fespace->GetElementRestriction(
+                                   ElementDofOrdering::NATIVE);
+
+   unsigned eval_flags = 0;
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                        Device::GetDeviceMemoryType();
+   if (flags & GeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NE, my_d_mt);
+      eval_flags |= QuadratureInterpolator::VALUES;
+   }
+   if (flags & GeometricFactors::JACOBIANS)
+   {
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
+      eval_flags |= QuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & GeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NE, my_d_mt);
+      eval_flags |= QuadratureInterpolator::DETERMINANTS;
+   }
+
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
+   // For now, we are not using tensor product evaluation (not implemented)
+   qi->DisableTensorProducts();
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   if (elem_restr)
+   {
+      Vector Enodes(vdim*ND*NE, my_d_mt);
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
+   }
+}
+
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                            const IntegrationRule &ir,
                                            int flags, FaceType type)

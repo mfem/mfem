@@ -1537,6 +1537,10 @@ public:
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
                     MemoryType d_mt = MemoryType::DEFAULT);
 
+   GeometricFactors(const GridFunction *nodes_, const IntegrationRule &ir,
+                    int flags,
+                    MemoryType d_mt = MemoryType::DEFAULT);
+
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
        where
