@@ -78,6 +78,24 @@ Element * NewElem(const int type, const int *cells_data, const int attr)
    }
 }
 
+int MaxVertsXFace(const int type)
+{
+   switch (type)
+   {
+      case Geometry::TRIANGLE:      return 2;
+      case Geometry::TETRAHEDRON:   return 3;
+      case Geometry::SQUARE:        return 2;
+      case Geometry::CUBE:          return 4;
+
+      default:
+      {
+         assert(false && "unknown type");
+         mfem::err <<  "NewElem: unknown type " << type << std::endl;
+         return -1;
+      }
+   }
+}
+
 void Finalize(Mesh &mesh, const bool generate_edges)
 {
    //based on the first element
@@ -98,5 +116,13 @@ void Finalize(Mesh &mesh, const bool generate_edges)
       }
    }
 }
+
+double Sum(const DenseMatrix &mat)
+{
+   Vector rs(mat.Width());
+   mat.GetRowSums(rs);
+   return rs.Sum();
+}
+
 
 }

@@ -3,6 +3,7 @@
 #include "../general/tic_toc.hpp"
 
 #include "transferutils.hpp"
+#include "cut.hpp"
 
 #include <cassert>
 
@@ -11,6 +12,7 @@
 #include "moonolith_aabb.hpp"
 #include "moonolith_stream_utils.hpp"
 #include "moonolith_serial_hash_grid.hpp"
+
 
 
 namespace mfem
@@ -75,7 +77,6 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
    }
 }
 
-
 MortarAssembler::MortarAssembler(
    const std::shared_ptr<FiniteElementSpace> &master,
    const std::shared_ptr<FiniteElementSpace> &slave)
@@ -85,7 +86,7 @@ MortarAssembler::MortarAssembler(
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 {
    using namespace std;
-   static const bool verbose = false;
+   static const bool verbose = true;
 
    const auto &master_mesh = *master_->GetMesh();
    const auto &slave_mesh  = *slave_->GetMesh();
@@ -98,48 +99,31 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       return false;
    }
 
-   DenseMatrix master_pts;
-   DenseMatrix slave_pts;
-   DenseMatrix intersection2;
-   Polyhedron  intersection3;
-   Intersector isector;
+   std::shared_ptr<CutBase> cut;
 
+   if(dim == 2) {
+      cut = std::make_shared<Cut2D>();
+   } else if(dim == 3) {
+      cut = std::make_shared<Cut3D>();
+   } else {
+      assert(false && "NOT Supported!");
+      return false;
+   }
+
+   //////////////////////////////////////////////////
+   IntegrationRule master_ir;
+   IntegrationRule slave_ir;
    //////////////////////////////////////////////////
    int skip_zeros = 1;
    B = make_shared<SparseMatrix>(slave_->GetNDofs(), master_->GetNDofs());
    Array<int> master_vdofs, slave_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
-
-   IntegrationRule composite_ir;
-   IntegrationRule master_ir;
-   IntegrationRule slave_ir;
    //////////////////////////////////////////////////
-
-   double total_intersection_volume = 0.0;
    double local_element_matrices_sum = 0.0;
 
-   Array<double> volumes(slave_mesh.GetNE());
-   for (int i = 0; i < slave_->GetNE(); ++i)
-   {
-      if (dim == 2)
-      {
-         slave_mesh.GetPointMatrix(i, slave_pts);
-         volumes[i] = isector.polygon_area_2(slave_pts.Width(), slave_pts.Data());
-      }
-      else if (dim == 3)
-      {
-         MakePolyhedron(slave_mesh, i, intersection3);
-         volumes[i] = isector.p_mesh_volume_3(intersection3);
-      }
-      else
-      {
-         assert(false);
-      }
-   }
-
    bool intersected = false;
-   for (auto it = begin(pairs); it != end(pairs);    )
+   for (auto it = begin(pairs); it != end(pairs); /*inside*/)
    {
       const int master_index = *it++;
       const int slave_index  = *it++;
@@ -147,64 +131,19 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       auto &master_fe = *master_->GetFE(master_index);
       auto &slave_fe  = *slave_->GetFE(slave_index);
 
-      bool pair_intersected = false;
-      if (dim == 2)
+      ElementTransformation &slave_Trans = *slave_->GetElementTransformation(slave_index);
+      const int order = master_fe.GetOrder() + slave_fe.GetOrder() + slave_Trans.OrderW();
+
+      // Update the quadrature rule in case it changed the order
+      cut->SetIntegrationOrder(order);
+
+      if (cut->BuildQuadrature(*master_, master_index, *slave_, slave_index,  master_ir, slave_ir))
       {
-         master_mesh.GetPointMatrix(master_index, master_pts);
-         slave_mesh.GetPointMatrix(slave_index,     slave_pts);
-
-         if (Intersect2D(master_pts, slave_pts, intersection2))
-         {
-            total_intersection_volume += fabs(isector.polygon_area_2(intersection2.Width(),
-                                                                     intersection2.Data()));
-            double weight = volumes[slave_index];
-
-            ElementTransformation &Trans = *slave_->GetElementTransformation(slave_index);
-            const int order = master_fe.GetOrder() + slave_fe.GetOrder() + Trans.OrderW();
-
-            MakeCompositeQuadrature2D(intersection2, weight, order, composite_ir);
-            pair_intersected = true;
-         }
-
-      }
-      else if (dim == 3)
-      {
-         if (Intersect3D(master_mesh, master_index, slave_mesh, slave_index,
-                         intersection3))
-         {
-            total_intersection_volume += isector.p_mesh_volume_3(intersection3);
-            double weight = volumes[slave_index];
-
-            ElementTransformation &Trans = *slave_->GetElementTransformation(slave_index);
-            const int order = master_fe.GetOrder() + slave_fe.GetOrder() + Trans.OrderW();
-
-            MakeCompositeQuadrature3D(intersection3, weight, order, composite_ir);
-            pair_intersected = true;
-         }
-
-      }
-      else
-      {
-         assert(false);
-         return false;
-      }
-
-      if (pair_intersected)
-      {
-         //make reference quaratures
-         ElementTransformation &master_Trans = *master_->GetElementTransformation(
-                                                  master_index);
-         ElementTransformation &slave_Trans = *slave_->GetElementTransformation(
-                                                 slave_index);
-
-         TransformToReference(master_Trans, master_fe.GetGeomType(), composite_ir,
-                              master_ir);
-         TransformToReference(slave_Trans,  slave_fe.GetGeomType(),  composite_ir,
-                              slave_ir);
-
          master_->GetElementVDofs(master_index, master_vdofs);
          slave_->GetElementVDofs (slave_index,  slave_vdofs);
 
+         ElementTransformation &master_Trans = *master_->GetElementTransformation(
+                                                  master_index);
 
          bool first = true;
          for (auto i_ptr : integrators_)
@@ -239,7 +178,6 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    {
       mfem::out <<  "local_element_matrices_sum: " << local_element_matrices_sum <<
                 std::endl;
-      mfem::out <<  "intersection volume: " << total_intersection_volume << std::endl;
       mfem::out <<  "B in R^(" << B->Height() <<  " x " << B->Width() << ")" <<
                 std::endl;
    }
@@ -252,7 +190,7 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun,
                                bool is_vector_fe)
 {
    using namespace std;
-   static const bool verbose = false;
+   static const bool verbose = true;
 
    StopWatch chrono;
 

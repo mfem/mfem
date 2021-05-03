@@ -2,6 +2,8 @@
 #include "transferutils.hpp"
 #include "mortarassemble.hpp"
 
+#include "cut.hpp"
+
 #include "moonolith_profiler.hpp"
 #include "moonolith_redistribute.hpp"
 #include "moonolith_tree.hpp"
@@ -591,7 +593,7 @@ static bool Assemble(moonolith::Communicator &comm,
 
    long maxNElements = settings.max_elements;
    long maxDepth = settings.max_depth;
-   static const bool verbose = false;
+   static const bool verbose = true;
 
 
    const int n_elements_master = master->GetNE();
@@ -761,7 +763,7 @@ static bool Assemble(
    std::shared_ptr<HypreParMatrix> &pmat,
    const moonolith::SearchSettings &settings)
 {
-   static const bool verbose = false;
+   static const bool verbose = true;
    int max_q_order = 0;
 
    for (auto i_ptr : integrators)
@@ -769,24 +771,28 @@ static bool Assemble(
       max_q_order = std::max(i_ptr->GetQuadratureOrder(), max_q_order);
    }
 
-   DenseMatrix src_pts;
-   DenseMatrix dest_pts;
-   DenseMatrix intersection2;
-   Polyhedron  intersection3, temp_poly;
-   Intersector isector;
+   std::shared_ptr<CutBase> cut;
+
+   const int dim = master->GetMesh()->Dimension();
+
+   if(dim == 2) {
+      cut = std::make_shared<Cut2D>();
+   } else if(dim == 3) {
+      cut = std::make_shared<Cut3D>();
+   } else {
+      assert(false && "NOT Supported!");
+      return false;
+   }
 
    //////////////////////////////////////////////////
    int skip_zeros = 1;
    Array<int> master_vdofs, slave_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
-
-   IntegrationRule composite_ir;
    IntegrationRule src_ir;
    IntegrationRule dest_ir;
    //////////////////////////////////////////////////
 
-   double total_intersection_volume = 0.0;
    double local_element_matrices_sum = 0.0;
 
    /////////////////////////////////////////////////
@@ -803,8 +809,6 @@ static bool Assemble(
    auto fun = [&](const ElementAdapter<Dimensions> &master,
                   const ElementAdapter<Dimensions> &slave) -> bool
    {
-      bool pair_intersected = false;
-
       const auto &src  = master.space();
       const auto &dest = slave.space();
 
@@ -817,58 +821,13 @@ static bool Assemble(
       auto &src_fe  = *src.GetFE(src_index);
       auto &dest_fe = *dest.GetFE(dest_index);
 
-      const int dim = src_mesh.Dimension();
+      ElementTransformation &dest_Trans = *dest.GetElementTransformation(dest_index);
+      const int order = src_fe.GetOrder() + dest_fe.GetOrder() + dest_Trans.OrderW() + max_q_order;
 
-      if (dim == 2)
-      {
-         src_mesh.GetPointMatrix(src_index,   src_pts);
-         dest_mesh.GetPointMatrix(dest_index, dest_pts);
-
-         if (Intersect2D(src_pts, dest_pts, intersection2))
-         {
-            total_intersection_volume += fabs(isector.polygon_area_2(intersection2.Width(),
-            intersection2.Data()));
-            double weight = isector.polygon_area_2(dest_pts.Width(), dest_pts.Data());;
-
-            ElementTransformation &Trans = *dest.GetElementTransformation(dest_index);
-            const int order = src_fe.GetOrder() + dest_fe.GetOrder() + Trans.OrderW() +
-            max_q_order;
-
-            MakeCompositeQuadrature2D(intersection2, weight, order, composite_ir);
-            pair_intersected = true;
-         }
-
-      }
-      else if (dim == 3)
-      {
-         if (Intersect3D(src_mesh, src_index, dest_mesh, dest_index, intersection3))
-         {
-            total_intersection_volume += isector.p_mesh_volume_3(intersection3);
-
-            MakePolyhedron(dest_mesh, dest_index, temp_poly);
-            double weight = isector.p_mesh_volume_3(temp_poly);
-
-            ElementTransformation &Trans = *dest.GetElementTransformation(dest_index);
-            const int order = src_fe.GetOrder() + dest_fe.GetOrder() + Trans.OrderW() +
-                              max_q_order;
-
-            MakeCompositeQuadrature3D(intersection3, weight, order, composite_ir);
-            pair_intersected = true;
-         }
-
-      }
-      else {
-         assert(false);
-         return false;
-      }
-
-      if (pair_intersected)
+      if (cut->BuildQuadrature(src, src_index, dest, dest_index, src_ir, dest_ir))
       {
          //make reference quadratures
-         ElementTransformation &dest_Trans = *dest.GetElementTransformation(dest_index);
          ElementTransformation &src_Trans  = *src.GetElementTransformation(src_index);
-         TransformToReference(src_Trans, src_fe.GetGeomType(), composite_ir,  src_ir);
-         TransformToReference(dest_Trans, dest_fe.GetGeomType(), composite_ir, dest_ir);
 
          master.get_elements_vdofs(master_vdofs);
          slave.get_elements_vdofs(slave_vdofs);
@@ -935,13 +894,12 @@ static bool Assemble(
 
    if (verbose)
    {
-      double volumes[2] = { local_element_matrices_sum,  total_intersection_volume };
+      double volumes[2] = { local_element_matrices_sum  };
       comm.all_reduce(volumes, 2, moonolith::MPISum());
 
       if (comm.is_root())
       {
-         mfem::out <<  "sum(B): " << volumes[0] << ", vol(I): " << volumes[1] <<
-                   std::endl;
+         mfem::out <<  "sum(B): " << volumes[0] << std::endl;
       }
    }
 
@@ -950,15 +908,9 @@ static bool Assemble(
    std::copy(s_offsets, s_offsets + 2, slave_ranges.begin()  + comm.rank());
    comm.all_reduce(&slave_ranges[0],  slave_ranges.size(), moonolith::MPIMax());
 
-   // if(comm.is_root()) {
-   //    mfem::out <<  slave_ranges << std::endl;
-   // }
 
    moonolith::Redistribute< moonolith::SparseMatrix<double> > redist(comm.get());
    redist.apply(slave_ranges, mat_buffer, moonolith::AddAssign<double>());
-
-   // mat_buffer.save("mat" + std::to_string(comm.rank()) + ".txt");
-   // comm.barrier();
 
    std::vector<int> I(s_offsets[1] - s_offsets[0] + 1);
    I[0] = 0;
@@ -1030,7 +982,7 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
                                   ParGridFunction &dest_fun, bool is_vector_fe)
 {
    using namespace std;
-   static const bool verbose = false;
+   static const bool verbose = true;
    static const bool dof_transformation = true;
 
    shared_ptr<HypreParMatrix> B = nullptr;
