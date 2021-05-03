@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ const int MAX_Q1D = 14;
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA)
-#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #else
 #define MFEM_UNROLL(N)
 #endif
@@ -86,76 +86,156 @@ void OmpWrap(const int N, HBODY &&h_body)
 }
 
 
-/// RAJA Cuda backend
+/// RAJA Cuda and Hip backends
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-
-#if RAJA_VERSION_MAJOR == 0 && RAJA_VERSION_MINOR < 12
-using RAJA::statement::Segs;
-#else
-using RAJA::Segs;
+using cuda_launch_policy =
+   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<true>>;
+using cuda_teams_x =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_block_x_direct>;
+using cuda_threads_z =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_thread_z_direct>;
 #endif
 
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
+using hip_launch_policy =
+   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<true>>;
+using hip_teams_x =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_block_x_direct>;
+using hip_threads_z =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_z_direct>;
+#endif
+
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
-void RajaCudaWrap1D(const int N, DBODY &&d_body)
+void RajaCuWrap1D(const int N, DBODY &&d_body)
 {
-   // true denotes asynchronous kernel
+   //true denotes asynchronous kernel
    RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
 
 template <typename DBODY>
-void RajaCudaWrap2D(const int N, DBODY &&d_body,
-                    const int X, const int Y, const int BZ)
+void RajaCuWrap2D(const int N, DBODY &&d_body,
+                  const int X, const int Y, const int BZ)
 {
    MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
-   RAJA::kernel<RAJA::KernelPolicy<
-   RAJA::statement::CudaKernelAsync<
-   RAJA::statement::For<0, RAJA::cuda_block_x_direct,
-        RAJA::statement::For<1, RAJA::cuda_thread_x_direct,
-        RAJA::statement::For<2, RAJA::cuda_thread_y_direct,
-        RAJA::statement::For<3, RAJA::cuda_thread_z_direct,
-        RAJA::statement::Lambda<0, Segs<0>>>>>>>>>
-        (RAJA::make_tuple(RAJA::RangeSegment(0,G), RAJA::RangeSegment(0,X),
-                          RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,BZ)),
-         [=] RAJA_DEVICE (const int n)
+
+   using namespace RAJA::expt;
+   using RAJA::RangeSegment;
+
+   launch<cuda_launch_policy>
+   (DEVICE, Resources(Teams(G), Threads(X, Y, BZ)),
+    [=] RAJA_DEVICE (LaunchContext ctx)
    {
-      const int k = n*BZ + threadIdx.z;
-      if (k >= N) { return; }
-      d_body(k);
+
+      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      {
+
+         loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
+         {
+
+            const int k = n*BZ + tz;
+            if (k >= N) { return; }
+            d_body(k);
+
+         });
+
+      });
+
    });
+
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
-void RajaCudaWrap3D(const int N, DBODY &&d_body,
-                    const int X, const int Y, const int Z)
+void RajaCuWrap3D(const int N, DBODY &&d_body,
+                  const int X, const int Y, const int Z)
 {
    MFEM_VERIFY(N>0, "");
-   RAJA::kernel<RAJA::KernelPolicy<
-   RAJA::statement::CudaKernelAsync<
-   RAJA::statement::For<0, RAJA::cuda_block_x_direct,
-        RAJA::statement::For<1, RAJA::cuda_thread_x_direct,
-        RAJA::statement::For<2, RAJA::cuda_thread_y_direct,
-        RAJA::statement::For<3, RAJA::cuda_thread_z_direct,
-        RAJA::statement::Lambda<0, Segs<0>>>>>>>>>
-        (RAJA::make_tuple(RAJA::RangeSegment(0,N), RAJA::RangeSegment(0,X),
-                          RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,Z)),
-   [=] RAJA_DEVICE (const int k) { d_body(k); });
+   using namespace RAJA::expt;
+   using RAJA::RangeSegment;
+
+   launch<cuda_launch_policy>
+   (DEVICE, Resources(Teams(N), Threads(X, Y, Z)),
+    [=] RAJA_DEVICE (LaunchContext ctx)
+   {
+
+      loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body);
+
+   });
+
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 #endif
 
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
+template <const int BLOCKS = MFEM_HIP_BLOCKS, typename DBODY>
+void RajaHipWrap1D(const int N, DBODY &&d_body)
+{
+   //true denotes asynchronous kernel
+   RAJA::forall<RAJA::hip_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
+}
+
+template <typename DBODY>
+void RajaHipWrap2D(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int BZ)
+{
+   MFEM_VERIFY(N>0, "");
+   MFEM_VERIFY(BZ>0, "");
+   const int G = (N+BZ-1)/BZ;
+
+   using namespace RAJA::expt;
+   using RAJA::RangeSegment;
+
+   launch<hip_launch_policy>
+   (DEVICE, Resources(Teams(G), Threads(X, Y, BZ)),
+    [=] RAJA_DEVICE (LaunchContext ctx)
+   {
+
+      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      {
+
+         loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
+         {
+
+            const int k = n*BZ + tz;
+            if (k >= N) { return; }
+            d_body(k);
+
+         });
+
+      });
+
+   });
+
+   MFEM_GPU_CHECK(hipGetLastError());
+}
+
+template <typename DBODY>
+void RajaHipWrap3D(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z)
+{
+   MFEM_VERIFY(N>0, "");
+   using namespace RAJA::expt;
+   using RAJA::RangeSegment;
+
+   launch<hip_launch_policy>
+   (DEVICE, Resources(Teams(N), Threads(X, Y, Z)),
+    [=] RAJA_DEVICE (LaunchContext ctx)
+   {
+
+      loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body);
+
+   });
+
+   MFEM_GPU_CHECK(hipGetLastError());
+}
+#endif
 
 /// RAJA OpenMP backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
-
-#if RAJA_VERSION_MAJOR == 0 && RAJA_VERSION_MINOR < 12
-using RAJA::statement::Segs;
-#else
-using RAJA::Segs;
-#endif
 
 template <typename HBODY>
 void RajaOmpWrap(const int N, HBODY &&h_body)
@@ -319,9 +399,19 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-      if (DIM == 1) { return RajaCudaWrap1D(N, d_body); }
-      if (DIM == 2) { return RajaCudaWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return RajaCudaWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 1) { return RajaCuWrap1D(N, d_body); }
+      if (DIM == 2) { return RajaCuWrap2D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return RajaCuWrap3D(N, d_body, X, Y, Z); }
+   }
+#endif
+
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
+   // If Backend::RAJA_HIP is allowed, use it
+   if (Device::Allows(Backend::RAJA_HIP))
+   {
+      if (DIM == 1) { return RajaHipWrap1D(N, d_body); }
+      if (DIM == 2) { return RajaHipWrap2D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return RajaHipWrap3D(N, d_body, X, Y, Z); }
    }
 #endif
 

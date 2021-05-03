@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,7 +37,8 @@ protected:
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
 
-   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
@@ -100,6 +101,15 @@ public:
       return const_cast<Operator &>(*this);
    }
 
+   /** @brief Computes the diagonal entries into @a diag. Typically, this
+       operation only makes sense for linear Operator%s. In some cases, only an
+       approximation of the diagonal is computed. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      MFEM_CONTRACT_VAR(diag);
+      MFEM_ABORT("Not relevant or not implemented for this Operator.");
+   }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
@@ -112,6 +122,11 @@ public:
    {
       return GetProlongation(); // Assume square unless specialized
    }
+   /** @brief Transpose of GetOutputRestriction, directly available in this
+       form to facilitate matrix-free RAP-type operators.
+
+       `NULL` means identity. */
+   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
@@ -606,23 +621,22 @@ public:
 
    using TimeDependentOperator::ImplicitSolve;
    /** @brief Solve the equation:
-       @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
+       @a k = f(@a x + @a fac0 @a k, @a dxdt + @a fac1 @a k, t), for the
        unknown @a k at the current time t.
 
        For general F and G, the equation for @a k becomes:
-       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t)
-                        = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
+       F(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t)
+                        = G(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t).
 
-       The input vector @a x corresponds to time index (or cycle) n, while the
+       The input vectors @a x and @a dxdt corresponds to time index (or cycle) n, while the
        currently set time, #t, and the result vector @a k correspond to time
-       index n+1. The time step @a dt corresponds to the time interval between
-       cycles n and n+1.
+       index n+1.
 
        This method allows for the abstract implementation of some time
        integration methods.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt0, const double dt1,
+   virtual void ImplicitSolve(const double fac0, const double fac1,
                               const Vector &x, const Vector &dxdt, Vector &k);
 
 
@@ -759,6 +773,23 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Approximate diagonal of the RAP Operator.
+   /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
+       multiplied be P^T.
+
+       When P is the FE space prolongation operator on a mesh without hanging
+       nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
+       of A is also exact. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      A.AssembleDiagonal(APx);
+      P.MultTranspose(APx, diag);
+
+      // TODO: For an AMR mesh, a convergent diagonal can be assembled with
+      // |P^T| APx, where |P^T| has entry-wise absolute values of the conforming
+      // prolongation transpose operator. See BilinearForm::AssembleDiagonal.
+   }
+
    /// Application of the transpose.
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
@@ -796,7 +827,10 @@ public:
 
     Square operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormLinearSystem. */
+    general, matrix-free system formulation of Operator::FormLinearSystem.
+
+    Do not confuse with ConstrainedSolver, which despite the name has very
+    different functionality. */
 class ConstrainedOperator : public Operator
 {
 protected:
@@ -825,6 +859,9 @@ public:
    /// Set the diagonal policy for the constrained operator.
    void SetDiagonalPolicy(const DiagonalPolicy _diag_policy)
    { diag_policy = _diag_policy; }
+
+   /// Diagonal of A, modified according to the used DiagonalPolicy.
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.

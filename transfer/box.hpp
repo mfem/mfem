@@ -1,5 +1,5 @@
 #ifndef MFEM_L2P_BOX_HPP
-#define MFEM_L2P_BOX_HPP 
+#define MFEM_L2P_BOX_HPP
 
 #include "../fem/fem.hpp"
 
@@ -14,7 +14,7 @@ namespace mfem {
 
 		Box(const int n);
 		Box();
-		
+
 		virtual ~Box();
 
 		void Reset(const int n);
@@ -23,10 +23,10 @@ namespace mfem {
 		Box(const DenseMatrix &points);
 		Box & operator += (const DenseMatrix &points);
 		Box & operator += (const Box &box);
-		
+
 		bool Intersects(const Box &other) const;
 		bool Intersects(const Box &other, const double tol) const;
-		
+
 		void Enlarge(const double value);
 
 		void Print(std::ostream &os = std::cout) const;
@@ -50,17 +50,17 @@ namespace mfem {
 		{
 			return max_;
 		}
-		
-		inline Vector &GetMin() 
+
+		inline Vector &GetMin()
 		{
 			return min_;
 		}
 
-		inline Vector &GetMax() 
+		inline Vector &GetMax()
 		{
 			return max_;
 		}
-		
+
 		inline int GetDims() const
 		{
 			return min_.Size();

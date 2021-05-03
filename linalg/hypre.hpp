@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -81,6 +81,14 @@ private:
    inline void _SetDataAndSize_();
 
 public:
+
+   /// Default constructor, no underlying @a hypre_ParVector is created.
+   HypreParVector()
+   {
+      own_ParVector = false;
+      x = NULL;
+   }
+
    /** @brief Creates vector with given global size and parallel partitioning of
        the rows/columns given by @a col. */
    /** @anchor hypre_partitioning_descr
@@ -93,14 +101,14 @@ public:
           length (number of processors + 1) and processor P owns columns
           [col[P],col[P+1]) i.e. each processor has a copy of the same col
           array. */
-   HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, HYPRE_BigInt *col);
    /** @brief Creates vector with given global size, partitioning of the
        columns, and data. */
    /** The data must be allocated and destroyed outside. If @a _data is NULL, a
        dummy vector without a valid data array will be created. See @ref
        hypre_partitioning_descr "here" for a description of the @a col array. */
-   HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, double *_data,
-                  HYPRE_Int *col);
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *_data,
+                  HYPRE_BigInt *col);
    /// Creates vector compatible with y
    HypreParVector(const HypreParVector &y);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
@@ -113,13 +121,16 @@ public:
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
 
+   /// Converts hypre's format to HypreParVector
+   void WrapHypreParVector(hypre_ParVector *y, bool owner=true);
+
    /// Returns the parallel row/column partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline HYPRE_Int *Partitioning() { return x->partitioning; }
+   inline HYPRE_BigInt *Partitioning() { return x->partitioning; }
 
    /// Returns the global number of rows
-   inline HYPRE_Int GlobalSize() { return x->global_size; }
+   inline HYPRE_BigInt GlobalSize() { return x->global_size; }
 
    /// Typecasting to hypre's hypre_ParVector*
    operator hypre_ParVector*() const { return x; }
@@ -147,7 +158,7 @@ public:
    /// Sets the data of the Vector and the hypre_ParVector to @a _data.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_Int, double *, HYPRE_Int *). */
+       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
    void SetData(double *_data);
 
    /// Set random values
@@ -221,7 +232,7 @@ private:
    static char CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr);
 
    // Copy the j array of a hypre_CSRMatrix to the given J array, converting
-   // the indices from HYPRE_Int to int.
+   // the indices from HYPRE_Int/HYPRE_BigInt to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
 public:
@@ -230,13 +241,22 @@ public:
 
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
+   void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
+   {
+      Destroy();
+      Init();
+      A = a;
+      ParCSROwner = owner;
+      height = GetNumRows();
+      width = GetNumCols();
+   }
+
+   /// Converts hypre's format to HypreParMatrix
+   /** If @a owner is false, ownership of @a a is not transferred */
    explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       Init();
-      A = a;
-      if (!owner) { ParCSROwner = 0; }
-      height = GetNumRows();
-      width = GetNumCols();
+      WrapHypreParCSRMatrix(a, owner);
    }
 
    /// Creates block-diagonal square parallel matrix.
@@ -248,7 +268,7 @@ public:
        @warning The ordering of the columns in each row in @a *diag may be
        changed by this constructor to ensure that the first entry in each row is
        the diagonal one. This is expected by most hypre functions. */
-   HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts,
+   HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size, HYPRE_BigInt *row_starts,
                   SparseMatrix *diag); // constructor with 4 arguments, v1
 
    /// Creates block-diagonal rectangular parallel matrix.
@@ -256,19 +276,19 @@ public:
        new HypreParMatrix does not take ownership of any of the input arrays.
        See @ref hypre_partitioning_descr "here" for a description of the
        partitioning arrays @a row_starts and @a col_starts. */
-   HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
-                  HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
-                  HYPRE_Int *col_starts,
+   HypreParMatrix(MPI_Comm comm, HYPRE_BigInt global_num_rows,
+                  HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts,
+                  HYPRE_BigInt *col_starts,
                   SparseMatrix *diag); // constructor with 6 arguments, v1
 
    /// Creates general (rectangular) parallel matrix.
    /** The new HypreParMatrix does not take ownership of any of the input
        arrays. See @ref hypre_partitioning_descr "here" for a description of the
        partitioning arrays @a row_starts and @a col_starts. */
-   HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
-                  HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
-                  HYPRE_Int *col_starts, SparseMatrix *diag, SparseMatrix *offd,
-                  HYPRE_Int *cmap); // constructor with 8 arguments
+   HypreParMatrix(MPI_Comm comm, HYPRE_BigInt global_num_rows,
+                  HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts,
+                  HYPRE_BigInt *col_starts, SparseMatrix *diag, SparseMatrix *offd,
+                  HYPRE_BigInt *cmap); // constructor with 8 arguments
 
    /// Creates general (rectangular) parallel matrix.
    /** The new HypreParMatrix takes ownership of all input arrays, except
@@ -276,26 +296,27 @@ public:
        for a description of the partitioning arrays @a row_starts and @a
        col_starts. */
    HypreParMatrix(MPI_Comm comm,
-                  HYPRE_Int global_num_rows, HYPRE_Int global_num_cols,
-                  HYPRE_Int *row_starts, HYPRE_Int *col_starts,
+                  HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols,
+                  HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
                   HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
                   HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
                   HYPRE_Int offd_num_cols,
-                  HYPRE_Int *offd_col_map); // constructor with 13 arguments
+                  HYPRE_BigInt *offd_col_map); // constructor with 13 arguments
 
    /// Creates a parallel matrix from SparseMatrix on processor 0.
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning arrays @a row_starts and @a col_starts. */
-   HypreParMatrix(MPI_Comm comm, HYPRE_Int *row_starts, HYPRE_Int *col_starts,
+   HypreParMatrix(MPI_Comm comm, HYPRE_BigInt *row_starts,
+                  HYPRE_BigInt *col_starts,
                   SparseMatrix *a); // constructor with 4 arguments, v2
 
    /// Creates boolean block-diagonal rectangular parallel matrix.
    /** The new HypreParMatrix does not take ownership of any of the input
        arrays. See @ref hypre_partitioning_descr "here" for a description of the
        partitioning arrays @a row_starts and @a col_starts. */
-   HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
-                  HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
-                  HYPRE_Int *col_starts,
+   HypreParMatrix(MPI_Comm comm, HYPRE_BigInt global_num_rows,
+                  HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts,
+                  HYPRE_BigInt *col_starts,
                   Table *diag); // constructor with 6 arguments, v2
 
    /// Creates boolean rectangular parallel matrix.
@@ -303,9 +324,10 @@ public:
        @a j_diag, @a i_offd, @a j_offd, and @a cmap; does not take ownership of
        the arrays @a row and @a col. See @ref hypre_partitioning_descr "here"
        for a description of the partitioning arrays @a row and @a col. */
-   HypreParMatrix(MPI_Comm comm, int id, int np, HYPRE_Int *row, HYPRE_Int *col,
+   HypreParMatrix(MPI_Comm comm, int id, int np, HYPRE_BigInt *row,
+                  HYPRE_BigInt *col,
                   HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
-                  HYPRE_Int *j_offd, HYPRE_Int *cmap,
+                  HYPRE_Int *j_offd, HYPRE_BigInt *cmap,
                   HYPRE_Int cmap_size); // constructor with 11 arguments
 
    /** @brief Creates a general parallel matrix from a local CSR matrix on each
@@ -314,10 +336,10 @@ public:
        @a glob_ncols. The new parallel matrix contains copies of all input
        arrays (so they can be deleted). See @ref hypre_partitioning_descr "here"
        for a description of the partitioning arrays @a rows and @a cols. */
-   HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
-                  HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
-                  double *data, HYPRE_Int *rows,
-                  HYPRE_Int *cols); // constructor with 9 arguments
+   HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_BigInt glob_nrows,
+                  HYPRE_BigInt glob_ncols, int *I, HYPRE_BigInt *J,
+                  double *data, HYPRE_BigInt *rows,
+                  HYPRE_BigInt *cols); // constructor with 9 arguments
 
    /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
        structure and data from @a P. */
@@ -359,34 +381,44 @@ public:
    void CopyColStarts();
 
    /// Returns the global number of nonzeros
-   inline HYPRE_Int NNZ() const { return A->num_nonzeros; }
+   inline HYPRE_BigInt NNZ() const { return A->num_nonzeros; }
    /// Returns the row partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline HYPRE_Int *RowPart() { return A->row_starts; }
+   inline HYPRE_BigInt *RowPart() { return A->row_starts; }
    /// Returns the column partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline HYPRE_Int *ColPart() { return A->col_starts; }
+   inline HYPRE_BigInt *ColPart() { return A->col_starts; }
    /// Returns the row partitioning (const version)
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline const HYPRE_Int *RowPart() const { return A->row_starts; }
+   inline const HYPRE_BigInt *RowPart() const { return A->row_starts; }
    /// Returns the column partitioning (const version)
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline const HYPRE_Int *ColPart() const { return A->col_starts; }
+   inline const HYPRE_BigInt *ColPart() const { return A->col_starts; }
    /// Returns the global number of rows
-   inline HYPRE_Int M() const { return A->global_num_rows; }
+   inline HYPRE_BigInt M() const { return A->global_num_rows; }
    /// Returns the global number of columns
-   inline HYPRE_Int N() const { return A->global_num_cols; }
+   inline HYPRE_BigInt N() const { return A->global_num_cols; }
 
    /// Get the local diagonal of the matrix.
    void GetDiag(Vector &diag) const;
    /// Get the local diagonal block. NOTE: 'diag' will not own any data.
    void GetDiag(SparseMatrix &diag) const;
    /// Get the local off-diagonal block. NOTE: 'offd' will not own any data.
-   void GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const;
+   void GetOffd(SparseMatrix &offd, HYPRE_BigInt* &cmap) const;
+   /** @brief Get a single SparseMatrix containing all rows from this processor,
+       merged from the diagonal and off-diagonal blocks stored by the
+       HypreParMatrix. */
+   /** @note The number of columns in the SparseMatrix will be the global number
+       of columns in the parallel matrix, so using this method may result in an
+       integer overflow in the column indices. */
+   void MergeDiagAndOffd(SparseMatrix &merged);
+
+   /// Return the diagonal of the matrix (Operator interface).
+   virtual void AssembleDiagonal(Vector &diag) const { GetDiag(diag); }
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
@@ -396,6 +428,13 @@ public:
 
    /// Returns the transpose of *this
    HypreParMatrix * Transpose() const;
+
+   /** Returns principle submatrix given by array of indices of connections
+       with relative size > @a threshold in *this. */
+#if MFEM_HYPRE_VERSION >= 21800
+   HypreParMatrix *ExtractSubmatrix(const Array<int> &indices,
+                                    double threshhold=0.0) const;
+#endif
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
@@ -412,22 +451,22 @@ public:
    }
 
    /// Return the global number of rows
-   HYPRE_Int GetGlobalNumRows() const
+   HYPRE_BigInt GetGlobalNumRows() const
    { return hypre_ParCSRMatrixGlobalNumRows(A); }
 
    /// Return the global number of columns
-   HYPRE_Int GetGlobalNumCols() const
+   HYPRE_BigInt GetGlobalNumCols() const
    { return hypre_ParCSRMatrixGlobalNumCols(A); }
 
    /// Return the parallel row partitioning array.
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   HYPRE_Int *GetRowStarts() const { return hypre_ParCSRMatrixRowStarts(A); }
+   HYPRE_BigInt *GetRowStarts() const { return hypre_ParCSRMatrixRowStarts(A); }
 
    /// Return the parallel column partitioning array.
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   HYPRE_Int *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
+   HYPRE_BigInt *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
 
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
@@ -500,7 +539,7 @@ public:
        matrix and @a row_starts can be deleted.
        @note This operation is local and does not require communication. */
    HypreParMatrix* LeftDiagMult(const SparseMatrix &D,
-                                HYPRE_Int* row_starts = NULL) const;
+                                HYPRE_BigInt* row_starts = NULL) const;
 
    /// Scale the local row i by s(i).
    void ScaleRows(const Vector & s);
@@ -511,6 +550,13 @@ public:
 
    /// Remove values smaller in absolute value than some threshold
    void Threshold(double threshold = 0.0);
+
+   /** @brief Wrapper for hypre_ParCSRMatrixDropSmallEntries in different
+       versions of hypre. Drop off-diagonal entries that are smaller than
+       tol * l2 norm of its row */
+   /** For HYPRE versions < 2.14, this method just calls Threshold() with
+       threshold = tol * max(l2 row norm). */
+   void DropSmallEntries(double tol);
 
    /// If a row contains only zeros, set its diagonal to 1.
    void EliminateZeroRows() { hypre_ParCSRMatrixFixZeroRows(A); }
@@ -543,11 +589,35 @@ public:
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
    void PrintCommPkg(std::ostream &out = mfem::out) const;
 
+   /** @brief Print sizes and hashes for all data arrays of the HypreParMatrix
+       from the local MPI rank. */
+   /** This is a compact text representation of the local data of the
+       HypreParMatrix that can be used to compare matrices from different runs
+       without the need to save the whole matrix. */
+   void PrintHash(std::ostream &out) const;
+
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
    Type GetType() const { return Hypre_ParCSR; }
 };
+
+#if MFEM_HYPRE_VERSION >= 21800
+
+enum class BlockInverseScaleJob
+{
+   MATRIX_ONLY,
+   RHS_ONLY,
+   MATRIX_AND_RHS
+};
+
+/** Constructs and applies block diagonal inverse of HypreParMatrix.
+    The enum @a job specifies whether the matrix or the RHS should be
+    scaled (or both). */
+void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
+                       const Vector *b, HypreParVector *d,
+                       int blocksize, BlockInverseScaleJob job);
+#endif
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
     and `B` use the same row and column partitions and the same `col_map_offd`
@@ -638,6 +708,9 @@ protected:
    /// Combined coefficients for windowing and Chebyshev polynomials.
    double* fir_coeffs;
 
+   /// A flag that indicates whether the linear system matrix A is symmetric
+   bool A_is_symmetric;
+
 public:
    /** Hypre smoother types:
        0    = Jacobi
@@ -646,11 +719,12 @@ public:
        4    = truncated l1-scaled block Gauss-Seidel/SSOR
        5    = lumped Jacobi
        6    = Gauss-Seidel
+       10   = On-processor forward solve for matrix w/ triangular structure
        16   = Chebyshev
        1001 = Taubin polynomial smoother
        1002 = FIR polynomial smoother. */
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, Chebyshev = 16, Taubin = 1001, FIR = 1002
+               GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
 
    HypreSmoother();
@@ -684,6 +758,12 @@ public:
        entries in the associated matrix. */
    void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
 
+   /** Explicitly indicate whether the linear system matrix A is symmetric. If A
+       is symmetric, the smoother will also be symmetric. In this case, calling
+       MultTranspose will be redirected to Mult. (This is also done if the
+       smoother is diagonal.) By default, A is assumed to be nonsymmetric. */
+   void SetOperatorSymmetry(bool is_sym) { A_is_symmetric = is_sym; }
+
    /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */
    virtual void SetOperator(const Operator &op);
@@ -691,6 +771,9 @@ public:
    /// Relax the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /// Apply transpose of the smoother to relax the linear system Ax=b
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~HypreSmoother();
 };
@@ -754,6 +837,28 @@ public:
 
    virtual ~HypreSolver();
 };
+
+
+#if MFEM_HYPRE_VERSION >= 21800
+/** Preconditioner for HypreParMatrices that are triangular in some ordering.
+   Finds correct ordering and performs forward substitution on processor
+   as approximate inverse. Exact on one processor. */
+class HypreTriSolve : public HypreSolver
+{
+public:
+   HypreTriSolve() : HypreSolver() { }
+   explicit HypreTriSolve(HypreParMatrix &A) : HypreSolver(&A) { }
+   virtual operator HYPRE_Solver() const { return NULL; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSolve; }
+
+   HypreParMatrix* GetData() { return A; }
+   virtual ~HypreTriSolve() { }
+};
+#endif
 
 /// PCG solver in hypre
 class HyprePCG : public HypreSolver
@@ -832,6 +937,7 @@ public:
    virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
+   void SetAbsTol(double tol);
    void SetMaxIter(int max_iter);
    void SetKDim(int dim);
    void SetLogging(int logging);
@@ -1116,8 +1222,97 @@ public:
        construct A. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
+#if MFEM_HYPRE_VERSION >= 21800
+   /** Hypre parameters to use AIR AMG solve for advection-dominated problems.
+       See "Nonsymmetric Algebraic Multigrid Based on Local Approximate Ideal
+       Restriction (AIR)," Manteuffel, Ruge, Southworth, SISC (2018),
+       DOI:/10.1137/17M1144350. Options: "distanceR" -> distance of neighbor
+       DOFs to buld restriction operator; options include 1, 2, and 15 (1.5).
+       Strings "prerelax" and "postrelax" indicate points to relax on:
+       F = F-points, C = C-points, A = all points. E.g., FFC -> relax on
+       F-points, relax again on F-points, then relax on C-points. */
+   void SetAdvectiveOptions(int distance=15,  const std::string &prerelax="",
+                            const std::string &postrelax="FFC");
+
+   /// Expert option - consult hypre documentation/team
+   void SetStrongThresholdR(double strengthR)
+   { HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strengthR); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetFilterThresholdR(double filterR)
+   { HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filterR); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetRestriction(int restrict_type)
+   { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetIsTriangular()
+   { HYPRE_BoomerAMGSetIsTriangular(amg_precond, 1); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetGMRESSwitchR(int gmres_switch)
+   { HYPRE_BoomerAMGSetGMRESSwitchR(amg_precond, gmres_switch); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetCycleNumSweeps(int prerelax, int postrelax)
+   {
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2);
+   }
+#endif
+
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
+
+   void SetMaxIter(int max_iter)
+   { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetMaxLevels(int max_levels)
+   { HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetTol(double tol)
+   { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetStrengthThresh(double strength)
+   { HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetInterpolation(int interp_type)
+   { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetCoarsening(int coarsen_type)
+   { HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetRelaxType(int relax_type)
+   { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
+
+   /// Expert option - consult hypre documentation/team
+   void SetCycleType(int cycle_type)
+   { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
+
+   void GetNumIterations(int &num_iterations)
+   {
+      HYPRE_Int num_it;
+      HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   /// Expert option - consult hypre documentation/team
+   void SetNodal(int blocksize)
+   {
+      HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
+      HYPRE_BoomerAMGSetNodal(amg_precond, 1);
+   }
+
+   /// Expert option - consult hypre documentation/team
+   void SetAggressiveCoarsening(int num_levels)
+   { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
@@ -1126,6 +1321,8 @@ public:
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
+
+   using HypreSolver::Mult;
 
    virtual ~HypreBoomerAMG();
 };
@@ -1247,8 +1444,8 @@ private:
    int nev;   // Number of desired eigenmodes
    int seed;  // Random seed used for initial vectors
 
-   HYPRE_Int glbSize; // Global number of DoFs in the linear system
-   HYPRE_Int * part;  // Row partitioning of the linear system
+   HYPRE_BigInt glbSize; // Global number of DoFs in the linear system
+   HYPRE_BigInt * part;  // Row partitioning of the linear system
 
    // Pointer to HYPRE's solver struct
    HYPRE_Solver lobpcg_solver;

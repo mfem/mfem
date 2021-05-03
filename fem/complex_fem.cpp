@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -824,10 +824,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfi = new ParLinearForm();
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {
@@ -853,10 +853,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfr->MakeRef(pfes, *this, 0);
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {
@@ -1204,6 +1204,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       });
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
+      ess_tdof_list.HostRead();
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
          HypreParMatrix * Ah;

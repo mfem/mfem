@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -133,6 +133,9 @@ public:
 
    /// Copy the internal data to the external 'copy'.
    void Copy(GroupTopology & copy) const;
+
+   /// Swap the internal data with another @a GroupTopology object.
+   void Swap(GroupTopology &other);
 
    virtual ~GroupTopology() {}
 };

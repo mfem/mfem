@@ -255,22 +255,22 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim, basis);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   ParMesh *pmesh_lor = NULL;
+   ParMesh pmesh_lor;
    FiniteElementCollection *fec_lor = NULL;
    ParFiniteElementSpace *fespace_lor = NULL;
    if (pc_choice == LOR)
    {
       int basis_lor = basis;
       if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      pmesh_lor = new ParMesh(pmesh, order, basis_lor);
+      pmesh_lor = ParMesh::MakeRefined(*pmesh, order, basis_lor);
       fec_lor = new H1_FECollection(1, dim);
-      fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
+      fespace_lor = new ParFiniteElementSpace(&pmesh_lor, fec_lor);
    }
 
    // 8. Check if the optimized version matches the given space
@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
    if (perf && matrix_free)
    {
       a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-      HYPRE_Int glob_size = fespace->GlobalTrueVSize();
+      HYPRE_BigInt glob_size = fespace->GlobalTrueVSize();
       if (myid == 0)
       {
          cout << "Size of linear system: " << glob_size << endl;
@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
    else
    {
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-      HYPRE_Int glob_size = A.GetGlobalNumRows();
+      HYPRE_BigInt glob_size = A.GetGlobalNumRows();
       if (myid == 0)
       {
          cout << "Size of linear system: " << glob_size << endl;
@@ -510,7 +510,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fespace_lor;
    delete fec_lor;
-   delete pmesh_lor;
    if (order > 0) { delete fec; }
    delete pmesh;
    delete pcg;
