@@ -4,7 +4,8 @@
 #include <memory>
 #include <math.h>
 
-#include "hashgrid.hpp"
+#include "../fem/fem.hpp"
+
 #include "opencl_adapter.hpp"
 
 #define USE_DOUBLE_PRECISION
