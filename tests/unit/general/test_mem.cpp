@@ -111,4 +111,60 @@ TEST_CASE("MemoryManager", "[MemoryManager]")
    }
 }
 
+TEST_CASE("MemoryManager/Scopes",
+          "[MemoryManager]"
+          "[CUDA]")
+{
+   SECTION("WithNewMemoryAndSize")
+   {
+      Vector x(1);
+      x.UseDevice(true);
+      {
+         Vector X;
+         // from Operator::InitTVectors
+         X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+         // from Vector::SetSubVectorComplement
+         X.Read();
+         // from Operator::RecoverFEMSolution
+         x.SyncMemory(X);
+      }
+      // Accessible Memory<double> to get the flags
+      struct MemoryDouble
+      {
+         double *h_ptr;
+         int capacity; ///< Size of the allocated memory
+         MemoryType h_mt; ///< Host memory type
+         mutable unsigned flags;
+      };
+      const MemoryDouble *mem = (MemoryDouble*) &x.GetMemory();
+      const double *h_x = mem->h_ptr;
+      REQUIRE(h_x == x.GetData());
+      REQUIRE(mem->capacity == x.Size());
+      REQUIRE(mem->h_mt == Device::GetHostMemoryType());
+      constexpr unsigned REGISTERED = 1 << 0;
+      const bool registered = mem->flags & REGISTERED;
+      const bool registered_is_known = registered == mm.IsKnown(h_x);
+      // Failing CUDA test with NewMemoryAndSize/Read/SyncMemory
+      if (Device::IsEnabled()) { REQUIRE_FALSE(registered_is_known); }
+      else { REQUIRE(registered_is_known); }
+   }
+
+   SECTION("WithMakeRef")
+   {
+      Vector x(1);
+      x.UseDevice(true);
+      const double *x_data = x.GetData();
+      {
+         Vector X;
+         // from Operator::InitTVectors
+         X.MakeRef(x, 0, x.Size());
+         // from Vector::SetSubVectorComplement
+         X.Read();
+         // from Operator::RecoverFEMSolution
+         x.SyncMemory(X);
+      }
+      REQUIRE((x_data == x.HostRead()));
+   }
+}
+
 #endif // _WIN32
