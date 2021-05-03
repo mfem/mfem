@@ -13329,7 +13329,7 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
 void ND_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
                                                   DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim];
+   double vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(dof, vdim);
@@ -13444,7 +13444,7 @@ void ND_R2D_FiniteElement::LocalInterpolation_ND_R2D(
    ElementTransformation &Trans,
    DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim];
+   double vk[Geometry::MaxDim]; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
@@ -14128,7 +14128,7 @@ void RT_R2D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
 void RT_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
                                                   DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim];
+   double vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(dof, vdim);
@@ -14197,7 +14197,7 @@ RT_R2D_FiniteElement::LocalInterpolation_RT_R2D(const VectorFiniteElement &cfe,
                                                 ElementTransformation &Trans,
                                                 DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim];
+   double vk[Geometry::MaxDim]; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(cfe.GetDof(), vdim);
