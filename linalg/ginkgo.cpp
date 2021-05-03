@@ -310,14 +310,13 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    if (print_lvl==1)
    {
       MFEM_VERIFY(residual_logger, "residual logger not initialized" );
-      solver_gen->add_logger(residual_logger);
+      solver->clear_loggers(); // Clear any loggers from previous Mult() calls
+      solver->add_logger(residual_logger);
    }
-
-   // Generate the solver from the solver using the system matrix or operator.
-   auto solver = solver_gen->generate(system_oper);
 
    // Add the convergence logger object to the combined factory to retrieve the
    // solver and other data
+   combined_factory->clear_loggers();
    combined_factory->add_logger(convergence_logger);
 
    // Finally, apply the solver to x and get the solution in y.
@@ -398,6 +397,8 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
       }
       // Reset the pointer
       system_oper.reset();
+      // Reset the solver generated for the previous operator
+      solver.reset();
    }
 
    // Check for SparseMatrix:
@@ -435,6 +436,9 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
       system_oper = std::shared_ptr<OperatorWrapper>(
                        new OperatorWrapper(executor, op.Height(), &op));
    }
+
+   // Generate the solver from the solver using the system matrix or operator.
+   solver = solver_gen->generate(system_oper);
 }
 
 /* ---------------------- CGSolver ------------------------ */
