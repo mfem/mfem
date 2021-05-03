@@ -60,7 +60,6 @@ void MinCol(const DenseMatrix &mat, double *vec, bool include_vec_elements)
    }
 }
 
-
 Element * NewElem(const int type, const int *cells_data, const int attr)
 {
    switch (type)

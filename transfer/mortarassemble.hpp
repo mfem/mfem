@@ -41,10 +41,6 @@ namespace mfem {
 						const FiniteElement &test_fe, const IntegrationRule &test_ir,
 						ElementTransformation &Trans, DenseMatrix &elmat);
 
-	bool MortarAssemble(FiniteElementSpace &src, FiniteElementSpace &dest, std::shared_ptr<SparseMatrix> &B);
-
-	bool Transfer(FiniteElementSpace &src, Vector &src_fun, FiniteElementSpace &dest, Vector &dest_fun);
-
 	void MakePolyhedron(const Mesh &m, const int el_index, Polyhedron &polyhedron);
 
 	bool Intersect2D(const DenseMatrix &poly1, const DenseMatrix &poly2, DenseMatrix &intersection);
