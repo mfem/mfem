@@ -600,6 +600,12 @@ private: // Static methods used by the Memory<T> class
                          MemoryType h_mt, MemoryType d_mt,
                          bool own, bool alias, unsigned &flags);
 
+   /** @brief If true, class Memory will register the base Memory when creating
+       aliases with Memory<T>::MakeAlias(). */
+   /** Currently, this method returns true when the default device memory type
+       is not the same as the default host memory type. */
+   static bool RegisterAliasBases() { return host_mem_type != device_mem_type; }
+
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
                       unsigned base_flags, unsigned &flags);
@@ -907,13 +913,25 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
-   { flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE); }
-   else
    {
-      const size_t s_bytes = size*sizeof(T);
-      const size_t o_bytes = offset*sizeof(T);
-      MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
+      if (MemoryManager::RegisterAliasBases())
+      {
+         // Register 'base':
+         MemoryManager::Register_(base.h_ptr, nullptr, base.capacity*sizeof(T),
+                                  base.h_mt, base.flags & OWNS_HOST,
+                                  base.flags & ALIAS, base.flags);
+      }
+      else
+      {
+         // Copy the flags from 'base', setting the ALIAS flag to true, and
+         // setting both OWNS_HOST and OWNS_DEVICE to false:
+         flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
+         return;
+      }
    }
+   const size_t s_bytes = size*sizeof(T);
+   const size_t o_bytes = offset*sizeof(T);
+   MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
 }
 
 template <typename T>

@@ -768,7 +768,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
 {
    MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
-   MFEM_ASSERT(!alias, "Cannot register an alias!");
+   MFEM_VERIFY(!alias, "Cannot register an alias!");
    const bool is_host_mem = IsHostMemory(mt);
    const MemType h_mt = is_host_mem ? mt : GetDualMemoryType(mt);
    const MemType d_mt = is_host_mem ? MemoryType::DEFAULT : mt;
@@ -1252,7 +1252,8 @@ void MemoryManager::Insert(void *h_ptr, size_t bytes,
    if (res.second == false)
    {
       auto &m = res.first->second;
-      MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt && m.d_mt == d_mt,
+      MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt &&
+                  (m.d_mt == d_mt || d_mt == MemoryType::DEFAULT),
                   "Address already present with different attributes!");
    }
 #endif
