@@ -659,9 +659,14 @@ protected:
    mutable int converged;
 
    /**
-    * The Ginkgo generated solver factory object.
+    * The Ginkgo solver factory object, to generate specific solvers.
     */
    std::shared_ptr<gko::LinOpFactory> solver_gen;
+
+   /**
+    * The Ginkgo solver object, generated for a specific operator.
+    */
+   std::shared_ptr<gko::LinOp> solver;
 
    /**
     * The residual criterion object that controls the reduction of the residual
