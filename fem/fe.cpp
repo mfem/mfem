@@ -13439,16 +13439,18 @@ void ND_R2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
    curl_shape *= (1.0 / Trans.Weight());
 }
 
-void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
-                                                 DenseMatrix &I) const
+void ND_R2D_FiniteElement::LocalInterpolation_ND_R2D(
+   const VectorFiniteElement &cfe,
+   ElementTransformation &Trans,
+   DenseMatrix &I) const
 {
    double vk[Geometry::MaxDim];
    Vector xk(vk, dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(dof, vdim);
+   DenseMatrix vshape(cfe.GetDof(), vdim);
 #else
-   vshape.SetSize(dof, vdim);
+   vshape.SetSize(cfe.GetDof(), vdim);
 #endif
 
    double * tk_ptr = const_cast<double*>(tk);
@@ -13465,7 +13467,7 @@ void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
 
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
-      this->CalcVShape(ip, vshape);
+      cfe.CalcVShape(ip, vshape);
       // xk = J t_k
       J.Mult(t2, vk);
       // I_k = vshape_k.J.t_k, k=1,...,Dof
@@ -13480,6 +13482,52 @@ void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
+}
+
+void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
+                                               DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, vdim);
+#endif
+
+   double * tk_ptr = const_cast<double*>(tk);
+
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+   const DenseMatrix &Jinv = Trans.InverseJacobian();
+   for (int j = 0; j < dof; j++)
+   {
+      Vector t2(&tk_ptr[dof2tk[j] * 3], 2);
+      Vector t3(&tk_ptr[dof2tk[j] * 3], 3);
+
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, dim);
+      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         Jinv.Mult(t2, pt_data);
+         for (int k = 0; k < dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R_jk += vshape(k, 2) * t3(2);
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
@@ -14144,13 +14192,15 @@ void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
    shape *= (1.0 / Trans.Weight());
 }
 
-void RT_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
-                                                 DenseMatrix &I) const
+void
+RT_R2D_FiniteElement::LocalInterpolation_RT_R2D(const VectorFiniteElement &cfe,
+                                                ElementTransformation &Trans,
+                                                DenseMatrix &I) const
 {
    double vk[Geometry::MaxDim];
    Vector xk(vk, dim);
    IntegrationPoint ip;
-   DenseMatrix vshape(dof, vdim);
+   DenseMatrix vshape(cfe.GetDof(), vdim);
 
    double * nk_ptr = const_cast<double*>(nk);
 
@@ -14166,7 +14216,7 @@ void RT_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
 
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
-      this->CalcVShape(ip, vshape);
+      cfe.CalcVShape(ip, vshape);
       // xk = |J| J^{-t} n_k
       adjJ.MultTranspose(n2, vk);
       // I_k = vshape_k.adj(J)^t.n_k, k=1,...,dof
@@ -14181,6 +14231,54 @@ void RT_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
+}
+
+void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
+                                               DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, vdim);
+#endif
+
+   double * nk_ptr = const_cast<double*>(nk);
+
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+   const DenseMatrix &J = Trans.Jacobian();
+   const double weight = Trans.Weight();
+   for (int j = 0; j < dof; j++)
+   {
+      Vector n2(&nk_ptr[dof2nk[j] * 3], 2);
+      Vector n3(&nk_ptr[dof2nk[j] * 3], 3);
+
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, dim);
+      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         J.MultTranspose(n2, pt_data);
+         pt /= weight;
+         for (int k = 0; k < dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R_jk += vshape(k,2) * n3(2);
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
