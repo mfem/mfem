@@ -622,6 +622,10 @@ public:
       return this->solver_gen;
    };
 
+   int GetNumIterations() const { return final_iter; }
+   int GetConverged() const { return converged; }
+   double GetFinalNorm() const { return final_norm; }
+
    /**
     * If the Operator is a SparseMatrix, set up a Ginkgo Csr matrix
     * to use its data directly.  If the Operator is not a matrix,

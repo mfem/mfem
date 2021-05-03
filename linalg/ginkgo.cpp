@@ -324,7 +324,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    solver->apply(gko::lend(gko_x), gko::lend(gko_y));
 
    // Get the number of iterations taken to converge to the solution.
-   auto num_iteration = convergence_logger->get_num_iterations();
+   final_iter = convergence_logger->get_num_iterations();
 
    // Some residual norm and convergence print outs.
    double final_res_norm = 0.0;
@@ -377,7 +377,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    }
    if (print_lvl >=2 && converged==1 )
    {
-      mfem::out << "Converged in " << num_iteration <<
+      mfem::out << "Converged in " << final_iter <<
                 " iterations with final residual norm "
                 << final_res_norm << '\n';
    }
