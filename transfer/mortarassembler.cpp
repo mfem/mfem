@@ -2,8 +2,79 @@
 #include "mortarassemble.hpp"
 #include "../general/tic_toc.hpp"
 
+#include "transferutils.hpp"
+
+#include <cassert>
+
+// Moonolith includes
+#include "par_moonolith_config.hpp"
+#include "moonolith_aabb.hpp"
+#include "moonolith_stream_utils.hpp"
+#include "moonolith_serial_hash_grid.hpp"
+
+
 namespace mfem
 {
+
+template<int Dim>
+void BuildBoxes(const Mesh &mesh, std::vector<::moonolith::AABB<Dim, double>> &element_boxes)
+{
+#ifndef NDEBUG
+   const int dim = mesh.Dimension();
+   assert(dim == Dim);
+#endif
+   element_boxes.resize(mesh.GetNE());
+
+   DenseMatrix pts;
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      mesh.GetPointMatrix(i, pts);
+      MinCol(pts, &element_boxes[i].min_[0], false);
+      MaxCol(pts, &element_boxes[i].max_[0], false);
+   }
+}
+
+bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
+                                 std::vector<moonolith::Integer> &pairs)
+{
+   const int dim = dest.Dimension();
+
+   switch(dim) {
+      case 1:
+      {
+         std::vector<::moonolith::AABB<1, double>> src_boxes, dest_boxes;
+         BuildBoxes(src,  src_boxes);
+         BuildBoxes(dest, dest_boxes);
+
+         ::moonolith::SerialHashGrid<1, double> grid;
+         return grid.detect(src_boxes, dest_boxes, pairs);
+      }
+      case 2:
+      {
+         std::vector<::moonolith::AABB<2, double>> src_boxes, dest_boxes;
+         BuildBoxes(src,  src_boxes);
+         BuildBoxes(dest, dest_boxes);
+
+         ::moonolith::SerialHashGrid<2, double> grid;
+         return grid.detect(src_boxes, dest_boxes, pairs);
+      }
+      case 3:
+      {
+         std::vector<::moonolith::AABB<3, double>> src_boxes, dest_boxes;
+         BuildBoxes(src,  src_boxes);
+         BuildBoxes(dest, dest_boxes);
+
+         ::moonolith::SerialHashGrid<3, double> grid;
+         return grid.detect(src_boxes, dest_boxes, pairs);
+      }
+      default:
+      {
+         assert(false);
+         return false;
+      }
+   }
+}
+
 
 MortarAssembler::MortarAssembler(
    const std::shared_ptr<FiniteElementSpace> &master,
@@ -21,7 +92,7 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
    int dim = master_mesh.Dimension();
 
-   std::vector<int> pairs;
+   std::vector<::moonolith::Integer> pairs;
    if (!HashGridDetectIntersections(master_mesh, slave_mesh, pairs))
    {
       return false;
@@ -246,4 +317,3 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun,
 }
 
 }
-

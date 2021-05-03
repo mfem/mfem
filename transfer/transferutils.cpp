@@ -1,12 +1,65 @@
-
 #include <assert.h>
-#include "meshutils.hpp"
+#include "transferutils.hpp"
 
 #include <iostream>
 
-
 namespace mfem
 {
+
+void MaxCol(const DenseMatrix &mat, double *vec, bool include_vec_elements)
+{
+   int n = mat.Height();
+   int start = 0;
+   if (!include_vec_elements)
+   {
+      for(int i = 0; i < n; ++i) {
+         vec[i] = mat.Elem(i, 0);
+      }
+
+      start = 1;
+   }
+
+   for (int i = 0; i < mat.Height(); ++i)
+   {
+      for (int j = start; j < mat.Width(); ++j)
+      {
+         const double e = mat.Elem(i, j);
+
+         if (vec[i] < e)
+         {
+            vec[i] = e;
+         }
+      }
+   }
+}
+
+void MinCol(const DenseMatrix &mat, double *vec, bool include_vec_elements)
+{
+   int n = mat.Height();
+   int start = 0;
+   if (!include_vec_elements)
+   {
+      for(int i = 0; i < n; ++i) {
+         vec[i] = mat.Elem(i, 0);
+      }
+
+      start = 1;
+   }
+
+   for (int i = 0; i < mat.Height(); ++i)
+   {
+      for (int j = start; j < mat.Width(); ++j)
+      {
+         const double e = mat.Elem(i, j);
+
+         if (vec[i] > e)
+         {
+            vec[i] = e;
+         }
+      }
+   }
+}
+
 
 Element * NewElem(const int type, const int *cells_data, const int attr)
 {

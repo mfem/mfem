@@ -1,7 +1,6 @@
 #include "pmortarassembler.hpp"
-#include "meshutils.cpp"
+#include "transferutils.hpp"
 #include "mortarassemble.hpp"
-
 
 #include "moonolith_profiler.hpp"
 #include "moonolith_redistribute.hpp"
@@ -10,6 +9,7 @@
 #include "moonolith_n_tree_with_span_mutator_factory.hpp"
 #include "moonolith_n_tree_with_tags_mutator_factory.hpp"
 #include "moonolith_sparse_matrix.hpp"
+#include "moonolith_bounding_volume_with_span.hpp"
 #include "par_moonolith.hpp"
 
 #include <memory>
@@ -17,243 +17,24 @@
 namespace mfem
 {
 
-template<typename T>
-inline void Print(const std::vector<T> &v, std::ostream &os)
-{
-   for (auto i : v)
-   {
-      os << i << " ";
-   }
-
-   os << "\n";
-}
-
-static std::ostream &logger()
-{
-   return moonolith::logger();
-}
-
-class BoxAdapter : public moonolith::Serializable,
-   public moonolith::Describable, public Box
-{
-public:
-   void read(moonolith::InputStream &is) override
-   {
-      auto &min = GetMin();
-      auto &max = GetMax();
-
-      int n;
-      is >> n;
-
-      Reset(n);
-
-      for (int i = 0; i < n; ++i)
-      {
-         min.Elem(i) << is;
-         max.Elem(i) << is;
-      }
-   }
-
-   void write(moonolith::OutputStream &os) const override
-   {
-      const int n = GetDims();
-      auto &min = GetMin();
-      auto &max = GetMax();
-
-      os << n;
-
-      for (int i = 0; i < n; ++i)
-      {
-         os << min(i);
-         os << max(i);
-      }
-   }
-
-   void describe(std::ostream &os) const override
-   {
-      Print(os);
-   }
-
-   inline bool intersects(const BoxAdapter &other) const
-   {
-      //changing the case
-      return Intersects(other);
-   }
-
-   inline bool intersects(const BoxAdapter &other, const double tol) const
-   {
-      //changing the case
-      return Intersects(other, tol);
-   }
-
-   inline void enlarge(const double value)
-   {
-      //changing the case
-      Enlarge(value);
-   }
-
-   inline bool empty() const
-   {
-      return Empty();
-   }
-
-   inline double min(const int coord) const
-   {
-      return GetMin(coord);
-   }
-
-   inline double max(const int coord) const
-   {
-      return GetMax(coord);
-   }
-
-   inline void set_min(const int coord, const double value)
-   {
-      GetMin().Elem(coord) = value;
-   }
-
-   inline void set_max(const int coord, const double value)
-   {
-      GetMax().Elem(coord) = value;
-   }
-
-   inline void clear()
-   {
-      Reset();
-   }
-
-   inline int n_dims() const
-   {
-      return GetDims();
-   }
-};
-
-template<int Dimension>
-class BoxBoxAdapter : public moonolith::Describable,
-   public moonolith::Serializable
-{
-public:
-   typedef mfem::BoxAdapter StaticBound;
-
-   void read(moonolith::InputStream &is)
-   {
-      is >> static_;
-      bool is_empty;
-      is >> is_empty;
-      if (!is_empty) { is >> dynamic_; };
-   }
-
-
-   void write(moonolith::OutputStream &os) const
-   {
-      os << static_;
-      bool is_empty = dynamic_.empty();
-      os << is_empty;
-      if (!is_empty) { os << dynamic_; }
-   }
-
-   bool intersects(const BoxBoxAdapter &bound) const
-   {
-      return static_.intersects(bound.static_) && dynamic_.intersects(bound.dynamic_);
-   }
-
-   bool intersects(const BoxBoxAdapter &bound, const double tol) const
-   {
-      return static_.intersects(bound.static_, tol) &&
-             dynamic_.intersects(bound.dynamic_, tol);
-   }
-
-   bool intersects(const BoxAdapter &bound) const
-   {
-      return static_.intersects(bound);
-   }
-
-   inline double min(const int coord) const
-   {
-      return static_.min(coord);
-   }
-
-   inline double max(const int coord) const
-   {
-      return static_.max(coord);
-   }
-
-   inline void set_min(const int coord, const double value)
-   {
-      static_.set_min(coord, value);
-   }
-
-   inline void set_max(const int coord, const double value)
-   {
-      static_.set_max(coord, value);
-   }
-
-   //expands to contain the union of this and CompositeBound
-   BoxBoxAdapter &operator +=(const BoxBoxAdapter &bound)
-   {
-      static_ += bound.static_;
-      if (dynamic_.empty())
-      {
-         dynamic_ = bound.dynamic_;
-      }
-      else if (!bound.dynamic_.empty())
-      {
-         dynamic_ += bound.dynamic_;
-      }
-      return *this;
-   }
-
-   bool empty() const
-   {
-      return static_.empty();
-   }
-
-   void clear()
-   {
-      static_.Reset(Dimension);
-      dynamic_.Reset(Dimension);
-   }
-
-   BoxBoxAdapter()
-   {
-      clear();
-   }
-
-   void describe(std::ostream &os) const
-   {
-      os << "Static bound:\n"  << static_  << "\n";
-      os << "Dynamic bound:\n";
-      dynamic_.describe(os);
-      os << "\n";
-   }
-
-   inline BoxAdapter &static_bound() { return static_; }
-   inline const BoxAdapter &static_bound() const { return static_; }
-
-   inline BoxAdapter &dynamic_bound() { return dynamic_; }
-   inline const BoxAdapter &dynamic_bound() const { return dynamic_; }
-
-private:
-   BoxAdapter static_;
-   BoxAdapter dynamic_;
-};
-
-
 template<int Dimension>
 class ElementAdapter : public moonolith::Serializable
 {
 public:
+   using Bound = moonolith::AABBWithKDOPSpan<Dimension, double>;
+   using Point = moonolith::Vector<double, Dimension>;
+
    inline int tag() const
    {
       return tag_;
    }
 
-   const BoxBoxAdapter<Dimension> &bound() const
+   const Bound &bound() const
    {
       return bound_;
    }
 
-   BoxBoxAdapter<Dimension> &bound()
+   Bound &bound()
    {
       return bound_;
    }
@@ -275,8 +56,14 @@ public:
       DenseMatrix pts;
       fe_->GetMesh()->GetPointMatrix(element, pts);
 
-      bound_.static_bound()  += pts;
-      bound_.dynamic_bound() += pts;
+      Point pmin, pmax;
+      MinCol(pts, &pmin[0], false);
+      MinCol(pts, &pmax[0], false);
+
+      bound_.static_bound()  += pmin;
+      bound_.static_bound()  += pmax;
+      bound_.dynamic_bound() += pmin;
+      bound_.dynamic_bound() += pmax;
    }
 
    ElementAdapter()
@@ -336,7 +123,7 @@ private:
    long element_;
    long element_handle_;
    int tag_;
-   BoxBoxAdapter<Dimension> bound_;
+   Bound bound_;
    std::vector<long> * dof_map_;
 };
 
@@ -349,16 +136,15 @@ public:
       Dimension = _Dimension
    };
 
-   typedef mfem::BoxBoxAdapter<Dimension> Bound;
-   typedef mfem::ElementAdapter<Dimension> DataType;
-
+   using Bound = moonolith::AABBWithKDOPSpan<Dimension, double>;
+   using DataType = mfem::ElementAdapter<Dimension>;
 };
 
 template<int Dimension>
 class MFEMTree : public moonolith::Tree< TreeTraits<Dimension> >
 {
 public:
-   typedef mfem::TreeTraits<Dimension> Traits;
+   using Traits = mfem::TreeTraits<Dimension>;
 
    MFEMTree() {};
 
