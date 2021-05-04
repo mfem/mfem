@@ -622,6 +622,8 @@ public:
       return this->solver_gen;
    };
 
+   void SetPrintLevel(int print_lvl) { print_level = print_lvl; }
+
    int GetNumIterations() const { return final_iter; }
    int GetConverged() const { return converged; }
    double GetFinalNorm() const { return final_norm; }
@@ -650,7 +652,7 @@ public:
    };
 
 protected:
-   int print_lvl;
+   int print_level;
    int max_iter;
    double rel_tol;
    double abs_tol;
