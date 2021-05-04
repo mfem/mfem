@@ -101,6 +101,11 @@ Version 4.2.1 (development)
    - Kernels for normalization and limiting have been added
    - The AdvectorCG now also support AssemblyLevel::PARTIAL
 
+- Added support for different modes of QuadratureInterpolator on GPU.
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
+  be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  Determinants methods.
+
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 

@@ -1141,8 +1141,13 @@ const Operator *FiniteElementSpace::GetElementRestriction(
    // Check if we have a discontinuous space using the FE collection:
    if (IsDGSpace())
    {
+      // TODO: when VDIM is 1, we can return IdentityOperator.
       if (L2E_nat.Ptr() == NULL)
       {
+         // The input L-vector layout is:
+         // * ND x NE x VDIM, for Ordering::byNODES, or
+         // * VDIM x ND x NE, for Ordering::byVDIM.
+         // The output E-vector layout is: ND x VDIM x NE.
          L2E_nat.Reset(new L2ElementRestriction(*this));
       }
       return L2E_nat.Ptr();
