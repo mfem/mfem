@@ -156,6 +156,8 @@ protected:
       VALID_DEVICE  = 1 << 5, ///< %Device pointer is valid
       USE_DEVICE    = 1 << 6, /**< Internal device flag, see e.g.
                                    Vector::UseDevice() */
+      // alias should probably be a pointer to the base initialized to nullptr.
+      // or flags needs to be a pointer to the flags stored in the MM.
       ALIAS         = 1 << 7  ///< Pointer is an alias
    };
 

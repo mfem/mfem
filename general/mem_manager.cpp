@@ -974,6 +974,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
+      // We shouldn't use the alias flags (unsynchronized)
       const bool copy = !(flags & Mem::VALID_HOST);
       flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
@@ -982,6 +983,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    }
    else
    {
+      // We shouldn't use the alias flags (unsynchronized)
       const bool copy = !(flags & Mem::VALID_DEVICE);
       flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
@@ -998,6 +1000,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
+      // We shouldn't use the alias flags (unsynchronized)
       const bool copy = !(flags & Mem::VALID_HOST);
       flags |= Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
@@ -1006,6 +1009,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    }
    else
    {
+      // We shouldn't use the alias flags (unsynchronized)
       const bool copy = !(flags & Mem::VALID_DEVICE);
       flags |= Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
@@ -1384,6 +1388,7 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    internal::Memory &mem = *alias.mem;
    const MemoryType &h_mt = mem.h_mt;
    MemoryType &d_mt = mem.d_mt;
+   // copy should be deduced from !(mem->flags & Mem::VALID_DEVICE)
    MFEM_VERIFY_TYPES(h_mt, d_mt);
    if (!mem.d_ptr)
    {
@@ -1422,9 +1427,10 @@ void *MemoryManager::GetAliasHostPtr(const void *ptr, size_t bytes,
                                      bool copy_data)
 {
    const internal::Alias &alias = maps->aliases.at(ptr);
-   const internal::Memory *const mem = alias.mem;
+   const internal::Memory *const mem = alias.mem; // base would be more clear here too
    const MemoryType &h_mt = mem->h_mt;
    const MemoryType &d_mt = mem->d_mt;
+   // copy_data should be deduced from !(mem->flags & Mem::VALID_HOST)
    MFEM_VERIFY_TYPES(h_mt, d_mt);
    void *alias_h_ptr = static_cast<char*>(mem->h_ptr) + alias.offset;
    void *alias_d_ptr = static_cast<char*>(mem->d_ptr) + alias.offset;
