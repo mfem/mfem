@@ -29,7 +29,6 @@ public:
     * @param destination the source space to where we want to transfer the discrete field
     */
    ParMortarAssembler(
-      const MPI_Comm comm,
       const std::shared_ptr<ParFiniteElementSpace> &source,
       const std::shared_ptr<ParFiniteElementSpace> &destination);
 

@@ -919,9 +919,9 @@ Assemble(moonolith::Communicator &comm,
 }
 
 ParMortarAssembler::ParMortarAssembler(
-   const MPI_Comm comm, const std::shared_ptr<ParFiniteElementSpace> &source,
+   const std::shared_ptr<ParFiniteElementSpace> &source,
    const std::shared_ptr<ParFiniteElementSpace> &destination)
-   : comm_(comm), source_(source), destination_(destination) {}
+   : comm_(source->GetComm()), source_(source), destination_(destination) {}
 
 bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
 {
