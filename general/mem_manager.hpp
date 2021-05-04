@@ -303,9 +303,7 @@ public:
 
    /// Reset the memory to be empty, ensuring that Delete() will be a no-op.
    /** This is the Memory class equivalent to setting a pointer to NULL, see
-       Empty().
-
-       @note The current memory is NOT deleted by this method. */
+       Empty(). */
    void Reset();
 
    /// Reset the memory and set the host memory type.
@@ -316,7 +314,6 @@ public:
 
    /** @brief Allocate host memory for @a size entries with the current host
        memory type returned by MemoryManager::GetHostMemoryType(). */
-   /** @note The current memory is NOT deleted by this method. */
    inline void New(int size);
 
    /// Allocate memory for @a size entries with the given MemoryType.
@@ -328,25 +325,19 @@ public:
        MemoryManager::GetDualMemoryType().
 
        When @a mt is a device type, the host MemoryType will be set immediately
-       to be the dual of @a mt, see MemoryManager::GetDualMemoryType().
-
-       @note The current memory is NOT deleted by this method. */
+       to be the dual of @a mt, see MemoryManager::GetDualMemoryType(). */
    inline void New(int size, MemoryType mt);
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
        @a h_mt and device MemoryType @a d_mt. */
    /** The newly allocated memory is not initialized. The host pointer is set as
-       valid.
-
-       @note The current memory is NOT deleted by this method. */
+       valid. */
    inline void New(int size, MemoryType h_mt, MemoryType d_mt);
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
    /** The parameter @a own determines whether @a ptr will be deleted when the
-       method Delete() is called.
-
-       @note The current memory is NOT deleted by this method. */
+       method Delete() is called. */
    inline void Wrap(T *ptr, int size, bool own);
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
@@ -356,9 +347,7 @@ public:
        MemoryType.
 
        The parameter @a own determines whether @a ptr will be deleted when the
-       method Delete() is called.
-
-       @note The current memory is NOT deleted by this method. */
+       method Delete() is called. */
    inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
 
    /** Wrap an externally pair of allocated pointers, @a h_ptr and @a d_ptr,
@@ -375,33 +364,14 @@ public:
        @note Ownership can also be controlled by using the following methods:
          - ClearOwnerFlags,
          - SetHostPtrOwner,
-         - SetDevicePtrOwner.
-
-       @note The current memory is NOT deleted by this method. */
+         - SetDevicePtrOwner. */
    inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
 
    /// Create a memory object that points inside the memory object @a base.
-   /** The new Memory object uses the same MemoryType(s) as @a base.
-
-       @note The current memory is NOT deleted by this method. */
+   /** The new Memory object uses the same MemoryType(s) as @a base. */
    inline void MakeAlias(const Memory &base, int offset, int size);
 
-   /// Set the device MemoryType to be used by the Memory object.
-   /** If the specified @a d_mt is not a device MemoryType, i.e. not one of the
-       types in MemoryClass::DEVICE, then this method will return immediately.
-
-       If the device MemoryType has been previously set to a different type and
-       the actual device memory has been allocated, this method will trigger an
-       error. This method will not perform the actual device memory allocation,
-       however, the allocation may already exist if the MemoryType is the same
-       as the current one.
-
-       If the Memory is an alias Memory, the device MemoryType of its base will
-       be updated as described above. */
-   inline void SetDeviceMemoryType(MemoryType d_mt);
-
-   /** @brief Delete the owned pointers. The Memory is not reset by this method,
-       i.e. it will, generally, not be Empty() after this call. */
+   /** @brief Delete the owned pointers. */
    inline void Delete();
 
    /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
@@ -837,6 +807,7 @@ public:
 template <typename T>
 inline void Memory<T>::Reset()
 {
+   Delete();
    h_ptr = NULL;
    h_mt = MemoryManager::GetHostMemoryType();
    capacity = 0;
@@ -846,6 +817,7 @@ inline void Memory<T>::Reset()
 template <typename T>
 inline void Memory<T>::Reset(MemoryType host_mt)
 {
+   Delete();
    h_ptr = NULL;
    h_mt = host_mt;
    capacity = 0;
@@ -855,6 +827,7 @@ inline void Memory<T>::Reset(MemoryType host_mt)
 template <typename T>
 inline void Memory<T>::New(int size)
 {
+   Delete();
    capacity = size;
    flags = OWNS_HOST | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
@@ -865,6 +838,7 @@ inline void Memory<T>::New(int size)
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
+   Delete();
    capacity = size;
    const size_t bytes = size*sizeof(T);
    const bool mt_host = mt == MemoryType::HOST;
@@ -877,6 +851,7 @@ inline void Memory<T>::New(int size, MemoryType mt)
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
 {
+   Delete();
    capacity = size;
    const size_t bytes = size*sizeof(T);
    this->h_mt = h_mt;
@@ -887,6 +862,7 @@ inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
+   Delete();
    h_ptr = ptr;
    capacity = size;
    const size_t bytes = size*sizeof(T);
@@ -903,6 +879,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
+   Delete();
    capacity = size;
    if (IsHostMemory(mt))
    {
@@ -928,6 +905,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 {
+   Delete();
    h_mt = mt;
    flags = 0;
    h_ptr = ptr;
@@ -941,6 +919,7 @@ inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
+   Delete();
    capacity = size;
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
@@ -955,18 +934,6 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 }
 
 template <typename T>
-inline void Memory<T>::SetDeviceMemoryType(MemoryType d_mt)
-{
-   if (!IsDeviceMemory(d_mt)) { return; }
-   if (!(flags & REGISTERED))
-   {
-      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
-                               flags & OWNS_HOST, flags & ALIAS, flags);
-   }
-   MemoryManager::SetDeviceMemoryType_(h_ptr, flags, d_mt);
-}
-
-template <typename T>
 inline void Memory<T>::Delete()
 {
    const bool registered = flags & REGISTERED;
@@ -978,6 +945,9 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
+   h_ptr = nullptr;
+   capacity = 0;
+   flags = 0;
 }
 
 template <typename T>
