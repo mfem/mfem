@@ -103,7 +103,7 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(
    GinkgoExecutor &exec, int print_iter, int max_num_iter,
    double RTOLERANCE, double ATOLERANCE, bool use_implicit_res_norm)
    : Solver(),
-     print_lvl(print_iter),
+     print_level(print_iter),
      max_iter(max_num_iter),
      rel_tol(RTOLERANCE),
      abs_tol(ATOLERANCE)
@@ -307,7 +307,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    initialize_ginkgo_log(gko::lend(gko_x));
 
    MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
-   if (print_lvl==1)
+   if (print_level==1)
    {
       MFEM_VERIFY(residual_logger, "residual logger not initialized" );
       solver->clear_loggers(); // Clear any loggers from previous Mult() calls
@@ -366,7 +366,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
       converged = 1;
    }
 
-   if (print_lvl == 1)
+   if (print_level == 1)
    {
       residual_logger->write();
    }
@@ -374,7 +374,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    {
       mfem::err << "No convergence!" << '\n';
    }
-   if (print_lvl >=2 && converged==1 )
+   if (print_level >=2 && converged==1 )
    {
       mfem::out << "Converged in " << final_iter <<
                 " iterations with final residual norm "
