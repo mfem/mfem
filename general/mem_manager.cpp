@@ -908,6 +908,7 @@ void MemoryManager::DeleteDevice_(void *h_ptr, unsigned & flags)
    if (owns_device)
    {
       mm.EraseDevice(h_ptr);
+      // Does it really make the host pointer valid?
       flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
    }
 }
