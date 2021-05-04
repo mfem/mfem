@@ -53,7 +53,7 @@ protected:
 
 public:
    /// Creates an empty table
-   Table() { size = -1; I.Reset(); J.Reset(); }
+   Table() { size = -1; }
 
    /// Copy constructor
    Table(const Table &);
@@ -66,7 +66,7 @@ public:
 
    /** Create a table from a list of connections, see MakeFromList(). */
    Table(int nrows, Array<Connection> &list) : size(-1)
-   { I.Reset(); J.Reset(); MakeFromList(nrows, list); }
+   { MakeFromList(nrows, list); }
 
    /** Create a table with one entry per row with column indices given
        by 'partitioning'. */
@@ -151,7 +151,7 @@ public:
    int Width() const;
 
    /// Call this if data has been stolen.
-   void LoseData() { size = -1; I.Reset(); J.Reset(); }
+   void LoseData() { size = -1; }
 
    /// Prints the table to stream out.
    void Print(std::ostream & out = mfem::out, int width = 4) const;

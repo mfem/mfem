@@ -27,17 +27,13 @@ using namespace std;
 Table::Table(const Table &table)
 {
    size = table.size;
-   if (size >= 0)
+   if (size >=0)
    {
       const int nnz = table.I[size];
       I.New(size+1, table.I.GetMemoryType());
       J.New(nnz, table.J.GetMemoryType());
       I.CopyFrom(table.I, size+1);
       J.CopyFrom(table.J, nnz);
-   }
-   else
-   {
-      I.Reset(); J.Reset();
    }
 }
 

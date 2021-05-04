@@ -61,14 +61,14 @@ public:
    friend void Swap<T>(Array<T> &, Array<T> &);
 
    /// Creates an empty array
-   inline Array() : size(0) { data.Reset(); }
+   inline Array() : size(0) { }
 
    /// Creates an empty array with a given MemoryType
    inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
 
    /// Creates array of @a asize elements
    explicit inline Array(int asize)
-      : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
+      : size(asize), data(asize) { }
 
    /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
@@ -626,18 +626,16 @@ inline void Swap(Array<T> &a, Array<T> &b)
 
 template <class T>
 inline Array<T>::Array(const Array &src)
-   : size(src.Size())
+   : size(src.Size()), data(size, src.data.GetMemoryType())
 {
-   size > 0 ? data.New(size, src.data.GetMemoryType()) : data.Reset();
    data.CopyFrom(src.data, size);
    data.UseDevice(src.data.UseDevice());
 }
 
 template <typename T> template <typename CT>
 inline Array<T>::Array(const Array<CT> &src)
-   : size(src.Size())
+   : size(src.Size()), data(size)
 {
-   size > 0 ? data.New(size) : data.Reset();
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
@@ -709,16 +707,8 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
    }
    const bool use_dev = data.UseDevice();
    data.Delete();
-   if (nsize > 0)
-   {
-      data.New(nsize, mt);
-      size = nsize;
-   }
-   else
-   {
-      data.Reset();
-      size = 0;
-   }
+   data.New(nsize, mt);
+   size = nsize;
    data.UseDevice(use_dev);
 }
 

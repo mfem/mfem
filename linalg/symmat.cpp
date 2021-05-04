@@ -22,18 +22,11 @@ DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0)
    data.Reset();
 }
 
-DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
+DenseSymmetricMatrix::DenseSymmetricMatrix(int s)
+: Matrix(s), data((s*(s+1))/2)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseSymmetricMatrix size: " << s);
-   if (s > 0)
-   {
-      data.New((s*(s+1))/2);
-      *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
-   }
+   *this = 0.0; // init with zeroes
 }
 
 void DenseSymmetricMatrix::SetSize(int s)
