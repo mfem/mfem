@@ -9,13 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop.hpp"
-#include "linearform.hpp"
-#include "pgridfunc.hpp"
-#include "tmop_tools.hpp"
-#include "quadinterpolator.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/kernels.hpp"
+#include "../tmop.hpp"
+#include "../linearform.hpp"
+#include "../pgridfunc.hpp"
+#include "../tmop_tools.hpp"
+#include "../quadinterpolator.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {

@@ -12,10 +12,10 @@
 #ifndef MFEM_TMOP_PA_HPP
 #define MFEM_TMOP_PA_HPP
 
-#include "../config/config.hpp"
-#include "../linalg/dtensor.hpp"
+#include "../../config/config.hpp"
+#include "../../linalg/dtensor.hpp"
 
-#include "../fem/kernels.hpp"
+#include "../kernels.hpp"
 
 #include <unordered_map>
 
