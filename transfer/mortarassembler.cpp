@@ -12,13 +12,14 @@
 #include "moonolith_stream_utils.hpp"
 #include "moonolith_serial_hash_grid.hpp"
 
-
+using namespace mfem::private_;
 
 namespace mfem
 {
 
 template<int Dim>
-void BuildBoxes(const Mesh &mesh, std::vector<::moonolith::AABB<Dim, double>> &element_boxes)
+void BuildBoxes(const Mesh &mesh,
+                std::vector<::moonolith::AABB<Dim, double>> &element_boxes)
 {
 #ifndef NDEBUG
    const int dim = mesh.Dimension();
@@ -40,7 +41,8 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
 {
    const int dim = dest.Dimension();
 
-   switch(dim) {
+   switch (dim)
+   {
       case 1:
       {
          std::vector<::moonolith::AABB<1, double>> src_boxes, dest_boxes;
@@ -99,7 +101,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    }
 
    std::shared_ptr<Cut> cut = NewCut(dim);
-   if(!cut) {
+   if (!cut)
+   {
       assert(false && "NOT Supported!");
       return false;
    }
@@ -129,15 +132,18 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       auto &source_fe = *source_->GetFE(source_index);
       auto &destination_fe  = *destination_->GetFE(destination_index);
 
-      ElementTransformation &destination_Trans = *destination_->GetElementTransformation(destination_index);
-      const int order = source_fe.GetOrder() + destination_fe.GetOrder() + destination_Trans.OrderW();
+      ElementTransformation &destination_Trans =
+         *destination_->GetElementTransformation(destination_index);
+      const int order = source_fe.GetOrder() + destination_fe.GetOrder() +
+                        destination_Trans.OrderW();
 
       // Update the quadrature rule in case it changed the order
       cut->SetIntegrationOrder(order);
 
       n_candidates++;
 
-      if (cut->BuildQuadrature(*source_, source_index, *destination_, destination_index,  source_ir, destination_ir))
+      if (cut->BuildQuadrature(*source_, source_index, *destination_,
+                               destination_index,  source_ir, destination_ir))
       {
          source_->GetElementVDofs(source_index, source_vdofs);
          destination_->GetElementVDofs (destination_index,  destination_vdofs);
@@ -165,7 +171,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
          local_element_matrices_sum += Sum(cumulative_elemmat);
 
 
-         B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat, skip_zeros);
+         B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat,
+                         skip_zeros);
          intersected = true;
          ++n_intersections;
       }
@@ -182,7 +189,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       mfem::out <<  "B in R^(" << B->Height() <<  " x " << B->Width() << ")" <<
                 std::endl;
 
-      mfem::out << "n_intersections: " << n_intersections << ", n_candidates: " << n_candidates << '\n';
+      mfem::out << "n_intersections: " << n_intersections << ", n_candidates: " <<
+                n_candidates << '\n';
 
       cut->Describe();
    }
