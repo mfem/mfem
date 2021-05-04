@@ -56,7 +56,7 @@ ifeq ($(MFEM_USE_SUPERLU),YES)
 endif
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    SUBDIRS += moonolith
-
+endif
 ifeq ($(MFEM_USE_CALIPER),YES)
    SUBDIRS += caliper
 endif
