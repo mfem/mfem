@@ -3206,7 +3206,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
    ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
-   ltdof_ldof.UseDevice();
+   ltdof_ldof.IsUsingDevice();
    {
       Table nbr_ltdof;
       gc.GetNeighborLTDofTable(nbr_ltdof);
