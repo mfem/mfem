@@ -1088,10 +1088,10 @@ char* XMLNode::ParseDeep( char* p, StrPair* parentEndTag, int* curLineNumPtr )
             // Declarations are only allowed at document level
             //
             // Multiple declarations are allowed but all declarations
-            // must occur before anything else. 
+            // must occur before anything else.
             //
-            // Optimized due to a security test case. If the first node is 
-            // a declaration, and the last node is a declaration, then only 
+            // Optimized due to a security test case. If the first node is
+            // a declaration, and the last node is a declaration, then only
             // declarations have so far been added.
             bool wellLocated = false;
 
@@ -1566,7 +1566,9 @@ void XMLAttribute::SetAttribute( float v )
 // --------- XMLElement ---------- //
 XMLElement::XMLElement( XMLDocument* doc ) : XMLNode( doc ),
     _closingType( OPEN ),
-    _rootAttribute( 0 )
+    _rootAttribute( 0 ),
+    _appendedData( NULL ),
+    _appendedDataSize( 0 )
 {
 }
 
@@ -1578,6 +1580,7 @@ XMLElement::~XMLElement()
         DeleteAttribute( _rootAttribute );
         _rootAttribute = next;
     }
+    delete [] _appendedData;
 }
 
 
@@ -2053,6 +2056,27 @@ char* XMLElement::ParseDeep( char* p, StrPair* parentEndTag, int* curLineNumPtr 
         return p;
     }
 
+    if ( XMLUtil::StringEqual( _value.GetStr(), "AppendedData", 12 )
+            && _rootAttribute
+            && XMLUtil::StringEqual( _rootAttribute->Name(), "encoding", 8 )
+            && XMLUtil::StringEqual( _rootAttribute->Value(), "raw", 3 ) ) {
+        char *appendedDataStart = p;
+        while ( p < _document->_charBuffer + _document->_len )
+        {
+            if ( *p == '<' && XMLUtil::StringEqual( p, "</AppendedData>", 15 ) ) {
+                _appendedDataSize = p - appendedDataStart;
+                _appendedData = new char[_appendedDataSize];
+                memcpy(_appendedData, appendedDataStart, _appendedDataSize);
+                break;
+            }
+            ++p;
+        }
+        if (_appendedData == NULL)
+        {
+            _document->SetError(XML_ERROR_PARSING_APPENDED_DATA, _parseLineNum, 0);
+        }
+    }
+
     p = XMLNode::ParseDeep( p, parentEndTag, curLineNumPtr );
     return p;
 }
@@ -2147,6 +2171,7 @@ XMLDocument::XMLDocument( bool processEntities, Whitespace whitespaceMode ) :
     _errorStr(),
     _errorLineNum( 0 ),
     _charBuffer( 0 ),
+    _len( 0 ),
     _parseCurLineNum( 0 ),
 	_parsingDepth(0),
     _unlinked(),
@@ -2366,6 +2391,7 @@ XMLError XMLDocument::LoadFile( FILE* fp )
     }
 
     _charBuffer[size] = 0;
+    _len = size;
 
     Parse();
     return _errorID;
@@ -2417,6 +2443,7 @@ XMLError XMLDocument::Parse( const char* p, size_t len )
     _charBuffer = new char[ len+1 ];
     memcpy( _charBuffer, p, len );
     _charBuffer[len] = 0;
+    _len = len;
 
     Parse();
     if ( Error() ) {

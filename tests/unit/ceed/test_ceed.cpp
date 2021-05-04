@@ -45,21 +45,21 @@ std::string getString(AssemblyLevel assembly)
 {
    switch (assembly)
    {
-   case AssemblyLevel::NONE:
-      return "NONE";
-      break;
-   case AssemblyLevel::PARTIAL:
-      return "PARTIAL";
-      break;
-   case AssemblyLevel::ELEMENT:
-      return "ELEMENT";
-      break;
-   case AssemblyLevel::FULL:
-      return "FULL";
-      break;
-   case AssemblyLevel::LEGACY:
-      return "LEGACY";
-      break;
+      case AssemblyLevel::NONE:
+         return "NONE";
+         break;
+      case AssemblyLevel::PARTIAL:
+         return "PARTIAL";
+         break;
+      case AssemblyLevel::ELEMENT:
+         return "ELEMENT";
+         break;
+      case AssemblyLevel::FULL:
+         return "FULL";
+         break;
+      case AssemblyLevel::LEGACY:
+         return "LEGACY";
+         break;
    }
    MFEM_ABORT("Unknown AssemblyLevel.");
    return "";
@@ -69,24 +69,24 @@ std::string getString(CeedCoeffType coeff_type)
 {
    switch (coeff_type)
    {
-   case CeedCoeffType::Const:
-      return "Const";
-      break;
-   case CeedCoeffType::Grid:
-      return "Grid";
-      break;
-   case CeedCoeffType::Quad:
-      return "Quad";
-      break;
-   case CeedCoeffType::VecConst:
-      return "VecConst";
-      break;
-   case CeedCoeffType::VecGrid:
-      return "VecGrid";
-      break;
-   case CeedCoeffType::VecQuad:
-      return "VecQuad";
-      break;
+      case CeedCoeffType::Const:
+         return "Const";
+         break;
+      case CeedCoeffType::Grid:
+         return "Grid";
+         break;
+      case CeedCoeffType::Quad:
+         return "Quad";
+         break;
+      case CeedCoeffType::VecConst:
+         return "VecConst";
+         break;
+      case CeedCoeffType::VecGrid:
+         return "VecGrid";
+         break;
+      case CeedCoeffType::VecQuad:
+         return "VecQuad";
+         break;
    }
    MFEM_ABORT("Unknown CeedCoeffType.");
    return "";
@@ -97,30 +97,31 @@ enum class Problem { Mass,
                      Diffusion,
                      VectorMass,
                      VectorDiffusion,
-                     MassDiffusion };
+                     MassDiffusion
+                   };
 
 std::string getString(Problem pb)
 {
    switch (pb)
    {
-   case Problem::Mass:
-      return "Mass";
-      break;
-   case Problem::Convection:
-      return "Convection";
-      break;
-   case Problem::Diffusion:
-      return "Diffusion";
-      break;
-   case Problem::VectorMass:
-      return "VectorMass";
-      break;
-   case Problem::VectorDiffusion:
-      return "VectorDiffusion";
-      break;
-   case Problem::MassDiffusion:
-      return "MassDiffusion";
-      break;
+      case Problem::Mass:
+         return "Mass";
+         break;
+      case Problem::Convection:
+         return "Convection";
+         break;
+      case Problem::Diffusion:
+         return "Diffusion";
+         break;
+      case Problem::VectorMass:
+         return "VectorMass";
+         break;
+      case Problem::VectorDiffusion:
+         return "VectorDiffusion";
+         break;
+      case Problem::MassDiffusion:
+         return "MassDiffusion";
+         break;
    }
    MFEM_ABORT("Unknown Problem.");
    return "";
@@ -132,9 +133,9 @@ std::string getString(NLProblem pb)
 {
    switch (pb)
    {
-   case NLProblem::Convection:
-      return "Convection";
-      break;
+      case NLProblem::Convection:
+         return "Convection";
+         break;
    }
    MFEM_ABORT("Unknown Problem.");
    return "";
@@ -187,8 +188,9 @@ void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
    }
 }
 
-void test_ceed_operator(const char* input, int order, const CeedCoeffType coeff_type,
-                        const Problem pb, const AssemblyLevel assembly)
+void test_ceed_operator(const char* input, int order,
+                        const CeedCoeffType coeff_type, const Problem pb,
+                        const AssemblyLevel assembly)
 {
    std::string section = "assembly: " + getString(assembly) + "\n" +
                          "coeff_type: " + getString(coeff_type) + "\n" +
@@ -217,32 +219,32 @@ void test_ceed_operator(const char* input, int order, const CeedCoeffType coeff_
    BilinearForm k_ref(&fes);
    switch (pb)
    {
-   case Problem::Mass:
-      k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
-      break;
-   case Problem::Convection:
-      k_ref.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
-      k_test.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
-      break;
-   case Problem::Diffusion:
-      k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      break;
-   case Problem::VectorMass:
-      k_ref.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
-      break;
-   case Problem::VectorDiffusion:
-      k_ref.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
-      break;
-   case Problem::MassDiffusion:
-      k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
-      k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      break;
+      case Problem::Mass:
+         k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
+         break;
+      case Problem::Convection:
+         k_ref.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
+         k_test.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
+         break;
+      case Problem::Diffusion:
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         break;
+      case Problem::VectorMass:
+         k_ref.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+         break;
+      case Problem::VectorDiffusion:
+         k_ref.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+         break;
+      case Problem::MassDiffusion:
+         k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         break;
    }
 
    k_ref.Assemble();
@@ -268,7 +270,8 @@ void test_ceed_operator(const char* input, int order, const CeedCoeffType coeff_
    delete vcoeff;
 }
 
-void test_ceed_nloperator(const char* input, int order, const CeedCoeffType coeff_type,
+void test_ceed_nloperator(const char* input, int order,
+                          const CeedCoeffType coeff_type,
                           const NLProblem pb, const AssemblyLevel assembly)
 {
    std::string section = "assembly: " + getString(assembly) + "\n" +
@@ -298,10 +301,10 @@ void test_ceed_nloperator(const char* input, int order, const CeedCoeffType coef
    NonlinearForm k_ref(&fes);
    switch (pb)
    {
-   case NLProblem::Convection:
-      k_ref.AddDomainIntegrator(new VectorConvectionNLFIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new VectorConvectionNLFIntegrator(*coeff));
-      break;
+      case NLProblem::Convection:
+         k_ref.AddDomainIntegrator(new VectorConvectionNLFIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new VectorConvectionNLFIntegrator(*coeff));
+         break;
    }
 
    k_test.SetAssemblyLevel(assembly);
@@ -328,7 +331,8 @@ void test_ceed_nloperator(const char* input, int order, const CeedCoeffType coef
 TEST_CASE("CEED mass & diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
-   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,CeedCoeffType::Quad);
+   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,
+                              CeedCoeffType::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Diffusion,Problem::MassDiffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
    auto order = GENERATE(1);
@@ -358,7 +362,8 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
 TEST_CASE("CEED non-linear convection", "[CEED],[NLConvection]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
-   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,CeedCoeffType::Quad);
+   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,
+                              CeedCoeffType::Quad);
    auto pb = GENERATE(NLProblem::Convection);
    auto order = GENERATE(1);
    auto mesh = GENERATE("../../data/inline-quad.mesh",

@@ -81,12 +81,27 @@ jobs:
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
+    - name: get lcov (Linux)
+      if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-18.04'
+      run: |
+        sudo apt-get install lcov
+
+    - name: Set up Homebrew
+      if: ( matrix.mpi == 'parallel' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
+      uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
+
     - name: get MPI (MacOS)
       if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
         export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    - name: get MPI (MacOS)
+      if: matrix.codecov == 'YES' && matrix.os == 'macos-10.15'
+      run: |
+        export HOMEBREW_NO_INSTALL_CLEANUP=1
+        brew install lcov
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
@@ -100,7 +115,7 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@master
+      uses: mfem/github-actions/build-hypre@v1.0
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
@@ -117,14 +132,14 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@master
+      uses: mfem/github-actions/build-metis@v1.0
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@master
+      uses: mfem/github-actions/build-mfem@v1.0
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -159,7 +174,8 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@master
+      uses: mfem/github-actions/upload-coverage@v1.0
       with:
         name: ${{ matrix.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
+        directories: "fem general linalg mesh"

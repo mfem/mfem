@@ -463,6 +463,12 @@ public:
        returned. */
    inline MemoryType GetMemoryType() const;
 
+   /** @brief Return true if host pointer is valid */
+   inline bool HostIsValid() const;
+
+   /** @brief Return true if device pointer is valid */
+   inline bool DeviceIsValid() const;
+
    /// Copy @a size entries from @a src to @a *this.
    /** The given @a size should not exceed the Capacity() of the source @a src
        and the destination, @a *this. */
@@ -1064,6 +1070,18 @@ inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & VALID_DEVICE)) { return h_mt; }
    return MemoryManager::GetDeviceMemoryType_(h_ptr);
+}
+
+template <typename T>
+inline bool Memory<T>::HostIsValid() const
+{
+   return flags & VALID_HOST ? true : false;
+}
+
+template <typename T>
+inline bool Memory<T>::DeviceIsValid() const
+{
+   return flags & VALID_DEVICE ? true : false;
 }
 
 template <typename T>
