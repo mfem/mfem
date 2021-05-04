@@ -239,7 +239,7 @@ public:
        host memory type returned by MemoryManager::GetHostMemoryType(). */
    /** The parameter @a own determines whether @a ptr will be deleted when the
        method Delete() is called. */
-   explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
+   Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
@@ -258,9 +258,11 @@ public:
    Memory(const Memory &base, int offset, int size)
    { MakeAlias(base, offset, size); }
 
-   /// Destructor: default.
-   /** @note The destructor will NOT delete the current memory. */
-   ~Memory() = default;
+   /// Destructor.
+   ~Memory()
+   {
+      Delete();
+   }
 
    /** @brief Return true if the host pointer is owned. Ownership indicates
        whether the pointer will be deleted by the method Delete(). */
