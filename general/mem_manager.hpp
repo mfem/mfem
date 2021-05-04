@@ -288,7 +288,11 @@ public:
    { flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL); }
 
    /// Read the internal device flag.
+   MFEM_DEPRECATED
    bool UseDevice() const { return flags & USE_DEVICE; }
+
+   /// Read the internal device flag.
+   bool IsUsingDevice() const { return flags & USE_DEVICE; }
 
    /// Set the internal device flag.
    void UseDevice(bool use_dev) const
