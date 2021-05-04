@@ -520,7 +520,6 @@ MFEM_USE_CALIPER = YES/NO
    profiling at runtime with Caliper's configuration API. Alternatively, one
    can configure Caliper through environment variables or config files.
 
-
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.

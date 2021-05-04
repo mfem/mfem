@@ -1,15 +1,15 @@
 //                                MFEM Example 1 - Parallel Version
 //                              Moonolith Modification
 //
-// Compile with: make moonolith_ex1
+// Compile with: make moonolith_ex1p
 //
 // Moonolith sample runs:
-//               moonolith_ex1
-//               moonolith_ex1 --visualization
-//               moonolith_ex1 --source_mesh ../data/inline-tri.mesh
+//               mpirun -np 4 moonolith_ex1p
+//               mpirun -np 4 moonolith_ex1p --visualization
+//               mpirun -np 4 moonolith_ex1p --source_mesh ../data/inline-tri.mesh
 //               --destination_mesh \
 //               ../data/inline-quad.mesh
-//               moonolith_ex1 --source_refinements 1 --dest_refinements 2
+//               mpirun -np 4 moonolith_ex1p --source_refinements 1 --dest_refinements 2
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The

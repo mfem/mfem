@@ -1,3 +1,24 @@
+//                                MFEM Example 2
+//                              Moonolith Modification
+//
+// Compile with: make moonolith_ex2
+//
+// Moonolith sample runs:
+//               moonolith_ex2
+//               moonolith_ex2 --visualization
+//               moonolith_ex2 --source_mesh ../data/inline-tri.mesh
+//               --destination_mesh \
+//               ../data/inline-quad.mesh
+//               moonolith_ex2 --source_refinements 1 --dest_refinements 2
+//
+// Description:  This example code demonstrates the use of MFEM for transferring
+//               discrete fields from one finite element mesh to another. The
+//               meshes can be of arbitrary shape and completely unrelated with
+//               each other. This feature can be used for implementing immersed
+//               domain methods for fluid-structure interaction or general
+//               multi-physics applications.
+//
+//               This particular example concerns vector FEM and it is only for serial runtimes.
 
 #include "mfem.hpp"
 #include "example_utils.hpp"

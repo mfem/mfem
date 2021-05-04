@@ -20,6 +20,11 @@ class MortarAssembler
 {
 public:
 
+   /*!
+   * @brief constructs the object with source and destination spaces
+   * @param source the source space from where we want to transfer the discrete field
+   * @param destination the source space to where we want to transfer the discrete field
+   */
    MortarAssembler(
       const std::shared_ptr<FiniteElementSpace> &source,
       const std::shared_ptr<FiniteElementSpace> &destination);
@@ -34,10 +39,21 @@ public:
     */
    bool Assemble(std::shared_ptr<SparseMatrix> &B);
 
-   ///@brief if the transfer is to be performed multiple times use Assemble instead
+   /*!
+    * @brief transfer a function from source to destination. if the transfer is to be performed multiple times use Assemble instead
+    * @param src_fun the function associated with the source finite element space
+    * @param[out] dest_fun the function associated with the destination finite element space
+    * @param is_vector_fe set to true if vector FEM are used
+    * @return true if there was an intersection and the output can be used.
+    */
    bool Transfer(GridFunction &src_fun, GridFunction &dest_fun,
                  bool is_vector_fe = false);
 
+   /*!
+    * @brief This method must be called before Assemble or Transfer.
+    * It will assemble the operator in all intersections found.
+    * @param integrator the integrator object
+    */
    inline void AddMortarIntegrator(const std::shared_ptr<MortarIntegrator>
                                    &integrator)
    {

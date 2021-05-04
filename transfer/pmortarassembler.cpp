@@ -1086,4 +1086,4 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
    dest_fun.Update();
    return true;
 }
-} // namespace mfem
+}
