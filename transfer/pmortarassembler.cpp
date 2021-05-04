@@ -773,15 +773,10 @@ static bool Assemble(
       max_q_order = std::max(i_ptr->GetQuadratureOrder(), max_q_order);
    }
 
-   std::shared_ptr<CutBase> cut;
 
    const int dim = master->GetMesh()->Dimension();
-
-   if(dim == 2) {
-      cut = std::make_shared<Cut2D>();
-   } else if(dim == 3) {
-      cut = std::make_shared<Cut3D>();
-   } else {
+   std::shared_ptr<Cut> cut = NewCut(dim);
+   if(!cut) {
       assert(false && "NOT Supported!");
       return false;
    }
@@ -900,7 +895,7 @@ static bool Assemble(
       double volumes[2] = { local_element_matrices_sum  };
       comm.all_reduce(volumes, 2, moonolith::MPISum());
 
-      cut->describe();
+      cut->Describe();
 
       if (comm.is_root())
       {
