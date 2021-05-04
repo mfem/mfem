@@ -110,6 +110,12 @@ Meshing improvements
   mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
   supports meshes with any element geometry.
 
+- Added support for different modes of QuadratureInterpolator on GPU.
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
+  be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  Determinants methods.
+>>>>>>> master
+
 - Meshes consisting of any type of elements (including mixed meshes) can be
   converted to all-simplex meshes using Mesh::MakeSimplicial.
 
