@@ -12,7 +12,7 @@ use of MFEM features based on the Caliper performance profiling library.
 
 To build these examples, make sure that MFEM is configured with the option
 "MFEM_USE_CALIPER = YES", see the top-level INSTALL file for details (version
-2.5.0 of Caliper is recommended, though older versions may work too.
+2.5.0 of Caliper is recommended, though older versions may work too).
 
 We recommend comparing the original example codes with the corresponding files
 in the current directory.
