@@ -26,7 +26,7 @@ extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-#define HYPRE_Int int
+#define HYPRE_BigInt int
 typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
@@ -1152,9 +1152,9 @@ public:
 struct TimingData
 {
    StopWatch sw_cgH1, sw_cgL2, sw_force, sw_qdata;
-   const HYPRE_Int L2dof;
-   HYPRE_Int H1iter, L2iter, quad_tstep;
-   TimingData(const HYPRE_Int l2d) :
+   const HYPRE_BigInt L2dof;
+   HYPRE_BigInt H1iter, L2iter, quad_tstep;
+   TimingData(const HYPRE_BigInt l2d) :
       L2dof(l2d), H1iter(0), L2iter(0), quad_tstep(0) { }
 };
 
@@ -1565,11 +1565,11 @@ protected:
    mutable ParFiniteElementSpace H1compFESpace;
    const int H1Vsize;
    const int H1TVSize;
-   const HYPRE_Int H1GTVSize;
+   const HYPRE_BigInt H1GTVSize;
    const int H1compTVSize;
    const int L2Vsize;
    const int L2TVSize;
-   const HYPRE_Int L2GTVSize;
+   const HYPRE_BigInt L2GTVSize;
    Array<int> block_offsets;
    mutable ParGridFunction x_gf;
    const Array<int> &ess_tdofs;
@@ -2002,8 +2002,8 @@ int sedov(int myid, int argc, char *argv[])
       }
    }
    ODESolver *ode_solver = new RK4Solver;
-   const HYPRE_Int H1GTVSize = H1FESpace.GlobalTrueVSize();
-   const HYPRE_Int L2GTVSize = L2FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt H1GTVSize = H1FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt L2GTVSize = L2FESpace.GlobalTrueVSize();
    const int H1Vsize = H1FESpace.GetVSize();
    const int L2Vsize = L2FESpace.GetVSize();
    if (myid == 0)

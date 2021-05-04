@@ -1833,20 +1833,20 @@ bool ParMesh::DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
    return need_refinement;
 }
 
-void ParMesh::GenerateOffsets(int N, HYPRE_Int loc_sizes[],
-                              Array<HYPRE_Int> *offsets[]) const
+void ParMesh::GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
+                              Array<HYPRE_BigInt> *offsets[]) const
 {
    if (HYPRE_AssumedPartitionCheck())
    {
-      Array<HYPRE_Int> temp(N);
-      MPI_Scan(loc_sizes, temp.GetData(), N, HYPRE_MPI_INT, MPI_SUM, MyComm);
+      Array<HYPRE_BigInt> temp(N);
+      MPI_Scan(loc_sizes, temp.GetData(), N, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
       for (int i = 0; i < N; i++)
       {
          offsets[i]->SetSize(3);
          (*offsets[i])[0] = temp[i] - loc_sizes[i];
          (*offsets[i])[1] = temp[i];
       }
-      MPI_Bcast(temp.GetData(), N, HYPRE_MPI_INT, NRanks-1, MyComm);
+      MPI_Bcast(temp.GetData(), N, HYPRE_MPI_BIG_INT, NRanks-1, MyComm);
       for (int i = 0; i < N; i++)
       {
          (*offsets[i])[2] = temp[i];
@@ -1857,12 +1857,12 @@ void ParMesh::GenerateOffsets(int N, HYPRE_Int loc_sizes[],
    }
    else
    {
-      Array<HYPRE_Int> temp(N*NRanks);
-      MPI_Allgather(loc_sizes, N, HYPRE_MPI_INT, temp.GetData(), N,
-                    HYPRE_MPI_INT, MyComm);
+      Array<HYPRE_BigInt> temp(N*NRanks);
+      MPI_Allgather(loc_sizes, N, HYPRE_MPI_BIG_INT, temp.GetData(), N,
+                    HYPRE_MPI_BIG_INT, MyComm);
       for (int i = 0; i < N; i++)
       {
-         Array<HYPRE_Int> &offs = *offsets[i];
+         Array<HYPRE_BigInt> &offs = *offsets[i];
          offs.SetSize(NRanks+1);
          offs[0] = 0;
          for (int j = 0; j < NRanks; j++)
