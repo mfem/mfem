@@ -9,22 +9,14 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-name: Upload Coverage
-description: Upload coverage to codecov
+# Defines the following variables:
+#   - CALIPER_FOUND
+#   - CALIPER_LIBRARIES
+#   - CALIPER_INCLUDE_DIRS
 
-inputs:
-  name:
-    description: "Job name"
-    required: true
-
-runs:
-  using: "composite"
-
-  steps:
-    - run: |
-        cd mfem
-        curl -o codecov.sh -f https://codecov.io/bash || \
-          curl -o codecov.sh -f https://codecov.io/bash || \
-          curl -o codecov.sh -f https://codecov.io/bash
-        bash codecov.sh -n "${{ inputs.name }}"
-      shell: bash
+include(MfemCmakeUtilities)
+mfem_find_package(Caliper CALIPER CALIPER_DIR
+       	"include" "caliper/cali.h"
+       	"lib" "caliper"
+  	"Paths to headers required by Caliper."
+       	"Libraries required by Caliper.")

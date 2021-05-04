@@ -470,7 +470,7 @@ MatrixFreeAMS::MatrixFreeAMS(
    pa_interp->FormRectangularSystemMatrix(Pi);
 
    // build LOR space
-   ParMesh mesh_lor(mesh, order, BasisType::GaussLobatto);
+   ParMesh mesh_lor = ParMesh::MakeRefined(*mesh, order, BasisType::GaussLobatto);
 
    // build G space solver
    Gspacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, beta_coeff,
