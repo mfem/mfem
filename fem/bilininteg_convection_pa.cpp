@@ -13,12 +13,9 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/convection.hpp"
-
-#include "kernels.hpp"
 #include "quadinterpolator.hpp"
 
 using namespace std;
-using namespace mfem;
 
 namespace mfem
 {
@@ -800,9 +797,8 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   const DofToQuad::Mode mode = DofToQuad::TENSOR;
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, mode);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
@@ -815,29 +811,22 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else if (VectorGridFunctionCoefficient *vgfQ =
                dynamic_cast<VectorGridFunctionCoefficient*>(Q))
    {
-      Vector xe;
       vel.SetSize(dim * nq * ne);
 
       const GridFunction *gf = vgfQ->GetGridFunction();
-      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
       const FiniteElementSpace &gf_fes = *gf->FESpace();
-
-      const int vdim = gf_fes.GetVDim();
+      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
+      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
       const Operator *R = gf_fes.GetElementRestriction(ordering);
-      const FiniteElement &el_gf = *gf_fes.GetFE(0);
-      const DofToQuad *maps_gf = &el_gf.GetDofToQuad(*ir, mode);
-      const int D1D = maps_gf->ndof;
-      const int Q1D = maps_gf->nqpt;
 
       MFEM_VERIFY(R,"");
-      MFEM_VERIFY(vdim == dim, "");
-      MFEM_VERIFY(dim==2 || dim==3,"");
+      MFEM_VERIFY(dim == 2 || dim == 3,"");
+      MFEM_VERIFY(gf_fes.GetVDim() == dim, "");
 
-      xe.SetSize(R->Height(), Device::GetMemoryType());
+      Vector xe(R->Height(), Device::GetMemoryType());
       xe.UseDevice(true);
-      R->Mult(*gf, xe);
 
-      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
+      R->Mult(*gf, xe);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->Values(xe,vel);
    }
