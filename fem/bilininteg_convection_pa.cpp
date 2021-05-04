@@ -15,6 +15,7 @@
 #include "ceed/convection.hpp"
 
 #include "kernels.hpp"
+#include "quadinterpolator.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -781,113 +782,6 @@ void SmemPAConvectionApply3D(const int ne,
    });
 }
 
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static void QEvalVGF2D(const int NE,
-                       const double *b_,
-                       const double *x_,
-                       double *y_,
-                       const int vdim = 1,
-                       const int d1d = 0,
-                       const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int VDIM = T_VDIM ? T_VDIM : vdim;
-
-   const auto b = Reshape(b_, Q1D, D1D);
-   const auto X = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto C = Reshape(y_, VDIM, Q1D, Q1D, NE);
-
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
-   {
-      constexpr int NBZ = 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
-
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
-
-      MFEM_SHARED double B[MQ1*MD1];
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-
-      MFEM_SHARED double DD[NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
-
-      for (int c = 0; c < VDIM; c++)
-      {
-         kernels::internal::LoadX<MD1,NBZ>(e,D1D,c,X,DD);
-         kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
-         kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
-
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               C(c,qx,qy,e) = kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ);
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
-template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static void QEvalVGF3D(const int NE,
-                       const double *b_,
-                       const double *x_,
-                       double *y_,
-                       const int vdim = 1,
-                       const int d1d = 0,
-                       const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int VDIM = T_VDIM ? T_VDIM : vdim;
-
-   const auto b = Reshape(b_, Q1D, D1D);
-   const auto X = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto C = Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
-
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
-
-      MFEM_SHARED double B[MQ1*MD1];
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-
-      MFEM_SHARED double DDD[MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
-
-      for (int c = 0; c < VDIM; c++)
-      {
-         kernels::internal::LoadX<MD1>(e,D1D,c,X,DDD);
-         kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-         kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-         kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
-
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qz,z,Q1D)
-               {
-                  C(c,qx,qy,qz,e) = kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -943,45 +837,9 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       xe.UseDevice(true);
       R->Mult(*gf, xe);
 
-      const auto B = maps_gf->B.Read();
-      const auto x = xe.Read();
-      auto y = vel.Write();
-
-      const int id = (D1D << 4 ) | Q1D;
-      if (dim == 2)
-      {
-         switch (id)
-         {
-            case 0x22: QEvalVGF2D<2,2,2>(ne,B,x,y); break;
-            case 0x33: QEvalVGF2D<2,3,3>(ne,B,x,y); break;
-            case 0x34: QEvalVGF2D<2,3,4>(ne,B,x,y); break;
-            default:
-            {
-               constexpr int MAX_DQ = 8;
-               MFEM_VERIFY(D1D <= MAX_DQ, "");
-               MFEM_VERIFY(Q1D <= MAX_DQ, "");
-               QEvalVGF2D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
-            }
-         }
-      }
-      if (dim == 3)
-      {
-         switch (id)
-         {
-            case 0x23: QEvalVGF3D<3,2,3>(ne,B,x,y); break;
-            case 0x34: QEvalVGF3D<3,3,4>(ne,B,x,y); break;
-            case 0x35: QEvalVGF3D<3,3,5>(ne,B,x,y); break;
-            case 0x46: QEvalVGF3D<3,4,6>(ne,B,x,y); break;
-            case 0x48: QEvalVGF3D<3,4,8>(ne,B,x,y); break;
-            default:
-            {
-               constexpr int MAX_DQ = 7;
-               MFEM_VERIFY(D1D <= MAX_DQ, "");
-               MFEM_VERIFY(Q1D <= MAX_DQ, "");
-               QEvalVGF3D<0,0,0,MAX_DQ>(ne,B,x,y,vdim,D1D,Q1D);
-            }
-         }
-      }
+      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
+      qi->SetOutputLayout(QVectorLayout::byVDIM);
+      qi->Values(xe,vel);
    }
    else if (VectorQuadratureFunctionCoefficient* cQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
