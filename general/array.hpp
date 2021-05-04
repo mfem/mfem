@@ -67,8 +67,8 @@ public:
    /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
        be deleted. */
-   inline Array(T *_data, int asize)
-   { data.Wrap(_data, asize, false); size = asize; }
+   inline Array(T *_data, int asize, bool own = false)
+   { data.Wrap(_data, asize, own); size = asize; }
 
    /// Copy constructor: deep copy from @a src
    /** This method supports source arrays using any MemoryType. */
@@ -110,7 +110,9 @@ public:
    const Memory<T> &GetMemory() const { return data; }
 
    /// Return the device flag of the Memory object used by the Array
-   bool UseDevice() const { return data.UseDevice(); }
+   MFEM_DEPRECATED
+   bool UseDevice() const { return data.IsUsingDevice(); }
+   bool IsUsingDevice() const { return data.IsUsingDevice(); }
 
    /// Return true if the data will be deleted by the array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
@@ -120,9 +122,6 @@ public:
 
    /// NULL-ifies the data
    inline void LoseData() { data.Reset(); size = 0; }
-
-   /// Make the Array own the data
-   void MakeDataOwner() const { data.SetHostPtrOwner(true); }
 
    /// Return the logical size of the array.
    inline int Size() const { return size; }
@@ -624,7 +623,7 @@ inline Array<T>::Array(const Array &src)
 {
    size > 0 ? data.New(size, src.data.GetMemoryType()) : data.Reset();
    data.CopyFrom(src.data, size);
-   data.UseDevice(src.data.UseDevice());
+   data.UseDevice(src.data.IsUsingDevice());
 }
 
 template <typename T> template <typename CT>
@@ -647,7 +646,7 @@ inline void Array<T>::GrowSize(int minsize)
    const int nsize = std::max(minsize, 2 * data.Capacity());
    Memory<T> p(nsize, data.GetMemoryType());
    p.CopyFrom(data, size);
-   p.UseDevice(data.UseDevice());
+   p.UseDevice(data.IsUsingDevice());
    data.Delete();
    data = p;
 }
@@ -701,7 +700,7 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
          return;
       }
    }
-   const bool use_dev = data.UseDevice();
+   const bool use_dev = data.IsUsingDevice();
    data.Delete();
    if (nsize > 0)
    {
@@ -830,7 +829,7 @@ inline void Array<T>::DeleteFirst(const T &el)
 template <class T>
 inline void Array<T>::DeleteAll()
 {
-   const bool use_dev = data.UseDevice();
+   const bool use_dev = data.IsUsingDevice();
    data.Delete();
    data.Reset();
    size = 0;
@@ -842,7 +841,7 @@ inline void Array<T>::Copy(Array &copy) const
 {
    copy.SetSize(Size(), data.GetMemoryType());
    data.CopyTo(copy.data, Size());
-   copy.data.UseDevice(data.UseDevice());
+   copy.data.UseDevice(data.IsUsingDevice());
 }
 
 template <class T>
@@ -857,9 +856,8 @@ template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the device flag
+   data = master.data;
    size = master.size;
-   data.ClearOwnerFlags();
 }
 
 template <class T>

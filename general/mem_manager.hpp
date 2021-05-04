@@ -150,6 +150,7 @@ protected:
       OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
       OWNS_DEVICE   = 1 << 2, /**< The device pointer will be deleted by
                                    Delete() */
+      // What the hell OWNS_INTERNAL **really** means??
       OWNS_INTERNAL = 1 << 3, ///< Ownership flag for internal Memory data
       VALID_HOST    = 1 << 4, ///< Host pointer is valid
       VALID_DEVICE  = 1 << 5, ///< %Device pointer is valid
@@ -270,20 +271,17 @@ public:
 
    /** @brief Set/clear the ownership flag for the host pointer. Ownership
        indicates whether the pointer will be deleted by the method Delete(). */
-   void SetHostPtrOwner(bool own) const
+   MFEM_DEPRECATED
+   void SetHostPtrOwner(bool own)
    { flags = own ? (flags | OWNS_HOST) : (flags & ~OWNS_HOST); }
 
    /** @brief Return true if the device pointer is owned. Ownership indicates
        whether the pointer will be deleted by the method Delete(). */
    bool OwnsDevicePtr() const { return flags & OWNS_DEVICE; }
 
-   /** @brief Set/clear the ownership flag for the device pointer. Ownership
-       indicates whether the pointer will be deleted by the method Delete(). */
-   void SetDevicePtrOwner(bool own) const
-   { flags = own ? (flags | OWNS_DEVICE) : (flags & ~OWNS_DEVICE); }
-
    /** @brief Clear the ownership flags for the host and device pointers, as
        well as any internal data allocated by the Memory object. */
+   // I think this is wrong
    void ClearOwnerFlags() const
    { flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL); }
 

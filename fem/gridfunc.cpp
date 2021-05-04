@@ -243,6 +243,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
       SetSpace(f); // works in parallel
       tv.UseDevice(true);
       const int tv_size = f->GetTrueVSize();
+      // What is this code
       t_vec.NewMemoryAndSize(Memory<double>(tv.GetMemory(), tv_offset, tv_size),
                              tv_size, true);
    }

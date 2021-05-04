@@ -79,8 +79,8 @@ public:
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(double *_data, int _size)
-   { data.Wrap(_data, _size, false); size = _size; }
+   Vector(double *_data, int _size, int own = false)
+   { data.Wrap(_data, _size, own); size = _size; }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
@@ -108,7 +108,9 @@ public:
    virtual void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
    /// Return the device flag of the Memory object used by the Vector
-   virtual bool UseDevice() const { return data.UseDevice(); }
+   MFEM_DEPRECATED
+   virtual bool UseDevice() const { return data.IsUsingDevice(); }
+   virtual bool IsUsingDevice() const { return data.IsUsingDevice(); }
 
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
@@ -144,16 +146,20 @@ public:
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(double *d, int s) { data.Wrap(d, s, false); size = s; }
+   // Why do we set it to true in tbilinearform.hpp:305+358 then?? 
+   void SetDataAndSize(double *d, int s, bool own = false)
+   {
+      data.Wrap(d, s, own); size = s;
+   }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @sa SetDataAndSize(). */
-   void NewDataAndSize(double *d, int s)
+   void NewDataAndSize(double *d, int s, bool own = false)
    {
       data.Delete();
-      SetDataAndSize(d, s);
+      SetDataAndSize(d, s, own);
    }
 
    /// Reset the Vector to use the given external Memory @a mem and size @a s.
@@ -170,7 +176,11 @@ public:
    inline void MakeRef(Vector &base, int offset);
 
    /// Set the Vector data (host pointer) ownership flag.
-   void MakeDataOwner() const { data.SetHostPtrOwner(true); }
+   MFEM_DEPRECATED
+   void MakeDataOwner() const
+   {
+      const_cast<Memory<double>&>(data).SetHostPtrOwner(true);
+   }
 
    /// Destroy a vector
    void Destroy();
@@ -505,7 +515,7 @@ inline void Vector::SetSize(int s)
    }
    // preserve a valid MemoryType and device flag
    const MemoryType mt = data.GetMemoryType();
-   const bool use_dev = data.UseDevice();
+   const bool use_dev = data.IsUsingDevice();
    data.Delete();
    size = s;
    data.New(s, mt);
@@ -526,7 +536,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
          return;
       }
    }
-   const bool use_dev = data.UseDevice();
+   const bool use_dev = data.IsUsingDevice();
    data.Delete();
    if (s > 0)
    {
@@ -547,6 +557,7 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
    data.Delete();
    size = s;
    data = mem;
+   // This is wrong we need to do something about mem
    if (!own_mem) { data.ClearOwnerFlags(); }
 }
 
@@ -565,7 +576,7 @@ inline void Vector::MakeRef(Vector &base, int offset)
 
 inline void Vector::Destroy()
 {
-   const bool use_dev = data.UseDevice();
+   const bool use_dev = data.IsUsingDevice();
    data.Delete();
    size = 0;
    data.Reset();

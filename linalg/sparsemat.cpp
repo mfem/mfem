@@ -188,8 +188,6 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
       {
          I = mat.I;
          J = mat.J;
-         I.ClearOwnerFlags();
-         J.ClearOwnerFlags();
       }
       A.New(nnz, mt == MemoryType::PRESERVE ? mat.A.GetMemoryType() : mt);
       A.CopyFrom(mat.A, nnz);
@@ -283,9 +281,9 @@ void SparseMatrix::MakeRef(const SparseMatrix &master)
    Clear();
    height = master.Height();
    width = master.Width();
-   I = master.I; I.ClearOwnerFlags();
-   J = master.J; J.ClearOwnerFlags();
-   A = master.A; A.ClearOwnerFlags();
+   I = master.I;
+   J = master.J;
+   A = master.A;
    isSorted = master.isSorted;
 }
 

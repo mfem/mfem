@@ -301,8 +301,7 @@ public:
       //       compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
       const int NVE = (NE+TE-1)/TE;
       vreal_t *vsNodes = new vreal_t[lnodes_t::size*NVE];
-      sNodes.NewDataAndSize(vsNodes[0].vec, (lnodes_t::size*SS)*NVE);
-      sNodes.MakeDataOwner();
+      sNodes.NewDataAndSize(vsNodes[0].vec, (lnodes_t::size*SS)*NVE, true);
       for (int el = 0; el < NE; el += TE)
       {
          meshFES.SetElement(el);
@@ -354,8 +353,7 @@ public:
       //       the compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
       const int NVE = (NE+TE-1)/TE;
       vreal_t *vsx = new vreal_t[vdof_data_t::size*NVE];
-      sx.NewDataAndSize(vsx[0].vec, (vdof_data_t::size*SS)*NVE);
-      sx.MakeDataOwner();
+      sx.NewDataAndSize(vsx[0].vec, (vdof_data_t::size*SS)*NVE, true);
       for (int el = 0; el < NE; el += TE)
       {
          solFES.SetElement(el);

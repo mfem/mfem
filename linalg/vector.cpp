@@ -51,7 +51,7 @@ Vector::Vector(const Vector &v)
       size = 0;
       data.Reset();
    }
-   UseDevice(v.UseDevice());
+   UseDevice(v.IsUsingDevice());
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -132,11 +132,11 @@ Vector &Vector::operator=(const Vector &v)
 #if 0
    SetSize(v.Size(), v.data.GetMemoryType());
    data.CopyFrom(v.data, v.Size());
-   UseDevice(v.UseDevice());
+   UseDevice(v.IsUsingDevice());
 #else
    SetSize(v.Size());
-   bool vuse = v.UseDevice();
-   const bool use_dev = UseDevice() || vuse;
+   bool vuse = v.IsUsingDevice();
+   const bool use_dev = IsUsingDevice() || vuse;
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
    if (use_dev) { Write(); }
@@ -148,7 +148,7 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(double value)
 {
-   const bool use_dev = UseDevice();
+   const bool use_dev = IsUsingDevice();
    const int N = size;
    auto y = Write(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
@@ -157,7 +157,7 @@ Vector &Vector::operator=(double value)
 
 Vector &Vector::operator*=(double c)
 {
-   const bool use_dev = UseDevice();
+   const bool use_dev = IsUsingDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= c;);
@@ -166,7 +166,7 @@ Vector &Vector::operator*=(double c)
 
 Vector &Vector::operator/=(double c)
 {
-   const bool use_dev = UseDevice();
+   const bool use_dev = IsUsingDevice();
    const int N = size;
    const double m = 1.0/c;
    auto y = ReadWrite(use_dev);
@@ -176,7 +176,7 @@ Vector &Vector::operator/=(double c)
 
 Vector &Vector::operator-=(double c)
 {
-   const bool use_dev = UseDevice();
+   const bool use_dev = IsUsingDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] -= c;);
@@ -187,7 +187,7 @@ Vector &Vector::operator-=(const Vector &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-   const bool use_dev = UseDevice() || v.UseDevice();
+   const bool use_dev = IsUsingDevice() || v.IsUsingDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
@@ -197,7 +197,7 @@ Vector &Vector::operator-=(const Vector &v)
 
 Vector &Vector::operator+=(double c)
 {
-   const bool use_dev = UseDevice();
+   const bool use_dev = IsUsingDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += c;);
@@ -208,7 +208,7 @@ Vector &Vector::operator+=(const Vector &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-   const bool use_dev = UseDevice() || v.UseDevice();
+   const bool use_dev = IsUsingDevice() || v.IsUsingDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
@@ -223,7 +223,7 @@ Vector &Vector::Add(const double a, const Vector &Va)
    if (a != 0.0)
    {
       const int N = size;
-      const bool use_dev = UseDevice() || Va.UseDevice();
+      const bool use_dev = IsUsingDevice() || Va.IsUsingDevice();
       auto y = ReadWrite(use_dev);
       auto x = Va.Read(use_dev);
       MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += a * x[i];);
@@ -235,7 +235,7 @@ Vector &Vector::Set(const double a, const Vector &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
-   const bool use_dev = UseDevice() || Va.UseDevice();
+   const bool use_dev = IsUsingDevice() || Va.IsUsingDevice();
    const int N = size;
    auto x = Va.Read(use_dev);
    auto y = Write(use_dev);
@@ -258,7 +258,7 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
-   const bool use_dev = UseDevice();
+   const bool use_dev = IsUsingDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = -y[i];);
@@ -270,7 +270,7 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
                "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-   const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
+   const bool use_dev = v1.IsUsingDevice() || v2.IsUsingDevice() || v.IsUsingDevice();
    const int N = v.size;
    // Note: get read access first, in case v is the same as v1/v2.
    auto x1 = v1.Read(use_dev);
@@ -302,7 +302,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
+      const bool use_dev = v1.IsUsingDevice() || v2.IsUsingDevice() || v.IsUsingDevice();
       const int N = v.size;
       // Note: get read access first, in case v is the same as v1/v2.
       auto d_x = v1.Read(use_dev);
@@ -338,7 +338,7 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+      const bool use_dev = x.IsUsingDevice() || y.IsUsingDevice() || z.IsUsingDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
       auto xd = x.Read(use_dev);
@@ -390,7 +390,7 @@ void add(const double a, const Vector &x,
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+      const bool use_dev = x.IsUsingDevice() || y.IsUsingDevice() || z.IsUsingDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
       auto xd = x.Read(use_dev);
@@ -417,7 +417,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
                "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-   const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+   const bool use_dev = x.IsUsingDevice() || y.IsUsingDevice() || z.IsUsingDevice();
    const int N = x.size;
    // Note: get read access first, in case z is the same as x/y.
    auto xd = x.Read(use_dev);
@@ -453,7 +453,7 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+      const bool use_dev = x.IsUsingDevice() || y.IsUsingDevice() || z.IsUsingDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
       auto xd = x.Read(use_dev);
@@ -479,7 +479,7 @@ void Vector::median(const Vector &lo, const Vector &hi)
    MFEM_ASSERT(size == lo.size && size == hi.size,
                "incompatible Vectors!");
 
-   const bool use_dev = UseDevice() || lo.UseDevice() || hi.UseDevice();
+   const bool use_dev = IsUsingDevice() || lo.IsUsingDevice() || hi.IsUsingDevice();
    const int N = size;
    // Note: get read access first, in case *this is the same as lo/hi.
    auto l = lo.Read(use_dev);
@@ -502,7 +502,7 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
    const int n = dofs.Size();
    elemvect.SetSize(n);
-   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const bool use_dev = dofs.IsUsingDevice() || elemvect.IsUsingDevice();
    auto d_y = elemvect.Write(use_dev);
    auto d_X = Read(use_dev);
    auto d_dofs = dofs.Read(use_dev);
@@ -526,7 +526,7 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
-   const bool use_dev = dofs.UseDevice();
+   const bool use_dev = dofs.IsUsingDevice();
    const int n = dofs.Size();
    // Use read+write access for *this - we only modify some of its entries
    auto d_X = ReadWrite(use_dev);
@@ -551,7 +551,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
                "Size mismatch: length of dofs is " << dofs.Size()
                << ", length of elemvect is " << elemvect.Size());
 
-   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const bool use_dev = dofs.IsUsingDevice() || elemvect.IsUsingDevice();
    const int n = dofs.Size();
    // Use read+write access for X - we only modify some of its entries
    auto d_X = ReadWrite(use_dev);
@@ -596,7 +596,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
 
-   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const bool use_dev = dofs.IsUsingDevice() || elemvect.IsUsingDevice();
    const int n = dofs.Size();
    auto d_y = elemvect.Read(use_dev);
    auto d_X = ReadWrite(use_dev);
@@ -640,7 +640,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
 
-   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const bool use_dev = dofs.IsUsingDevice() || elemvect.IsUsingDevice();
    const int n = dofs.Size();
    auto d_y = ReadWrite(use_dev);
    auto d_x = elemvect.Read(use_dev);
@@ -661,7 +661,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 {
-   const bool use_dev = UseDevice() || dofs.UseDevice();
+   const bool use_dev = IsUsingDevice() || dofs.IsUsingDevice();
    const int n = dofs.Size();
    const int N = size;
    Vector dofs_vals(n, use_dev ?
@@ -1055,7 +1055,7 @@ double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-   const bool use_dev = UseDevice() || v.UseDevice();
+   const bool use_dev = IsUsingDevice() || v.IsUsingDevice();
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_OPENMP)
    auto m_data = Read(use_dev);
 #else
@@ -1145,7 +1145,7 @@ double Vector::Min() const
 {
    if (size == 0) { return infinity(); }
 
-   const bool use_dev = UseDevice();
+   const bool use_dev = IsUsingDevice();
    auto m_data = Read(use_dev);
 
    if (!use_dev) { goto vector_min_cpu; }
