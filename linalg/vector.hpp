@@ -67,7 +67,7 @@ protected:
 public:
 
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector() { data.Reset(); size = 0; }
+   Vector(): size(0) { }
 
    /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
@@ -488,19 +488,7 @@ inline int CheckFinite(const double *v, const int n)
    return bad;
 }
 
-inline Vector::Vector(int s)
-{
-   if (s > 0)
-   {
-      size = s;
-      data.New(s);
-   }
-   else
-   {
-      size = 0;
-      data.Reset();
-   }
-}
+inline Vector::Vector(int s): size(s), data(s) { }
 
 inline void Vector::SetSize(int s)
 {
@@ -538,16 +526,8 @@ inline void Vector::SetSize(int s, MemoryType mt)
    }
    const bool use_dev = data.IsUsingDevice();
    data.Delete();
-   if (s > 0)
-   {
-      data.New(s, mt);
-      size = s;
-   }
-   else
-   {
-      data.Reset();
-      size = 0;
-   }
+   data.New(s, mt);
+   size = s;
    data.UseDevice(use_dev);
 }
 

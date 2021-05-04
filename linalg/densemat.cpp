@@ -70,65 +70,40 @@ namespace mfem
 
 using namespace std;
 
-DenseMatrix::DenseMatrix() : Matrix(0)
-{
-   data.Reset();
-}
+DenseMatrix::DenseMatrix() : Matrix(0) { }
 
-DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
+DenseMatrix::DenseMatrix(const DenseMatrix &m)
+: Matrix(m.height, m.width), data(m.height * m.width)
 {
    const int hw = height * width;
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data.New(hw);
       std::memcpy(data, m.data, sizeof(double)*hw);
    }
-   else
-   {
-      data.Reset();
-   }
 }
 
-DenseMatrix::DenseMatrix(int s) : Matrix(s)
+DenseMatrix::DenseMatrix(int s) : Matrix(s), data(s*s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
-   if (s > 0)
-   {
-      data.New(s*s);
-      *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
-   }
+   *this = 0.0; // init with zeroes
 }
 
-DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
+DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n), data(m*n)
 {
    MFEM_ASSERT(m >= 0 && n >= 0,
                "invalid DenseMatrix size: " << m << " x " << n);
    const int capacity = m*n;
-   if (capacity > 0)
-   {
-      data.New(capacity);
-      *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
-   }
+   *this = 0.0; // init with zeroes
 }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
-   : Matrix(mat.width, mat.height)
+   : Matrix(mat.width, mat.height), data(height*width)
 {
    MFEM_CONTRACT_VAR(ch);
    const int capacity = height*width;
    if (capacity > 0)
    {
-      data.New(capacity);
-
       for (int i = 0; i < height; i++)
       {
          for (int j = 0; j < width; j++)
@@ -136,10 +111,6 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
             (*this)(i,j) = mat(j,i);
          }
       }
-   }
-   else
-   {
-      data.Reset();
    }
 }
 

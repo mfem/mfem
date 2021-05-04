@@ -37,20 +37,11 @@ namespace mfem
 {
 
 Vector::Vector(const Vector &v)
+: size(v.Size()), data(v.Size(), v.data.GetMemoryType())
 {
    const int s = v.Size();
-   if (s > 0)
-   {
-      MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
-      size = s;
-      data.New(s, v.data.GetMemoryType());
-      data.CopyFrom(v.data, s);
-   }
-   else
-   {
-      size = 0;
-      data.Reset();
-   }
+   MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
+   data.CopyFrom(v.data, s);
    UseDevice(v.IsUsingDevice());
 }
 

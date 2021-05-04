@@ -753,7 +753,6 @@ public:
    DenseTensor()
    {
       nk = 0;
-      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
@@ -772,17 +771,13 @@ public:
 
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
-      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk),
+      tdata(Mk.Height()*Mk.Width()*nk, other.tdata.GetMemoryType())
    {
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
       {
-         tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
-      }
-      else
-      {
-         tdata.Reset();
       }
    }
 

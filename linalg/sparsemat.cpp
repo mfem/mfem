@@ -78,11 +78,6 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      At(NULL),
      isSorted(false)
 {
-   // We probably do not need to set the ownership flags here.
-   I.Reset(); I.SetHostPtrOwner(true);
-   J.Reset(); J.SetHostPtrOwner(true);
-   A.Reset(); A.SetHostPtrOwner(true);
-
    for (int i = 0; i < nrows; i++)
    {
       Rows[i] = NULL;
@@ -220,11 +215,6 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
          }
          *node_pp = NULL;
       }
-
-      // We probably do not need to set the ownership flags here.
-      I.Reset(); I.SetHostPtrOwner(true);
-      J.Reset(); J.SetHostPtrOwner(true);
-      A.Reset(); A.SetHostPtrOwner(true);
    }
 
    current_row = -1;
