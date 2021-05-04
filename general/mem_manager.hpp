@@ -312,9 +312,7 @@ public:
    void Reset(MemoryType host_mt);
 
    /// Return true if the Memory object is empty, see Reset().
-   /** Default-constructed objects are uninitialized, so they are not guaranteed
-       to be empty. */
-   bool Empty() const { return h_ptr == NULL; }
+   bool Empty() const { return h_ptr == nullptr || capacity == 0; }
 
    /** @brief Allocate host memory for @a size entries with the current host
        memory type returned by MemoryManager::GetHostMemoryType(). */
