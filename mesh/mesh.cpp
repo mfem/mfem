@@ -3617,7 +3617,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                   "Unsupported VTK format");
       ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
-   else if (mesh_type.rfind("<VTKFile ") == 0)
+   else if (mesh_type.rfind("<VTKFile ") == 0 || mesh_type.rfind("<?xml") == 0)
    {
       ReadXML_VTKMesh(input, curved, read_gf, finalize_topo, mesh_type);
    }
@@ -6542,22 +6542,31 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    {
       Array< Pair<int,int> > psize(nparts);
       int empty_parts;
-      for (i = 0; i < nparts; i++)
-      {
-         psize[i].one = 0;
-         psize[i].two = i;
-      }
 
-      for (i = 0; i < NumOfElements; i++)
+      // Count how many elements are in each partition, and store the result in
+      // psize, where psize[i].one is the number of elements, and psize[i].two
+      // is partition index. Keep track of the number of empty parts.
+      auto count_partition_elements = [&]()
       {
-         psize[partitioning[i]].one++;
-      }
+         for (i = 0; i < nparts; i++)
+         {
+            psize[i].one = 0;
+            psize[i].two = i;
+         }
 
-      empty_parts = 0;
-      for (i = 0; i < nparts; i++)
-      {
-         if (psize[i].one == 0) { empty_parts++; }
-      }
+         for (i = 0; i < NumOfElements; i++)
+         {
+            psize[partitioning[i]].one++;
+         }
+
+         empty_parts = 0;
+         for (i = 0; i < nparts; i++)
+         {
+            if (psize[i].one == 0) { empty_parts++; }
+         }
+      };
+
+      count_partition_elements();
 
       // This code just split the largest partitionings in two.
       // Do we need to replace it with something better?
@@ -6594,22 +6603,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          }
 
          // Check for empty partitionings again
-         for (i = 0; i < nparts; i++)
-         {
-            psize[i].one = 0;
-         }
-
-         for (i = 0; i < NumOfElements; i++)
-         {
-            psize[partitioning[i]].one++;
-         }
-
-         empty_parts = 0;
-         for (i = 0; i < nparts; i++)
-         {
-            if (psize[i].one == 0) { empty_parts++; }
-         }
-
+         count_partition_elements();
       }
    }
 

@@ -374,6 +374,10 @@ public:
        on that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, only
+       projecting onto elements with the given @a attribute */
+   void ProjectCoefficient(VectorCoefficient &vcoeff, int attribute);
+
    /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
        but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
