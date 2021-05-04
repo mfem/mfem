@@ -10,7 +10,6 @@
 # CONTRIBUTING.md for details.
 
 # Variables corresponding to defines in config.hpp (YES, NO, or value)
-
 MFEM_VERSION           = @MFEM_VERSION@
 MFEM_VERSION_STRING    = @MFEM_VERSION_STRING@
 MFEM_SOURCE_DIR        = @MFEM_SOURCE_DIR@

@@ -6,13 +6,17 @@
 namespace mfem
 {
 
+namespace private_
+{
+
 void MaxCol(const DenseMatrix &mat, double *vec, bool include_vec_elements)
 {
    int n = mat.Height();
    int start = 0;
    if (!include_vec_elements)
    {
-      for(int i = 0; i < n; ++i) {
+      for (int i = 0; i < n; ++i)
+      {
          vec[i] = mat.Elem(i, 0);
       }
 
@@ -39,7 +43,8 @@ void MinCol(const DenseMatrix &mat, double *vec, bool include_vec_elements)
    int start = 0;
    if (!include_vec_elements)
    {
-      for(int i = 0; i < n; ++i) {
+      for (int i = 0; i < n; ++i)
+      {
          vec[i] = mat.Elem(i, 0);
       }
 
@@ -123,6 +128,6 @@ double Sum(const DenseMatrix &mat)
    mat.GetRowSums(rs);
    return rs.Sum();
 }
-
+}
 
 }

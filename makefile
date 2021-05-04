@@ -115,7 +115,6 @@ MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
 
 
 EXAMPLE_SUBDIRS = amgx ginkgo hiop petsc pumi sundials superlu moonolith
-
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -409,8 +408,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
    export VERBOSE
 endif
-
-
 
 # Source dirs in logical order
 
