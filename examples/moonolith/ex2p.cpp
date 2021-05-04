@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
    dest_fun = 0.0;
    dest_fun.Update();
 
-   ParMortarAssembler assembler(MPI_COMM_WORLD, src_fe, dest_fe);
+   ParMortarAssembler assembler(src_fe, dest_fe);
 
    //Use Vector integrator
    assembler.AddMortarIntegrator(make_shared<VectorL2MortarIntegrator>());
