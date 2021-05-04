@@ -78,24 +78,24 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
       MFEM_SHARED double DQQ1[3][MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ1[3][MQ1*MQ1*MQ1];
 
-      kernels::LoadX<MD1>(e,D1D,LD,DDD);
-      kernels::LoadX<MD1>(e,D1D,X0,DDD0);
-      kernels::LoadX<MD1>(e,D1D,X1,DDD1);
+      kernels::internal::LoadX<MD1>(e,D1D,LD,DDD);
+      kernels::internal::LoadX<MD1>(e,D1D,X0,DDD0);
+      kernels::internal::LoadX<MD1>(e,D1D,X1,DDD1);
 
-      kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
 
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,BLD,DDD,DDQ);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,BLD,DDQ,DQQ);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,BLD,DQQ,QQQ);
+      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,BLD,DDD,DDQ);
+      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,BLD,DDQ,DQQ);
+      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,BLD,DQQ,QQQ);
 
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD0,DDQ0);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ0,DQQ0);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ0,QQQ0);
+      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD0,DDQ0);
+      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ0,DQQ0);
+      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ0,QQQ0);
 
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD1,DDQ1);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ1,DQQ1);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ1,QQQ1);
+      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD1,DDQ1);
+      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ1,DQQ1);
+      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ1,QQQ1);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -109,9 +109,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
                const double weight = W(qx,qy,qz) * detJtr;
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
 
-               kernels::PullEval<MQ1>(qx,qy,qz,QQQ,D);
-               kernels::PullEval<MQ1>(qx,qy,qz,QQQ0,p0);
-               kernels::PullEval<MQ1>(qx,qy,qz,QQQ1,p1);
+               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ,D);
+               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ0,p0);
+               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ1,p1);
 
                const double dist = D; // GetValues, default comp set to 0
                const double id2 = 0.5 / (dist*dist);

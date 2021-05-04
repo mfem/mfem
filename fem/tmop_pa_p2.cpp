@@ -100,11 +100,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
       MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e,D1D,X,XY);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
-      kernels::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+      kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+      kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -120,7 +120,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
 
             // Jpr = X{^T}.DSh
             double Jpr[4];
-            kernels::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jpr);
+            kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
             // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = Jpr.Jrt
             double Jpt[4];
@@ -137,13 +137,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
             // PMatO += DS . P^t += DSh . (Jrt . P^t)
             double A[4];
             kernels::MultABt(2,2,2, Jrt, P, A);
-            kernels::PushGrad<MQ1,NBZ>(qx,qy,A,QQ);
+            kernels::internal::PushGrad<MQ1,NBZ>(qx,qy,A,QQ);
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
-      kernels::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
-      kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
+      kernels::internal::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
+      kernels::internal::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });
 }
 

@@ -12,8 +12,11 @@
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
 #include "gridfunc.hpp"
+#include "kernels.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
+
+using namespace mfem;
 
 namespace mfem
 {
@@ -84,11 +87,11 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
       MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e,D1D,X,XY);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
-      kernels::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+      kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+      kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -96,7 +99,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
          {
             double Jtr[4];
             const double *Wid = &Wideal(0,0);
-            kernels::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jtr);
+            kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jtr);
             const double detJ = kernels::Det<2>(Jtr);
             const double alpha = std::pow(detJ/detW,1./2);
             kernels::Set(DIM,DIM,alpha,Wid,&J(0,0,qx,qy,e));

@@ -492,7 +492,7 @@ public:
        All elements will use the same IntegrationRule, @a ir as the target
        quadrature points. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
-      const IntegrationRule &ir, const DofToQuad::Mode = DofToQuad::FULL) const;
+      const IntegrationRule &ir) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
@@ -503,7 +503,7 @@ public:
        The target quadrature points in the elements are described by the given
        QuadratureSpace, @a qs. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
-      const QuadratureSpace &qs, const DofToQuad::Mode = DofToQuad::FULL) const;
+      const QuadratureSpace &qs) const;
 
    /** @brief Return a FaceQuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */

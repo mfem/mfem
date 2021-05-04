@@ -70,7 +70,6 @@ static void Det2D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double J[4];
-            kernels::PullGrad<MQ1,NBZ>(qx,qy,QQ,J);
             kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,J);
             Y(qx,qy,e) = kernels::Det<2>(J);
          }
