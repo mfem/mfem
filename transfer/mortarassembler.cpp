@@ -98,13 +98,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       return false;
    }
 
-   std::shared_ptr<CutBase> cut;
-
-   if(dim == 2) {
-      cut = std::make_shared<Cut2D>();
-   } else if(dim == 3) {
-      cut = std::make_shared<Cut3D>();
-   } else {
+   std::shared_ptr<Cut> cut = NewCut(dim);
+   if(!cut) {
       assert(false && "NOT Supported!");
       return false;
    }
@@ -189,7 +184,7 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
       mfem::out << "n_intersections: " << n_intersections << ", n_candidates: " << n_candidates << '\n';
 
-      cut->describe();
+      cut->Describe();
    }
 
    return true;
