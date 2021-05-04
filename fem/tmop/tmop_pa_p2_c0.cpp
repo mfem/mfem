@@ -9,16 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop.hpp"
+#include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "linearform.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/kernels.hpp"
+#include "../linearform.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
+MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
                            const double lim_normal,
                            const Vector &lim_dist,
                            const Vector &c0_,
@@ -29,8 +29,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
                            const Array<double> &bld_,
                            const Vector &x0_,
                            const Vector &x1_,
-                           const Vector &ones,
-                           Vector &energy,
+                           Vector &y_,
                            const int d1d,
                            const int q1d)
 {
@@ -53,7 +52,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    const auto X0 = Reshape(x0_.Read(), D1D, D1D, DIM, NE);
    const auto X1 = Reshape(x1_.Read(), D1D, D1D, DIM, NE);
 
-   auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -98,25 +97,37 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double ld, p0[2], p1[2];
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
             const double weight = W(qx,qy) * detJtr;
+
+            double ld, p0[2], p1[2];
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ,ld);
             kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ0,p0);
             kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ1,p1);
+
             const double dist = ld; // GetValues, default comp set to 0
-            const double id2 = 0.5 / (dist*dist);
-            const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
-            E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+
+            double d1[2];
+            // Eval_d1
+            // subtract(1.0 / (dist * dist), x, x0, d1);
+            // z = a * (x - y)
+            // grad = a * (x - x0)
+            const double a = 1.0 / (dist * dist);
+            const double w = weight * lim_normal * coeff0;
+            kernels::Subtract<2>(w*a, p1, p0, d1);
+            kernels::internal::PushEval<MQ1,NBZ>(qx,qy,d1,QQ0);
          }
       }
+      MFEM_SYNC_THREAD;
+      kernels::internal::LoadBt<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,B,QQ0,DQ0);
+      kernels::internal::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,Y,e);
    });
-   return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
+void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
@@ -130,10 +141,8 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
    const Array<double> &BLD = PA.maps_lim->B;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
-   const Vector &O = PA.O;
-   Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,Y);
 }
 
 } // namespace mfem

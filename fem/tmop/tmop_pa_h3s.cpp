@@ -9,11 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop.hpp"
+#include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/kernels.hpp"
-#include "../linalg/dinvariants.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
+#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
