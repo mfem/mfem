@@ -5,7 +5,7 @@
 using namespace mfem;
 using namespace std;
 
-void slave_transform(const Vector &x, Vector &x_new)
+void dest_transform(const Vector &x, Vector &x_new)
 {
    x_new = x;
    // x_new *= .5;
@@ -25,13 +25,10 @@ int main(int argc, char *argv[])
 
    int src_n_refinements  = 0;
    int dest_n_refinements = 0;
-   bool debug = false;
-   bool wait = false;
-   const char * logger_type = "file";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&source_mesh_file,     "-s", "--source_mesh",
+   args.AddOption(&source_mesh_file, "-s", "--source_mesh",
                   "Mesh file to use for src.");
    args.AddOption(&destination_mesh_file, "-d", "--destination_mesh",
                   "Mesh file to use for dest.");
@@ -39,10 +36,6 @@ int main(int argc, char *argv[])
                   "Number of src refinements");
    args.AddOption(&dest_n_refinements, "-dr", "--dest_refinements",
                   "Number of dest refinements");
-   args.AddOption(&debug, "-debug", "--debug", "-ndebug", "--no-debug", "debug");
-   args.AddOption(&logger_type, "-logger", "--logger", "logger");
-   args.AddOption(&wait, "-wait", "--wait", "-nwait", "-no-wait", "wait");
-
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -73,7 +66,7 @@ int main(int argc, char *argv[])
 
    const int dim = dest_mesh->Dimension();
 
-   dest_mesh->Transform(&slave_transform);
+   dest_mesh->Transform(&dest_transform);
 
    Vector box_min(dim), box_max(dim), range(dim);
    dest_mesh->GetBoundingBox(box_min, box_max);

@@ -77,9 +77,9 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
 }
 
 MortarAssembler::MortarAssembler(
-   const std::shared_ptr<FiniteElementSpace> &master,
-   const std::shared_ptr<FiniteElementSpace> &slave)
-   : master_(master), slave_(slave)
+   const std::shared_ptr<FiniteElementSpace> &source,
+   const std::shared_ptr<FiniteElementSpace> &destination)
+   : source_(source), destination_(destination)
 { }
 
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
@@ -87,13 +87,13 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    using namespace std;
    static const bool verbose = false;
 
-   const auto &master_mesh = *master_->GetMesh();
-   const auto &slave_mesh  = *slave_->GetMesh();
+   const auto &source_mesh = *source_->GetMesh();
+   const auto &destination_mesh  = *destination_->GetMesh();
 
-   int dim = master_mesh.Dimension();
+   int dim = source_mesh.Dimension();
 
    std::vector<::moonolith::Integer> pairs;
-   if (!HashGridDetectIntersections(master_mesh, slave_mesh, pairs))
+   if (!HashGridDetectIntersections(source_mesh, destination_mesh, pairs))
    {
       return false;
    }
@@ -105,12 +105,12 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    }
 
    //////////////////////////////////////////////////
-   IntegrationRule master_ir;
-   IntegrationRule slave_ir;
+   IntegrationRule source_ir;
+   IntegrationRule destination_ir;
    //////////////////////////////////////////////////
    int skip_zeros = 1;
-   B = make_shared<SparseMatrix>(slave_->GetNDofs(), master_->GetNDofs());
-   Array<int> master_vdofs, slave_vdofs;
+   B = make_shared<SparseMatrix>(destination_->GetNDofs(), source_->GetNDofs());
+   Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
    //////////////////////////////////////////////////
@@ -123,41 +123,41 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    bool intersected = false;
    for (auto it = begin(pairs); it != end(pairs); /*inside*/)
    {
-      const int master_index = *it++;
-      const int slave_index  = *it++;
+      const int source_index = *it++;
+      const int destination_index  = *it++;
 
-      auto &master_fe = *master_->GetFE(master_index);
-      auto &slave_fe  = *slave_->GetFE(slave_index);
+      auto &source_fe = *source_->GetFE(source_index);
+      auto &destination_fe  = *destination_->GetFE(destination_index);
 
-      ElementTransformation &slave_Trans = *slave_->GetElementTransformation(slave_index);
-      const int order = master_fe.GetOrder() + slave_fe.GetOrder() + slave_Trans.OrderW();
+      ElementTransformation &destination_Trans = *destination_->GetElementTransformation(destination_index);
+      const int order = source_fe.GetOrder() + destination_fe.GetOrder() + destination_Trans.OrderW();
 
       // Update the quadrature rule in case it changed the order
       cut->SetIntegrationOrder(order);
 
       n_candidates++;
 
-      if (cut->BuildQuadrature(*master_, master_index, *slave_, slave_index,  master_ir, slave_ir))
+      if (cut->BuildQuadrature(*source_, source_index, *destination_, destination_index,  source_ir, destination_ir))
       {
-         master_->GetElementVDofs(master_index, master_vdofs);
-         slave_->GetElementVDofs (slave_index,  slave_vdofs);
+         source_->GetElementVDofs(source_index, source_vdofs);
+         destination_->GetElementVDofs (destination_index,  destination_vdofs);
 
-         ElementTransformation &master_Trans = *master_->GetElementTransformation(
-                                                  master_index);
+         ElementTransformation &source_Trans = *source_->GetElementTransformation(
+                                                  source_index);
 
          bool first = true;
          for (auto i_ptr : integrators_)
          {
             if (first)
             {
-               i_ptr->AssembleElementMatrix(master_fe, master_ir, master_Trans, slave_fe,
-                                            slave_ir, slave_Trans, cumulative_elemmat);
+               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans, destination_fe,
+                                            destination_ir, destination_Trans, cumulative_elemmat);
                first = false;
             }
             else
             {
-               i_ptr->AssembleElementMatrix(master_fe, master_ir, master_Trans, slave_fe,
-                                            slave_ir, slave_Trans, elemmat);
+               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans, destination_fe,
+                                            destination_ir, destination_Trans, elemmat);
                cumulative_elemmat += elemmat;
             }
          }
@@ -165,7 +165,7 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
          local_element_matrices_sum += Sum(cumulative_elemmat);
 
 
-         B->AddSubMatrix(slave_vdofs, master_vdofs, cumulative_elemmat, skip_zeros);
+         B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat, skip_zeros);
          intersected = true;
          ++n_intersections;
       }
@@ -219,7 +219,7 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun,
       mfem::out << chrono.RealTime() << " seconds" << endl;
    }
 
-   BilinearForm b_form(slave_.get());
+   BilinearForm b_form(destination_.get());
    if (is_vector_fe)
    {
       b_form.AddDomainIntegrator(new VectorFEMassIntegrator());

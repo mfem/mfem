@@ -13,7 +13,7 @@ void vector_fun(const Vector &x, Vector &f)
    f = n;
 }
 
-void slave_transform(const Vector &x, Vector &x_new)
+void dest_transform(const Vector &x, Vector &x_new)
 {
    x_new = x;
    // x_new *= .7;
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
       // dest_mesh = make_shared<Mesh>(4,7,Element::TRIANGLE,1);
    }
 
-   dest_mesh->Transform(&slave_transform);
+   dest_mesh->Transform(&dest_transform);
 
    for (int i = 0; i < src_n_refinements;  ++i)
    {

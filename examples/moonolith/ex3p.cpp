@@ -25,9 +25,6 @@ int main(int argc, char *argv[])
 
    int src_n_refinements  = 0;
    int dest_n_refinements = 0;
-   bool debug = false;
-   bool wait = false;
-   const char * logger_type = "file";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -39,9 +36,6 @@ int main(int argc, char *argv[])
                   "Number of src refinements");
    args.AddOption(&dest_n_refinements, "-dr", "--dest_refinements",
                   "Number of dest refinements");
-   args.AddOption(&debug, "-debug", "--debug", "-ndebug", "--no-debug", "debug");
-   args.AddOption(&logger_type, "-logger", "--logger", "logger");
-   args.AddOption(&wait, "-wait", "--wait", "-nwait", "-no-wait", "wait");
 
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -97,7 +91,6 @@ int main(int argc, char *argv[])
 
    src_mesh->EnsureNCMesh();
    dest_mesh->EnsureNCMesh();
-
 
    {
       for (int l = 0; l < 4; l++)

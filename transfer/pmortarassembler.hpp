@@ -15,13 +15,13 @@ namespace mfem {
 
 		ParMortarAssembler(
 			const MPI_Comm comm,
-			const std::shared_ptr<ParFiniteElementSpace> &master,
-			const std::shared_ptr<ParFiniteElementSpace> &slave);
+			const std::shared_ptr<ParFiniteElementSpace> &source,
+			const std::shared_ptr<ParFiniteElementSpace> &destination);
 
 		/*!
-		 * @brief assembles the coupling matrix B. B : master -> slave If u is a coefficient
-		 * associated with master and v with slave
-		 * Then v = M^(-1) * B * u; where M is the mass matrix in slave.
+		 * @brief assembles the coupling matrix B. B : source -> destination If u is a coefficient
+		 * associated with source and v with destination
+		 * Then v = M^(-1) * B * u; where M is the mass matrix in destination.
 		 * Works with L2_FECollection, H1_FECollection and DG_FECollection (experimental with RT_FECollection and ND_FECollection).
 		 * @param B the assembled coupling operator. B can be passed uninitialized.
 		 * @return true if there was an intersection and the operator has been assembled. False otherwise.
@@ -38,8 +38,8 @@ namespace mfem {
 
 	private:
 		MPI_Comm comm_;
-		std::shared_ptr<ParFiniteElementSpace> master_;
-		std::shared_ptr<ParFiniteElementSpace> slave_;
+		std::shared_ptr<ParFiniteElementSpace> source_;
+		std::shared_ptr<ParFiniteElementSpace> destination_;
 		std::vector< std::shared_ptr<MortarIntegrator> > integrators_;
 	};
 
