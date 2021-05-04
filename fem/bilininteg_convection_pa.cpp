@@ -17,6 +17,7 @@
 #include "kernels.hpp"
 
 using namespace std;
+using namespace mfem;
 
 namespace mfem
 {
@@ -808,7 +809,7 @@ static void QEvalVGF2D(const int NE,
       const int VDIM = T_VDIM ? T_VDIM : vdim;
 
       MFEM_SHARED double B[MQ1*MD1];
-      mfem::kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
       MFEM_SHARED double DD[NBZ][MD1*MD1];
       MFEM_SHARED double DQ[NBZ][MD1*MQ1];
@@ -816,15 +817,15 @@ static void QEvalVGF2D(const int NE,
 
       for (int c = 0; c < VDIM; c++)
       {
-         mfem::kernels::LoadX<MD1,NBZ>(e,D1D,c,X,DD);
-         mfem::kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
-         mfem::kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
+         kernels::internal::LoadX<MD1,NBZ>(e,D1D,c,X,DD);
+         kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
+         kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               C(c,qx,qy,e) = kernels::PullEval<MQ1,NBZ>(qx,qy,QQ);
+               C(c,qx,qy,e) = kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ);
             }
          }
          MFEM_SYNC_THREAD;
@@ -858,7 +859,7 @@ static void QEvalVGF3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double B[MQ1*MD1];
-      mfem::kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
       MFEM_SHARED double DDD[MD1*MD1*MD1];
       MFEM_SHARED double DDQ[MD1*MD1*MQ1];
@@ -867,10 +868,10 @@ static void QEvalVGF3D(const int NE,
 
       for (int c = 0; c < VDIM; c++)
       {
-         mfem::kernels::LoadX<MD1>(e,D1D,c,X,DDD);
-         mfem::kernels::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-         mfem::kernels::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-         mfem::kernels::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+         kernels::internal::LoadX<MD1>(e,D1D,c,X,DDD);
+         kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+         kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+         kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -878,7 +879,7 @@ static void QEvalVGF3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
-                  C(c,qx,qy,qz,e) = mfem::kernels::PullEval<MQ1>(qx,qy,qz,QQQ);
+                  C(c,qx,qy,qz,e) = kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ);
                }
             }
          }
