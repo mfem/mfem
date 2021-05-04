@@ -169,20 +169,54 @@ protected:
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
-   /// Default constructor: no initialization.
-   Memory() { }
+   /// Default constructor.
+   Memory()
+      : h_ptr(nullptr), capacity(0), h_mt(MemoryType::DEFAULT), flags(0)
+   { }
 
-   /// Copy constructor: default.
-   Memory(const Memory &orig) = default;
+   /// Copy constructor.
+   Memory(const Memory &orig)
+      : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
+      flags(orig.flags)
+   {
+      flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
+   }
 
    /// Move constructor: default.
-   Memory(Memory &&orig) = default;
+   Memory(Memory &&orig)
+      : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
+      flags(orig.flags)
+   {
+      orig.h_ptr = nullptr;
+      orig.capacity = 0;
+      orig.h_mt = MemoryType::DEFAULT;
+      orig.flags = 0;
+   }
 
-   /// Copy-assignment operator: default.
-   Memory &operator=(const Memory &orig) = default;
+   /// Copy-assignment operator.
+   Memory &operator=(const Memory &orig)
+   {
+      h_ptr = orig.h_ptr;
+      capacity = orig.capacity;
+      h_mt = orig.h_mt;
+      flags = orig.flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
+      return *this;
+   }
 
-   /// Move-assignment operator: default.
-   Memory &operator=(Memory &&orig) = default;
+   /// Move-assignment operator.
+   Memory &operator=(Memory &&orig)
+   {
+      h_ptr = orig.h_ptr;
+      capacity = orig.capacity;
+      h_mt = orig.h_mt;
+      // TODO not sure about the formula
+      flags = orig.flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
+      orig.h_ptr = nullptr;
+      orig.capacity = 0;
+      orig.h_mt = MemoryType::DEFAULT;
+      orig.flags = 0;
+      return *this;
+   }
 
    /// Allocate host memory for @a size entries.
    /** The allocation uses the current host memory type returned by
