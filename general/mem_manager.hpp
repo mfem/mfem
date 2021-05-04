@@ -470,22 +470,16 @@ public:
    inline bool DeviceIsValid() const;
 
    /// Copy @a size entries from @a src to @a *this.
-   /** The given @a size should not exceed the Capacity() of the source @a src
-       and the destination, @a *this. */
    inline void CopyFrom(const Memory &src, int size);
 
    /// Copy @a size entries from the host pointer @a src to @a *this.
-   /** The given @a size should not exceed the Capacity() of @a *this. */
    inline void CopyFromHost(const T *src, int size);
 
    /// Copy @a size entries from @a *this to @a dest.
-   /** The given @a size should not exceed the Capacity() of @a *this and the
-       destination, @a dest. */
    inline void CopyTo(Memory &dest, int size) const
    { dest.CopyFrom(*this, size); }
 
    /// Copy @a size entries from @a *this to the host pointer @a dest.
-   /** The given @a size should not exceed the Capacity() of @a *this. */
    inline void CopyToHost(T *dest, int size) const;
 
    /// Print the internal flags.
@@ -1087,6 +1081,7 @@ inline bool Memory<T>::DeviceIsValid() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
+   MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
    {
       if (h_ptr != src.h_ptr && size != 0)
@@ -1106,6 +1101,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != src && size != 0)
@@ -1125,6 +1121,7 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != dest && size != 0)
