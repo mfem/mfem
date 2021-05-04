@@ -21,11 +21,11 @@ void TransformToReference(ElementTransformation &Trans, int type,
 
   ref_p.weight = w;
 
-  if (type != Geometry::TRIANGLE && dim == 2) {
-    ref_p.weight *= 0.5;
-  } else if (type != Geometry::TETRAHEDRON && dim == 3) {
-    ref_p.weight *= 6;
-  }
+  // if (type != Geometry::TRIANGLE && dim == 2) {
+  //   // ref_p.weight *= 0.5;
+  // } else if (type != Geometry::TETRAHEDRON && dim == 3) {
+  //   // ref_p.weight *= 6;
+  // }
 }
 
 bool Cut2D::BuildQuadrature(const FiniteElementSpace &from_space,
@@ -42,8 +42,6 @@ bool Cut2D::BuildQuadrature(const FiniteElementSpace &from_space,
     return false;
   }
 
-  assert(false && "SCALE WITH FROM AND TO VOLUMES");
-
   int from_type = from_space.GetFE(from_elem_idx)->GetGeomType();
   int to_type = to_space.GetFE(to_elem_idx)->GetGeomType();
 
@@ -57,6 +55,9 @@ bool Cut2D::BuildQuadrature(const FiniteElementSpace &from_space,
   ElementTransformation &to_trans =
       *to_space.GetElementTransformation(to_elem_idx);
 
+  double from_measure = moonolith::measure(from_);
+  double to_measure = moonolith::measure(to_);
+
   Vector p(2);
   for (int qp = 0; qp < n_qp; ++qp) {
 
@@ -65,9 +66,10 @@ bool Cut2D::BuildQuadrature(const FiniteElementSpace &from_space,
     }
 
     double w = physical_quadrature_.weights[qp];
+    intersection_measure_ += w;
 
-    TransformToReference(from_trans, from_type, p, w, from_quadrature[qp]);
-    TransformToReference(to_trans, to_type, p, w, to_quadrature[qp]);
+    TransformToReference(from_trans, from_type, p, w/from_measure, from_quadrature[qp]);
+    TransformToReference(to_trans, to_type, p, w/to_measure, to_quadrature[qp]);
   }
 
   return true;
@@ -103,9 +105,10 @@ void Cut2D::SetQuadratureRule(const IntegrationRule &ir) {
     rule_w += qp.weight;
   }
 
-  q_rule_.normalize();
   order_ = ir.GetOrder();
-  mfem::out << "Rule weight: " << rule_w << '\n';
+  // mfem::out << "Rule weight: " << rule_w << '\n';
+
+  q_rule_.normalize();
 }
 
 void Cut2D::SetIntegrationOrder(const int order) {
@@ -115,6 +118,12 @@ void Cut2D::SetIntegrationOrder(const int order) {
     SetQuadratureRule(ir);
   }
 }
+
+void Cut2D::describe() const
+{
+  mfem::out << "Cut2D::measure " << intersection_measure_ << '\n';
+}
+
 
 bool Cut3D::BuildQuadrature(const FiniteElementSpace &from_space,
                             const int from_elem_idx,
@@ -143,6 +152,9 @@ bool Cut3D::BuildQuadrature(const FiniteElementSpace &from_space,
   ElementTransformation &to_trans =
       *to_space.GetElementTransformation(to_elem_idx);
 
+  double from_measure = moonolith::measure(from_);
+  double to_measure = moonolith::measure(to_);
+
   Vector p(3);
   for (int qp = 0; qp < n_qp; ++qp) {
 
@@ -151,9 +163,10 @@ bool Cut3D::BuildQuadrature(const FiniteElementSpace &from_space,
     }
 
     double w = physical_quadrature_.weights[qp];
+    intersection_measure_ += w;
 
-    TransformToReference(from_trans, from_type, p, w, from_quadrature[qp]);
-    TransformToReference(to_trans, to_type, p, w, to_quadrature[qp]);
+    TransformToReference(from_trans, from_type, p, w/from_measure, from_quadrature[qp]);
+    TransformToReference(to_trans, to_type, p, w/to_measure, to_quadrature[qp]);
   }
 
   return true;
@@ -191,10 +204,8 @@ void Cut3D::MakePolyhedron(Mesh &mesh, const int elem_idx,
   polyhedron.el_ptr[0] = 0;
 
   for (int i = 0; i < buffer_vertices.Size(); ++i) {
-    const int offset = i * dim;
-
     for (int j = 0; j < dim; ++j) {
-      polyhedron.points[offset + j] = buffer_pts(j, i);
+      polyhedron.points[i][j] = buffer_pts(j, i);
     }
   }
 
@@ -210,11 +221,15 @@ void Cut3D::MakePolyhedron(Mesh &mesh, const int elem_idx,
 
     polyhedron.el_ptr[i + 1] = polyhedron.el_ptr[i] + f2v.Size();
   }
+
+  polyhedron.fix_ordering();
 }
 
 void Cut3D::SetQuadratureRule(const IntegrationRule &ir) {
   const int size = ir.Size();
   q_rule_.resize(size);
+
+  double rule_w = 0.0;
 
   for (int k = 0; k < size; ++k) {
     auto &qp = ir[k];
@@ -222,9 +237,18 @@ void Cut3D::SetQuadratureRule(const IntegrationRule &ir) {
     q_rule_.points[k][1] = qp.y;
     q_rule_.points[k][2] = qp.z;
     q_rule_.weights[k] = qp.weight;
+    rule_w += qp.weight;
   }
 
+  order_ = ir.GetOrder();
+
+  // mfem::out << "Rule weight: " << rule_w << '\n';
   q_rule_.normalize();
+}
+
+void Cut3D::describe() const
+{
+  mfem::out << "Cut3D::measure " << intersection_measure_ << '\n';
 }
 
 } // namespace mfem

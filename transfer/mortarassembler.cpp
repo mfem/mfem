@@ -1,5 +1,4 @@
 #include "mortarassembler.hpp"
-#include "mortarassemble.hpp"
 #include "../general/tic_toc.hpp"
 
 #include "transferutils.hpp"
@@ -86,7 +85,7 @@ MortarAssembler::MortarAssembler(
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 {
    using namespace std;
-   static const bool verbose = true;
+   static const bool verbose = false;
 
    const auto &master_mesh = *master_->GetMesh();
    const auto &slave_mesh  = *slave_->GetMesh();
@@ -122,6 +121,10 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    //////////////////////////////////////////////////
    double local_element_matrices_sum = 0.0;
 
+
+   long n_intersections = 0;
+   long n_candidates = 0;
+
    bool intersected = false;
    for (auto it = begin(pairs); it != end(pairs); /*inside*/)
    {
@@ -136,6 +139,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
       // Update the quadrature rule in case it changed the order
       cut->SetIntegrationOrder(order);
+
+      n_candidates++;
 
       if (cut->BuildQuadrature(*master_, master_index, *slave_, slave_index,  master_ir, slave_ir))
       {
@@ -167,6 +172,7 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
          B->AddSubMatrix(slave_vdofs, master_vdofs, cumulative_elemmat, skip_zeros);
          intersected = true;
+         ++n_intersections;
       }
    }
 
@@ -180,6 +186,10 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
                 std::endl;
       mfem::out <<  "B in R^(" << B->Height() <<  " x " << B->Width() << ")" <<
                 std::endl;
+
+      mfem::out << "n_intersections: " << n_intersections << ", n_candidates: " << n_candidates << '\n';
+
+      cut->describe();
    }
 
    return true;
@@ -190,7 +200,7 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun,
                                bool is_vector_fe)
 {
    using namespace std;
-   static const bool verbose = true;
+   static const bool verbose = false;
 
    StopWatch chrono;
 

@@ -19,6 +19,7 @@ public:
 
   virtual void SetQuadratureRule(const IntegrationRule &ir) = 0;
   virtual void SetIntegrationOrder(const int order) = 0;
+  virtual void describe() const {}
 };
 
 class Cut2D : public CutBase {
@@ -37,6 +38,7 @@ public:
   void SetIntegrationOrder(const int order) override;
 
   void MakePolygon(Mesh &mesh, const int elem_idx, Polygon_t &polygon);
+  void describe() const override;
 
 private:
   Polygon_t from_, to_;
@@ -45,6 +47,7 @@ private:
   BuildQuadrature_t builder_;
   DenseMatrix buffer_pts;
   int order_{-1};
+  double intersection_measure_{0};
 };
 
 class Cut3D : public CutBase {
@@ -63,6 +66,7 @@ public:
   void SetIntegrationOrder(const int order) override;
 
   void MakePolyhedron(Mesh &mesh, const int elem_idx, Polyhedron_t &polyhedron);
+  void describe() const override;
 
 private:
   Polyhedron_t from_, to_;
@@ -73,13 +77,9 @@ private:
   Array<int> buffer_vertices;
   Array<int> buffer_faces, buffer_cor;
   int order_{-1};
+  double intersection_measure_{0};
 };
 
-template <int Dim> class Cut {};
-
-template <> class Cut<2> : public Cut2D {};
-
-template <> class Cut<3> : public Cut3D {};
 } // namespace mfem
 
 #endif // MFEM_TRANSFER_CUT_HPP
