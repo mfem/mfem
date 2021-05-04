@@ -96,6 +96,8 @@ namespace mfem {
  * - <a class="el" href="ex27p_8cpp_source.html">Example 27p</a>: parallel boundary conditions for the Laplace problem
  * - <a class="el" href="ex28_8cpp_source.html">Example 28</a>: sliding contact in elasticity
  * - <a class="el" href="ex28p_8cpp_source.html">Example 28p</a>: parallel sliding contact in elasticity
+ * - <a class="el" href="ex29_8cpp_source.html">Example 29</a>: Laplace solve on a 3D-embedded surface
+ * - <a class="el" href="ex29p_8cpp_source.html">Example 29p</a>: parallel Laplace solve on a 3D-embedded surface
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
