@@ -449,23 +449,6 @@ public:
        the same MemoryClass. */
    inline T *Write(MemoryClass mc, int size);
 
-   /// Copy the host/device pointer validity flags from @a other to @a *this.
-   /** This method synchronizes the pointer validity flags of two Memory objects
-       that use the same host/device pointers, or when @a *this is an alias
-       (sub-Memory) of @a other. Typically, this method should be called after
-       @a other is manipulated in a way that changes its pointer validity flags
-       (e.g. it was moved from device to host memory). */
-   inline void Sync(const Memory &other) const;
-
-   /** @brief Update the alias Memory @a *this to match the memory location (all
-       valid locations) of its base Memory, @a base. */
-   /** This method is useful when alias Memory is moved and manipulated in a
-       different memory space. Such operations render the pointer validity flags
-       of the base incorrect. Calling this method will ensure that @a base is
-       up-to-date. Note that this is achieved by moving/copying @a *this (if
-       necessary), and not @a base. */
-   inline void SyncAlias(const Memory &base, int alias_size) const;
-
    /** @brief Return a MemoryType that is currently valid. If both the host and
        the device pointers are currently valid, then the device memory type is
        returned. */
@@ -1040,31 +1023,6 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
    return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
-}
-
-template <typename T>
-inline void Memory<T>::Sync(const Memory &other) const
-{
-   if (!(flags & REGISTERED) && (other.flags & REGISTERED))
-   {
-      MFEM_ASSERT(h_ptr == other.h_ptr &&
-                  (flags & ALIAS) == (other.flags & ALIAS),
-                  "invalid input");
-      flags = (flags | REGISTERED) & ~(OWNS_DEVICE | OWNS_INTERNAL);
-   }
-   flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
-           (other.flags & (VALID_HOST | VALID_DEVICE));
-}
-
-template <typename T>
-inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
-{
-   // Assuming that if *this is registered then base is also registered.
-   MFEM_ASSERT(!(flags & REGISTERED) || (base.flags & REGISTERED),
-               "invalid base state");
-   if (!(base.flags & REGISTERED)) { return; }
-   MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
-                             base.flags, flags);
 }
 
 template <typename T>

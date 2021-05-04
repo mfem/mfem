@@ -93,11 +93,6 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
       }
    }
 
-   for (int iRow=0; iRow < nRowBlocks; ++iRow)
-   {
-      yblock.GetBlock(iRow).SyncAliasMemory(y);
-   }
-
    // Destroy alias vectors to prevent dangling aliases when the base vectors
    // are deleted
    for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
@@ -127,11 +122,6 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
             yblock.GetBlock(iRow).Add(coef(jCol,iRow), tmp);
          }
       }
-   }
-
-   for (int iRow=0; iRow < nColBlocks; ++iRow)
-   {
-      yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 
    // Destroy alias vectors to prevent dangling aliases when the base vectors
@@ -204,11 +194,6 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
       }
    }
 
-   for (int i=0; i<nBlocks; ++i)
-   {
-      yblock.GetBlock(i).SyncAliasMemory(y);
-   }
-
    // Destroy alias vectors to prevent dangling aliases when the base vectors
    // are deleted
    for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
@@ -238,11 +223,6 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
-   }
-
-   for (int i=0; i<nBlocks; ++i)
-   {
-      yblock.GetBlock(i).SyncAliasMemory(y);
    }
 
    // Destroy alias vectors to prevent dangling aliases when the base vectors

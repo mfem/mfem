@@ -140,8 +140,7 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 Vector * HypreParVector::GlobalVector() const
 {
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
-   Vector *v = new Vector(hv->data, internal::to_int(hv->size));
-   v->MakeDataOwner();
+   Vector *v = new Vector(hv->data, internal::to_int(hv->size), true);
    hypre_SeqVectorSetDataOwner(hv,0);
    hypre_SeqVectorDestroy(hv);
    return v;

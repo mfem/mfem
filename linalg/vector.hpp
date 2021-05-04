@@ -223,13 +223,6 @@ public:
        version. */
    const Memory<double> &GetMemory() const { return data; }
 
-   /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) { GetMemory().Sync(v.GetMemory()); }
-
-   /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const Vector &v)
-   { GetMemory().SyncAlias(v.GetMemory(),Size()); }
-
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
