@@ -12,7 +12,6 @@
 list(APPEND SRCS
   cut.cpp
   transferutils.cpp
-  mortarassemble.cpp
   mortarassembler.cpp
   mortarintegrator.cpp
   pmortarassembler.cpp
@@ -21,7 +20,6 @@ list(APPEND SRCS
 list(APPEND HDRS
   cut.hpp
   transferutils.hpp
-  mortarassemble.hpp
   mortarassembler.hpp
   mortarintegrator.hpp
   pmortarassembler.hpp

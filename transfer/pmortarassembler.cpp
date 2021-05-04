@@ -1,6 +1,5 @@
 #include "pmortarassembler.hpp"
 #include "transferutils.hpp"
-#include "mortarassemble.hpp"
 
 #include "cut.hpp"
 
@@ -58,14 +57,17 @@ public:
       DenseMatrix pts;
       fe_->GetMesh()->GetPointMatrix(element, pts);
 
-      Point pmin, pmax;
-      MinCol(pts, &pmin[0], false);
-      MinCol(pts, &pmax[0], false);
+      Point p;
+      for (int j = 0; j < pts.Width(); ++j)
+      {
+         for (int i = 0; i < pts.Height(); ++i)
+         {
+            p[i] = pts.Elem(i, j);
+         }
 
-      bound_.static_bound()  += pmin;
-      bound_.static_bound()  += pmax;
-      bound_.dynamic_bound() += pmin;
-      bound_.dynamic_bound() += pmax;
+         bound_.static_bound()  += p;
+         bound_.dynamic_bound() += p;
+      }
    }
 
    ElementAdapter()
@@ -593,7 +595,7 @@ static bool Assemble(moonolith::Communicator &comm,
 
    long maxNElements = settings.max_elements;
    long maxDepth = settings.max_depth;
-   static const bool verbose = true;
+   static const bool verbose = false;
 
 
    const int n_elements_master = master->GetNE();
@@ -763,7 +765,7 @@ static bool Assemble(
    std::shared_ptr<HypreParMatrix> &pmat,
    const moonolith::SearchSettings &settings)
 {
-   static const bool verbose = true;
+   static const bool verbose = false;
    int max_q_order = 0;
 
    for (auto i_ptr : integrators)
@@ -824,6 +826,7 @@ static bool Assemble(
       ElementTransformation &dest_Trans = *dest.GetElementTransformation(dest_index);
       const int order = src_fe.GetOrder() + dest_fe.GetOrder() + dest_Trans.OrderW() + max_q_order;
 
+      cut->SetIntegrationOrder(order);
       if (cut->BuildQuadrature(src, src_index, dest, dest_index, src_ir, dest_ir))
       {
          //make reference quadratures
@@ -896,6 +899,8 @@ static bool Assemble(
    {
       double volumes[2] = { local_element_matrices_sum  };
       comm.all_reduce(volumes, 2, moonolith::MPISum());
+
+      cut->describe();
 
       if (comm.is_root())
       {
@@ -982,7 +987,7 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
                                   ParGridFunction &dest_fun, bool is_vector_fe)
 {
    using namespace std;
-   static const bool verbose = true;
+   static const bool verbose = false;
    static const bool dof_transformation = true;
 
    shared_ptr<HypreParMatrix> B = nullptr;
