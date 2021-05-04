@@ -303,15 +303,6 @@ static void Eval3D(const int NE,
             }
             if (eval_flags & QI::DERIVATIVES)
             {
-               double Jloc[9], Jinv[9];
-               for (int col = 0; col < 3; col++)
-               {
-                  for (int row = 0; row < 3; row++)
-                  {
-                     Jloc[row+3*col] = J(q,row,col,e);
-                  }
-               }
-               kernels::CalcInverse<3>(Jloc, Jinv);
                for (int c = 0; c < VDIM; c++)
                {
                   if (q_layout == QVectorLayout::byVDIM)
@@ -449,7 +440,6 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       {
          TensorDeterminants(ne, vdim, maps, e_vec, q_det, d_buffer);
       }
-      else { MFEM_ABORT("case not supported yet"); }
    }
    else // use_tensor_eval == false
    {

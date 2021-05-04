@@ -41,6 +41,7 @@ protected:
    const FiniteElementSpace *fespace;  ///< Not owned
    const QuadratureSpace *qspace;      ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
+   mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
    mutable bool use_tensor_products;   ///< Tensor product evaluation mode
    mutable Vector d_buffer;            ///< Auxiliary device buffer
@@ -66,12 +67,10 @@ public:
    };
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
-                          const IntegrationRule &ir,
-                          const bool use_tensor_products = false);
+                          const IntegrationRule &ir);
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
-                          const QuadratureSpace &qs,
-                          const bool use_tensor_products = false);
+                          const QuadratureSpace &qs);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. By default, tensor product evaluations
@@ -121,8 +120,6 @@ public:
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
-   template <QVectorLayout>
-   void Values(const Vector &e_vec, Vector &q_val) const;
    void Values(const Vector &e_vec, Vector &q_val) const;
 
    /** @brief Interpolate the derivatives (with respect to reference
@@ -131,12 +128,7 @@ public:
 
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
-   template <QVectorLayout>
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
-   void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
-
-   /// Compute the determinant of the E-vector @a e_vec at quadrature points.
-   void Determinants(const Vector &e_vec, Vector &q_det) const;
 
    /** @brief Compute the determinants of the derivatives (with respect to
        reference coordinates) of the E-vector @a e_vec at quadrature points. */

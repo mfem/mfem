@@ -63,14 +63,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
       MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
 
-      kernels::LoadX<MD1>(e,D1D,LD,DDD);
+      kernels::internal::LoadX<MD1>(e,D1D,LD,DDD);
 
-      kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
 
-      kernels::EvalX<MD1,MQ1>(D1D,Q1D,BLD,DDD,DDQ);
-      kernels::EvalY<MD1,MQ1>(D1D,Q1D,BLD,DDQ,DQQ);
-      kernels::EvalZ<MD1,MQ1>(D1D,Q1D,BLD,DQQ,QQQ);
+      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,BLD,DDD,DDQ);
+      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,BLD,DDQ,DQQ);
+      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,BLD,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -85,7 +85,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
                const double weight_m = weight * lim_normal * coeff0;
 
                double D;
-               kernels::PullEval<MQ1>(qx,qy,qz,QQQ,D);
+               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ,D);
                const double dist = D; // GetValues, default comp set to 0
 
                // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);

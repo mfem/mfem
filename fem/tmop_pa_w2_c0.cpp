@@ -78,21 +78,21 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e,D1D,LD,XY);
-      kernels::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
-      kernels::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,LD,XY);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
 
-      kernels::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
 
-      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BLD,XY,DQ);
-      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BLD,DQ,QQ);
+      kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BLD,XY,DQ);
+      kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BLD,DQ,QQ);
 
-      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY0,DQ0);
-      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,QQ0);
+      kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY0,DQ0);
+      kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,QQ0);
 
-      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY1,DQ1);
-      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ1,QQ1);
+      kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY1,DQ1);
+      kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ1,QQ1);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -103,9 +103,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
             const double detJtr = kernels::Det<2>(Jtr);
             const double weight = W(qx,qy) * detJtr;
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
-            kernels::PullEval<MQ1,NBZ>(qx,qy,QQ,ld);
-            kernels::PullEval<MQ1,NBZ>(qx,qy,QQ0,p0);
-            kernels::PullEval<MQ1,NBZ>(qx,qy,QQ1,p1);
+            kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ,ld);
+            kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ0,p0);
+            kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ1,p1);
             const double dist = ld; // GetValues, default comp set to 0
             const double id2 = 0.5 / (dist*dist);
             const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
