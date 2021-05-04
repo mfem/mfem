@@ -11294,34 +11294,38 @@ GeometricFactors::GeometricFactors(const GridFunction *nodes_,
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
 
-   // For now, we are not using tensor product evaluation
-   const Operator *elem_restr = fespace->GetElementRestriction(
-                                   ElementDofOrdering::NATIVE);
-
    unsigned eval_flags = 0;
    MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
                         Device::GetDeviceMemoryType();
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, my_d_mt);
+      X.SetSize(vdim*NQ*NE, my_d_mt); // NQ x SDIM x NE
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, my_d_mt);
+      detJ.SetSize(NQ*NE, my_d_mt); // NQ x NE
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   // For now, we are not using tensor product evaluation (not implemented)
-   qi->DisableTensorProducts();
+   // All X, J, and detJ use this layout:
    qi->SetOutputLayout(QVectorLayout::byNODES);
-   if (elem_restr)
+   // Same as UsesTensorBasis(*fespace) but we already have GetFE(0):
+   const bool use_tensor_products = dynamic_cast<const TensorBasisElement*>(fe)
+                                    != nullptr;
+   qi->DisableTensorProducts(!use_tensor_products);
+   const ElementDofOrdering e_ordering = use_tensor_products ?
+                                         ElementDofOrdering::LEXICOGRAPHIC :
+                                         ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
+
+   if (elem_restr) // Always true as of 2021-04-27
    {
       Vector Enodes(vdim*ND*NE, my_d_mt);
       elem_restr->Mult(*nodes, Enodes);
