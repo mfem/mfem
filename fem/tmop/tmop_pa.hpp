@@ -103,6 +103,7 @@ public:
    Kernel_t At(const Key_t id) { return map.at(id); }
 };
 
+// /////////////////////////////////////////////////////////////////////////////
 // MFEM_REGISTER_TMOP_KERNELS macro:
 //  - the first argument (return_t) is the return type of the kernel
 //  - the second argument (kernel) is the name of the kernel
@@ -114,6 +115,78 @@ public:
 //  3. struct K##name##_T definition which holds the keys/kernels instance
 //  4. Instantiator definition of the current kernel
 //  5. the kernel signature by re-using all the arguments
+//
+// /////////////////////////////////////////////////////////////////////////////
+// For example:
+// MFEM_REGISTER_TMOP_KERNELS(void, Name,
+//                            const int NE,
+//                            const Array<double> &b,
+//                            Vector &diagonal,
+//                            const int d1d,
+//                            const int q1d) {...}
+//
+// The resulting code would be:
+//
+// 1. forward declaration of the kernel
+// template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
+// void Name(const int NE,
+//           const Array<double> &b,
+//           Vector &diagonal,
+//           const int d1d,
+//           const int q1d);
+//
+// 2. kernel pointer declaration
+// typedef void (*Name_p)(const int NE,
+//                        const Array<double> &b,
+//                        Vector &diagonal,
+//                        const int d1d,
+//                        const int q1d);
+//
+// 3. struct K##Name##_T definition which holds the keys/kernels instance
+// struct KName_T
+// {
+//    static const int N = 14;
+//    using Key_t = std::size_t;
+//    using Return_t = void;
+//    using Kernel_t = Name_p;
+//    template<Key_t I> static constexpr Key_t GetKey() noexcept
+//    {
+//       return I==0 ? 0x22 : I==1 ? 0x23 : I==2 ? 0x24 : I==3 ? 0x25 :
+//              I==4 ? 0x26 : I== 5 ? 0x33 : I==6 ? 0x34 : I==7 ? 0x35 :
+//              I==8 ? 0x36 : I==9 ? 0x44 : I==10 ? 0x45 : I==11 ? 0x46 :
+//              I==12 ? 0x55 : I==13 ? 0x56 : 0;
+//    }
+//    template<Key_t K> static constexpr Kernel_t GetKer() noexcept
+//    {
+//       return &AssembleDiagonalPA_Kernel_2D<(K>>4)&0xF, K&0xF>;
+//    }
+// };
+//
+// 4. Instantiator definition of the current kernel
+// static kernels::Instantiator<KName_T> KName;
+//
+// 5. the kernel signature by re-using all the arguments
+// template<int T_D1D, int T_Q1D, int T_MAX>
+// void Name(const int NE,
+//           const Array<double> &b,
+//           Vector &diagonal,
+//           const int d1d,
+//           const int q1d) {...}
+
+// /////////////////////////////////////////////////////////////////////////////
+// All of which allows to launch the kernel with a specific id ((D1D<<4)|Q1D).
+//
+// For example, a MFEM_LAUNCH_TMOP_KERNEL(Name,id,NE,B,D); call would result in:
+//
+// if (KName.Find(id)) { return KName.At(id)(NE,B,D,0,0); }
+// else
+// {
+//    constexpr int T_MAX = 4;
+//    const int D1D = (id>>4)&0xF, Q1D = id&0xF;
+//    MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
+//    return Name<0,0,T_MAX>(NE,B,D,D1D,Q1D);
+// };
+
 #define MFEM_REGISTER_TMOP_KERNELS(return_t, kernel, ...) \
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
     return_t kernel(__VA_ARGS__);\
