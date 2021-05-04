@@ -147,7 +147,7 @@ struct Memory
 /// Alias class that holds the base memory region and the offset
 struct Alias
 {
-   Memory *const mem;
+   Memory *const mem; // base would have been more clear...
    const size_t offset, bytes;
    size_t counter;
    const MemoryType h_mt;
@@ -881,6 +881,7 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
    if (!mm.exists || !registered) { return mt; }
    if (alias)
    {
+      // Why owns_internal is required since aliases are ref counted??
       if (owns_internal)
       {
          const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;

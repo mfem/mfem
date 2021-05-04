@@ -1011,40 +1011,64 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   const size_t bytes = size * sizeof(T);
-   if (!(flags & REGISTERED))
+   if (mc == MemoryClass::HOST)
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
-                               flags & OWNS_HOST, flags & ALIAS, flags);
+      MFEM_ASSERT(!(flags & REGISTERED),
+                  "Host pointer shouldn't be registered.");
+      return h_ptr;
    }
-   return (T*)MemoryManager::ReadWrite_(h_ptr, h_mt, mc, bytes, flags);
+   else
+   {
+      if (!(flags & REGISTERED))
+      {
+         MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
+                                 flags & OWNS_HOST, flags & ALIAS, flags);
+      }
+      const size_t bytes = size * sizeof(T);
+      return (T*)MemoryManager::ReadWrite_(h_ptr, h_mt, mc, bytes, flags);
+   }
 }
 
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   const size_t bytes = size * sizeof(T);
-   if (!(flags & REGISTERED))
+   if (mc == MemoryClass::HOST)
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
-                               flags & OWNS_HOST, flags & ALIAS, flags);
+      MFEM_ASSERT(!(flags & REGISTERED),
+                  "Host pointer shouldn't be registered.");
+      return h_ptr;
    }
-   return (const T*)MemoryManager::Read_(h_ptr, h_mt, mc, bytes, flags);
+   else
+   {
+      if (!(flags & REGISTERED))
+      {
+         MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
+                                 flags & OWNS_HOST, flags & ALIAS, flags);
+      }
+      const size_t bytes = size * sizeof(T);
+      return (const T*)MemoryManager::Read_(h_ptr, h_mt, mc, bytes, flags);
+   }
 }
 
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   const size_t bytes = size * sizeof(T);
-   if (!(flags & REGISTERED))
+   if (mc == MemoryClass::HOST)
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
-                               flags & OWNS_HOST, flags & ALIAS, flags);
+      MFEM_ASSERT(!(flags & REGISTERED),
+                  "Host pointer shouldn't be registered.");
+      return h_ptr;
    }
-   return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
+   else
+   {
+      if (!(flags & REGISTERED))
+      {
+         MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
+                                 flags & OWNS_HOST, flags & ALIAS, flags);
+      }
+      const size_t bytes = size * sizeof(T);
+      return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
+   }
 }
 
 template <typename T>
