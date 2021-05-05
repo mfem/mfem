@@ -934,6 +934,7 @@ public:
    /**
     * Constructor.
     *
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *                  let Ginkgo use its own internal default value.
     */
