@@ -11277,7 +11277,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
-GeometricFactors::GeometricFactors(const GridFunction *nodes_,
+GeometricFactors::GeometricFactors(const GridFunction &nodes,
                                    const IntegrationRule &ir,
                                    int flags, MemoryType d_mt)
 {
