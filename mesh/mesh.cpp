@@ -11327,12 +11327,12 @@ GeometricFactors::GeometricFactors(const GridFunction &nodes,
    if (elem_restr) // Always true as of 2021-04-27
    {
       Vector Enodes(vdim*ND*NE, my_d_mt);
-      elem_restr->Mult(*nodes, Enodes);
+      elem_restr->Mult(nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
    else
    {
-      qi->Mult(*nodes, eval_flags, X, J, detJ);
+      qi->Mult(nodes, eval_flags, X, J, detJ);
    }
 }
 
