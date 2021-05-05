@@ -440,7 +440,6 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
       test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob);
    }
 
-   // Test AMR cases (DG not implemented)
    SECTION("AMR 2D")
    {
       test_pa_convection("../../data/amr-quad.mesh", order_2d, prob);
