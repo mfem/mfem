@@ -11315,10 +11315,7 @@ GeometricFactors::GeometricFactors(const GridFunction &nodes,
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    // All X, J, and detJ use this layout:
    qi->SetOutputLayout(QVectorLayout::byNODES);
-   // Same as UsesTensorBasis(*fespace) but we already have GetFE(0):
-   const bool use_tensor_products = dynamic_cast<const TensorBasisElement*>(fe)
-                                    != nullptr;
-   qi->DisableTensorProducts(!use_tensor_products);
+   qi->DisableTensorProducts(!UsesTensorBasis(*fespace));
    const ElementDofOrdering e_ordering = use_tensor_products ?
                                          ElementDofOrdering::LEXICOGRAPHIC :
                                          ElementDofOrdering::NATIVE;
