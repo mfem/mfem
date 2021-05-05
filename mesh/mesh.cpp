@@ -11285,8 +11285,7 @@ GeometricFactors::GeometricFactors(const GridFunction *nodes_,
    IntRule = &ir;
    computed_factors = flags;
 
-   const GridFunction *nodes = nodes_;
-   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElementSpace *fespace = nodes.FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
    const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
