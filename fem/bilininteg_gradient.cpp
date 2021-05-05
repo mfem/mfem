@@ -71,16 +71,19 @@ namespace mfem
 
 // PA Gradient Assemble 2D kernel
 static void PAGradientSetup2D(const int Q1D,
+			      const int coeffDim,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              const double COEFF,
+                              const Vector &COEFF,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
+
+   const auto C = Reshape(COEFF.Read(), NQ, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -91,30 +94,37 @@ static void PAGradientSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J22 = J(q,1,1,e);
          // Store wq * Q * adj(J)
-         y(q,0,0,e) = W[q] * COEFF *  J22; // 1,1
-         y(q,0,1,e) = W[q] * COEFF * -J12; // 1,2
-         y(q,1,0,e) = W[q] * COEFF * -J21; // 2,1
-         y(q,1,1,e) = W[q] * COEFF *  J11; // 2,2
+	 double Co = C(q, e);
+         y(q,0,0,e) = W[q] * Co *  J22; // 1,1
+         y(q,0,1,e) = W[q] * Co * -J12; // 1,2
+         y(q,1,0,e) = W[q] * Co * -J21; // 2,1
+         y(q,1,1,e) = W[q] * Co *  J11; // 2,2
       }
    });
 }
 
 // PA Gradient Assemble 3D kernel
 static void PAGradientSetup3D(const int Q1D,
+			      const int coeffDim,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              const double COEFF,
+                              const Vector &COEFF,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
+
+   const auto C = Reshape(COEFF.Read(), NQ, NE);
+
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
+	 double Co = C(q, e);
+
          const double J11 = J(q,0,0,e);
          const double J21 = J(q,1,0,e);
          const double J31 = J(q,2,0,e);
@@ -124,7 +134,7 @@ static void PAGradientSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         const double cw  = W[q] * COEFF;
+         const double cw  = W[q] * Co;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -153,20 +163,21 @@ static void PAGradientSetup(const int dim,
                             const int TR_D1D,
                             const int TE_D1D,
                             const int Q1D,
+			    const int coeffDim,
                             const int NE,
                             const Array<double> &W,
                             const Vector &J,
-                            const double COEFF,
+                            const Vector &COEFF,
                             Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAGradientSetup"); }
    if (dim == 2)
    {
-      PAGradientSetup2D(Q1D, NE, W, J, COEFF, op);
+     PAGradientSetup2D(Q1D, coeffDim, NE, W, J, COEFF, op);
    }
    if (dim == 3)
    {
-      PAGradientSetup3D(Q1D, NE, W, J, COEFF, op);
+     PAGradientSetup3D(Q1D, coeffDim, NE, W, J, COEFF, op);
    }
 }
 
@@ -196,14 +207,55 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_ASSERT(quad1D == test_maps->nqpt,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
-   double coeff = 1.0;
-   if (Q)
+   // double coeff = 1.0;
+   int coeffDim = 1;
+   Vector coeff;
+
+   if (Q == nullptr)
+     {
+       coeff.SetSize(1);
+       coeff(0) = 1.0;
+     }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+     {
+       coeff.SetSize(1);
+       coeff(0) = cQ->constant;
+     }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      coeff = cQ->constant;
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == ne*nq,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
-   PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
+   else
+   {
+     coeff.SetSize(nq * ne);
+     auto C = Reshape(coeff.HostWrite(), nq, ne);
+     for (int e = 0; e < ne; ++e)
+       {
+         ElementTransformation& T = *trial_fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+	   {
+	     C(q,e) = Q->Eval(T, ir->IntPoint(q));
+	   }
+       }
+   }
+
+
+   // if (Q)
+   // {
+   //    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+   //    MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+   //    coeff = cQ->constant;
+   // }
+   PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D, coeffDim,
                    ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
