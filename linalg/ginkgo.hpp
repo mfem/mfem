@@ -604,8 +604,7 @@ public:
     * base class constructor.
     *
     */
-   GinkgoIterativeSolver(GinkgoExecutor &exec, int print_iter,
-                         int max_num_iter, double RTOLERANCE, double ATOLERANCE,
+   GinkgoIterativeSolver(GinkgoExecutor &exec,
                          bool use_implicit_res_norm);
 
    /**
@@ -652,6 +651,7 @@ public:
    };
 
 protected:
+   bool use_implicit_res_norm;
    int print_level;
    int max_iter;
    double rel_tol;
@@ -735,6 +735,11 @@ protected:
     */
    bool sub_op_needs_wrapped_vecs;
 
+   /** Rebuild the Ginkgo stopping criterion factory with the latest values
+    * of rel_tol, abs_tol, and max_iter.
+    */
+   void update_stop_factory();
+
 private:
    /**
     * Initialize the Ginkgo logger object with event masks. Refer to the logging
@@ -751,50 +756,80 @@ private:
 
 };
 
+/**
+ * This class adds helper functions for updating Ginkgo factories
+ * and solvers, when the full class type is needed.  The derived classes
+ * should inherit from this class, rather than from GinkgoIterativeSolver
+ * directly.
+ */
+template<typename SolverType>
+class EnableGinkgoSolver : public GinkgoIterativeSolver
+{
+public:
+   EnableGinkgoSolver(GinkgoExecutor &exec, bool use_implicit_res_norm) :
+      GinkgoIterativeSolver(exec, use_implicit_res_norm) {}
+
+   void SetRelTol(double rtol)
+   {
+      rel_tol = rtol;
+      this->update_stop_factory();
+      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
+      { combined_factory };
+      if (solver)
+      {
+         gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
+      }
+   }
+
+   void SetAbsTol(double atol)
+   {
+      abs_tol = atol;
+      this->update_stop_factory();
+      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
+      { combined_factory };
+      if (solver)
+      {
+         gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
+      }
+   }
+
+   void SetMaxIter(int max_it)
+   {
+      max_iter = max_it;
+      this->update_stop_factory();
+      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
+      { combined_factory };
+      if (solver)
+      {
+         gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
+      }
+   }
+};
+
 
 /**
  * An implementation of the solver interface using the Ginkgo CG solver.
  *
  * @ingroup Ginkgo
  */
-class CGSolver : public GinkgoIterativeSolver
+class CGSolver : public EnableGinkgoSolver<gko::solver::Cg<double>>
 {
 public:
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
-   CGSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   CGSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   CGSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const GinkgoPreconditioner &preconditioner
-   );
+   CGSolver(GinkgoExecutor &exec,
+            const GinkgoPreconditioner &preconditioner);
 };
 
 
@@ -803,44 +838,24 @@ public:
  *
  * @ingroup Ginkgo
  */
-class BICGSTABSolver : public GinkgoIterativeSolver
+class BICGSTABSolver : public EnableGinkgoSolver<gko::solver::Bicgstab<double>>
 {
 public:
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
-   BICGSTABSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   BICGSTABSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   BICGSTABSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const GinkgoPreconditioner &preconditioner
-   );
+   BICGSTABSolver(GinkgoExecutor &exec,
+                  const GinkgoPreconditioner &preconditioner);
 
 };
 
@@ -852,44 +867,24 @@ public:
  *
  * @ingroup Ginkgo
  */
-class CGSSolver : public GinkgoIterativeSolver
+class CGSSolver : public EnableGinkgoSolver<gko::solver::Cgs<double>>
 {
 public:
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
-   CGSSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   CGSSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   CGSSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const GinkgoPreconditioner &preconditioner
-   );
+   CGSSolver(GinkgoExecutor &exec,
+             const GinkgoPreconditioner &preconditioner);
 };
 
 /**
@@ -908,44 +903,24 @@ public:
  *
  * @ingroup Ginkgo
  */
-class FCGSolver : public GinkgoIterativeSolver
+class FCGSolver : public EnableGinkgoSolver<gko::solver::Fcg<double>>
 {
 public:
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
-   FCGSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   FCGSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   FCGSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const GinkgoPreconditioner &preconditioner
-   );
+   FCGSolver(GinkgoExecutor &exec,
+             const GinkgoPreconditioner &preconditioner);
 };
 
 /**
@@ -953,50 +928,28 @@ public:
  *
  * @ingroup Ginkgo
  */
-class GMRESSolver : public GinkgoIterativeSolver
+class GMRESSolver : public EnableGinkgoSolver<gko::solver::Gmres<double>>
 {
 public:
    /**
     * Constructor.
     *
-    * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *                  let Ginkgo use its own internal default value.
     */
-   GMRESSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      int dim = 0
-   );
+   GMRESSolver(GinkgoExecutor &exec, int dim = 0);
 
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *                  let Ginkgo use its own internal default value.
     */
-   GMRESSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const GinkgoPreconditioner &preconditioner,
-      int dim = 0
-   );
+   GMRESSolver(GinkgoExecutor &exec,
+               const GinkgoPreconditioner &preconditioner,
+               int dim = 0);
 
 protected:
    int m; // Dimension of Krylov subspace
@@ -1015,17 +968,13 @@ using gko::solver::cb_gmres::storage_precision;
  *
  * @ingroup Ginkgo
  */
-class CBGMRESSolver : public GinkgoIterativeSolver
+class CBGMRESSolver : public EnableGinkgoSolver<gko::solver::CbGmres<double>>
 {
 public:
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *  let Ginkgo use its own internal default value.
     * @param[in] prec  The storage precision used in the CB-GMRES. Options
@@ -1035,24 +984,13 @@ public:
     *  See Ginkgo documentation for more about the CB-GMRES and
     *  these options.
     */
-   CBGMRESSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      int dim = 0,
-      storage_precision prec = storage_precision::reduce1
-   );
+   CBGMRESSolver(GinkgoExecutor &exec, int dim = 0,
+                 storage_precision prec = storage_precision::reduce1);
 
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *  let Ginkgo use its own internal default value.
@@ -1063,16 +1001,10 @@ public:
     *  See Ginkgo documentation for more about the CB-GMRES and
     *  these options.
     */
-   CBGMRESSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const GinkgoPreconditioner &preconditioner,
-      int dim = 0,
-      storage_precision prec = storage_precision::reduce1
-   );
+   CBGMRESSolver(GinkgoExecutor &exec,
+                 const GinkgoPreconditioner &preconditioner,
+                 int dim = 0,
+                 storage_precision prec = storage_precision::reduce1);
 
 protected:
    int m; // Dimension of Krylov subspace
@@ -1087,44 +1019,24 @@ protected:
  *
  * @ingroup Ginkgo
  */
-class IRSolver : public GinkgoIterativeSolver
+class IRSolver : public EnableGinkgoSolver<gko::solver::Ir<double>>
 {
 public:
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
-   IRSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   IRSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] inner_solver  The inner solver for the main solver.
     */
-   IRSolver(
-      GinkgoExecutor &exec,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const GinkgoIterativeSolver &inner_solver
-   );
+   IRSolver(GinkgoExecutor &exec,
+            const GinkgoIterativeSolver &inner_solver);
 
 };
 
