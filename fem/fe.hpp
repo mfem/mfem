@@ -3452,6 +3452,11 @@ class ND_R2D_SegmentElement : public VectorFiniteElement
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
 public:
    /** @brief Construct the ND_R2D_SegmentElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
@@ -3469,7 +3474,8 @@ public:
                               DenseMatrix &curl_shape) const;
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const;
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
                                     DenseMatrix &R) const
@@ -3478,7 +3484,7 @@ public:
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
-   { MFEM_ABORT("method is not overloaded"); }
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
@@ -3493,9 +3499,9 @@ protected:
    ND_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe);
 
 private:
-   void LocalInterpolation_ND_R2D(const VectorFiniteElement &cfe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const;
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
 
 public:
    using FiniteElement::CalcVShape;
@@ -3509,7 +3515,7 @@ public:
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND_R2D(*this, Trans, I); }
+   { LocalInterpolation(*this, Trans, I); }
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
                                     DenseMatrix &R) const;
@@ -3517,7 +3523,7 @@ public:
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
-   { LocalInterpolation_ND_R2D(CheckVectorFE(fe), Trans, I); }
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
@@ -3603,6 +3609,11 @@ class RT_R2D_SegmentElement : public VectorFiniteElement
 
    Poly_1D::Basis &obasis1d;
 
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
 public:
    /** @brief Construct the RT_R2D_SegmentElement of order @a p and open
        BasisType @a ob_type */
@@ -3619,7 +3630,8 @@ public:
                              Vector &div_shape) const;
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const;
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
                                     DenseMatrix &R) const
@@ -3628,7 +3640,7 @@ public:
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
-   { MFEM_ABORT("method is not overloaded"); }
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 };
 
 class RT_R2D_FiniteElement : public VectorFiniteElement
@@ -3640,9 +3652,9 @@ protected:
    RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe);
 
 private:
-   void LocalInterpolation_RT_R2D(const VectorFiniteElement &cfe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const;
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
 
 public:
    using FiniteElement::CalcVShape;
@@ -3652,7 +3664,7 @@ public:
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT_R2D(*this, Trans, I); }
+   { LocalInterpolation(*this, Trans, I); }
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
                                     DenseMatrix &R) const;
@@ -3660,7 +3672,7 @@ public:
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
-   { LocalInterpolation_RT_R2D(CheckVectorFE(fe), Trans, I); }
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
