@@ -26,7 +26,7 @@
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
 //    mpirun -np 4 ex9p -ea -m ../data/periodic-cube.mesh -d cuda
 //    mpirun -np 4 ex9p -fa -m ../data/periodic-cube.mesh -d cuda
-//    mpirun -np 4 ex9p -pa -m ../data/fichera-amr.mesh -dt 0.001 -tf 0.1 -d cuda
+//    mpirun -np 4 ex9p -pa -m ../data/fichera-amr.mesh -dt 0.0001 -tf 0.01 -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
