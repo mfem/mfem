@@ -1522,6 +1522,11 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
     Mesh. See Mesh::GetGeometricFactors(). */
 class GeometricFactors
 {
+
+private:
+   void Init(const GridFunction &nodes,
+             MemoryType d_mt = MemoryType::DEFAULT);
+
 public:
    const Mesh *mesh;
    const IntegrationRule *IntRule;

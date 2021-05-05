@@ -11225,56 +11225,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                "mixed meshes are not supported!");
    MFEM_ASSERT(mesh->GetNodes(), "meshes without nodes are not supported!");
 
-   const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fespace = nodes->FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
-   const int dim  = fe->GetDim();
-   const int vdim = fespace->GetVDim();
-   const int NE   = fespace->GetNE();
-   const int ND   = fe->GetDof();
-   const int NQ   = ir.GetNPoints();
-
-   unsigned eval_flags = 0;
-   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
-                        Device::GetDeviceMemoryType();
-   if (flags & GeometricFactors::COORDINATES)
-   {
-      X.SetSize(vdim*NQ*NE, my_d_mt); // NQ x SDIM x NE
-      eval_flags |= QuadratureInterpolator::VALUES;
-   }
-   if (flags & GeometricFactors::JACOBIANS)
-   {
-      J.SetSize(dim*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
-      eval_flags |= QuadratureInterpolator::DERIVATIVES;
-   }
-   if (flags & GeometricFactors::DETERMINANTS)
-   {
-      detJ.SetSize(NQ*NE, my_d_mt); // NQ x NE
-      eval_flags |= QuadratureInterpolator::DETERMINANTS;
-   }
-
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   // All X, J, and detJ use this layout:
-   qi->SetOutputLayout(QVectorLayout::byNODES);
-
-   const bool use_tensor_products = UsesTensorBasis(*fespace);
-
-   qi->DisableTensorProducts(!use_tensor_products);
-   const ElementDofOrdering e_ordering = use_tensor_products ?
-                                         ElementDofOrdering::LEXICOGRAPHIC :
-                                         ElementDofOrdering::NATIVE;
-   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
-
-   if (elem_restr) // Always true as of 2021-04-27
-   {
-      Vector Enodes(vdim*ND*NE, my_d_mt);
-      elem_restr->Mult(*nodes, Enodes);
-      qi->Mult(Enodes, eval_flags, X, J, detJ);
-   }
-   else
-   {
-      qi->Mult(*nodes, eval_flags, X, J, detJ);
-   }
+   Init(*mesh->GetNodes(), d_mt);
 }
 
 GeometricFactors::GeometricFactors(const GridFunction &nodes,
@@ -11285,34 +11236,41 @@ GeometricFactors::GeometricFactors(const GridFunction &nodes,
    IntRule = &ir;
    computed_factors = flags;
 
+   Init(nodes, d_mt);
+}
+
+void GeometricFactors::Init(const GridFunction &nodes,
+                            MemoryType d_mt)
+{
+
    const FiniteElementSpace *fespace = nodes.FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
    const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
-   const int NQ   = ir.GetNPoints();
+   const int NQ   = IntRule->GetNPoints();
 
    unsigned eval_flags = 0;
    MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
                         Device::GetDeviceMemoryType();
-   if (flags & GeometricFactors::COORDINATES)
+   if (computed_factors & GeometricFactors::COORDINATES)
    {
       X.SetSize(vdim*NQ*NE, my_d_mt); // NQ x SDIM x NE
       eval_flags |= QuadratureInterpolator::VALUES;
    }
-   if (flags & GeometricFactors::JACOBIANS)
+   if (computed_factors & GeometricFactors::JACOBIANS)
    {
       J.SetSize(dim*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
-   if (flags & GeometricFactors::DETERMINANTS)
+   if (computed_factors & GeometricFactors::DETERMINANTS)
    {
       detJ.SetSize(NQ*NE, my_d_mt); // NQ x NE
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(*IntRule);
    // All X, J, and detJ use this layout:
    qi->SetOutputLayout(QVectorLayout::byNODES);
 
