@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
          fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
       }
    }
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl
