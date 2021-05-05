@@ -6620,22 +6620,31 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    {
       Array< Pair<int,int> > psize(nparts);
       int empty_parts;
-      for (i = 0; i < nparts; i++)
-      {
-         psize[i].one = 0;
-         psize[i].two = i;
-      }
 
-      for (i = 0; i < NumOfElements; i++)
+      // Count how many elements are in each partition, and store the result in
+      // psize, where psize[i].one is the number of elements, and psize[i].two
+      // is partition index. Keep track of the number of empty parts.
+      auto count_partition_elements = [&]()
       {
-         psize[partitioning[i]].one++;
-      }
+         for (i = 0; i < nparts; i++)
+         {
+            psize[i].one = 0;
+            psize[i].two = i;
+         }
 
-      empty_parts = 0;
-      for (i = 0; i < nparts; i++)
-      {
-         if (psize[i].one == 0) { empty_parts++; }
-      }
+         for (i = 0; i < NumOfElements; i++)
+         {
+            psize[partitioning[i]].one++;
+         }
+
+         empty_parts = 0;
+         for (i = 0; i < nparts; i++)
+         {
+            if (psize[i].one == 0) { empty_parts++; }
+         }
+      };
+
+      count_partition_elements();
 
       // This code just split the largest partitionings in two.
       // Do we need to replace it with something better?
@@ -6672,22 +6681,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          }
 
          // Check for empty partitionings again
-         for (i = 0; i < nparts; i++)
-         {
-            psize[i].one = 0;
-         }
-
-         for (i = 0; i < NumOfElements; i++)
-         {
-            psize[partitioning[i]].one++;
-         }
-
-         empty_parts = 0;
-         for (i = 0; i < nparts; i++)
-         {
-            if (psize[i].one == 0) { empty_parts++; }
-         }
-
+         count_partition_elements();
       }
    }
 
@@ -11306,6 +11300,10 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    IntRule = &ir;
    computed_factors = flags;
 
+   MFEM_ASSERT(mesh->GetNumGeometries(mesh->Dimension()) <= 1,
+               "mixed meshes are not supported!");
+   MFEM_ASSERT(mesh->GetNodes(), "meshes without nodes are not supported!");
+
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
@@ -11315,34 +11313,38 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
 
-   // For now, we are not using tensor product evaluation
-   const Operator *elem_restr = fespace->GetElementRestriction(
-                                   ElementDofOrdering::NATIVE);
-
    unsigned eval_flags = 0;
    MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
                         Device::GetDeviceMemoryType();
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, my_d_mt);
+      X.SetSize(vdim*NQ*NE, my_d_mt); // NQ x SDIM x NE
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, my_d_mt);
+      detJ.SetSize(NQ*NE, my_d_mt); // NQ x NE
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   // For now, we are not using tensor product evaluation (not implemented)
-   qi->DisableTensorProducts();
+   // All X, J, and detJ use this layout:
    qi->SetOutputLayout(QVectorLayout::byNODES);
-   if (elem_restr)
+   // Same as UsesTensorBasis(*fespace) but we already have GetFE(0):
+   const bool use_tensor_products = dynamic_cast<const TensorBasisElement*>(fe)
+                                    != nullptr;
+   qi->DisableTensorProducts(!use_tensor_products);
+   const ElementDofOrdering e_ordering = use_tensor_products ?
+                                         ElementDofOrdering::LEXICOGRAPHIC :
+                                         ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
+
+   if (elem_restr) // Always true as of 2021-04-27
    {
       Vector Enodes(vdim*ND*NE, my_d_mt);
       elem_restr->Mult(*nodes, Enodes);
