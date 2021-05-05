@@ -1537,7 +1537,7 @@ public:
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
                     MemoryType d_mt = MemoryType::DEFAULT);
 
-   GeometricFactors(const GridFunction *nodes_, const IntegrationRule &ir,
+   GeometricFactors(const GridFunction &nodes, const IntegrationRule &ir,
                     int flags,
                     MemoryType d_mt = MemoryType::DEFAULT);
 
