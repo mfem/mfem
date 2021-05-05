@@ -779,7 +779,6 @@ void Mesh::GetLocalQuadToWdgTransformation(
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
                                                   const int flags,
-                                                  DofToQuad::Mode mode,
                                                   MemoryType d_mt)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -792,7 +791,8 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    }
 
    this->EnsureNodes();
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags, mode, d_mt);
+
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags, d_mt);
    geom_factors.Append(gf);
    return gf;
 }
@@ -11215,8 +11215,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags, DofToQuad::Mode mode,
-                                   MemoryType d_mt)
+                                   int flags, MemoryType d_mt)
 {
    this->mesh = mesh;
    IntRule = &ir;

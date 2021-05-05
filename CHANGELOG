@@ -268,8 +268,6 @@ Linear and nonlinear solvers
   matrix-based and matrix-free discretizations with basic GPU capability, see
   Example 26/26p.
 
-- Added support for Chebyshev accelerated polynomial smoother on GPU.
-
 - Added support for the CVODES package in SUNDIALS which provides ODE solvers
   with sensitivity analysis capabilities. See the CVODESSolver class and the new
   adjoint miniapps in the miniapps/adjoint directory.

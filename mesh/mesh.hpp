@@ -862,7 +862,6 @@ public:
    const GeometricFactors* GetGeometricFactors(
       const IntegrationRule& ir,
       const int flags,
-      DofToQuad::Mode = DofToQuad::FULL,
       MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
@@ -1536,7 +1535,6 @@ public:
    };
 
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                    DofToQuad::Mode = DofToQuad::FULL,
                     MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
