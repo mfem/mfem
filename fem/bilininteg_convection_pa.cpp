@@ -74,7 +74,7 @@ static void PAConvectionSetup3D(const int Q1D,
                                 Vector &op)
 {
    constexpr int DIM = 3;
-   constexpr int SDIM = 3; // has been verified
+   constexpr int SDIM = DIM;
    const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
    const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,SDIM,DIM,NE);
    const bool const_v = vel.Size() == DIM;
@@ -818,10 +818,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
       const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
       const Operator *R = gf_fes.GetElementRestriction(ordering);
-
-      MFEM_VERIFY(R,"");
-      MFEM_VERIFY(dim == 2 || dim == 3,"");
-      MFEM_VERIFY(gf_fes.GetVDim() == dim, "");
 
       Vector xe(R->Height(), Device::GetMemoryType());
       xe.UseDevice(true);
