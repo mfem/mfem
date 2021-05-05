@@ -247,11 +247,12 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       {
          int e1, e2;
          int inf1, inf2;
+         int ncface;
          fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
          int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
+             (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
