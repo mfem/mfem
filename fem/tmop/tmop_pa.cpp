@@ -198,7 +198,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    PA.maps = &fes.GetFE(0)->GetDofToQuad(ir, mode);
-   PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS, mode);
+   PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
 
    // Energy vector
    PA.E.UseDevice(true);
