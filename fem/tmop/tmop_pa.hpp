@@ -37,7 +37,7 @@ void Emplace(std::unordered_map<Key_t, Kernel_t> &map)
 }
 
 /// Instances
-template<class K, typename T, T... idx>
+template<class K, int... idx>
 struct Instances
 {
    static void Fill(std::unordered_map<typename K::Key_t,
@@ -49,54 +49,40 @@ struct Instances
 };
 
 /// Cat instances
-template<class K, typename Offset, typename LHS, typename RHS> struct Cat;
-template<class K, typename T, T Offset, T... LHS, T... RHS>
-struct Cat<K, std::integral_constant<T, Offset>,
-          Instances<K, T, LHS...>, Instances<K, T, RHS...> >
-{ using Type = Instances<K, T, LHS..., (Offset + RHS)...>; };
+template<class K, int M, typename LHS, typename RHS> struct Cat;
+template<class K, int M, int... LHS, int... RHS>
+struct Cat<K,M, Instances<K,LHS...>, Instances<K,RHS...> >
+{ using CAT = Instances<K, LHS..., (M + RHS)...>; };
 
-/// Sequence
-template<class K, typename T, typename N>
-struct Sequence
+/// Sequence, empty & terminal case
+template<class K, int N> struct Sequence
 {
-   using LHS = std::integral_constant<T, N::value/2>;
-   using RHS = std::integral_constant<T, N::value-LHS::value>;
-   using Type = typename kernels::Cat<K,LHS,
-         typename Sequence<K,T,LHS>::Type,
-         typename Sequence<K,T,RHS>::Type>::Type;
+   static constexpr int M = N / 2;
+   static constexpr int R = N - M;
+   using LHS = typename Sequence<K,M>::SEQ;
+   using RHS = typename Sequence<K,R>::SEQ;
+   using SEQ = typename kernels::Cat<K,M,LHS,RHS>::CAT;
 };
+template<class K> struct Sequence<K,0> { using SEQ = Instances<K>; };
+template<class K> struct Sequence<K,1> { using SEQ = Instances<K,0>; };
 
-/// Sequence: empty
-template<class K, typename T>
-struct Sequence<K,T,std::integral_constant<T,0> >
-{ using Type = Instances<K,T>; };
+/// Kernel MakeSequence
+template<class K> using MakeSequence = typename Sequence<K,K::N>::SEQ;
 
-/// Sequence: terminal cases
-template<class K, typename T>
-struct Sequence<K,T,std::integral_constant<T,1> >
-{ using Type = Instances<K,T,0>; };
-
-/// Kernel Make_sequence
-template<class Instance, typename T = typename Instance::Key_t>
-using MakeSequence =
-   typename Sequence<Instance,T,std::integral_constant<T,Instance::N> >::Type;
-
-
-/// Kernel Instantiator class which creates an unordered_map of the Keys/Kernels
-/// declared within the Instance.
-template<class Instance,
-         typename Key_t = typename Instance::Key_t,
-         typename Return_t = typename Instance::Return_t,
-         typename Kernel_t = typename Instance::Kernel_t>
-class Instantiator
+/// KernelMap class which creates an unordered_map of the Keys/Kernels
+template<class K,
+         typename Key_t = typename K::Key_t,
+         typename Return_t = typename K::Return_t,
+         typename Kernel_t = typename K::Kernel_t>
+class KernelMap
 {
 private:
    using map_t = std::unordered_map<Key_t, Kernel_t>;
    map_t map;
 
 public:
-   // Fill all the map with the Keys/Kernels declared in the Instance
-   Instantiator() { kernels::MakeSequence<Instance>().Fill(map); }
+   // Fill all the map with the Keys/Kernels
+   KernelMap() { kernels::MakeSequence<K>().Fill(map); }
 
    bool Find(const Key_t id) { return map.find(id) != map.end(); }
 
@@ -112,8 +98,8 @@ public:
 // This call will output the followings:
 //  1. forward declaration of the kernel
 //  2. kernel pointer declaration
-//  3. struct K##name##_T definition which holds the keys/kernels instance
-//  4. Instantiator definition of the current kernel
+//  3. struct K##name##_T definition which holds the keys/kernels map
+//  4. KernelMap definition of the current kernel
 //  5. the kernel signature by re-using all the arguments
 //
 // /////////////////////////////////////////////////////////////////////////////
@@ -146,7 +132,7 @@ public:
 // struct KName_T
 // {
 //    static const int N = 14;
-//    using Key_t = std::size_t;
+//    using Key_t = int;
 //    using Return_t = void;
 //    using Kernel_t = Name_p;
 //    template<Key_t I> static constexpr Key_t GetKey() noexcept
@@ -162,8 +148,8 @@ public:
 //    }
 // };
 //
-// 4. Instantiator definition of the current kernel
-// static kernels::Instantiator<KName_T> KName;
+// 4. KernelMap definition of the current kernel
+// static kernels::KernelMap<KName_T> KName;
 //
 // 5. the kernel signature by re-using all the arguments
 // template<int T_D1D, int T_Q1D, int T_MAX>
@@ -193,7 +179,7 @@ template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
 typedef return_t (*kernel##_p)(__VA_ARGS__);\
 struct K##kernel##_T {\
    static const int N = 14;\
-   using Key_t = std::size_t;\
+   using Key_t = int;\
    using Return_t = return_t;\
    using Kernel_t = kernel##_p;\
    template<Key_t I> static constexpr Key_t GetKey() noexcept { return \
@@ -204,7 +190,7 @@ struct K##kernel##_T {\
    template<Key_t K> static constexpr Kernel_t GetKer() noexcept\
    { return &kernel<(K>>4)&0xF, K&0xF>; }\
 };\
-static kernels::Instantiator<K##kernel##_T> K##kernel;\
+static kernels::KernelMap<K##kernel##_T> K##kernel;\
 template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
 
 // MFEM_LAUNCH_TMOP_KERNEL macro
