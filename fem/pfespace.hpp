@@ -118,7 +118,8 @@ private:
    void CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
                                    Array<VarOrderBits> &ghost_face_orders) const;
 
-   int FindVarDof(int entity, int index, int order, bool quiet = false) const;
+   /// Return edge/face (entity=1/2) first DOF corresponding to 'order'.
+   int FindVarDof(int entity, int index, int order) const;
 
    typedef NCMesh::MeshId MeshId;
    typedef ParNCMesh::GroupId GroupId;

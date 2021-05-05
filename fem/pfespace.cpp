@@ -310,18 +310,10 @@ void ParFiniteElementSpace
    }
 }
 
-int ParFiniteElementSpace::FindVarDof(int entity, int index, int order,
-                                      bool quiet) const
+int ParFiniteElementSpace::FindVarDof(int entity, int index, int order) const
 {
-   int ghost = (entity == 1) ? pncmesh->GetNEdges() : pncmesh->GetNFaces();
-   if (index < ghost)
-   {
-      // first try the standard variable order tables
-      int dof = FiniteElementSpace::FindVarDof(entity, index, order, true);
-      if (dof >= 0) { return dof; }
-   }
-
-   // normal DOF not found, check ghost var DOFs
+   // first check ghost DOF variants
+   MFEM_ASSERT(entity == 1 || entity == 2, "");
    const int *I = ghost_var_dofs[entity-1].GetI();
    const int *J = ghost_var_dofs[entity-1].GetJ();
 
@@ -330,11 +322,15 @@ int ParFiniteElementSpace::FindVarDof(int entity, int index, int order,
       if (ghost_var_orders[entity-1][j] == order) { return J[j]; }
    }
 
-   if (!quiet)
+   // now try non-ghost DOFs
+   int ghost = (entity == 1) ? pncmesh->GetNEdges() : pncmesh->GetNFaces();
+   if (index < ghost)
    {
-      MFEM_ABORT((entity == 1 ? "edge " : "face ") << index
-                 << " DOFs not found for order " << order);
+      return FiniteElementSpace::FindVarDof(entity, index, order);
    }
+
+   MFEM_ABORT((entity == 1 ? "edge " : "face ") << index
+              << " DOFs not found for order " << order);
    return -1;
 }
 
@@ -1700,7 +1696,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index,
       case 1:
          if (IsVariableOrder())
          {
-            return FindVarDof(entity, index, order);
+            return FindVarDof(entity, index, order) + edof;
          }
          else
          {
@@ -1714,7 +1710,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index,
       default:
          if (IsVariableOrder() || var_face_dofs.Size() > 0)
          {
-            return FindVarDof(entity, index, order);
+            return FindVarDof(entity, index, order) + edof;
          }
          else // standard constant-order space with uniform faces
          {
