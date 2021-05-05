@@ -57,7 +57,7 @@ struct Req
    double diag;
 };
 
-int tmop(int myid, Req &res, int argc, char *argv[])
+int tmop(int id, Req &res, int argc, char *argv[])
 {
    bool pa               = false;
    const char *mesh_file = nullptr;
@@ -109,10 +109,10 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0) { args.PrintUsage(cout); }
+      if (id == 0) { args.PrintUsage(cout); }
       return 1;
    }
-   if (verbosity_level > 0) { if (myid == 0) {args.PrintOptions(cout); } }
+   if (verbosity_level > 0) { if (id == 0) {args.PrintOptions(cout); } }
 
    REQUIRE(mesh_file);
    Mesh smesh(mesh_file, 1, 1, false);
@@ -187,7 +187,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       case 321: metric = new TMOP_Metric_321; break;
       default:
       {
-         if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
+         if (id == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 2;
       }
    }
@@ -250,7 +250,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       }
       default:
       {
-         if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
+         if (id == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
       }
    }
@@ -279,7 +279,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
       {
-         if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
+         if (id == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 4;
       }
    }
@@ -429,7 +429,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    double minJ0;
    MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    tauval = minJ0;
-   //if (myid == 0) { cout << "Min det(J) of the mesh is " << tauval << endl; }
+   //if (id == 0) { cout << "Min det(J) of the mesh is " << tauval << endl; }
    REQUIRE(tauval > 0.0);
    double h0min = h0.Min(), h0min_all;
    MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
@@ -505,8 +505,8 @@ static int argn(const char *argv[], int argc =0)
    return argc;
 }
 
-static void req_tmop(int myid, const char *args[], Req &res)
-{ REQUIRE(tmop(myid, res, argn(args), const_cast<char**>(args))==0); }
+static void req_tmop(int id, const char *args[], Req &res)
+{ REQUIRE(tmop(id, res, argn(args), const_cast<char**>(args))==0); }
 
 #define DEFAULT_ARGS const char *args[] = { \
     "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
@@ -530,8 +530,9 @@ constexpr int JI  = 29;
 constexpr int NL  = 31;
 constexpr int CMB = 33;
 
-static void dump_args(const char *args[])
+static void dump_args(int id, const char *args[])
 {
+   if (id != 0) { return; }
    const char *format =
       "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s"
       "%s%s%s%s"         // Optional args: RS, QTY
@@ -558,11 +559,11 @@ static void dump_args(const char *args[])
    fflush(0);
 }
 
-static void tmop_require(int myid, const char *args[])
+static void tmop_require(int id, const char *args[])
 {
    Req res[2];
-   (args[ALV] = "-pa", dump_args(args), req_tmop(myid, args, res[0]));
-   (args[ALV] = "-no-pa", dump_args(args), req_tmop(myid, args, res[1]));
+   (args[ALV] = "-pa", dump_args(id, args), req_tmop(id, args, res[0]));
+   (args[ALV] = "-no-pa", dump_args(id, args), req_tmop(id, args, res[1]));
    REQUIRE(res[0].dot == MFEM_Approx(res[1].dot));
    REQUIRE(res[0].tauval == MFEM_Approx(res[1].tauval));
    REQUIRE(res[0].init_energy == MFEM_Approx(res[1].init_energy));
@@ -640,10 +641,10 @@ public:
       NEWTON_LOOPS(a.newton_loop)
    { }
 
-   void Run(const int myid =0) const
+   void Run(const int id =0) const
    {
-      static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
-      if (name) { printf("[%s]\n", name); fflush(0); }
+      static const bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
+      if ((id==0) && name) { mfem::out << "[" << name << "]" << std::endl; }
       DEFAULT_ARGS;
       char ni[8] {}, rs[8] {}, li[8] {}, lc[16] {}, ji[16] {}, cmb[8] {};
       args[MSH] = mesh;
@@ -679,7 +680,7 @@ public:
                      {
                         char nl[2] {};
                         args[NL] = itoa(n, nl);
-                        tmop_require(myid, args);
+                        tmop_require(id, args);
                         if (!all) { break; }
                      }
                      if (!all) { break; }
@@ -803,7 +804,7 @@ static void tmop_tests(int id)
    Launch(Launch::Args("Cube + Combo").
           MESH("cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
           TID({5}).MID({302}).LS({2}).
-          POR({2}).QOR({8}).CMB(2)).Run(id);
+          POR({1,2}).QOR({2,8}).CMB(2)).Run(id);
 
    // NURBS
    Launch(Launch::Args("2D Nurbs").
