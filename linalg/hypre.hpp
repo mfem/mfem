@@ -127,7 +127,13 @@ public:
    /// Returns the parallel row/column partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
-   inline HYPRE_BigInt *Partitioning() const { return x->partitioning; }
+   inline const HYPRE_BigInt *Partitioning() const { return x->partitioning; }
+
+   /// @brief Returns a non-const pointer to the parallel row/column
+   /// partitioning.
+   /// Deprecated in favor of HypreParVector::Partitioning() const.
+   MFEM_DEPRECATED
+   inline HYPRE_BigInt *Partitioning() { return x->partitioning; }
 
    /// Returns the global number of rows
    inline HYPRE_BigInt GlobalSize() const { return x->global_size; }
