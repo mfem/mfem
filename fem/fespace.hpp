@@ -237,8 +237,8 @@ protected:
    int FirstFaceDof(int face, int variant = 0) const
    { return uni_fdof >= 0 ? face*uni_fdof : var_face_dofs.GetRow(face)[variant];}
 
-   /// Return edge/face (entity=1/2) first DOF corresponding to 'order'.
-   int FindVarDof(int entity, int index, int order) const;
+   /// Return var-order edge/face (entity=1,2) first DOF corresponding to 'order'.
+   int FirstVarDof(int entity, int index, int order) const;
 
    /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;

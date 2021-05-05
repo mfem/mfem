@@ -118,8 +118,8 @@ private:
    void CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
                                    Array<VarOrderBits> &ghost_face_orders) const;
 
-   /// Return edge/face (entity=1/2) first DOF corresponding to 'order'.
-   int FindVarDof(int entity, int index, int order) const;
+   /// Return var-order edge/face (entity=1,2) first DOF corresponding to 'order'.
+   int FirstVarDof(int entity, int index, int order) const;
 
    typedef NCMesh::MeshId MeshId;
    typedef ParNCMesh::GroupId GroupId;
@@ -133,7 +133,7 @@ private:
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int order, int edof) const;
-   void UnpackDof(int dof, int &entity, int &index, int &variant, int &vdof) const;
+   void UnpackDof(int dof, int &entity, int &index, int &order, int &edof) const;
 
 #ifdef MFEM_PMATRIX_STATS
    mutable int n_msgs_sent, n_msgs_recv;

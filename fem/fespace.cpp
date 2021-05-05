@@ -2277,7 +2277,7 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
    return total_dofs;
 }
 
-int FiniteElementSpace::FindVarDof(int entity, int index, int order) const
+int FiniteElementSpace::FirstVarDof(int entity, int index, int order) const
 {
    const Table &var_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
    const auto &var_orders = (entity == 1) ? var_edge_orders : var_face_orders;

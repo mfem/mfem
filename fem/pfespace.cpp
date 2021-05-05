@@ -310,7 +310,7 @@ void ParFiniteElementSpace
    }
 }
 
-int ParFiniteElementSpace::FindVarDof(int entity, int index, int order) const
+int ParFiniteElementSpace::FirstVarDof(int entity, int index, int order) const
 {
    // first check ghost DOF variants
    MFEM_ASSERT(entity == 1 || entity == 2, "");
@@ -326,7 +326,7 @@ int ParFiniteElementSpace::FindVarDof(int entity, int index, int order) const
    int ghost = (entity == 1) ? pncmesh->GetNEdges() : pncmesh->GetNFaces();
    if (index < ghost)
    {
-      return FiniteElementSpace::FindVarDof(entity, index, order);
+      return FiniteElementSpace::FirstVarDof(entity, index, order);
    }
 
    MFEM_ABORT((entity == 1 ? "edge " : "face ") << index
@@ -1675,6 +1675,23 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
    }
 }
 
+static void FindVarDof(const Table &var_dofs, const Array<char> &var_orders,
+                       int dof, int &index, int &order, int &edof)
+{
+   const int *I = var_dofs.GetI(), *J = var_dofs.GetJ();
+   const int sizeI = var_dofs.Size(), sizeJ = I[sizeI];
+
+   const int *jpos = std::lower_bound(J, J+sizeJ, dof);
+   MFEM_VERIFY(jpos < J+sizeJ, "DOF not found");
+
+   const int *ipos = std::lower_bound(I, I+sizeI, *jpos);
+   MFEM_VERIFY(ipos < I+sizeI, "index not found");
+
+   index = ipos - I;
+   edof = dof - *jpos;
+   order = var_orders[int(jpos - J)];
+}
+
 int ParFiniteElementSpace::PackDof(int entity, int index,
                                    int order, int edof) const
 {
@@ -1696,7 +1713,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index,
       case 1:
          if (IsVariableOrder())
          {
-            return FindVarDof(entity, index, order) + edof;
+            return FirstVarDof(entity, index, order) + edof;
          }
          else
          {
@@ -1710,7 +1727,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index,
       default:
          if (IsVariableOrder() || var_face_dofs.Size() > 0)
          {
-            return FindVarDof(entity, index, order) + edof;
+            return FirstVarDof(entity, index, order) + edof;
          }
          else // standard constant-order space with uniform faces
          {
@@ -1722,53 +1739,50 @@ int ParFiniteElementSpace::PackDof(int entity, int index,
    }
 }
 
-static int bisect(const int* array, int size, int value)
-{
-   const int* end = array + size;
-   const int* pos = std::lower_bound(array, end, value);
-   MFEM_VERIFY(pos != end, "value not found");
-   return pos - array;
-}
-
 /** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
- *  entity index and the DOF number within the entity.
+ *  entity index, polynomial order, and the DOF number within the entity/variant.
  */
 void ParFiniteElementSpace::UnpackDof(int dof, int &entity, int &index,
-                                      int &variant, int &vdof) const
+                                      int &order, int &edof) const
 {
+   order = 0;
    MFEM_VERIFY(dof >= 0, "");
    if (dof < ndofs)
    {
       if (dof < nvdofs) // regular vertex
       {
          int nv = fec->DofForGeometry(Geometry::POINT);
-         entity = 0, index = dof / nv, variant = 0, vdof = dof % nv;
+         entity = 0, index = dof / nv, edof = dof % nv;
          return;
       }
       dof -= nvdofs;
       if (dof < nedofs) // regular edge
       {
-         int ne = fec->DofForGeometry(Geometry::SEGMENT);
-         entity = 1, index = dof / ne, vdof = dof % ne;
+         entity = 1;
+         if (var_edge_dofs.Size() <= 0) // const-order space
+         {
+            int ne = fec->DofForGeometry(Geometry::SEGMENT);
+            index = dof / ne, edof = dof % ne;
+         }
+         else // var-order space
+         {
+            FindVarDof(var_edge_dofs, var_edge_orders, dof, index, order, edof);
+         }
          return;
       }
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
+         entity = 2;
          if (uni_fdof >= 0) // uniform faces
          {
-            int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
-            index = dof / nf, vdof = dof % nf;
+            MFEM_ASSERT(uni_fdof > 0, "");
+            index = dof / uni_fdof, edof = dof % uni_fdof;
          }
          else // mixed faces or var-order space
          {
-            const Table &table = var_face_dofs;
-            MFEM_ASSERT(table.Size(), "");
-            int jpos = bisect(table.GetJ(), table.Size_of_connections(), dof);
-            index = bisect(table.GetI(), table.Size(), jpos);
-            vdof = dof - table.GetRow(index)[0];
+            FindVarDof(var_face_dofs, var_face_orders, dof, index, order, edof);
          }
-         entity = 2;
          return;
       }
       MFEM_ABORT("Cannot unpack internal DOF");
@@ -1779,23 +1793,39 @@ void ParFiniteElementSpace::UnpackDof(int dof, int &entity, int &index,
       if (dof < ngvdofs) // ghost vertex
       {
          int nv = fec->DofForGeometry(Geometry::POINT);
-         entity = 0, variant = 0;
-         index = pncmesh->GetNVertices() + dof / nv, vdof = dof % nv;
+         entity = 0, index = pncmesh->GetNVertices() + dof / nv, edof = dof % nv;
          return;
       }
       dof -= ngvdofs;
       if (dof < ngedofs) // ghost edge
       {
-         int ne = fec->DofForGeometry(Geometry::SEGMENT);
-         entity = 1, index = pncmesh->GetNEdges() + dof / ne, vdof = dof % ne;
+         entity = 1;
+         if (ghost_var_dofs[0].Size() <= 0) // const-order space
+         {
+            int ne = fec->DofForGeometry(Geometry::SEGMENT);
+            index = pncmesh->GetNEdges() + dof / ne, edof = dof % ne;
+         }
+         else // var-order space
+         {
+            FindVarDof(ghost_var_dofs[0], ghost_var_orders[0],
+                       dof, index, order, edof);
+         }
          return;
       }
       dof -= ngedofs;
       if (dof < ngfdofs) // ghost face
       {
-         int stride = fec->DofForGeometry(Geometry::SQUARE);
-         index = pncmesh->GetNFaces() + dof / stride, vdof = dof % stride;
          entity = 2;
+         if (ghost_var_dofs[1].Size() <= 0) // const-order space
+         {
+            int stride = fec->DofForGeometry(Geometry::SQUARE);
+            index = pncmesh->GetNFaces() + dof / stride, edof = dof % stride;
+         }
+         else // var-order space
+         {
+            FindVarDof(ghost_var_dofs[1], ghost_var_orders[1],
+                       dof, index, order, edof);
+         }
          return;
       }
       MFEM_ABORT("Out of range DOF.");
