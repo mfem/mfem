@@ -205,8 +205,11 @@ int main(int argc, char *argv[])
             cout << "Using Ginkgo solver + preconditioner...\n";
             Ginkgo::GinkgoExecutor exec(device);
             Ginkgo::IcPreconditioner ginkgo_precond(exec, "paric", 30);
-            Ginkgo::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
-                                           ginkgo_precond);
+            Ginkgo::CGSolver ginkgo_solver(exec, ginkgo_precond);
+            ginkgo_solver.SetPrintLevel(print_lvl);
+            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetAbsTol(0.0);
+            ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
             break;
@@ -220,8 +223,11 @@ int main(int argc, char *argv[])
             //Create MFEM preconditioner and wrap it for Ginkgo's use.
             DSmoother M((SparseMatrix&)(*A));
             Ginkgo::MFEMPreconditioner gko_M(exec, M);
-            Ginkgo::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
-                                           gko_M);
+            Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
+            ginkgo_solver.SetPrintLevel(print_lvl);
+            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetAbsTol(0.0);
+            ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
             break;
@@ -275,8 +281,11 @@ int main(int argc, char *argv[])
                Ginkgo::GinkgoExecutor exec(device);
                // Wrap MFEM preconditioner for Ginkgo's use.
                Ginkgo::MFEMPreconditioner gko_M(exec, M);
-               Ginkgo::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
-                                              gko_M);
+               Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
+               ginkgo_solver.SetPrintLevel(print_lvl);
+               ginkgo_solver.SetRelTol(1e-12);
+               ginkgo_solver.SetAbsTol(0.0);
+               ginkgo_solver.SetMaxIter(400);
                ginkgo_solver.SetOperator(*(A.Ptr()));
                ginkgo_solver.Mult(B, X);
                break;
