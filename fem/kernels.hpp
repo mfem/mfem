@@ -617,14 +617,12 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    MFEM_SYNC_THREAD;
 }
 
-/// Load 3D scalar input vector into shared memory, with comp
+/// Load 3D scalar input vector into shared memory, with comp & DeviceTensor
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<5, const double> &x,
-                                   double (&sm)[MD1*MD1*MD1])
+                                   DeviceTensor<3> &X)
 {
-   DeviceCube X(sm, MD1, MD1, MD1);
-
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
       MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -636,6 +634,16 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
       }
    }
    MFEM_SYNC_THREAD;
+}
+
+/// Load 3D scalar input vector into shared memory, with comp & pointer
+template<int MD1>
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
+                                   const DeviceTensor<5, const double> &x,
+                                   double (&sm)[MD1*MD1*MD1])
+{
+   DeviceCube X(sm, MD1, MD1, MD1);
+   return LoadX<MD1>(e,D1D,c,x,X);
 }
 
 /// 3D Scalar Evaluation, 1/3
