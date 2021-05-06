@@ -1181,7 +1181,7 @@ uintptr_t *DEValloc(size_t bytes)
    return ptr;
 }
 
-/// Bucket /////////////////////////////////////////////////////////////////////
+// Bucket //////////////////////////////////////////////////////////////////////
 #define DEFAULT_ASIZE (32)
 #define MEM_SIZE (ARENA_MEM_SIZE - ARENA_ARN_SIZE)
 #define BUCKT_MEM (MEM_SIZE/(1+MAX_FOREACH))
