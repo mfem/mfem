@@ -201,20 +201,23 @@ int main(int argc, char *argv[])
       (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
    if (mpi.Root()) { cout << "L2 error: " << er << endl; }
 
-   // Save the solution and mesh to disk. The output can be viewed using GLVis
-   // as follows: "glvis -np <np> -m mesh -g sol"
-   x.Save("sol");
-   mesh.Save("mesh");
+   if (visualization)
+   {
+      // Save the solution and mesh to disk. The output can be viewed using
+      // GLVis as follows: "glvis -np <np> -m mesh -g sol"
+      x.Save("sol");
+      mesh.Save("mesh");
 
-   // Also save the solution for visualization using ParaView
-   ParaViewDataCollection dc("PLOR", &mesh);
-   dc.SetPrefixPath("ParaView");
-   dc.SetHighOrderOutput(true);
-   dc.SetLevelsOfDetail(order);
-   dc.RegisterField("u", &x);
-   dc.SetCycle(0);
-   dc.SetTime(0.0);
-   dc.Save();
+      // Also save the solution for visualization using ParaView
+      ParaViewDataCollection dc("PLOR", &mesh);
+      dc.SetPrefixPath("ParaView");
+      dc.SetHighOrderOutput(true);
+      dc.SetLevelsOfDetail(order);
+      dc.RegisterField("u", &x);
+      dc.SetCycle(0);
+      dc.SetTime(0.0);
+      dc.Save();
+   }
 
    return 0;
 }
