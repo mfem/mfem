@@ -14,12 +14,7 @@
 #include "gridfunc.hpp"
 #include "ceed/convection.hpp"
 
-#include "restriction.hpp"
 #include "../fem/kernels.hpp"
-#include "../linalg/kernels.hpp"
-
-using namespace std;
-using namespace mfem;
 
 namespace mfem
 {
@@ -58,7 +53,7 @@ static void PAConvectionSetup2D(const int Q1D,
          const double v1 = const_v ? V(1,0,0) : V(1,q,e);
          const double wx = w * v0;
          const double wy = w * v1;
-         //w*J^-1
+         // y = alpha * W * det(J) * J^{-1} . v = adj(J) . { wx, wy }
          y(q,0,e) =  wx * J22 - wy * J12; // 1
          y(q,1,e) = -wx * J21 + wy * J11; // 2
       }
@@ -105,7 +100,7 @@ static void PAConvectionSetup3D(const int Q1D,
                const double wx = w * v0;
                const double wy = w * v1;
                const double wz = w * v2;
-               // adj(J)
+               // A = adj(J)
                const double A11 = (J22 * J33) - (J23 * J32);
                const double A12 = (J32 * J13) - (J12 * J33);
                const double A13 = (J12 * J23) - (J22 * J13);
@@ -115,7 +110,7 @@ static void PAConvectionSetup3D(const int Q1D,
                const double A31 = (J21 * J32) - (J31 * J22);
                const double A32 = (J31 * J12) - (J11 * J32);
                const double A33 = (J11 * J22) - (J12 * J21);
-               // q . J^{-1} = q . adj(J)
+               // y = alpha * W * det(J) * J^{-1} . v = adj(J) . { wx, wy, wz }
                y(qx,qy,qz,0,e) = wx * A11 + wy * A12 + wz * A13;
                y(qx,qy,qz,1,e) = wx * A21 + wy * A22 + wz * A23;
                y(qx,qy,qz,2,e) = wx * A31 + wy * A32 + wz * A33;
@@ -126,7 +121,6 @@ static void PAConvectionSetup3D(const int Q1D,
 }
 
 static void PAConvectionSetup(const int dim,
-                              const int D1D,
                               const int Q1D,
                               const int NE,
                               const Array<double> &W,
@@ -1016,7 +1010,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
    }
-   PAConvectionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
+   PAConvectionSetup(dim, quad1D, ne, ir->GetWeights(), geom->J,
                      vel, alpha, pa_data);
 }
 
