@@ -1085,10 +1085,13 @@ inline void *malloc(const size_t bytes)
       cudaMallocHost(&ptr,bytes);
       assert(ptr);
    #else*/
+   void *ptr = nullptr;
+#ifndef _WIN32
    const size_t length = bytes == 0 ? 8 : bytes;
    const int prot = PROT_READ | PROT_WRITE;
    const int flags = MAP_ANON | MAP_PRIVATE;
-   void *ptr = ::mmap(NULL, length, prot, flags, -1, 0);
+   ptr = ::mmap(NULL, length, prot, flags, -1, 0);
+#endif // _WIN32
    assert(ptr);
    //#endif
    printf("\033[31m @ %p\033[m",ptr);
