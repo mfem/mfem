@@ -97,6 +97,7 @@ The MFEM source code has the following structure:
   ├── doc
   ├── examples
   │   ├── amgx
+  │   ├── caliper
   │   ├── ginkgo
   │   ├── hiop
   │   ├── petsc

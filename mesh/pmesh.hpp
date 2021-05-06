@@ -327,8 +327,8 @@ public:
    void GroupQuadrilateral(int group, int i, int &face, int &o);
    ///@}
 
-   void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
-                        Array<HYPRE_Int> *offsets[]) const;
+   void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
+                        Array<HYPRE_BigInt> *offsets[]) const;
 
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
