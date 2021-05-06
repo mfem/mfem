@@ -38,7 +38,7 @@ public:
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
       Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
       ClosedGL        = 7,  ///< Closed GaussLegendre
-      Integrated      = 8,  ///< Integrated indicator functions
+      IntegratedGLL   = 8,  ///< Integrated GLL indicator functions
       NumBasisTypes   = 9   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
@@ -54,7 +54,7 @@ public:
        with an error; otherwise return the input. */
    static int CheckNodal(int b_type)
    {
-      MFEM_VERIFY(Check(b_type) != Positive && b_type != Integrated,
+      MFEM_VERIFY(Check(b_type) != Positive && b_type != IntegratedGLL,
                   "invalid nodal BasisType: " << Name(b_type));
       return b_type;
    }
@@ -72,7 +72,7 @@ public:
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
          case Serendipity:     return Quadrature1D::GaussLobatto;
          case ClosedGL:        return Quadrature1D::ClosedGL;
-         case Integrated:      return Quadrature1D::GaussLegendre;
+         case IntegratedGLL:   return Quadrature1D::GaussLegendre;
       }
       return Quadrature1D::Invalid;
    }
@@ -97,7 +97,8 @@ public:
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
          "Open uniform", "Closed uniform", "Open half uniform",
-         "Seredipity", "Closed Gauss-Legendre", "Integrated"
+         "Seredipity", "Closed Gauss-Legendre",
+         "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
    }
@@ -122,7 +123,7 @@ public:
          case 'o': return OpenHalfUniform;
          case 'S': return Serendipity;
          case 'c': return ClosedGL;
-         case 'i': return Integrated;
+         case 'i': return IntegratedGLL;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
