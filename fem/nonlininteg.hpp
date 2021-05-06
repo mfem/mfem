@@ -83,6 +83,18 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /** @brief Prepare the integrator for partial assembly (PA) gradient
+       evaluations on the given FE space @a fes at the state @a x. */
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultGradPA() and AssembleGradDiagonalPA().
+       The state Vector @a x is an E-vector. */
+   virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
+
+   /// Compute the local (to the MPI rank) energy with partial assembly.
+   /** Here the state @a x is an E-vector. This method can be called only after
+       the method AssemblePA() has been called. */
+   virtual double GetLocalStateEnergyPA(const Vector &x) const;
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -91,6 +103,21 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled gradient action.
+   /** All arguments are E-vectors. This method can be called only after the
+       method AssembleGradPA() has been called.
+
+       @param[in]     x  The gradient Operator is applied to the Vector @a x.
+       @param[in,out] y  The result Vector: @f$ y += G x @f$. */
+   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
+
+   /// Method for computing the diagonal of the gradient with partial assmebly.
+   /** The result Vector @a diag is an E-Vector. This method can be called only
+       after the method AssembleGradPA() has been called.
+
+       @param[in,out] diag  The result Vector: @f$ diag += diag(G) @f$. */
+   virtual void AssembleGradDiagonalPA(Vector &diag) const;
 
    /// Indicates whether this integrator can use a Ceed backend.
    virtual bool SupportsCeed() const { return false; }

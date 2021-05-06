@@ -106,6 +106,7 @@ examples/ex25-*.gf
 examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
+examples/flux.*
 
 examples/amgx/ex1
 examples/amgx/ex1p
@@ -294,3 +295,7 @@ tests/par-mesh-format/ex1p
 
 # VPATH builds
 build-*/*
+
+# PETSc automated build
+petsc-build/*
+pkg.gitcommit

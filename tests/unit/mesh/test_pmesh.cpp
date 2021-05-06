@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,7 +105,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                const HYPRE_Int localMin = gi.Min();
                const HYPRE_Int localMax = gi.Max();
 
-               HYPRE_Int globalMin, globalMax;
+               HYPRE_BigInt globalMin, globalMax;
                MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_INT, MPI_MIN, MPI_COMM_WORLD);
                MPI_Allreduce(&localMax, &globalMax, 1, HYPRE_MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 

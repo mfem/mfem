@@ -768,13 +768,28 @@ void DiffusionIntegrator::AssembleElementMatrix
    bool square = (dim == spaceDim);
    double w;
 
+   if (VQ)
+   {
+      MFEM_VERIFY(VQ->GetVDim() == spaceDim,
+                  "Unexpected dimension for VectorCoefficient");
+   }
+   if (MQ)
+   {
+      MFEM_VERIFY(MQ->GetWidth() == spaceDim,
+                  "Unexpected width for MatrixCoefficient");
+      MFEM_VERIFY(MQ->GetHeight() == spaceDim,
+                  "Unexpected height for MatrixCoefficient");
+   }
+
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(nd,dim), dshapedxt(nd,spaceDim), invdfdx(dim,spaceDim);
+   DenseMatrix dshape(nd, dim), dshapedxt(nd, spaceDim);
+   DenseMatrix dshapedxt_m(nd, MQ ? spaceDim : 0);
    Vector D(VQ ? VQ->GetVDim() : 0);
 #else
-   dshape.SetSize(nd,dim);
-   dshapedxt.SetSize(nd,spaceDim);
-   invdfdx.SetSize(dim,spaceDim);
+   dshape.SetSize(nd, dim);
+   dshapedxt.SetSize(nd, spaceDim);
+   dshapedxt_m.SetSize(nd, MQ ? spaceDim : 0);
+   M.SetSize(MQ ? spaceDim : 0);
    D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
    elmat.SetSize(nd);
@@ -795,10 +810,10 @@ void DiffusionIntegrator::AssembleElementMatrix
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
       if (MQ)
       {
-         MQ->Eval(invdfdx, Trans, ip);
-         invdfdx *= w;
-         Mult(dshapedxt, invdfdx, dshape);
-         AddMultABt(dshape, dshapedxt, elmat);
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(dshapedxt, M, dshapedxt_m);
+         AddMultABt(dshapedxt_m, dshapedxt, elmat);
       }
       else if (VQ)
       {
@@ -828,10 +843,25 @@ void DiffusionIntegrator::AssembleElementMatrix2(
    bool square = (dim == spaceDim);
    double w;
 
+   if (VQ)
+   {
+      MFEM_VERIFY(VQ->GetVDim() == spaceDim,
+                  "Unexpected dimension for VectorCoefficient");
+   }
+   if (MQ)
+   {
+      MFEM_VERIFY(MQ->GetWidth() == spaceDim,
+                  "Unexpected width for MatrixCoefficient");
+      MFEM_VERIFY(MQ->GetHeight() == spaceDim,
+                  "Unexpected height for MatrixCoefficient");
+   }
+
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape(tr_nd, dim), dshapedxt(tr_nd, spaceDim);
    DenseMatrix te_dshape(te_nd, dim), te_dshapedxt(te_nd, spaceDim);
    DenseMatrix invdfdx(dim, spaceDim);
+   DenseMatrix dshapedxt_m(te_nd, MQ ? spaceDim : 0);
+   DenseMatrix M(MQ ? spaceDim : 0);
    Vector D(VQ ? VQ->GetVDim() : 0);
 #else
    dshape.SetSize(tr_nd, dim);
@@ -839,6 +869,8 @@ void DiffusionIntegrator::AssembleElementMatrix2(
    te_dshape.SetSize(te_nd, dim);
    te_dshapedxt.SetSize(te_nd, spaceDim);
    invdfdx.SetSize(dim, spaceDim);
+   dshapedxt_m.SetSize(te_nd, MQ ? spaceDim : 0);
+   M.SetSize(MQ ? spaceDim : 0);
    D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
    elmat.SetSize(te_nd, tr_nd);
@@ -861,10 +893,10 @@ void DiffusionIntegrator::AssembleElementMatrix2(
       // invdfdx, dshape, and te_dshape no longer needed
       if (MQ)
       {
-         MQ->Eval(invdfdx, Trans, ip);
-         invdfdx *= w;
-         Mult(te_dshapedxt, invdfdx, te_dshape);
-         AddMultABt(te_dshape, dshapedxt, elmat);
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(te_dshapedxt, M, dshapedxt_m);
+         AddMultABt(dshapedxt_m, dshapedxt, elmat);
       }
       else if (VQ)
       {
@@ -890,24 +922,34 @@ void DiffusionIntegrator::AssembleElementVector(
 {
    int nd = el.GetDof();
    int dim = el.GetDim();
+   int spaceDim = Tr.GetSpaceDim();
    double w;
 
    if (VQ)
    {
-      MFEM_VERIFY(VQ->GetVDim() == dim, "Unexpected dimension for VectorCoefficient");
+      MFEM_VERIFY(VQ->GetVDim() == spaceDim,
+                  "Unexpected dimension for VectorCoefficient");
+   }
+   if (MQ)
+   {
+      MFEM_VERIFY(MQ->GetWidth() == spaceDim,
+                  "Unexpected width for MatrixCoefficient");
+      MFEM_VERIFY(MQ->GetHeight() == spaceDim,
+                  "Unexpected height for MatrixCoefficient");
    }
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(nd,dim), invdfdx(dim), mq(dim);
+   DenseMatrix dshape(nd,dim), invdfdx(dim, spaceDim), M(MQ ? spaceDim : 0);
    Vector D(VQ ? VQ->GetVDim() : 0);
 #else
    dshape.SetSize(nd,dim);
-   invdfdx.SetSize(dim);
-   mq.SetSize(dim);
+   invdfdx.SetSize(dim, spaceDim);
+   M.SetSize(MQ ? spaceDim : 0);
    D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
    vec.SetSize(dim);
-   pointflux.SetSize(dim);
+   vecdxt.SetSize((VQ || MQ) ? spaceDim : 0);
+   pointflux.SetSize(spaceDim);
 
    elvect.SetSize(nd);
 
@@ -934,19 +976,19 @@ void DiffusionIntegrator::AssembleElementVector(
       }
       else
       {
-         dshape.MultTranspose(elfun, pointflux);
-         invdfdx.MultTranspose(pointflux, vec);
+         dshape.MultTranspose(elfun, vec);
+         invdfdx.MultTranspose(vec, vecdxt);
          if (MQ)
          {
-            MQ->Eval(mq, Tr, ip);
-            mq.Mult(vec, pointflux);
+            MQ->Eval(M, Tr, ip);
+            M.Mult(vecdxt, pointflux);
          }
          else
          {
             VQ->Eval(D, Tr, ip);
-            for (int j=0; j<dim; ++j)
+            for (int j=0; j<spaceDim; ++j)
             {
-               pointflux[j] *= D[j];
+               pointflux[j] = D[j] * vecdxt[j];
             }
          }
       }
@@ -966,14 +1008,32 @@ void DiffusionIntegrator::ComputeElementFlux
    dim = el.GetDim();
    spaceDim = Trans.GetSpaceDim();
 
+   if (VQ)
+   {
+      MFEM_VERIFY(VQ->GetVDim() == spaceDim,
+                  "Unexpected dimension for VectorCoefficient");
+   }
+   if (MQ)
+   {
+      MFEM_VERIFY(MQ->GetWidth() == spaceDim,
+                  "Unexpected width for MatrixCoefficient");
+      MFEM_VERIFY(MQ->GetHeight() == spaceDim,
+                  "Unexpected height for MatrixCoefficient");
+   }
+
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape(nd,dim), invdfdx(dim, spaceDim);
+   DenseMatrix M(MQ ? spaceDim : 0);
+   Vector D(VQ ? VQ->GetVDim() : 0);
 #else
    dshape.SetSize(nd,dim);
    invdfdx.SetSize(dim, spaceDim);
+   M.SetSize(MQ ? spaceDim : 0);
+   D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
    vec.SetSize(dim);
-   pointflux.SetSize(spaceDim);
+   vecdxt.SetSize(spaceDim);
+   pointflux.SetSize(MQ ? spaceDim : 0);
 
    const IntegrationRule &ir = fluxelem.GetNodes();
    fnd = ir.GetNPoints();
@@ -987,28 +1047,38 @@ void DiffusionIntegrator::ComputeElementFlux
 
       Trans.SetIntPoint (&ip);
       CalcInverse(Trans.Jacobian(), invdfdx);
-      invdfdx.MultTranspose(vec, pointflux);
+      invdfdx.MultTranspose(vec, vecdxt);
 
-      if (!MQ)
+      if (!MQ && !VQ)
       {
          if (Q && with_coef)
          {
-            pointflux *= Q->Eval(Trans,ip);
+            vecdxt *= Q->Eval(Trans,ip);
          }
          for (j = 0; j < spaceDim; j++)
          {
-            flux(fnd*j+i) = pointflux(j);
+            flux(fnd*j+i) = vecdxt(j);
          }
       }
       else
       {
-         // assuming dim == spaceDim
-         MFEM_ASSERT(dim == spaceDim, "TODO");
-         MQ->Eval(invdfdx, Trans, ip);
-         invdfdx.Mult(pointflux, vec);
-         for (j = 0; j < dim; j++)
+         if (MQ)
          {
-            flux(fnd*j+i) = vec(j);
+            MQ->Eval(M, Trans, ip);
+            M.Mult(vecdxt, pointflux);
+         }
+         else
+         {
+            VQ->Eval(D, Trans, ip);
+            for (int j=0; j<spaceDim; ++j)
+            {
+               pointflux[j] = D[j] * vecdxt[j];
+            }
+
+         }
+         for (j = 0; j < spaceDim; j++)
+         {
+            flux(fnd*j+i) = pointflux(j);
          }
       }
    }
@@ -1023,13 +1093,13 @@ double DiffusionIntegrator::ComputeFluxEnergy
    int spaceDim = Trans.GetSpaceDim();
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix mq;
+   DenseMatrix M;
 #endif
 
    shape.SetSize(nd);
    pointflux.SetSize(spaceDim);
-   if (d_energy) { vec.SetSize(dim); }
-   if (MQ) { mq.SetSize(dim); }
+   if (d_energy) { vec.SetSize(spaceDim); }
+   if (MQ) { M.SetSize(spaceDim); }
 
    int order = 2 * fluxelem.GetOrder(); // <--
    const IntegrationRule *ir = &IntRules.Get(fluxelem.GetGeomType(), order);
@@ -1062,8 +1132,8 @@ double DiffusionIntegrator::ComputeFluxEnergy
       }
       else
       {
-         MQ->Eval(mq, Trans, ip);
-         energy += w * mq.InnerProduct(pointflux, pointflux);
+         MQ->Eval(M, Trans, ip);
+         energy += w * M.InnerProduct(pointflux, pointflux);
       }
 
       if (d_energy)
