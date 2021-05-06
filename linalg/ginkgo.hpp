@@ -952,6 +952,11 @@ public:
                const GinkgoPreconditioner &preconditioner,
                int dim = 0);
 
+   /**
+    * Change the Krylov dimension of the solver.
+    */
+   void SetKDim(int dim);
+
 protected:
    int m; // Dimension of Krylov subspace
 };
@@ -1006,6 +1011,11 @@ public:
                  const GinkgoPreconditioner &preconditioner,
                  int dim = 0,
                  storage_precision prec = storage_precision::reduce1);
+
+   /**
+    * Change the Krylov dimension of the solver.
+    */
+   void SetKDim(int dim);
 
 protected:
    int m; // Dimension of Krylov subspace

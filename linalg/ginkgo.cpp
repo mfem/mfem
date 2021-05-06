@@ -681,6 +681,17 @@ GMRESSolver::GMRESSolver(GinkgoExecutor &exec,
    }
 }
 
+void GMRESSolver::SetKDim(int dim)
+{
+   m = dim;
+   using gmres_type = gko::solver::Gmres<double>;
+   gko::as<gmres_type::Factory>(solver_gen)->get_parameters().krylov_dim = m;
+   if (solver)
+   {
+      gko::as<gmres_type>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+   }
+}
+
 /* ---------------------- CBGMRESSolver ------------------------ */
 CBGMRESSolver::CBGMRESSolver(GinkgoExecutor &exec, int dim,
                              storage_precision prec)
@@ -769,6 +780,16 @@ CBGMRESSolver::CBGMRESSolver(GinkgoExecutor &exec,
    }
 }
 
+void CBGMRESSolver::SetKDim(int dim)
+{
+   m = dim;
+   using gmres_type = gko::solver::CbGmres<double>;
+   gko::as<gmres_type::Factory>(solver_gen)->get_parameters().krylov_dim = m;
+   if (solver)
+   {
+      gko::as<gmres_type>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+   }
+}
 
 /* ---------------------- IRSolver ------------------------ */
 IRSolver::IRSolver(GinkgoExecutor &exec)
