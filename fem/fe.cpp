@@ -1385,7 +1385,6 @@ void VectorFiniteElement::LocalL2Projection_RT(
    fine_mass_inv.Mult(fine_coarse_mass, I);
 }
 
-
 void VectorFiniteElement::LocalInterpolation_RT(
    const VectorFiniteElement &cfe, const double *nk, const Array<int> &d2n,
    ElementTransformation &Trans, DenseMatrix &I) const

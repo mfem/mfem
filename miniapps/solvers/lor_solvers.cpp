@@ -28,7 +28,7 @@
 // In each case, the high-order finite element problem is preconditioned using a
 // low-order finite element discretization defined on a Gauss-Lobatto refined
 // mesh. The low-order problem is solved using a direct solver if MFEM is
-// compiled with Suite Sparse enabled, or with one iteration of symmetric
+// compiled with SuiteSparse enabled, or with one iteration of symmetric
 // Gauss-Seidel smoothing otherwise.
 //
 // For vector finite element spaces, the special "Integrated" basis type is used
