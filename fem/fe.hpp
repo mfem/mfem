@@ -1986,6 +1986,9 @@ public:
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
+      /// Evaluate the "integrated" basis, which is given by the negative
+      /// partial sum of the corresponding closed basis derivatives. The closed
+      /// basis derivatives are given by @a d, and the result is stored in @a i.
       void EvalIntegrated(const Vector &d, Vector &i) const;
       bool IsIntegratedType() const { return etype == Integrated; }
       ~Basis();
