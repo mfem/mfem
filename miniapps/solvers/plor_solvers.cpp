@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
    OperatorHandle A;
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
-   ParLOR lor(a, ess_dofs);
+   ParLORDiscretization lor(a, ess_dofs);
    ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
 
    unique_ptr<Solver> solv_lor;

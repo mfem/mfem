@@ -30,13 +30,13 @@ In the above examples, `LORSolver<T>` does a couple of things:
 
 If one is interested in using the underlying LOR discretization, it can be created as follows:
 ```c++
-LOR lor(a, ess_tdof_list);
+LORDiscretization lor(a, ess_tdof_list);
 SparseMatrix &A_lor = lor.GetAssembledMatrix();
 ```
 The low-order refined finite element space can be accessed by `lor.GetFESpace()`.
-In parallel, there is an analogous `ParLOR` class:
+In parallel, there is an analogous `ParLORDiscretization` class:
 ```c++
-ParLOR lor(a, ess_tdof_list);
+ParLORDiscretization lor(a, ess_tdof_list);
 HypreParMatrix &A_lor = lor.GetAssembledMatrix();
 ```
 
@@ -45,11 +45,11 @@ HypreParMatrix &A_lor = lor.GetAssembledMatrix();
 Some solvers require special options passed to the constructor.
 For example, this can be useful when creating AMS preconditioners, which require access to the finite element space:
 ```c++
-ParLOR lor(a, ess_tdof_list);
+ParLORDiscretization lor(a, ess_tdof_list);
 LORSolver<HypreAMS> ams(lor, &lor.GetParFESpace());
 ```
 In this case, parameters passed to the `LORSolver` constructor will be forwarded to the `HypreAMS` constructor.
-Also, note that the underlying solver object can be accessed with the `*` and `->` operators.
+Also, note that the underlying solver object can be accessed with the `GetSolver` member function.
 
 ## Assembling custom bilinear forms
 
@@ -58,7 +58,7 @@ In some circumstances, it is desirable to assemble a custom bilinear form on the
 For example, one may want to assemble several LOR bilinear forms, and avoid the overhead of creating a mesh and finite element space for each of them.
 These capabilities can be accomplished with the `LOR` and `LORSolver` classes:
 ```c++
-LOR lor(fes); // Create LOR version of fes, don't assemble any forms
+LORDiscretization lor(fes); // Create LOR version of fes, don't assemble any forms
 BilinearForm a_lor(&lor.GetFESpace());
 a_lor.AddDomainIntegrator(new MassIntegrator);
 a_lor.Assemble();

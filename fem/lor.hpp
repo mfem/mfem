@@ -17,8 +17,8 @@
 namespace mfem
 {
 
-/// @brief Abstract base class for LOR and ParLOR classes, which construct
-/// low-order refined versions of bilinear forms.
+/// @brief Abstract base class for LORDiscretization and ParLORDiscretization
+/// classes, which construct low-order refined versions of bilinear forms.
 class LORBase
 {
 private:
@@ -125,7 +125,7 @@ public:
 };
 
 /// Create and assemble a low-order refined version of a BilinearForm.
-class LOR : public LORBase
+class LORDiscretization : public LORBase
 {
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
@@ -133,15 +133,16 @@ public:
    ///
    /// The mesh is refined using the refinement type specified by @a ref_type
    /// (see Mesh::MakeRefined).
-   LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
-       int ref_type=BasisType::GaussLobatto);
+   LORDiscretization(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
+                     int ref_type=BasisType::GaussLobatto);
 
    /// @brief Construct a low-order refined version of the FiniteElementSpace @a
    /// fes_ho.
    ///
    /// The mesh is refined using the refinement type specified by @a ref_type
    /// (see Mesh::MakeRefined).
-   LOR(FiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
+   LORDiscretization(FiniteElementSpace &fes_ho,
+                     int ref_type=BasisType::GaussLobatto);
 
    /// Return the assembled %LOR operator as a SparseMatrix.
    SparseMatrix &GetAssembledMatrix() const;
@@ -150,7 +151,7 @@ public:
 #ifdef MFEM_USE_MPI
 
 /// Create and assemble a low-order refined version of a ParBilinearForm.
-class ParLOR : public LORBase
+class ParLORDiscretization : public LORBase
 {
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
@@ -158,15 +159,16 @@ public:
    ///
    /// The mesh is refined using the refinement type specified by @a ref_type
    /// (see ParMesh::MakeRefined).
-   ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
-          int ref_type=BasisType::GaussLobatto);
+   ParLORDiscretization(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
+                        int ref_type=BasisType::GaussLobatto);
 
    /// @brief Construct a low-order refined version of the ParFiniteElementSpace
    /// @a pfes_ho.
    ///
    /// The mesh is refined using the refinement type specified by @a ref_type
    /// (see ParMesh::MakeRefined).
-   ParLOR(ParFiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
+   ParLORDiscretization(ParFiniteElementSpace &fes_ho,
+                        int ref_type=BasisType::GaussLobatto);
 
    /// Return the assembled %LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix() const;
@@ -194,17 +196,17 @@ public:
    LORSolver(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
-      lor = new LOR(a_ho, ess_tdof_list, ref_type);
+      lor = new LORDiscretization(a_ho, ess_tdof_list, ref_type);
       SetOperator(*lor->GetAssembledSystem());
    }
 
 #ifdef MFEM_USE_MPI
    /// @brief Create a solver of type @a SolverType, formed using the assembled
-   /// HypreParMatrix of the %LOR version of @a a_ho. @see ParLOR
+   /// HypreParMatrix of the %LOR version of @a a_ho. @see ParLORDiscretization
    LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
-      lor = new ParLOR(a_ho, ess_tdof_list, ref_type);
+      lor = new ParLORDiscretization(a_ho, ess_tdof_list, ref_type);
       SetOperator(*lor->GetAssembledSystem());
    }
 #endif
