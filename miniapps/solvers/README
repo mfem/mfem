@@ -73,6 +73,6 @@ In serial, a direct solver is used for the LOR system if MFEM is compiled with
 SuiteSparse support (otherwise a simple Gauss-Seidel smoother is constructed
 using the low-order system).
 
-In paralle, hypre's scalable AMG solvers are used for the low-order systems:
+In parallel, hypre's scalable AMG solvers are used for the low-order systems:
 `HypreBoomerAMG` is used for H1 and L2 spaces, `HypreAMS` is used for H(curl)
 (and H(div) in 2D), and `HypreADS` is used for H(div) in 3D.
