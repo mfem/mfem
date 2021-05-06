@@ -11442,7 +11442,7 @@ void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                for (int q = 0; q < nqpt; q++)
                {
                   const IntegrationPoint &ip2d = ir2d.IntPoint(q);
-                  if (c == 0) { ip3d.Set3(cp[i], cp[j] + h1*ip2d.x, cp[j] + h2*ip2d.y); }
+                  if (c == 0) { ip3d.Set3(cp[i], cp[j] + h1*ip2d.x, cp[k] + h2*ip2d.y); }
                   else if (c == 1) { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j], cp[k] + h2*ip2d.y); }
                   else { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j] + h2*ip2d.y, cp[k]); }
                   Trans.SetIntPoint(&ip3d);
