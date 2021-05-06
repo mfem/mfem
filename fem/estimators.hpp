@@ -203,49 +203,55 @@ public:
 };
 
 
-#ifdef MFEM_USE_MPI
-
 /** @brief The L2ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure where the flux averaging is replaced by a global
     L2 projection (requiring a mass matrix solve).
 
     The required BilinearFormIntegrator must implement the methods
     ComputeElementFlux() and ComputeFluxEnergy().
-
-    Implemented for the parallel case only.
  */
 class L2ZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
    long current_sequence;
    int local_norm_p; ///< Local L_p norm to use, default is 1.
+   int solver_max_it;
+   double solver_tol;
    Vector error_estimates;
    double total_error;
+#ifdef  MFEM_USE_MPI
+   bool dist;
+#endif
 
    BilinearFormIntegrator *integ; ///< Not owned.
-   ParGridFunction *solution; ///< Not owned.
+   GridFunction *solution; ///< Not owned.
 
-   ParFiniteElementSpace *flux_space; /**< @brief Ownership based on the flag
+   FiniteElementSpace *flux_space; /**< @brief Ownership based on the flag
       own_flux_fes. Its Update() method is called automatically by this class
       when needed. */
-   ParFiniteElementSpace *smooth_flux_space; /**< @brief Ownership based on the
+   FiniteElementSpace *smooth_flux_space; /**< @brief Ownership based on the
       flag own_flux_fes. Its Update() method is called automatically by this
       class when needed.*/
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
    /// Initialize with the integrator, solution, and flux finite element spaces.
    void Init(BilinearFormIntegrator &integ,
-             ParGridFunction &sol,
-             ParFiniteElementSpace *flux_fes,
-             ParFiniteElementSpace *smooth_flux_fes)
+             GridFunction &sol,
+             FiniteElementSpace *flux_fes,
+             FiniteElementSpace *smooth_flux_fes)
    {
       current_sequence = -1;
       local_norm_p = 1;
+      solver_max_it = 200;
+      solver_tol = 1e-12;
       total_error = 0.0;
       this->integ = &integ;
       solution = &sol;
       flux_space = flux_fes;
       smooth_flux_space = smooth_flux_fes;
+#ifdef  MFEM_USE_MPI
+      dist = dynamic_cast<ParGridFunction*>(solution) != NULL;
+#endif
    }
 
    /// Check if the mesh of the solution was modified.
@@ -272,9 +278,9 @@ public:
                        FiniteElementSpace and will call its Update() method when
                        needed. */
    L2ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ,
-                             ParGridFunction &sol,
-                             ParFiniteElementSpace *flux_fes,
-                             ParFiniteElementSpace *smooth_flux_fes)
+                             GridFunction &sol,
+                             FiniteElementSpace *flux_fes,
+                             FiniteElementSpace *smooth_flux_fes)
    { Init(integ, sol, flux_fes, smooth_flux_fes); own_flux_fes = true; }
 
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
@@ -289,14 +295,20 @@ public:
                        of this FiniteElementSpace; will call its Update() method
                        when needed. */
    L2ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ,
-                             ParGridFunction &sol,
-                             ParFiniteElementSpace &flux_fes,
-                             ParFiniteElementSpace &smooth_flux_fes)
+                             GridFunction &sol,
+                             FiniteElementSpace &flux_fes,
+                             FiniteElementSpace &smooth_flux_fes)
    { Init(integ, sol, &flux_fes, &smooth_flux_fes); own_flux_fes = false; }
 
    /** @brief Set the exponent, p, of the Lp norm used for computing the local
        element errors. Default value is 1. */
    void SetLocalErrorNormP(int p) { local_norm_p = p; }
+
+   /// Set maximum iteration count for global solve
+   void SetSolverMaxIt(int max_it) { solver_max_it = max_it; }
+
+   /// Set tolerance for global solve
+   void SetSolverTol(double tol) { solver_tol = tol; }
 
    /// Return the total error from the last error estimate.
    virtual double GetTotalError() const override { return total_error; }
@@ -318,8 +330,6 @@ public:
       if (own_flux_fes) { delete flux_space; delete smooth_flux_space; }
    }
 };
-
-#endif // MFEM_USE_MPI
 
 
 /** @brief The LpErrorEstimator class compares the solution to a known
