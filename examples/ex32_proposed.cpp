@@ -126,9 +126,9 @@ int main(int argc, char *argv[])
       z_sock.open(vishost, visport);
       if (!xy_sock && !z_sock)
       {
-	cout << "Unable to connect to GLVis server at "
-	     << vishost << ':' << visport << endl;
-	cout << "GLVis visualization disabled.\n";
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+         cout << "GLVis visualization disabled.\n";
 
          visualization = false;
       }
@@ -187,15 +187,15 @@ int main(int argc, char *argv[])
 
       // 15. Solve the linear system A X = B.
 #ifndef MFEM_USE_SUITESPARSE
-         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M((SparseMatrix&)(*A));
-         PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
 #else
-         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-         UMFPackSolver umf_solver;
-         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(*A);
-         umf_solver.Mult(B, X);
+      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
 #endif
 
       // 16. After solving the linear system, reconstruct the solution as a
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
 
       if (cdofs > max_dofs)
       {
-	cout << "Reached the maximum number of dofs. Stop." << endl;
+         cout << "Reached the maximum number of dofs. Stop." << endl;
          break;
       }
 
@@ -257,8 +257,8 @@ int main(int argc, char *argv[])
       refiner.Apply(mesh);
       if (refiner.Stop())
       {
-	 cout << "Stopping criterion satisfied. Stop." << endl;
-	 break;
+         cout << "Stopping criterion satisfied. Stop." << endl;
+         break;
       }
 
       // 21. Update the finite element space (recalculate the number of DOFs,
