@@ -17,10 +17,10 @@
 #include <iomanip>
 #include <iostream>
 
-//#include "../config/config.hpp"
+#include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
-//#include <mpi.h>
+#include <mpi.h>
 #endif
 
 #define DBG(...) { printf("\033[33m");  \
