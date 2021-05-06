@@ -43,7 +43,7 @@ void EvalP_007(const double *Jpt, double *P)
    kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1(dI1)
                                      .dI2(dI2).dI2b(dI2b));
    const double I2 = ie.Get_I2();
-   kernels::Add(2,2, 1.0 + 1.0 / I2,         ie.Get_dI1(),
+   kernels::Add(2,2, 1.0 + 1.0 / I2, ie.Get_dI1(),
                 -ie.Get_I1() / (I2*I2), ie.Get_dI2(), P);
 }
 
