@@ -26,7 +26,7 @@ extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-#define HYPRE_Int int
+#define HYPRE_BigInt int
 typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
@@ -1152,9 +1152,9 @@ public:
 struct TimingData
 {
    StopWatch sw_cgH1, sw_cgL2, sw_force, sw_qdata;
-   const HYPRE_Int L2dof;
-   HYPRE_Int H1iter, L2iter, quad_tstep;
-   TimingData(const HYPRE_Int l2d) :
+   const HYPRE_BigInt L2dof;
+   HYPRE_BigInt H1iter, L2iter, quad_tstep;
+   TimingData(const HYPRE_BigInt l2d) :
       L2dof(l2d), H1iter(0), L2iter(0), quad_tstep(0) { }
 };
 
@@ -1563,11 +1563,11 @@ protected:
    mutable ParFiniteElementSpace H1compFESpace;
    const int H1Vsize;
    const int H1TVSize;
-   const HYPRE_Int H1GTVSize;
+   const HYPRE_BigInt H1GTVSize;
    const int H1compTVSize;
    const int L2Vsize;
    const int L2TVSize;
-   const HYPRE_Int L2GTVSize;
+   const HYPRE_BigInt L2GTVSize;
    Array<int> block_offsets;
    mutable ParGridFunction x_gf;
    const Array<int> &ess_tdofs;
@@ -1934,22 +1934,22 @@ int sedov(int myid, int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return -1;
    }
-   Mesh *mesh;
+   Mesh mesh;
    if (strncmp(mesh_file, "none", 4))
    {
-      mesh = new Mesh(mesh_file, true, true);
-      dim = mesh->Dimension();
+      mesh = Mesh::LoadFromFile(mesh_file, true, true);
+      dim = mesh.Dimension();
    }
    else
    {
       if (dim == 2)
       {
          constexpr Element::Type QUAD = Element::QUADRILATERAL;
-         mesh = new Mesh(2, 2, QUAD, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian2D(2, 2, QUAD, true);
+         const int NBE = mesh.GetNBE();
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::SEGMENT, "");
             const int attr = (b < NBE/2) ? 2 : 1;
             bel->SetAttribute(attr);
@@ -1957,27 +1957,27 @@ int sedov(int myid, int argc, char *argv[])
       }
       if (dim == 3)
       {
-         mesh = new Mesh(2, 2, 2,Element::HEXAHEDRON, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian3D(2, 2, 2,Element::HEXAHEDRON);
+         const int NBE = mesh.GetNBE();
          MFEM_ASSERT(NBE==24,"");
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::QUADRILATERAL, "");
             const int attr = (b < NBE/3) ? 3 : (b < 2*NBE/3) ? 1 : 2;
             bel->SetAttribute(attr);
          }
       }
    }
-   dim = mesh->Dimension();
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   dim = mesh.Dimension();
+   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
    ParMesh *pmesh = NULL;
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 #else
-   pmesh = new Mesh(*mesh);
+   pmesh = new Mesh(mesh);
 #endif
-   delete mesh;
+   mesh.Clear();
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
    int nzones = pmesh->GetNE(), nzones_min, nzones_max;
    MPI_Reduce(&nzones, &nzones_min, 1, MPI_INT, MPI_MIN, 0, pmesh->GetComm());
@@ -2000,8 +2000,8 @@ int sedov(int myid, int argc, char *argv[])
       }
    }
    ODESolver *ode_solver = new RK4Solver;
-   const HYPRE_Int H1GTVSize = H1FESpace.GlobalTrueVSize();
-   const HYPRE_Int L2GTVSize = L2FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt H1GTVSize = H1FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt L2GTVSize = L2FESpace.GlobalTrueVSize();
    const int H1Vsize = H1FESpace.GetVSize();
    const int L2Vsize = L2FESpace.GetVSize();
    if (myid == 0)

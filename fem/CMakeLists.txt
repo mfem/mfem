@@ -48,6 +48,9 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  ceed/algebraic.cpp
+  ceed/full-assembly.cpp
+  ceed/solvers-atpmg.cpp
   ceed/convection.cpp
   ceed/diffusion.cpp
   ceed/nlconvection.cpp
@@ -64,6 +67,13 @@ set(SRCS
   nonlininteg_vectorconvection.cpp
   nonlininteg_vectorconvection_mf.cpp
   quadinterpolator.cpp
+  quadinterpolator_det.cpp
+  quadinterpolator_eval_by_nodes.cpp
+  quadinterpolator_eval_by_vdim.cpp
+  quadinterpolator_grad_by_nodes.cpp
+  quadinterpolator_grad_by_vdim.cpp
+  quadinterpolator_grad_phys_by_nodes.cpp
+  quadinterpolator_grad_phys_by_vdim.cpp
   quadinterpolator_face.cpp
   restriction.cpp
   staticcond.cpp
@@ -91,6 +101,9 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  ceed/algebraic.hpp
+  ceed/full-assembly.hpp
+  ceed/solvers-atpmg.hpp
   ceed/coefficient.hpp
   ceed/convection.hpp
   ceed/diffusion.hpp
@@ -106,7 +119,10 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
+  quadinterpolator_dispatch.hpp
+  quadinterpolator_eval.hpp
   quadinterpolator_face.hpp
+  quadinterpolator_grad.hpp
   restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp

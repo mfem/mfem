@@ -824,10 +824,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfi = new ParLinearForm();
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {
@@ -853,10 +853,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfr->MakeRef(pfes, *this, 0);
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {

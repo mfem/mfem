@@ -64,6 +64,14 @@ const int MAX_Q1D = 14;
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,Z)
 
+// MFEM_FORALL with a 3D CUDA block and grid
+// With G=0, this is the same as MFEM_FORALL_3D(i,N,X,Y,Z,...)
+#define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...)             \
+   ForallWrap<3>(true,N,                                 \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
+                 X,Y,Z,G)
+
 // MFEM_FORALL that uses the basic CPU backend when use_dev is false. See for
 // example the functions in vector.cpp, where we don't want to use the mfem
 // device for operations on small vectors.
@@ -155,14 +163,15 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaCuWrap3D(const int N, DBODY &&d_body,
-                  const int X, const int Y, const int Z)
+                  const int X, const int Y, const int Z, const int G)
 {
    MFEM_VERIFY(N>0, "");
+   const int GRID = G == 0 ? N : G;
    using namespace RAJA::expt;
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (DEVICE, Resources(Teams(N), Threads(X, Y, Z)),
+   (DEVICE, Resources(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -220,14 +229,15 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaHipWrap3D(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z)
+                   const int X, const int Y, const int Z, const int G)
 {
    MFEM_VERIFY(N>0, "");
+   const int GRID = G == 0 ? N : G;
    using namespace RAJA::expt;
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (DEVICE, Resources(Teams(N), Threads(X, Y, Z)),
+   (DEVICE, Resources(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -277,9 +287,9 @@ void CuKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-void CuKernel2D(const int N, BODY body, const int BZ)
+void CuKernel2D(const int N, BODY body)
 {
-   const int k = blockIdx.x*BZ + threadIdx.z;
+   const int k = blockIdx.x*blockDim.z + threadIdx.z;
    if (k >= N) { return; }
    body(k);
 }
@@ -287,9 +297,7 @@ void CuKernel2D(const int N, BODY body, const int BZ)
 template <typename BODY> __global__ static
 void CuKernel3D(const int N, BODY body)
 {
-   const int k = blockIdx.x;
-   if (k >= N) { return; }
-   body(k);
+   for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
 }
 
 template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
@@ -309,16 +317,16 @@ void CuWrap2D(const int N, DBODY &&d_body,
    MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   CuKernel2D<<<GRID,BLCK>>>(N,d_body,BZ);
+   CuKernel2D<<<GRID,BLCK>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
 void CuWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z)
+              const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
-   const int GRID = N;
+   const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
    CuKernel3D<<<GRID,BLCK>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
@@ -339,9 +347,9 @@ void HipKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-void HipKernel2D(const int N, BODY body, const int BZ)
+void HipKernel2D(const int N, BODY body)
 {
-   const int k = hipBlockIdx_x*BZ + hipThreadIdx_z;
+   const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
    if (k >= N) { return; }
    body(k);
 }
@@ -349,9 +357,7 @@ void HipKernel2D(const int N, BODY body, const int BZ)
 template <typename BODY> __global__ static
 void HipKernel3D(const int N, BODY body)
 {
-   const int k = hipBlockIdx_x;
-   if (k >= N) { return; }
-   body(k);
+   for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
 }
 
 template <const int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
@@ -370,16 +376,16 @@ void HipWrap2D(const int N, DBODY &&d_body,
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body,BZ);
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
 template <typename DBODY>
 void HipWrap3D(const int N, DBODY &&d_body,
-               const int X, const int Y, const int Z)
+               const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
-   const int GRID = N;
+   const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
    hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
@@ -392,11 +398,13 @@ void HipWrap3D(const int N, DBODY &&d_body,
 template <const int DIM, typename DBODY, typename HBODY>
 inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
-                       const int X=0, const int Y=0, const int Z=0)
+                       const int X=0, const int Y=0, const int Z=0,
+                       const int G=0)
 {
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
    MFEM_CONTRACT_VAR(Z);
+   MFEM_CONTRACT_VAR(G);
    MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
@@ -406,7 +414,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return RajaCuWrap1D(N, d_body); }
       if (DIM == 2) { return RajaCuWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return RajaCuWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return RajaCuWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 
@@ -416,7 +424,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return RajaHipWrap1D(N, d_body); }
       if (DIM == 2) { return RajaHipWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return RajaHipWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return RajaHipWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 
@@ -426,7 +434,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return CuWrap1D(N, d_body); }
       if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 
@@ -436,7 +444,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return HipWrap1D(N, d_body); }
       if (DIM == 2) { return HipWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return HipWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return HipWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 

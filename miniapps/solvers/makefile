@@ -40,10 +40,10 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.cpp $(BLOCK_COMMON_OBJ)
+%: $(SRC)%.cpp $(BLOCK_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(BLOCK_COMMON_OBJ) $(MFEM_LIBS)
 
-%.o: %.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
@@ -58,7 +58,8 @@ block-solvers-constant: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
 block-solvers-anisotropic: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
-        -m anisotropic.mesh -c anisotropic.coeff -eb anisotropic.bdr)
+	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
+	  -eb $(SRC)anisotropic.bdr)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -71,4 +72,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf block-solvers
+	@true

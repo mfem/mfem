@@ -105,6 +105,8 @@ public:
    NormalizedGradCoefficient(const GridFunction &u_gf, int dim)
       : VectorCoefficient(dim), u(u_gf) { }
 
+   using VectorCoefficient::Eval;
+
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.SetIntPoint(&ip);

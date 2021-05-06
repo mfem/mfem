@@ -143,6 +143,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_JIT           = NO
+MFEM_USE_CALIPER       = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
@@ -397,6 +398,11 @@ OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
+# CALIPER library configuration
+CALIPER_DIR = @MFEM_DIR@/../caliper
+CALIPER_OPT = -I$(CALIPER_DIR)/include
+CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
+
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
 CEED_OPT = -I$(CEED_DIR)/include
@@ -408,11 +414,14 @@ RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
+ifdef CAMP_DIR
+   RAJA_OPT += -I$(CAMP_DIR)/include
+endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
-UMPIRE_OPT = -I$(UMPIRE_DIR)/include
+UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # MKL CPardiso library configuration
