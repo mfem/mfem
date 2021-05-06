@@ -2,8 +2,7 @@
 //
 // Compile with: make ex30p
 //
-// Sample runs:  mpirun -np 4 ex30p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex30p -m ../data/inline-segment.mesh -o 2
+// Sample runs:  mpirun -np 4 ex30p -m ../data/hexagon.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/star.mesh
 //               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 3 -rs 1 -rp 0

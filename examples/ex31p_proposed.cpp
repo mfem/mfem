@@ -3,8 +3,7 @@
 //
 // Compile with: make ex31p
 //
-// Sample runs:  mpirun -np 4 ex31p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex31p -m ../data/inline-segment.mesh -o 2
+// Sample runs:  mpirun -np 4 ex31p -m ../data/hexagon.mesh -o 2
 //               mpirun -np 4 ex31p -m ../data/star.mesh
 //               mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 2 -n 4 -rs 1
 //               mpirun -np 4 ex31p -m ../data/square-disc-nurbs.mesh
