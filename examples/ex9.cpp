@@ -290,15 +290,16 @@ int main(int argc, char *argv[])
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
    m.AddDomainIntegrator(new MassIntegrator);
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   constexpr double alpha = -1.0;
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+      new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    m.Assemble();
    int skip_zeros = 0;
@@ -449,7 +450,7 @@ FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
    Array<int> ess_tdof_list;
-   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACYFULL)
+   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
    {
       M_prec = new DSmoother(M.SpMat());
       M_solver.SetOperator(M.SpMat());

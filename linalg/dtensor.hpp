@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,7 @@ template <int N, int Dim, typename T, typename... Args>
 class Init
 {
 public:
+   MFEM_HOST_DEVICE
    static inline int result(int* sizes, T first, Args... args)
    {
       sizes[N - 1] = first;
@@ -66,6 +67,7 @@ template <int Dim, typename T, typename... Args>
 class Init<Dim, Dim, T, Args...>
 {
 public:
+   MFEM_HOST_DEVICE
    static inline int result(int* sizes, T first, Args... args)
    {
       sizes[Dim - 1] = first;
@@ -88,7 +90,7 @@ public:
    DeviceTensor() = delete;
 
    /// Constructor to initialize a tensor from the Scalar array _data
-   template <typename... Args>
+   template <typename... Args> MFEM_HOST_DEVICE
    DeviceTensor(Scalar* _data, Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -110,7 +112,7 @@ public:
    }
 
    /// Conversion to `Scalar *`.
-   inline operator Scalar *() const { return data; }
+   MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE inline
@@ -140,6 +142,7 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,double> DeviceVector;
 typedef DeviceTensor<2,double> DeviceMatrix;
+typedef DeviceTensor<2,const double> ConstDeviceMatrix;
 
 } // mfem namespace
 

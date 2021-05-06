@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@
 
 // Many methods of the DenseMatrix class and some of the Vector class call these
 // kernels directly on the host, see the implementations in linalg/densemat.cpp
-// and linalag.vector.cpp.
+// and linalg/vector.cpp.
 
 namespace mfem
 {
