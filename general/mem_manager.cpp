@@ -425,8 +425,8 @@ public:
    }
    void Dealloc(void *ptr) override
    {
-      //dbg("");
-      //MFEM_ABORT("");
+      dbg("");
+      MFEM_ABORT("");
    }
 };
 
@@ -1029,7 +1029,7 @@ private:
 } // namespace mfem::internal
 
 
-////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////
 #define MAX_FOREACH 26
 #define FOREACH(def)\
     def(0) \
