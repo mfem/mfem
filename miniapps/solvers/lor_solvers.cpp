@@ -181,20 +181,23 @@ int main(int argc, char *argv[])
       (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
    cout << "L2 error: " << er << endl;
 
-   // Save the solution and mesh to disk. The output can be viewed using GLVis
-   // as follows: "glvis -m mesh.mesh -g sol.gf"
-   x.Save("sol.gf");
-   mesh.Save("mesh.mesh");
+   if (visualization)
+   {
+      // Save the solution and mesh to disk. The output can be viewed using
+      // GLVis as follows: "glvis -m mesh.mesh -g sol.gf"
+      x.Save("sol.gf");
+      mesh.Save("mesh.mesh");
 
-   // Also save the solution for visualization using ParaView
-   ParaViewDataCollection dc("LOR", &mesh);
-   dc.SetPrefixPath("ParaView");
-   dc.SetHighOrderOutput(true);
-   dc.SetLevelsOfDetail(order);
-   dc.RegisterField("u", &x);
-   dc.SetCycle(0);
-   dc.SetTime(0.0);
-   dc.Save();
+      // Also save the solution for visualization using ParaView
+      ParaViewDataCollection dc("LOR", &mesh);
+      dc.SetPrefixPath("ParaView");
+      dc.SetHighOrderOutput(true);
+      dc.SetLevelsOfDetail(order);
+      dc.RegisterField("u", &x);
+      dc.SetCycle(0);
+      dc.SetTime(0.0);
+      dc.Save();
+   }
 
    return 0;
 }
