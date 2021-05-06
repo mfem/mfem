@@ -55,6 +55,7 @@ option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
 option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
+option(MFEM_USE_CALIPER "Enable Caliper support" OFF)
 option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
@@ -168,8 +169,7 @@ set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
 
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
-# May need to add "HDF5" as requirement.
-set(NetCDF_REQUIRED_PACKAGES "" CACHE STRING
+set(NetCDF_REQUIRED_PACKAGES "HDF5/C/HL" CACHE STRING
     "Additional packages required by NetCDF.")
 
 set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
@@ -206,6 +206,7 @@ set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
+set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

@@ -10,6 +10,11 @@
 
 Version 4.2.1 (development)
 ===========================
+- Added initial support for GPU-accelerated versions of PETSc that works with
+  MFEM_USE_CUDA if PETSc has been configured with CUDA support. Examples 1 and 9
+  in the examples/petsc directory have been modified to work with --device cuda.
+  Examples with GAMG (ex1p) and SLEPc (ex11p) are also provided.
+
 - Memory management:
   * Added method Device::SetMemoryTypes that can be used to change the default
     host and device MemoryTypes before Device setup.
@@ -24,6 +29,9 @@ Version 4.2.1 (development)
     corresponding allocator that can be set with the method
     MemoryManager::SetUmpireDevice2AllocatorName.
   * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
+
+- Added support for Caliper: a library to integrate performance profiling
+  capabilities into applications. See examples/caliper for more details.
 
 - Added support for explicit vectorization in the high-performance templated
   code for Fujitsu's A64FX ARM microprocessor architecture.
@@ -86,6 +94,11 @@ Version 4.2.1 (development)
   in the derived class GeometricMultigrid.
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
+
+- Added support for different modes of QuadratureInterpolator on GPU.
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
+  be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  Determinants methods.
 
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
@@ -161,6 +174,17 @@ Version 4.2.1 (development)
   meshes, simplex meshes, etc.) are now available as "named constructors", e.g.
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
+
+- Added support for transferring dual fields between high-order and low-order
+  refined finite element spaces using the transposed versions of the
+  L2ProjectionGridTransfer operators. This functionality is illustrated in the
+  lor-transfer miniapp.
+
+- Added initial support for hypre's mixed integer (mixedint) capability, which
+  uses different data types for local and global indices in order to save memory
+  in large problems. This capability requires that hypre was configured with the
+  --enable-mixedint option. Note that this option is currently tested only in
+  ex1p and may not work in more general settings.
 
 libCEED integration improvements
 --------------------------------

@@ -68,7 +68,7 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := shifted
+TEST_NAME := Shifted miniapp
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
@@ -87,4 +87,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	rm -rf ParaViewDistance
+	@rm -rf ParaViewDistance
