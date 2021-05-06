@@ -192,7 +192,7 @@ protected:
    mutable Vector px, py;
 public:
    /// @brief Create a solver of type @a SolverType, formed using the assembled
-   /// SparseMatrix of the %LOR version of @a a_ho. @see LOR
+   /// SparseMatrix of the %LOR version of @a a_ho. @see LORDiscretization
    LORSolver(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
