@@ -2251,7 +2251,7 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       MFEM_ABORT("unknown closed BasisType: " << cb_name);
    }
    if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
-       ob_type != BasisType::Integrated)
+       ob_type != BasisType::IntegratedGLL)
    {
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("unknown open BasisType: " << ob_name);
@@ -2565,7 +2565,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 
    // Error checking
    if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
-       ob_type != BasisType::Integrated)
+       ob_type != BasisType::IntegratedGLL)
    {
       const char *ob_name = BasisType::Name(ob_type);
       MFEM_ABORT("Invalid open basis point type: " << ob_name);

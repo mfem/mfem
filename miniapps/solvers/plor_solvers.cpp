@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient f_coeff(f), u_coeff(u);
    VectorFunctionCoefficient f_vec_coeff(dim, f_vec), u_vec_coeff(dim, u_vec);
 
-   int b1 = BasisType::GaussLobatto, b2 = BasisType::Integrated;
+   int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
    unique_ptr<FiniteElementCollection> fec;
    if (H1) { fec.reset(new H1_FECollection(order, dim, b1)); }
    else if (ND) { fec.reset(new ND_FECollection(order, dim, b1, b2)); }

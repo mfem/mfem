@@ -7681,7 +7681,7 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
    {
       EvalType etype;
       if (btype == BasisType::Positive) { etype = Positive; }
-      else if (btype == BasisType::Integrated) { etype = Integrated; }
+      else if (btype == BasisType::IntegratedGLL) { etype = Integrated; }
       else { etype = Barycentric; }
       bases[p] = new Basis(p, GetPoints(p, btype), etype);
    }
