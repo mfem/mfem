@@ -62,15 +62,15 @@ void f_vec(const Vector &xvec, Vector &f)
    {
       if (dim == 2)
       {
-         f[0] = cos(x)*sin(y) + 2*pi2*cos(x)*sin(y);
-         f[1] = cos(y)*sin(x) + 2*pi2*cos(y)*sin(x);
+         f[0] = (1 + 2*pi2)*cos(x)*sin(y);
+         f[1] = (1 + 2*pi2)*cos(y)*sin(x);
       }
       else // dim == 3
       {
          double z = pi*xvec[2];
-         f[0] = cos(x)*sin(y)*sin(z) + 3*pi2*cos(x)*sin(y)*sin(z);
-         f[1] = cos(y)*sin(x)*sin(z) + 3*pi2*cos(y)*sin(x)*sin(z);
-         f[2] = cos(z)*sin(x)*sin(y) + 3*pi2*cos(z)*sin(x)*sin(y);
+         f[0] = (1 + 3*pi2)*cos(x)*sin(y)*sin(z);
+         f[1] = (1 + 3*pi2)*cos(y)*sin(x)*sin(z);
+         f[2] = (1 + 3*pi2)*cos(z)*sin(x)*sin(y);
       }
    }
    else
