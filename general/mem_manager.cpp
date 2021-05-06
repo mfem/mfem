@@ -1105,7 +1105,9 @@ inline void free(void *ptr, const size_t bytes)
       cudaFreeHost(ptr);
    #else*/
    const size_t length = bytes == 0 ? 8 : bytes;
+#ifndef _WIN32
    if (::munmap(ptr, length) == -1) { assert(false); }
+#endif // _WIN32
    //#endif
 }
 
