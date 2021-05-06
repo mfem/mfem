@@ -46,8 +46,8 @@ static MFEM_HOST_DEVICE inline
 double EvalW_077(const double *Jpt)
 {
    kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
-   const double I2 = ie.Get_I2b(); // Get_I2b or Get_I2 ?
-   return 0.5*(I2*I2 + 1./(I2*I2) - 2.);
+   const double I2b = ie.Get_I2b();
+   return 0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
 }
 
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,

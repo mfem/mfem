@@ -137,7 +137,7 @@ bool DiscreteAdaptTC::ComputeElementTargetsPA(const FiniteElementSpace *pa_fes,
 
    const bool SizeKernel = sizeidx != -1;
 
-   // Until it is not implemented, return on host
+   // If it is not implemented, fallback to host
    if (skewidx != -1) { return false; }
    if (aspectratioidx != -1) { return false; }
    if (orientationidx != -1) { return false; }
