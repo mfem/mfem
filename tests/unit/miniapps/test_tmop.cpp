@@ -592,7 +592,7 @@ public:
       friend class Launch;
    private:
       const char *name = nullptr;
-      const char *mesh = "star.mesh";
+      const char *mesh = "../../data/star.mesh";
       int newton_iter = 100;
       int rs_levels = 0;
       int max_lin_iter  = 100;
@@ -701,119 +701,121 @@ static void tmop_tests(int id)
    const double jitter = 1./(M_PI*M_PI);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL").
-          MESH("star.mesh").REFINE(1).JI(jitter).
+          MESH("../../data/star.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({1}).MID({2})).Run(id);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL").
-          MESH("star.mesh").REFINE(1).JI(jitter).
+          MESH("../../data/star.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({3}).MID({2})).Run(id);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL").
-          MESH("cube.mesh").REFINE(1).JI(jitter).
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({1}).MID({302})).Run(id);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL").
-          MESH("cube.mesh").REFINE(1).JI(jitter).
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({3}).MID({302})).Run(id);
 
    Launch(Launch::Args("Star").
-          MESH("star.mesh").
+          MESH("../../data/star.mesh").
           POR({1,2,3,4}).QOR({2,4,8}).
           TID({1,2,3}).MID({1,2})).Run(id);
 
    Launch(Launch::Args("Square01 + Adapted analytic Hessian").
-          MESH("square01.mesh").REFINE(1).
+          MESH("../../miniapps/meshing/square01.mesh").REFINE(1).
           POR({1,2}).QOR({2,4}).
           TID({4}).MID({1,2})).Run(id);
 
    Launch(Launch::Args("Blade").
-          MESH("blade.mesh").
+          MESH("../../miniapps/meshing/blade.mesh").
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2}).LS({2})).Run(id);
 
    Launch(Launch::Args("Blade + normalization").
-          MESH("blade.mesh").
+          MESH("../../miniapps/meshing/blade.mesh").
           NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id);
 
    Launch(Launch::Args("Blade + limiting + normalization").
-          MESH("blade.mesh").
+          MESH("../../miniapps/meshing/blade.mesh").
           NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id);
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
-          MESH("blade.mesh").
+          MESH("../../miniapps/meshing/blade.mesh").
           LINEAR_ITERATIONS(300).NORMALIZATION(true).
           POR({1}).QOR({2}).
           TID({5}).MID({7}).LS({2}).NL({2})).Run(id);
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
-          MESH("blade.mesh").
+          MESH("../../miniapps/meshing/blade.mesh").
           LINEAR_ITERATIONS(200).NORMALIZATION(true).
           POR({1}).QOR({2}).
           TID({5}).MID({2})).Run(id);
 
    Launch(Launch::Args("Cube").
-          MESH("cube.mesh").REFINE(1).JI(jitter).
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
           TID({2,3}).MID({302,303})).Run(id);
 
    Launch(Launch::Args("Cube + Discrete size & aspect + normalization + limiting").
-          MESH("cube.mesh").
+          MESH("../../miniapps/meshing/cube.mesh").
           NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({4,2}).
           TID({7}).MID({302,321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex").
-          MESH("toroid-hex.mesh").
+          MESH("../../data/toroid-hex.mesh").
           POR({1,2}).QOR({2,4,8}).
           TID({1,2,3}).MID({302,303,321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex + limiting").
-          MESH("toroid-hex.mesh").
+          MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
           TID({1,2}).MID({321})).Run(id);
 
    Launch(Launch::Args("Toroid-Hex + limiting + norm.").
-          MESH("toroid-hex.mesh").
+          MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2}).MID({321})).Run(id);
 
    // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
    Launch(Launch::Args("Cube + Blast options").
-          MESH("cube.mesh").REFINE(1).
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).
           TID({5}).MID({321}).LS({3}).LINEAR_ITERATIONS(100).
           LIMITING(M_PI).NORMALIZATION(true).
           POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id);
 
    // Combo 2D
    Launch(Launch::Args("Square01 + Combo").
-          MESH("square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
+          MESH("../../miniapps/meshing/square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(
+             true).
           TID({5}).MID({2}).LS({2}).
           POR({2}).QOR({8}).CMB(2)).Run(id);
 
    // Combo 3D
    Launch(Launch::Args("Cube + Combo").
-          MESH("cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(
+             true).
           TID({5}).MID({302}).LS({2}).
           POR({1,2}).QOR({2,8}).CMB(2)).Run(id);
 
    // NURBS
    Launch(Launch::Args("2D Nurbs").
-          MESH("square-disc-nurbs.mesh").REFINE(1).JI(jitter).
+          MESH("../../data/square-disc-nurbs.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({1,2})).Run(id);
 
    Launch(Launch::Args("3D Nurbs").
-          MESH("beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
+          MESH("../../data/beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({302,321})).Run(id);
 }

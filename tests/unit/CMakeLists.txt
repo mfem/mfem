@@ -185,34 +185,6 @@ add_custom_command(TARGET unit_tests POST_BUILD
                    ${CMAKE_CURRENT_SOURCE_DIR}/data data
                    COMMENT "Copying the unit tests data directory ...")
 
-# Copy blade.mesh to the tests/unit build directory.
-configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/blade.mesh"
-               "${PROJECT_BINARY_DIR}/tests/unit/blade.mesh")
-
-# Copy star.mesh to the tests/unit build directory.
-configure_file("${PROJECT_SOURCE_DIR}/data/star.mesh"
-               "${PROJECT_BINARY_DIR}/tests/unit/star.mesh")
-               
-# Copy square01.mesh to the tests/unit build directory.
-configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/square01.mesh"
-               "${PROJECT_BINARY_DIR}/tests/unit/square01.mesh")
-               
-# Copy cube.mesh to the tests/unit build directory.
-configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/cube.mesh"
-               "${PROJECT_BINARY_DIR}/tests/unit/cube.mesh")
-               
-# Copy toroid-hex.mesh to the tests/unit build directory.
-configure_file("${PROJECT_SOURCE_DIR}/data/toroid-hex.mesh"
-               "${PROJECT_BINARY_DIR}/tests/unit/toroid-hex.mesh")
-
-# Copy square-disc-nurbs.mesh to the tests/unit build directory.
-configure_file("${PROJECT_SOURCE_DIR}/data/square-disc-nurbs.mesh"
-               "${PROJECT_BINARY_DIR}/tests/unit/square-disc-nurbs.mesh")
-
-# Copy beam-hex-nurbs.mesh to the tests/unit build directory.
-configure_file("${PROJECT_SOURCE_DIR}/data/beam-hex-nurbs.mesh"
-               "${PROJECT_BINARY_DIR}/tests/unit/beam-hex-nurbs.mesh")
-
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
    add_test(NAME cunit_tests COMMAND cunit_tests)
