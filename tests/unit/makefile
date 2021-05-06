@@ -161,21 +161,10 @@ $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
-# TMOP rules to copy the mesh files
-# Needed for running the sample runs when building out-of-source
-DATA_MESH_FILES = star.mesh toroid-hex.mesh \
-						square-disc-nurbs.mesh beam-hex-nurbs.mesh
-MINIAPPS_MESHING_MESH_FILES = square01.mesh blade.mesh cube.mesh
-$(DATA_MESH_FILES): %: $(MFEM_DIR)/data/%
-	ln -sf $(<) .
-$(MINIAPPS_MESHING_MESH_FILES): %: $(MFEM_DIR)/miniapps/meshing/%
-	ln -sf $(<) .
-
 # TMOP Template rule for devices
 # 1: postfix of 'tmop_tests_', 2: prefix of '_OBJECT_FILES',
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 define tmop_tests
-tmop_tests_$(1): | $(DATA_MESH_FILES) $(MINIAPPS_MESHING_MESH_FILES)
 tmop_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
 tmop_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
