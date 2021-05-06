@@ -949,6 +949,11 @@ public:
 
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 {
+   // TODO: mixed meshes: return true if there is at least one tensor-product
+   // Geometry in the global mesh and the FE collection returns a
+   // TensorBasisElement for that Geometry?
+
+   // Potential issue: empty local mesh --> no element 0.
    return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
 
