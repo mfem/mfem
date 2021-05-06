@@ -281,13 +281,6 @@ tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
 tests/unit/tmop_tests_*
 tests/unit/ptmop_tests_*
-tests/unit/cube.mesh
-tests/unit/star.mesh
-tests/unit/blade.mesh
-tests/unit/square01.mesh
-tests/unit/toroid-hex.mesh
-tests/unit/beam-hex-nurbs.mesh
-tests/unit/square-disc-nurbs.mesh
 tests/unit/ceed_tests
 
 # Test script output
