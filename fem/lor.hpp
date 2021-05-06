@@ -273,11 +273,11 @@ public:
       use_permutation = use_permutation_;
    }
 
-   /// Support the use of -> to call methods of the underlying solver.
-   SolverType *operator->() const { return solver; }
+   /// Access the underlying solver.
+   SolverType &GetSolver() { return solver; }
 
    /// Access the underlying solver.
-   SolverType &operator*() { return solver; }
+   const SolverType &GetSolver() const { return solver; }
 
    ~LORSolver() { if (own_lor) { delete lor; } }
 };
