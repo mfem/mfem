@@ -800,13 +800,15 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+static const uintptr_t ARENA_MEM_SIZE = 1ul << 30ul; // 1 GB
+static const uintptr_t ARENA_ARN_SIZE = 16ul << 20ul; // 16 MB per FOREACH
+
+///////////////////////////////////////////////////////////////////////////////
 class ArenaMemorySpace
 {
    uintptr_t *mem, *dev, shift;
    struct Buckets *buckets;
 public:
-   static constexpr uintptr_t MEM_SIZE = 1ul << 30ul; // 1 GB
-   static constexpr uintptr_t ARN_SIZE = 16ul << 20ul; // 16 MB per FOREACH
    ArenaMemorySpace();
    ~ArenaMemorySpace();
    void *alloc(size_t bytes);

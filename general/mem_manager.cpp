@@ -1161,7 +1161,7 @@ uintptr_t *MEMalloc(size_t bytes)
    uintptr_t *ptr = MEM;
    MEM += bytes>>3;
    MFEM_CONTRACT_VAR(BKP);
-   assert(MEM < (BKP + (ArenaMemorySpace::MEM_SIZE>>3)));
+   assert(MEM < (BKP + (ARENA_MEM_SIZE>>3)));
    return ptr;
 }
 static uintptr_t *ARN = nullptr;
@@ -1182,15 +1182,15 @@ uintptr_t *DEValloc(size_t bytes)
 }
 
 /// Bucket /////////////////////////////////////////////////////////////////////
-#define DEFAULT_ASIZE (8)
-#define MEM_SIZE (ArenaMemorySpace::MEM_SIZE - ArenaMemorySpace::ARN_SIZE)
+#define DEFAULT_ASIZE (32)
+#define MEM_SIZE (ARENA_MEM_SIZE - ARENA_ARN_SIZE)
 #define BUCKT_MEM (MEM_SIZE/(1+MAX_FOREACH))
 #define BLOCK_MEM (sizeof(Block<N>))
 #define BUCKT_MXS_ASIZE (BUCKT_MEM/(DEFAULT_ASIZE*BLOCK_MEM))
 #define BUCKT_MXS(ASZ) (BUCKT_MEM/((ASZ)*BLOCK_MEM))
 template <size_t N> struct Bucket
 {
-   static constexpr int ASIZE =
+   static const int ASIZE =
       BUCKT_MXS_ASIZE > 0 ? DEFAULT_ASIZE :
       BUCKT_MXS(DEFAULT_ASIZE >> 1) > 0 ? DEFAULT_ASIZE >> 1 :
       BUCKT_MXS(DEFAULT_ASIZE >> 2) > 0 ? DEFAULT_ASIZE >> 2 :
@@ -1203,8 +1203,8 @@ template <size_t N> struct Bucket
    static const size_t SIZEOF_BLOCK = sizeof(Block<N>);
    static const size_t SIZEOF_ARENA = sizeof(Arena<N>);
 #undef MEM_SIZE
-   static const size_t MEM_SIZE = ArenaMemorySpace::MEM_SIZE;
-   static const size_t ARN_SIZE = ArenaMemorySpace::ARN_SIZE;
+   //static const size_t MEM_SIZE = ARENA_MEM_SIZE;
+   //static const size_t ARN_SIZE = ARENA_ARN_SIZE;
 
    const size_t asize;
    uintptr_t *base_blocks, *host_blocks, num_shift;
@@ -1317,23 +1317,23 @@ struct Buckets
 };
 
 ArenaMemorySpace::ArenaMemorySpace():
-   mem((dbg("MEM_SIZE:0x%x (%dMo)", MEM_SIZE, MEM_SIZE>>20),
-        (uintptr_t*) map::malloc(MEM_SIZE + (1+MAX_FOREACH)*ARN_SIZE)))
+   mem((dbg("MEM_SIZE:0x%x (%dMo)", ARENA_MEM_SIZE, ARENA_MEM_SIZE>>20),
+        (uintptr_t*) map::malloc(ARENA_MEM_SIZE + (1+MAX_FOREACH)*ARENA_ARN_SIZE)))
    //dev((CuMemAlloc((void**)&dev, MEM_SIZE), dbg("dev:%p",dev), dev)),
    //shift((uintptr_t)mem - (uintptr_t) dev),
    //buckets((MEM = BKP = mem, ARN = mem + (MEM_SIZE>>3), new Buckets(mem,dev)))
 {
-   CuMemAlloc((void**)&dev, MEM_SIZE);
+   CuMemAlloc((void**)&dev, ARENA_MEM_SIZE);
    dbg("dev:%p",dev);
    shift = (uintptr_t)mem - (uintptr_t) dev;
    MEM = BKP = mem;
-   ARN = mem + (MEM_SIZE>>3);
+   ARN = mem + (ARENA_MEM_SIZE>>3);
    buckets = new Buckets(mem,dev);
 }
 
 ArenaMemorySpace::~ArenaMemorySpace()
 {
-   map::free(mem, MEM_SIZE);
+   map::free(mem, ARENA_MEM_SIZE);
    CuMemFree(dev);
    delete buckets;
 }
