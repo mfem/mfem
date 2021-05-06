@@ -1195,7 +1195,6 @@ static void PAMassApply(const int dim,
          case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
-      mfem::out << "Unknown 2D kernel 0x" << std::hex << id << std::endl;
    }
    else if (dim == 3)
    {
@@ -1218,8 +1217,8 @@ static void PAMassApply(const int dim,
          case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
-      mfem::out << "Unknown 3D kernel 0x" << std::hex << id << std::endl;
    }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
    MFEM_ABORT("Unknown kernel.");
 }
 
