@@ -15,8 +15,6 @@
 #include "ceed/convection.hpp"
 #include "quadinterpolator.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 
@@ -55,7 +53,7 @@ static void PAConvectionSetup2D(const int NQ,
       const double v1 = const_v ? V(1,0,0) : V(1,q,e);
       const double wx = w * v0;
       const double wy = w * v1;
-      //w*J^-1
+      // y = alpha * W * det(J) * J^{-1} . v = adj(J) . { wx, wy }
       y(q,0,e) =  wx * J22 - wy * J12; // 1
       y(q,1,e) = -wx * J21 + wy * J11; // 2
    });
@@ -99,7 +97,7 @@ static void PAConvectionSetup3D(const int NQ,
       const double wx = w * v0;
       const double wy = w * v1;
       const double wz = w * v2;
-      // adj(J)
+      // A = adj(J)
       const double A11 = (J22 * J33) - (J23 * J32);
       const double A12 = (J32 * J13) - (J12 * J33);
       const double A13 = (J12 * J23) - (J22 * J13);
@@ -109,7 +107,7 @@ static void PAConvectionSetup3D(const int NQ,
       const double A31 = (J21 * J32) - (J31 * J22);
       const double A32 = (J31 * J12) - (J11 * J32);
       const double A33 = (J11 * J22) - (J12 * J21);
-      // q . J^{-1} = q . adj(J)
+      // y = alpha * W * det(J) * J^{-1} . v = adj(J) . { wx, wy, wz }
       y(q,0,e) = wx * A11 + wy * A12 + wz * A13;
       y(q,1,e) = wx * A21 + wy * A22 + wz * A23;
       y(q,2,e) = wx * A31 + wy * A32 + wz * A33;
@@ -805,7 +803,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const GridFunction *gf = vgfQ->GetGridFunction();
       const FiniteElementSpace &gf_fes = *gf->FESpace();
       const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
-      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      const bool use_tensor_products = UsesTensorBasis(gf_fes);
+      const ElementDofOrdering ordering = use_tensor_products ?
+                                          ElementDofOrdering::LEXICOGRAPHIC :
+                                          ElementDofOrdering::NATIVE;
       const Operator *R = gf_fes.GetElementRestriction(ordering);
 
       Vector xe(R->Height(), Device::GetMemoryType());
@@ -813,6 +814,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       R->Mult(*gf, xe);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
+      qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(xe,vel);
    }
    else if (VectorQuadratureFunctionCoefficient* cQ =
