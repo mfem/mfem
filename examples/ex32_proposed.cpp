@@ -143,16 +143,11 @@ int main(int argc, char *argv[])
    //    flux to get an error indicator. We need to supply a space for the
    //    discontinuous flux (RT) and a space for the smoothed flux (H(curl) is
    //    used here).
-   //RT_R2D_FECollection flux_fec(order-1, dim);
-   //FiniteElementSpace flux_fes(&mesh, &flux_fec);
-   L2_FECollection flux_fec(order, dim);
-   FiniteElementSpace flux_fes(&mesh, &flux_fec, 3);
-   // ND_R2D_FECollection smooth_flux_fec(order, dim);
-   // FiniteElementSpace smooth_flux_fes(&mesh, &smooth_flux_fec);
-   // Another possible option for the smoothed flux space:
-   H1_FECollection smooth_flux_fec(order, dim);
-   FiniteElementSpace smooth_flux_fes(&mesh, &smooth_flux_fec, 3);
-   ZienkiewiczZhuEstimator estimator(*integ, sol, flux_fes);
+   RT_R2D_FECollection flux_fec(order-1, dim);
+   FiniteElementSpace flux_fes(&mesh, &flux_fec);
+   ND_R2D_FECollection smooth_flux_fec(order, dim);
+   FiniteElementSpace smooth_flux_fes(&mesh, &smooth_flux_fec);
+   L2ZienkiewiczZhuEstimator estimator(*integ, sol, flux_fes, smooth_flux_fes);
 
    // 10. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
