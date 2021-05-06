@@ -1159,7 +1159,7 @@ static void PADiffusionApply2D(const int NE,
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
-                                   const int symmetric,
+                                   const bool symmetric,
                                    const double *b_,
                                    const double *g_,
                                    const double *d_,
@@ -1545,7 +1545,7 @@ MFEM_EMBED static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
 // Shared memory PA Diffusion Apply 3D kernel
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
-                                   const int symmetric,
+                                   const bool symmetric,
                                    const double *b_,
                                    const double *g_,
                                    const double *d_,
