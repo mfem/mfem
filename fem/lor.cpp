@@ -321,14 +321,17 @@ LORBase::~LORBase()
    delete mesh;
 }
 
-LOR::LOR(BilinearForm &a_ho_, const Array<int> &ess_tdof_list, int ref_type)
-   : LOR(*a_ho_.FESpace(), ref_type)
+LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
+                                     const Array<int> &ess_tdof_list,
+                                     int ref_type)
+   : LORDiscretization(*a_ho_.FESpace(), ref_type)
 {
    a = new BilinearForm(fes);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
-LOR::LOR(FiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
+LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
+                                     int ref_type) : LORBase(fes_ho)
 {
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
@@ -347,7 +350,7 @@ LOR::LOR(FiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
    A.SetType(Operator::MFEM_SPARSEMAT);
 }
 
-SparseMatrix &LOR::GetAssembledMatrix() const
+SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 {
    MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
    return *A.As<SparseMatrix>();
@@ -355,14 +358,17 @@ SparseMatrix &LOR::GetAssembledMatrix() const
 
 #ifdef MFEM_USE_MPI
 
-ParLOR::ParLOR(ParBilinearForm &a_ho_, const Array<int> &ess_tdof_list,
-               int ref_type) : ParLOR(*a_ho_.ParFESpace(), ref_type)
+ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
+                                           const Array<int> &ess_tdof_list,
+                                           int ref_type)
+   : ParLORDiscretization(*a_ho_.ParFESpace(), ref_type)
 {
    a = new ParBilinearForm(static_cast<ParFiniteElementSpace*>(fes));
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
-ParLOR::ParLOR(ParFiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
+ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
+                                           int ref_type) : LORBase(fes_ho)
 {
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
@@ -383,13 +389,13 @@ ParLOR::ParLOR(ParFiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
    A.SetType(Operator::Hypre_ParCSR);
 }
 
-HypreParMatrix &ParLOR::GetAssembledMatrix() const
+HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 {
    MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 
-ParFiniteElementSpace &ParLOR::GetParFESpace() const
+ParFiniteElementSpace &ParLORDiscretization::GetParFESpace() const
 {
    return static_cast<ParFiniteElementSpace&>(*fes);
 }
