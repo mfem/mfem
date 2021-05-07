@@ -273,7 +273,8 @@ protected:
     const FiniteElementSpace& fes_lor;
 
     SparseMatrix* R;
-    DenseMatrix P;
+    SparseMatrix M_LH;
+    mutable DenseMatrix* P;
     const double p_rtol;
     const double p_atol;
 
@@ -289,15 +290,19 @@ protected:
     virtual void MultTranspose(const Vector& x, Vector& y) const;
     /// Perform the mass conservative left-inverse prolongation operation.
     /// This functionality is also provided as an Operator by L2Prolongation.
+    /// Builds the prolongation operator if P is NULL.
     void Prolongate(const Vector& x, Vector& y) const;
     /// Perform the transpose of the mass conservative left-inverse
     /// prolongation operation, useful for transferring dual fields.
+    /// Builds the prolongation operator if P is NULL.
     void ProlongateTranspose(const Vector& x, Vector& y) const; private:
   private:
     /// Computes sparsity pattern and initializes R matrix.  Based on 
     /// BilinearForm::AllocMat() except maps between HO elements and LOR 
     /// elements.
     void AllocR();
+    /// Computes prolongation matrix P.
+    void BuildP() const;
   };
 
   /** Mass-conservative prolongation operator going in the opposite direction

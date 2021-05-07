@@ -620,7 +620,7 @@ L2ProjectionH1GridTransfer::L2ProjectionH1::L2ProjectionH1(
   // Compute sparsity pattern for R and allocate
   AllocR();
   // Allocate M_LH (same sparsity pattern as R)
-  SparseMatrix M_LH = SparseMatrix(R->GetI(), R->GetJ(), NULL,
+  M_LH = SparseMatrix(R->GetI(), R->GetJ(), NULL,
     R->Height(), R->Width(), false, true, true);
 
   IntegrationPointTransformation ip_tr;
@@ -688,32 +688,12 @@ L2ProjectionH1GridTransfer::L2ProjectionH1::L2ProjectionH1(
       R->AddSubMatrix(dofs_lor, dofs_ho, R_el);
     }
   }
-
-  // Compute P = (R^T M_LH)^(-1) M_LH^T column by column (CG solve)
-  SparseMatrix RTxM_LH = *TransposeMult(*R, M_LH);
-  DSmoother Ds(RTxM_LH);
-  P.SetSize(ndof_ho, ndof_lor);
-  P = 0.0;
-  Vector P_col;
-  Vector M_LH_col_sp;
-  Vector M_LH_col(ndof_ho);
-  Array<int> M_LH_dofs;
-  for (int ilor = 0; ilor < ndof_lor; ++ilor)
-  {
-    P.GetColumnReference(ilor, P_col);
-    M_LH.GetRow(ilor, M_LH_dofs, M_LH_col_sp);
-    M_LH_col = 0.0;
-    for (int icol = 0; icol < M_LH_col_sp.Size(); ++icol)
-    {
-      M_LH_col[M_LH_dofs[icol]] = M_LH_col_sp[icol];
-    }
-    PCG(RTxM_LH, Ds, M_LH_col, P_col, 0, 1000, p_rtol*p_rtol, p_atol*p_atol);
-  }
 }
 
 L2ProjectionH1GridTransfer::L2ProjectionH1::~L2ProjectionH1()
 {
   delete R;
+  if (P) delete P;
 }
 
 void L2ProjectionH1GridTransfer::L2ProjectionH1::Mult(
@@ -777,6 +757,8 @@ void L2ProjectionH1GridTransfer::L2ProjectionH1::MultTranspose(
 void L2ProjectionH1GridTransfer::L2ProjectionH1::Prolongate(
   const Vector& x, Vector& y) const
 {
+  if (!P) BuildP();
+
   int vdim = fes_ho.GetVDim();
   const int ndof_ho = fes_ho.GetNDofs();
   const int ndof_lor = fes_lor.GetNDofs();
@@ -798,7 +780,7 @@ void L2ProjectionH1GridTransfer::L2ProjectionH1::Prolongate(
     }
     fes_lor.DofsToVDofs(d, dofs_lor);
     x.GetSubVector(dofs_lor, x_dim);
-    P.Mult(x_dim, y_dim);
+    P->Mult(x_dim, y_dim);
     y.SetSubVector(dofs_ho, y_dim);
   }
 }
@@ -806,6 +788,8 @@ void L2ProjectionH1GridTransfer::L2ProjectionH1::Prolongate(
 void L2ProjectionH1GridTransfer::L2ProjectionH1::ProlongateTranspose(
   const Vector& x, Vector& y) const
 {
+  if (!P) BuildP();
+
   int vdim = fes_ho.GetVDim();
   const int ndof_ho = fes_ho.GetNDofs();
   const int ndof_lor = fes_lor.GetNDofs();
@@ -827,7 +811,7 @@ void L2ProjectionH1GridTransfer::L2ProjectionH1::ProlongateTranspose(
     }
     fes_lor.DofsToVDofs(d, dofs_lor);
     x.GetSubVector(dofs_ho, x_dim);
-    P.MultTranspose(x_dim, y_dim);
+    P->MultTranspose(x_dim, y_dim);
     y.SetSubVector(dofs_lor, y_dim);
   }
 }
@@ -919,6 +903,34 @@ void L2ProjectionH1GridTransfer::L2ProjectionH1::AllocR()
   *R = 0.0;
 
   dof_lor_dof_ho.LoseData();
+}
+
+
+void L2ProjectionH1GridTransfer::L2ProjectionH1::BuildP() const
+{
+  int ndof_ho = fes_ho.GetNDofs();
+  int ndof_lor = fes_lor.GetNDofs();
+
+  // Compute P = (R^T M_LH)^(-1) M_LH^T column by column (CG solve)
+  SparseMatrix RTxM_LH = *TransposeMult(*R, M_LH);
+  DSmoother Ds(RTxM_LH);
+  P = new DenseMatrix(ndof_ho, ndof_lor);
+  *P = 0.0;
+  Vector P_col;
+  Vector M_LH_col_sp;
+  Vector M_LH_col(ndof_ho);
+  Array<int> M_LH_dofs;
+  for (int ilor = 0; ilor < ndof_lor; ++ilor)
+  {
+    P->GetColumnReference(ilor, P_col);
+    M_LH.GetRow(ilor, M_LH_dofs, M_LH_col_sp);
+    M_LH_col = 0.0;
+    for (int icol = 0; icol < M_LH_col_sp.Size(); ++icol)
+    {
+      M_LH_col[M_LH_dofs[icol]] = M_LH_col_sp[icol];
+    }
+    PCG(RTxM_LH, Ds, M_LH_col, P_col, 0, 1000, p_rtol * p_rtol, p_atol * p_atol);
+  }
 }
 
 
