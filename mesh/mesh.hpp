@@ -579,6 +579,20 @@ public:
        new mesh. Periodic meshes are not supported. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
+   /// Create a periodic mesh by identifying vertices of @a orig_mesh.
+   /** Each vertex @a i will be mapped to vertex @a v2v[i], such that all
+       vertices that are coincident under the periodic mapping get mapped to
+       the same index. The mapping @a v2v can be generated from translation
+       vectors using Mesh::CreatePeriodicVertexMapping. */
+   static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
+
+   /// @brief Creates a mapping @a v2v from the vertex indices of the mesh such
+   /// that coincident vertices under the given @a translations are identified.
+   /** Two vertices are considered coincident if their coordinates are within
+       given given @a tol, relative to the mesh diameter. */
+   std::vector<int> CreatePeriodicVertexMapping(
+      const std::vector<Vector> &translations, double tol=1e-8) const;
+
    ///@}
 
    /// Construct a Mesh from the given primary data.
