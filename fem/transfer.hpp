@@ -244,6 +244,106 @@ public:
    virtual const Operator &BackwardOperator();
 };
 
+
+/** @brief Transfer data between a coarse mesh and an embedded refined mesh
+    using L2 projection. */
+    /** The forward, coarse-to-fine, transfer uses L2 projection. The backward,
+        fine-to-coarse, transfer is defined locally (on a coarse element) as
+        B = (F^t M_f F)^{-1} F^t M_f, where F is the forward transfer matrix, and
+        M_f is the mass matrix on the union of all fine elements comprising the
+        coarse element. Note that the backward transfer operator, B, is a left
+        inverse of the forward transfer operator, F, i.e. B F = I. Both F and B are
+        defined in physical space and, generally, vary between different mesh
+        elements.
+
+        This class currently only fully supports L2 finite element spaces and fine
+        meshes that are a uniform refinement of the coarse mesh. Generally, the
+        coarse and fine FE spaces can have different orders, however, in order for
+        the backward operator to be well-defined, the number of the fine dofs (in a
+        coarse element) should not be smaller than the number of coarse dofs.
+
+        If used on H1 finite element spaces, the transfer will be performed locally,
+        and the value of shared (interface) degrees of freedom will be determined by
+        the value of the last transfer to be performed (according to the element
+        numbering in the finite element space). As a consequence, the mass
+        conservation properties for this operator from the L2 case do not carry over
+        to H1 spaces. */
+class L2ProjectionH1GridTransfer : public GridTransfer
+{
+protected:
+  /** Class representing projection operator between a high-order L2 finite
+      element space on a coarse mesh, and a low-order L2 finite element space
+      on a refined mesh (LOR). We assume that the low-order space, fes_lor,
+      lives on a mesh obtained by refining the mesh of the high-order space,
+      fes_ho. */
+  class L2ProjectionH1 : public Operator
+  {
+    const FiniteElementSpace& fes_ho;
+    const FiniteElementSpace& fes_lor;
+
+    SparseMatrix* R;
+    DenseMatrix P;
+    const double p_rtol;
+    const double p_atol;
+
+    Table ho2lor;
+  public:
+    L2ProjectionH1(const FiniteElementSpace& fes_ho_,
+      const FiniteElementSpace& fes_lor_);
+    ~L2ProjectionH1() override;
+    /// Perform the L2 projection onto the LOR space
+    virtual void Mult(const Vector& x, Vector& y) const;
+    /// Perform the transpose of L2 projection onto the LOR space, useful for
+    /// transferring dual fields.
+    virtual void MultTranspose(const Vector& x, Vector& y) const;
+    /// Perform the mass conservative left-inverse prolongation operation.
+    /// This functionality is also provided as an Operator by L2Prolongation.
+    void Prolongate(const Vector& x, Vector& y) const;
+    /// Perform the transpose of the mass conservative left-inverse
+    /// prolongation operation, useful for transferring dual fields.
+    void ProlongateTranspose(const Vector& x, Vector& y) const; private:
+  private:
+    /// Based on BilinearForm::AllocMat() except uses ho2lor to map HO
+    /// elements to LOR elements.
+    void AllocR();
+  };
+
+  /** Mass-conservative prolongation operator going in the opposite direction
+      as L2Projection. This operator is a left inverse to the L2Projection. */
+  class L2ProlongationH1 : public Operator
+  {
+    const L2ProjectionH1& l2proj;
+
+  public:
+    L2ProlongationH1(const L2ProjectionH1& l2proj_)
+      : Operator(l2proj_.Width(), l2proj_.Height()), l2proj(l2proj_) { }
+    void Mult(const Vector& x, Vector& y) const
+    {
+      l2proj.Prolongate(x, y);
+    }
+    void MultTranspose(const Vector& x, Vector& y) const
+    {
+      l2proj.ProlongateTranspose(x, y);
+    }
+    virtual ~L2ProlongationH1() { }
+  };
+
+  L2ProjectionH1* F; ///< Forward, coarse-to-fine, operator
+  L2ProlongationH1* B; ///< Backward, fine-to-coarse, operator
+
+public:
+  L2ProjectionH1GridTransfer(FiniteElementSpace& coarse_fes,
+    FiniteElementSpace& fine_fes)
+    : GridTransfer(coarse_fes, fine_fes),
+    F(NULL), B(NULL)
+  { }
+  ~L2ProjectionH1GridTransfer() override;
+
+  virtual const Operator& ForwardOperator();
+
+  virtual const Operator& BackwardOperator();
+};
+
 /// Matrix-free transfer operator between finite element spaces
 class TransferOperator : public Operator
 {
