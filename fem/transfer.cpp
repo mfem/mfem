@@ -289,8 +289,8 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    for (int iho = 0; iho < nel_ho; ++iho)
    {
       Array<int> lor_els;
-      int nref = ho2lor.RowSize(iho);
       ho2lor.GetRow(iho, lor_els);
+      int nref = ho2lor.RowSize(iho);
 
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
       const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
@@ -326,7 +326,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
       for (int iref = 0; iref < nref; ++iref)
       {
          // Assemble the low-order refined mass matrix and invert locally
-         int ilor = ho2lor.GetRow(iho)[iref];
+         int ilor = lor_els[iref];
          ElementTransformation *el_tr = fes_lor.GetElementTransformation(ilor);
          mi.AssembleElementMatrix(fe_lor, *el_tr, M_lor_el);
          M_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
