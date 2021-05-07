@@ -25,68 +25,48 @@ namespace mfem
 namespace kernels
 {
 
-/// Generic emplace
-template<typename K, const int N,
-         typename Key_t = typename K::Key_t,
-         typename Kernel_t = typename K::Kernel_t>
-void Emplace(std::unordered_map<Key_t, Kernel_t> &map)
-{
-   constexpr Key_t key = K::template GetKey<N>();
-   constexpr Kernel_t ker = K::template GetKer<key>();
-   map.emplace(key, ker);
-}
+template <typename K> class KernelMap;
 
 /// Instances
-template<class K, int... idx>
-struct Instances
+template<class K, int N = K::N> struct Instances
 {
-   static void Fill(std::unordered_map<typename K::Key_t,
-                    typename K::Kernel_t> &map)
+   static void Fill(KernelMap<K> &map)
    {
-      using unused = int[];
-      (void) unused {0, (kernels::Emplace<K,idx>(map), 0)... };
+      map.template Emplace<N-1>();
+      Instances<K,N-1>::Fill(map);
    }
 };
 
-/// Cat instances
-template<class K, int M, typename LHS, typename RHS> struct Cat;
-template<class K, int M, int... LHS, int... RHS>
-struct Cat<K,M, Instances<K,LHS...>, Instances<K,RHS...> >
-{ using CAT = Instances<K, LHS..., (M + RHS)...>; };
-
-/// Sequence, empty & terminal case
-template<class K, int N> struct Sequence
+// terminal case
+template<class K> struct Instances<K,1>
 {
-   static constexpr int M = N / 2;
-   static constexpr int R = N - M;
-   using LHS = typename Sequence<K,M>::SEQ;
-   using RHS = typename Sequence<K,R>::SEQ;
-   using SEQ = typename kernels::Cat<K,M,LHS,RHS>::CAT;
+   static void Fill(KernelMap<K> &map) { map.template Emplace<0>(); }
 };
-template<class K> struct Sequence<K,0> { using SEQ = Instances<K>; };
-template<class K> struct Sequence<K,1> { using SEQ = Instances<K,0>; };
-
-/// Kernel MakeSequence
-template<class K> using MakeSequence = typename Sequence<K,K::N>::SEQ;
 
 /// KernelMap class which creates an unordered_map of the Keys/Kernels
-template<class K,
-         typename Key_t = typename K::Key_t,
-         typename Return_t = typename K::Return_t,
-         typename Kernel_t = typename K::Kernel_t>
+template<class K>
 class KernelMap
 {
-private:
+   using Key_t = typename K::Key_t;
+   using Return_t = typename K::Return_t;
+   using Kernel_t = typename K::Kernel_t;
    using map_t = std::unordered_map<Key_t, Kernel_t>;
    map_t map;
 
 public:
    // Fill all the map with the Keys/Kernels
-   KernelMap() { kernels::MakeSequence<K>().Fill(map); }
+   KernelMap() { Instances<K>::Fill(*this); }
 
    bool Find(const Key_t id) { return map.find(id) != map.end(); }
 
    Kernel_t At(const Key_t id) { return map.at(id); }
+
+   template<int N> void Emplace()
+   {
+      constexpr Key_t key = K::template GetKey<N>();
+      constexpr Kernel_t ker = K::template GetKer<key>();
+      map.emplace(key, ker);
+   }
 };
 
 // /////////////////////////////////////////////////////////////////////////////
