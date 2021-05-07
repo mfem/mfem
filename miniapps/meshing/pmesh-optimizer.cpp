@@ -1040,7 +1040,6 @@ int main (int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   delete S_prec;
    delete S;
    delete S_prec;
    delete target_c2;
