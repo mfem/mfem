@@ -312,7 +312,7 @@ void ParFiniteElementSpace
 
 int ParFiniteElementSpace::FirstVarDof(int entity, int index, int order) const
 {
-   // first check ghost DOF variants
+   // check ghost DOF variants
    MFEM_ASSERT(entity == 1 || entity == 2, "");
    const int *I = ghost_var_dofs[entity-1].GetI();
    const int *J = ghost_var_dofs[entity-1].GetJ();
@@ -1930,21 +1930,21 @@ public:
       GroupId group;
       PMatrixRow row;
 
-      RowInfo(int ent, int idx, int edof, GroupId grp, const PMatrixRow &row)
-         : entity(ent), index(idx), edof(edof), group(grp), row(row) {}
+      RowInfo(int e, int idx, int o, int edof, GroupId g, const PMatrixRow &row)
+         : entity(e), index(idx), order(o), edof(edof), group(g), row(row) {}
 
-      RowInfo(int ent, int idx, int edof, GroupId grp)
-         : entity(ent), index(idx), edof(edof), group(grp) {}
+      RowInfo(int ent, int idx, int order, int edof, GroupId grp)
+         : entity(ent), index(idx), order(order), edof(edof), group(grp) {}
 
       typedef std::vector<RowInfo> List;
    };
 
    NeighborRowMessage() : pncmesh(NULL) {}
 
-   void AddRow(int entity, int index, int edof, GroupId group,
-               const PMatrixRow &row)
+   void AddRow(int entity, int index, int order, int edof,
+               GroupId group, const PMatrixRow &row)
    {
-      rows.push_back(RowInfo(entity, index, edof, group, row));
+      rows.push_back(RowInfo(entity, index, order, edof, group, row));
    }
 
    const RowInfo::List& GetRows() const { return rows; }
@@ -2025,6 +2025,7 @@ void NeighborRowMessage::Encode(int rank)
             }
          }
 
+         bin_io::write<char>(stream, ri.order);
          bin_io::write<int>(stream, edof);
          ri.row.write(stream, s);
       }
@@ -2058,6 +2059,7 @@ void NeighborRowMessage::Decode(int rank)
       for (int i = 0; i < ids.Size(); i++)
       {
          const MeshId &id = ids[i];
+         int order = bin_io::read<char>(stream);
          int edof = bin_io::read<int>(stream);
 
          // handle orientation and sign change
@@ -2081,7 +2083,7 @@ void NeighborRowMessage::Decode(int rank)
             s = -1.0;
          }
 
-         rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
+         rows.push_back(RowInfo(ent, id.index, order, edof, group_ids[gi++]));
          rows.back().row.read(stream, s);
 
 #ifdef MFEM_DEBUG_PMATRIX
@@ -2099,8 +2101,8 @@ ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
                                        GroupId group_id,
                                        NeighborRowMessage::Map &send_msg) const
 {
-   int ent, idx, edof;
-   UnpackDof(dof, ent, idx, edof);
+   int ent, idx, order, edof;
+   UnpackDof(dof, ent, idx, order, edof);
 
    const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
    for (unsigned i = 0; i < group.size(); i++)
@@ -2109,7 +2111,7 @@ ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
       if (rank != MyRank)
       {
          NeighborRowMessage &msg = send_msg[rank];
-         msg.AddRow(ent, idx, edof, group_id, row);
+         msg.AddRow(ent, idx, order, edof, group_id, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
 #ifdef MFEM_PMATRIX_STATS
@@ -2123,8 +2125,8 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
                                        GroupId group_sent_id, GroupId group_id,
                                        NeighborRowMessage::Map &send_msg) const
 {
-   int ent, idx, edof;
-   UnpackDof(dof, ent, idx, edof);
+   int ent, idx, order, edof;
+   UnpackDof(dof, ent, idx, order, edof);
 
    const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
    for (unsigned i = 0; i < group.size(); i++)
@@ -2134,7 +2136,7 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
       {
          NeighborRowMessage &msg = send_msg[rank];
          GroupId invalid = -1; // to prevent forwarding again
-         msg.AddRow(ent, idx, edof, invalid, row);
+         msg.AddRow(ent, idx, order, edof, invalid, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
 #ifdef MFEM_PMATRIX_STATS
@@ -2453,7 +2455,7 @@ int ParFiniteElementSpace
          for (unsigned i = 0; i < rows.size(); i++)
          {
             const NeighborRowMessage::RowInfo &ri = rows[i];
-            int dof = PackDof(ri.entity, ri.index, ri.edof);
+            int dof = PackDof(ri.entity, ri.index, ri.order, ri.edof);
             pmatrix[dof] = ri.row;
 
             if (dof < ndofs && !finalized[dof]) { num_finalized++; }
