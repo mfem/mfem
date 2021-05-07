@@ -4584,7 +4584,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    }
 
    std::vector<int> v2v(GetNV());
-   for (int i=0; i<v2v.size(); i++)
+   for (size_t i=0; i<v2v.size(); i++)
    {
       v2v[i] = i;
    }
