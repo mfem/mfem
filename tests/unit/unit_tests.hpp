@@ -14,6 +14,9 @@
 
 #include "catch.hpp"
 
+/// Command line '--all' option to launch all non-regression tests.
+extern bool launch_all_non_regression_tests;
+
 /// MFEM_Approx can be used to compare floating point values within an absolute
 /// tolerance of `margin` (default value 1e-12).
 inline Approx MFEM_Approx(double val, double margin = 1e-12)

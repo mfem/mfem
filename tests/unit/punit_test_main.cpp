@@ -13,6 +13,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+bool launch_all_non_regression_tests = false;
+
 #ifdef MFEM_USE_MPI
 mfem::MPI_Session *GlobalMPISession;
 #endif
@@ -22,6 +24,12 @@ int main(int argc, char *argv[])
    // There must be exactly one instance.
    Catch::Session session;
 
+   // Build a new command line parser on top of Catch's
+   using namespace Catch::clara;
+   auto cli = session.cli() |
+              Opt(launch_all_non_regression_tests) ["--all"] ("all tests");
+   session.cli(cli);
+
    // For floating point comparisons, print 8 digits for single precision
    // values, and 16 digits for double precision values.
    Catch::StringMaker<float>::precision = 8;
@@ -29,10 +37,7 @@ int main(int argc, char *argv[])
 
    // Apply provided command line arguments.
    int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
+   if (r != 0) { return r; }
 
 #ifdef MFEM_USE_MPI
    mfem::MPI_Session mpi;

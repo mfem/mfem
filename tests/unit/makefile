@@ -181,7 +181,6 @@ $(eval $(call tmop_tests,cuda,CUDA,cuda))
 $(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 define ptmop_tests
-ptmop_tests_$(1): | $(DATA_MESH_FILES) $(MINIAPPS_MESHING_MESH_FILES)
 ptmop_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
 ptmop_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
 ptmop_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
@@ -227,5 +226,5 @@ $(MFEM_LIB_FILE):
 
 clean:
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
-	rm -rf *.dSYM output_meshes $(DATA_MESH_FILES) $(MINIAPPS_MESHING_MESH_FILES)
+	rm -rf *.dSYM output_meshes
 
