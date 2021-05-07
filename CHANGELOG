@@ -186,6 +186,11 @@ Version 4.2.1 (development)
   --enable-mixedint option. Note that this option is currently tested only in
   ex1p and may not work in more general settings.
 
+- Added support for transferring fields (primary and dual) between high-order
+  and low-order refined H1 finite element spaces using the
+  L2ProjectionH1GridTransfer operators.  This functionality is demonstrated
+  through the lor-transfer miniapp when run with the -h1 option.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
