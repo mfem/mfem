@@ -641,9 +641,8 @@ public:
       NEWTON_LOOPS(a.newton_loop)
    { }
 
-   void Run(const int id =0) const
+   void Run(const int id = 0, bool nr = false) const
    {
-      static const bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
       if ((id==0) && name) { mfem::out << "[" << name << "]" << std::endl; }
       DEFAULT_ARGS;
       char ni[8] {}, rs[8] {}, li[8] {}, lc[16] {}, ji[16] {}, cmb[8] {};
@@ -681,150 +680,151 @@ public:
                         char nl[2] {};
                         args[NL] = itoa(n, nl);
                         tmop_require(id, args);
-                        if (!all) { break; }
+                        if (!nr) { break; }
                      }
-                     if (!all) { break; }
+                     if (!nr) { break; }
                   }
-                  if (!all) { break; }
+                  if (!nr) { break; }
                }
-               if (!all) { break; }
+               if (!nr) { break; }
             }
-            if (!all) { break; }
+            if (!nr) { break; }
          }
-         if (!all) { break; }
+         if (!nr) { break; }
       }
    }
 };
 
-static void tmop_tests(int id)
+// id: MPI rank, nr: launch all non-regression tests
+static void tmop_tests(int id = 0, bool all = false)
 {
    const double jitter = 1./(M_PI*M_PI);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL").
           MESH("../../data/star.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
-          TID({1}).MID({2})).Run(id);
+          TID({1}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL").
           MESH("../../data/star.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
-          TID({3}).MID({2})).Run(id);
+          TID({3}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
-          TID({1}).MID({302})).Run(id);
+          TID({1}).MID({302})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
-          TID({3}).MID({302})).Run(id);
+          TID({3}).MID({302})).Run(id,all);
 
    Launch(Launch::Args("Star").
           MESH("../../data/star.mesh").
           POR({1,2,3,4}).QOR({2,4,8}).
-          TID({1,2,3}).MID({1,2})).Run(id);
+          TID({1,2,3}).MID({1,2})).Run(id,all);
 
    Launch(Launch::Args("Square01 + Adapted analytic Hessian").
           MESH("../../miniapps/meshing/square01.mesh").REFINE(1).
           POR({1,2}).QOR({2,4}).
-          TID({4}).MID({1,2})).Run(id);
+          TID({4}).MID({1,2})).Run(id,all);
 
    Launch(Launch::Args("Blade").
           MESH("../../miniapps/meshing/blade.mesh").
           POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({2}).LS({2})).Run(id);
+          TID({1,2,3}).MID({2}).LS({2})).Run(id,all);
 
    Launch(Launch::Args("Blade + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
           NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({2})).Run(id);
+          TID({1,2,3}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("Blade + limiting + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
           NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({2})).Run(id);
+          TID({1,2,3}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
           LINEAR_ITERATIONS(300).NORMALIZATION(true).
           POR({1}).QOR({2}).
-          TID({5}).MID({7}).LS({2}).NL({2})).Run(id);
+          TID({5}).MID({7}).LS({2}).NL({2})).Run(id,all);
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
           LINEAR_ITERATIONS(200).NORMALIZATION(true).
           POR({1}).QOR({2}).
-          TID({5}).MID({2})).Run(id);
+          TID({5}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("Cube").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
-          TID({2,3}).MID({302,303})).Run(id);
+          TID({2,3}).MID({302,303})).Run(id,all);
 
    Launch(Launch::Args("Cube + Discrete size & aspect + normalization + limiting").
           MESH("../../miniapps/meshing/cube.mesh").
           NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({4,2}).
-          TID({7}).MID({302,321})).Run(id);
+          TID({7}).MID({302,321})).Run(id,all);
 
    Launch(Launch::Args("Toroid-Hex").
           MESH("../../data/toroid-hex.mesh").
           POR({1,2}).QOR({2,4,8}).
-          TID({1,2,3}).MID({302,303,321})).Run(id);
+          TID({1,2,3}).MID({302,303,321})).Run(id,all);
 
    Launch(Launch::Args("Toroid-Hex + limiting").
           MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).
           POR({1,2}).QOR({2,4}).
-          TID({1,2}).MID({321})).Run(id);
+          TID({1,2}).MID({321})).Run(id,all);
 
    Launch(Launch::Args("Toroid-Hex + limiting + norm.").
           MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
-          TID({1,2}).MID({321})).Run(id);
+          TID({1,2}).MID({321})).Run(id,all);
 
    // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
    Launch(Launch::Args("Cube + Blast options").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).
           TID({5}).MID({321}).LS({3}).LINEAR_ITERATIONS(100).
           LIMITING(M_PI).NORMALIZATION(true).
-          POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id);
+          POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id,all);
 
    // Combo 2D
    Launch(Launch::Args("Square01 + Combo").
           MESH("../../miniapps/meshing/square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(
              true).
           TID({5}).MID({2}).LS({2}).
-          POR({2}).QOR({8}).CMB(2)).Run(id);
+          POR({2}).QOR({8}).CMB(2)).Run(id,all);
 
    // Combo 3D
    Launch(Launch::Args("Cube + Combo").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(
              true).
           TID({5}).MID({302}).LS({2}).
-          POR({1,2}).QOR({2,8}).CMB(2)).Run(id);
+          POR({1,2}).QOR({2,8}).CMB(2)).Run(id,all);
 
    // NURBS
    Launch(Launch::Args("2D Nurbs").
           MESH("../../data/square-disc-nurbs.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({1,2})).Run(id);
+          TID({1,2,3}).MID({1,2})).Run(id,all);
 
    Launch(Launch::Args("3D Nurbs").
           MESH("../../data/beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({302,321})).Run(id);
+          TID({1,2,3}).MID({302,321})).Run(id,all);
 }
 
 #if defined(MFEM_TMOP_MPI)
 #ifndef MFEM_TMOP_TESTS
 TEST_CASE("TMOP", "[TMOP], [Parallel]")
 {
-   tmop_tests(GlobalMPISession->WorldRank());
+   tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
 }
 #else
 TEST_CASE("TMOP", "[TMOP], [Parallel]")
@@ -832,14 +832,14 @@ TEST_CASE("TMOP", "[TMOP], [Parallel]")
    Device device;
    device.Configure(MFEM_TMOP_DEVICE);
    device.Print();
-   tmop_tests(GlobalMPISession->WorldRank());
+   tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
 }
 #endif
 #else
 #ifndef MFEM_TMOP_TESTS
 TEST_CASE("TMOP", "[TMOP]")
 {
-   tmop_tests(0);
+   tmop_tests(0, launch_all_non_regression_tests);
 }
 #else
 TEST_CASE("TMOP", "[TMOP]")
@@ -847,7 +847,7 @@ TEST_CASE("TMOP", "[TMOP]")
    Device device;
    device.Configure(MFEM_TMOP_DEVICE);
    device.Print();
-   tmop_tests(0);
+   tmop_tests(0, launch_all_non_regression_tests);
 }
 #endif
 #endif
