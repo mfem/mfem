@@ -61,7 +61,7 @@ lib-common:
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
 ifneq ($(SRC),)
-MESH_FILES = blade.mesh icf.mesh
+MESH_FILES = blade.mesh cube.mesh icf.mesh square01.mesh 
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
