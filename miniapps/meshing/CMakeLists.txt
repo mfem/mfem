@@ -83,3 +83,16 @@ if (MFEM_USE_MPI)
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pminimal-surface> -no-vis
     ${MPIEXEC_POSTFLAGS})
 endif()
+
+# Copy blade.mesh to the miniapps/meshing build subdirectory.
+configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/blade.mesh"
+               "${PROJECT_BINARY_DIR}/miniapps/meshing/blade.mesh")
+
+# Copy square01.mesh to the miniapps/meshing build subdirectory.
+configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/square01.mesh"
+               "${PROJECT_BINARY_DIR}/miniapps/meshing/square01.mesh")
+               
+# Copy cube.mesh to the miniapps/meshing build subdirectory.
+configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/cube.mesh"
+               "${PROJECT_BINARY_DIR}/miniapps/meshing/cube.mesh")
+
