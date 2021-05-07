@@ -131,14 +131,11 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
 bool NeedDoubleFaces()
 {
-   return true; // TODO
+   return false; // TODO
 }
 
 void ParFiniteElementSpace::Construct()
 {
-   MFEM_VERIFY(!IsVariableOrder(), "variable orders are not implemented"
-               " for ParFiniteElementSpace yet.");
-
    if (NURBSext)
    {
       ConstructTrueNURBSDofs();
@@ -156,6 +153,8 @@ void ParFiniteElementSpace::Construct()
       int dim = pmesh->Dimension();
       int order = fec->GetOrder();
 
+      SyncElementOrders();
+
       if (!IsVariableOrder())
       {
          // Initialize 'gcomm' for the cut (aka "partially conforming") space.
@@ -164,12 +163,8 @@ void ParFiniteElementSpace::Construct()
          // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
          // cut space.
          ConstructTrueDofs();
-      }
-      else
-      {
-         // Exchange ghost element orders
-         pncmesh->SynchronizeElementData(elem_order);
-         // TODO: what to do with gcomm and the cut space groups?
+
+         // TODO: what to do with gcomm and the cut space groups in var-order spaces?
       }
 
       Array<VarOrderBits> ghost_edge_orders, ghost_face_orders;
@@ -233,6 +228,34 @@ void ParFiniteElementSpace::Construct()
 }
 
 
+void ParFiniteElementSpace::SyncElementOrders()
+{
+   // at the minimum, we need to determine if this is a variable order space
+   int glob_is_var, loc_is_var = elem_order.Size();
+   MPI_Allreduce(&loc_is_var, &glob_is_var, 1, MPI_INT, MPI_MAX, MyComm);
+   // TODO? we could also determine maximum order with this Allreduce
+
+   if (glob_is_var && !IsVariableOrder())
+   {
+      if (GetNE()) // initialize variable orders on this rank
+      {
+         SetElementOrder(0, fec->GetOrder());
+      }
+      else // special case for empty processors: we need IsVariableOrder to work
+      {
+         elem_order.SetSize(1);
+         elem_order = 0;
+      }
+   }
+
+   if (IsVariableOrder())
+   {
+      // exchange ghost element orders - the elem_order array will be enlarged
+      // to contain orders of remote (ghost) elements (indices >= NElements)
+      pncmesh->SynchronizeElementData(elem_order);
+   }
+}
+
 static bool order_exists(int i, int order, const Table &var_dofs,
                          const Array<char> &var_orders)
 {
@@ -244,7 +267,6 @@ static bool order_exists(int i, int order, const Table &var_dofs,
    }
    return false;
 }
-
 
 void ParFiniteElementSpace
 ::CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
@@ -3124,17 +3146,34 @@ void ParFiniteElementSpace::GetTrueTransferOperator(
 
 void ParFiniteElementSpace::Update(bool want_transform)
 {
-   MFEM_VERIFY(!IsVariableOrder(),
-               "Parallel variable order space not supported yet.");
-
-   if (mesh->GetSequence() == mesh_sequence)
+   int glob_orders_changed = 0;
+   if (Nonconforming())
    {
-      return; // no need to update, no-op
+      int loc_orders_changed = orders_changed;
+      MPI_Allreduce(&loc_orders_changed, &glob_orders_changed,
+                    1, MPI_INT, MPI_MAX, MyComm);
    }
-   if (want_transform && mesh->GetSequence() != mesh_sequence + 1)
+
+   if (!glob_orders_changed)
    {
-      MFEM_ABORT("Error in update sequence. Space needs to be updated after "
-                 "each mesh modification.");
+      if (mesh->GetSequence() == mesh_sequence)
+      {
+         return; // no need to update, no-op
+      }
+      if (want_transform && mesh->GetSequence() != mesh_sequence + 1)
+      {
+         MFEM_ABORT("Error in update sequence. Space needs to be updated after "
+                    "each mesh modification.");
+      }
+   }
+   else
+   {
+      if (mesh->GetSequence() != mesh_sequence)
+      {
+         MFEM_ABORT("Updating space after both mesh change and element order "
+                    "change is not supported. Please update separately after "
+                    "each change.");
+      }
    }
 
    if (NURBSext)
@@ -3153,6 +3192,12 @@ void ParFiniteElementSpace::Update(bool want_transform)
       elem_dof = NULL;
       old_ndofs = ndofs;
       Swap(dof_offsets, old_dof_offsets);
+   }
+
+   // update the 'elem_order' array if the mesh has changed
+   if (IsVariableOrder() && mesh->GetSequence() != mesh_sequence)
+   {
+      UpdateElementOrders();
    }
 
    Destroy();

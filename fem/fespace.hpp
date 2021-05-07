@@ -126,7 +126,7 @@ protected:
 
    /** List of faces with two sets of DOFs. This is a special feature for
        triangular Nedelec faces with orientations 1-4 and order >= 2, that we
-       disconnect and constrain with the P matrix. Normally the list is empty. */
+       disconnect and constrain with the P matrix. Normally the list is empty.*/
    Array<int> nd_double_faces;
 
    // precalculated DOFs for each element, boundary element, and face
@@ -425,7 +425,7 @@ public:
    int GetElementOrder(int i) const;
 
    /// Return the maximum polynomial order.
-   int GetMaxElementOrder() const
+   virtual int GetMaxElementOrder() const
    { return IsVariableOrder() ? elem_order.Max() : fec->GetOrder(); }
 
    /// Returns true if the space contains elements of varying polynomial orders.

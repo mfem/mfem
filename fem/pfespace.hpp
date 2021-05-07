@@ -115,6 +115,8 @@ private:
    void ApplyLDofSigns(Array<int> &dofs) const;
    void ApplyLDofSigns(Table &el_dof) const;
 
+   void SyncElementOrders();
+
    void CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
                                    Array<VarOrderBits> &ghost_face_orders) const;
 
