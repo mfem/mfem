@@ -586,14 +586,19 @@ public:
        vectors using Mesh::CreatePeriodicVertexMapping. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
 
+   ///@}
+
    /// @brief Creates a mapping @a v2v from the vertex indices of the mesh such
    /// that coincident vertices under the given @a translations are identified.
-   /** Two vertices are considered coincident if their coordinates are within
-       given given @a tol, relative to the mesh diameter. */
+   /** Each Vector in @a translations should be of size @a sdim (the spatial
+       dimension of the mesh). Two vertices are considered coincident if the
+       translated coordinates of one vertex are within the given tolerance (@a
+       tol, relative to the mesh diameter) of the coordinates of the other
+       vertex.
+       @warning This algorithm does not scale well with the number of vertices
+       in the mesh, and is not recommended for very large meshes.  */
    std::vector<int> CreatePeriodicVertexMapping(
       const std::vector<Vector> &translations, double tol=1e-8) const;
-
-   ///@}
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
