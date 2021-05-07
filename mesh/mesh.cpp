@@ -29,6 +29,8 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <map>
+#include <set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -4428,6 +4430,169 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+}
+
+Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
+{
+   Mesh periodic_mesh(orig_mesh, true); // Make a copy of the original mesh
+   const FiniteElementSpace *nodal_fes = orig_mesh.GetNodalFESpace();
+   int nodal_order = nodal_fes ? nodal_fes->GetMaxElementOrder() : 1;
+   periodic_mesh.SetCurvature(nodal_order, true);
+
+   // renumber element vertices
+   for (int i = 0; i < periodic_mesh.GetNE(); i++)
+   {
+      Element *el = periodic_mesh.GetElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+   // renumber boundary element vertices
+   for (int i = 0; i < periodic_mesh.GetNBE(); i++)
+   {
+      Element *el = periodic_mesh.GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+
+   periodic_mesh.RemoveUnusedVertices();
+   return periodic_mesh;
+}
+
+std::vector<int> Mesh::CreatePeriodicVertexMapping(
+   const std::vector<Vector> &translations, double tol) const
+{
+   int sdim = SpaceDimension();
+
+   Vector coord(sdim), at(sdim), dx(sdim);
+   Vector xMax(sdim), xMin(sdim), xDiff(sdim);
+   xMax = xMin = xDiff = 0.0;
+
+   // Get a list of all vertices on the boundary
+   set<int> bdr_v;
+   for (int be=0; be<GetNBE(); be++)
+   {
+      Array<int> dofs;
+      GetBdrElementVertices(be,dofs);
+
+      for (int i=0; i<dofs.Size(); i++)
+      {
+         bdr_v.insert(dofs[i]);
+
+         coord = GetVertex(dofs[i]);
+         for (int j=0; j<sdim; j++)
+         {
+            xMax[j] = max(xMax[j],coord[j]);
+            xMin[j] = min(xMin[j],coord[j]);
+         }
+      }
+   }
+   add(xMax, -1.0, xMin, xDiff);
+   double dia = xDiff.Norml2(); // compute mesh diameter
+
+   // slaves[v] is the index of the master vertex of slaver vertex `v`
+   map<int,int> slaves;
+   // masters[v] is a set of indices of all slave vertices of master vertex `v`
+   map<int,set<int>> masters;
+
+   // Make `m1` and all of `m1`'s slaves slaves of `m2`. Delete `m1` from the
+   // list of masters.
+   auto make_master_slave = [&slaves,&masters](int m1, int m2)
+   {
+      masters[m2].insert(m1);
+      slaves[m1] = m2;
+      for (int s : masters[m1])
+      {
+         masters[m2].insert(s);
+         slaves[s] = m2;
+      }
+      masters.erase(m1);
+   };
+
+   // Assume for now that all vertices are masters
+   for (int v : bdr_v) { masters[v]; }
+
+   for (unsigned int i=0; i<translations.size(); i++)
+   {
+      for (int vi : bdr_v)
+      {
+         coord = GetVertex(vi);
+         add(coord, translations[i], at);
+
+         for (int vj : bdr_v)
+         {
+            coord = GetVertex(vj);
+            add(at, -1.0, coord, dx);
+            if (dx.Norml2() > dia*tol) { continue; }
+
+            // The two vertices vi and vj are coincident
+            int master = vi;
+            int slave  = vj;
+
+            bool mInM = masters.find(master) != masters.end();
+            bool sInM = masters.find(slave) != masters.end();
+
+            if (mInM && sInM)
+            {
+               // Both vertices are currently masters
+               // Demote `slave` to be a slave of master
+               make_master_slave(slave, master);
+            }
+            else if (mInM && !sInM)
+            {
+               // `master` is already a master and `slave` is already a slave
+               int master_of_slave = slaves[slave];
+               if (master != master_of_slave)
+               {
+                  // Make `master` and its slaves slaves of `slave`'s master
+                  make_master_slave(master, master_of_slave);
+               }
+            }
+            else if (!mInM && sInM)
+            {
+               // `master` is currently a slave and
+               // `slave` is currently a master
+               // Make `slave` and its slaves slaves of `master`'s master
+               int master_of_master = slaves[master];
+               if (slave != master_of_master)
+               {
+                  make_master_slave(slave, master_of_master);
+               }
+            }
+            else
+            {
+               // Both vertices are currently slaves
+               // Make `slave` and its fellow slaves slaves of `master`'s master
+               int master_of_master = slaves[master];
+               int master_of_slave = slaves[slave];
+               // Move slave and its fellow slaves to master_of_master
+               if (master_of_master != master_of_slave)
+               {
+                  make_master_slave(master_of_slave, master_of_master);
+               }
+            }
+            break;
+         }
+      }
+   }
+
+   std::vector<int> v2v(GetNV());
+   for (int i=0; i<v2v.size(); i++)
+   {
+      v2v[i] = i;
+   }
+   for (auto &&mi : slaves)
+   {
+      v2v[mi.first] = mi.second;
+   }
+   return v2v;
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
