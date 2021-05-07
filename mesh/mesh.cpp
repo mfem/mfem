@@ -4506,6 +4506,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    // list of masters.
    auto make_master_slave = [&slaves,&masters](int m1, int m2)
    {
+      if (m1 == m2) { return; }
       masters[m2].insert(m1);
       slaves[m1] = m2;
       for (int s : masters[m1])
@@ -4549,11 +4550,8 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
             {
                // `master` is already a master and `slave` is already a slave
                int master_of_slave = slaves[slave];
-               if (master != master_of_slave)
-               {
-                  // Make `master` and its slaves slaves of `slave`'s master
-                  make_master_slave(master, master_of_slave);
-               }
+               // Make `master` and its slaves slaves of `slave`'s master
+               make_master_slave(master, master_of_slave);
             }
             else if (!mInM && sInM)
             {
@@ -4561,10 +4559,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
                // `slave` is currently a master
                // Make `slave` and its slaves slaves of `master`'s master
                int master_of_master = slaves[master];
-               if (slave != master_of_master)
-               {
-                  make_master_slave(slave, master_of_master);
-               }
+               make_master_slave(slave, master_of_master);
             }
             else
             {
@@ -4573,10 +4568,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
                int master_of_master = slaves[master];
                int master_of_slave = slaves[slave];
                // Move slave and its fellow slaves to master_of_master
-               if (master_of_master != master_of_slave)
-               {
-                  make_master_slave(master_of_slave, master_of_master);
-               }
+               make_master_slave(master_of_slave, master_of_master);
             }
             break;
          }
