@@ -1974,6 +1974,9 @@ void FiniteElementSpace::Construct()
    MFEM_VERIFY((mesh->GetNumGeometries(dim) > 0) || (mesh->GetNE() == 0),
                "Mesh was not correctly finalized.");
 
+   // no-op in serial, but needed for IsVariableOrder() to work correctly
+   SyncElementOrders();
+
    bool mixed_elements = (mesh->GetNumGeometries(dim) > 1);
    bool mixed_faces = (dim > 2 && mesh->GetNumGeometries(2) > 1);
 
@@ -2089,7 +2092,7 @@ void FiniteElementSpace
 {
    MFEM_ASSERT(IsVariableOrder(), "");
    MFEM_ASSERT(Nonconforming(), "");
-   MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
+   MFEM_ASSERT(elem_order.Size() >= mesh->GetNE(), "");
 
    edge_orders.SetSize(mesh->GetNEdges());  edge_orders = 0;
    face_orders.SetSize(mesh->GetNFaces());  face_orders = 0;

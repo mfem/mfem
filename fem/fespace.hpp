@@ -212,6 +212,8 @@ protected:
    /// Return element order: internal version of GetElementOrder without checks.
    int GetElementOrderImpl(int i) const;
 
+   virtual void SyncElementOrders() {}
+
    /** In a variable order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,

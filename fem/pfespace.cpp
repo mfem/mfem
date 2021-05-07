@@ -153,8 +153,6 @@ void ParFiniteElementSpace::Construct()
       int dim = pmesh->Dimension();
       int order = fec->GetOrder();
 
-      SyncElementOrders();
-
       if (!IsVariableOrder())
       {
          // Initialize 'gcomm' for the cut (aka "partially conforming") space.
