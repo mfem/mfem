@@ -11,7 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
-#include <set>
+#include <algorithm>
 
 using namespace mfem;
 
