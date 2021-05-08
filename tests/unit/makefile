@@ -26,7 +26,9 @@ INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
 CEED_SOURCE_FILES = $(sort $(wildcard $(SRC)ceed/*.cpp))
-SOURCE_FILES := $(filter-out $(CEED_SOURCE_FILES), $(SOURCE_FILES))
+MINI_SOURCE_FILES = $(sort $(wildcard $(SRC)miniapps/*.cpp))
+SOURCE_FILES := $(filter-out \
+   $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES), $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
@@ -75,10 +77,10 @@ PAR_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda.o))
 PAR_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
 # seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
-SEQ_UNIT_TESTS += $(if $(USE_CUDA),cunit_tests)
-PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
-PAR_UNIT_TESTS += $(if $(USE_CUDA),pcunit_tests)
+SEQ_UNIT_TESTS = unit_tests $(if $(USE_CUDA),cunit_tests)
+SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
+PAR_UNIT_TESTS = punit_tests $(if $(USE_CUDA),pcunit_tests)
+PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
 
 # Ceed tests
 USE_CEED := $(MFEM_USE_CEED:NO=)
@@ -129,7 +131,7 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 comma=,
 define sedov_tests
-sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_TESTS -DMFEM_SEDOV_DEVICE='"$(3)"'
+sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_DEVICE='"$(3)"'
 sedov_tests_$(1): unit_test_main.o $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(<) $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
@@ -146,7 +148,7 @@ $(eval $(call sedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 define psedov_tests
 psedov_tests_$(1): SEDOV_TESTS_FLAGS =-DMFEM_SEDOV_MPI
-psedov_tests_$(1): SEDOV_TESTS_FLAGS+=-DMFEM_SEDOV_TESTS -DMFEM_SEDOV_DEVICE='"$(3)"'
+psedov_tests_$(1): SEDOV_TESTS_FLAGS+=-DMFEM_SEDOV_DEVICE='"$(3)"'
 psedov_tests_$(1): punit_test_main.o $$(PAR_SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(<) $$(PAR_SEDOV_$(2)_OBJ_FILES) \
@@ -161,11 +163,18 @@ $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
+# For out-of-source builds, copy the meshes in ../../miniapps/meshing from the
+# source location; these are used by the TMOP tests.
+.PHONY: copy-miniapps-meshing-data
+copy-miniapps-meshing-data:
+	$(MAKE) -C ../../miniapps/meshing copy-data
+
 # TMOP Template rule for devices
 # 1: postfix of 'tmop_tests_', 2: prefix of '_OBJECT_FILES',
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 define tmop_tests
-tmop_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
+tmop_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
+tmop_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_DEVICE='"$(3)"'
 tmop_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(<) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
@@ -181,8 +190,9 @@ $(eval $(call tmop_tests,cuda,CUDA,cuda))
 $(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 define ptmop_tests
+ptmop_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
 ptmop_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
-ptmop_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
+ptmop_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_DEVICE='"$(3)"'
 ptmop_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(<) $$(PAR_TMOP_$(2)_OBJ_FILES) \

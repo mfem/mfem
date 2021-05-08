@@ -9,6 +9,28 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+set(MESH_FILES
+  amr-quad-q2.mesh
+  blade.mesh
+  cube.mesh
+  icf.mesh
+  jagged.mesh
+  square01.mesh
+  stretched2D.mesh
+)
+
+# Add a target to copy the mesh files from the source directory; used by sample
+# runs.
+set(SRC_MESH_FILES)
+foreach(MESH_FILE ${MESH_FILES})
+  list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
+endforeach()
+add_custom_command(OUTPUT data_is_copied
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} .
+  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
+  COMMENT "Copying meshing miniapps data files ...")
+add_custom_target(copy_miniapps_meshing_data DEPENDS data_is_copied)
+
 add_mfem_miniapp(klein-bottle
   MAIN klein-bottle.cpp
   LIBRARIES mfem)
@@ -33,6 +55,7 @@ add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}
   LIBRARIES mfem mfem-common)
+add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
 
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
@@ -66,6 +89,7 @@ if (MFEM_USE_MPI)
     MAIN pmesh-optimizer.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
+  add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
   add_mfem_miniapp(pminimal-surface
     MAIN pminimal-surface.cpp
@@ -83,16 +107,3 @@ if (MFEM_USE_MPI)
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pminimal-surface> -no-vis
     ${MPIEXEC_POSTFLAGS})
 endif()
-
-# Copy blade.mesh to the miniapps/meshing build subdirectory.
-configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/blade.mesh"
-               "${PROJECT_BINARY_DIR}/miniapps/meshing/blade.mesh")
-
-# Copy square01.mesh to the miniapps/meshing build subdirectory.
-configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/square01.mesh"
-               "${PROJECT_BINARY_DIR}/miniapps/meshing/square01.mesh")
-               
-# Copy cube.mesh to the miniapps/meshing build subdirectory.
-configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/cube.mesh"
-               "${PROJECT_BINARY_DIR}/miniapps/meshing/cube.mesh")
-
