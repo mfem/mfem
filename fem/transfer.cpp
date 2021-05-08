@@ -528,6 +528,7 @@ L2ProjectionH1GridTransfer::L2ProjectionH1::L2ProjectionH1(
    : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
      fes_ho(fes_ho_),
      fes_lor(fes_lor_),
+     P(NULL),
      p_rtol(1e-13),
      p_atol(1e-13)
 {
