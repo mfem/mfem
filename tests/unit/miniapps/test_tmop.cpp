@@ -751,18 +751,6 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id,all);
 
-   Launch(Launch::Args("Blade + Discrete size + normalization").
-          MESH("../../miniapps/meshing/blade.mesh").
-          LINEAR_ITERATIONS(300).NORMALIZATION(true).
-          POR({1}).QOR({2}).
-          TID({5}).MID({7}).LS({2}).NL({2})).Run(id,all);
-
-   Launch(Launch::Args("Blade + Discrete size + normalization").
-          MESH("../../miniapps/meshing/blade.mesh").
-          LINEAR_ITERATIONS(200).NORMALIZATION(true).
-          POR({1}).QOR({2}).
-          TID({5}).MID({2})).Run(id,all);
-
    Launch(Launch::Args("Cube").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
@@ -822,6 +810,23 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../data/beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({302,321})).Run(id,all);
+
+   // The folowing tests need more iterations to agree between PA/non-PA
+   // They can be only be launched with the `--all` command line option
+
+   if (!all) { return; }
+
+   Launch(Launch::Args("Blade + Discrete size + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          LINEAR_ITERATIONS(300).NORMALIZATION(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({7}).LS({2}).NL({2})).Run(id,true);
+
+   Launch(Launch::Args("Blade + Discrete size + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          LINEAR_ITERATIONS(200).NORMALIZATION(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({2})).Run(id,true);
 }
 
 #if defined(MFEM_TMOP_MPI)
