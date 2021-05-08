@@ -43,6 +43,10 @@ int main(int argc, char *argv[])
    session.useConfigData(cfg);
 #endif
 
+   // NOTE: tests marked with "[CUDA]" are still run using the default device.
+
+   std::cout << "INFO: Test filter: ~[Parallel]" << std::endl;
+
    int result = session.run();
 
    return result;
