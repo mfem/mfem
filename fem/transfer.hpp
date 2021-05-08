@@ -295,7 +295,7 @@ protected:
       /// Perform the transpose of the mass conservative left-inverse
       /// prolongation operation, useful for transferring dual fields.
       /// Builds the prolongation operator if P is NULL.
-   void ProlongateTranspose(const Vector& x, Vector& y) const; private:
+      void ProlongateTranspose(const Vector& x, Vector& y) const;
    private:
       /// Computes sparsity pattern and initializes R matrix.  Based on
       /// BilinearForm::AllocMat() except maps between HO elements and LOR
