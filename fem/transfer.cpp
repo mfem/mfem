@@ -536,7 +536,6 @@ L2ProjectionH1GridTransfer::L2ProjectionH1::L2ProjectionH1(
    Mesh* mesh_lor = fes_lor.GetMesh();
    int nel_ho = mesh_ho->GetNE();
    int nel_lor = mesh_lor->GetNE();
-   int ndof_ho = fes_ho.GetNDofs();
    int ndof_lor = fes_lor.GetNDofs();
 
    // If the local mesh is empty, skip all computations
@@ -842,8 +841,6 @@ void L2ProjectionH1GridTransfer::L2ProjectionH1::AllocR()
    Array<int> dof_used_ho;
    dof_used_ho.SetSize(ndof_ho, -1);
 
-   int nel_ho = fes_ho.GetNE();
-   int nel_lor = fes_lor.GetNE();
    int sizeJ = 0;
    for (int ilor = 0; ilor < ndof_lor; ++ilor)
    {
