@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,7 +91,7 @@ public:
 
    /// Constructor to initialize a tensor from the Scalar array _data
    template <typename... Args> MFEM_HOST_DEVICE
-   DeviceTensor(Scalar* __restrict__ _data, Args... args)
+   DeviceTensor(Scalar* _data, Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
@@ -140,16 +140,9 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 
 
 typedef DeviceTensor<1,int> DeviceArray;
-typedef DeviceTensor<1,const int> ConstDeviceArray;
-
 typedef DeviceTensor<1,double> DeviceVector;
-typedef DeviceTensor<1,const double> ConstDeviceVector;
-
 typedef DeviceTensor<2,double> DeviceMatrix;
 typedef DeviceTensor<2,const double> ConstDeviceMatrix;
-
-typedef DeviceTensor<3,double> DeviceCube;
-typedef DeviceTensor<3,const double> ConstDeviceCube;
 
 } // mfem namespace
 

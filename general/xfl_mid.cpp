@@ -1015,7 +1015,7 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             const bool KER_CEED = std::getenv("KER_CEED");
             const bool KER_REGS = std::getenv("KER_REGS");
             const bool KER_OREO = std::getenv("KER_OREO");
-            const bool KER_LEAN = std::getenv("KER_LEAN");
+            const bool KER_LEAN = true;//std::getenv("KER_LEAN");
             assert(KER_LEAN);
 
             const bool SIMD_SETUP = KER_SIMD || KER_OREO || KER_REGS || KER_LEAN;

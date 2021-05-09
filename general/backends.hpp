@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CUDA
+#include <cusparse.h>
+#include <library_types.h>
 #include <cuda_runtime.h>
 #include <cuda.h>
 #endif

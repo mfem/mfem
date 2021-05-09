@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
+#include "quadinterpolator_dispatch.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
@@ -18,16 +19,15 @@ namespace mfem
 {
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const IntegrationRule &ir,
-                                               const bool use_tensor_products):
+                                               const IntegrationRule &ir):
 
    fespace(&fes),
    qspace(nullptr),
    IntRule(&ir),
    q_layout(QVectorLayout::byNODES),
-   use_tensor_products(use_tensor_products)
+   use_tensor_products(UsesTensorBasis(fes))
 {
-
+   d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
@@ -35,51 +35,67 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const QuadratureSpace &qs,
-                                               const bool use_tensor_products):
+                                               const QuadratureSpace &qs):
 
    fespace(&fes),
    qspace(&qs),
    IntRule(nullptr),
    q_layout(QVectorLayout::byNODES),
-   use_tensor_products(use_tensor_products)
+   use_tensor_products(UsesTensorBasis(fes))
 {
+   d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
 
-template<const int T_VDIM, const int T_ND, const int T_NQ>
-void QuadratureInterpolator::Mult2D(const int NE,
-                                    const int vdim,
-                                    const QVectorLayout q_layout,
-                                    const GeometricFactors *geom,
-                                    const DofToQuad &maps,
-                                    const Vector &e_vec,
-                                    Vector &q_val,
-                                    Vector &q_der,
-                                    Vector &q_det,
-                                    const int eval_flags)
+namespace internal
 {
+
+namespace quadrature_interpolator
+{
+
+// Template compute kernel for 2D quadrature interpolation:
+// * non-tensor product version,
+// * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
+// * assumes 'maps.mode == FULL'.
+template<const int T_VDIM, const int T_ND, const int T_NQ>
+static void Eval2D(const int NE,
+                   const int vdim,
+                   const QVectorLayout q_layout,
+                   const GeometricFactors *geom,
+                   const DofToQuad &maps,
+                   const Vector &e_vec,
+                   Vector &q_val,
+                   Vector &q_der,
+                   Vector &q_det,
+                   const int eval_flags)
+{
+   using QI = QuadratureInterpolator;
+
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
    const int NMAX = NQ > ND ? NQ : ND;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   MFEM_VERIFY(ND <= MAX_ND2D, "");
-   MFEM_VERIFY(NQ <= MAX_NQ2D, "");
-   MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
-   MFEM_VERIFY((!geom) || (eval_flags & PHYSICAL_DERIVATIVES), "");
+   MFEM_ASSERT(maps.mode == DofToQuad::FULL, "internal error");
+   MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 2, "");
+   MFEM_VERIFY(ND <= QI::MAX_ND2D, "");
+   MFEM_VERIFY(NQ <= QI::MAX_NQ2D, "");
+   MFEM_VERIFY(VDIM == 2 || !(eval_flags & QI::DETERMINANTS), "");
+   MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
+               "'geom' must be given (non-null) only when evaluating physical"
+               " derivatives");
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 2, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 2, 2, NE);
    const auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
-   auto val = q_layout == QVectorLayout:: byNODES ?
+   auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ, VDIM, NE):
               Reshape(q_val.Write(), VDIM, NQ, NE);
-   auto der = q_layout == QVectorLayout:: byNODES ?
+   auto der = q_layout == QVectorLayout::byNODES ?
               Reshape(q_der.Write(), NQ, VDIM, 2, NE):
               Reshape(q_der.Write(), VDIM, 2, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
@@ -88,8 +104,8 @@ void QuadratureInterpolator::Mult2D(const int NE,
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
-      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
+      constexpr int max_ND = T_ND ? T_ND : QI::MAX_ND2D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : QI::MAX_VDIM2D;
       MFEM_SHARED double s_E[max_VDIM*max_ND];
       MFEM_FOREACH_THREAD(d, x, ND)
       {
@@ -102,7 +118,7 @@ void QuadratureInterpolator::Mult2D(const int NE,
 
       MFEM_FOREACH_THREAD(q, x, NQ)
       {
-         if (eval_flags & VALUES)
+         if (eval_flags & QI::VALUES)
          {
             double ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
@@ -117,12 +133,12 @@ void QuadratureInterpolator::Mult2D(const int NE,
                if (q_layout == QVectorLayout::byNODES) { val(q,c,e) = ed[c]; }
             }
          }
-         if ((eval_flags & DERIVATIVES) ||
-             (eval_flags & PHYSICAL_DERIVATIVES) ||
-             (eval_flags & DETERMINANTS))
+         if ((eval_flags & QI::DERIVATIVES) ||
+             (eval_flags & QI::PHYSICAL_DERIVATIVES) ||
+             (eval_flags & QI::DETERMINANTS))
          {
             // use MAX_VDIM2D to avoid "subscript out of range" warnings
-            double D[MAX_VDIM2D*2];
+            double D[QI::MAX_VDIM2D*2];
             for (int i = 0; i < 2*VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
@@ -135,8 +151,7 @@ void QuadratureInterpolator::Mult2D(const int NE,
                   D[c+VDIM*1] += s_e * wy;
                }
             }
-            if ((eval_flags & DERIVATIVES) ||
-                (eval_flags & PHYSICAL_DERIVATIVES))
+            if (eval_flags & QI::DERIVATIVES)
             {
                for (int c = 0; c < VDIM; c++)
                {
@@ -152,7 +167,7 @@ void QuadratureInterpolator::Mult2D(const int NE,
                   }
                }
             }
-            if (eval_flags & PHYSICAL_DERIVATIVES)
+            if (eval_flags & QI::PHYSICAL_DERIVATIVES)
             {
                double Jloc[4], Jinv[4];
                Jloc[0] = J(q,0,0,e);
@@ -178,7 +193,7 @@ void QuadratureInterpolator::Mult2D(const int NE,
                   }
                }
             }
-            if (VDIM == 2 && (eval_flags & DETERMINANTS))
+            if (VDIM == 2 && (eval_flags & QI::DETERMINANTS))
             {
                // The check (VDIM == 2) should eliminate this block when VDIM is
                // known at compile time and (VDIM != 2).
@@ -189,36 +204,46 @@ void QuadratureInterpolator::Mult2D(const int NE,
    });
 }
 
+// Template compute kernel for 3D quadrature interpolation:
+// * non-tensor product version,
+// * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
+// * assumes 'maps.mode == FULL'.
 template<const int T_VDIM, const int T_ND, const int T_NQ>
-void QuadratureInterpolator::Mult3D(const int NE,
-                                    const int vdim,
-                                    const QVectorLayout q_layout,
-                                    const GeometricFactors *geom,
-                                    const DofToQuad &maps,
-                                    const Vector &e_vec,
-                                    Vector &q_val,
-                                    Vector &q_der,
-                                    Vector &q_det,
-                                    const int eval_flags)
+static void Eval3D(const int NE,
+                   const int vdim,
+                   const QVectorLayout q_layout,
+                   const GeometricFactors *geom,
+                   const DofToQuad &maps,
+                   const Vector &e_vec,
+                   Vector &q_val,
+                   Vector &q_der,
+                   Vector &q_det,
+                   const int eval_flags)
 {
+   using QI = QuadratureInterpolator;
+
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
    const int NMAX = NQ > ND ? NQ : ND;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   MFEM_VERIFY(ND <= MAX_ND3D, "");
-   MFEM_VERIFY(NQ <= MAX_NQ3D, "");
-   MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
-   MFEM_VERIFY((!geom) || (eval_flags & PHYSICAL_DERIVATIVES), "");
+   MFEM_ASSERT(maps.mode == DofToQuad::FULL, "internal error");
+   MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 3, "");
+   MFEM_VERIFY(ND <= QI::MAX_ND3D, "");
+   MFEM_VERIFY(NQ <= QI::MAX_NQ3D, "");
+   MFEM_VERIFY(VDIM == 3 || !(eval_flags & QI::DETERMINANTS), "");
+   MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
+               "'geom' must be given (non-null) only when evaluating physical"
+               " derivatives");
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 3, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 3, 3, NE);
    const auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
-   auto val = q_layout == QVectorLayout:: byNODES ?
+   auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ, VDIM, NE):
               Reshape(q_val.Write(), VDIM, NQ, NE);
-   auto der = q_layout == QVectorLayout:: byNODES ?
+   auto der = q_layout == QVectorLayout::byNODES ?
               Reshape(q_der.Write(), NQ, VDIM, 3, NE):
               Reshape(q_der.Write(), VDIM, 3, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
@@ -227,8 +252,8 @@ void QuadratureInterpolator::Mult3D(const int NE,
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
-      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
+      constexpr int max_ND = T_ND ? T_ND : QI::MAX_ND3D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : QI::MAX_VDIM3D;
       MFEM_SHARED double s_E[max_VDIM*max_ND];
       MFEM_FOREACH_THREAD(d, x, ND)
       {
@@ -241,7 +266,7 @@ void QuadratureInterpolator::Mult3D(const int NE,
 
       MFEM_FOREACH_THREAD(q, x, NQ)
       {
-         if (eval_flags & VALUES)
+         if (eval_flags & QI::VALUES)
          {
             double ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
@@ -256,12 +281,12 @@ void QuadratureInterpolator::Mult3D(const int NE,
                if (q_layout == QVectorLayout::byNODES) { val(q,c,e) = ed[c]; }
             }
          }
-         if ((eval_flags & DERIVATIVES) ||
-             (eval_flags & PHYSICAL_DERIVATIVES) ||
-             (eval_flags & DETERMINANTS))
+         if ((eval_flags & QI::DERIVATIVES) ||
+             (eval_flags & QI::PHYSICAL_DERIVATIVES) ||
+             (eval_flags & QI::DETERMINANTS))
          {
             // use MAX_VDIM3D to avoid "subscript out of range" warnings
-            double D[MAX_VDIM3D*3];
+            double D[QI::MAX_VDIM3D*3];
             for (int i = 0; i < 3*VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
@@ -276,8 +301,7 @@ void QuadratureInterpolator::Mult3D(const int NE,
                   D[c+VDIM*2] += s_e * wz;
                }
             }
-            if ((eval_flags & DERIVATIVES) ||
-                (eval_flags & PHYSICAL_DERIVATIVES))
+            if (eval_flags & QI::DERIVATIVES)
             {
                for (int c = 0; c < VDIM; c++)
                {
@@ -295,7 +319,7 @@ void QuadratureInterpolator::Mult3D(const int NE,
                   }
                }
             }
-            if (eval_flags & PHYSICAL_DERIVATIVES)
+            if (eval_flags & QI::PHYSICAL_DERIVATIVES)
             {
                double Jloc[9], Jinv[9];
                for (int col = 0; col < 3; col++)
@@ -328,7 +352,7 @@ void QuadratureInterpolator::Mult3D(const int NE,
                   }
                }
             }
-            if (VDIM == 3 && (eval_flags & DETERMINANTS))
+            if (VDIM == 3 && (eval_flags & QI::DETERMINANTS))
             {
                // The check (VDIM == 3) should eliminate this block when VDIM is
                // known at compile time and (VDIM != 3).
@@ -339,31 +363,59 @@ void QuadratureInterpolator::Mult3D(const int NE,
    });
 }
 
+} // namespace quadrature_interpolator
+
+} // namespace internal
+
 void QuadratureInterpolator::Mult(const Vector &e_vec,
                                   unsigned eval_flags,
                                   Vector &q_val,
                                   Vector &q_der,
                                   Vector &q_det) const
 {
-   if (use_tensor_products)
+   using namespace internal::quadrature_interpolator;
+
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   const int vdim = fespace->GetVDim();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const bool use_tensor_eval =
+      use_tensor_products &&
+      dynamic_cast<const TensorBasisElement*>(fe) != nullptr;
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad::Mode mode =
+      use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const GeometricFactors *geom = nullptr;
+   if (eval_flags & PHYSICAL_DERIVATIVES)
    {
+      const int jacobians = GeometricFactors::JACOBIANS;
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+   }
+
+   MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
+                  fespace->GetMesh()->Dimension()) == 1,
+               "mixed meshes are not supported");
+
+   if (use_tensor_eval)
+   {
+      // TODO: use fused kernels
       if (q_layout == QVectorLayout::byNODES)
       {
          if (eval_flags & VALUES)
          {
-            Values<QVectorLayout::byNODES>(e_vec, q_val);
+            TensorValues<QVectorLayout::byNODES>(ne, vdim, maps, e_vec, q_val);
          }
          if (eval_flags & DERIVATIVES)
          {
-            Derivatives<QVectorLayout::byNODES>(e_vec, q_der);
-         }
-         if (eval_flags & DETERMINANTS)
-         {
-            Determinants(e_vec, q_det);
+            TensorDerivatives<QVectorLayout::byNODES>(
+               ne, vdim, maps, e_vec, q_der);
          }
          if (eval_flags & PHYSICAL_DERIVATIVES)
          {
-            PhysDerivatives<QVectorLayout::byNODES>(e_vec, q_der);
+            TensorPhysDerivatives<QVectorLayout::byNODES>(
+               ne, vdim, maps, *geom, e_vec, q_der);
          }
       }
 
@@ -371,41 +423,29 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       {
          if (eval_flags & VALUES)
          {
-            Values<QVectorLayout::byVDIM>(e_vec, q_val);
+            TensorValues<QVectorLayout::byVDIM>(ne, vdim, maps, e_vec, q_val);
          }
          if (eval_flags & DERIVATIVES)
          {
-            Derivatives<QVectorLayout::byVDIM>(e_vec, q_der);
-         }
-         if (eval_flags & DETERMINANTS)
-         {
-            Determinants(e_vec, q_det);
+            TensorDerivatives<QVectorLayout::byVDIM>(
+               ne, vdim, maps, e_vec, q_der);
          }
          if (eval_flags & PHYSICAL_DERIVATIVES)
          {
-            PhysDerivatives<QVectorLayout::byVDIM>(e_vec, q_der);
+            TensorPhysDerivatives<QVectorLayout::byVDIM>(
+               ne, vdim, maps, *geom, e_vec, q_der);
          }
       }
-   }
-   else
-   {
-      const int ne = fespace->GetNE();
-      if (ne == 0) { return; }
-      const int vdim = fespace->GetVDim();
-      const int dim = fespace->GetMesh()->Dimension();
-      const FiniteElement *fe = fespace->GetFE(0);
-      const IntegrationRule *ir =
-         IntRule ? IntRule : &qspace->GetElementIntRule(0);
-      constexpr DofToQuad::Mode mode = DofToQuad::FULL;
-      const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
-      const GeometricFactors *geom = nullptr;
-      if (eval_flags & PHYSICAL_DERIVATIVES)
+      if (eval_flags & DETERMINANTS)
       {
-         const int jacobians = GeometricFactors::JACOBIANS;
-         geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians, mode);
+         TensorDeterminants(ne, vdim, maps, e_vec, q_det, d_buffer);
       }
+   }
+   else // use_tensor_eval == false
+   {
       const int nd = maps.ndof;
       const int nq = maps.nqpt;
+      const int dim = maps.FE->GetDim();
 
       void (*mult)(const int NE,
                    const int vdim,
@@ -417,7 +457,6 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
                    Vector &q_der,
                    Vector &q_det,
                    const int eval_flags) = NULL;
-
       if (vdim == 1)
       {
          if (dim == 2)
@@ -425,27 +464,27 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
             switch (100*nd + nq)
             {
                // Q0
-               case 101: mult = &Mult2D<1,1,1>; break;
-               case 104: mult = &Mult2D<1,1,4>; break;
+               case 101: mult = &Eval2D<1,1,1>; break;
+               case 104: mult = &Eval2D<1,1,4>; break;
                // Q1
-               case 404: mult = &Mult2D<1,4,4>; break;
-               case 409: mult = &Mult2D<1,4,9>; break;
+               case 404: mult = &Eval2D<1,4,4>; break;
+               case 409: mult = &Eval2D<1,4,9>; break;
                // Q2
-               case 909: mult = &Mult2D<1,9,9>; break;
-               case 916: mult = &Mult2D<1,9,16>; break;
+               case 909: mult = &Eval2D<1,9,9>; break;
+               case 916: mult = &Eval2D<1,9,16>; break;
                // Q3
-               case 1616: mult = &Mult2D<1,16,16>; break;
-               case 1625: mult = &Mult2D<1,16,25>; break;
-               case 1636: mult = &Mult2D<1,16,36>; break;
+               case 1616: mult = &Eval2D<1,16,16>; break;
+               case 1625: mult = &Eval2D<1,16,25>; break;
+               case 1636: mult = &Eval2D<1,16,36>; break;
                // Q4
-               case 2525: mult = &Mult2D<1,25,25>; break;
-               case 2536: mult = &Mult2D<1,25,36>; break;
-               case 2549: mult = &Mult2D<1,25,49>; break;
-               case 2564: mult = &Mult2D<1,25,64>; break;
+               case 2525: mult = &Eval2D<1,25,25>; break;
+               case 2536: mult = &Eval2D<1,25,36>; break;
+               case 2549: mult = &Eval2D<1,25,49>; break;
+               case 2564: mult = &Eval2D<1,25,64>; break;
             }
             if (nq >= 100 || !mult)
             {
-               mult = &Mult2D<1>;
+               mult = &Eval2D<1,0,0>;
             }
          }
          else if (dim == 3)
@@ -453,25 +492,25 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
             switch (1000*nd + nq)
             {
                // Q0
-               case 1001: mult = &Mult3D<1,1,1>; break;
-               case 1008: mult = &Mult3D<1,1,8>; break;
+               case 1001: mult = &Eval3D<1,1,1>; break;
+               case 1008: mult = &Eval3D<1,1,8>; break;
                // Q1
-               case 8008: mult = &Mult3D<1,8,8>; break;
-               case 8027: mult = &Mult3D<1,8,27>; break;
+               case 8008: mult = &Eval3D<1,8,8>; break;
+               case 8027: mult = &Eval3D<1,8,27>; break;
                // Q2
-               case 27027: mult = &Mult3D<1,27,27>; break;
-               case 27064: mult = &Mult3D<1,27,64>; break;
+               case 27027: mult = &Eval3D<1,27,27>; break;
+               case 27064: mult = &Eval3D<1,27,64>; break;
                // Q3
-               case 64064: mult = &Mult3D<1,64,64>; break;
-               case 64125: mult = &Mult3D<1,64,125>; break;
-               case 64216: mult = &Mult3D<1,64,216>; break;
+               case 64064: mult = &Eval3D<1,64,64>; break;
+               case 64125: mult = &Eval3D<1,64,125>; break;
+               case 64216: mult = &Eval3D<1,64,216>; break;
                // Q4
-               case 125125: mult = &Mult3D<1,125,125>; break;
-               case 125216: mult = &Mult3D<1,125,216>; break;
+               case 125125: mult = &Eval3D<1,125,125>; break;
+               case 125216: mult = &Eval3D<1,125,216>; break;
             }
             if (nq >= 1000 || !mult)
             {
-               mult = &Mult3D<1>;
+               mult = &Eval3D<1,0,0>;
             }
          }
       }
@@ -480,26 +519,26 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          switch (100*nd + nq)
          {
             // Q0
-            case 101: mult = &Mult2D<3,1,1>; break;
-            case 104: mult = &Mult2D<3,1,4>; break;
+            case 101: mult = &Eval2D<3,1,1>; break;
+            case 104: mult = &Eval2D<3,1,4>; break;
             // Q1
-            case 404: mult = &Mult2D<3,4,4>; break;
-            case 409: mult = &Mult2D<3,4,9>; break;
+            case 404: mult = &Eval2D<3,4,4>; break;
+            case 409: mult = &Eval2D<3,4,9>; break;
             // Q2
-            case 904: mult = &Mult2D<3,9,4>; break;
-            case 909: mult = &Mult2D<3,9,9>; break;
-            case 916: mult = &Mult2D<3,9,16>; break;
-            case 925: mult = &Mult2D<3,9,25>; break;
+            case 904: mult = &Eval2D<3,9,4>; break;
+            case 909: mult = &Eval2D<3,9,9>; break;
+            case 916: mult = &Eval2D<3,9,16>; break;
+            case 925: mult = &Eval2D<3,9,25>; break;
             // Q3
-            case 1616: mult = &Mult2D<3,16,16>; break;
-            case 1625: mult = &Mult2D<3,16,25>; break;
-            case 1636: mult = &Mult2D<3,16,36>; break;
+            case 1616: mult = &Eval2D<3,16,16>; break;
+            case 1625: mult = &Eval2D<3,16,25>; break;
+            case 1636: mult = &Eval2D<3,16,36>; break;
             // Q4
-            case 2525: mult = &Mult2D<3,25,25>; break;
-            case 2536: mult = &Mult2D<3,25,36>; break;
-            case 2549: mult = &Mult2D<3,25,49>; break;
-            case 2564: mult = &Mult2D<3,25,64>; break;
-            default:   mult = &Mult2D<3>;
+            case 2525: mult = &Eval2D<3,25,25>; break;
+            case 2536: mult = &Eval2D<3,25,36>; break;
+            case 2549: mult = &Eval2D<3,25,49>; break;
+            case 2564: mult = &Eval2D<3,25,64>; break;
+            default:   mult = &Eval2D<3,0,0>;
          }
       }
       else if (vdim == dim)
@@ -509,43 +548,43 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
             switch (100*nd + nq)
             {
                // Q1
-               case 404: mult = &Mult2D<2,4,4>; break;
-               case 409: mult = &Mult2D<2,4,9>; break;
+               case 404: mult = &Eval2D<2,4,4>; break;
+               case 409: mult = &Eval2D<2,4,9>; break;
                // Q2
-               case 909: mult = &Mult2D<2,9,9>; break;
-               case 916: mult = &Mult2D<2,9,16>; break;
+               case 909: mult = &Eval2D<2,9,9>; break;
+               case 916: mult = &Eval2D<2,9,16>; break;
                // Q3
-               case 1616: mult = &Mult2D<2,16,16>; break;
-               case 1625: mult = &Mult2D<2,16,25>; break;
-               case 1636: mult = &Mult2D<2,16,36>; break;
+               case 1616: mult = &Eval2D<2,16,16>; break;
+               case 1625: mult = &Eval2D<2,16,25>; break;
+               case 1636: mult = &Eval2D<2,16,36>; break;
                // Q4
-               case 2525: mult = &Mult2D<2,25,25>; break;
-               case 2536: mult = &Mult2D<2,25,36>; break;
-               case 2549: mult = &Mult2D<2,25,49>; break;
-               case 2564: mult = &Mult2D<2,25,64>; break;
+               case 2525: mult = &Eval2D<2,25,25>; break;
+               case 2536: mult = &Eval2D<2,25,36>; break;
+               case 2549: mult = &Eval2D<2,25,49>; break;
+               case 2564: mult = &Eval2D<2,25,64>; break;
             }
-            if (nq >= 100 || !mult) { mult = &Mult2D<2>; }
+            if (nq >= 100 || !mult) { mult = &Eval2D<2,0,0>; }
          }
          else if (dim == 3)
          {
             switch (1000*nd + nq)
             {
                // Q1
-               case 8008: mult = &Mult3D<3,8,8>; break;
-               case 8027: mult = &Mult3D<3,8,27>; break;
+               case 8008: mult = &Eval3D<3,8,8>; break;
+               case 8027: mult = &Eval3D<3,8,27>; break;
                // Q2
-               case 27027: mult = &Mult3D<3,27,27>; break;
-               case 27064: mult = &Mult3D<3,27,64>; break;
-               case 27125: mult = &Mult3D<3,27,125>; break;
+               case 27027: mult = &Eval3D<3,27,27>; break;
+               case 27064: mult = &Eval3D<3,27,64>; break;
+               case 27125: mult = &Eval3D<3,27,125>; break;
                // Q3
-               case 64064: mult = &Mult3D<3,64,64>; break;
-               case 64125: mult = &Mult3D<3,64,125>; break;
-               case 64216: mult = &Mult3D<3,64,216>; break;
+               case 64064: mult = &Eval3D<3,64,64>; break;
+               case 64125: mult = &Eval3D<3,64,125>; break;
+               case 64216: mult = &Eval3D<3,64,216>; break;
                // Q4
-               case 125125: mult = &Mult3D<3,125,125>; break;
-               case 125216: mult = &Mult3D<3,125,216>; break;
+               case 125125: mult = &Eval3D<3,125,125>; break;
+               case 125216: mult = &Eval3D<3,125,216>; break;
             }
-            if (nq >= 1000 || !mult) {  mult = &Mult3D<3>; }
+            if (nq >= 1000 || !mult) {  mult = &Eval3D<3,0,0>; }
          }
       }
       if (mult)
@@ -561,72 +600,39 @@ void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
                                            const Vector &q_der,
                                            Vector &e_vec) const
 {
+   MFEM_CONTRACT_VAR(eval_flags);
+   MFEM_CONTRACT_VAR(q_val);
+   MFEM_CONTRACT_VAR(q_der);
+   MFEM_CONTRACT_VAR(e_vec);
    MFEM_ABORT("this method is not implemented yet");
 }
 
 void QuadratureInterpolator::Values(const Vector &e_vec,
                                     Vector &q_val) const
 {
-   if (use_tensor_products)
-   {
-      if (q_layout == QVectorLayout::byNODES)
-      {
-         Values<QVectorLayout::byNODES>(e_vec, q_val);
-      }
-
-      if (q_layout == QVectorLayout::byVDIM)
-      {
-         Values<QVectorLayout::byVDIM>(e_vec, q_val);
-      }
-   }
-   else
-   {
-      Vector empty;
-      Mult(e_vec, VALUES, q_val, empty, empty);
-   }
+   Vector empty;
+   Mult(e_vec, VALUES, q_val, empty, empty);
 }
 
 void QuadratureInterpolator::Derivatives(const Vector &e_vec,
                                          Vector &q_der) const
 {
-   if (use_tensor_products)
-   {
-      if (q_layout == QVectorLayout::byNODES)
-      {
-         Derivatives<QVectorLayout::byNODES>(e_vec, q_der);
-      }
-
-      if (q_layout == QVectorLayout::byVDIM)
-      {
-         Derivatives<QVectorLayout::byVDIM>(e_vec, q_der);
-      }
-   }
-   else
-   {
-      Vector empty;
-      Mult(e_vec, DERIVATIVES, empty, q_der, empty);
-   }
+   Vector empty;
+   Mult(e_vec, DERIVATIVES, empty, q_der, empty);
 }
 
 void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
                                              Vector &q_der) const
 {
-   if (use_tensor_products)
-   {
-      if (q_layout == QVectorLayout::byNODES)
-      {
-         PhysDerivatives<QVectorLayout::byNODES>(e_vec, q_der);
-      }
-      if (q_layout == QVectorLayout::byVDIM)
-      {
-         PhysDerivatives<QVectorLayout::byVDIM>(e_vec, q_der);
-      }
-   }
-   else
-   {
-      Vector empty;
-      Mult(e_vec, PHYSICAL_DERIVATIVES, empty, q_der, empty);
-   }
+   Vector empty;
+   Mult(e_vec, PHYSICAL_DERIVATIVES, empty, q_der, empty);
+}
+
+void QuadratureInterpolator::Determinants(const Vector &e_vec,
+                                          Vector &q_det) const
+{
+   Vector empty;
+   Mult(e_vec, DETERMINANTS, empty, empty, q_det);
 }
 
 } // namespace mfem

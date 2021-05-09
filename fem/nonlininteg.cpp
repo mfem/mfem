@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,9 +15,9 @@
 namespace mfem
 {
 
-double NonlinearFormIntegrator::GetGridFunctionEnergyPA(const Vector &x) const
+double NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
 {
-   mfem_error ("NonlinearFormIntegrator::GetGridFunctionEnergyPA(...)\n"
+   mfem_error ("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
                "   is not implemented for this class.");
    return 0.0;
 }
@@ -35,23 +35,40 @@ void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
                "   is not implemented for this class.");
 }
 
+void NonlinearFormIntegrator::AssembleGradPA(const Vector &x,
+                                             const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleGradPA(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AddMultGradPA(const Vector&,
-                                            const Vector&, Vector&) const
+void NonlinearFormIntegrator::AddMultGradPA(const Vector&, Vector&) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultGradPA(...)\n"
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AssembleGradientDiagonalPA(const mfem::Vector &x,
-                                                         mfem::Vector &diag) const
+void NonlinearFormIntegrator::AssembleGradDiagonalPA(Vector &diag) const
 {
-   mfem_error ("NonlinearFormIntegrator::AssembleDiagonalPA(...)\n"
+   mfem_error ("NonlinearFormIntegrator::AssembleGradDiagonalPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultMF(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -750,6 +767,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
       el.CalcPhysDShape(T, dshape);
       double w = ip.weight * T.Weight();
       if (Q) { w *= Q->Eval(T, ip); }
+
       MultAtB(EF, dshape, gradEF);
       EF.MultTranspose(shape, vec1);
       gradEF.Mult(vec1, vec2);
@@ -764,8 +782,8 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    const Vector &elfun,
    DenseMatrix &elmat)
 {
-   int nd = el.GetDof();
-   int dim = el.GetDim();
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -779,12 +797,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    double w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == nullptr)
-   {
-      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -830,6 +843,111 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
          {
             elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
          }
+      }
+   }
+}
+
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   Vector vec1(dim), vec2(dim), vec3(nd);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+
+      EF.MultTranspose(shape, vec1); // u^n
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+
+      vec2 *= w;
+      dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
+      MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
+
+      for (int i = 0; i < dim; i++)
+      {
+         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+      }
+   }
+}
+
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   DenseMatrix elmat_comp_T(nd);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
+
+   elmat = 0.0;
+   elmat_comp_T = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      Mult(dshape, trans.InverseJacobian(), dshapex);
+
+      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+
+      EF.MultTranspose(shape, vec1); // u^n
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+
+      vec2 *= w;
+      dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
+      MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
+      elmat_comp_T.Transpose(elmat_comp);
+
+      for (int i = 0; i < dim; i++)
+      {
+         elmat.AddMatrix(.5, elmat_comp, i * nd, i * nd);
+         elmat.AddMatrix(-.5, elmat_comp_T, i * nd, i * nd);
       }
    }
 }

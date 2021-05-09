@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -34,6 +34,7 @@ DATA_DIR = data
 SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
 CUDA_MAIN_OBJ = cunit_test_main.o
+PCUDA_MAIN_OBJ = pcunit_test_main.o
 
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
@@ -54,29 +55,10 @@ PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
 PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
 PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
-# TMOP numerical seq/par files and tests
-TMOP_FILES = $(SRC)miniapps/test_tmop.cpp
-
-SEQ_TMOP_TESTS = tmop_tests_cpu tmop_tests_debug
-SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda)
-SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda_uvm)
-PAR_TMOP_TESTS = ptmop_tests_cpu
-PAR_TMOP_TESTS += $(if $(USE_CUDA),ptmop_tests_cuda)
-
-SEQ_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.cpu.o)
-SEQ_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.debug.o)
-SEQ_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda.o))
-SEQ_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
-
-PAR_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pcpu.o)
-PAR_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pdebug.o)
-PAR_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda.o))
-PAR_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
-
-# seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
+SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
 SEQ_UNIT_TESTS += $(if $(USE_CUDA),cunit_tests)
-PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
+PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
+PAR_UNIT_TESTS += $(if $(USE_CUDA),pcunit_tests)
 
 # Ceed tests
 USE_CEED := $(MFEM_USE_CEED:NO=)
@@ -104,21 +86,24 @@ punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DAT
 cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ): %.o: $(SRC)%.cpp \
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OBJ): %.o: $(SRC)%.cpp \
  $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # Template rule for devices
-# SEDOV Template rule for devices
 # 1: postfix of 'sedov_tests_', 2: prefix of '_OBJECT_FILES',
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 comma=,
@@ -155,54 +140,6 @@ $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
-# TMOP rules to copy the mesh files
-# Needed for running the sample runs when building out-of-source
-DATA_MESH_FILES = star.mesh toroid-hex.mesh \
-						square-disc-nurbs.mesh beam-hex-nurbs.mesh
-MINIAPPS_MESHING_MESH_FILES = square01.mesh blade.mesh cube.mesh
-$(DATA_MESH_FILES): %: $(MFEM_DIR)/data/%
-	ln -sf $(<) .
-$(MINIAPPS_MESHING_MESH_FILES): %: $(MFEM_DIR)/miniapps/meshing/%
-	ln -sf $(<) .
-
-# TMOP Template rule for devices
-# 1: postfix of 'tmop_tests_', 2: prefix of '_OBJECT_FILES',
-# 3: configuration string for the MFEM device, separated with '$(comma)'
-define tmop_tests
-tmop_tests_$(1): | $(DATA_MESH_FILES) $(MINIAPPS_MESHING_MESH_FILES)
-tmop_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
-tmop_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(<) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
-	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
-	   $$(TMOP_TESTS_FLAGS) -o $$(@)
-endef
-$(eval $(call tmop_tests,cpu,CPU,cpu))
-$(eval $(call tmop_tests,debug,DEBUG,debug))
-$(eval $(call tmop_tests,cuda,CUDA,cuda))
-$(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
-
-define ptmop_tests
-ptmop_tests_$(1): | $(DATA_MESH_FILES) $(MINIAPPS_MESHING_MESH_FILES)
-ptmop_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
-ptmop_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
-ptmop_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(<) $$(PAR_TMOP_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
-	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
-	   $$(TMOP_TESTS_FLAGS) -o $$(@)
-endef
-$(eval $(call ptmop_tests,cpu,CPU,cpu))
-#$(eval $(call ptmop_tests,debug,DEBUG,debug))
-$(eval $(call ptmop_tests,cuda,CUDA,cuda))
-#$(eval $(call ptmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
-
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
 
@@ -232,5 +169,4 @@ $(MFEM_LIB_FILE):
 
 clean:
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
-	rm -rf *.dSYM output_meshes $(DATA_MESH_FILES) $(MINIAPPS_MESHING_MESH_FILES)
-
+	rm -rf *.dSYM output_meshes

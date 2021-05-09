@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,6 +14,7 @@ set(SRCS
   bilinearform_ext.cpp
   bilininteg.cpp
   bilininteg_br2.cpp
+  bilininteg_convection_mf.cpp
   bilininteg_convection_pa.cpp
   bilininteg_convection_ea.cpp
   bilininteg_dgtrace_pa.cpp
@@ -47,9 +48,15 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
-  libceed/ceed.cpp
-  libceed/diffusion.cpp
-  libceed/mass.cpp
+  ceed/algebraic.cpp
+  ceed/full-assembly.cpp
+  ceed/solvers-atpmg.cpp
+  ceed/convection.cpp
+  ceed/diffusion.cpp
+  ceed/nlconvection.cpp
+  ceed/mass.cpp
+  ceed/operator.cpp
+  ceed/util.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -58,6 +65,7 @@ set(SRCS
   nonlininteg.cpp
   fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
+  nonlininteg_vectorconvection_mf.cpp
   quadinterpolator.cpp
   quadinterpolator_det.cpp
   quadinterpolator_eval_by_nodes.cpp
@@ -70,32 +78,6 @@ set(SRCS
   restriction.cpp
   staticcond.cpp
   tmop.cpp
-  tmop_pa.cpp
-  tmop_pa_h2d.cpp
-  tmop_pa_h2d_c0.cpp
-  tmop_pa_h2m.cpp
-  tmop_pa_h2m_c0.cpp
-  tmop_pa_h2s.cpp
-  tmop_pa_h2s_c0.cpp
-  tmop_pa_h3d.cpp
-  tmop_pa_h3d_c0.cpp
-  tmop_pa_h3m.cpp
-  tmop_pa_h3m_c0.cpp
-  tmop_pa_h3s.cpp
-  tmop_pa_h3s_c0.cpp
-  tmop_pa_jp2.cpp
-  tmop_pa_jp3.cpp
-  tmop_pa_jt2_tc.cpp
-  tmop_pa_jt3_tc.cpp
-  tmop_pa_jt3_datc.cpp
-  tmop_pa_p2.cpp
-  tmop_pa_p2_c0.cpp
-  tmop_pa_p3.cpp
-  tmop_pa_p3_c0.cpp
-  tmop_pa_w2.cpp
-  tmop_pa_w2_c0.cpp
-  tmop_pa_w3.cpp
-  tmop_pa_w3_c0.cpp
   tmop_tools.cpp
   gslib.cpp
   transfer.cpp
@@ -119,9 +101,17 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
-  libceed/ceed.hpp
-  libceed/diffusion.hpp
-  libceed/mass.hpp
+  ceed/algebraic.hpp
+  ceed/full-assembly.hpp
+  ceed/solvers-atpmg.hpp
+  ceed/coefficient.hpp
+  ceed/convection.hpp
+  ceed/diffusion.hpp
+  ceed/integrator.hpp
+  ceed/mass.hpp
+  ceed/nlconvection.hpp
+  ceed/operator.hpp
+  ceed/util.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
@@ -129,10 +119,10 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
+  quadinterpolator_dispatch.hpp
   quadinterpolator_eval.hpp
   quadinterpolator_face.hpp
   quadinterpolator_grad.hpp
-  quadinterpolator_grad_phys.hpp
   restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp
@@ -145,7 +135,6 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
-  tmop_pa.hpp
   tmop_tools.hpp
   gslib.hpp
   transfer.hpp

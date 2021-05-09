@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;
@@ -595,7 +595,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       M.Reset(_M.ParallelAssemble(), true);
       K.Reset(_K.ParallelAssemble(), true);
@@ -609,7 +609,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();

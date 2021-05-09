@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,23 +37,6 @@ double discrete_size_2d(const Vector &x)
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
    }
-
-   val = std::max(0.,val);
-   val = std::min(1.,val);
-
-   return val * small + (1.0 - val) * big;
-}
-
-double discrete_size_3d(const Vector &x)
-{
-   const double small = 0.0001, big = 0.01;
-   double val = 0.;
-
-   // semi-circle
-   const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
-   const double r = sqrt(xc*xc + yc*yc + zc*zc);
-   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-   val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
 
    val = std::max(0.,val);
    val = std::min(1.,val);
@@ -248,15 +231,6 @@ double adapt_lim_fun(const Vector &x)
    val = std::max(0.,val);
    val = std::min(1.,val);
    return val;
-}
-
-// Space-dependent limiting.
-double limit_func(const Vector &x)
-{
-   //if (x(0) < x(1) ) { return 1.0e-6; }
-   //else return 10000;
-
-   return 1.0;
 }
 
 void DiffuseField(GridFunction &field, int smooth_steps)

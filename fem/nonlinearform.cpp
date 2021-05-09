@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,15 +25,19 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    switch (assembly)
    {
       case AssemblyLevel::NONE:
-         // This is the default behavior.
+         ext = new MFNonlinearFormExtension(this);
          break;
       case AssemblyLevel::PARTIAL:
-         ext = new PANonlinearForm(this);
+         ext = new PANonlinearFormExtension(this);
+         break;
+      case AssemblyLevel::LEGACY:
+         // This is the default
          break;
       default:
          mfem_error("Unknown assembly level for this form.");
    }
 }
+
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                    Vector *rhs)
 {
@@ -140,7 +144,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (P) { aux2.SetSize(P->Height()); }
 
    // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector. In
-   // serial, place the result directly in y.
+   // serial, place the result directly in y (when there is no P).
    Vector &py = P ? aux2 : y;
 
    if (ext)
@@ -154,6 +158,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          auto Y = y.ReadWrite();
          MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
       }
+      // In parallel, the result is in 'py' which is an alias for 'aux2'.
       return;
    }
 
@@ -274,22 +279,21 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       }
       // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
+   // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
    if (ext)
    {
+      hGrad.Clear();
       Operator &grad = ext->GetGradient(Prolongate(x));
-      hGrad.Reset(&grad, false);
-      if (Serial())
-      {
-         Operator *Gop;
-         if (cP) { hGrad.Reset(new RAPOperator(*cP, grad, *cP)); }
-         hGrad.Ptr()->Operator::FormSystemOperator(ess_tdof_list, Gop);
-         hGrad.Reset(Gop);
-      }
-      return *hGrad.Ptr();
+      Operator *Gop;
+      grad.FormSystemOperator(ess_tdof_list, Gop);
+      hGrad.Reset(Gop);
+      // In both serial and parallel, when using extension, we return the final
+      // global true-dof gradient with imposed b.c.
+      return *hGrad;
    }
 
    const int skip_zeros = 0;
@@ -435,47 +439,24 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
 void NonlinearForm::Update()
 {
-   if (ext) { MFEM_ABORT("Not yet implemented!"); }
-
    if (sequence == fes->GetSequence()) { return; }
 
    height = width = fes->GetTrueVSize();
    delete cGrad; cGrad = NULL;
    delete Grad; Grad = NULL;
+   hGrad.Clear();
    ess_tdof_list.SetSize(0); // essential b.c. will need to be set again
    sequence = fes->GetSequence();
    // Do not modify aux1 and aux2, their size will be set before use.
    P = fes->GetProlongationMatrix();
    cP = dynamic_cast<const SparseMatrix*>(P);
+
+   if (ext) { ext->Update(); }
 }
 
 void NonlinearForm::Setup()
 {
-   if (ext) { return ext->Setup(); }
-}
-
-void NonlinearForm::AssembleGradientDiagonal(Vector &diag) const
-{
-   if (ext)
-   {
-      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
-                  "Vector for holding diagonal has wrong size!");
-      const Operator *P = fes->GetProlongationMatrix();
-      if (!IsIdentityProlongation(P))
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleGradientDiagonal(local_diag);
-         P->MultTranspose(local_diag, diag);
-      }
-      else
-      {
-         ext->AssembleGradientDiagonal(diag);
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Not implemented. Can be obtained through GetGradient().");
-   }
+   if (ext) { ext->Assemble(); }
 }
 
 NonlinearForm::~NonlinearForm()
@@ -992,7 +973,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
                fe[s] = fes[s]->GetFE(tr->Elem1No);
                fe2[s] = fe[s];
 
-               fes[s]->GetElementVDofs(i, *vdofs[s]);
+               fes[s]->GetElementVDofs(tr->Elem1No, *vdofs[s]);
                bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
             }
 

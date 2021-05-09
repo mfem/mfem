@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,10 +68,6 @@ public:
    */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
-
-   /** @brief Return the metric ID.
-    */
-   virtual int Id() const { return 0; }
 };
 
 /// Abstract class used to define combination of metrics with constant coefficients.
@@ -118,8 +114,6 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
-   virtual int Id() const { return 1; }
 };
 
 /// 2D non-barrier Skew metric.
@@ -196,8 +190,6 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
-   virtual int Id() const { return 2; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (not polyconvex).
@@ -214,8 +206,6 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
-   virtual int Id() const { return 7; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (not polyconvex).
@@ -253,11 +243,11 @@ public:
 class TMOP_Metric_022 : public TMOP_QualityMetric
 {
 protected:
-   double &tau0;
+   double &min_detT;
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_022(double &t0): tau0(t0) {}
+   TMOP_Metric_022(double &t0): min_detT(t0) {}
 
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -317,6 +307,7 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
 };
 
 /// 2D barrier shape (S) metric (not polyconvex).
@@ -334,6 +325,7 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
 };
 
 /// 2D barrier size (V) metric (polyconvex).
@@ -351,7 +343,6 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 77; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (polyconvex).
@@ -474,8 +465,6 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
-   virtual int Id() const { return 302; }
 };
 
 /// 3D barrier Shape (S) metric.
@@ -485,15 +474,51 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / 3 * det(J)^(2/3) - 1.
+   // W = |J|^2 / 3 * det(J)^(-2/3) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+};
 
-   virtual int Id() const { return 303; }
+/// 3D Size (V) untangling metric.
+class TMOP_Metric_311 : public TMOP_QualityMetric
+{
+protected:
+   const double eps;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_311(double epsilon = 1e-4) : eps(epsilon) { }
+
+   // W = (det(J) - 1)^2 - det(J)  + (det(J)^2 + eps)^(1/2).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
+/// 3D Shape (S) metric, untangling version of 303.
+class TMOP_Metric_313 : public TMOP_QualityMetric
+{
+protected:
+   double &min_detT;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_313(double &mindet) : min_detT(mindet) { }
+
+   // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
 };
 
 /// 3D non-barrier Size (V) metric.
@@ -510,8 +535,6 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
-   virtual int Id() const { return 315; }
 };
 
 /// 3D barrier Size (V) metric.
@@ -546,8 +569,6 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
-   virtual int Id() const { return 321; }
 };
 
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
@@ -839,13 +860,8 @@ public:
        nodes are used by all target types except IDEAL_SHAPE_UNIT_SIZE. */
    void SetNodes(const GridFunction &n) { nodes = &n; avg_volume = 0.0; }
 
-   /** @brief Get the nodes to be used in the target-matrix construction. */
-   const GridFunction *GetNodes() const { return nodes; }
-
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
-
-   const TargetType &Type() const { return target_type; }
 
    /// Checks if the target matrices contain non-trivial size specification.
    virtual bool ContainsVolumeInfo() const;
@@ -857,16 +873,6 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
-
-   template<int DIM>
-   bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                const IntegrationRule *ir,
-                                DenseTensor &Jtr,
-                                const Vector &xe = Vector()) const;
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
-                                        DenseTensor &Jtr,
-                                        const Vector &xe = Vector()) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -913,11 +919,6 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
-                                        DenseTensor &Jtr,
-                                        const Vector &xe = Vector()) const;
-
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
@@ -960,19 +961,12 @@ protected:
    // Owned.
    AdaptivityEvaluator *adapt_eval;
 
-   // PA extension
-   struct { mutable Vector tspec_e; } PA;
-
-   void FinalizeSerialDiscreteTargetSpec();
-#ifdef MFEM_USE_MPI
-   void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
-#endif
-
-public: // MFEM_FORALL nvcc restriction that it must be public
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
+   void FinalizeSerialDiscreteTargetSpec();
 #ifdef MFEM_USE_MPI
    void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
+   void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
 #endif
 
 public:
@@ -1057,7 +1051,6 @@ public:
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
    const Vector &GetTspecPert2H()   { return tspec_pert2h; }
    const Vector &GetTspecPertMixH() { return tspec_pertmix; }
-   const FiniteElementSpace *GetTspecFesv() const { return tspec_fesv; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -1068,11 +1061,6 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
-
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
-                                        DenseTensor &Jtr,
-                                        const Vector &xe = Vector()) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -1153,24 +1141,9 @@ protected:
    //        output - the result of AssembleElementVector() (dof x dim).
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
-   // PA extension
-   struct
-   {
-      bool enabled;
-      int dim, ne, nq;
-      mutable DenseTensor Jtr;
-      mutable bool setup_Grad, setup_Jtr;
-      mutable Vector E, O, W, X0, H, C0, LD, H0;
-      const DofToQuad *maps;
-      const DofToQuad *maps_lim = nullptr;
-      const GeometricFactors *geom;
-      const FiniteElementSpace *fes;
-      const Operator *R;
-      const IntegrationRule *ir;
-   } PA;
-
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      double &metric_energy, double &lim_energy);
+
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
@@ -1246,7 +1219,7 @@ public:
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
-   { PA.enabled = false; }
+   { }
 
    ~TMOP_Integrator();
 
@@ -1322,45 +1295,6 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
-   /// PA extension
-   void SetupGradPA(const Vector &xe) const;
-   void EnableLimitingPA(const GridFunction &n0);
-   void ComputeElementTargetsPA(const Vector &xe = Vector()) const;
-
-   using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
-   double GetGridFunctionEnergyPA_2D(const Vector&) const;
-   double GetGridFunctionEnergyPA_C0_2D(const Vector&) const;
-   double GetGridFunctionEnergyPA_3D(const Vector&) const;
-   double GetGridFunctionEnergyPA_C0_3D(const Vector&) const;
-   virtual double GetGridFunctionEnergyPA(const Vector&) const;
-
-   using NonlinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace&);
-
-   virtual void AssembleGradientDiagonalPA(const Vector&, Vector&) const;
-   void AssembleDiagonalPA_2D(Vector&) const;
-   void AssembleDiagonalPA_3D(Vector&) const;
-   void AssembleDiagonalPA_C0_2D(Vector&) const;
-   void AssembleDiagonalPA_C0_3D(Vector&) const;
-
-   using NonlinearFormIntegrator::AddMultPA;
-   void AddMultPA_2D(const Vector&, Vector&) const;
-   void AddMultPA_3D(const Vector&, Vector&) const;
-   void AddMultPA_C0_2D(const Vector&, Vector&) const;
-   void AddMultPA_C0_3D(const Vector&, Vector&) const;
-   virtual void AddMultPA(const Vector&, Vector&) const;
-
-   using NonlinearFormIntegrator::AddMultGradPA;
-   void AddMultGradPA_2D(const Vector&, Vector&) const;
-   void AddMultGradPA_3D(const Vector&, const Vector&, Vector&) const;
-   void AddMultGradPA_C0_2D(const Vector&, const Vector&, Vector&) const;
-   void AddMultGradPA_C0_3D(const Vector&, const Vector&, Vector&) const;
-   virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
-
-   void AssembleGradPA_2D(const Vector&) const;
-   void AssembleGradPA_3D(const Vector&) const;
-   void AssembleGradPA_C0_2D(const Vector&) const;
-   void AssembleGradPA_C0_3D(const Vector&) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 
@@ -1431,17 +1365,6 @@ public:
 #ifdef MFEM_USE_MPI
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
-
-   /// PA extension
-   using NonlinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace&);
-   virtual void AssembleGradientDiagonalPA(const Vector&, Vector&) const;
-   using NonlinearFormIntegrator::AddMultPA;
-   virtual void AddMultPA(const Vector&, Vector&) const;
-   using NonlinearFormIntegrator::AddMultGradPA;
-   virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
-   using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
-   virtual double GetGridFunctionEnergyPA(const Vector&) const;
 };
 
 /// Interpolates the @a metric's values at the nodes of @a metric_gf.

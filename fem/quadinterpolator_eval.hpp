@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// Internal header, included only by .cpp files.
+// Template function implementations.
+
 #include "quadinterpolator.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
@@ -17,18 +20,25 @@
 namespace mfem
 {
 
+namespace internal
+{
+
+namespace quadrature_interpolator
+{
+
+// Template compute kernel for Values in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void Eval2D(const int NE,
-                   const double *b_,
-                   const double *x_,
-                   double *y_,
-                   const int vdim = 0,
-                   const int d1d = 0,
-                   const int q1d = 0)
+static void Values2D(const int NE,
+                     const double *b_,
+                     const double *x_,
+                     double *y_,
+                     const int vdim = 0,
+                     const int d1d = 0,
+                     const int q1d = 0)
 {
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -36,7 +46,7 @@ static void Eval2D(const int NE,
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
+   auto y = Q_LAYOUT == QVectorLayout::byNODES ?
             Reshape(y_, Q1D, Q1D, VDIM, NE):
             Reshape(y_, VDIM, Q1D, Q1D, NE);
 
@@ -47,7 +57,6 @@ static void Eval2D(const int NE,
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       const int tidz = MFEM_THREAD_ID(z);
 
       MFEM_SHARED double s_B[MQ1*MD1];
@@ -88,7 +97,7 @@ static void Eval2D(const int NE,
                double u = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  u += B(qx,dx) *  DD(dx,dy);
+                  u += B(qx,dx) * DD(dx,dy);
                }
                DQ(dy,qx) = u;
             }
@@ -112,16 +121,17 @@ static void Eval2D(const int NE,
    });
 }
 
+// Template compute kernel for Values in 3D: tensor product version.
 template<QVectorLayout Q_LAYOUT,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int MAX_D1D = 0, int MAX_Q1D = 0>
-static void Eval3D(const int NE,
-                   const double *b_,
-                   const double *x_,
-                   double *y_,
-                   const int vdim = 0,
-                   const int d1d = 0,
-                   const int q1d = 0)
+static void Values3D(const int NE,
+                     const double *b_,
+                     const double *x_,
+                     double *y_,
+                     const int vdim = 0,
+                     const int d1d = 0,
+                     const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -218,7 +228,7 @@ static void Eval3D(const int NE,
                   double u = 0.0;
                   for (int dz = 0; dz < D1D; ++dz)
                   {
-                     u +=  DQQ(dz,qy,qx) * B(qz,dz);
+                     u += DQQ(dz,qy,qx) * B(qz,dz);
                   }
                   if (Q_LAYOUT == QVectorLayout::byVDIM) { y(c,qx,qy,qz,e) = u; }
                   if (Q_LAYOUT == QVectorLayout::byNODES) { y(qx,qy,qz,c,e) = u; }
@@ -229,5 +239,9 @@ static void Eval3D(const int NE,
       }
    });
 }
+
+} // namespace quadrature_interpolator
+
+} // namespace internal
 
 } // namespace mfem

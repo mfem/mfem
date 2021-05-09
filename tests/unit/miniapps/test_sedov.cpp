@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,7 @@ extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-#define HYPRE_Int int
+#define HYPRE_BigInt int
 typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
@@ -1152,9 +1152,9 @@ public:
 struct TimingData
 {
    StopWatch sw_cgH1, sw_cgL2, sw_force, sw_qdata;
-   const HYPRE_Int L2dof;
-   HYPRE_Int H1iter, L2iter, quad_tstep;
-   TimingData(const HYPRE_Int l2d) :
+   const HYPRE_BigInt L2dof;
+   HYPRE_BigInt H1iter, L2iter, quad_tstep;
+   TimingData(const HYPRE_BigInt l2d) :
       L2dof(l2d), H1iter(0), L2iter(0), quad_tstep(0) { }
 };
 
@@ -1213,10 +1213,10 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    rho0Q.UseDevice(true);
    const QuadratureInterpolator *qi = l2_fes.GetQuadratureInterpolator(ir);
    qi->Values(rho0, rho0Q);
-   const auto W = ir.GetWeights().Read();
-   const auto R = Reshape(rho0Q.Read(), NQ, NE);
-   const auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
-   const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
+   auto W = ir.GetWeights().Read();
+   auto R = Reshape(rho0Q.Read(), NQ, NE);
+   auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
+   auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
    auto V = Reshape(quad_data.rho0DetJ0w.Write(), NQ, NE);
    Memory<double> &Jinv_m = quad_data.Jac0inv.GetMemory();
    auto invJ = Reshape(Jinv_m.Write(Device::GetDeviceMemoryClass(),
@@ -1512,19 +1512,17 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    Vector* S_p = const_cast<Vector*>(&S);
    const int H1_size = H1.GetVSize();
    const int nqp1D = tensors1D->LQshape1D.Width();
-   const double h1order = (double) H1.GetOrder(0);
+   const double h1order = (double) H1.GetElementOrder(0);
    const double infinity = std::numeric_limits<double>::infinity();
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
    H1ER->Mult(d_x, d_h1_v_local_in);
-   q1->EnableTensorProducts();
    q1->SetOutputLayout(QVectorLayout::byVDIM);
    q1->Derivatives(d_h1_v_local_in, d_h1_grad_x_data);
    d_v.MakeRef(&H1,*S_p, H1_size);
    H1ER->Mult(d_v, d_h1_v_local_in);
    q1->Derivatives(d_h1_v_local_in, d_h1_grad_v_data);
    d_e.MakeRef(&L2, *S_p, 2*H1_size);
-   q2->EnableTensorProducts();
    q2->SetOutputLayout(QVectorLayout::byVDIM);
    q2->Values(d_e, d_l2_e_quads_data);
    d_dt_est = quad_data.dt_est;
@@ -1565,11 +1563,11 @@ protected:
    mutable ParFiniteElementSpace H1compFESpace;
    const int H1Vsize;
    const int H1TVSize;
-   const HYPRE_Int H1GTVSize;
+   const HYPRE_BigInt H1GTVSize;
    const int H1compTVSize;
    const int L2Vsize;
    const int L2TVSize;
-   const HYPRE_Int L2GTVSize;
+   const HYPRE_BigInt L2GTVSize;
    Array<int> block_offsets;
    mutable ParGridFunction x_gf;
    const Array<int> &ess_tdofs;
@@ -1646,8 +1644,9 @@ public:
       Me(l2dofs_cnt, l2dofs_cnt, nzones),
       Me_inv(l2dofs_cnt, l2dofs_cnt, nzones),
       integ_rule(IntRules.Get(h1_fes.GetMesh()->GetElementBaseGeometry(0),
-                              (order_q>0)? order_q :
-                              3*h1_fes.GetOrder(0) + l2_fes.GetOrder(0) - 1)),
+                              (order_q > 0) ? order_q :
+                              3*h1_fes.GetElementOrder(0)
+                              + l2_fes.GetElementOrder(0) - 1)),
       quad_data(dim, nzones, integ_rule.GetNPoints()),
       quad_data_is_current(false), forcemat_is_assembled(false),
       T1D(H1FESpace.GetFE(0)->GetOrder(), L2FESpace.GetFE(0)->GetOrder(),
@@ -1711,7 +1710,7 @@ public:
             quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
          default: MFEM_ABORT("Unknown zone type!");
       }
-      quad_data.h0 /= (double) H1FESpace.GetOrder(0);
+      quad_data.h0 /= (double) H1FESpace.GetElementOrder(0);
       {
          Vector d;
          (dim == 2) ? VMassPA->ComputeDiagonal2D(d) : VMassPA->ComputeDiagonal3D(d);
@@ -1935,22 +1934,22 @@ int sedov(int myid, int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return -1;
    }
-   Mesh *mesh;
+   Mesh mesh;
    if (strncmp(mesh_file, "none", 4))
    {
-      mesh = new Mesh(mesh_file, true, true);
-      dim = mesh->Dimension();
+      mesh = Mesh::LoadFromFile(mesh_file, true, true);
+      dim = mesh.Dimension();
    }
    else
    {
       if (dim == 2)
       {
          constexpr Element::Type QUAD = Element::QUADRILATERAL;
-         mesh = new Mesh(2, 2, QUAD, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian2D(2, 2, QUAD, true);
+         const int NBE = mesh.GetNBE();
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::SEGMENT, "");
             const int attr = (b < NBE/2) ? 2 : 1;
             bel->SetAttribute(attr);
@@ -1958,27 +1957,27 @@ int sedov(int myid, int argc, char *argv[])
       }
       if (dim == 3)
       {
-         mesh = new Mesh(2, 2, 2,Element::HEXAHEDRON, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian3D(2, 2, 2,Element::HEXAHEDRON);
+         const int NBE = mesh.GetNBE();
          MFEM_ASSERT(NBE==24,"");
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::QUADRILATERAL, "");
             const int attr = (b < NBE/3) ? 3 : (b < 2*NBE/3) ? 1 : 2;
             bel->SetAttribute(attr);
          }
       }
    }
-   dim = mesh->Dimension();
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   dim = mesh.Dimension();
+   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
    ParMesh *pmesh = NULL;
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 #else
-   pmesh = new Mesh(*mesh);
+   pmesh = new Mesh(mesh);
 #endif
-   delete mesh;
+   mesh.Clear();
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
    int nzones = pmesh->GetNE(), nzones_min, nzones_max;
    MPI_Reduce(&nzones, &nzones_min, 1, MPI_INT, MPI_MIN, 0, pmesh->GetComm());
@@ -2001,8 +2000,8 @@ int sedov(int myid, int argc, char *argv[])
       }
    }
    ODESolver *ode_solver = new RK4Solver;
-   const HYPRE_Int H1GTVSize = H1FESpace.GlobalTrueVSize();
-   const HYPRE_Int L2GTVSize = L2FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt H1GTVSize = H1FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt L2GTVSize = L2FESpace.GlobalTrueVSize();
    const int H1Vsize = H1FESpace.GetVSize();
    const int L2Vsize = L2FESpace.GetVSize();
    if (myid == 0)

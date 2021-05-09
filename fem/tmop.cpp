@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -315,7 +314,18 @@ double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
    //       = (0.5*I1 - I2b) / (I2b - tau0)
    ie.SetJacobian(Jpt.GetData());
    const double I2b = ie.Get_I2b();
-   return (0.5*ie.Get_I1() - I2b) / (I2b - tau0);
+
+   double d = I2b - min_detT;
+   if (d < 0.0 && min_detT == 0.0)
+   {
+      // The mesh has been untangled, but it's still possible to get negative
+      // detJ in FD calculations, as they move the nodes around with some small
+      // increments and can produce negative determinants. Thus we put a small
+      // value in the denominator. Note that here I2b < 0.
+      d = - I2b * 0.1;
+   }
+
+   return (0.5*ie.Get_I1() - I2b) / d;
 }
 
 void TMOP_Metric_022::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -324,8 +334,8 @@ void TMOP_Metric_022::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    // P = 1/(I2b - tau0)*(0.5*dI1 - dI2b) - (0.5*I1 - I2b)/(I2b - tau0)^2*dI2b
    //   = 0.5/(I2b - tau0)*dI1 + (tau0 - 0.5*I1)/(I2b - tau0)^2*dI2b
    ie.SetJacobian(Jpt.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - tau0);
-   Add(c1/2, ie.Get_dI1(), (tau0 - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
+   const double c1 = 1.0/(ie.Get_I2b() - min_detT);
+   Add(c1/2, ie.Get_dI1(), (min_detT - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
 }
 
 void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
@@ -345,10 +355,10 @@ void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
    //      +0.5/(I2b - tau0)*ddI1 + z*ddI2b
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - tau0);
+   const double c1 = 1.0/(ie.Get_I2b() - min_detT);
    const double c2 = weight*c1/2;
    const double c3 = c1*c2;
-   const double c4 = (2*tau0 - ie.Get_I1())*c3; // weight*z
+   const double c4 = (2*min_detT - ie.Get_I1())*c3; // weight*z
    ie.Assemble_TProd(-c3, ie.Get_dI1(), ie.Get_dI2b(), A.GetData());
    ie.Assemble_TProd(-2*c1*c4, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI1(c2, A.GetData());
@@ -478,8 +488,8 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
-   const double I2b = ie.Get_I2b();
-   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
+   const double I2 = ie.Get_I2b();
+   return  0.5*(I2*I2 + 1./(I2*I2) - 2.);
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -702,6 +712,71 @@ void TMOP_Metric_303::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1b(weight/3., A.GetData());
+}
+
+double TMOP_Metric_311::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_311 = (det(J) - 1)^2 - det(J) + (det(J)^2 + eps)^{1/2}
+   //        = (I3b - 1)^2 - I3b + sqrt(I3b^2 + eps)
+   ie.SetJacobian(Jpt.GetData());
+   const double I3b = ie.Get_I3b();
+   return (I3b - 1.0)*(I3b - 1.0) - I3b + std::sqrt(I3b*I3b + eps);
+}
+
+void TMOP_Metric_311::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   const double I3b = ie.Get_I3b();
+   const double c = 2*I3b-3+(I3b)/(std::pow((I3b*I3b+eps),0.5));
+   P.Set(c, ie.Get_dI3b());
+}
+
+void TMOP_Metric_311::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   const double I3b = ie.Get_I3b();
+   const double c0 = I3b*I3b+eps;
+   const double c1 = 2 + 1/(pow(c0,0.5)) - I3b*I3b/(pow(c0,1.5));
+   const double c2 = 2*I3b - 3 + I3b/(pow(c0,0.5));
+   ie.Assemble_TProd(weight*c1, ie.Get_dI3b(), A.GetData());
+   ie.Assemble_ddI3b(c2*weight, A.GetData());
+}
+
+double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
+{
+   ie.SetJacobian(Jpt.GetData());
+
+   const double I3b = ie.Get_I3b();
+   double d = I3b - min_detT;
+   if (d < 0.0 && min_detT == 0.0)
+   {
+      // The mesh has been untangled, but it's still possible to get negative
+      // detJ in FD calculations, as they move the nodes around with some small
+      // increments and can produce negative determinants. Thus we put a small
+      // value in the denominator. Note that here I3b < 0.
+      d = - I3b * 0.1;
+   }
+
+   const double c = std::pow(d, -2.0/3.0);
+
+   return ie.Get_I1() * c / 3.0;
+}
+
+void TMOP_Metric_313::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   MFEM_ABORT("Metric not implemented yet.");
+}
+
+void TMOP_Metric_313::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   MFEM_ABORT("Metric not implemented yet.");
 }
 
 double TMOP_Metric_315::EvalW(const DenseMatrix &Jpt) const
@@ -1170,10 +1245,11 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-   const auto tspec__d = tspec_.Read();
-   auto tspec_d = tspec.ReadWrite();
-   const int offset = idx*dof_cnt;
-   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
+   for (int i = 0; i < dof_cnt*vdim; i++)
+   {
+      tspec(i+idx*dof_cnt) = tspec_(i);
+   }
+
    FinalizeParDiscreteTargetSpec(tspec_);
 }
 
@@ -1233,33 +1309,34 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
-   tspec.UseDevice(true);
-   tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
-   const auto tspec_temp_d = tspec_temp.Read();
-   auto tspec_d = tspec.ReadWrite();
-   MFEM_FORALL(i, tspec_temp.Size(), tspec_d[i] = tspec_temp_d[i];);
+   for (int i = 0; i < tspec_temp.Size(); i++)
+   {
+      tspec(i) = tspec_temp(i);
+   }
 
-   const auto tspec__d = tspec_.Read();
-   const int offset = (ncomp-vdim)*dof_cnt;
-   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
+   for (int i = 0; i < dof_cnt*vdim; i++)
+   {
+      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
+   }
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
+   for (int i = 0; i < dof_cnt*vdim; i++)
+   {
+      tspec(i+idx*dof_cnt) = tspec_(i);
+   }
 
-   const auto tspec__d = tspec_.Read();
-   auto tspec_d = tspec.ReadWrite();
-   const int offset = idx*dof_cnt;
-   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
    FinalizeSerialDiscreteTargetSpec();
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
+
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1387,17 +1464,16 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1, par_vals_c2, par_vals_c3;
+
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
-         tspec.UseDevice(true);
          tspec.GetSubVector(dofs, tspec_vals);
 
          for (int q = 0; q < nqp; q++)
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-
             Jtr(q) = Wideal; // Initialize to identity
             for (int d = 0; d < 4; d++)
             {
@@ -2030,7 +2106,6 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
 {
    EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
-   if (PA.enabled) { EnableLimitingPA(n0); }
 }
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
@@ -2176,8 +2251,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          val += lim_normal *
-                lim_func->Eval(p, p0, d_vals(i)) *
-                coeff0->Eval(*Tpr, ip);
+                lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
       }
 
       if (adaptive_limiting)
@@ -2855,8 +2929,6 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
-   PA.setup_Jtr = false;
-   PA.setup_Grad = false;
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }
@@ -3012,49 +3084,6 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 }
 #endif
 
-void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   for (int i = 0; i < tmopi.Size(); i++)
-   {
-      tmopi[i]->AssemblePA(fes);
-   }
-}
-
-void TMOPComboIntegrator::AssembleGradientDiagonalPA(const Vector &xe,
-                                                     Vector &de) const
-{
-   for (int i = 0; i < tmopi.Size(); i++)
-   {
-      tmopi[i]->AssembleGradientDiagonalPA(xe, de);
-   }
-}
-
-void TMOPComboIntegrator::AddMultPA(const Vector &xe, Vector &ye) const
-{
-   for (int i = 0; i < tmopi.Size(); i++)
-   {
-      tmopi[i]->AddMultPA(xe, ye);
-   }
-}
-
-void TMOPComboIntegrator::AddMultGradPA(const Vector &xe, const Vector &re,
-                                        Vector &ce) const
-{
-   for (int i = 0; i < tmopi.Size(); i++)
-   {
-      tmopi[i]->AddMultGradPA(xe, re, ce);
-   }
-}
-
-double TMOPComboIntegrator::GetGridFunctionEnergyPA(const Vector &xe) const
-{
-   double energy = 0.0;
-   for (int i = 0; i < tmopi.Size(); i++)
-   {
-      energy += tmopi[i]->GetGridFunctionEnergyPA(xe);
-   }
-   return energy;
-}
 
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,

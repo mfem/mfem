@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -471,6 +471,25 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 }
 
+void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   int ne = fes->GetNE();
+   if (el >= ne)
+   {
+      MFEM_ASSERT(face_nbr_data.Size() > 0,
+                  "ParGridFunction::GetElementDofValues: ExchangeFaceNbrData "
+                  "must be called before accessing face neighbor elements.");
+      // Face neighbor element
+      Array<int> dof_idx;
+      pfes->GetFaceNbrElementVDofs(el - ne, dof_idx);
+      face_nbr_data.GetSubVector(dof_idx, dof_vals);
+   }
+   else
+   {
+      GridFunction::GetElementDofValues(el, dof_vals);
+   }
+}
+
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
@@ -835,6 +854,28 @@ void ParGridFunction::Save(std::ostream &out) const
    }
 }
 
+void ParGridFunction::Save(const char *fname, int precision) const
+{
+   int rank = pfes->GetMyRank();
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+void ParGridFunction::SaveAsOne(const char *fname, int precision) const
+{
+   ofstream ofs;
+   int rank = pfes->GetMyRank();
+   if (rank == 0)
+   {
+      ofs.open(fname);
+      ofs.precision(precision);
+   }
+   SaveAsOne(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParGridFunction::Save(adios2stream &out,
                            const std::string& variable_name,
@@ -855,7 +896,7 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-void ParGridFunction::SaveAsOne(std::ostream &out)
+void ParGridFunction::SaveAsOne(std::ostream &out) const
 {
    int i, p;
 
@@ -875,9 +916,9 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
    int *nfdofs = new int[NRanks];
    int *nrdofs = new int[NRanks];
 
-   HostReadWrite();
-   values[0] = data;
+   double * h_data = const_cast<double *>(this->HostRead());
 
+   values[0] = h_data;
    nv[0]     = pfes -> GetVSize();
    nvdofs[0] = pfes -> GetNVDofs();
    nedofs[0] = pfes -> GetNEDofs();
@@ -978,7 +1019,7 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
       MPI_Send(&nvdofs[0], 1, MPI_INT, 0, 456, MyComm);
       MPI_Send(&nedofs[0], 1, MPI_INT, 0, 457, MyComm);
       MPI_Send(&nfdofs[0], 1, MPI_INT, 0, 458, MyComm);
-      MPI_Send(data, nv[0], MPI_DOUBLE, 0, 460, MyComm);
+      MPI_Send(h_data, nv[0], MPI_DOUBLE, 0, 460, MyComm);
    }
 
    delete [] values;

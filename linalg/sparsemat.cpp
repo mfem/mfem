@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,7 +30,7 @@ using namespace std;
 
 #ifdef MFEM_USE_CUDA
 int SparseMatrix::SparseMatrixCount = 0;
-cusparseHandle_t SparseMatrix::handle;
+cusparseHandle_t SparseMatrix::handle = nullptr;
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
 #endif
@@ -39,10 +39,32 @@ void SparseMatrix::InitCuSparse()
 {
    // Initialize cuSPARSE library
 #ifdef MFEM_USE_CUDA
-   SparseMatrixCount++;
-   if (SparseMatrixCount == 1 && Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::CUDA_MASK))
    {
-      cusparseCreate(&handle);
+      if (!handle) { cusparseCreate(&handle); }
+      useCuSparse=true;
+      SparseMatrixCount++;
+   }
+   else
+   {
+      useCuSparse=false;
+   }
+#endif
+}
+
+void SparseMatrix::ClearCuSparse()
+{
+#ifdef MFEM_USE_CUDA
+   if (initBuffers)
+   {
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+      cusparseDestroySpMat(matA_descr);
+      cusparseDestroyDnVec(vecX_descr);
+      cusparseDestroyDnVec(vecY_descr);
+#else
+      cusparseDestroyMatDescr(matA_descr);
+#endif
+      initBuffers = false;
    }
 #endif
 }
@@ -148,7 +170,8 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    InitCuSparse();
 }
 
-SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
+SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
+                           MemoryType mt)
    : AbstractSparseMatrix(mat.Height(), mat.Width())
 {
    if (mat.Finalized())
@@ -156,8 +179,8 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
       const int nnz = mat.I[height];
       if (copy_graph)
       {
-         I.New(height+1, mat.I.GetMemoryType());
-         J.New(nnz, mat.J.GetMemoryType());
+         I.New(height+1, mt == MemoryType::PRESERVE ? mat.I.GetMemoryType() : mt);
+         J.New(nnz, mt == MemoryType::PRESERVE ? mat.J.GetMemoryType() : mt);
          I.CopyFrom(mat.I, height+1);
          J.CopyFrom(mat.J, nnz);
       }
@@ -168,7 +191,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
          I.ClearOwnerFlags();
          J.ClearOwnerFlags();
       }
-      A.New(nnz, mat.A.GetMemoryType());
+      A.New(nnz, mt == MemoryType::PRESERVE ? mat.A.GetMemoryType() : mt);
       A.CopyFrom(mat.A, nnz);
 
       Rows = NULL;
@@ -282,15 +305,7 @@ void SparseMatrix::SetEmpty()
 #endif
    isSorted = false;
 
-#ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
-#endif
+   ClearCuSparse();
 }
 
 int SparseMatrix::RowSize(const int i) const
@@ -415,10 +430,14 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
+   const int * Ip=HostReadI();
+   HostReadWriteJ();
+   HostReadWriteData();
+
    Array<Pair<int,double> > row;
    for (int j = 0, i = 0; i < height; i++)
    {
-      int end = I[i+1];
+      int end = Ip[i+1];
       row.SetSize(end - j);
       for (int k = 0; k < row.Size(); k++)
       {
@@ -535,9 +554,9 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   const auto I = this->ReadI();
-   const auto J = this->ReadJ();
-   const auto A = this->ReadData();
+   auto I = this->ReadI();
+   auto J = this->ReadJ();
+   auto A = this->ReadData();
    auto dd = d.Write();
 
    MFEM_FORALL(i, height,
@@ -645,6 +664,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Setup descriptors
       if (!initBuffers)
       {
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
          // Setup matrix descriptor
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
                            const_cast<int *>(d_I),
@@ -655,25 +675,34 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x),
                              CUDA_R_64F);
          cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
+#else
+         cusparseCreateMatDescr(&matA_descr);
+         cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
+         cusparseSetMatType(matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL);
+
+#endif
 
          initBuffers = true;
       }
-
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
+
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
                               CUSPARSE_CSRMV_ALG1, &newBufferSize);
+#endif
 
       // Check if we need to resize
       if (newBufferSize > bufferSize)
       {
          bufferSize = newBufferSize;
-         if (dBuffer != NULL) { CuMemFree(dBuffer); }
+         if (dBuffer != nullptr) { CuMemFree(dBuffer); }
          CuMemAlloc(&dBuffer, bufferSize);
       }
 
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
       // Update input/output vectors
       cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
       cusparseDnVecSetValues(vecY_descr, d_y);
@@ -681,6 +710,13 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Y = alpha A * X + beta * Y
       cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
                    vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
+#else
+      cusparseDcsrmv(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                     Height(), Width(), J.Capacity(),
+                     &alpha, matA_descr,
+                     const_cast<double *>(d_A), const_cast<int *>(d_I), const_cast<int *>(d_J),
+                     const_cast<double *>(d_x), &beta, d_y);
+#endif
 #endif
    }
    else
@@ -1145,7 +1181,26 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       nr = 0;
       for (aux = Rows[i-1]; aux != NULL; aux = aux->Prev)
       {
-         if (!skip_zeros || aux->Value != 0.0) { nr++; }
+         if (skip_zeros && aux->Value == 0.0)
+         {
+            if (skip_zeros == 2) { continue; }
+            if ((i-1) != aux->Column) { continue; }
+
+            bool found = false;
+            double found_val;
+            for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
+            {
+               if (other->Column == (i-1))
+               {
+                  found = true;
+                  found_val = other->Value;
+                  break;
+               }
+            }
+            if (found && found_val == 0.0) { continue; }
+
+         }
+         nr++;
       }
       if (fix_empty_rows && !nr) { nr = 1; }
       I[i] = I[i-1] + nr;
@@ -1162,20 +1217,36 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       nr = 0;
       for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
       {
-         if (!skip_zeros || aux->Value != 0.0)
+         if (skip_zeros && aux->Value == 0.0)
          {
-            J[j] = aux->Column;
-            A[j] = aux->Value;
+            if (skip_zeros == 2) { continue; }
+            if (i != aux->Column) { continue; }
 
-            if ( lastCol > J[j] )
+            bool found = false;
+            double found_val;
+            for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
             {
-               isSorted = false;
+               if (other->Column == i)
+               {
+                  found = true;
+                  found_val = other->Value;
+                  break;
+               }
             }
-            lastCol = J[j];
-
-            j++;
-            nr++;
+            if (found && found_val == 0.0) { continue; }
          }
+
+         J[j] = aux->Column;
+         A[j] = aux->Value;
+
+         if ( lastCol > J[j] )
+         {
+            isSorted = false;
+         }
+         lastCol = J[j];
+
+         j++;
+         nr++;
       }
       if (fix_empty_rows && !nr)
       {
@@ -2342,21 +2413,21 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
-   const int H = height;
    const int nnz = J.Capacity();
-   const bool scale = (sc != 1.0);
+
    const bool use_dev = b.UseDevice() || x.UseDevice();
 
-   const auto Ap = Read(A, nnz, use_dev);
-   const auto Ip = Read(I, height+1, use_dev);
-   const auto Jp = Read(J, nnz, use_dev);
-
-   const auto bp = b.Read(use_dev);
+   auto bp = b.Read(use_dev);
    auto xp = x.Write(use_dev);
 
-   MFEM_FORALL_SWITCH(use_dev, i, H,
+   auto Ap = Read(A, nnz);
+   auto Ip = Read(I, height+1);
+   auto Jp = Read(J, nnz);
+
+   bool scale = (sc != 1.0);
+   MFEM_FORALL(i, height,
    {
-      const int end = Ip[i+1];
+      int end = Ip[i+1];
       for (int j = Ip[i]; true; j++)
       {
          if (j == end)
@@ -2369,12 +2440,20 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-            const double s = scale ? sc : 1.0;
-            xp[i] = s * bp[i] / Ap[j];
+
+            if (scale)
+            {
+               xp[i] = sc * bp[i] / Ap[j];
+            }
+            else
+            {
+               xp[i] = bp[i] / Ap[j];
+            }
             break;
          }
       }
    });
+   return;
 }
 
 void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
@@ -2449,9 +2528,10 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
          a = subm(i, j);
          if (skip_zeros && a == 0.0)
          {
-            // if the element is zero do not assemble it unless this breaks
-            // the symmetric structure
-            if (&rows != &cols || subm(j, i) == 0.0)
+            // Skip assembly of zero elements if either:
+            // (i) user specified to skip zeros regardless of symmetry, or
+            // (ii) symmetry is not broken.
+            if (skip_zeros == 2 || &rows != &cols || subm(j, i) == 0.0)
             {
                continue;
             }
@@ -2520,7 +2600,13 @@ void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
          a = subm(i, j);
          if (skip_zeros && a == 0.0)
          {
-            continue;
+            // Skip assembly of zero elements if either:
+            // (i) user specified to skip zeros regardless of symmetry, or
+            // (ii) symmetry is not broken.
+            if (skip_zeros == 2 || &rows != &cols || subm(j, i) == 0.0)
+            {
+               continue;
+            }
          }
          if ((gj=cols[j]) < 0) { gj = -1-gj, t = -s; }
          else { t = s; }
@@ -2555,7 +2641,13 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
          a = subm(j, i);
          if (skip_zeros && a == 0.0)
          {
-            continue;
+            // Skip assembly of zero elements if either:
+            // (i) user specified to skip zeros regardless of symmetry, or
+            // (ii) symmetry is not broken.
+            if (skip_zeros == 2 || &rows != &cols || subm(j, i) == 0.0)
+            {
+               continue;
+            }
          }
          if ((gj=cols[j]) < 0) { gj = -1-gj, t = -s; }
          else { t = s; }
@@ -2881,8 +2973,6 @@ SparseMatrix &SparseMatrix::operator=(double a)
 {
    if (Rows == NULL)
    {
-      HostReadWriteI();
-      HostReadWriteJ();
       const int nnz = J.Capacity();
       double *h_A = HostWrite(A, nnz);
       for (int i = 0; i < nnz; i++)
@@ -3149,15 +3239,7 @@ void SparseMatrix::Destroy()
 #endif
    delete At;
 
-#ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
-#endif
+   ClearCuSparse();
 }
 
 int SparseMatrix::ActualWidth() const

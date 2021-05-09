@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,34 +10,49 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
-static bool testQuadratureInterpolator(const int dim, const int nx,
+static bool testQuadratureInterpolator(const int dim,
+                                       const int p,
+                                       const int qpts,
                                        const QVectorLayout q_layout,
-                                       const int mesh_order,
-                                       const int quadrature_order)
+                                       const int nx, const int ny, const int nz)
 {
+   // Keep for debugging purposes:
+   const bool verbose = false;
+   if (verbose)
+   {
+      std::cout << "testQuadratureInterpolator(dim=" << dim
+                << ",p=" << p
+                << ",q=" << qpts
+                << ",l=" << (q_layout == QVectorLayout::byNODES ?
+                             "by_nodes" : "by_vdim")
+                << ",nx=" << nx
+                << ",ny=" << ny
+                << ",nz=" << nz
+                << ")" << std::endl;
+   }
+
    const int vdim = dim;
    const int seed = 0x100001b3;
    const int ordering = Ordering::byNODES;
 
    REQUIRE((dim == 2 || dim == 3));
-   Mesh *mesh = dim == 2 ? new Mesh(nx,nx, Element::QUADRILATERAL):
-                dim == 3 ? new Mesh(nx,nx,nx, Element::HEXAHEDRON): nullptr;
-   mesh->SetCurvature(mesh_order, false, dim, ordering);
+   Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(nx, Element::SEGMENT) :
+               dim == 2 ? Mesh::MakeCartesian2D(nx,ny, Element::QUADRILATERAL):
+               Mesh::MakeCartesian3D(nx,nx,nz, Element::HEXAHEDRON);
 
-   const H1_FECollection fec(mesh_order, dim);
-   FiniteElementSpace sfes(mesh, &fec, 1, ordering);
-   FiniteElementSpace vfes(mesh, &fec, vdim, ordering);
+   const H1_FECollection fec(p, dim);
+   FiniteElementSpace sfes(&mesh, &fec, 1, ordering);
+   FiniteElementSpace vfes(&mesh, &fec, vdim, ordering);
 
    GridFunction x(&sfes);
    x.Randomize(seed);
 
    GridFunction nodes(&vfes);
-   mesh->SetNodalFESpace(&vfes);
-   mesh->SetNodalGridFunction(&nodes);
+   mesh.SetNodalGridFunction(&nodes);
    {
       Array<int> dofs, vdofs;
       GridFunction rdm(&vfes);
@@ -45,20 +60,21 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
       rdm.Randomize(seed);
       rdm -= 0.5;
       h0 = infinity();
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
          vfes.GetElementDofs(i, dofs);
-         const double hi = mesh->GetElementSize(i);
+         const double hi = mesh.GetElementSize(i);
          for (int j = 0; j < dofs.Size(); j++)
          {
             h0(dofs[j]) = std::min(h0(dofs[j]), hi);
          }
       }
+      rdm.HostReadWrite();
       for (int i = 0; i < vfes.GetNDofs(); i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            rdm(vfes.DofToVDof(i,d)) *= h0(i);
+            rdm(vfes.DofToVDof(i,d)) *= (0.25/p)*h0(i);
          }
       }
       for (int i = 0; i < vfes.GetNBE(); i++)
@@ -69,12 +85,12 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
       nodes -= rdm;
    }
 
-   const Geometry::Type GeomType = mesh->GetElementBaseGeometry(0);
-   const IntegrationRule &ir(IntRules.Get(GeomType, quadrature_order));
+   const Geometry::Type GeomType = mesh.GetElementBaseGeometry(0);
+   const IntegrationRule &ir = IntRules.Get(GeomType, 2*qpts-1);
    const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
 
-   const int NE(mesh->GetNE());
+   const int NE(mesh.GetNE());
    const int NQ(ir.GetNPoints());
    const int ND(sfes.GetFE(0)->GetDof());
    REQUIRE(ND == vfes.GetFE(0)->GetDof());
@@ -90,7 +106,7 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
    MFEM_VERIFY(VRN, "No element vn-restriction operator found!");
    MFEM_VERIFY(VRL, "No element vl-restriction operator found!");
 
-   double val[2], der[2], det[2], pdr[2];
+   const double rel_tol = 1e-12;
 
    {
       // Scalar
@@ -98,39 +114,54 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
       Vector xe(1*ND*NE);
       REQUIRE(xe.Size() == SRN->Height());
       REQUIRE(SRN->Height() == SRL->Height());
+      // Full results
+      Vector sq_val_f(NQ*NE), sq_der_f(dim*NQ*NE), sq_pdr_f(dim*NQ*NE);
+      // Tensor results
+      Vector sq_val_t(NQ*NE), sq_der_t(dim*NQ*NE), sq_pdr_t(dim*NQ*NE);
       {
          // Full
          SRN->Mult(x, xe);
          sqi->DisableTensorProducts();
-         Vector sq_val_f(NQ*NE), sq_der_f(dim*NQ*NE), sq_pdr_f(dim*NQ*NE);
 
          sqi->Values(xe, sq_val_f);
-         val[0] = sq_val_f*sq_val_f;
 
          sqi->Derivatives(xe, sq_der_f);
-         der[0] = sq_der_f*sq_der_f;
 
          sqi->PhysDerivatives(xe, sq_pdr_f);
-         pdr[0] = sq_pdr_f*sq_pdr_f;
       }
       {
          // Tensor
          SRL->Mult(x, xe);
          sqi->EnableTensorProducts();
-         Vector sq_val_t(NQ*NE), sq_der_t(dim*NQ*NE), sq_pdr_t(dim*NQ*NE);
 
          sqi->Values(xe, sq_val_t);
-         val[1] = sq_val_t*sq_val_t;
 
          sqi->Derivatives(xe, sq_der_t);
-         der[1] = sq_der_t*sq_der_t;
 
          sqi->PhysDerivatives(xe, sq_pdr_t);
-         pdr[1] = sq_pdr_t*sq_pdr_t;
       }
-      REQUIRE(val[0] == Approx(val[1]));
-      REQUIRE(der[0] == Approx(der[1]));
-      REQUIRE(pdr[0] == Approx(pdr[1]));
+      double norm, rel_error;
+
+      norm = sq_val_f.Normlinf();
+      sq_val_f -= sq_val_t;
+      rel_error = sq_val_f.Normlinf()/norm;
+      if (verbose)
+      { std::cout << "sq_val rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+
+      norm = sq_der_f.Normlinf();
+      sq_der_f -= sq_der_t;
+      rel_error = sq_der_f.Normlinf()/norm;
+      if (verbose)
+      { std::cout << "sq_der rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+
+      norm = sq_pdr_f.Normlinf();
+      sq_pdr_f -= sq_pdr_t;
+      rel_error = sq_pdr_f.Normlinf()/norm;
+      if (verbose)
+      { std::cout << "sq_pdr rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
    }
 
    {
@@ -139,75 +170,84 @@ static bool testQuadratureInterpolator(const int dim, const int nx,
       Vector ne(vdim*ND*NE);
       REQUIRE(ne.Size() == VRN->Height());
       REQUIRE(VRN->Height() == VRL->Height());
+      // Full results
+      Vector vq_val_f(dim*NQ*NE), vq_der_f(vdim*dim*NQ*NE),
+             vq_det_f(NQ*NE),
+             vq_pdr_f(vdim*dim*NQ*NE);
+      // Tensor results
+      Vector vq_val_t(dim*NQ*NE), vq_der_t(vdim*dim*NQ*NE),
+             vq_det_t(NQ*NE),
+             vq_pdr_t(vdim*dim*NQ*NE);
       {
          // Full
          VRN->Mult(nodes, ne);
          vqi->DisableTensorProducts();
-         Vector vq_val_f(dim*NQ*NE), vq_der_f(vdim*dim*NQ*NE),
-                vq_det_f(NQ*NE),
-                vq_pdr_f(vdim*dim*NQ*NE);
 
          vqi->Values(ne, vq_val_f);
-         val[0] = vq_val_f*vq_val_f;
 
          vqi->Derivatives(ne, vq_der_f);
-         der[0] = vq_der_f*vq_der_f;
 
          vqi->Determinants(ne, vq_det_f);
-         det[0] = vq_det_f*vq_det_f;
 
          vqi->PhysDerivatives(ne, vq_pdr_f);
-         pdr[0] = vq_pdr_f*vq_pdr_f;
       }
       {
          // Tensor
          VRL->Mult(nodes, ne);
          vqi->EnableTensorProducts();
-         Vector vq_val_t(dim*NQ*NE), vq_der_t(vdim*dim*NQ*NE),
-                vq_det_t(NQ*NE),
-                vq_pdr_t(vdim*dim*NQ*NE);
 
          vqi->Values(ne, vq_val_t);
-         val[1] = vq_val_t*vq_val_t;
 
          vqi->Derivatives(ne, vq_der_t);
-         der[1] = vq_der_t*vq_der_t;
 
          vqi->Determinants(ne, vq_det_t);
-         det[1] = vq_det_t*vq_det_t;
 
          vqi->PhysDerivatives(ne, vq_pdr_t);
-         pdr[1] = vq_pdr_t*vq_pdr_t;
       }
-      REQUIRE(val[0] == Approx(val[1]));
-      REQUIRE(der[0] == Approx(der[1]));
-      REQUIRE(det[0] == Approx(det[1]));
-      REQUIRE(pdr[0] == Approx(pdr[1]));
+      double norm, rel_error;
+
+      norm = vq_val_f.Normlinf();
+      vq_val_f -= vq_val_t;
+      rel_error = vq_val_f.Normlinf()/norm;
+      if (verbose)
+      { std::cout << "vq_val rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+
+      norm = vq_der_f.Normlinf();
+      vq_der_f -= vq_der_t;
+      rel_error = vq_der_f.Normlinf()/norm;
+      if (verbose)
+      { std::cout << "vq_der rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+
+      norm = vq_det_f.Normlinf();
+      vq_det_f -= vq_det_t;
+      rel_error = vq_det_f.Normlinf()/norm;
+      if (verbose)
+      { std::cout << "vq_det rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+
+      norm = vq_pdr_f.Normlinf();
+      vq_pdr_f -= vq_pdr_t;
+      rel_error = vq_pdr_f.Normlinf()/norm;
+      if (verbose)
+      { std::cout << "vq_pdr rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
    }
 
-   delete mesh;
    return true;
 }
 
-TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator]")
+TEST_CASE("QuadratureInterpolator",
+          "[QuadratureInterpolator]"
+          "[CUDA]")
 {
-   constexpr const int D = 3;
-   constexpr const int n = 5;
-   constexpr const int P = 5;
-   constexpr const int Q = 6;
-   const auto QLayouts = { QVectorLayout::byNODES, QVectorLayout::byVDIM };
-
-   for (int d = 2; d <= D; d+=1) // dimension
-   {
-      for (int p = 1; p <= P; p+=1) // mesh order
-      {
-         for (int q = p; q <= Q; q+=1) // quadrature order
-         {
-            for (auto l: QLayouts) // Q layout
-            {
-               REQUIRE(testQuadratureInterpolator(d,n,l,p,q));
-            }
-         }
-      }
-   }
+   const auto d = GENERATE(2,3); // dimension
+   const auto p = GENERATE(range(1,7)); // element order, 1 <= p < 7
+   const auto q = GENERATE_COPY(p+1,p+2); // 1D quadrature points
+   const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
+   const auto nx = 3; // number of element in x
+   const auto ny = 3; // number of element in y
+   const auto nz = 3; // number of element in z
+   testQuadratureInterpolator(d, p, q, l, nx, ny, nz);
 } // TEST_CASE "QuadratureInterpolator"

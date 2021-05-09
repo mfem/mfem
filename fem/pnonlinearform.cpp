@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -50,7 +50,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (fnfi.Size())
    {
-      MFEM_VERIFY(!NonlinearForm::ext,"");
+      MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
       // Terms over shared interior faces in parallel.
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
@@ -96,7 +96,8 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
-   if (NonlinearForm::ext) { MFEM_ABORT("Not yet implemented!"); }
+   MFEM_VERIFY(NonlinearForm::ext == nullptr,
+               "this method is not supported yet with partial assembly");
 
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
@@ -105,28 +106,27 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
+   if (NonlinearForm::ext) { return NonlinearForm::GetGradient(x); }
+
    ParFiniteElementSpace *pfes = ParFESpace();
 
-   Operator &grad = NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
-
    pGrad.Clear();
+
+   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
 
    if (fnfi.Size() == 0)
    {
-      if (NonlinearForm::ext) { dA.Reset(&grad, false); }
-      else
-      {
-         dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
-                                pfes->GetDofOffsets(), Grad);
-      }
+      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                             pfes->GetDofOffsets(), Grad);
    }
    else
    {
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
 
+   // RAP the local gradient dA.
    // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);
