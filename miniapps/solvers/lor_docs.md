@@ -3,6 +3,14 @@
 MFEM features several low-order refined (LOR) classes intended to make working with LOR discretizations and solvers more convenient.
 The interface is designed to be convenient, flexible, and powerful: solvers with "default" options can be created in only one line of code, but much more customization is available if desired.
 
+### Basis types for spectrally equivalent LOR solvers
+
+In order for LOR solvers to be effective (spectrally equivalent with the corresponding high-order
+operators), the high-order space needs to use the proper basis type. In particular, H1 spaces should
+use `BasisType::GaussLobatto`, and Nedelec and Raviart-Thomas spaces should use
+`BasisType::GaussLobatto` for the "closed basis" and `BasisType::IntegratedGLL` for the "open
+basis".
+
 ## Creating solvers with default options
 
 The most basic LOR solver can be created as a one liner. For example, the following creates a direct solver based on a serial LOR discretization:
