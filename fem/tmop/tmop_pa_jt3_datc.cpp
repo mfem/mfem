@@ -49,12 +49,17 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double DDD[MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
+      MFEM_SHARED double sB[MQ1*MD1];
+      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+
+      ConstDeviceMatrix B(sB, D1D, Q1D);
+      DeviceCube DDD(sm0, MD1,MD1,MD1);
+      DeviceCube DDQ(sm1, MD1,MD1,MQ1);
+      DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
+      DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
       kernels::internal::LoadX<MD1>(e,D1D,sizeidx,X,DDD);
 
@@ -83,7 +88,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
       }
       min = min_size[0];
 
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
       kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
       kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
       kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
