@@ -181,6 +181,11 @@ public:
 
 /// @brief Represents a solver of type @a SolverType created using the low-order
 /// refined version of the given BilinearForm or ParBilinearForm.
+///
+/// @note To achieve good solver performance, the high-order finite element
+/// space should use BasisType::GaussLobatto for H1 discretizations, and basis
+/// pair (BasisType::GaussLobatto, BasisType::IntegratedGLL) for Nedelec and
+/// Raviart-Thomas elements.
 template <typename SolverType>
 class LORSolver : public Solver
 {

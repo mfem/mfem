@@ -293,6 +293,53 @@ void LORBase::SetupNonconforming()
    nonconforming = true;
 }
 
+template <typename FEC>
+void CheckScalarBasisType(const FiniteElementSpace &fes)
+{
+   const FEC *fec = dynamic_cast<const FEC*>(fes.FEColl());
+   if (fec)
+   {
+      int btype = fec->GetBasisType();
+      if (btype != BasisType::GaussLobatto)
+      {
+         mfem::err << "\nWARNING: Constructing low-order refined "
+                   << "discretization with basis type\n"
+                   << BasisType::Name(btype) << ". "
+                   << "The LOR discretization is only spectrally equivalent\n"
+                   << "with Gauss-Lobatto basis.\n" << std::endl;
+      }
+   }
+}
+
+template <typename FEC>
+void CheckVectorBasisType(const FiniteElementSpace &fes)
+{
+   const FEC *fec = dynamic_cast<const FEC*>(fes.FEColl());
+   if (fec)
+   {
+      int cbtype = fec->GetClosedBasisType();
+      int obtype = fec->GetOpenBasisType();
+      if (cbtype != BasisType::GaussLobatto || obtype != BasisType::IntegratedGLL)
+      {
+         mfem::err << "\nWARNING: Constructing vector low-order refined "
+                   << "discretization with basis type \npair ("
+                   << BasisType::Name(cbtype) << ", "
+                   << BasisType::Name(obtype) << "). "
+                   << "The LOR discretization is only spectrally\nequivalent "
+                   << "with basis types (Gauss-Lobatto, IntegratedGLL).\n"
+                   << std::endl;
+      }
+   }
+}
+
+void CheckBasisType(const FiniteElementSpace &fes)
+{
+   CheckScalarBasisType<H1_FECollection>(fes);
+   CheckVectorBasisType<ND_FECollection>(fes);
+   CheckVectorBasisType<RT_FECollection>(fes);
+   // L2 is a bit more complicated, for now don't verify basis typpe
+}
+
 LORBase::LORBase(FiniteElementSpace &fes_ho_)
    : irs(0, Quadrature1D::GaussLobatto), fes_ho(fes_ho_)
 {
@@ -333,6 +380,8 @@ LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
 LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
                                      int ref_type) : LORBase(fes_ho)
 {
+   CheckBasisType(fes_ho);
+
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
@@ -370,6 +419,7 @@ ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
 ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
                                            int ref_type) : LORBase(fes_ho)
 {
+   if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
