@@ -47,6 +47,9 @@ int main(int argc, char *argv[])
    cfg.testsOrTags.push_back("~[Parallel]");
 #endif
 
+   std::cout << "INFO: Test filter: [CUDA] ~[Parallel]" << std::endl;
+   device.Print();
+
    session.useConfigData(cfg);
 
    int result = session.run();

@@ -77,28 +77,68 @@ set(UNIT_TESTS_SRCS
   fem/test_tet_reorder.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
-  miniapps/test_sedov.cpp
-  miniapps/test_tmop.cpp
+  # The following are tested separately (keep the comment as a reminder):
+  # miniapps/test_sedov.cpp
+  # miniapps/test_tmop.cpp
+  # ceed/test_ceed.cpp
+  # ceed/test_ceed_main.cpp
 )
 
+#-----------------------------------------------------------
+# SERIAL CPU TESTS: unit_tests
+#-----------------------------------------------------------
 if (MFEM_USE_CUDA)
-   set_property(SOURCE ${UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+   set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
+                PROPERTY LANGUAGE CUDA)
 endif()
 if (MFEM_USE_HIP)
-  set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+  set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
+               PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
-# All serial non-device unit tests are built into a single executable 'unit_tests'.
+# All serial non-device unit tests are built into a single executable,
+# 'unit_tests'.
 mfem_add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
+target_link_libraries(unit_tests mfem)
+add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 # Unit tests need the ../../data directory.
 add_dependencies(unit_tests copy_data)
-target_link_libraries(unit_tests mfem)
 
+# Copy data to the build directory.
+add_custom_command(TARGET unit_tests POST_BUILD
+COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/data data
+        COMMENT "Copying the unit tests data directory ...")
+
+# Create a test called 'unit_tests' that runs the 'unit_tests' executable.
+# The unit tests can be built and run separately from the rest of the tests:
+#   make unit_tests
+#   ctest -R unit_tests [-V]
+add_test(NAME unit_tests COMMAND unit_tests)
+
+#-----------------------------------------------------------
+# SERIAL CUDA TESTS: cunit_tests
+#-----------------------------------------------------------
+# Create CUDA 'cunit_tests' executable and test
+if (MFEM_USE_CUDA)
+   set(CUNIT_TESTS_SRCS cunit_test_main.cpp)
+   set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+   add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+   target_link_libraries(cunit_tests mfem)
+   add_dependencies(cunit_tests copy_data)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
+   add_test(NAME cunit_tests COMMAND cunit_tests)
+endif()
+
+#-----------------------------------------------------------
+# SERIAL SEDOV + TMOP TESTS:
+#   {sedov,tmop}_tests_{cpu,debug,cuda,cuda_uvm}
+#-----------------------------------------------------------
 # Function to add one device serial test from the tests/unit/miniapp directory.
 # All device unit tests are built into a seperate executable, in order to be
 # able to change the device.
 function(add_serial_miniapp_test name)
-    string(TOUPPER name NAME)
+    string(TOUPPER ${name} NAME)
 
     set(${NAME}_TESTS_SRCS
         unit_test_main.cpp
@@ -109,101 +149,57 @@ function(add_serial_miniapp_test name)
     endif(MFEM_USE_CUDA)
 
     add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
-    target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_TESTS=1)
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
     target_link_libraries(${name}_tests_cpu mfem)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cpu)
+    add_test(NAME ${name}_tests_cpu COMMAND ${name}_tests_cpu)
 
     add_executable(${name}_tests_debug ${${NAME}_TESTS_SRCS})
-    target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_TESTS=1)
     target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_DEVICE="debug")
     target_link_libraries(${name}_tests_debug mfem)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_debug)
+    add_test(NAME ${name}_tests_debug COMMAND ${name}_tests_debug)
 
     if (MFEM_USE_CUDA)
        add_executable(${name}_tests_cuda ${${NAME}_TESTS_SRCS})
-       target_compile_definitions(${name}_tests_cuda PUBLIC MFEM_${NAME}_TESTS=1)
        target_compile_definitions(${name}_tests_cuda PUBLIC MFEM_${NAME}_DEVICE="cuda")
        target_link_libraries(${name}_tests_cuda mfem)
+       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda)
+       add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
 
        add_executable(${name}_tests_cuda_uvm ${${NAME}_TESTS_SRCS})
-       target_compile_definitions(${name}_tests_cuda_uvm PUBLIC MFEM_${NAME}_TESTS=1)
        target_compile_definitions(${name}_tests_cuda_uvm PUBLIC MFEM_${NAME}_DEVICE="cuda:uvm")
        target_link_libraries(${name}_tests_cuda_uvm mfem)
-
-       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda)
        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda_uvm)
+       add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
     endif(MFEM_USE_CUDA)
 endfunction(add_serial_miniapp_test)
 
 add_serial_miniapp_test(sedov)
 add_serial_miniapp_test(tmop)
+# TMOP tests need meshes in ../../miniapps/meshing
+add_dependencies(tmop_tests_cpu copy_miniapps_meshing_data)
 
-# Create CUDA cunit_tests executable
-if (MFEM_USE_CUDA)
-  set(CUNIT_TESTS_SRCS cunit_test_main.cpp)
-  set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-  add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-  add_dependencies(cunit_tests copy_data)
-  target_link_libraries(cunit_tests mfem)
-  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
-endif()
-
-# CEED tests sources
+#-----------------------------------------------------------
+# SERIAL CEED TESTS:
+#   ceed_tests, ceed_tests_cuda_{ref,shared,gen}
+#-----------------------------------------------------------
+# Add 'ceed_tests' executable and test; add extra tests 'ceed_test_*'
 if (MFEM_USE_CEED)
    set(CEED_TESTS_SRCS
       ceed/test_ceed.cpp
       ceed/test_ceed_main.cpp)
+   if (MFEM_USE_CUDA)
+      set_property(SOURCE ${CEED_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+   endif(MFEM_USE_CUDA)
    add_executable(ceed_tests ${CEED_TESTS_SRCS})
    target_link_libraries(ceed_tests mfem)
-endif()
-
-# Copy data to the build directory.
-add_custom_command(TARGET unit_tests POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/data data
-        COMMENT "Copying the unit tests data directory ...")
-
-# Add unit tests
-add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests sedov_tests_cpu sedov_tests_debug)
-if (MFEM_USE_CUDA)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} sedov_tests_cuda)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} sedov_tests_cuda_uvm)
-endif()
-
-if (MFEM_USE_CEED)
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ceed_tests)
-endif()
-
-# Create a test called 'unit_tests' that runs the 'unit_tests' executable.
-# The unit tests can be built and run separately from the rest of the tests:
-#   make unit_tests
-#   ctest -R unit_tests [-V]
-add_test(NAME unit_tests COMMAND unit_tests)
-
-# Copy data to the build directory.
-add_custom_command(TARGET unit_tests POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy_directory
-                   ${CMAKE_CURRENT_SOURCE_DIR}/data data
-                   COMMENT "Copying the unit tests data directory ...")
-
-# Additional CUDA unit tests
-if (MFEM_USE_CUDA)
-   add_test(NAME cunit_tests COMMAND cunit_tests)
-   add_test(NAME sedov_tests_cuda COMMAND sedov_tests_cuda)
-   add_test(NAME sedov_tests_cuda_uvm COMMAND sedov_tests_cuda_uvm)
-endif()
-
-# Add unit tests
-add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
-                unit_tests
-                sedov_tests_cpu sedov_tests_debug
-                tmop_tests_cpu tmop_tests_debug)
-
-# Add CEED tests
-if (MFEM_USE_CEED)
+   # Add CEED tests
    add_test(NAME ceed_tests COMMAND ceed_tests)
    if (MFEM_USE_CUDA)
       add_test(NAME ceed_tests_cuda_ref
-              COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/ref)
+               COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/ref)
       add_test(NAME ceed_tests_cuda_shared
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/shared)
       add_test(NAME ceed_tests_cuda_gen
@@ -211,120 +207,94 @@ if (MFEM_USE_CEED)
    endif()
 endif()
 
-# Create a test called 'punit_tests' that runs the 'punit_tests' executable.
-# Additional MPI unit tests
+#-----------------------------------------------------------
+# PARALLEL CPU AND CUDA TESTS: {p,pc}unit_tests
+#-----------------------------------------------------------
+# Define executables and tests 'punit_tests' and 'pcunit_tests'
 if (MFEM_USE_MPI)
+   if (MFEM_USE_CUDA)
+      set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)
+   endif()
    add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
    target_link_libraries(punit_tests mfem)
-   add_test(NAME punit_tests COMMAND punit_tests)
-   add_test(NAME punit_tests_np=${MFEM_MPI_NP}
-            COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
-            ${MPIEXEC_POSTFLAGS})
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
+   foreach(np 1 ${MFEM_MPI_NP})
+      add_test(NAME punit_tests_np=${np}
+               COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+               ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
+               ${MPIEXEC_POSTFLAGS})
+   endforeach()
+   if (MFEM_USE_CUDA)
+      set(PCUNIT_TESTS_SRCS pcunit_test_main.cpp)
+      set_property(SOURCE ${PCUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+      add_executable(pcunit_tests ${PCUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+      add_dependencies(pcunit_tests copy_data)
+      target_link_libraries(pcunit_tests mfem)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pcunit_tests)
+      foreach(np 1 ${MFEM_MPI_NP})
+         add_test(NAME pcunit_tests_np=${np}
+                  COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                  ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pcunit_tests>
+                  ${MPIEXEC_POSTFLAGS})
+      endforeach()
+   endif()
 endif(MFEM_USE_MPI)
 
+#-----------------------------------------------------------
+# PARALLEL SEDOV + TMOP TESTS:
+#   psedov_tests_{cpu,debug,cuda,cuda_uvm}
+#    ptmop_tests_{cpu,cuda}
+#-----------------------------------------------------------
 # Function to add one MPI executable for a test.
 function(add_mpi_executable_test name dev)
-    string(TOUPPER name NAME)
-    string(REPLACE "_" ":" DEV name)
+    string(TOUPPER ${name} NAME)
+    string(REPLACE "_" ":" DEV ${dev})
     add_executable(p${name}_tests_${dev} ${PAR_${NAME}_TESTS_SRCS})
     target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_MPI=1)
-    target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_TESTS=1)
     target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_DEVICE="${DEV}")
     target_link_libraries(p${name}_tests_${dev} mfem)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} p${name}_tests_${dev})
 endfunction(add_mpi_executable_test)
 
 # Function to add one test from the tests/unit/miniapp directory.
 function(add_parallel_miniapp_test name HYPRE_MM)
-    string(TOUPPER name NAME)
+    string(TOUPPER ${name} NAME)
 
-    add_test(NAME ${name}_tests_cpu COMMAND ${name}_tests_cpu)
-    add_test(NAME ${name}_tests_debug COMMAND ${name}_tests_debug)
+    function(add_mpi_unit_test DEV NP)
+        set(test_name p${name}_tests_${DEV})
+        add_test(NAME ${test_name}_np=${NP}
+            COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
+            ${MPIEXEC_POSTFLAGS})
+    endfunction()
 
-    # Additional CUDA unit tests
-   if (MFEM_USE_CUDA)
-      add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
-#     add_executable(psedov_tests_cuda ${PAR_SEDOV_TESTS_SRCS})
-#     target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_MPI=1)
-#     target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_TESTS=1)
-#     target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_DEVICE="cuda")
-#     target_link_libraries(psedov_tests_cuda mfem)
+    set(PAR_${NAME}_TESTS_SRCS punit_test_main.cpp miniapps/test_${name}.cpp)
+    if (MFEM_USE_CUDA)
+        set_property(SOURCE ${PAR_${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+    endif()
 
-      add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
-#     add_executable(psedov_tests_cuda_uvm ${PAR_SEDOV_TESTS_SRCS})
-#     target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_MPI=1)
-#     target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_TESTS=1)
-#     target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_DEVICE="cuda:uvm")
-#     target_link_libraries(psedov_tests_cuda_uvm mfem)
+    set(backends cpu)
+    if (HYPRE_MM)
+        list(APPEND backends debug)
+    endif()
+    if (MFEM_USE_CUDA)
+        list(APPEND backends cuda)
+        if (HYPRE_MM)
+            list(APPEND backends cuda_uvm)
+        endif()
+    endif()
 
-      set(PCUNIT_TESTS_SRCS pcunit_test_main.cpp)
-      set_property(SOURCE ${PCUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-      add_executable(pcunit_tests ${PCUNIT_TESTS_SRCS})
-      add_dependencies(pcunit_tests copy_data)
-      target_link_libraries(pcunit_tests mfem)
-      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pcunit_tests)
-   endif()
-
-    # Additional MPI tests
-    if (MFEM_USE_MPI)
-       set(PAR_${NAME}_TESTS_SRCS punit_test_main.cpp miniapps/test_${name}.cpp)
-       if (MFEM_USE_CUDA)
-          set_property(SOURCE ${PAR_${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-       endif()
-
-       add_mpi_executable_test(${name} cpu)
-       if (HYPRE_MM)
-           add_mpi_executable_test(${name} debug)
-       endif()
-
-       if (MFEM_USE_CUDA)
-          add_mpi_executable_test(${name} cuda)
-          if (HYPRE_MM)
-              add_mpi_executable_test(${name} cuda_uvm)
-          endif()
-       endif()
-
-       if (NOT HYPRE_MM)
-          add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests p${name}_tests_cpu)
-       else()
-          add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests p${name}_tests_cpu p${name}_tests_debug)
-       endif()
-
-       if (MFEM_USE_CUDA)
-          add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} p${name}_tests_cuda)
-          if (HYPRE_MM)
-             add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} p${name}_tests_cuda_uvm)
-          endif()
-       endif()
-
-       function(add_mpi_unit_test NAME NP)
-          set(test_name p${name}_tests_${NAME})
-          add_test(NAME ${test_name}_np=${NP}
-                   COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
-                   ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
-                   ${MPIEXEC_POSTFLAGS})
-       endfunction()
-       set(MPI_NPS 1 ${MFEM_MPI_NP})
-       foreach(np ${MPI_NPS})
-          add_mpi_unit_test(cpu ${np})
-          if (HYPRE_MM)
-            add_mpi_unit_test(debug ${np})
-          endif()
-       endforeach()
-       if (MFEM_USE_CUDA)
-          set(backends cuda)
-          if (HYPRE_MM)
-             list(APPEND backends cuda_uvm)
-          endif()
-          foreach(dev ${backends})
-             foreach(np ${MPI_NPS})
-                add_mpi_unit_test(${dev} ${np})
-             endforeach()
-          endforeach()
-       endif()
-    endif(MFEM_USE_MPI)
+    set(MPI_NPS 1 ${MFEM_MPI_NP})
+    foreach(dev ${backends})
+        add_mpi_executable_test(${name} ${dev})
+        foreach(np ${MPI_NPS})
+            add_mpi_unit_test(${dev} ${np})
+        endforeach()
+    endforeach()
 endfunction(add_parallel_miniapp_test)
 
 # Additional MPI unit tests
-add_parallel_miniapp_test(sedov TRUE)
-add_parallel_miniapp_test(tmop FALSE)
+if (MFEM_USE_MPI)
+   add_parallel_miniapp_test(sedov TRUE)
+   add_parallel_miniapp_test(tmop FALSE)
+endif(MFEM_USE_MPI)

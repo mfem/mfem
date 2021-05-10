@@ -58,14 +58,18 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
       MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double BLD[MQ1*MD1];
+      MFEM_SHARED double sBLD[MQ1*MD1];
+      ConstDeviceMatrix BLD(sBLD, D1D, Q1D);
 
-      MFEM_SHARED double DDD[MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
+      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+      DeviceCube DDD(sm0, MD1,MD1,MD1);
+      DeviceCube DDQ(sm1, MD1,MD1,MQ1);
+      DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
+      DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
       MFEM_SHARED double DDD0[3][MD1*MD1*MD1];
       MFEM_SHARED double DDQ0[3][MD1*MD1*MQ1];
@@ -77,16 +81,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
       MFEM_SHARED double DQQ1[3][MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ1[3][MQ1*MQ1*MQ1];
 
-      kernels::internal::LoadX<MD1>(e,D1D,LD,DDD);
+      kernels::internal::LoadX(e,D1D,LD,DDD);
       kernels::internal::LoadX<MD1>(e,D1D,X0,DDD0);
       kernels::internal::LoadX<MD1>(e,D1D,X1,DDD1);
 
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,sBLD);
 
-      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,BLD,DDD,DDQ);
-      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,BLD,DDQ,DQQ);
-      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,BLD,DQQ,QQQ);
+      kernels::internal::EvalX(D1D,Q1D,BLD,DDD,DDQ);
+      kernels::internal::EvalY(D1D,Q1D,BLD,DDQ,DQQ);
+      kernels::internal::EvalZ(D1D,Q1D,BLD,DQQ,QQQ);
 
       kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD0,DDQ0);
       kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ0,DQQ0);
@@ -108,7 +112,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
 
                double D, p0[3], p1[3];
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ,D);
+               kernels::internal::PullEval(qx,qy,qz,QQQ,D);
                kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ0,p0);
                kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ1,p1);
 

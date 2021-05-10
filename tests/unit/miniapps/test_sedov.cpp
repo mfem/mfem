@@ -21,6 +21,10 @@
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
+#if defined(MFEM_SEDOV_MPI) && !defined(MFEM_USE_MPI)
+#error "Cannot use MFEM_SEDOV_MPI without MFEM_USE_MPI!"
+#endif
+
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
@@ -2189,7 +2193,7 @@ static void sedov_tests(int myid)
 }
 
 #if defined(MFEM_SEDOV_MPI)
-#ifndef MFEM_SEDOV_TESTS
+#ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
    sedov_tests(GlobalMPISession->WorldRank());
@@ -2204,7 +2208,7 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
 }
 #endif
 #else
-#ifndef MFEM_SEDOV_TESTS
+#ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov]")
 {
    sedov_tests(0);

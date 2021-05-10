@@ -33,7 +33,7 @@ MFEM_HOST_DEVICE inline void LoadB(const int D1D, const int Q1D,
                                    double (&sB)[MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   DeviceMatrix B(sB, MD1, MQ1);
+   DeviceMatrix B(sB, D1D, Q1D);
 
    if (tidz == 0)
    {
@@ -140,36 +140,36 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
 }
 
 /// Load 2D input scalar into shared memory, with comp
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
+                                   const DeviceTensor<4, const double> &x,
+                                   DeviceMatrix &DD)
+{
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         DD(dx,dy) = x(dx,dy,c,e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<4, const double> &x,
                                    double (&sm)[NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   DeviceMatrix X(sm[tidz], MD1, MD1);
-
-   MFEM_FOREACH_THREAD(dy,y,D1D)
-   {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
-      {
-         X(dx,dy) = x(dx,dy,c,e);
-      }
-   }
-   MFEM_SYNC_THREAD;
+   DeviceMatrix DD(sm[tidz], MD1, MD1);
+   LoadX(e,D1D,c,x,DD);
 }
 
 /// 2D Scalar Evaluation, 1/2
-template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
-                                   const double (&sB)[MQ1*MD1],
-                                   const double (&sX)[NBZ][MD1*MD1],
-                                   double (&sDQ)[NBZ][MD1*MQ1])
+                                   ConstDeviceMatrix &B,
+                                   DeviceMatrix &DD,
+                                   DeviceMatrix &DQ)
 {
-   const int tidz = MFEM_THREAD_ID(z);
-   ConstDeviceMatrix B(sB, MD1, MQ1);
-   ConstDeviceMatrix X(sX[tidz], MD1, MD1);
-   DeviceMatrix DQ(sDQ[tidz], MQ1, MD1);
-
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -177,26 +177,33 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
          double u = 0.0;
          for (int dx = 0; dx < D1D; ++dx)
          {
-            u += B(dx,qx) * X(dx,dy);
+            u += B(dx,qx) * DD(dx,dy);
          }
-         DQ(qx,dy) = u;
+         DQ(dy,qx) = u;
       }
    }
    MFEM_SYNC_THREAD;
 }
 
-/// 2D Scalar Evaluation, 2/2
 template<int MD1, int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
+MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    const double (&sB)[MQ1*MD1],
-                                   const double (&sDQ)[NBZ][MD1*MQ1],
-                                   double (&sQQ)[NBZ][MQ1*MQ1])
+                                   double (&sDD)[NBZ][MD1*MD1],
+                                   double (&sDQ)[NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   ConstDeviceMatrix B(sB, MD1, MQ1);
-   ConstDeviceMatrix DQ(sDQ[tidz], MQ1, MD1);
-   DeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
+   ConstDeviceMatrix B(sB, D1D, Q1D);
+   DeviceMatrix DD(sDD[tidz], D1D, D1D);
+   DeviceMatrix DQ(sDQ[tidz], D1D, Q1D);
+   EvalX(D1D,Q1D,B,DD,DQ);
+}
 
+/// 2D Scalar Evaluation, 2/2
+MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
+                                   ConstDeviceMatrix &B,
+                                   DeviceMatrix &DQ,
+                                   DeviceMatrix &QQ)
+{
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -204,7 +211,7 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
          double u = 0.0;
          for (int dy = 0; dy < D1D; ++dy)
          {
-            u += DQ(qx,dy) * B(dy,qy);
+            u += DQ(dy,qx) * B(dy,qy);
          }
          QQ(qx,qy) = u;
       }
@@ -212,16 +219,35 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+template<int MD1, int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
+                                   const double (&sB)[MQ1*MD1],
+                                   double (&sDQ)[NBZ][MD1*MQ1],
+                                   double (&sQQ)[NBZ][MQ1*MQ1])
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   ConstDeviceMatrix B(sB, D1D, Q1D);
+   DeviceMatrix DQ(sDQ[tidz], D1D, Q1D);
+   DeviceMatrix QQ(sQQ[tidz], Q1D, Q1D);
+   EvalY(D1D,Q1D,B,DQ,QQ);
+}
+
 /// Pull 2D Scalar Evaluation
+MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
+                                      DeviceMatrix &QQ,
+                                      double &P)
+{
+   P = QQ(qx,qy);
+}
+
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
-                                      const double (&sQQ)[NBZ][MQ1*MQ1],
+                                      double (&sQQ)[NBZ][MQ1*MQ1],
                                       double &P)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   ConstDeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
-
-   P = QQ(qx,qy);
+   DeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
+   PullEval(qx,qy,QQ,P);
 }
 
 /// Load 2D input vector into shared memory
@@ -373,7 +399,8 @@ template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
                                     const double (&sB)[MQ1*MD1],
                                     const double (&sDQ)[2][NBZ][MD1*MQ1],
-                                    const DeviceTensor<4> &Y, const int e)
+                                    const DeviceTensor<4> &Y, // output
+                                    const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sB, MQ1, MD1);
@@ -565,7 +592,7 @@ template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const double (&sBG)[2][MQ1*MD1],
                                     const double (&GD)[4][NBZ][MD1*MQ1],
-                                    const DeviceTensor<4> &Y,
+                                    const DeviceTensor<4> &Y, // output
                                     const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -597,13 +624,10 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 }
 
 /// Load 3D scalar input vector into shared memory
-template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<4, const double> &x,
-                                   double (&sm)[MD1*MD1*MD1])
+                                   DeviceCube &X)
 {
-   DeviceCube X(sm, MD1, MD1, MD1);
-
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
       MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -617,8 +641,16 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    MFEM_SYNC_THREAD;
 }
 
-/// Load 3D scalar input vector into shared memory, with comp & DeviceTensor
 template<int MD1>
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
+                                   const DeviceTensor<4, const double> &x,
+                                   double (&sm)[MD1*MD1*MD1])
+{
+   DeviceCube X(sm, MD1,MD1,MD1);
+   LoadX(e,D1D,x,X);
+}
+
+/// Load 3D scalar input vector into shared memory, with comp & DeviceTensor
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<5, const double> &x,
                                    DeviceTensor<3> &X)
@@ -647,16 +679,11 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
 }
 
 /// 3D Scalar Evaluation, 1/3
-template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
-                                   const double (&sB)[MQ1*MD1],
-                                   const double (&sDDD)[MD1*MD1*MD1],
-                                   double (&sDDQ)[MD1*MD1*MQ1])
+                                   ConstDeviceMatrix &B,
+                                   const DeviceCube &DDD,
+                                   DeviceCube &DDQ)
 {
-   ConstDeviceMatrix B(sB, MD1, MQ1);
-   ConstDeviceCube Xx(sDDD, MD1, MD1, MD1);
-   DeviceCube XxB(sDDQ, MQ1, MD1, MD1);
-
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
       MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -667,26 +694,33 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double Bx = B(dx,qx);
-               u += Bx * Xx(dx,dy,dz);
+               u += Bx * DDD(dx,dy,dz);
             }
-            XxB(qx,dy,dz) = u;
+            DDQ(dz,dy,qx) = u;
          }
       }
    }
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Scalar Evaluation, 2/3
 template<int MD1, int MQ1>
-MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
+MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    const double (&sB)[MQ1*MD1],
-                                   const double (&sDDQ)[MD1*MD1*MQ1],
-                                   double (&sDQQ)[MD1*MQ1*MQ1])
+                                   const double (&sDDD)[MD1*MD1*MD1],
+                                   double (&sDDQ)[MD1*MD1*MQ1])
 {
-   ConstDeviceMatrix B(sB, MD1, MQ1);
-   ConstDeviceCube XxB(sDDQ, MQ1, MD1, MD1);
-   DeviceCube XxBB(sDQQ, MQ1, MQ1, MD1);
+   ConstDeviceMatrix B(sB, D1D, Q1D);
+   const DeviceCube DDD(sDDD, D1D, D1D, D1D);
+   DeviceCube DDQ(sDDQ, Q1D, D1D, D1D);
+   EvalX(D1D,Q1D,B,DDD,DDQ);
+}
 
+/// 3D Scalar Evaluation, 2/3
+MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
+                                   ConstDeviceMatrix &B,
+                                   const DeviceCube &DDQ,
+                                   DeviceCube &DQQ)
+{
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -697,26 +731,33 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
             for (int dy = 0; dy < D1D; ++dy)
             {
                const double By = B(dy,qy);
-               u += XxB(qx,dy,dz) * By;
+               u += DDQ(dz,dy,qx) * By;
             }
-            XxBB(qx,qy,dz) = u;
+            DQQ(dz,qy,qx) = u;
          }
       }
    }
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Scalar Evaluation, 3/3
 template<int MD1, int MQ1>
-MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
+MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    const double (&sB)[MQ1*MD1],
-                                   const double (&sDQQ)[MD1*MQ1*MQ1],
-                                   double (&sQQQ)[MQ1*MQ1*MQ1])
+                                   const double (&sDDQ)[MD1*MD1*MQ1],
+                                   double (&sDQQ)[MD1*MQ1*MQ1])
 {
    ConstDeviceMatrix B(sB, MD1, MQ1);
-   ConstDeviceCube XxBB(sDQQ, MQ1, MQ1, MD1);
-   DeviceCube XxBBB(sQQQ, MQ1, MQ1, MQ1);
+   const DeviceCube DDQ(sDDQ, MQ1, MD1, MD1);
+   DeviceCube DQQ(sDQQ, MQ1, MQ1, MD1);
+   EvalY(D1D,Q1D,B,DDQ,DQQ);
+}
 
+/// 3D Scalar Evaluation, 3/3
+MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
+                                   ConstDeviceMatrix &B,
+                                   const DeviceCube &DQQ,
+                                   DeviceCube &QQQ)
+{
    MFEM_FOREACH_THREAD(qz,z,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -727,23 +768,42 @@ MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
             for (int dz = 0; dz < D1D; ++dz)
             {
                const double Bz = B(dz,qz);
-               u += XxBB(qx,qy,dz) * Bz;
+               u += DQQ(dz,qy,qx) * Bz;
             }
-            XxBBB(qx,qy,qz) = u;
+            QQQ(qz,qy,qx) = u;
          }
       }
    }
    MFEM_SYNC_THREAD;
 }
 
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
+                                   const double (&sB)[MQ1*MD1],
+                                   const double (&sDQQ)[MD1*MQ1*MQ1],
+                                   double (&sQQQ)[MQ1*MQ1*MQ1])
+{
+   ConstDeviceMatrix B(sB, MD1, MQ1);
+   const DeviceCube DQQ(sDQQ, MQ1, MQ1, MD1);
+   DeviceCube QQQ(sQQQ, MQ1, MQ1, MQ1);
+   EvalZ(D1D,Q1D,B,DQQ,QQQ);
+}
+
 /// Pull 3D Scalar Evaluation
+MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
+                                      const DeviceCube &QQQ,
+                                      double &X)
+{
+   X = QQQ(z,y,x);
+}
+
 template<int MQ1>
 MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
                                       const double (&sQQQ)[MQ1*MQ1*MQ1],
                                       double &X)
 {
-   ConstDeviceCube XxBBB(sQQQ, MQ1, MQ1, MQ1);
-   X = XxBBB(x,y,z);
+   const DeviceCube QQQ(sQQQ, MQ1, MQ1, MQ1);
+   PullEval(x,y,z,QQQ,X);
 }
 
 /// Load 3D input vector into shared memory
@@ -771,7 +831,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Evaluation, 1/3 (only B)
+/// 3D Vector Evaluation, 1/3 (only B)
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
                                    const double (&sB)[MQ1*MD1],
@@ -809,7 +869,7 @@ MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Evaluation, 2/3 (only B)
+/// 3D Vector Evaluation, 2/3 (only B)
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
                                    const double (&sB)[MQ1*MD1],
@@ -847,7 +907,7 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Evaluation, 3/3 (only B)
+/// 3D Vector Evaluation, 3/3 (only B)
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
                                    const double (&sB)[MQ1*MD1],
@@ -885,7 +945,7 @@ MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// Pull 3D Evaluation
+/// Pull 3D Vector Evaluation
 template<int MQ1>
 MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
                                       const double (&sQQQ)[3][MQ1*MQ1*MQ1],
@@ -900,7 +960,7 @@ MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
    X[2] = XzBBB(x,y,z);
 }
 
-/// Push 3D Evaluation
+/// Push 3D Vector Evaluation
 template<int MQ1>
 MFEM_HOST_DEVICE inline void PushEval(const int x, const int y, const int z,
                                       const double (&A)[3],
@@ -915,7 +975,7 @@ MFEM_HOST_DEVICE inline void PushEval(const int x, const int y, const int z,
    XzBBB(x,y,z) = A[2];
 }
 
-/// 3D Transposed Evaluation, 1/3
+/// 3D Transposed Vector Evaluation, 1/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
                                     const double (&sB)[MQ1*MD1],
@@ -953,7 +1013,7 @@ MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Transposed Evaluation, 2/3
+/// 3D Transposed Vector Evaluation, 2/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
                                     const double (&sB)[MQ1*MD1],
@@ -992,12 +1052,13 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Transposed Evaluation, 3/3
+/// 3D Transposed Vector Evaluation, 3/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
                                     const double (&sB)[MQ1*MD1],
                                     const double (&sDDQ)[3][MD1*MD1*MQ1],
-                                    const DeviceTensor<5> &Y, const int e)
+                                    const DeviceTensor<5> &Y, // output
+                                    const int e)
 {
    ConstDeviceMatrix Bt(sB, MQ1, MD1);
    ConstDeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
@@ -1423,7 +1484,8 @@ template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const double (&sBG)[2][MQ1*MD1],
                                     const double (&sDDQ)[9][MD1*MD1*MQ1],
-                                    const DeviceTensor<5> &Y, const int e)
+                                    const DeviceTensor<5> &Y, // output
+                                    const int e)
 {
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
