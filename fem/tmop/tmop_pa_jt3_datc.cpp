@@ -61,7 +61,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
       DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
       DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
-      kernels::internal::LoadX<MD1>(e,D1D,sizeidx,X,DDD);
+      kernels::internal::LoadX(e,D1D,sizeidx,X,DDD);
 
       double min;
       MFEM_SHARED double min_size[MFEM_CUDA_BLOCKS];
@@ -89,9 +89,9 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
       min = min_size[0];
 
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
-      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+      kernels::internal::EvalX(D1D,Q1D,B,DDD,DDQ);
+      kernels::internal::EvalY(D1D,Q1D,B,DDQ,DQQ);
+      kernels::internal::EvalZ(D1D,Q1D,B,DQQ,QQQ);
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -99,7 +99,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
                double T;
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ,T);
+               kernels::internal::PullEval(qx,qy,qz,QQQ,T);
                const double shape_par_vals = T;
                const double size = fmax(shape_par_vals, min);
                const double alpha = std::pow(size, 1.0/DIM);
