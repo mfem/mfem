@@ -157,11 +157,11 @@ static void Values3D(const int NE,
       MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
       MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
 
-      ConstDeviceMatrix B(sB, D1D, Q1D);
-      DeviceCube DDD(sm0, MD1, MD1, MD1);
-      DeviceCube DDQ(sm1, MD1, MD1, MQ1);
-      DeviceCube DQQ(sm0, MD1, MQ1, MQ1);
-      DeviceCube QQQ(sm1, MQ1, MQ1, MQ1);
+      ConstDeviceMatrix B(sB, D1D,Q1D);
+      DeviceCube DDD(sm0, MD1,MD1,MD1);
+      DeviceCube DDQ(sm1, MD1,MD1,MQ1);
+      DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
+      DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
 
