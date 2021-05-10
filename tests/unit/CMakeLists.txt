@@ -132,12 +132,13 @@ endif()
 
 #-----------------------------------------------------------
 # SERIAL SEDOV + TMOP TESTS:
-#   {sedov,tmop}_tests_{cpu,debug,cuda,cuda_uvm}
+#   sedov_tests_{cpu,debug,cuda,cuda_uvm}
+#    tmop_tests_{cpu,debug,cuda}
 #-----------------------------------------------------------
 # Function to add one device serial test from the tests/unit/miniapp directory.
 # All device unit tests are built into a seperate executable, in order to be
 # able to change the device.
-function(add_serial_miniapp_test name)
+function(add_serial_miniapp_test name test_uvm)
     string(TOUPPER ${name} NAME)
 
     set(${NAME}_TESTS_SRCS
@@ -167,16 +168,20 @@ function(add_serial_miniapp_test name)
        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda)
        add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
 
-       add_executable(${name}_tests_cuda_uvm ${${NAME}_TESTS_SRCS})
-       target_compile_definitions(${name}_tests_cuda_uvm PUBLIC MFEM_${NAME}_DEVICE="cuda:uvm")
-       target_link_libraries(${name}_tests_cuda_uvm mfem)
-       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda_uvm)
-       add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
+       if (test_uvm)
+           add_executable(${name}_tests_cuda_uvm ${${NAME}_TESTS_SRCS})
+           target_compile_definitions(${name}_tests_cuda_uvm PUBLIC
+               MFEM_${NAME}_DEVICE="cuda:uvm")
+           target_link_libraries(${name}_tests_cuda_uvm mfem)
+           add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
+               ${name}_tests_cuda_uvm)
+           add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
+       endif()
     endif(MFEM_USE_CUDA)
 endfunction(add_serial_miniapp_test)
 
-add_serial_miniapp_test(sedov)
-add_serial_miniapp_test(tmop)
+add_serial_miniapp_test(sedov ON)  # UVM ON
+add_serial_miniapp_test(tmop OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 add_dependencies(tmop_tests_cpu copy_miniapps_meshing_data)
 
