@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 //
 //   -----------------------------------------------------------------------
-//   SeqHeat Miniapp: Gradient of parametric diffusion with discrete density
+//   SeqHeat Miniapp: Gradients of PDE constrained objective function
 //   -----------------------------------------------------------------------
 //
 // The following example computes the gradients of a specified objective
@@ -35,7 +35,8 @@
 // Compile with: make seqheat
 //
 // Sample runs:
-// ...
+// ./seqheat -m ../../data/star-mixed.mesh
+// ./seqheat --visualization
 
 #include "mfem.hpp"
 #include <fstream>
