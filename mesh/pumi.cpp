@@ -138,7 +138,7 @@ static void rotateSimplex(int type,
       MFEM_ASSERT(r>=0 && r<6, "incorrect rotation");
       n = 3;
    }
-   else if (type = apf::Mesh::TET) // tets
+   else if (type == apf::Mesh::TET) // tets
    {
       MFEM_ASSERT(r>=0 && r<12, "incorrect rotation");
       n = 4;
