@@ -54,23 +54,27 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
       MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double BLD[MQ1*MD1];
+      MFEM_SHARED double sBLD[MQ1*MD1];
+      ConstDeviceMatrix BLD(sBLD, D1D, Q1D);
 
-      MFEM_SHARED double DDD[MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
+      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+      DeviceCube DDD(sm0, MD1,MD1,MD1);
+      DeviceCube DDQ(sm1, MD1,MD1,MQ1);
+      DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
+      DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
-      kernels::internal::LoadX<MD1>(e,D1D,LD,DDD);
+      kernels::internal::LoadX(e,D1D,LD,DDD);
 
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,sBLD);
 
-      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,BLD,DDD,DDQ);
-      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,BLD,DDQ,DQQ);
-      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,BLD,DQQ,QQQ);
+      kernels::internal::EvalX(D1D,Q1D,BLD,DDD,DDQ);
+      kernels::internal::EvalY(D1D,Q1D,BLD,DDQ,DQQ);
+      kernels::internal::EvalZ(D1D,Q1D,BLD,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -85,7 +89,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
                const double weight_m = weight * lim_normal * coeff0;
 
                double D;
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ,D);
+               kernels::internal::PullEval(qx,qy,qz,QQQ,D);
                const double dist = D; // GetValues, default comp set to 0
 
                // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);

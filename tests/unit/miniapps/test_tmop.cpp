@@ -22,6 +22,10 @@
 #include "unit_tests.hpp"
 #include "miniapps/meshing/mesh-optimizer.hpp"
 
+#if defined(MFEM_TMOP_MPI) && !defined(MFEM_USE_MPI)
+#error "Cannot use MFEM_TMOP_MPI without MFEM_USE_MPI!"
+#endif
+
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
@@ -747,18 +751,6 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id,all);
 
-   Launch(Launch::Args("Blade + Discrete size + normalization").
-          MESH("../../miniapps/meshing/blade.mesh").
-          LINEAR_ITERATIONS(300).NORMALIZATION(true).
-          POR({1}).QOR({2}).
-          TID({5}).MID({7}).LS({2}).NL({2})).Run(id,all);
-
-   Launch(Launch::Args("Blade + Discrete size + normalization").
-          MESH("../../miniapps/meshing/blade.mesh").
-          LINEAR_ITERATIONS(200).NORMALIZATION(true).
-          POR({1}).QOR({2}).
-          TID({5}).MID({2})).Run(id,all);
-
    Launch(Launch::Args("Cube").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
@@ -796,15 +788,15 @@ static void tmop_tests(int id = 0, bool all = false)
 
    // Combo 2D
    Launch(Launch::Args("Square01 + Combo").
-          MESH("../../miniapps/meshing/square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(
-             true).
+          MESH("../../miniapps/meshing/square01.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
           TID({5}).MID({2}).LS({2}).
           POR({2}).QOR({8}).CMB(2)).Run(id,all);
 
    // Combo 3D
    Launch(Launch::Args("Cube + Combo").
-          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(
-             true).
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
           TID({5}).MID({302}).LS({2}).
           POR({1,2}).QOR({2,8}).CMB(2)).Run(id,all);
 
@@ -818,10 +810,27 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../data/beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({302,321})).Run(id,all);
+
+   // The folowing tests need more iterations to converge between PA & non-PA
+   // They can only be launched with the `--all` command line option
+
+   if (!all) { return; }
+
+   Launch(Launch::Args("Blade + Discrete size + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          LINEAR_ITERATIONS(300).NORMALIZATION(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({7}).LS({2}).NL({2})).Run(id,true);
+
+   Launch(Launch::Args("Blade + Discrete size + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          LINEAR_ITERATIONS(200).NORMALIZATION(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({2})).Run(id,true);
 }
 
 #if defined(MFEM_TMOP_MPI)
-#ifndef MFEM_TMOP_TESTS
+#ifndef MFEM_TMOP_DEVICE
 TEST_CASE("TMOP", "[TMOP], [Parallel]")
 {
    tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
@@ -836,7 +845,7 @@ TEST_CASE("TMOP", "[TMOP], [Parallel]")
 }
 #endif
 #else
-#ifndef MFEM_TMOP_TESTS
+#ifndef MFEM_TMOP_DEVICE
 TEST_CASE("TMOP", "[TMOP]")
 {
    tmop_tests(0, launch_all_non_regression_tests);

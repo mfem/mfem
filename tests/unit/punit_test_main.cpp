@@ -17,6 +17,8 @@ bool launch_all_non_regression_tests = false;
 
 #ifdef MFEM_USE_MPI
 mfem::MPI_Session *GlobalMPISession;
+#else
+#error "This test should be disabled without MFEM_USE_MPI!"
 #endif
 
 int main(int argc, char *argv[])
@@ -48,11 +50,12 @@ int main(int argc, char *argv[])
    cfg.testsOrTags.push_back("[Parallel]");
    session.useConfigData(cfg);
 
+   // NOTE: tests marked with "[CUDA]" (in addition to "[Parallel]") are still
+   //       run with the default device.
+
    if (mpi.Root())
    {
-      mfem::out
-            << "WARNING: Only running the [Parallel] label."
-            << std::endl;
+      std::cout << "INFO: Test filter: [Parallel]" << std::endl;
    }
 #endif
 

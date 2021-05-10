@@ -791,33 +791,37 @@ static void QEvalVGF2D(const int NE,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
-      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
 
-      MFEM_SHARED double B[MQ1*MD1];
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      MFEM_SHARED double sB[MQ1*MD1];
+      MFEM_SHARED double sm0[MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ];
 
-      MFEM_SHARED double DD[NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
+      ConstDeviceMatrix B(sB, D1D,Q1D);
+      DeviceMatrix DD(sm0, MD1, MD1);
+      DeviceMatrix DQ(sm1, MD1, MQ1);
+      DeviceMatrix QQ(sm0, MQ1, MQ1);
+
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
 
       for (int c = 0; c < VDIM; c++)
       {
-         kernels::internal::LoadX<MD1,NBZ>(e,D1D,c,X,DD);
-         kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,DD,DQ);
-         kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
+         kernels::internal::LoadX(e,D1D,c,X,DD);
+         kernels::internal::EvalX(D1D,Q1D,B,DD,DQ);
+         kernels::internal::EvalY(D1D,Q1D,B,DQ,QQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                double G;
-               mfem::kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ,G);
+               mfem::kernels::internal::PullEval(qx,qy,QQ,G);
                C(c,qx,qy,e) = G;
             }
          }
@@ -850,21 +854,25 @@ static void QEvalVGF3D(const int NE,
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_SHARED double B[MQ1*MD1];
-      mfem::kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      MFEM_SHARED double sB[MQ1*MD1];
+      ConstDeviceMatrix B(sB, D1D,Q1D);
+      mfem::kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
 
-      MFEM_SHARED double DDD[MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[MQ1*MQ1*MQ1];
+      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+      DeviceCube DDD(sm0, MD1,MD1,MD1);
+      DeviceCube DDQ(sm1, MD1,MD1,MQ1);
+      DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
+      DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
       for (int c = 0; c < VDIM; c++)
       {
-         kernels::internal::LoadX<MD1>(e,D1D,c,X,DDD);
-         kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-         kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-         kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+         kernels::internal::LoadX(e,D1D,c,X,DDD);
+         kernels::internal::EvalX(D1D,Q1D,B,DDD,DDQ);
+         kernels::internal::EvalY(D1D,Q1D,B,DDQ,DQQ);
+         kernels::internal::EvalZ(D1D,Q1D,B,DQQ,QQQ);
 
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -873,7 +881,7 @@ static void QEvalVGF3D(const int NE,
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
                   double G;
-                  kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ,G);
+                  mfem::kernels::internal::PullEval(qx,qy,qz,QQQ,G);
                   C(c,qx,qy,qz,e) = G;
                }
             }

@@ -61,10 +61,13 @@ lib-common:
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
 ifneq ($(SRC),)
-MESH_FILES = blade.mesh cube.mesh icf.mesh square01.mesh 
+MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh icf.mesh jagged.mesh\
+ square01.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
+.PHONY: copy-data
+copy-data: | $(MESH_FILES)
 endif
 
 MFEM_TESTS = MINIAPPS
