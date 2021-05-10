@@ -250,15 +250,6 @@ double adapt_lim_fun(const Vector &x)
    return val;
 }
 
-// Space-dependent limiting.
-double limit_func(const Vector &x)
-{
-   //if (x(0) < x(1) ) { return 1.0e-6; }
-   //else return 10000;
-
-   return 1.0;
-}
-
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
    //Setup the Laplacian operator

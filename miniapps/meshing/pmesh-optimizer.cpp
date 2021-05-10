@@ -693,13 +693,8 @@ int main (int argc, char *argv[])
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   // TODO come up with proper example for space-dependent limiting that shows
-   //   differences between Bernstein and Gauss-Lobatto.
-   H1_FECollection lim_fec(mesh_poly_deg, dim, BasisType::Positive);
-   ParFiniteElementSpace lim_fes(pmesh, &lim_fec);
-   ParGridFunction dist(&lim_fes);
-   FunctionCoefficient lim_dist_coeff(limit_func);
-   dist.ProjectCoefficient(lim_dist_coeff);
+   ParGridFunction dist(pfespace);
+   dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
