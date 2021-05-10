@@ -12,10 +12,10 @@
 // Internal header, included only by .cpp files.
 // Template function implementations.
 
-#include "quadinterpolator.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../linalg/kernels.hpp"
+#include "../quadinterpolator.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {

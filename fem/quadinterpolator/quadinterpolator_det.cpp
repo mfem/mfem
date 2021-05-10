@@ -9,11 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "quadinterpolator.hpp"
-#include "../general/forall.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../fem/kernels.hpp"
-#include "../linalg/kernels.hpp"
+#include "../quadinterpolator.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../linalg/kernels.hpp"
 
 using namespace mfem;
 
