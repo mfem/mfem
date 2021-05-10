@@ -91,7 +91,7 @@ public:
    IterativeSolver();
 
 #ifdef MFEM_USE_MPI
-   IterativeSolver(MPI_Comm _comm);
+   IterativeSolver(MPI_Comm comm_);
 #endif
 
    void SetRelTol(double rtol) { rel_tol = rtol; }
@@ -270,7 +270,7 @@ public:
    SLISolver() { }
 
 #ifdef MFEM_USE_MPI
-   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   SLISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -302,7 +302,7 @@ public:
    CGSolver() { }
 
 #ifdef MFEM_USE_MPI
-   CGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   CGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -332,7 +332,7 @@ public:
    GMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   GMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    /// Set the number of iteration to perform between restarts, default is 50.
@@ -351,7 +351,7 @@ public:
    FGMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   FGMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   FGMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    void SetKDim(int dim) { m = dim; }
@@ -381,7 +381,7 @@ public:
    BiCGSTABSolver() { }
 
 #ifdef MFEM_USE_MPI
-   BiCGSTABSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   BiCGSTABSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -411,7 +411,7 @@ public:
    MINRESSolver() { }
 
 #ifdef MFEM_USE_MPI
-   MINRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   MINRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetPreconditioner(Solver &pr)
@@ -481,7 +481,7 @@ public:
    NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
    virtual void SetOperator(const Operator &op);
 
@@ -536,7 +536,7 @@ public:
    LBFGSSolver() : NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
    void SetHistorySize(int dim) { m = dim; }
@@ -620,7 +620,7 @@ protected:
 public:
    OptimizationSolver(): IterativeSolver(), problem(NULL) { }
 #ifdef MFEM_USE_MPI
-   OptimizationSolver(MPI_Comm _comm): IterativeSolver(_comm), problem(NULL) { }
+   OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
 #endif
    virtual ~OptimizationSolver() { }
 
@@ -678,7 +678,7 @@ public:
    SLBQPOptimizer() { }
 
 #ifdef MFEM_USE_MPI
-   SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) { }
+   SLBQPOptimizer(MPI_Comm comm_) : OptimizationSolver(comm_) { }
 #endif
 
    /** Setting an OptimizationProblem will overwrite the Vectors given by
@@ -686,8 +686,8 @@ public:
     *  unchanged. */
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
-   void SetBounds(const Vector &_lo, const Vector &_hi);
-   void SetLinearConstraint(const Vector &_w, double _a);
+   void SetBounds(const Vector &lo_, const Vector &hi_);
+   void SetLinearConstraint(const Vector &w_, double a_);
 
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
@@ -832,14 +832,14 @@ public:
    mutable double Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
-       _use_long_ints = true. */
-   UMFPackSolver(bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); }
+       use_long_ints_ = true. */
+   UMFPackSolver(bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); }
    /** @brief Factorize the given SparseMatrix using the defaults. For larger
-       matrices, if the solver fails, set the parameter @a _use_long_ints =
+       matrices, if the solver fails, set the parameter @a use_long_ints_ =
        true. */
-   UMFPackSolver(SparseMatrix &A, bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); SetOperator(A); }
+   UMFPackSolver(SparseMatrix &A, bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be a SparseMatrix.
 

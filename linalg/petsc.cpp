@@ -460,10 +460,10 @@ PetscInt PetscParVector::GlobalSize() const
    return N;
 }
 
-PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x,
+PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
                                bool copy) : Vector()
 {
-   int n = _x.Size();
+   int n = x_.Size();
    ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
    ierr = VecSetSizes(x,n,PETSC_DECIDE); PCHKERRQ(x,ierr);
    SetVecType_();
@@ -478,7 +478,7 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x,
       PetscBool iscuda;
       ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
                                        ""); PCHKERRQ(x,ierr);
-      if (iscuda && _x.UseDevice())
+      if (iscuda && x_.UseDevice())
       {
          UseDevice(true);
          ierr = VecCUDAGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
@@ -491,7 +491,7 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x,
          ierr = VecGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
          rest = VecRestoreArrayWrite;
       }
-      pdata.CopyFrom(_x.GetMemory(), n);
+      pdata.CopyFrom(x_.GetMemory(), n);
       ierr = (*rest)(x,&array); PCHKERRQ(x,ierr);
       SetFlagsFromMask_();
    }
@@ -523,12 +523,12 @@ PetscParVector::~PetscParVector()
 }
 
 PetscParVector::PetscParVector(MPI_Comm comm, PetscInt glob_size,
-                               PetscScalar *_data, PetscInt *col) : Vector()
+                               PetscScalar *data_, PetscInt *col) : Vector()
 {
    MFEM_VERIFY(col,"Missing distribution");
    PetscMPIInt myid;
    MPI_Comm_rank(comm, &myid);
-   ierr = VecCreateMPIWithArray(comm,1,col[myid+1]-col[myid],glob_size,_data,
+   ierr = VecCreateMPIWithArray(comm,1,col[myid+1]-col[myid],glob_size,data_,
                                 &x); CCHKERRQ(comm,ierr)
    SetVecType_();
    SetDataAndSize_();
@@ -1712,12 +1712,12 @@ PetscParMatrix::PetscParMatrix(petsc::Mat a, bool ref)
    width = GetNumCols();
 }
 
-void PetscParMatrix::SetMat(Mat _A)
+void PetscParMatrix::SetMat(Mat A_)
 {
-   if (_A == A) { return; }
+   if (A_ == A) { return; }
    Destroy();
-   ierr = PetscObjectReference((PetscObject)_A); PCHKERRQ(_A,ierr);
-   A = _A;
+   ierr = PetscObjectReference((PetscObject)A_); PCHKERRQ(A_,ierr);
+   A = A_;
    height = GetNumRows();
    width = GetNumCols();
 }
