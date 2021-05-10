@@ -146,7 +146,7 @@ static void Values3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  const double u = QQQ(qx,qy,qz);
+                  const double u = QQQ(qz,qy,qx);
                   if (Q_LAYOUT == QVectorLayout::byVDIM) { y(c,qx,qy,qz,e) = u; }
                   if (Q_LAYOUT == QVectorLayout::byNODES) { y(qx,qy,qz,c,e) = u; }
                }

@@ -880,7 +880,9 @@ static void QEvalVGF3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
-                  C(c,qx,qy,qz,e) = QQQ(qx,qy,qz);
+                  double G;
+                  mfem::kernels::internal::PullEval(qx,qy,qz,QQQ,G);
+                  C(c,qx,qy,qz,e) = G;
                }
             }
          }
