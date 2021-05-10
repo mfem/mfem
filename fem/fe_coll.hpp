@@ -381,6 +381,9 @@ public:
    virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
+   int GetClosedBasisType() const { return cb_type; }
+   int GetOpenBasisType() const { return ob_type; }
+
    FiniteElementCollection* Clone(int p) const
    { return new RT_FECollection(p, dim, cb_type, ob_type); }
 
@@ -438,6 +441,9 @@ public:
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
+
+   int GetClosedBasisType() const { return cb_type; }
+   int GetOpenBasisType() const { return ob_type; }
 
    FiniteElementCollection* Clone(int p) const
    { return new ND_FECollection(p, dim, cb_type, ob_type); }
