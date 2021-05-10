@@ -21,8 +21,9 @@
 namespace mfem
 {
 
-/** @brief A class representing a general parametric parallel block nonlinear operator
-    defined on the Cartesian product of multiple ParFiniteElementSpace%s. */
+/** @brief A class representing a general parametric parallel block nonlinear
+    operator defined on the Cartesian product of multiple
+    ParFiniteElementSpace%s. */
 /** The ParParametricBNLForm takes as input, and returns as output, vectors on
     the true dofs. */
 class ParParametricBNLForm : public ParametricBNLForm
@@ -46,19 +47,20 @@ public:
 
    /// Return the @a k-th parallel FE state space of the ParParametricBNLForm.
    ParFiniteElementSpace *ParFESpace(int k);
-   /** @brief Return the @a k-th parallel FE state space of the ParParametricBNLForm
-       (const version). */
+   /** @brief Return the @a k-th parallel FE state space of the
+       ParParametricBNLForm (const version). */
    const ParFiniteElementSpace *ParFESpace(int k) const;
 
-   /// Return the @a k-th parallel FE parameters space of the ParParametricBNLForm.
+   /// Return the @a k-th parallel FE parameters space of the
+   /// ParParametricBNLForm.
    ParFiniteElementSpace *ParParamFESpace(int k);
-   /** @brief Return the @a k-th parallel FE parameters space of the ParParametricBNLForm
-       (const version). */
+   /** @brief Return the @a k-th parallel FE parameters space of the
+       ParParametricBNLForm (const version). */
    const ParFiniteElementSpace *ParParamFESpace(int k) const;
 
-   /** @brief Set he parallelel FE spaces for the state and the parametric fields.
-    *  After a call to SetParSpaces(), the essential b.c. and the
-       gradient-type (if different from the default) must be set again. */
+   /** @brief Set the parallel FE spaces for the state and the parametric
+    *  fields. After a call to SetParSpaces(), the essential b.c. and the
+    *  gradient-type (if different from the default) must be set again. */
    void SetParSpaces(Array<ParFiniteElementSpace *> &statef,
                      Array<ParFiniteElementSpace *> &paramf);
 
@@ -66,20 +68,21 @@ public:
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
-   // Set the essential BCs for the parametric fields. Here, rhs is a true dof vector!
+   // Set the essential BCs for the parametric fields. Here, rhs is a true dof
+   // vector!
    virtual void SetParamEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                     Array<Vector *> &rhs);
 
 
    /** @brief Calculates the residual for a state input given by block T-Vector.
-    * The result is  Block T-Vector! The parametric fields should be set in advance
-    * by calling SetParamFields(). */
+    *  The result is Block T-Vector! The parametric fields should be set in
+    *  advance by calling SetParamFields(). */
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Calculates the product of the adjoint field and the derivative of
-    * the state residual with respect to the parametric fields. The adjoint and
-    * the state fields should be set in advance by calling SetAdjointFields() and
-    * SetStateFields(). The input and the result are block T-Vectors!*/
+    *  the state residual with respect to the parametric fields. The adjoint and
+    *  the state fields should be set in advance by calling SetAdjointFields()
+    *  and SetStateFields(). The input and the result are block T-Vectors!*/
    virtual void ParamMult(const Vector &x, Vector &y) const;
 
    /// Return the local block gradient matrix for the given true-dof vector x

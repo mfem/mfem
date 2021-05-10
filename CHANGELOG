@@ -122,9 +122,10 @@ Version 4.2.1 (development)
 - Added convective and skew-symmetric integrators for the nonlinear term in the
   Navier-Stokes equations.
 
-- Added new mini-app directory mtop with block parametric non-linear form and 
-  abstract integrators. Two examples, parheat and seqheat, demonstrate parallel 
-  and sequential implementation of gradients evaluation for linear diffusion. 
+- Added new miniapp directory mtop/ with optimization-oriented block parametric
+  non-linear form and abstract integrators. Two new miniapps, ParHeat and
+  SeqHeat, demonstrate parallel and sequential implementation of gradients
+  evaluation for linear diffusion with discrete density.
 
 - Changed the interface for the error estimator.
 
