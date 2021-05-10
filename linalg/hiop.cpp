@@ -139,7 +139,7 @@ bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
                                             const long long &num_cons,
                                             const long long *idx_cons,
                                             const double *x, bool new_x,
-                                            double **Jac)
+                                            double *Jac)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
    MFEM_ASSERT(m == m_total, "Constraint size mismatch.");
@@ -157,7 +157,8 @@ bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
       MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
       for (int j = 0; j < ntdofs_loc; j++)
       {
-         Jac[c][j] = constr_grads(idx_cons[c], j);
+         // The matrix is stored by rows.
+         Jac[c * ntdofs_loc + j] = constr_grads(idx_cons[c], j);
       }
    }
 
