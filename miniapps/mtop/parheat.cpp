@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 //
 //   -----------------------------------------------------------------------
-//   ParHeat Miniapp: Gradient of parametric diffusion with discrete density
+//   ParHeat Miniapp: Gradients of PDE constrained objective function
 //   -----------------------------------------------------------------------
 //
 // The following example computes the gradients of a specified objective
@@ -35,7 +35,8 @@
 // Compile with: make parheat
 //
 // Sample runs:
-// ...
+// mpirun -np 4 ./parheat --visualization
+// mpirun -np 4 ./parheat --visualization -m ../../data/beam-quad.mesh
 
 #include "mfem.hpp"
 #include <fstream>
