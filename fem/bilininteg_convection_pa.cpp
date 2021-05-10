@@ -791,7 +791,6 @@ static void QEvalVGF2D(const int NE,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
-      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
