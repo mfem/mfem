@@ -62,7 +62,7 @@ TMOP_FILES = $(SRC)miniapps/test_tmop.cpp
 
 SEQ_TMOP_TESTS = tmop_tests_cpu tmop_tests_debug
 SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda)
-SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda_uvm)
+# SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda_uvm)
 PAR_TMOP_TESTS = ptmop_tests_cpu
 PAR_TMOP_TESTS += $(if $(USE_CUDA),ptmop_tests_cuda)
 
@@ -187,7 +187,7 @@ endef
 $(eval $(call tmop_tests,cpu,CPU,cpu))
 $(eval $(call tmop_tests,debug,DEBUG,debug))
 $(eval $(call tmop_tests,cuda,CUDA,cuda))
-$(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+# $(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 define ptmop_tests
 ptmop_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
