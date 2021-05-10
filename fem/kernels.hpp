@@ -373,7 +373,8 @@ template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
                                     const double (&sB)[MQ1*MD1],
                                     const double (&sDQ)[2][NBZ][MD1*MQ1],
-                                    const DeviceTensor<4> &Y, const int e)
+                                    const DeviceTensor<4> &Y, // output
+                                    const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sB, MQ1, MD1);
@@ -565,7 +566,7 @@ template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const double (&sBG)[2][MQ1*MD1],
                                     const double (&GD)[4][NBZ][MD1*MQ1],
-                                    const DeviceTensor<4> &Y,
+                                    const DeviceTensor<4> &Y, // output
                                     const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
@@ -997,7 +998,8 @@ template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
                                     const double (&sB)[MQ1*MD1],
                                     const double (&sDDQ)[3][MD1*MD1*MQ1],
-                                    const DeviceTensor<5> &Y, const int e)
+                                    const DeviceTensor<5> &Y, // output
+                                    const int e)
 {
    ConstDeviceMatrix Bt(sB, MQ1, MD1);
    ConstDeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
@@ -1423,7 +1425,8 @@ template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const double (&sBG)[2][MQ1*MD1],
                                     const double (&sDDQ)[9][MD1*MD1*MQ1],
-                                    const DeviceTensor<5> &Y, const int e)
+                                    const DeviceTensor<5> &Y, // output
+                                    const int e)
 {
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
    ConstDeviceMatrix Gt(sBG[1], MQ1, MD1);
