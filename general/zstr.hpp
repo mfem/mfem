@@ -268,32 +268,32 @@ class Exception
 {
 public:
    Exception(z_stream *zstrm_p, int ret)
-      : msg_("zlib: ")
+      : msg("zlib: ")
    {
       switch (ret)
       {
          case Z_STREAM_ERROR:
-            msg_ += "Z_STREAM_ERROR: ";
+            msg += "Z_STREAM_ERROR: ";
             break;
          case Z_DATA_ERROR:
-            msg_ += "Z_DATA_ERROR: ";
+            msg += "Z_DATA_ERROR: ";
             break;
          case Z_MEM_ERROR:
-            msg_ += "Z_MEM_ERROR: ";
+            msg += "Z_MEM_ERROR: ";
             break;
          case Z_VERSION_ERROR:
-            msg_ += "Z_VERSION_ERROR: ";
+            msg += "Z_VERSION_ERROR: ";
             break;
          case Z_BUF_ERROR:
-            msg_ += "Z_BUF_ERROR: ";
+            msg += "Z_BUF_ERROR: ";
             break;
          default:
             std::ostringstream oss;
             oss << ret;
-            msg_ += "[" + oss.str() + "]: ";
+            msg += "[" + oss.str() + "]: ";
             break;
       }
-      msg_ += zstrm_p->msg;
+      msg += zstrm_p->msg;
    }
    Exception(const std::string msg_) : msg(msg_) {}
    const char *what() const noexcept { return msg.c_str(); }
