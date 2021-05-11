@@ -1037,7 +1037,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #endif
 
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
-                               double a, double b)
+                               double a, double b) const
 {
    x.HostRead();
    (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
@@ -1106,14 +1106,14 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
 }
 
 HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
-                               double a, double b)
+                               double a, double b) const
 {
    return hypre_ParCSRMatrixMatvec(a, A, (hypre_ParVector *) x, b,
                                    (hypre_ParVector *) y);
 }
 
 HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
-                                        double a, double b)
+                                        double a, double b) const
 {
    return hypre_ParCSRMatrixMatvecT(a, A, x, b, y);
 }
@@ -1525,7 +1525,8 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
    }
 }
 
-void HypreParMatrix::Print(const char *fname, HYPRE_Int offi, HYPRE_Int offj)
+void HypreParMatrix::Print(const char *fname, HYPRE_Int offi,
+                           HYPRE_Int offj) const
 {
    hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);
 }
@@ -2375,7 +2376,7 @@ HypreSmoother::HypreSmoother() : Solver()
    A_is_symmetric = false;
 }
 
-HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
+HypreSmoother::HypreSmoother(const HypreParMatrix &_A, int _type,
                              int _relax_times, double _relax_weight, double _omega,
                              int _poly_order, double _poly_fraction, int _eig_est_cg_iter)
 {
@@ -2717,7 +2718,7 @@ HypreSolver::HypreSolver()
    error_mode = ABORT_HYPRE_ERRORS;
 }
 
-HypreSolver::HypreSolver(HypreParMatrix *_A)
+HypreSolver::HypreSolver(const HypreParMatrix *_A)
    : Solver(_A->Height(), _A->Width())
 {
    A = _A;
@@ -2812,7 +2813,7 @@ HyprePCG::HyprePCG(MPI_Comm comm) : precond(NULL)
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
 }
 
-HyprePCG::HyprePCG(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
+HyprePCG::HyprePCG(const HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -2977,7 +2978,8 @@ HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
    SetDefaultOptions();
 }
 
-HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
+HypreGMRES::HypreGMRES(const HypreParMatrix &_A)
+   : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -3142,7 +3144,8 @@ HypreFGMRES::HypreFGMRES(MPI_Comm comm) : precond(NULL)
    SetDefaultOptions();
 }
 
-HypreFGMRES::HypreFGMRES(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
+HypreFGMRES::HypreFGMRES(const HypreParMatrix &_A)
+   : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -3315,7 +3318,7 @@ HypreParaSails::HypreParaSails(MPI_Comm comm)
    SetDefaultOptions();
 }
 
-HypreParaSails::HypreParaSails(HypreParMatrix &A) : HypreSolver(&A)
+HypreParaSails::HypreParaSails(const HypreParMatrix &A) : HypreSolver(&A)
 {
    MPI_Comm comm;
 
@@ -3412,7 +3415,7 @@ HypreEuclid::HypreEuclid(MPI_Comm comm)
    SetDefaultOptions();
 }
 
-HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
+HypreEuclid::HypreEuclid(const HypreParMatrix &A) : HypreSolver(&A)
 {
    MPI_Comm comm;
 
@@ -3559,7 +3562,7 @@ HypreBoomerAMG::HypreBoomerAMG()
    SetDefaultOptions();
 }
 
-HypreBoomerAMG::HypreBoomerAMG(HypreParMatrix &A) : HypreSolver(&A)
+HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
 {
    HYPRE_BoomerAMGCreate(&amg_precond);
    SetDefaultOptions();
@@ -3958,7 +3961,7 @@ HypreAMS::HypreAMS(ParFiniteElementSpace *edge_fespace)
    Init(edge_fespace);
 }
 
-HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
+HypreAMS::HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
    : HypreSolver(&A)
 {
    Init(edge_fespace);
@@ -4194,7 +4197,7 @@ HypreADS::HypreADS(ParFiniteElementSpace *face_fespace)
    Init(face_fespace);
 }
 
-HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
+HypreADS::HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    : HypreSolver(&A)
 {
    Init(face_fespace);
@@ -4920,7 +4923,7 @@ HypreAME::SetPreconditioner(HypreSolver & precond)
 }
 
 void
-HypreAME::SetOperator(HypreParMatrix & A)
+HypreAME::SetOperator(const HypreParMatrix & A)
 {
    if ( !setT )
    {
@@ -4935,7 +4938,7 @@ HypreAME::SetOperator(HypreParMatrix & A)
 }
 
 void
-HypreAME::SetMassMatrix(HypreParMatrix & M)
+HypreAME::SetMassMatrix(const HypreParMatrix & M)
 {
    HYPRE_ParCSRMatrix parcsr_M = M;
    HYPRE_AMESetMassMatrix(ame_solver,(HYPRE_ParCSRMatrix)parcsr_M);
