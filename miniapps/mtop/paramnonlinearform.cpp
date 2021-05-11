@@ -151,9 +151,9 @@ void ParametricBNLForm::SetSpaces(Array<FiniteElementSpace *> &statef,
 
    height = 0;
    width = 0;
-   //set state feses
+   // set state feses
    statef.Copy(fes);
-   //set the block sizes
+   // set the block sizes
    block_offsets.SetSize(statef.Size() + 1);
    block_trueOffsets.SetSize(statef.Size() + 1);
    block_offsets[0] = 0;
@@ -1287,6 +1287,3 @@ ParametricBNLForm::~ParametricBNLForm()
 }
 
 }
-
-
-

@@ -17,10 +17,9 @@
 namespace mfem
 {
 
-
-/** The abstract base class ParametricBNLFormIntegrator is
-    a generalization of the BlockNonlinearFormIntegrator class suitable
-    for block state and parameter vectors. */
+/** The abstract base class ParametricBNLFormIntegrator is a generalization of
+    the BlockNonlinearFormIntegrator class suitable for block state and
+    parameter vectors. */
 class ParametricBNLFormIntegrator
 {
 public:
@@ -39,7 +38,8 @@ public:
                                       const Array<const Vector *>&pelfun,
                                       const Array<Vector *> &elvec);
 
-   /// Perform the local action of the BlockNonlinearFormIntegrator on element faces	
+   /// Perform the local action of the BlockNonlinearFormIntegrator on element
+   /// faces
    virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
                                    const Array<const FiniteElement *> &el2,
                                    const Array<const FiniteElement *> &pel1,
@@ -58,7 +58,8 @@ public:
                                          const Array<const Vector *>&pelfun,
                                          const Array<Vector *> &pelvec);
 
-   /// Perform the local action on the parameters of the BNLFormIntegrator on faces
+   /// Perform the local action on the parameters of the BNLFormIntegrator on
+   /// faces
    virtual void AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
                                       const Array<const FiniteElement *> &el2,
                                       const Array<const FiniteElement *> &pel1,
@@ -117,21 +118,19 @@ protected:
    Array<Array<int>*>           bfnfi_marker;
 
    /** Auxiliary block-vectors for wrapping input and output vectors or holding
-          GridFunction-like block-vector data (e.g. in parallel). */
+       GridFunction-like block-vector data (e.g. in parallel). */
    mutable BlockVector xs, ys;
    mutable BlockVector prmxs, prmys;
 
-   /** Auxiliary block-vectors for holding
-          GridFunction-like block-vector data (e.g. in parallel). */
+   /** Auxiliary block-vectors for holding GridFunction-like block-vector data
+       (e.g. in parallel). */
    mutable BlockVector xsv;
 
-   /** Auxiliary block-vectors for holding
-          GridFunction-like block-vector data for the parameter fields
-                                               (e.g. in parallel). */
+   /** Auxiliary block-vectors for holding GridFunction-like block-vector data
+       for the parameter fields (e.g. in parallel). */
    mutable BlockVector xdv;
-   /** Auxiliary block-vectors for holding
-          GridFunction-like block-vector data for the adjoint fields
-                                               (e.g. in parallel). */
+   /** Auxiliary block-vectors for holding GridFunction-like block-vector data
+       for the adjoint fields (e.g. in parallel). */
    mutable BlockVector adv;
 
    mutable Array2D<SparseMatrix*> Grads, cGrads;
@@ -216,10 +215,11 @@ public:
    /// Return the @a k-th FE space of the BlockNonlinearForm (const version).
    const FiniteElementSpace *FESpace(int k) const { return fes[k]; }
 
-   /// Return the @a k-th parametric FE space of the BlockNonlinearForm (const version).
+   /// Return the @a k-th parametric FE space of the BlockNonlinearForm (const
+   /// version).
    const FiniteElementSpace *ParamFESpace(int k) const { return paramfes[k]; }
 
-   /// Return the integrators 
+   /// Return the integrators
    Array<ParametricBNLFormIntegrator*>& GetDNFI() { return dnfi;}
 
 
@@ -298,5 +298,3 @@ public:
 }
 
 #endif
-
-

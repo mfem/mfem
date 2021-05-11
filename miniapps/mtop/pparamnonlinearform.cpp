@@ -357,7 +357,6 @@ void ParParametricBNLForm::SetParamFields(const Vector &dv) const
    }
 }
 
-
 }
 
 #endif

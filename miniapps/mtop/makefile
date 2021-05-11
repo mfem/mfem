@@ -18,6 +18,10 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
+# Include defaults.mk to get XLINKER
+DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
+include $(DEFAULTS_MK)
+
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
@@ -25,10 +29,8 @@ MTOP_COMMON_SRC = mtop_integrators.cpp paramnonlinearform.cpp pparamnonlinearfor
 
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
-
 SEQ_MINIAPPS = seqheat
 PAR_MINIAPPS = parheat
-
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -51,14 +53,18 @@ endif
 
 all: $(MINIAPPS)
 
-PAR_TEST_EXECS = parheat
-MFEM_TESTS = TEST_EXECS
+MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
+# Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+TEST_NAME := MTop miniapp
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
+%-test-seq: %
+	@$(call mfem-test,$<,, $(TEST_NAME))
 
-parheat-test-par: parheat
-	@$(call mfem-test,$<, $(RUN_MPI), MTop,-cr)
+# Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -67,8 +73,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS)
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf tgv_out*.txt *_output
+	@rm -rf SeqHeat* ParHeat*
