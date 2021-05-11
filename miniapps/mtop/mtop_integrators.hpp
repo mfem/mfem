@@ -214,7 +214,7 @@ private:
 
 
 /// Computes an example of nonlinear objective
-/// \int(field*field*weight)d\Omega_e.
+/// \f$\int \rm{field}*\rm{field}*\rm{weight})\rm{d}\Omega_e\f$.
 class DiffusionObjIntegrator:public BlockNonlinearFormIntegrator
 {
 public:
