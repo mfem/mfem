@@ -1253,6 +1253,9 @@ public:
        with straight edges). */
    void EnsureNodes();
 
+   /** Set vertices to the positions given by the internal node GridFunction. */
+   void SetVerticesFromNodes();
+
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
        new space dimension, 'space_dim' (if != -1), and 'ordering'. */
