@@ -1565,6 +1565,10 @@ public:
    /// Extract a single eigenvector
    const HypreParVector & GetEigenvector(unsigned int i) const;
 
+   /// Deprecated: modifying the internally stored vectors is discouraged
+   MFEM_DEPRECATED
+   HypreParVector & GetEigenvector(unsigned int i);
+
    /// Transfer ownership of the converged eigenvectors
    HypreParVector ** StealEigenvectors() { return multi_vec->StealVectors(); }
 };
@@ -1639,6 +1643,10 @@ public:
 
    /// Extract a single eigenvector
    const HypreParVector & GetEigenvector(unsigned int i) const;
+
+   /// Deprecated: modifying the internally stored vectors is discouraged
+   MFEM_DEPRECATED
+   HypreParVector & GetEigenvector(unsigned int i);
 
    /// Transfer ownership of the converged eigenvectors
    HypreParVector ** StealEigenvectors();
