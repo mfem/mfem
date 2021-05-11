@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "densemat.hpp"
 #include "handle.hpp"
+#include <memory>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -895,7 +896,7 @@ class DirectSubBlockSolver : public Solver
    mutable Array<int> local_dofs;
    mutable Vector sub_rhs;
    mutable Vector sub_sol;
-   Array<DenseMatrixInverse> block_solvers;
+   std::unique_ptr<DenseMatrixInverse[]> block_solvers;
 public:
    /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
    /// i-th block, block_dof(i, j) = 0 otherwise.
