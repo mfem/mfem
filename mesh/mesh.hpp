@@ -598,7 +598,7 @@ public:
        @warning This algorithm does not scale well with the number of vertices
        in the mesh, and is not recommended for very large meshes.  */
    std::vector<int> CreatePeriodicVertexMapping(
-      const std::vector<Vector> &translations, double tol=1e-8) const;
+      const std::vector<Vector> &translations, double tol = 1e-8) const;
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
@@ -615,7 +615,7 @@ public:
         int *element_attributes, int num_elements,
         int *boundary_indices, Geometry::Type boundary_type,
         int *boundary_attributes, int num_boundary_elements,
-        int dimension, int space_dimension= -1);
+        int dimension, int space_dimension = -1);
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */

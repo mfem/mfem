@@ -4477,20 +4477,20 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
 
    // Get a list of all vertices on the boundary
    set<int> bdr_v;
-   for (int be=0; be<GetNBE(); be++)
+   for (int be = 0; be < GetNBE(); be++)
    {
       Array<int> dofs;
       GetBdrElementVertices(be,dofs);
 
-      for (int i=0; i<dofs.Size(); i++)
+      for (int i = 0; i < dofs.Size(); i++)
       {
          bdr_v.insert(dofs[i]);
 
          coord = GetVertex(dofs[i]);
-         for (int j=0; j<sdim; j++)
+         for (int j = 0; j < sdim; j++)
          {
-            xMax[j] = max(xMax[j],coord[j]);
-            xMin[j] = min(xMin[j],coord[j]);
+            xMax[j] = max(xMax[j], coord[j]);
+            xMin[j] = min(xMin[j], coord[j]);
          }
       }
    }
@@ -4498,13 +4498,13 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    double dia = xDiff.Norml2(); // compute mesh diameter
 
    // slaves[v] is the index of the master vertex of slaver vertex `v`
-   map<int,int> slaves;
+   map<int, int> slaves;
    // masters[v] is a set of indices of all slave vertices of master vertex `v`
-   map<int,set<int>> masters;
+   map<int, set<int>> masters;
 
    // Make `m1` and all of `m1`'s slaves slaves of `m2`. Delete `m1` from the
    // list of masters.
-   auto make_master_slave = [&slaves,&masters](int m1, int m2)
+   auto make_master_slave = [&slaves, &masters](int m1, int m2)
    {
       if (m1 == m2) { return; }
       masters[m2].insert(m1);
@@ -4520,7 +4520,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    // Assume for now that all vertices are masters
    for (int v : bdr_v) { masters[v]; }
 
-   for (unsigned int i=0; i<translations.size(); i++)
+   for (unsigned int i = 0; i < translations.size(); i++)
    {
       for (int vi : bdr_v)
       {
@@ -4576,7 +4576,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    }
 
    std::vector<int> v2v(GetNV());
-   for (size_t i=0; i<v2v.size(); i++)
+   for (size_t i = 0; i < v2v.size(); i++)
    {
       v2v[i] = i;
    }
