@@ -595,8 +595,8 @@ public:
        translated coordinates of one vertex are within the given tolerance (@a
        tol, relative to the mesh diameter) of the coordinates of the other
        vertex.
-       @warning This algorithm does not scale well with the number of vertices
-       in the mesh, and is not recommended for very large meshes.  */
+       @warning This algorithm does not scale well with the number of boundary
+       vertices in the mesh, and may run slowly on very large meshes.  */
    std::vector<int> CreatePeriodicVertexMapping(
       const std::vector<Vector> &translations, double tol = 1e-8) const;
 
