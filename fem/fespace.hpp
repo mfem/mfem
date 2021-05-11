@@ -936,6 +936,23 @@ public:
 
    /// Write the QuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const;
+
+   /** @brief Factory method: return a newly allocated QuadratureSpace
+       according to the given basis name.
+       @param[in] name The basis name to generate a QuadratureSpace for
+       @param[in] mesh The mesh to use when constructing the QuadratureSpace */
+   /**
+
+   | QSpace Basis Name | Notes |
+   | :------: | :---: |
+   | QF_Default_[ORDER]_[VDIM] | Default quadrature type |
+
+   | Tag | Description |
+   | :------: | :--------: |
+   | [ORDER]  | Approximation order of the elements (P0, P1, P2, ...) |
+   | [VDIM]   | Number of components at each quadrature point |
+   */
+   static QuadratureSpace *New(const char* name, Mesh* mesh);
 };
 
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)

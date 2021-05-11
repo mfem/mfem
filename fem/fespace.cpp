@@ -3172,4 +3172,21 @@ void QuadratureSpace::Save(std::ostream &out) const
        << "Order: " << order << '\n';
 }
 
+QuadratureSpace *QuadratureSpace::New(const char* name, Mesh* mesh)
+{
+   QuadratureSpace* qspace = nullptr;
+   if (!strncmp(name, "QF_Default_", 11))
+   {
+      // FIXME: The vdim is also accessible here but not needed until the QFunc
+      // is constructed - should this logic be adjusted somehow?
+      qspace = new QuadratureSpace(mesh, atoi(name + 11));
+   }
+   else
+   {
+      MFEM_ABORT("Unknown QuadratureSpace basis: " << name);
+   }
+
+   return qspace;
+}
+
 } // namespace mfem
