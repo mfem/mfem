@@ -293,9 +293,11 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
    // interior or boundary face integrators
    if (int_face_normD_restrict_lex == NULL && a->GetNDFBFI()->Size() > 0)
    {
+      Array<BilinearFormIntegrator*> &intNDFaceIntegrators = *a->GetNDFBFI();
       int_face_normD_restrict_lex = trialFes->GetFaceNormalDerivRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Interior);
+                                 FaceType::Interior,
+                                 intNDFaceIntegrators[0]->GetIntRule());
       faceNormDIntX.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDIntY.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDIntY.UseDevice(true); // ensure 'faceNormDIntY = 0.0' is done on device
@@ -303,9 +305,11 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
    if (bdr_face_normD_restrict_lex == NULL && a->GetNDBFBFI()->Size() > 0)
    {
+      Array<BilinearFormIntegrator*> &bdyNDFaceIntegrators = *a->GetNDBFBFI();
       bdr_face_normD_restrict_lex = trialFes->GetFaceNormalDerivRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Boundary,
+                                 bdyNDFaceIntegrators[0]->GetIntRule(),
                                  m);
       faceNormDBdrX.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDBdrY.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());

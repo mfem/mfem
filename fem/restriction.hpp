@@ -12,6 +12,7 @@
 #ifndef MFEM_RESTRICTION
 #define MFEM_RESTRICTION
 
+#include "nonlininteg.hpp"
 #include "../linalg/operator.hpp"
 #include "../mesh/mesh.hpp"
 
@@ -187,6 +188,8 @@ protected:
    const int elemDofs; // dofs per element
    const L2FaceValues m; // are face values double valued?
    const int nfdofs; // total number of face dofs
+   Vector Bf;
+   Vector Gf;
    Array<int> scatter_indices1;
    Array<int> scatter_indices2;
    Array<int> offsets;
@@ -199,6 +202,7 @@ public:
    L2FaceNormalDRestriction(const FiniteElementSpace&, 
                      const ElementDofOrdering,
                      const FaceType,
+                     const IntegrationRule* Intrules,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
    virtual void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;

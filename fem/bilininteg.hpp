@@ -2771,6 +2771,12 @@ protected:
    Vector coeff_data_3;
    Vector face_2_elem_volumes;
 
+   Vector coeff_data_1_old;
+   Vector coeff_data_2_old;
+   Vector coeff_data_3_old;
+
+   Vector dudn_stencil;
+
    // todo: check which of these I actually need
    //ir->GetWeights(), 
    //maps->G,

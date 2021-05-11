@@ -9,6 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../config/config.hpp"
+#include "nonlininteg.hpp"
+#include "fespace.hpp"
+#include "libceed/ceed.hpp"
+#include "fem.hpp"
+
 #include "restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
@@ -1547,26 +1553,30 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes,
                                      const ElementDofOrdering e_ordering,
                                      const FaceType type,
+                                     const IntegrationRule* ir,
                                      const L2FaceValues m)
    : L2FaceNormalDRestriction(fes, type, m)
 {
-
-   // TODO [optimization]: There might be a way to rduce the needed copies.
-   // Would it work to just perform soft copies and save the hard copies until quadrature time?
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "dof1d " << dof1d << std::endl;
+   std::cout << "dof " << dof << std::endl;
+   //exit(1);
 
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
+
+   MFEM_VERIFY(tfe != NULL, 
+               "Element type incompatible with partial assembly. ");
+   MFEM_VERIFY(tfe->GetBasisType()==BasisType::GaussLobatto ||
+               tfe->GetBasisType()==BasisType::Positive,
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "L2FaceNormalDRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
    // Operator parameters
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nfdofs;
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nfdofs*2;
    width = fes.GetVSize();
 
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -1599,6 +1609,24 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
 
+   Vector bf;
+   Vector gf;
+   // Initialize face restriction operators
+   bf.SetSize(dof1d); 
+   gf.SetSize(dof1d);
+   // Needs to be dof1d* dofs_per_face *nf
+   Bf.SetSize( dof1d*dof1d*nf*2, Device::GetMemoryType());
+   Gf.SetSize( dof1d*dof1d*nf*2, Device::GetMemoryType());
+   bf = 0.;
+   gf = 0.;
+   Bf = 0.;
+   Gf = 0.;
+   IntegrationPoint zero;
+   double zeropt[1] = {0};
+   zero.Set(zeropt,1);
+   auto u_face    = Reshape(Bf.Write(), dof1d, dof1d, nf, 2);
+   auto dudn_face = Reshape(Gf.Write(), dof1d, dof1d, nf, 2);
+
    // Computation of scatter indices
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
@@ -1620,11 +1648,71 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       {
          mfem_error("FaceRestriction not yet implemented for this type of "
                     "element.");
-         // TODO Something with GetFaceDofs?
       }
+
+      // port int_type_match 
       if ((type==FaceType::Interior && e2>=0) ||
           (type==FaceType::Boundary && e2<0))
       {
+
+         FaceElementTransformations &Trans0 =
+         *fes.GetMesh()->GetFaceElementTransformations(f);
+
+         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+         const FiniteElement &el1 =
+         *fes.GetTraceElement(e1, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
+         const FiniteElement &el2 =
+         *fes.GetTraceElement(e2, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
+
+         const FiniteElement &elf1 = *fes.GetFE(e1);
+         const FiniteElement &elf2 = *fes.GetFE(e2);
+
+         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+         if (ir == NULL)
+         {
+            // a simple choice for the integration order; is this OK?
+            int order;
+            if (type==FaceType::Interior && e2>=0)
+            {
+               order = 2*std::max(el1.GetOrder(), el2.GetOrder());
+            }
+            else
+            {
+               order = 2*el1.GetOrder();
+            }
+            ir = &IntRules.Get(Trans0.GetGeometryType(), order);
+         }
+         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+         for (int p = 0; p < ir->GetNPoints(); p++)
+         {
+            elf1.Calc1DShape(zero, bf, gf);
+            gf *= -1.0;
+            for( int i = 0 ; i < dof1d ; i++ )
+            {
+               u_face(i,p,f_ind,0) = bf(i);
+               dudn_face(i,p,f_ind,0) = gf(i);
+            }
+         
+            //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+            if (type==FaceType::Interior && e2>=0)
+            {
+               elf2.Calc1DShape(zero, bf, gf);
+               gf *= -1.0;
+               for( int i = 0 ; i < dof1d ; i++ )
+               {
+                  u_face(i,p,f_ind,1) = bf(i);
+                  dudn_face(i,p,f_ind,1) = gf(i);
+                  //std::cout << i << " " << p  << " " << u_face(i,p,f_ind,1) << " " <<  dudn_face(i,p,f_ind,1) << std::endl;
+               }
+               //exit(1);
+            }
+         }
+         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
          // Compute task-local scatter id for each face dof
          for (int d = 0; d < dof; ++d)
          {
@@ -1759,6 +1847,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, faceMap2);
+
+/*
+         const FiniteElement &elf1 = *fes.GetFE(e1);
+         const FiniteElement &elf2 = *fes.GetFE(e2);
+
+         const IntegrationRule *ir = IntRule;
+*/
+
+
          for (int d = 0; d < dof; ++d)
             for (int k = 0; k < dof1d; ++k)
             {
@@ -1810,31 +1907,59 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    const int vd = vdim;
    // is x transposed?
    const bool t = byvdim;
+   auto u_face    = Reshape(Bf.Read(), dof1d, dof1d, nf, 2);
+   auto dudn_face = Reshape(Gf.Read(), dof1d, dof1d, nf, 2);
+   y = 0.0;
 
+/*
+   Vector testv;
+   testv.SetSize(dof*nf);
+   testv = 0.0;
+   auto test = Reshape(testv.Write(), dof, nf);
+*/
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
-
+      auto d_y = Reshape(y.Write(), nd, vd, 2, nf, 2);
+         
       // Loop over all face dofs
       MFEM_FORALL(i, nd*vd*nf,
       {
+
          const int k = i % dof1d;
          const int dof = (i/dof1d) % dof1d;
          const int face = i / (nd);
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {  
-            d_y( dof*dof1d+k , c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+            //d_y( dof*dof1d+0 , c, 0, face, 0) += d_x(t?c:idx1, t?idx1:c)*u_face(k,dof,face,0);
+            //d_y( dof*dof1d+0 , c, 0, face, 1) += d_x(t?c:idx1, t?idx1:c)*dudn_face(k,dof,face,0);
+            d_y( dof*dof1d+k , c, 0, face, 0) = d_x(t?c:idx1, t?idx1:c);
+            
+
+            //test += d_x(t?c:idx1, t?idx1:c)*dudn_face(k,dof,face,0);
+
+            //std::cout << k << " " << dudn_face(k,dof,face,1) << " " << d_x(t?c:idx1, t?idx1:c) << " " <<  test << std::endl;
          }
          // other side 
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y( dof*dof1d+k, c, 1, face) = ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) );
+            //d_y( dof*dof1d+0 , c, 1, face, 0) += ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) )*u_face(k,dof,face,1);
+            //d_y( dof*dof1d+0 , c, 1, face, 1) += ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) )*dudn_face(k,dof,face,0);
+
+            //test(dof,face) +=  ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) )*dudn_face(k,dof,face,1);
+
+            d_y( dof*dof1d+k, c, 1, face, 0) = ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) );
+            //std::cout << k << " " << dof << " " << face << " " << dudn_face(k,dof,face,1) << " " << d_x(t?c:idx2, t?idx2:c) << std::endl;
          }
+
+         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+         //exit(1);
+
       });
    }
    else
@@ -1856,12 +1981,24 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       });
       */
    }
+
+  // auto test2 = Reshape(testv.Read(), dof, nf);
+/*
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   for (int f = 0; f < nf; f++)          
+      for (int d = 0; d < dof; d++)
+      {
+         std::cout << d << " " << f << " " <<  test2(d,f) << std::endl;
+      }
+*/
+
+
 }
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
-   const int nd = dof*dof; //this is for 2D, need to generalize for 3D
+   const int nd = dof*dof1d; //this is for 2D, need to generalize for 3D
    const int vd = vdim;
    const bool t = byvdim;
    const int dofs = nfdofs;
@@ -1870,7 +2007,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 
    if (m == L2FaceValues::DoubleValued)
    {
-      auto d_x = Reshape(x.Read(), dof1d, dof, vd, 2, nf);
+      auto d_x = Reshape(x.Read(), dof1d, dof, vd, 2, nf, 2);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
@@ -1889,8 +2026,8 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                int did = (idx_j/dof1d) % dof1d;
                int faceid = idx_j / nd;
                double dofValue = isE1 ? 
-               d_x( s, did, c, 0, faceid )
-               :d_x( s, did, c, 1, faceid );
+               d_x( s, did, c, 0, faceid, 0)
+               :d_x( s, did, c, 1, faceid, 0);
                d_y(t?c:i,t?i:c) += dofValue;
             }
          }

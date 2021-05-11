@@ -948,7 +948,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
 }
 
 const Operator *FiniteElementSpace::GetFaceNormalDerivRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+   ElementDofOrdering e_ordering, FaceType type, const IntegrationRule* IntRule, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
@@ -966,7 +966,7 @@ const Operator *FiniteElementSpace::GetFaceNormalDerivRestriction(
       Operator* res;
       if (is_dg_space)
       {
-         res = new L2FaceNormalDRestriction(*this, e_ordering, type, m);
+         res = new L2FaceNormalDRestriction(*this, e_ordering, type, IntRule, m);
       }
       else
       {

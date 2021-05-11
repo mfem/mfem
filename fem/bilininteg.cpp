@@ -2745,7 +2745,7 @@ const IntegrationRule &DGDiffusionIntegrator::GetRule(
 void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
-{
+{   
    int dim, ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
    double w, wq = 0.0;
@@ -2848,9 +2848,19 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       }
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
       adjJ.Mult(ni, nh);
+      //std::cout << " adjJ = "  << std::endl;
+      //adjJ.Print();
+
       if (kappa_is_nonzero)
       {
+         
+         //std::cout << " wq = " << wq << std::endl;
          wq = ni * nor;
+         //std::cout << " wq = " << wq << std::endl;
+         //std::cout << " ni = "  << std::endl;
+         //ni.Print();
+         //std::cout << " nor = "  << std::endl;
+         //nor.Print();
       }
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
@@ -2864,6 +2874,28 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
       dshape1.Mult(nh, dshape1dn);
+
+      /*
+      std::cout << "shape1 " << std::endl;
+      shape1.Print();
+      std::cout << "dshape1 " << std::endl;
+      dshape1.Print();
+      std::cout << "dshape1dn " << std::endl;
+      dshape1dn.Print();
+
+      std::cout << " w = " << w << std::endl;
+      std::cout << " nor = "  << std::endl;
+      nor.Print();
+      std::cout << " ni = "  << std::endl;
+      ni.Print();
+      std::cout << " nh = "  << std::endl;
+      nh.Print();
+      */
+
+      wq = ni * nor;
+      //std::cout << " ni*nor = " << wq << std::endl;
+
+
       for (int i = 0; i < ndof1; i++)
          for (int j = 0; j < ndof1; j++)
          {
@@ -2894,7 +2926,16 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          if (kappa_is_nonzero)
          {
             wq += ni * nor;
+            /*
+            std::cout << " wq = " << wq << std::endl;
+            std::cout << " ni = "  << std::endl;
+            ni.Print();
+            std::cout << " nor = "  << std::endl;
+            nor.Print();
+            */
          }
+
+
 
          dshape2.Mult(nh, dshape2dn);
 
@@ -2921,6 +2962,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          // only assemble the lower triangular part of jmat
          wq *= kappa;
+         //std::cout << " wq = " << wq << std::endl;
          for (int i = 0; i < ndof1; i++)
          {
             const double wsi = wq*shape1(i);
@@ -2948,6 +2990,8 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       }
    }
 
+   double beta = 1;
+
    // elmat := -elmat + sigma*elmat^t + jmat
    if (kappa_is_nonzero)
    {
@@ -2956,10 +3000,10 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - aij + mij;
-            elmat(j,i) = sigma*aij - aji + mij;
+            elmat(i,j) = sigma*aji - beta*aij + mij;
+            elmat(j,i) = sigma*aij - beta*aji + mij;
          }
-         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
+         elmat(i,i) = (sigma - beta*1.)*elmat(i,i) + jmat(i,i);
       }
    }
    else
@@ -2969,12 +3013,16 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i);
-            elmat(i,j) = sigma*aji - aij;
-            elmat(j,i) = sigma*aij - aji;
+            elmat(i,j) = sigma*aji - beta*aij;
+            elmat(j,i) = sigma*aij - beta*aji;
          }
-         elmat(i,i) *= (sigma - 1.);
+         elmat(i,i) *= (sigma - beta*1.);
       }
    }
+
+   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   //std::cout << " full cell " << std::endl;
+   //exit(1);
 }
 
 

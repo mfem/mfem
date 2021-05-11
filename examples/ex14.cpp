@@ -49,13 +49,13 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
-   int ref_levels = -1;
-   int order = 1;
+   int ref_levels = 2;
+   int order = 6;
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
    bool visualization = 1;
-   bool pa = false;
+   bool pa = true;
    bool set_bc = true;
    bool lob = true;
 
@@ -110,12 +110,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
@@ -135,6 +137,7 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(max(order, 1));
    }
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec;
@@ -180,6 +183,30 @@ int main(int argc, char *argv[])
 
    x.ProjectCoefficient(f);
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+   // Test the full operator
+   LinearForm *bfull = new LinearForm(fespace);
+   bfull->AddDomainIntegrator(new DomainLFIntegrator(one));
+   bfull->AddBdrFaceIntegrator(
+      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+   bfull->Assemble();
+   BilinearForm *afull = new BilinearForm(fespace);
+   GridFunction xfull(fespace);
+   xfull.ProjectCoefficient(f);
+
+   afull->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+   afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
+   if(intf)
+   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   if(bdyf)
+   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   afull->Assemble();
+   afull->Finalize();
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "-----------------------------------------------------------------------" << std::endl;
+
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator and the interior and boundary DG face integrators.
@@ -207,34 +234,31 @@ int main(int argc, char *argv[])
    {
       // Default setting
       if(intf)
-      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-      if(bdyf)
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+      {
+         a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+      }
+      else if(bdyf)
+      {
+         a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+      }
+      else
+      {
+         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+         exit(0);
+      }
    }
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   
    a->Assemble();
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
    a->Finalize();
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // -------------------------------------------
    // Sanity checks (temporary, for debugging)
    // -------------------------------------------
-   // Test the full operator
-   LinearForm *bfull = new LinearForm(fespace);
-   bfull->AddDomainIntegrator(new DomainLFIntegrator(one));
-   bfull->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
-   bfull->Assemble();
-   BilinearForm *afull = new BilinearForm(fespace);
-   GridFunction xfull(fespace);
-   xfull.ProjectCoefficient(f);
-
-   afull->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
-   afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
-   if(intf)
-   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   if(bdyf)
-   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   afull->Assemble();
-   afull->Finalize();
    // -------------------------------------------
    // Diff the operators
    {
@@ -261,48 +285,9 @@ int main(int argc, char *argv[])
             x.ProjectCoefficient(f);
             xfull.ProjectCoefficient(f);
             break;
-         case 4:
-            x(0) = -0.0225694;
-            x(1) = -0.00173611;
-            x(2) = -0.00173611;
-            x(3) = 0.0190972;
-            x(4) = 0.00868056;
-            x(5) = 0.0295139;
-            x(6) = 0.00868056;
-            x(7) = 0.0295139;
-            x(8) = -0.00173611;
-            x(9) = 0.0190972;
-            x(10) = -0.0225694;
-            x(11) = -0.00173611;
-            x(12) = 0.0295139;
-            x(13) = 0.0295139;
-            x(14) = 0.00868056;
-            x(15) = 0.00868056;
-            x(16) = 0.0190972;
-            x(17) = -0.00173611;
-            x(18) = -0.00173611;
-            x(19) = -0.0225694;
-            x(20) = 0.0295139;
-            x(21) = 0.00868056;
-            x(22) = 0.0295139;
-            x(23) = 0.00868056;
-            x(24) = 0.0399306;
-            x(25) = 0.0399306;
-            x(26) = 0.0399306;
-            x(27) = 0.0399306;
-            x(28) = 0.00868056;
-            x(29) = 0.00868056;
-            x(30) = 0.0295139;
-            x(31) = 0.0295139;
-            x(32) = -0.00173611;
-            x(33) = -0.0225694;
-            x(34) = 0.0190972;
-            x(35) = -0.00173611;
-            xfull = x;
-            break;
          default:
             std::cout << "no case for initial " << initial << std::endl;
-            exit(1);
+            exit(0);
       }
 
       std::chrono::time_point<std::chrono::system_clock> StartTime;
@@ -339,26 +324,29 @@ int main(int argc, char *argv[])
       ydiff -= youtfull;
 
       std::cout << "               yout" << std::endl;
-      yout.Print(mfem::out,1);
+      //yout.Print(mfem::out,1);
       std::cout << "               youtfull"  << std::endl;
-      youtfull.Print(mfem::out,1);
+      //youtfull.Print(mfem::out,1);
       std::cout << "               ydiff" << std::endl;
-      ydiff.Print(mfem::out,1);
+      //ydiff.Print(mfem::out,1);
 
       std::cout << " Timing full = " << timefull << std::endl; 
       std::cout << " Timing pa   = " << timex << std::endl; 
 
       double errnorm = ydiff.Normlinf();
       std::cout << "               ||ydiff|| = " << std::endl << errnorm << std::endl;
-      //exit(1);
+      //exit(0);
       std::cout << "----------------------------------" << std::endl;
    }
+   int print_iter = 2;
+   int max_num_iter = 2000;
+   double rtol = 1.0e-12;
+   double atol = 1.0e-14;
+   rtol = 1.0e-8; 
+   atol = 1.0e-8;
    // -------------------------------------------
    {
-      int print_iter = 2;
-      int max_num_iter = 500;
-      double rtol = 1.0e-12;
-      double atol = 0.0; 
+      std::cout << "full solver " << std::endl;
       Array<int> ess_tdof_list;
       if (mesh->bdr_attributes.Size())
       {
@@ -390,10 +378,7 @@ int main(int argc, char *argv[])
    // -------------------------------------------
    // Test the invoked operator
    {
-      int print_iter = 2;
-      int max_num_iter = 500;
-      double rtol = 1.0e-12;
-      double atol = 0.0; 
+      std::cout << "pa solver " << std::endl;
       Array<int> ess_tdof_list;
       if (mesh->bdr_attributes.Size())
       {
@@ -423,7 +408,7 @@ int main(int argc, char *argv[])
       std::cout << "----------------------------------" << std::endl;
    }   
    // -------------------------------------------
-   exit(1);
+   exit(0);
 
    std::chrono::time_point<std::chrono::system_clock> StartTime;
    std::chrono::time_point<std::chrono::system_clock> EndTime;
@@ -432,10 +417,12 @@ int main(int argc, char *argv[])
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
+   /*
    int print_iter = 1;
    int max_num_iter = 500;
    double rtol = 1.0e-12;
    double atol = 0.0; 
+   */
    if(pa)
    {
       Array<int> ess_tdof_list;

@@ -360,7 +360,7 @@ public:
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    virtual const Operator *GetFaceNormalDerivRestriction(
-      ElementDofOrdering e_ordering, FaceType,
+      ElementDofOrdering e_ordering, FaceType, const IntegrationRule*,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
