@@ -57,7 +57,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
                MFEM_FOREACH_THREAD(dz,z,D1D)
                {
                   QQD(qx,qy,dz) = 0.0;
-                  MFEM_UNROLL(MQ1);
+                  MFEM_UNROLL(MQ1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      const double Bz = B(qz,dz);
@@ -75,7 +75,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
                MFEM_FOREACH_THREAD(dy,y,D1D)
                {
                   QDD(qx,dy,dz) = 0.0;
-                  MFEM_UNROLL(MQ1);
+                  MFEM_UNROLL(MQ1)
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      const double By = B(qy,dy);
@@ -93,7 +93,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
                   double d = 0.0;
-                  MFEM_UNROLL(MQ1);
+                  MFEM_UNROLL(MQ1)
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double Bx = B(qx,dx);
