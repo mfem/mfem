@@ -9,9 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//   -----------------------------------------------------------------------
-//   ParHeat Miniapp: Gradients of PDE constrained objective function
-//   -----------------------------------------------------------------------
+//     ----------------------------------------------------------------
+//     ParHeat Miniapp: Gradients of PDE constrained objective function
+//     ----------------------------------------------------------------
+//                           (Parallel Version)
 //
 // The following example computes the gradients of a specified objective
 // function with respect to parametric fields. The objective function is having
@@ -35,8 +36,9 @@
 // Compile with: make parheat
 //
 // Sample runs:
-// mpirun -np 4 ./parheat --visualization
-// mpirun -np 4 ./parheat --visualization -m ../../data/beam-quad.mesh
+//
+//    mpirun -np 4 parheat --visualization
+//    mpirun -np 4 parheat --visualization -m ../../data/beam-quad.mesh
 
 #include "mfem.hpp"
 #include <fstream>
