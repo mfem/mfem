@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
          }
 
          // convert eigenvector from HypreParVector to ParGridFunction
-         x = lobpcg->GetEigenvector(i);
+         x = const_cast<const HypreLOBPCG*>(lobpcg)->GetEigenvector(i);
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << *pmesh << x << flush
