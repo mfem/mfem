@@ -232,6 +232,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
 
 void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
 {
+   tv.UseDevice(true);
    if (IsIdentityProlongation(f->GetProlongationMatrix()))
    {
       MakeRef(f, tv, tv_offset);
@@ -241,10 +242,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
    {
       MFEM_ASSERT(tv.Size() >= tv_offset + f->GetTrueVSize(), "");
       SetSpace(f); // works in parallel
-      tv.UseDevice(true);
-      const int tv_size = f->GetTrueVSize();
-      t_vec.NewMemoryAndSize(Memory<double>(tv.GetMemory(), tv_offset, tv_size),
-                             tv_size, true);
+      t_vec.MakeRef(tv, tv_offset, f->GetTrueVSize());
    }
 }
 
