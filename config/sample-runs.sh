@@ -43,7 +43,7 @@ groups_serial=(
    "miniapps/performance"
    "ex1.cpp"'
 '"amgx"
-   "Amgx examples:"
+   "AmgX examples:"
    "examples/amgx"
    "ex1.cpp"'
 '"caliper"
@@ -55,11 +55,11 @@ groups_serial=(
    "examples/ginkgo"
    "ex1.cpp"'
 '"hiop"
-   "Hiop examples:"
+   "HiOp examples:"
    "examples/hiop"
    "ex9.cpp"'
 '"pumi"
-   "Pumi examples:"
+   "PUMI examples:"
    "examples/pumi"
    "ex1.cpp ex2.cpp"'
 #   ""'
@@ -73,11 +73,11 @@ groups_serial=(
    "miniapps/adjoint"
    "cvsRoberts_ASAi_dns.cpp"'
 '"gslib"
-   "Gslib miniapps:"
+   "GSLIB miniapps:"
    "miniapps/gslib"
    "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp "'
 '"nurbs"
-   "Nurbs miniapps:"
+   "NURBS miniapps:"
    "miniapps/nurbs"
    "nurbs_ex1.cpp"'
 '"tools"
@@ -113,7 +113,7 @@ groups_parallel=(
    "miniapps/performance"
    "ex1p.cpp"'
 '"amgx"
-   "Amgx examples:"
+   "AmgX examples:"
    "examples/amgx"
    "ex1p.cpp"'
 '"caliper"
@@ -121,11 +121,11 @@ groups_parallel=(
    "examples/caliper"
    "ex1p.cpp"'
 '"hiop"
-   "Hiop examples:"
+   "HiOp examples:"
    "examples/hiop"
    "ex9p.cpp"'
 '"pumi"
-   "Pumi examples:"
+   "PUMI examples:"
    "examples/pumi"
    "ex1p.cpp ex6p.cpp"'
 '"superlu"
@@ -147,7 +147,7 @@ groups_parallel=(
    "miniapps/adjoint"
    "adjoint_advection_diffusion.cpp"'
 '"gslib"
-   "Gslib miniapps:"
+   "GSLIB miniapps:"
    "miniapps/gslib"
    "pfindpts.cpp schwarz_ex1p.cpp"'
 '"navier"
@@ -155,7 +155,7 @@ groups_parallel=(
    "miniapps/navier"
    "navier_cht.cpp"'
 '"nurbs"
-   "Nurbs miniapps:"
+   "NURBS miniapps:"
    "miniapps/nurbs"
    "nurbs_ex1p.cpp nurbs_ex11p.cpp"'
 '"shifted"
@@ -198,7 +198,7 @@ groups_all=(
    "miniapps/performance"
    "ex1{,p}.cpp"'
 '"amgx"
-   "Amgx examples:"
+   "AmgX examples:"
    "examples/amgx"
    "ex1.cpp ex1p.cpp"'
 '"caliper"
@@ -210,11 +210,11 @@ groups_all=(
    "examples/ginkgo"
    "ex1.cpp"'
 '"hiop"
-   "Hiop examples:"
+   "HiOp examples:"
    "examples/hiop"
    "ex9.cpp ex9p.cpp"'
 '"pumi"
-   "Pumi examples:"
+   "PUMI examples:"
    "examples/pumi"
    "ex1.cpp ex1p.cpp ex2.cpp ex6p.cpp"'
 '"superlu"
@@ -236,7 +236,7 @@ groups_all=(
    "miniapps/adjoint"
    "adjoint_advection_diffusion.cpp cvsRoberts_ASAi_dns.cpp"'
 '"gslib"
-   "Gslib miniapps:"
+   "GSLIB miniapps:"
    "miniapps/gslib"
    "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp pfindpts.cpp schwarz_ex1p.cpp"'
 '"navier"
@@ -244,7 +244,7 @@ groups_all=(
    "miniapps/navier"
    "navier_cht.cpp"'
 '"nurbs"
-   "Nurbs miniapps:"
+   "NURBS miniapps:"
    "miniapps/nurbs"
    "nurbs_ex1.cpp nurbs_ex1p.cpp nurbs_ex11p.cpp"'
 '"shifted"
