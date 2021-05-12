@@ -585,7 +585,7 @@ public:
        the same index. The mapping @a v2v can be generated from translation
        vectors using Mesh::CreatePeriodicVertexMapping.
        @note MFEM requires that each edge of the resulting mesh be uniquely
-       identifiable by a pair of unique vertiecs. As a consequence, periodic
+       identifiable by a pair of distinct vertices. As a consequence, periodic
        boundaries must be connected by at least three edges. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
 
