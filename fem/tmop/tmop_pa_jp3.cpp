@@ -98,11 +98,4 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    MFEM_LAUNCH_TMOP_KERNEL(MinDetJpr_Kernel_3D,id,NE,B,G,XE,E);
 }
 
-int TMOPNewtonSolver::CheckDetJpr_3D(const FiniteElementSpace *fes,
-                                     const Vector &X) const
-{
-   double DetJMin = MinDetJpr_3D(fes, X);
-   return DetJMin > 0;
-}
-
 } // namespace mfem

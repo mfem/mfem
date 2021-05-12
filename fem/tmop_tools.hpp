@@ -194,8 +194,6 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
    virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
-   int CheckDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
-   int CheckDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
    double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
    double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 };
