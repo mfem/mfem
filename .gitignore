@@ -217,6 +217,11 @@ miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
 
+miniapps/mtop/parheat
+miniapps/mtop/ParHeat*
+miniapps/mtop/seqheat
+miniapps/mtop/SeqHeat*
+
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
 miniapps/navier/navier_kovasznay_vs
