@@ -140,6 +140,7 @@ public:
     *  idx_cons. The idx_cons is assumed to be of size num_cons.
     *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1, then
     *  one needs to do Jac[c][j] = d cons[c] / dx_j, j = 1 .. n_loc.
+    *  Jac is computed and stored in a contiguous vector (offset by rows).
     *
     *  Parameters: see eval_cons().
     *
@@ -149,7 +150,7 @@ public:
    virtual bool eval_Jac_cons(const long long &n, const long long &m,
                               const long long &num_cons,
                               const long long *idx_cons,
-                              const double *x, bool new_x, double **Jac);
+                              const double *x, bool new_x, double *Jac);
 
    /** Specifies column partitioning for distributed memory vectors.
     *  Process p owns vector entries with indices cols[p] to cols[p+1]-1,

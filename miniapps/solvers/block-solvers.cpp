@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
       if (par_ref_levels > 0)
       {
          cout << "Dimension of the divergence free subspace: "
-              << DFS_data.C.Last().Ptr()->NumCols() << "\n\n";
+              << DFS_data.C.back().Ptr()->NumCols() << "\n\n";
       }
    }
 

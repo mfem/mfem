@@ -211,6 +211,18 @@ public:
        in addition to the overloaded operator()(int). */
    inline operator const double *() const { return data; }
 
+   /// STL-like begin.
+   inline double *begin() { return data; }
+
+   /// STL-like end.
+   inline double *end() { return data + size; }
+
+   /// STL-like begin (const version).
+   inline const double *begin() const { return data; }
+
+   /// STL-like end (const version).
+   inline const double *end() const { return data + size; }
+
    /// Return a reference to the Memory object used by the Vector.
    Memory<double> &GetMemory() { return data; }
 
@@ -371,6 +383,12 @@ public:
 
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
+
+   /// Print the Vector size and hash of its data.
+   /** This is a compact text representation of the Vector contents that can be
+       used to compare vectors from different runs without the need to save the
+       whole vector. */
+   void PrintHash(std::ostream &out) const;
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
