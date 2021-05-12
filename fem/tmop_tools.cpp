@@ -641,23 +641,32 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
-   for (int i = 0; i < NE; i++)
+   const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
+   if (dim == 1 || mixed_mesh)
    {
-      const int dof = fes.GetFE(i)->GetDof();
-      DenseMatrix dshape(dof, dim), pos(dof, dim);
-      Vector posV(pos.Data(), dof * dim);
-
-      fes.GetElementVDofs(i, xdofs);
-      x_loc.GetSubVector(xdofs, posV);
-
-      const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
-      const int nsp = irule.GetNPoints();
-      for (int j = 0; j < nsp; j++)
+      for (int i = 0; i < NE; i++)
       {
-         fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
-         min_detJ = std::min(min_detJ, Jpr.Det());
+         const int dof = fes.GetFE(i)->GetDof();
+         DenseMatrix dshape(dof, dim), pos(dof, dim);
+         Vector posV(pos.Data(), dof * dim);
+
+         fes.GetElementVDofs(i, xdofs);
+         x_loc.GetSubVector(xdofs, posV);
+
+         const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
+         const int nsp = irule.GetNPoints();
+         for (int j = 0; j < nsp; j++)
+         {
+            fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
+            MultAtB(pos, dshape, Jpr);
+            min_detJ = std::min(min_detJ, Jpr.Det());
+         }
       }
+   }
+   else
+   {
+      min_detJ = dim == 2 ? MinDetJpr_2D(&fes, x_loc) :
+                 dim == 3 ? MinDetJpr_3D(&fes, x_loc) : 0.0;
    }
    double min_detT_all = min_detJ;
 #ifdef MFEM_USE_MPI
