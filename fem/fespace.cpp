@@ -2291,7 +2291,11 @@ int FiniteElementSpace::FirstVarDof(int entity, int index, int order) const
 
    for (int j = I[index]; j < I[index+1]; j++)
    {
-      if (var_orders[j] == order) { return J[j]; }
+      if (var_orders[j] == order)
+      {
+         int base = nvdofs + (entity == 2 ? nedofs : 0);
+         return base + J[j];
+      }
    }
 
    MFEM_ABORT((entity == 1 ? "edge " : "face ") << index

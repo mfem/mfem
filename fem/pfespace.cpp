@@ -153,6 +153,9 @@ void ParFiniteElementSpace::Construct()
       int dim = pmesh->Dimension();
       int order = fec->GetOrder();
 
+      /* NOTE: virtual SyncElementOrders has already been called from
+               FiniteElementSpace::Construct */
+
       if (!IsVariableOrder())
       {
          // Initialize 'gcomm' for the cut (aka "partially conforming") space.
@@ -339,7 +342,11 @@ int ParFiniteElementSpace::FirstVarDof(int entity, int index, int order) const
 
    for (int j = I[index]; j < I[index+1]; j++)
    {
-      if (ghost_var_orders[entity-1][j] == order) { return J[j]; }
+      if (ghost_var_orders[entity-1][j] == order)
+      {
+         int base = ndofs + ngvdofs + (entity == 2 ? ngedofs : 0);
+         return base + J[j];
+      }
    }
 
    // now try non-ghost DOFs
