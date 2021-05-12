@@ -169,6 +169,11 @@ New and updated examples and miniapps
 - Added a new miniapp for computing (signed) distance functions to a point
   source or zero level set. See miniapps/shifted/distance.cpp.
 
+- Added new miniapp directory mtop/ with optimization-oriented block parametric
+  non-linear form and abstract integrators. Two new miniapps, ParHeat and
+  SeqHeat, demonstrate parallel and sequential implementation of gradients
+  evaluation for linear diffusion with discrete density.
+
 - Added a new miniapp block-solvers that compares the performance of various
   solvers for mixed finite element discretization of the second order scalar
   elliptic equations. Currently available solvers in the miniapp include a
