@@ -68,7 +68,7 @@ TEST_CASE("Periodic mesh", "[Mesh]")
    }
    SECTION("3D periodic mesh")
    {
-      auto el = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
+      auto el = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON, Element::WEDGE);
       bool sfc = false; // <-- Lexicographic instead of SFC ordering
       Mesh orig_mesh = Mesh::MakeCartesian3D(n, n, n, el, 1.0, 1.0, 1.0, sfc);
       std::vector<Vector> translations =
