@@ -4497,28 +4497,34 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    add(xMax, -1.0, xMin, xDiff);
    double dia = xDiff.Norml2(); // compute mesh diameter
 
-   // slaves[v] is the index of the master vertex of slaver vertex `v`
-   map<int, int> slaves;
-   // masters[v] is a set of indices of all slave vertices of master vertex `v`
-   map<int, set<int>> masters;
+   // We now identify coincident verties. Several originally distinct vertices
+   // may become coincident under the periodic mapping. One of these vertices
+   // will be identified as the "primary" vertex, and all other coincident
+   // vertices will be considered as "replicas".
 
-   // Make `m1` and all of `m1`'s slaves slaves of `m2`. Delete `m1` from the
-   // list of masters.
-   auto make_master_slave = [&slaves, &masters](int m1, int m2)
+   // replica2primary[v] is the index of the primary vertex of replica `v`
+   map<int, int> replica2primary;
+   // primary2replicas[v] is a set of indices of replicas of primary vertex `v`
+   map<int, set<int>> primary2replicas;
+
+   // We begin with the assumption that all vertices are primary, and that there
+   // are no replicas.
+   for (int v : bdr_v) { primary2replicas[v]; }
+
+   // Make `r` and all of `r`'s replicas replicas of `p`. Delete `r` from the
+   // list of primary vertices.
+   auto make_replica = [&replica2primary, &primary2replicas](int r, int p)
    {
-      if (m1 == m2) { return; }
-      masters[m2].insert(m1);
-      slaves[m1] = m2;
-      for (int s : masters[m1])
+      if (r == p) { return; }
+      primary2replicas[p].insert(r);
+      replica2primary[r] = p;
+      for (int s : primary2replicas[r])
       {
-         masters[m2].insert(s);
-         slaves[s] = m2;
+         primary2replicas[p].insert(s);
+         replica2primary[s] = p;
       }
-      masters.erase(m1);
+      primary2replicas.erase(r);
    };
-
-   // Assume for now that all vertices are masters
-   for (int v : bdr_v) { masters[v]; }
 
    for (unsigned int i = 0; i < translations.size(); i++)
    {
@@ -4533,42 +4539,40 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
             add(at, -1.0, coord, dx);
             if (dx.Norml2() > dia*tol) { continue; }
 
-            // The two vertices vi and vj are coincident
-            int master = vi;
-            int slave  = vj;
+            // The two vertices vi and vj are coincident.
 
-            bool mInM = masters.find(master) != masters.end();
-            bool sInM = masters.find(slave) != masters.end();
+            // Are vertices `vi` and `vj` already primary?
+            bool pi = primary2replicas.find(vi) != primary2replicas.end();
+            bool pj = primary2replicas.find(vj) != primary2replicas.end();
 
-            if (mInM && sInM)
+            if (pi && pj)
             {
-               // Both vertices are currently masters
-               // Demote `slave` to be a slave of master
-               make_master_slave(slave, master);
+               // Both vertices are currently primary
+               // Demote `vj` to be a replica of `vi`
+               make_replica(vj, vi);
             }
-            else if (mInM && !sInM)
+            else if (pi && !pj)
             {
-               // `master` is already a master and `slave` is already a slave
-               int master_of_slave = slaves[slave];
-               // Make `master` and its slaves slaves of `slave`'s master
-               make_master_slave(master, master_of_slave);
+               // `vi` is primary and `vj` is a replica
+               int owner_of_vj = replica2primary[vj];
+               // Make `vi` and its replicas replicas of `vj`'s owner
+               make_replica(vi, owner_of_vj);
             }
-            else if (!mInM && sInM)
+            else if (!pi && pj)
             {
-               // `master` is currently a slave and
-               // `slave` is currently a master
-               // Make `slave` and its slaves slaves of `master`'s master
-               int master_of_master = slaves[master];
-               make_master_slave(slave, master_of_master);
+               // `vi` is currently a replica and `vj` is currently primary
+               // Make `vj` and its replicas replicas of `vi`'s owner
+               int owner_of_vi = replica2primary[vi];
+               make_replica(vj, owner_of_vi);
             }
             else
             {
-               // Both vertices are currently slaves
-               // Make `slave` and its fellow slaves slaves of `master`'s master
-               int master_of_master = slaves[master];
-               int master_of_slave = slaves[slave];
-               // Move slave and its fellow slaves to master_of_master
-               make_master_slave(master_of_slave, master_of_master);
+               // Both vertices are currently replicas
+               // Make `vj`'s owner and all of its owner's replicas replicas of
+               // `vi`'s owner
+               int owner_of_vi = replica2primary[vi];
+               int owner_of_vj = replica2primary[vj];
+               make_replica(owner_of_vj, owner_of_vi);
             }
             break;
          }
@@ -4580,9 +4584,9 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    {
       v2v[i] = i;
    }
-   for (auto &&mi : slaves)
+   for (auto &&r2p : replica2primary)
    {
-      v2v[mi.first] = mi.second;
+      v2v[r2p.first] = r2p.second;
    }
    return v2v;
 }
