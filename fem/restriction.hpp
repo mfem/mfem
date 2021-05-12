@@ -19,6 +19,7 @@ namespace mfem
 {
 
 class FiniteElementSpace;
+  class AssembledSparseMatrix;
 enum class ElementDofOrdering;
 
 /** An enum type to specify if only e1 value is requested (SingleValued) or both
@@ -47,6 +48,8 @@ protected:
    Array<int> indices;
    Array<int> gatherMap;
 
+  friend class AssembledSparseMatrix;
+  
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
@@ -78,6 +81,7 @@ public:
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this ElementRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
+
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
@@ -185,6 +189,44 @@ int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
                   const int size1d, const int index);
 
+  /**
+     Creates a CSR sparse matrix from element matrices assembled usign a mfem::ElementDofOrdering
+   */
+class AssembledSparseMatrix : public mfem::SparseMatrix {
+public:
+
+  /**
+   * @brief AssembledSparseMatrix creates a SparseMatrix based on finite element spaces and ElementDofOrdering
+   *
+   * @param[in] test Test finite element space
+   * @param[in] trial Trial finite element space
+   * @param[in] elem_order ElementDofOrdering chosen for both spaces
+   */
+  AssembledSparseMatrix(const mfem::FiniteElementSpace& test,   // test_elem_dofs * ne * vdim x vdim * test_ndofs
+                        const mfem::FiniteElementSpace& trial,  // trial_elem_dofs * ne * vdim x vdim * trial_ndofs
+                        mfem::ElementDofOrdering        elem_order);
+
+  /// Updates SparseMatrix entries based on new element assembled matrices
+  virtual void FillData(const mfem::Vector& ea_data);
+
+protected:  
+  const mfem::FiniteElementSpace& test_fes;
+  const mfem::FiniteElementSpace& trial_fes;
+  // class local ElementRestriction objects
+  mfem::ElementRestriction        test_restriction;
+  mfem::ElementRestriction        trial_restriction;
+  mfem::ElementDofOrdering        elem_ordering;
+  mfem::Array<int>                ea_map;
+  
+private:
+  int  FillI();
+  void FillJ();
+
+};
+
+
 }
+
+
 
 #endif //MFEM_RESTRICTION

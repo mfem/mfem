@@ -1447,4 +1447,227 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
    }
 }
 
+AssembledSparseMatrix::AssembledSparseMatrix(const mfem::FiniteElementSpace& test,   // test_elem_dofs * ne * vdim x vdim * test_ndofs
+                        const mfem::FiniteElementSpace& trial,  // trial_elem_dofs * ne * vdim x vdim * trial_ndofs
+                        mfem::ElementDofOrdering        elem_order)
+      : mfem::SparseMatrix(test.GetNDofs() * test.GetVDim(), trial.GetNDofs() * trial.GetVDim()),
+        test_fes(test),
+        trial_fes(trial),
+        test_restriction(test, elem_order),
+        trial_restriction(trial, elem_order),
+        elem_ordering(elem_order)
+  {
+    GetMemoryI().New(Height() + 1, GetMemoryI().GetMemoryType());
+
+    const int nnz = FillI();
+    GetMemoryJ().New(nnz, GetMemoryJ().GetMemoryType());
+    GetMemoryData().New(nnz, GetMemoryData().GetMemoryType());
+    FillJ();
+
+    // zero initialize the data
+    for (int i = 0; i < nnz; i++) {
+      A[i] = 0.;
+    }
+  }
+
+int AssembledSparseMatrix::FillI()
+{
+  [[maybe_unused]] auto& test_offsets = test_restriction.offsets;  // offsets for rows.. each row is a test_vdof
+  [[maybe_unused]] auto& test_indices = test_restriction.indices;  // returns (test_elem_dof , ne) id corresponding to a test_vdof_offset
+  [[maybe_unused]] auto& test_gatherMap  = test_restriction.gatherMap;  // returns test_vdof
+  [[maybe_unused]] auto& trial_offsets   = trial_restriction.offsets;
+  [[maybe_unused]] auto& trial_indices   = trial_restriction.indices;
+  [[maybe_unused]] auto& trial_gatherMap = trial_restriction.gatherMap;
+
+  /**
+     We expect mat_ea to be of size (test_elem_dof * test_vdim, trial_elem_dof * trial_vdim, ne)
+     We assume a consistent striding from (elem_dof, vd) within each element
+
+   */
+  const int test_elem_dof  = test_fes.GetFE(0)->GetDof();
+  const int trial_elem_dof = trial_fes.GetFE(0)->GetDof();
+  const int test_vdim      = test_fes.GetVDim();
+  const int trial_vdim     = trial_fes.GetVDim();
+  const int test_ndofs     = test_fes.GetNDofs();
+
+  auto I = ReadWriteI();
+  for (int i = 0; i < test_vdim * test_ndofs; i++) {
+    I[i] = 0;
+  }
+
+  for (int test_vdof = 0; test_vdof < test_fes.GetNDofs(); test_vdof++) {
+    // Look through each element corresponding to a test_vdof
+    const int test_row_offset = test_offsets[test_vdof];
+    const int nrow_elems      = test_offsets[test_vdof + 1] - test_row_offset;
+
+    // Build temporary array to get rid of duplicates
+    mfem::Array<int> trial_vdofs(nrow_elems * trial_elem_dof);
+    trial_vdofs = -1;
+    int nnz_row = 0;
+    for (int e_index = 0; e_index < nrow_elems; e_index++) {
+      const int                  test_offset = test_indices[test_row_offset + e_index];
+      const int                  e           = test_offset / test_elem_dof;
+      [[maybe_unused]] const int test_i_elem = test_offset % test_elem_dof;
+
+      // find corresponding trial_vdofs
+      mfem::Array<int> trial_elem_vdofs(trial_elem_dof);
+      for (int j = 0; j < trial_elem_dof; j++) {
+        const auto trial_j_vdof = trial_gatherMap[trial_elem_dof * e + j];
+        trial_elem_vdofs[j]     = trial_j_vdof;
+        if (trial_vdofs.Find(trial_j_vdof) == -1) {
+          // we haven't seen this before
+          trial_vdofs[nnz_row] = trial_j_vdof;
+          nnz_row++;
+        }
+      }
+    }
+
+    // add entries to I
+    for (int vi = 0; vi < test_vdim; vi++) {
+      I[test_fes.DofToVDof(test_vdof, vi)] = nnz_row * trial_vdim;
+    }
+  }
+
+  // Perform inclusive scan on all entries
+  int nnz = 0;
+  for (int i = 0; i < test_ndofs * trial_vdim; i++) {
+    int temp = I[i];
+    I[i]     = nnz;
+    nnz += temp;
+  }
+  I[test_ndofs * trial_vdim] = nnz;
+
+  return nnz;
+}
+
+void AssembledSparseMatrix::FillJ()
+{
+  auto I = ReadWriteI();
+  auto J = WriteJ();
+
+  [[maybe_unused]] auto& test_offsets = test_restriction.offsets;  // offsets for rows.. each row is a test_vdof
+  [[maybe_unused]] auto& test_indices = test_restriction.indices;  // returns (test_elem_dof , ne) id corresponding to a test_vdof_offset
+  [[maybe_unused]] auto& test_gatherMap  = test_restriction.gatherMap;  // returns test_vdof
+  [[maybe_unused]] auto& trial_offsets   = trial_restriction.offsets;
+  [[maybe_unused]] auto& trial_indices   = trial_restriction.indices;
+  [[maybe_unused]] auto& trial_gatherMap = trial_restriction.gatherMap;
+
+  const int                  test_elem_dof  = test_fes.GetFE(0)->GetDof();
+  const int                  trial_elem_dof = trial_fes.GetFE(0)->GetDof();
+  const int                  test_vdim      = test_fes.GetVDim();
+  const int                  trial_vdim     = trial_fes.GetVDim();
+  [[maybe_unused]] const int test_ndofs     = test_fes.GetNDofs();
+
+  const int ne = trial_fes.GetNE();
+  ea_map.SetSize(test_elem_dof * test_vdim * trial_elem_dof * trial_vdim * ne);
+  auto map_ea = Reshape(ea_map.ReadWrite(), test_elem_dof * test_vdim, trial_elem_dof * trial_vdim, ne);
+
+  // initialize J
+  for (int j = 0; j < this->J.Capacity(); j++) {
+    this->J[j] = -1;
+  }
+
+  for (int test_vdof = 0; test_vdof < test_fes.GetNDofs(); test_vdof++) {
+    // Look through each element corresponding to a test_vdof
+    const int test_row_offset = test_offsets[test_vdof];
+    const int nrow_elems      = test_offsets[test_vdof + 1] - test_row_offset;
+
+    // here we assume all the components have the same number of columns
+    const int        nnz_row = I[test_fes.DofToVDof(test_vdof, 0) + 1] - I[test_fes.DofToVDof(test_vdof, 0)];
+    mfem::Array<int> trial_vdofs(nnz_row);
+    trial_vdofs      = -1;
+    int j_vdof_index = 0;
+
+    // Build temporary array for assembled J
+    for (int e_index = 0; e_index < nrow_elems; e_index++) {
+      const int                  test_offset = test_indices[test_row_offset + e_index];
+      const int                  e           = test_offset / test_elem_dof;
+      [[maybe_unused]] const int test_i_elem = test_offset % test_elem_dof;
+
+      // find corresponding trial_vdofs
+      mfem::Array<int> trial_elem_vdofs(trial_elem_dof);
+      for (int j_elem = 0; j_elem < trial_elem_dof; j_elem++) {
+        const auto trial_j_vdof  = trial_gatherMap[trial_elem_dof * e + j_elem];
+        trial_elem_vdofs[j_elem] = trial_j_vdof;
+
+        auto find_index = trial_vdofs.Find(trial_j_vdof);
+        if (find_index == -1) {
+          // we haven't seen this before
+          trial_vdofs[j_vdof_index] = trial_j_vdof;
+
+          // we can add this entry to J
+          for (int vi = 0; vi < test_vdim; vi++) {
+            const auto i_dof_offset = I[test_fes.DofToVDof(test_vdof, vi)];
+
+            // this access pattern corresnponds to j_vdof_index + vj * nnz_row
+            for (int vj = 0; vj < trial_vdim; vj++) {
+              const auto column_index = j_vdof_index + vj * nnz_row / trial_vdim;
+              const auto j_nnz_index  = i_dof_offset + column_index;
+              J[j_nnz_index]          = trial_fes.DofToVDof(trial_vdofs[j_vdof_index], vj);
+            }
+          }
+
+          // write mapping from ea to csr_nnz_index (can probably optimize this)
+          for (int vi = 0; vi < test_vdim; vi++) {
+            const auto i_dof_offset = I[test_fes.DofToVDof(test_vdof, vi)];
+            for (int vj = 0; vj < trial_vdim; vj++) {
+              const auto column_index = j_vdof_index + vj * nnz_row / trial_vdim;
+              map_ea(test_i_elem + test_elem_dof * vi, j_elem + trial_elem_dof * vj, e) = i_dof_offset + column_index;
+            }
+          }
+
+          j_vdof_index++;
+        } else {
+          // this is a duplicate entry
+          // write mapping from ea to csr_nnz_index (can probably optimize this)
+          for (int vi = 0; vi < test_vdim; vi++) {
+            const auto i_dof_offset = I[test_fes.DofToVDof(test_vdof, vi)];
+            for (int vj = 0; vj < trial_vdim; vj++) {
+              const auto column_index = find_index + vj * nnz_row / trial_vdim;
+              map_ea(test_i_elem + test_elem_dof * vi, j_elem + trial_elem_dof * vj, e) = i_dof_offset + column_index;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+void AssembledSparseMatrix::FillData(const mfem::Vector& ea_data)
+{
+  auto Data = WriteData();
+
+  [[maybe_unused]] auto& test_offsets = test_restriction.offsets;  // offsets for rows.. each row is a test_vdof
+  [[maybe_unused]] auto& test_indices = test_restriction.indices;  // returns (test_elem_dof , ne) id corresponding to a test_vdof_offset
+  [[maybe_unused]] auto& test_gatherMap  = test_restriction.gatherMap;  // returns test_vdof
+  [[maybe_unused]] auto& trial_offsets   = trial_restriction.offsets;
+  [[maybe_unused]] auto& trial_indices   = trial_restriction.indices;
+  [[maybe_unused]] auto& trial_gatherMap = trial_restriction.gatherMap;
+  
+  const int                  test_elem_dof  = test_fes.GetFE(0)->GetDof();
+  const int                  trial_elem_dof = trial_fes.GetFE(0)->GetDof();
+  const int                  test_vdim      = test_fes.GetVDim();
+  const int                  trial_vdim     = trial_fes.GetVDim();
+  [[maybe_unused]] const int test_ndofs     = test_fes.GetNDofs();
+
+  const int ne = trial_fes.GetNE();
+
+  auto map_ea = Reshape(ea_map.Read(), test_elem_dof * test_vdim, trial_elem_dof * trial_vdim, ne);
+
+  auto mat_ea = Reshape(ea_data.Read(), test_elem_dof * test_vdim, trial_elem_dof * trial_vdim, ne);
+
+  // Use map_ea to take ea_data directly to CSR entry
+  for (int e = 0; e < ne; e++) {
+    for (int i_elem = 0; i_elem < test_elem_dof; i_elem++) {
+      for (int vi = 0; vi < test_vdim; vi++) {
+        for (int j_elem = 0; j_elem < trial_elem_dof; j_elem++) {
+          for (int vj = 0; vj < trial_vdim; vj++) {
+            Data[map_ea(i_elem + vi * test_elem_dof, j_elem + vj * trial_elem_dof, e)] +=
+                mat_ea(i_elem + vi * test_elem_dof, j_elem + vj * trial_elem_dof, e);
+          }
+        }
+      }
+    }
+  }
+}
+
 } // namespace mfem
