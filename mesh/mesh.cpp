@@ -4497,7 +4497,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    add(xMax, -1.0, xMin, xDiff);
    double dia = xDiff.Norml2(); // compute mesh diameter
 
-   // We now identify coincident verties. Several originally distinct vertices
+   // We now identify coincident vertices. Several originally distinct vertices
    // may become coincident under the periodic mapping. One of these vertices
    // will be identified as the "primary" vertex, and all other coincident
    // vertices will be considered as "replicas".
