@@ -114,8 +114,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
 
                kernels::internal::PullEval(qx,qy,qz,QQQ,D);
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ0,p0);
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ1,p1);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ0,p0);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
 
                const double dist = D; // GetValues, default comp set to 0
                const double id2 = 0.5 / (dist*dist);

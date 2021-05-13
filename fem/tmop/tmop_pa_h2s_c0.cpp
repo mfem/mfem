@@ -82,7 +82,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
             const double weight_m = weight * lim_normal * coeff0;
 
             double D;
-            kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ,D);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,D);
             const double dist = D; // GetValues, default comp set to 0
 
             // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);

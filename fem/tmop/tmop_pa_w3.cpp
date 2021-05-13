@@ -123,7 +123,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
                // Jpr = X^t.DSh
                double Jpr[9];
-               kernels::internal::PullGrad<MQ1>(qx,qy,qz, QQQ, Jpr);
+               kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz, QQQ, Jpr);
 
                // Jpt = X^t.DS = (X^t.DSh).Jrt = Jpr.Jrt
                double Jpt[9];

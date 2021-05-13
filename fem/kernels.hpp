@@ -241,12 +241,13 @@ MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
 }
 
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
+MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
+                                      const int qx, const int qy,
                                       double (&sQQ)[NBZ][MQ1*MQ1],
                                       double &P)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   DeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
+   DeviceMatrix QQ(sQQ[tidz], Q1D, Q1D);
    PullEval(qx,qy,QQ,P);
 }
 
@@ -337,13 +338,14 @@ MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
 
 /// Pull 2D Evaluation
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
+MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
+                                      const int qx, const int qy,
                                       const double (&sQQ)[2][NBZ][MQ1*MQ1],
                                       double (&P)[2])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   ConstDeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
-   ConstDeviceMatrix QQ1(sQQ[1][tidz], MQ1, MQ1);
+   ConstDeviceMatrix QQ0(sQQ[0][tidz], Q1D, Q1D);
+   ConstDeviceMatrix QQ1(sQQ[1][tidz], Q1D, Q1D);
 
    P[0] = QQ0(qx,qy);
    P[1] = QQ1(qx,qy);
@@ -351,13 +353,14 @@ MFEM_HOST_DEVICE inline void PullEval(const int qx, const int qy,
 
 /// Push 2D Evaluation
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PushEval(const int qx, const int qy,
+MFEM_HOST_DEVICE inline void PushEval(const int Q1D,
+                                      const int qx, const int qy,
                                       const double *P,
                                       double (&sQQ)[2][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   DeviceMatrix QQ0(sQQ[0][tidz], MQ1, MQ1);
-   DeviceMatrix QQ1(sQQ[1][tidz], MQ1, MQ1);
+   DeviceMatrix QQ0(sQQ[0][tidz], Q1D, Q1D);
+   DeviceMatrix QQ1(sQQ[1][tidz], Q1D, Q1D);
 
    QQ0(qx,qy) = P[0];
    QQ1(qx,qy) = P[1];
@@ -512,15 +515,16 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
 
 /// Pull 2D Gradient
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PullGrad(const int qx, const int qy,
+MFEM_HOST_DEVICE inline void PullGrad(const int Q1D,
+                                      const int qx, const int qy,
                                       const double (&sQQ)[4][NBZ][MQ1*MQ1],
                                       double *Jpr)
 {
    const int tidz = MFEM_THREAD_ID(z);
-   ConstDeviceMatrix X0GB(sQQ[0][tidz], MQ1, MQ1);
-   ConstDeviceMatrix X0BG(sQQ[1][tidz], MQ1, MQ1);
-   ConstDeviceMatrix X1GB(sQQ[2][tidz], MQ1, MQ1);
-   ConstDeviceMatrix X1BG(sQQ[3][tidz], MQ1, MQ1);
+   ConstDeviceMatrix X0GB(sQQ[0][tidz], Q1D, Q1D);
+   ConstDeviceMatrix X0BG(sQQ[1][tidz], Q1D, Q1D);
+   ConstDeviceMatrix X1GB(sQQ[2][tidz], Q1D, Q1D);
+   ConstDeviceMatrix X1BG(sQQ[3][tidz], Q1D, Q1D);
 
    Jpr[0] = X0GB(qx,qy);
    Jpr[1] = X1GB(qx,qy);
@@ -530,15 +534,16 @@ MFEM_HOST_DEVICE inline void PullGrad(const int qx, const int qy,
 
 /// Push 2D Gradient
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PushGrad(const int qx, const int qy,
+MFEM_HOST_DEVICE inline void PushGrad(const int Q1D,
+                                      const int qx, const int qy,
                                       const double *A,
                                       double (&sQQ)[4][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   DeviceMatrix X0GB(sQQ[0][tidz], MQ1, MQ1);
-   DeviceMatrix X0BG(sQQ[1][tidz], MQ1, MQ1);
-   DeviceMatrix X1GB(sQQ[2][tidz], MQ1, MQ1);
-   DeviceMatrix X1BG(sQQ[3][tidz], MQ1, MQ1);
+   DeviceMatrix X0GB(sQQ[0][tidz], Q1D, Q1D);
+   DeviceMatrix X0BG(sQQ[1][tidz], Q1D, Q1D);
+   DeviceMatrix X1GB(sQQ[2][tidz], Q1D, Q1D);
+   DeviceMatrix X1BG(sQQ[3][tidz], Q1D, Q1D);
 
    X0GB(qx,qy) = A[0];
    X1GB(qx,qy) = A[2];
@@ -798,11 +803,12 @@ MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
 }
 
 template<int MQ1>
-MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
+MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
+                                      const int x, const int y, const int z,
                                       const double (&sQQQ)[MQ1*MQ1*MQ1],
                                       double &X)
 {
-   const DeviceCube QQQ(sQQQ, MQ1, MQ1, MQ1);
+   const DeviceCube QQQ(sQQQ, Q1D, Q1D, Q1D);
    PullEval(x,y,z,QQQ,X);
 }
 
@@ -947,13 +953,14 @@ MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
 
 /// Pull 3D Vector Evaluation
 template<int MQ1>
-MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
+MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
+                                      const int x, const int y, const int z,
                                       const double (&sQQQ)[3][MQ1*MQ1*MQ1],
                                       double (&X)[3])
 {
-   ConstDeviceCube XxBBB(sQQQ[0], MQ1, MQ1, MQ1);
-   ConstDeviceCube XyBBB(sQQQ[1], MQ1, MQ1, MQ1);
-   ConstDeviceCube XzBBB(sQQQ[2], MQ1, MQ1, MQ1);
+   ConstDeviceCube XxBBB(sQQQ[0], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBBB(sQQQ[1], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBBB(sQQQ[2], Q1D, Q1D, Q1D);
 
    X[0] = XxBBB(x,y,z);
    X[1] = XyBBB(x,y,z);
@@ -962,13 +969,14 @@ MFEM_HOST_DEVICE inline void PullEval(const int x, const int y, const int z,
 
 /// Push 3D Vector Evaluation
 template<int MQ1>
-MFEM_HOST_DEVICE inline void PushEval(const int x, const int y, const int z,
+MFEM_HOST_DEVICE inline void PushEval(const int Q1D,
+                                      const int x, const int y, const int z,
                                       const double (&A)[3],
                                       double (&sQQQ)[3][MQ1*MQ1*MQ1])
 {
-   DeviceCube XxBBB(sQQQ[0], MQ1, MQ1, MQ1);
-   DeviceCube XyBBB(sQQQ[1], MQ1, MQ1, MQ1);
-   DeviceCube XzBBB(sQQQ[2], MQ1, MQ1, MQ1);
+   DeviceCube XxBBB(sQQQ[0], Q1D, Q1D, Q1D);
+   DeviceCube XyBBB(sQQQ[1], Q1D, Q1D, Q1D);
+   DeviceCube XzBBB(sQQQ[2], Q1D, Q1D, Q1D);
 
    XxBBB(x,y,z) = A[0];
    XyBBB(x,y,z) = A[1];
@@ -1283,19 +1291,20 @@ MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
 
 /// Pull 3D Gradient
 template<int MQ1>
-MFEM_HOST_DEVICE inline void PullGrad(const int x, const int y, const int z,
+MFEM_HOST_DEVICE inline void PullGrad(const int Q1D,
+                                      const int x, const int y, const int z,
                                       const double (*sQQQ)[MQ1*MQ1*MQ1],
                                       double *Jpr)
 {
-   ConstDeviceCube XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
-   ConstDeviceCube XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
-   ConstDeviceCube XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
-   ConstDeviceCube XyBBG(sQQQ[3], MQ1, MQ1, MQ1);
-   ConstDeviceCube XyBGB(sQQQ[4], MQ1, MQ1, MQ1);
-   ConstDeviceCube XyGBB(sQQQ[5], MQ1, MQ1, MQ1);
-   ConstDeviceCube XzBBG(sQQQ[6], MQ1, MQ1, MQ1);
-   ConstDeviceCube XzBGB(sQQQ[7], MQ1, MQ1, MQ1);
-   ConstDeviceCube XzGBB(sQQQ[8], MQ1, MQ1, MQ1);
+   ConstDeviceCube XxBBG(sQQQ[0], Q1D, Q1D, Q1D);
+   ConstDeviceCube XxBGB(sQQQ[1], Q1D, Q1D, Q1D);
+   ConstDeviceCube XxGBB(sQQQ[2], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBBG(sQQQ[3], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBGB(sQQQ[4], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyGBB(sQQQ[5], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBBG(sQQQ[6], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBGB(sQQQ[7], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzGBB(sQQQ[8], Q1D, Q1D, Q1D);
 
    Jpr[0] = XxBBG(x,y,z);
    Jpr[3] = XxBGB(x,y,z);
@@ -1310,19 +1319,20 @@ MFEM_HOST_DEVICE inline void PullGrad(const int x, const int y, const int z,
 
 /// Push 3D Gradient
 template<int MQ1>
-MFEM_HOST_DEVICE inline void PushGrad(const int x, const int y, const int z,
+MFEM_HOST_DEVICE inline void PushGrad(const int Q1D,
+                                      const int x, const int y, const int z,
                                       const double *A,
                                       double (&sQQQ)[9][MQ1*MQ1*MQ1])
 {
-   DeviceCube XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
-   DeviceCube XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
-   DeviceCube XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
-   DeviceCube XyBBG(sQQQ[3], MQ1, MQ1, MQ1);
-   DeviceCube XyBGB(sQQQ[4], MQ1, MQ1, MQ1);
-   DeviceCube XyGBB(sQQQ[5], MQ1, MQ1, MQ1);
-   DeviceCube XzBBG(sQQQ[6], MQ1, MQ1, MQ1);
-   DeviceCube XzBGB(sQQQ[7], MQ1, MQ1, MQ1);
-   DeviceCube XzGBB(sQQQ[8], MQ1, MQ1, MQ1);
+   DeviceCube XxBBG(sQQQ[0], Q1D, Q1D, Q1D);
+   DeviceCube XxBGB(sQQQ[1], Q1D, Q1D, Q1D);
+   DeviceCube XxGBB(sQQQ[2], Q1D, Q1D, Q1D);
+   DeviceCube XyBBG(sQQQ[3], Q1D, Q1D, Q1D);
+   DeviceCube XyBGB(sQQQ[4], Q1D, Q1D, Q1D);
+   DeviceCube XyGBB(sQQQ[5], Q1D, Q1D, Q1D);
+   DeviceCube XzBBG(sQQQ[6], Q1D, Q1D, Q1D);
+   DeviceCube XzBGB(sQQQ[7], Q1D, Q1D, Q1D);
+   DeviceCube XzGBB(sQQQ[8], Q1D, Q1D, Q1D);
 
    XxBBG(x,y,z) = A[0];
    XxBGB(x,y,z) = A[1];

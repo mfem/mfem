@@ -70,7 +70,7 @@ static void Det2D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double J[4];
-            kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,J);
+            kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,J);
             Y(qx,qy,e) = kernels::Det<2>(J);
          }
       }
@@ -138,7 +138,7 @@ static void Det3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double J[9];
-               kernels::internal::PullGrad<MQ1>(qx,qy,qz, QQQ, J);
+               kernels::internal::PullGrad<MQ1>(Q1D, qx,qy,qz, QQQ, J);
                Y(qx,qy,qz,e) = kernels::Det<3>(J);
             }
          }

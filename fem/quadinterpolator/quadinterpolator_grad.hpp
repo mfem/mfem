@@ -65,15 +65,15 @@ static void Derivatives2D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double BG[2][MQ1*MD1];
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
-      DeviceMatrix B(BG[0], MD1, MQ1);
-      DeviceMatrix G(BG[1], MD1, MQ1);
+      DeviceMatrix B(BG[0], D1D, Q1D);
+      DeviceMatrix G(BG[1], D1D, Q1D);
 
       MFEM_SHARED double XY[NBZ][MD1*MD1];
-      DeviceTensor<2> X((double*)(XY+tidz), MD1, MD1);
+      DeviceTensor<2> X((double*)(XY+tidz), D1D, D1D);
 
       MFEM_SHARED double s_DQ[2][NBZ][MD1*MQ1];
-      DeviceTensor<2> DQ0(s_DQ[0][tidz], MD1, MQ1);
-      DeviceTensor<2> DQ1(s_DQ[1][tidz], MD1, MQ1);
+      DeviceTensor<2> DQ0(s_DQ[0][tidz], D1D, Q1D);
+      DeviceTensor<2> DQ1(s_DQ[1][tidz], D1D, Q1D);
 
       for (int c = 0; c < VDIM; ++c)
       {
@@ -171,17 +171,17 @@ static void Derivatives3D(const int NE,
 
       MFEM_SHARED double BG[2][MQ1*MD1];
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
-      DeviceMatrix B(BG[0], MD1, MQ1);
-      DeviceMatrix G(BG[1], MD1, MQ1);
+      DeviceMatrix B(BG[0], D1D, Q1D);
+      DeviceMatrix G(BG[1], D1D, Q1D);
 
       MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
       MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
-      DeviceTensor<3> X(sm0[2], MD1, MD1, MD1);
-      DeviceTensor<3> DDQ0(sm0[0], MD1, MD1, MQ1);
-      DeviceTensor<3> DDQ1(sm0[1], MD1, MD1, MQ1);
-      DeviceTensor<3> DQQ0(sm1[0], MD1, MQ1, MQ1);
-      DeviceTensor<3> DQQ1(sm1[1], MD1, MQ1, MQ1);
-      DeviceTensor<3> DQQ2(sm1[2], MD1, MQ1, MQ1);
+      DeviceTensor<3> X(sm0[2], D1D, D1D, D1D);
+      DeviceTensor<3> DDQ0(sm0[0], D1D, D1D, Q1D);
+      DeviceTensor<3> DDQ1(sm0[1], D1D, D1D, Q1D);
+      DeviceTensor<3> DQQ0(sm1[0], D1D, Q1D, Q1D);
+      DeviceTensor<3> DQQ1(sm1[1], D1D, Q1D, Q1D);
+      DeviceTensor<3> DQQ2(sm1[2], D1D, Q1D, Q1D);
 
       for (int c = 0; c < VDIM; ++c)
       {

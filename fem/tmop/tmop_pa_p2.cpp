@@ -120,7 +120,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
 
             // Jpr = X{^T}.DSh
             double Jpr[4];
-            kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jpr);
+            kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,Jpr);
 
             // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = Jpr.Jrt
             double Jpt[4];
@@ -137,7 +137,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
             // PMatO += DS . P^t += DSh . (Jrt . P^t)
             double A[4];
             kernels::MultABt(2,2,2, Jrt, P, A);
-            kernels::internal::PushGrad<MQ1,NBZ>(qx,qy,A,QQ);
+            kernels::internal::PushGrad<MQ1,NBZ>(Q1D,qx,qy,A,QQ);
          }
       }
       MFEM_SYNC_THREAD;

@@ -103,9 +103,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
 
             double ld, p0[2], p1[2];
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
-            kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ,ld);
-            kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ0,p0);
-            kernels::internal::PullEval<MQ1,NBZ>(qx,qy,QQ1,p1);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,ld);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
 
             const double dist = ld; // GetValues, default comp set to 0
 
@@ -117,7 +117,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             const double a = 1.0 / (dist * dist);
             const double w = weight * lim_normal * coeff0;
             kernels::Subtract<2>(w*a, p1, p0, d1);
-            kernels::internal::PushEval<MQ1,NBZ>(qx,qy,d1,QQ0);
+            kernels::internal::PushEval<MQ1,NBZ>(Q1D,qx,qy,d1,QQ0);
          }
       }
       MFEM_SYNC_THREAD;

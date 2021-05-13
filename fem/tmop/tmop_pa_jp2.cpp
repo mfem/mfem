@@ -63,7 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_2D,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double J[4];
-            kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,J);
+            kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,J);
             E(qx,qy,e) = kernels::Det<2>(J);
          }
       }
