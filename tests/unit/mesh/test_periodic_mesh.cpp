@@ -54,9 +54,9 @@ TEST_CASE("Periodic mesh", "[Mesh]")
                      orig_mesh,
                      orig_mesh.CreatePeriodicVertexMapping(translations));
       REQUIRE(mesh.GetNV() == pow(n-1,2) + 2*(n-1) + 1);
-      const Table &e2e = mesh.ElementToElementTable();
       if (el == Element::QUADRILATERAL)
       {
+         const Table &e2e = mesh.ElementToElementTable();
          for (int i=0; i<n; ++i)
          {
             // Bottom row connected to top row
@@ -81,9 +81,9 @@ TEST_CASE("Periodic mesh", "[Mesh]")
                      orig_mesh,
                      orig_mesh.CreatePeriodicVertexMapping(translations));
       REQUIRE(mesh.GetNV() == pow(n-1,3) + 3*pow(n-1,2) + 3*(n-1) + 1);
-      const Table &e2e = mesh.ElementToElementTable();
       if (el == Element::HEXAHEDRON)
       {
+         const Table &e2e = mesh.ElementToElementTable();
          int n2 = n*n;
          for (int j=0; j<n; ++j)
          {
