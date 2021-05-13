@@ -1222,6 +1222,19 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
    }
 }
 
+namespace internal
+{
+
+// MFEM_FORALL-based copy kernel -- used by protected methods below.
+// Needed as a workaround for the nvcc restriction that methods with MFEM_FORALL
+// in them must to be public.
+static inline void device_copy(double *d_dest, const double *d_src, int size)
+{
+   MFEM_FORALL(i, size, d_dest[i] = d_src[i];);
+}
+
+} // namespace internal
+
 #ifdef MFEM_USE_MPI
 void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
                                                     &tspec_)
@@ -1249,7 +1262,7 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
    const int offset = idx*dof_cnt;
-   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
+   internal::device_copy(tspec_d + offset, tspec__d, dof_cnt*vdim);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
 
@@ -1292,7 +1305,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
    SetParDiscreteTargetSize(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
-#endif
+#endif // MFEM_USE_MPI
 
 void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
@@ -1315,11 +1328,11 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 
    const auto tspec_temp_d = tspec_temp.Read();
    auto tspec_d = tspec.ReadWrite();
-   MFEM_FORALL(i, tspec_temp.Size(), tspec_d[i] = tspec_temp_d[i];);
+   internal::device_copy(tspec_d, tspec_temp_d, tspec_temp.Size());
 
    const auto tspec__d = tspec_.Read();
    const int offset = (ncomp-vdim)*dof_cnt;
-   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
+   internal::device_copy(tspec_d + offset, tspec__d, dof_cnt*vdim);
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
@@ -1330,7 +1343,7 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
    const int offset = idx*dof_cnt;
-   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
+   internal::device_copy(tspec_d + offset, tspec__d, dof_cnt*vdim);
    FinalizeSerialDiscreteTargetSpec();
 }
 
@@ -2109,6 +2122,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
    lim_dist = &dist;
    if (PA.enabled) { EnableLimitingPA(n0); }
 }
+
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
 {
