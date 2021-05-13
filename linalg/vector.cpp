@@ -164,6 +164,18 @@ Vector &Vector::operator*=(double c)
    return *this;
 }
 
+Vector &Vector::operator*=(const Vector &v)
+{
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= x[i];);
+   return *this;
+}
+
 Vector &Vector::operator/=(double c)
 {
    const bool use_dev = UseDevice();
@@ -171,6 +183,18 @@ Vector &Vector::operator/=(double c)
    const double m = 1.0/c;
    auto y = ReadWrite(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= m;);
+   return *this;
+}
+
+Vector &Vector::operator/=(const Vector &v)
+{
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] /= x[i];);
    return *this;
 }
 
