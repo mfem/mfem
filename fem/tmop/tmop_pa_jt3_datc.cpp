@@ -21,7 +21,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
                            const int NE,
                            const int ncomp,
                            const int sizeidx,
-                           const DenseMatrix w_, // Copy
+                           const DenseMatrix &w_,
                            const Array<double> &b_,
                            const Vector &x_,
                            DenseTensor &j_,
