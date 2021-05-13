@@ -102,7 +102,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
             {
                double Jtr[9];
                const double *Wid = &Wideal(0,0);
-               kernels::internal::PullGrad<MQ1>(qx,qy,qz,QQQ,Jtr);
+               kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz,QQQ,Jtr);
                const double detJ = kernels::Det<3>(Jtr);
                const double alpha = std::pow(detJ/detW,1./3);
                kernels::Set(DIM,DIM,alpha,Wid,&J(0,0,qx,qy,qz,e));

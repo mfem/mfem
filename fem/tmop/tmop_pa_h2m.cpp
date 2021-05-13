@@ -72,7 +72,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
 
             // Jpr = X^T.DSh
             double Jpr[4];
-            kernels::internal::PullGrad<MQ1,NBZ>(qx,qy,QQ,Jpr);
+            kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,Jpr);
 
             // Jpt = Jpr . Jrt
             double Jpt[4];
@@ -101,7 +101,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
             kernels::MultABt(2,2,2, Jrt, B, C);
 
             // Overwrite QQ = Jrt . (Jpt : H)^t
-            kernels::internal::PushGrad<MQ1,NBZ>(qx,qy, C, QQ);
+            kernels::internal::PushGrad<MQ1,NBZ>(Q1D,qx,qy, C, QQ);
          }
       }
       MFEM_SYNC_THREAD;

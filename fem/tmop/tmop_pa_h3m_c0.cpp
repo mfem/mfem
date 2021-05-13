@@ -68,7 +68,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
             {
                // Xh = X^T . Sh
                double Xh[3];
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ,Xh);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ,Xh);
 
                double B[9];
                DeviceMatrix H(B,3,3);
@@ -83,7 +83,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
                // p2 = B . Xh
                double p2[3];
                kernels::Mult(3,3,B,Xh,p2);
-               kernels::internal::PushEval<MQ1>(qx,qy,qz,p2,QQQ);
+               kernels::internal::PushEval<MQ1>(Q1D,qx,qy,qz,p2,QQQ);
             }
          }
       }

@@ -113,8 +113,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
                double D, p0[3], p1[3];
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
                kernels::internal::PullEval(qx,qy,qz,QQQ,D);
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ0,p0);
-               kernels::internal::PullEval<MQ1>(qx,qy,qz,QQQ1,p1);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ0,p0);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
 
                double d1[3];
                // Eval_d1
@@ -125,7 +125,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
                const double a = 1.0 / (dist * dist);
                const double w = weight * lim_normal * coeff0;
                kernels::Subtract<3>(w*a, p1, p0, d1);
-               kernels::internal::PushEval<MQ1>(qx,qy,qz,d1,QQQ0);
+               kernels::internal::PushEval<MQ1>(Q1D,qx,qy,qz,d1,QQQ0);
             }
          }
       }
