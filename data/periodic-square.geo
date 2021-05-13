@@ -6,7 +6,7 @@ Point(2) = {1, 0, 0, 1.0};
 Point(3) = {1, 1, 0, 1.0};
 Point(4) = {0, 1, 0, 1.0};
 
-MeshSize {:} = 0.25;
+Characteristic Length {:} = 0.25;
 
 Line(1) = {1, 2};
 Line(2) = {2, 3};
