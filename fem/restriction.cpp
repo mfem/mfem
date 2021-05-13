@@ -1472,9 +1472,13 @@ AssembledSparseMatrix::AssembledSparseMatrix(const mfem::FiniteElementSpace& tes
 
 int AssembledSparseMatrix::FillI()
 {
-  [[maybe_unused]] auto& test_offsets = test_restriction.offsets;  // offsets for rows.. each row is a test_vdof
-  [[maybe_unused]] auto& test_indices = test_restriction.indices;  // returns (test_elem_dof , ne) id corresponding to a test_vdof_offset
-  [[maybe_unused]] auto& test_gatherMap  = test_restriction.gatherMap;  // returns test_vdof
+  // ElementRestriction creates a CSR matrix that maps vdof -> (dof, ne).
+  // offsets are the row offsets corresponding to a vdof
+  // indices maps a given vdof to the the assembled element matrix vector (dof * ne + d).
+  // gatherMap takes an element matrix vector offset (dof, ne) and returns the partition-local vdof (d.o.f. id).
+  [[maybe_unused]] auto& test_offsets = test_restriction.offsets;  
+  [[maybe_unused]] auto& test_indices = test_restriction.indices;    
+  [[maybe_unused]] auto& test_gatherMap  = test_restriction.gatherMap;
   [[maybe_unused]] auto& trial_offsets   = trial_restriction.offsets;
   [[maybe_unused]] auto& trial_indices   = trial_restriction.indices;
   [[maybe_unused]] auto& trial_gatherMap = trial_restriction.gatherMap;

@@ -224,7 +224,48 @@ int main(int argc, char *argv[])
      }
    }
    std::cout << "AssembledMatrix Diff Norm: " << sqrt(diff) << std::endl;
-	       
+
+   // test H1 to L2
+
+   {
+     L2_FECollection    fec_l2(order, dim);
+     FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+     MixedBilinearForm blf(&fespace, &fespace_l2);
+     blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+     blf.Assemble(0);
+     blf.Finalize(0);
+
+     SparseMatrix B_mat(blf.SpMat());
+     AssembledSparseMatrix B_assembled_mat(fespace_l2, fespace, ElementDofOrdering::NATIVE);
+     Vector B_elem_mat_data(fespace_l2.GetFE(0)->GetDof() * fespace_l2.GetFE(0)->GetDim() *
+			    fespace.GetFE(0)->GetDof() * fespace.GetFE(0)->GetDim() *
+			    fespace.GetNE());
+     B_elem_mat_data = 0.;
+     DenseTensor B_elem_mat;
+     B_elem_mat.UseExternalData(B_elem_mat_data.GetData(),
+				fespace_l2.GetFE(0)->GetDof() * fespace_l2.GetFE(0)->GetDim(),
+				fespace.GetFE(0)->GetDof() * fespace.GetFE(0)->GetDim(),
+				fespace.GetNE());
+     for (int e = 0; e < fespace.GetNE(); e++) {
+       blf.ComputeElementMatrix(e, B_elem_mat(e));
+     }
+     B_assembled_mat.FillData(B_elem_mat_data);
+     B_assembled_mat.Finalize();
+
+     double diff = 0.;
+     for (int r = 0; r < B_assembled_mat.Height(); r++) {
+       auto columns = B_assembled_mat.GetRowColumns(r);
+       for (int c = 0; c < B_assembled_mat.RowSize(r); c++) {
+	 diff += (B_mat(r, columns[c]) - B_assembled_mat(r, columns[c])) *
+	   (B_mat(r, columns[c]) - B_assembled_mat(r, columns[c]));
+	 if (fabs(B_mat(r, columns[c]) - B_assembled_mat(r, columns[c])) > 1.e-5) {
+	   std::cout << "(" << r << "," << c << ") " << B_mat(r, columns[c]) << " " << B_assembled_mat(r, columns[c]) << " " << (B_mat(r, columns[c]) - B_assembled_mat(r, columns[c])) << std::endl;
+	 }
+       }
+     }
+     std::cout << "AssembledMatrix H1-L2 Diff Norm: " << sqrt(diff) << std::endl;   
+   }
+   
    /// End test code
    
    OperatorPtr A;
