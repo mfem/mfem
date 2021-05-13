@@ -44,6 +44,10 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
 void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 {
    MFEM_VERIFY(PA.enabled, "EnableLimitingPA but PA is not enabled!");
+   MFEM_VERIFY(lim_func, "No TMOP_LimiterFunction specification!")
+   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
+               "Only TMOP_QuadraticLimiter is supported");
+
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    // Nodes0
@@ -53,24 +57,16 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
    PA.X0.UseDevice(true);
    n0_R->Mult(n0, PA.X0);
 
-   // Get the 1D maps for the distance FE space.
+   // Limiting distances.
+   const FiniteElementSpace *limfes = (lim_dist) ? lim_dist->FESpace() : n0_fes;
    const IntegrationRule &ir = EnergyIntegrationRule(*n0_fes->GetFE(0));
-   PA.maps_lim =
-      &lim_dist->FESpace()->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-
-   // lim_dist & lim_func checks
-   MFEM_VERIFY(lim_dist, "No lim_dist!")
-   const FiniteElementSpace *ld_fes = lim_dist->FESpace();
-   const Operator *ld_R = ld_fes->GetElementRestriction(ordering);
+   PA.maps_lim = &limfes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+   const Operator *ld_R = limfes->GetElementRestriction(ordering);
    MFEM_VERIFY(ld_R, "No lim_dist restriction operator found!");
    PA.LD.SetSize(ld_R->Height(), Device::GetMemoryType());
    PA.LD.UseDevice(true);
-   ld_R->Mult(*lim_dist, PA.LD);
-
-   // Only TMOP_QuadraticLimiter is supported
-   MFEM_VERIFY(lim_func, "No lim_func!")
-   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
-               "Only TMOP_QuadraticLimiter is supported");
+   if (lim_dist) { ld_R->Mult(*lim_dist, PA.LD); }
+   else          { PA.LD = 1.0; }
 }
 
 bool TargetConstructor::ComputeElementTargetsPA(const FiniteElementSpace *fes,
