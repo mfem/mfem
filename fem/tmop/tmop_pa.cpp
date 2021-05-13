@@ -120,7 +120,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    const FiniteElementSpace *fes = PA.fes;
    const IntegrationRule &ir = EnergyIntegrationRule(*fes->GetFE(0));
 
-   const TargetConstructor::TargetType &target_type = targetC->Type();
+   const TargetConstructor::TargetType target_type = targetC->GetTargetType();
    const DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
 
    // Skip when TargetConstructor needs the nodes but have not been set

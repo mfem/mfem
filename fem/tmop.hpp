@@ -891,7 +891,7 @@ public:
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
-   const TargetType &Type() const { return target_type; }
+   TargetType GetTargetType() const { return target_type; }
 
    /// Checks if the target matrices contain non-trivial size specification.
    virtual bool ContainsVolumeInfo() const;
