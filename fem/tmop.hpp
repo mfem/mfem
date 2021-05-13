@@ -855,6 +855,12 @@ protected:
    // computed yet
    void ComputeAvgVolume() const;
 
+   template<int DIM>
+   bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                const IntegrationRule *ir,
+                                DenseTensor &Jtr,
+                                const Vector &xe) const;
+
 public:
    /// Constructor for use in serial
    TargetConstructor(TargetType ttype)
@@ -898,11 +904,6 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   template<int DIM>
-   bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                const IntegrationRule *ir,
-                                DenseTensor &Jtr,
-                                const Vector &xe = Vector()) const;
    virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
                                         const IntegrationRule *ir,
                                         DenseTensor &Jtr,
@@ -1003,16 +1004,12 @@ protected:
    // PA extension
    struct { mutable Vector tspec_e; } PA;
 
-   void FinalizeSerialDiscreteTargetSpec();
-#ifdef MFEM_USE_MPI
-   void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
-#endif
-
-public: // MFEM_FORALL nvcc restriction that it must be public
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
+   void FinalizeSerialDiscreteTargetSpec();
 #ifdef MFEM_USE_MPI
    void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
+   void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
 #endif
 
 public:
