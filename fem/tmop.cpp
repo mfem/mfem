@@ -2120,7 +2120,6 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
 {
    EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
-   if (PA.enabled) { EnableLimitingPA(n0); }
 }
 
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
@@ -2131,14 +2130,9 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    lim_dist = NULL;
 
    delete lim_func;
-   if (lfunc)
-   {
-      lim_func = lfunc;
-   }
-   else
-   {
-      lim_func = new TMOP_QuadraticLimiter;
-   }
+   lim_func = (lfunc) ? lfunc : new TMOP_QuadraticLimiter;
+
+   if (PA.enabled) { EnableLimitingPA(n0); }
 }
 
 void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
