@@ -1319,8 +1319,10 @@ void MemoryManager::EraseDevice(void *h_ptr)
    if (!h_ptr) { return; }
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
-   if (maps->aliases.find(h_ptr) != maps->aliases.end())
+   auto it = maps->aliases.find(h_ptr);
+   if (it != maps->aliases.end())
    {
+      fprintf(stderr, "count = %lu\n", it->second.counter);
       mfem_error("cannot delete aliased obj!");
    }
    internal::Memory &mem = mem_map_iter->second;

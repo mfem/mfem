@@ -238,7 +238,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.O = 1.0;
 
    // TargetConstructor TargetType setup
-   PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq);
+   PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq);//, temp_type);
    ComputeElementTargetsPA();
 
    // Coeff0 PA.C0
