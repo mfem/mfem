@@ -1191,6 +1191,18 @@ protected:
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    // PA extension
+   //  E: E-vector for TMOP-energy
+   //  O: E-Vector or Q-Vector of 1.0
+   //  W: Weight wector of R^t. Constructed as PA.R^T * PA.O
+   // X0: E-vector for initial nodal coordinates used for limiting.
+   //  H: Q-Vector for Hessian associated with the metric term.
+   // C0: Q-Vector for spatial weight used for the limiting term.
+   // LD: E-Vector constructed using limiting distance grid function (delta).
+   // H0: Q-Vector for Hessian associated with the limiting term.
+
+   // maps:     Dof2Quad map for fespace associate with nodal coordinates.
+   // maps_lim: Dof2Quad map for fespace associated with the limiting distance
+   //            grid function.
    struct
    {
       bool enabled;
