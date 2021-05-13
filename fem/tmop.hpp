@@ -1272,6 +1272,35 @@ protected:
       return EnergyIntegrationRule(el);
    }
 
+   // Auxiliary PA methods
+   void AssembleGradPA_2D(const Vector&) const;
+   void AssembleGradPA_3D(const Vector&) const;
+   void AssembleGradPA_C0_2D(const Vector&) const;
+   void AssembleGradPA_C0_3D(const Vector&) const;
+
+   double GetLocalStateEnergyPA_2D(const Vector&) const;
+   double GetLocalStateEnergyPA_C0_2D(const Vector&) const;
+   double GetLocalStateEnergyPA_3D(const Vector&) const;
+   double GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+
+   void AddMultPA_2D(const Vector&, Vector&) const;
+   void AddMultPA_3D(const Vector&, Vector&) const;
+   void AddMultPA_C0_2D(const Vector&, Vector&) const;
+   void AddMultPA_C0_3D(const Vector&, Vector&) const;
+
+   void AddMultGradPA_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_3D(const Vector&, Vector&) const;
+   void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
+
+   void AssembleDiagonalPA_2D(Vector&) const;
+   void AssembleDiagonalPA_3D(Vector&) const;
+   void AssembleDiagonalPA_C0_2D(Vector&) const;
+   void AssembleDiagonalPA_C0_3D(Vector&) const;
+
+   void EnableLimitingPA(const GridFunction &n0);
+   void ComputeElementTargetsPA(const Vector &xe = Vector()) const;
+
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
@@ -1359,42 +1388,20 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
-   /// PA extension
+
+   // PA extension
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
 
-   void AssembleGradPA_2D(const Vector&) const;
-   void AssembleGradPA_3D(const Vector&) const;
-   void AssembleGradPA_C0_2D(const Vector&) const;
-   void AssembleGradPA_C0_3D(const Vector&) const;
-   void AssembleGradPA(const Vector&, const FiniteElementSpace&);
+   virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
 
-   double GetLocalStateEnergyPA_2D(const Vector&) const;
-   double GetLocalStateEnergyPA_C0_2D(const Vector&) const;
-   double GetLocalStateEnergyPA_3D(const Vector&) const;
-   double GetLocalStateEnergyPA_C0_3D(const Vector&) const;
    virtual double GetLocalStateEnergyPA(const Vector&) const;
 
-   void AddMultPA_2D(const Vector&, Vector&) const;
-   void AddMultPA_3D(const Vector&, Vector&) const;
-   void AddMultPA_C0_2D(const Vector&, Vector&) const;
-   void AddMultPA_C0_3D(const Vector&, Vector&) const;
    virtual void AddMultPA(const Vector&, Vector&) const;
 
-   void AddMultGradPA_2D(const Vector&, Vector&) const;
-   void AddMultGradPA_3D(const Vector&, Vector&) const;
-   void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
-   void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
    virtual void AddMultGradPA(const Vector&, Vector&) const;
 
-   void AssembleDiagonalPA_2D(Vector&) const;
-   void AssembleDiagonalPA_3D(Vector&) const;
-   void AssembleDiagonalPA_C0_2D(Vector&) const;
-   void AssembleDiagonalPA_C0_3D(Vector&) const;
    virtual void AssembleGradDiagonalPA(Vector&) const;
-
-   void EnableLimitingPA(const GridFunction &n0);
-   void ComputeElementTargetsPA(const Vector &xe = Vector()) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 
@@ -1466,18 +1473,13 @@ public:
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
 
-   /// PA extension
+   // PA extension
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
-   using NonlinearFormIntegrator::AssembleGradPA;
    virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
-   using NonlinearFormIntegrator::GetLocalStateEnergyPA;
    virtual double GetLocalStateEnergyPA(const Vector&) const;
-   using NonlinearFormIntegrator::AddMultPA;
    virtual void AddMultPA(const Vector&, Vector&) const;
-   using NonlinearFormIntegrator::AddMultGradPA;
    virtual void AddMultGradPA(const Vector&, Vector&) const;
-   using NonlinearFormIntegrator::AssembleGradDiagonalPA;
    virtual void AssembleGradDiagonalPA(Vector&) const;
 };
 

@@ -156,10 +156,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
       x.UseDevice(true);
       PA.R->MultTranspose(xe, x);
       // Scale by weights
-      const int N = PA.W.Size();
-      const auto W = Reshape(PA.W.Read(), N);
-      auto X = Reshape(x.ReadWrite(), N);
-      MFEM_FORALL(i, N, X(i) /= W(i););
+      x /= PA.W;
    }
 
    // Use TargetConstructor::ComputeElementTargets to fill the PA.Jtr
