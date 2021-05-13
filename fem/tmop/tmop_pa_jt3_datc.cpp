@@ -131,7 +131,7 @@ bool DiscreteAdaptTC::ComputeElementTargetsPA(const FiniteElementSpace *pa_fes,
    if (!fes) { return false;}
 
    const FiniteElement &fe = *fes->GetFE(0);
-   const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
+   const DenseMatrix W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
    const int DIM = W.Height();
    const int NE = fes->GetMesh()->GetNE();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
