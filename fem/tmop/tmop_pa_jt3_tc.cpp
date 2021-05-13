@@ -22,7 +22,7 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL,
                            const int NE,
-                           const DenseMatrix w_, // copy
+                           const DenseMatrix &w_,
                            DenseTensor &j_,
                            const int d1d,
                            const int q1d)
@@ -55,7 +55,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
                            const int NE,
                            const Array<double> &b_,
                            const Array<double> &g_,
-                           const DenseMatrix w_ideal_, // copy
+                           const DenseMatrix &w_,
                            const Vector &x_,
                            DenseTensor &j_,
                            const int d1d,
@@ -63,13 +63,13 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
 {
    constexpr int DIM = 3;
 
-   const double detW = w_ideal_.Det();
+   const double detW = w_.Det();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto Wideal = Reshape(w_ideal_.Read(), DIM,DIM);
+   const auto W = Reshape(w_.Read(), DIM,DIM);
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
 
@@ -101,7 +101,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double Jtr[9];
-               const double *Wid = &Wideal(0,0);
+               const double *Wid = &W(0,0);
                kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz,QQQ,Jtr);
                const double detJ = kernels::Det<3>(Jtr);
                const double alpha = std::pow(detJ/detW,1./3);
