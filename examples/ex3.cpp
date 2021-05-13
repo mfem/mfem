@@ -106,8 +106,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+     int ref_levels =
+       (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -169,6 +169,43 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+   /// Test code
+   a->Finalize(0);
+   SparseMatrix A_mat(a->SpMat());
+
+   AssembledSparseMatrix A_assembled_mat(*fespace, *fespace, ElementDofOrdering::NATIVE);
+   Vector A_elem_mat_data(fespace->GetFE(0)->GetDof() * fespace->GetFE(0)->GetDim() *
+			  fespace->GetFE(0)->GetDof() * fespace->GetFE(0)->GetDim() *
+			  fespace->GetNE());
+   A_elem_mat_data = 0.;
+   DenseTensor A_elem_mat;
+   A_elem_mat.UseExternalData(A_elem_mat_data.GetData(),
+			      fespace->GetFE(0)->GetDof() * fespace->GetFE(0)->GetDim(),
+			      fespace->GetFE(0)->GetDof() * fespace->GetFE(0)->GetDim(),
+			      fespace->GetNE());
+   for (int e = 0; e < fespace->GetNE(); e++) {
+     a->ComputeElementMatrix(e, A_elem_mat(e));
+   }
+   A_assembled_mat.FillData(A_elem_mat_data);
+   A_assembled_mat.Finalize();
+   
+   double diff = 0.;
+   for (int r = 0; r < A_assembled_mat.Height(); r++) {
+     auto columns = A_assembled_mat.GetRowColumns(r);
+     for (int c = 0; c < A_assembled_mat.RowSize(r); c++) {
+       const int column_ind = columns[c]  >= 0 ? columns[c] : -1-columns[c];
+       diff += (A_mat(r, column_ind) - A_assembled_mat(r, column_ind)) *
+	 (A_mat(r, column_ind) - A_assembled_mat(r, column_ind));
+       if (fabs(A_mat(r, column_ind) - A_assembled_mat(r, column_ind)) > 1.e-5) {
+	 std::cout << "(" << r << "," << column_ind << ") " << A_mat(r, column_ind) << " " << A_assembled_mat(r, column_ind) << " " << (A_mat(r, column_ind) - A_assembled_mat(r, column_ind)) << std::endl;
+       }
+     }
+   }
+   std::cout << "AssembledMatrix Diff Norm: " << sqrt(diff) << std::endl;
+	       
+   /// End test code
+
+   
    OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);

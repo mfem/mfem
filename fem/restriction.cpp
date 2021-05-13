@@ -1505,14 +1505,18 @@ int AssembledSparseMatrix::FillI()
     trial_vdofs = -1;
     int nnz_row = 0;
     for (int e_index = 0; e_index < nrow_elems; e_index++) {
-      const int                  test_offset = test_indices[test_row_offset + e_index];
-      const int                  e           = test_offset / test_elem_dof;
-      [[maybe_unused]] const int test_i_elem = test_offset % test_elem_dof;
+      // test_indices can be negative in the case of Hcurl
+      const int                  test_index_v = test_indices[test_row_offset + e_index];
+      const int                  test_index = test_index_v >= 0 ? test_index_v : -test_index_v - 1;
+      const int                  e           = test_index / test_elem_dof;
+      [[maybe_unused]] const int test_i_elem = test_index % test_elem_dof;
 
       // find corresponding trial_vdofs
       mfem::Array<int> trial_elem_vdofs(trial_elem_dof);
       for (int j = 0; j < trial_elem_dof; j++) {
-        const auto trial_j_vdof = trial_gatherMap[trial_elem_dof * e + j];
+	// this might be negative
+        const auto trial_j_vdof_v = trial_gatherMap[trial_elem_dof * e + j];
+	const auto trial_j_vdof = trial_j_vdof_v >= 0 ? trial_j_vdof_v : -1 -trial_j_vdof_v;
         trial_elem_vdofs[j]     = trial_j_vdof;
         if (trial_vdofs.Find(trial_j_vdof) == -1) {
           // we haven't seen this before
@@ -1524,7 +1528,9 @@ int AssembledSparseMatrix::FillI()
 
     // add entries to I
     for (int vi = 0; vi < test_vdim; vi++) {
-      I[test_fes.DofToVDof(test_vdof, vi)] = nnz_row * trial_vdim;
+      const auto nnz_index_v = test_fes.DofToVDof(test_vdof, vi);
+      const auto nnz_index = nnz_index_v >= 0 ? nnz_index_v : -1 -nnz_index_v;
+      I[nnz_index] = nnz_row * trial_vdim;
     }
   }
 
@@ -1580,16 +1586,21 @@ void AssembledSparseMatrix::FillJ()
 
     // Build temporary array for assembled J
     for (int e_index = 0; e_index < nrow_elems; e_index++) {
-      const int                  test_offset = test_indices[test_row_offset + e_index];
-      const int                  e           = test_offset / test_elem_dof;
-      [[maybe_unused]] const int test_i_elem = test_offset % test_elem_dof;
+            // test_indices can be negative in the case of Hcurl
+      const int                  test_index_v = test_indices[test_row_offset + e_index];
+      const int                  test_index = test_index_v >= 0 ? test_index_v : -test_index_v - 1;
+      const int                  e           = test_index / test_elem_dof;
+      [[maybe_unused]] const int test_i_elem = test_index % test_elem_dof;
 
       // find corresponding trial_vdofs
       mfem::Array<int> trial_elem_vdofs(trial_elem_dof);
       for (int j_elem = 0; j_elem < trial_elem_dof; j_elem++) {
-        const auto trial_j_vdof  = trial_gatherMap[trial_elem_dof * e + j_elem];
+	// could be negative.. but trial_elem_vdofs is a temporary array
+        const auto trial_j_vdof_v  = trial_gatherMap[trial_elem_dof * e + j_elem];
+	const auto trial_j_vdof = trial_j_vdof_v >= 0 ? trial_j_vdof_v : -1 -trial_j_vdof_v;
         trial_elem_vdofs[j_elem] = trial_j_vdof;
 
+	// since trial_j_vdof could be negative but there are now two indices that point to the same dof (just oriented differently).. we only want to search for positive oriented indices
         auto find_index = trial_vdofs.Find(trial_j_vdof);
         if (find_index == -1) {
           // we haven't seen this before
@@ -1603,7 +1614,9 @@ void AssembledSparseMatrix::FillJ()
             for (int vj = 0; vj < trial_vdim; vj++) {
               const auto column_index = j_vdof_index + vj * nnz_row / trial_vdim;
               const auto j_nnz_index  = i_dof_offset + column_index;
-              J[j_nnz_index]          = trial_fes.DofToVDof(trial_vdofs[j_vdof_index], vj);
+	      // this index may be negative, but J needs to be positive
+	      const auto j_value = trial_fes.DofToVDof(trial_j_vdof_v, vj);
+              J[j_nnz_index]          = j_value >= 0 ? j_value : -1-j_value;
             }
           }
 
@@ -1612,7 +1625,11 @@ void AssembledSparseMatrix::FillJ()
             const auto i_dof_offset = I[test_fes.DofToVDof(test_vdof, vi)];
             for (int vj = 0; vj < trial_vdim; vj++) {
               const auto column_index = j_vdof_index + vj * nnz_row / trial_vdim;
-              map_ea(test_i_elem + test_elem_dof * vi, j_elem + trial_elem_dof * vj, e) = i_dof_offset + column_index;
+	      const int index_val = i_dof_offset + column_index;
+	      const int trial_index = trial_fes.DofToVDof(trial_j_vdof_v, vj);
+	      const int orientation_factor = (test_index_v >= 0 ? 1 : -1) * (trial_index >=0 ? 1 : -1);
+              map_ea(test_i_elem + test_elem_dof * vi, j_elem + trial_elem_dof * vj, e) =
+		orientation_factor > 0 ? index_val : -1-index_val;
             }
           }
 
@@ -1624,7 +1641,11 @@ void AssembledSparseMatrix::FillJ()
             const auto i_dof_offset = I[test_fes.DofToVDof(test_vdof, vi)];
             for (int vj = 0; vj < trial_vdim; vj++) {
               const auto column_index = find_index + vj * nnz_row / trial_vdim;
-              map_ea(test_i_elem + test_elem_dof * vi, j_elem + trial_elem_dof * vj, e) = i_dof_offset + column_index;
+	      const int index_val = i_dof_offset + column_index;
+	      const int trial_index = trial_fes.DofToVDof(trial_j_vdof_v, vj);
+	      const int orientation_factor = (test_index_v >= 0 ? 1 : -1) * (trial_index >=0 ? 1 : -1);      
+              map_ea(test_i_elem + test_elem_dof * vi, j_elem + trial_elem_dof * vj, e) =
+		orientation_factor > 0 ? index_val : -1-index_val;
             }
           }
         }
@@ -1661,7 +1682,9 @@ void AssembledSparseMatrix::FillData(const mfem::Vector& ea_data)
       for (int vi = 0; vi < test_vdim; vi++) {
         for (int j_elem = 0; j_elem < trial_elem_dof; j_elem++) {
           for (int vj = 0; vj < trial_vdim; vj++) {
-            Data[map_ea(i_elem + vi * test_elem_dof, j_elem + vj * trial_elem_dof, e)] +=
+	    const auto map_ea_v = map_ea(i_elem + vi * test_elem_dof, j_elem + vj * trial_elem_dof, e);
+	    const auto map_ea_index = map_ea_v >= 0 ? map_ea_v : -1 -map_ea_v;
+            Data[map_ea_index] += (map_ea_v >= 0 ? 1 : -1) * 
                 mat_ea(i_elem + vi * test_elem_dof, j_elem + vj * trial_elem_dof, e);
           }
         }
