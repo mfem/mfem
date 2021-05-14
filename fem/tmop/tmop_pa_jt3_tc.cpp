@@ -121,7 +121,7 @@ TargetConstructor::ComputeElementTargetsPA<3>(const FiniteElementSpace *fes,
 {
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != nullptr, "");
    MFEM_VERIFY(fes->GetFE(0)->GetGeomType() == Geometry::CUBE, "");
-   const DenseMatrix W = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
+   const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
    const FiniteElement *fe = fes->GetFE(0);
    const int NE = fes->GetMesh()->GetNE();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
