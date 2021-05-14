@@ -4098,7 +4098,11 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    }
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+
+   // The check below is disabled because is fails for parallel meshes with
+   // interior "boundary" element that, when such "boundary" element is between
+   // two elements on different processors.
+   // MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
 
 Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
