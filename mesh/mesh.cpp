@@ -11232,7 +11232,7 @@ GeometricFactors::GeometricFactors(const GridFunction &nodes,
                                    const IntegrationRule &ir,
                                    int flags, MemoryType d_mt)
 {
-   this->mesh = nullptr;
+   this->mesh = nodes->FESpace()->GetMesh();;
    IntRule = &ir;
    computed_factors = flags;
 
