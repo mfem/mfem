@@ -333,6 +333,47 @@ void ParFiniteElementSpace
    }
 }
 
+
+void ParFiniteElementSpace::MakeGhostEdgeDofTable()
+{
+   typedef Triple<int, int, int> TripleInt;
+   Array<TripleInt> edge_order_rank;
+
+   Array<int> E;
+
+   for (int i = 0; i < pncmesh->GetNGhostElements(); i++)
+   {
+      int ghost = mesh->GetNE() + i;
+      int order = IsVariableOrder() ? elem_order[ghost] : fec->GetOrder();
+      int rank = pncmesh->GetElementRank(ghost);
+
+      pncmesh->GetElementEdges(ghost, E);
+      for (int j = 0; j < E.Size(); j++)
+      {
+         if (E[j] < mesh->GetNEdges() &&
+             order_exists(E[j], order, var_edge_dofs, var_edge_orders))
+         {
+            continue; // order already covered by var_edge_dofs
+         }
+         edge_order_rank.Append(TripleInt(E[j], order, rank));
+      }
+   }
+
+   edge_order_rank.Sort();
+   auto end =
+      std::unique(edge_order_rank.begin(), edge_order_rank.end(),
+         [](const TripleInt &a, const TripleInt &b)
+         {
+            return (a.one == b.one) && (a.two == b.two);
+         });
+   edge_order_rank.SetSize(end - edge_order_rank.begin());
+
+
+
+
+}
+
+
 int ParFiniteElementSpace::FirstVarDof(int entity, int index, int order) const
 {
    // check ghost DOF variants
@@ -2896,7 +2937,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
       int fine_rank = old_ranks[k];
       int coarse_rank = (emb.parent < 0) ? (-1 - emb.parent)
-                        : pncmesh->ElementRank(emb.parent);
+                        : pncmesh->GetElementRank(emb.parent);
 
       if (coarse_rank != MyRank && fine_rank == MyRank)
       {
@@ -2946,7 +2987,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       const Embedding &emb = dtrans.embeddings[k];
       if (emb.parent < 0) { continue; }
 
-      int coarse_rank = pncmesh->ElementRank(emb.parent);
+      int coarse_rank = pncmesh->GetElementRank(emb.parent);
       int fine_rank = old_ranks[k];
 
       if (coarse_rank == MyRank && fine_rank == MyRank)
@@ -2996,7 +3037,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       const Embedding &emb = dtrans.embeddings[k];
       if (emb.parent < 0) { continue; }
 
-      int coarse_rank = pncmesh->ElementRank(emb.parent);
+      int coarse_rank = pncmesh->GetElementRank(emb.parent);
       int fine_rank = old_ranks[k];
 
       if (coarse_rank == MyRank && fine_rank != MyRank)

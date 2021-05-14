@@ -82,9 +82,13 @@ private:
        this is a TransposeOperator wrapping R. */
    mutable Operator *R_transpose;
 
+   typedef NCMesh::MeshId MeshId;
+   typedef ParNCMesh::GroupId GroupId;
+
    /// Variable order spaces: temporary ghost DOF storage for P construction.
    Table ghost_var_dofs[2];
    Array<char> ghost_var_orders[2];
+   Array<GroupId> ghost_var_owners[2];
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -120,11 +124,10 @@ private:
    void CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
                                    Array<VarOrderBits> &ghost_face_orders) const;
 
+   void MakeGhostEdgeDofTable();
+
    /// Return var-order edge/face (entity=1,2) first DOF corresponding to 'order'.
    int FirstVarDof(int entity, int index, int order) const;
-
-   typedef NCMesh::MeshId MeshId;
-   typedef ParNCMesh::GroupId GroupId;
 
    void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
    void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
