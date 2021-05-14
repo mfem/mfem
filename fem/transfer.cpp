@@ -569,6 +569,7 @@ L2ProjectionH1GridTransfer::L2ProjectionH1::L2ProjectionH1(
    ho2lor.ShiftUpI();
 
    // ML_inv contains the inverse lumped (row sum) mass matrix
+   // L refers to the low-order refined mesh
    Vector ML_inv(ndof_lor);
    ML_inv = 0.0;
 
@@ -611,15 +612,14 @@ L2ProjectionH1GridTransfer::L2ProjectionH1::L2ProjectionH1(
    // DOF by DOF inverse of non-zero entries
    for (int i = 0; i < ndof_lor; ++i)
    {
-      if (ML_inv[i] != 0.0)
-      {
-         ML_inv[i] = 1.0 / ML_inv[i];
-      }
+      ML_inv[i] = 1.0 / ML_inv[i];
    }
 
-   // Compute sparsity pattern for R and allocate
+   // Compute sparsity pattern for R = M_L^(-1) M_LH and allocate
    AllocR();
    // Allocate M_LH (same sparsity pattern as R)
+   // L refers to the low-order refined mesh (DOFs correspond to rows)
+   // H refers to the higher-order mesh (DOFs correspond to columns)
    M_LH = SparseMatrix(R->GetI(), R->GetJ(), NULL,
                        R->Height(), R->Width(), false, true, true);
 
