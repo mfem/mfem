@@ -3132,7 +3132,7 @@ KLUSolver::~KLUSolver()
 DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
                                            const SparseMatrix &block_dof_)
    : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
-     block_solvers(block_dof.NumRows())
+     block_solvers(new DenseMatrixInverse[block_dof.NumRows()])
 {
    DenseMatrix sub_A;
    for (int i = 0; i < block_dof.NumRows(); ++i)
