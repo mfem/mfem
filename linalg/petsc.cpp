@@ -2723,8 +2723,8 @@ void PetscSolver::FreePrivateContext()
 // PetscBCHandler methods
 
 PetscBCHandler::PetscBCHandler(Array<int>& ess_tdof_list,
-                               enum PetscBCHandler::Type _type)
-   : bctype(_type), setup(false), eval_t(0.0),
+                               enum PetscBCHandler::Type type_)
+   : bctype(type_), setup(false), eval_t(0.0),
      eval_t_cached(std::numeric_limits<double>::min())
 {
    SetTDofs(ess_tdof_list);

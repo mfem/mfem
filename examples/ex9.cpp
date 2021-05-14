@@ -129,7 +129,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
+   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -446,8 +446,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
+FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
+   : TimeDependentOperator(M_.Height()), M(M_), K(K_), b(b_), z(M_.Height())
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)

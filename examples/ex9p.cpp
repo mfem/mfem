@@ -217,7 +217,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
                 PrecType prec_type);
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -649,38 +649,38 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                           const Vector &_b, PrecType prec_type)
-   : TimeDependentOperator(_M.Height()), b(_b),
-     M_solver(_M.ParFESpace()->GetComm()),
-     z(_M.Height())
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                           const Vector &b_, PrecType prec_type)
+   : TimeDependentOperator(M_.Height()), b(b_),
+     M_solver(M_.ParFESpace()->GetComm()),
+     z(M_.Height())
 {
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACY)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M.Reset(_M.ParallelAssemble(), true);
-      K.Reset(_K.ParallelAssemble(), true);
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
    }
    else
    {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
+      M.Reset(&M_, false);
+      K.Reset(&K_, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACY)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace(), prec_type);
+      dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace(), prec_type);
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
       dg_solver = NULL;
    }
 
