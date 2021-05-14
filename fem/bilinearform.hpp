@@ -290,6 +290,10 @@ public:
    double InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
+   /// Compute \f$ v_e = y_e^T M_e x_e\f$
+   void ElementWiseInnerProduct(const GridFunction &x, const GridFunction &y,
+                                Vector &v);
+
    /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
    virtual MatrixInverse *Inverse() const;
 
