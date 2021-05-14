@@ -166,10 +166,10 @@ public:
 
     For H1 finite element spaces, see the L2ProjectionH1GridTransfer class. This
     class will work on H1 finite element spaces, but the results may not be
-    satisfactory (the mass conservation properties do not hold).  On H1 spaces, 
+    satisfactory (the mass conservation properties do not hold).  On H1 spaces,
     the transfer will be performed locally, and the value of shared (interface)
     degrees of freedom will be determined by the value of the last transfer to be
-    performed (according to the element numbering in the finite element space). 
+    performed (according to the element numbering in the finite element space).
     */
 class L2ProjectionGridTransfer : public GridTransfer
 {
@@ -259,8 +259,8 @@ public:
     uniform refinement of the coarse mesh.  Generally, the coarse and fine FE
     spaces can have different orders, however, in order for the backward
     operator to be well-defined, the number of fine dofs (in a coarse element)
-    should not be smaller than the number of coarse dofs. 
-    
+    should not be smaller than the number of coarse dofs.
+
     For L2 finite element spaces, see L2ProjectionGridTransfer. */
 class L2ProjectionH1GridTransfer : public GridTransfer
 {
@@ -286,14 +286,14 @@ protected:
       L2ProjectionH1(const FiniteElementSpace& fes_ho_,
                      const FiniteElementSpace& fes_lor_);
       virtual ~L2ProjectionH1();
-      /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh with 
+      /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh with
       /// a higher order H1 finite element space, to <tt>y</tt>, primal field
-      /// coefficients defined on a refined mesh with a low order H1 finite element 
+      /// coefficients defined on a refined mesh with a low order H1 finite element
       /// space.  Refined mesh should be a uniform refinement of the coarse mesh.
       /// Coefficients are computed through minimization of L2 error between the
       /// fields.
       virtual void Mult(const Vector& x, Vector& y) const;
-      /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh with 
+      /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh with
       /// a low order H1 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
       /// element space.  Refined mesh should be a uniform refinement of the coarse
@@ -305,9 +305,9 @@ protected:
       /// a low order H1 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
       /// element space.  Refined mesh should be a uniform refinement of the coarse
-      /// mesh. Coefficients are computed from the mass conservative left-inverse 
+      /// mesh. Coefficients are computed from the mass conservative left-inverse
       /// prolongation operation.  This functionality is also provided as an
-      /// Operator by L2ProlongationH1. Builds the prolongation operator if P is 
+      /// Operator by L2ProlongationH1. Builds the prolongation operator if P is
       /// NULL.
       void Prolongate(const Vector& x, Vector& y) const;
       /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
@@ -316,7 +316,7 @@ protected:
       /// element space.  Refined mesh should be a uniform refinement of the coarse
       /// mesh. Coefficients are computed from the transpose of the mass
       /// conservative left-inverse prolongation operation.  This functionality is
-      /// also provided as an Operator by L2ProlongationH1. Builds the prolongation 
+      /// also provided as an Operator by L2ProlongationH1. Builds the prolongation
       /// operator if P is NULL.
       void ProlongateTranspose(const Vector& x, Vector& y) const;
    private:
@@ -329,7 +329,7 @@ protected:
    };
 
    /** Operator form of mass-conservative Prolongate and ProlongateTranspose
-   operators in L2ProjectionH1. This operator is a left inverse to the 
+   operators in L2ProjectionH1. This operator is a left inverse to the
    L2ProjectionH1. */
    class L2ProlongationH1 : public Operator
    {
