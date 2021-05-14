@@ -1524,8 +1524,8 @@ class GeometricFactors
 {
 
 private:
-   void Init(const GridFunction &nodes,
-             MemoryType d_mt = MemoryType::DEFAULT);
+   void Compute(const GridFunction &nodes,
+                MemoryType d_mt = MemoryType::DEFAULT);
 
 public:
    const Mesh *mesh;

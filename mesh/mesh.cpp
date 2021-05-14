@@ -11225,7 +11225,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                "mixed meshes are not supported!");
    MFEM_ASSERT(mesh->GetNodes(), "meshes without nodes are not supported!");
 
-   Init(*mesh->GetNodes(), d_mt);
+   Compute(*mesh->GetNodes(), d_mt);
 }
 
 GeometricFactors::GeometricFactors(const GridFunction &nodes,
@@ -11236,11 +11236,11 @@ GeometricFactors::GeometricFactors(const GridFunction &nodes,
    IntRule = &ir;
    computed_factors = flags;
 
-   Init(nodes, d_mt);
+   Compute(nodes, d_mt);
 }
 
-void GeometricFactors::Init(const GridFunction &nodes,
-                            MemoryType d_mt)
+void GeometricFactors::Compute(const GridFunction &nodes,
+                               MemoryType d_mt)
 {
 
    const FiniteElementSpace *fespace = nodes.FESpace();
