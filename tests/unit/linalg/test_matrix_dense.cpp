@@ -332,12 +332,19 @@ TEST_CASE("KronMultInv methods",
           "[DenseMatrixInverse]")
 {
    double tol = 1e-12;
-   double AData[9] = { 1.0, 0.2, 3.4, -2.0, -1.0, 3.1, 0.7, 1.4, -0.9 };
-   double BData[4] = { -10.1, 5.7, -3.0, 4.2 };
    int nA = 3;
    int nB = 2;
-   DenseMatrix A(AData,nA,nA);
-   DenseMatrix B(BData,nB,nB);
+   DenseMatrix A(
+   {
+      { 1.0,  0.2, 3.4},
+      {-2.0, -1.0, 3.1},
+      { 0.7,  1.4,-0.9}
+   });
+   DenseMatrix B(
+   {
+      {-10.1, 5.7},
+      {-3.0,  4.2}
+   });
 
    DenseMatrixInverse Ainv(A);
    DenseMatrixInverse Binv(B);
@@ -390,14 +397,14 @@ TEST_CASE("KronMultInv methods",
    // (A^-1 ⊗ B^-1 ⊗ C^-1) r
    SECTION("KronMultInvABCr")
    {
-      double CData[16] = { -2.1, 1.6, -3.4,  17.5,
-                           -7.1, 1.3, -7.5, -12.5,
-                           0.5, 5.7, -6.0, -0.5,
-                           9.2, 0.3, -1.4, -14.9
-                         };
       int nC = 4;
-      DenseMatrix C(CData,nC,nC);
-
+      DenseMatrix C(
+      {
+         {-2.1, 1.6, -3.4,  17.5},
+         {-7.1, 1.3, -7.5, -12.5},
+         { 0.5, 5.7, -6.0, -0.5},
+         { 9.2, 0.3, -1.4, -14.9}
+      });
       DenseMatrix ABC;
       KronProd(AB,C,ABC);
       DenseMatrixInverse ABCInv(ABC);
@@ -497,12 +504,11 @@ TEST_CASE("EigenSystem methods",
    double tol = 1e-12;
    SECTION("SPD Matrix")
    {
-      double AData[16] = {0.56806, 0.29211, 0.48315, 0.70024,
-                          0.29211, 0.85147, 0.68123, 0.70689,
-                          0.48315, 0.68123, 1.07229, 1.02681,
-                          0.70024, 0.70689, 1.02681, 1.15468
-                         };
-      DenseMatrix A(AData,4,4);
+      DenseMatrix A({{0.56806, 0.29211, 0.48315, 0.70024},
+         {0.29211, 0.85147, 0.68123, 0.70689},
+         {0.48315, 0.68123, 1.07229, 1.02681},
+         {0.70024, 0.70689, 1.02681, 1.15468}
+      });
       DenseMatrix V, AV(4);
       Vector Lambda;
       for (bool sym: { false, true })
@@ -520,12 +526,11 @@ TEST_CASE("EigenSystem methods",
 
    SECTION("Indefinite Matrix")
    {
-      double AData[16] = {0.486278, 0.041135, 0.480727, 0.616026,
-                          0.523599, 0.119827, 0.087808, 0.415241,
-                          0.214454, 0.661631, 0.909626, 0.744259,
-                          0.107007, 0.630604, 0.077862, 0.221006
-                         };
-      DenseMatrix A(AData,4,4);
+      DenseMatrix A({{0.486278, 0.041135, 0.480727, 0.616026},
+         {0.523599, 0.119827, 0.087808, 0.415241},
+         {0.214454, 0.661631, 0.909626, 0.744259},
+         {0.107007, 0.630604, 0.077862, 0.221006}
+      });
       DenseMatrixEigensystem  EigA(A);
       EigA.Eval();
 

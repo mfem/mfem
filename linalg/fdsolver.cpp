@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-void KronMultInvDiag(const Vector & a, const Vector & b, Vector & dinv)
+void KronProdInvDiag(const Vector & a, const Vector & b, Vector & dinv)
 {
    int n = a.Size(), m = b.Size();
    dinv.SetSize(n*m);
@@ -26,7 +26,7 @@ void KronMultInvDiag(const Vector & a, const Vector & b, Vector & dinv)
       }
 }
 
-void KronMultInvDiag(const Vector & a, const Vector & b,
+void KronProdInvDiag(const Vector & a, const Vector & b,
                      const Vector & c, Vector & dinv)
 {
    int n = a.Size(), m = b.Size(), l = c.Size();
@@ -36,24 +36,30 @@ void KronMultInvDiag(const Vector & a, const Vector & b,
       for (int j = 0; j<m; j++)
          for (int i = 0; i<n; i++)
          {
-            dinv(i*m*l+j*l+k) = 1.0/(a(i) + b(j) + c(k));
+            dinv(i*m*l+j*l+k) = 1./(a(i) + b(j) + c(k));
          }
 }
 
-void KronMultInvDiag(const Array<Vector *> & X, Vector & diag)
+void KronProdInvDiag(const Array<Vector *> & X, Vector & dinv)
 {
    int dim = X.Size();
-   if (dim == 2)
+   if (dim == 1)
    {
-      KronMultInvDiag(*X[0], *X[1], diag);
+      int n = X[0]->Size();
+      dinv.SetSize(n);
+      for (int i = 0; i<n; i++) { dinv(i) = 1./(*X[0])(i); }
+   }
+   else if (dim == 2)
+   {
+      KronProdInvDiag(*X[0], *X[1], dinv);
    }
    else if (dim == 3)
    {
-      KronMultInvDiag(*X[0], *X[1], *X[2], diag);
+      KronProdInvDiag(*X[0], *X[1], *X[2], dinv);
    }
    else
    {
-      MFEM_ABORT("KronMultInvDiag::Wrong dimension");
+      MFEM_ABORT("KronProdInvDiag::Wrong dimension");
    }
 }
 
@@ -103,7 +109,7 @@ void FDSolver::Setup(const Array<DenseMatrix *> & A,
       SQ[i] = new DenseMatrix;
       Qinv.Mult(Sdinv,*SQ[i]);
    }
-   KronMultInvDiag(evalues,dinv);
+   KronProdInvDiag(evalues,dinv);
 }
 
 

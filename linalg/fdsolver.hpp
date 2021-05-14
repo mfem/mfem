@@ -21,15 +21,15 @@ namespace mfem
 /// Computes the inverse diagonal dinv = (a⊗I + I⊗b)^-1
 /// where a, b are diagonal matrices and I is the identity of the
 /// appropriate size
-void KronMultInvDiag(const Vector & a, const Vector & b, Vector & dinv);
+void KronProdInvDiag(const Vector & a, const Vector & b, Vector & dinv);
 
 /// Computes the inverse diagonal dinv = (a⊗I⊗I + I⊗b⊗I + I⊗I⊗c)^-1
 /// where a, b, c are diagonal matrices and I is the identity of the
 /// appropriate size
-void KronMultInvDiag(const Vector & a, const Vector & b,
+void KronProdInvDiag(const Vector & a, const Vector & b,
                      const Vector & c, Vector & dinv);
 
-void KronMultInvDiag(const Array<Vector *> & X, Vector & diag);
+void KronProdInvDiag(const Array<Vector *> & X, Vector & dinv);
 
 #ifdef MFEM_USE_LAPACK
 
