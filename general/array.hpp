@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <type_traits>
 
 namespace mfem
 {
@@ -36,9 +37,9 @@ void Swap(Array<T> &, Array<T> &);
    Abstract data type Array.
 
    Array<T> is an automatically increasing array containing elements of the
-   generic type T, which must be a POD (plain old data) type. The allocated size
-   may be larger then the logical size of the array. The elements can be
-   accessed by the [] operator, the range is 0 to size-1.
+   generic type T, which must be a trivial type, see `std::is_trivial`. The
+   allocated size may be larger then the logical size of the array. The elements
+   can be accessed by the [] operator, the range is 0 to size-1.
 */
 template <class T>
 class Array
@@ -50,6 +51,11 @@ protected:
    int size;
 
    inline void GrowSize(int minsize);
+
+   static inline void TypeAssert()
+   {
+      static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   }
 
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
@@ -83,7 +89,7 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Destructor
-   inline ~Array() { data.Delete(); }
+   inline ~Array() { TypeAssert(); data.Delete(); }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
