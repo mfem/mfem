@@ -159,6 +159,9 @@ public:
    /// Access all integrators added with AddBdrFaceIntegrator().
    Array<LinearFormIntegrator*> *GetFLFI() { return &flfi; }
 
+   /// Access all integrators added with AddTraceFaceIntegrator().
+   Array<LinearFormIntegrator*> *GetTLFI() { return &tlfi; }
+
    /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
