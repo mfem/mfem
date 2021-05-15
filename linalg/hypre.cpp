@@ -1813,7 +1813,7 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
 {
    hypre_ParCSRMatrix *C;
-   hypre_ParcsrAdd(alpha, A, beta, B, &C);
+   hypre_ParCSRMatrixAdd(alpha, A, beta, B, &C);
 
    return new HypreParMatrix(C);
 }
@@ -1821,7 +1821,7 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix *C;
-   hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
+   hypre_ParCSRMatrixAdd(1.0, *A, 1.0, *B, &C);
 
    return new HypreParMatrix(C);
 }
