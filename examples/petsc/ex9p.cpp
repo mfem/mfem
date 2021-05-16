@@ -79,7 +79,7 @@ private:
    mutable PetscParMatrix* rJacobian;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
                 bool implicit);
 
    virtual void ExplicitMult(const Vector &x, Vector &y) const;
@@ -103,8 +103,8 @@ private:
    bool             pause;
 
 public:
-   UserMonitor(socketstream& _s, ParMesh* _m, ParGridFunction* _u, int _vt) :
-      PetscSolverMonitor(true,false), sout(_s), pmesh(_m), u(_u), vt(_vt),
+   UserMonitor(socketstream& s_, ParMesh* m_, ParGridFunction* u_, int vt_) :
+      PetscSolverMonitor(true,false), sout(s_), pmesh(m_), u(u_), vt(vt_),
       pause(true) {}
 
    void MonitorSolution(PetscInt step, PetscReal norm, const Vector &X)
@@ -521,31 +521,31 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                           const Vector &_b,bool M_in_lhs)
-   : TimeDependentOperator(_M.Height(), 0.0,
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                           const Vector &b_,bool M_in_lhs)
+   : TimeDependentOperator(M_.Height(), 0.0,
                            M_in_lhs ? TimeDependentOperator::IMPLICIT
                            : TimeDependentOperator::EXPLICIT),
-     b(_b), comm(_M.ParFESpace()->GetComm()), M_solver(comm), z(_M.Height()),
+     b(b_), comm(M_.ParFESpace()->GetComm()), M_solver(comm), z(M_.Height()),
      iJacobian(NULL), rJacobian(NULL)
 {
-   MAlev = _M.GetAssemblyLevel();
-   KAlev = _K.GetAssemblyLevel();
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   MAlev = M_.GetAssemblyLevel();
+   KAlev = K_.GetAssemblyLevel();
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
    {
-      M.Reset(_M.ParallelAssemble(), true);
-      K.Reset(_K.ParallelAssemble(), true);
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
    }
    else
    {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
+      M.Reset(&M_, false);
+      K.Reset(&K_, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
 
@@ -554,7 +554,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
    }
 
    M_solver.SetPreconditioner(*M_prec);

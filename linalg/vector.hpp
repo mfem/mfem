@@ -77,10 +77,10 @@ public:
    explicit Vector(int s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(double *_data, int _size)
-   { data.Wrap(_data, _size, false); size = _size; }
+   Vector(double *data_, int size_)
+   { data.Wrap(data_, size_, false); size = size_; }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)

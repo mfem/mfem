@@ -104,10 +104,10 @@ public:
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, HYPRE_BigInt *col);
    /** @brief Creates vector with given global size, partitioning of the
        columns, and data. */
-   /** The data must be allocated and destroyed outside. If @a _data is NULL, a
+   /** The data must be allocated and destroyed outside. If @a data_ is NULL, a
        dummy vector without a valid data array will be created. See @ref
        hypre_partitioning_descr "here" for a description of the @a col array. */
-   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *_data,
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *data_,
                   HYPRE_BigInt *col);
    /// Creates vector compatible with y
    HypreParVector(const HypreParVector &y);
@@ -161,11 +161,11 @@ public:
    /// Define '=' for hypre vectors.
    HypreParVector& operator= (const HypreParVector &y);
 
-   /// Sets the data of the Vector and the hypre_ParVector to @a _data.
+   /// Sets the data of the Vector and the hypre_ParVector to @a data_.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
        HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
-   void SetData(double *_data);
+   void SetData(double *data_);
 
    /// Set random values
    HYPRE_Int Randomize(HYPRE_Int seed);
@@ -735,7 +735,7 @@ public:
 
    HypreSmoother();
 
-   HypreSmoother(const HypreParMatrix &_A, int type = l1GS,
+   HypreSmoother(const HypreParMatrix &A_, int type = l1GS,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
                  double poly_fraction = .3, int eig_est_cg_iter = 10);
@@ -813,7 +813,7 @@ protected:
 public:
    HypreSolver();
 
-   HypreSolver(const HypreParMatrix *_A);
+   HypreSolver(const HypreParMatrix *A_);
 
    /// Typecast to HYPRE_Solver -- return the solver
    virtual operator HYPRE_Solver() const = 0;
@@ -882,7 +882,7 @@ private:
 public:
    HyprePCG(MPI_Comm comm);
 
-   HyprePCG(const HypreParMatrix &_A);
+   HyprePCG(const HypreParMatrix &A_);
 
    virtual void SetOperator(const Operator &op);
 
@@ -943,7 +943,7 @@ private:
 public:
    HypreGMRES(MPI_Comm comm);
 
-   HypreGMRES(const HypreParMatrix &_A);
+   HypreGMRES(const HypreParMatrix &A_);
 
    virtual void SetOperator(const Operator &op);
 
@@ -994,7 +994,7 @@ private:
 public:
    HypreFGMRES(MPI_Comm comm);
 
-   HypreFGMRES(const HypreParMatrix &_A);
+   HypreFGMRES(const HypreParMatrix &A_);
 
    virtual void SetOperator(const Operator &op);
 
