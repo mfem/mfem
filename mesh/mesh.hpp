@@ -1522,6 +1522,11 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
     Mesh. See Mesh::GetGeometricFactors(). */
 class GeometricFactors
 {
+
+private:
+   void Compute(const GridFunction &nodes,
+                MemoryType d_mt = MemoryType::DEFAULT);
+
 public:
    const Mesh *mesh;
    const IntegrationRule *IntRule;
@@ -1535,6 +1540,10 @@ public:
    };
 
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                    MemoryType d_mt = MemoryType::DEFAULT);
+
+   GeometricFactors(const GridFunction &nodes, const IntegrationRule &ir,
+                    int flags,
                     MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
