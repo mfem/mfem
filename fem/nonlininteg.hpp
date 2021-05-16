@@ -43,6 +43,9 @@ public:
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
 
+   /// Get the integration rule of the integrator (possibly NULL).
+   const IntegrationRule *GetIntegrationRule() const { return IntRule; }
+
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
