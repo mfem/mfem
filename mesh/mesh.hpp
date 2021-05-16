@@ -579,7 +579,29 @@ public:
        new mesh. Periodic meshes are not supported. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
+   /// Create a periodic mesh by identifying vertices of @a orig_mesh.
+   /** Each vertex @a i will be mapped to vertex @a v2v[i], such that all
+       vertices that are coincident under the periodic mapping get mapped to
+       the same index. The mapping @a v2v can be generated from translation
+       vectors using Mesh::CreatePeriodicVertexMapping.
+       @note MFEM requires that each edge of the resulting mesh be uniquely
+       identifiable by a pair of distinct vertices. As a consequence, periodic
+       boundaries must be connected by at least three edges. */
+   static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
+
    ///@}
+
+   /// @brief Creates a mapping @a v2v from the vertex indices of the mesh such
+   /// that coincident vertices under the given @a translations are identified.
+   /** Each Vector in @a translations should be of size @a sdim (the spatial
+       dimension of the mesh). Two vertices are considered coincident if the
+       translated coordinates of one vertex are within the given tolerance (@a
+       tol, relative to the mesh diameter) of the coordinates of the other
+       vertex.
+       @warning This algorithm does not scale well with the number of boundary
+       vertices in the mesh, and may run slowly on very large meshes. */
+   std::vector<int> CreatePeriodicVertexMapping(
+      const std::vector<Vector> &translations, double tol = 1e-8) const;
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
@@ -596,7 +618,7 @@ public:
         int *element_attributes, int num_elements,
         int *boundary_indices, Geometry::Type boundary_type,
         int *boundary_attributes, int num_boundary_elements,
-        int dimension, int space_dimension= -1);
+        int dimension, int space_dimension = -1);
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
