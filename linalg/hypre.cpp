@@ -4689,12 +4689,6 @@ HypreLOBPCG::GetEigenvector(unsigned int i) const
    return multi_vec->GetVector(i);
 }
 
-HypreParVector &
-HypreLOBPCG::GetEigenvector(unsigned int i)
-{
-   return multi_vec->GetVector(i);
-}
-
 void
 HypreLOBPCG::SetInitialVectors(int num_vecs, HypreParVector ** vecs)
 {
@@ -4988,17 +4982,6 @@ HypreAME::createDummyVectors() const
 
 const HypreParVector &
 HypreAME::GetEigenvector(unsigned int i) const
-{
-   if ( eigenvectors == NULL )
-   {
-      this->createDummyVectors();
-   }
-
-   return *eigenvectors[i];
-}
-
-HypreParVector &
-HypreAME::GetEigenvector(unsigned int i)
 {
    if ( eigenvectors == NULL )
    {
