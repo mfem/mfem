@@ -49,8 +49,8 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
             executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
          }
          else
-            mfem::err << "gko::CudaExecutor::get_num_devices() did not report "
-                      << "any valid devices" << std::endl;
+            MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                       "any valid devices.");
          break;
       }
       case GinkgoExecutor::HIP:
@@ -80,8 +80,8 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
          executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
       }
       else
-         mfem::err << "gko::CudaExecutor::get_num_devices() did not report "
-                   << "any valid devices" << std::endl;
+         MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                    "any valid devices.");
    }
    else if (mfem_device.Allows(Backend::HIP_MASK))
    {
@@ -90,8 +90,8 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
          executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
       }
       else
-         mfem::err << "gko::HipExecutor::get_num_devices() did not report "
-                   << "any valid devices" << std::endl;
+         MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                    "any valid devices.");
    }
    else
    {
