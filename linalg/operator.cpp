@@ -403,10 +403,10 @@ TripleProductOperator::~TripleProductOperator()
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool _own_A,
-                                         DiagonalPolicy _diag_policy)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A),
-     diag_policy(_diag_policy)
+                                         bool own_A_,
+                                         DiagonalPolicy diag_policy_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
+     diag_policy(diag_policy_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -527,8 +527,8 @@ RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
    const Array<int> &test_list,
-   bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+   bool own_A_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
