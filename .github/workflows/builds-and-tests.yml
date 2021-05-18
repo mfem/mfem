@@ -12,6 +12,9 @@
 # In this CI section, we build different variants of mfem and run test on them.
 name: builds-and-tests
 
+permissions:
+  actions: write
+
 on:
   push:
     branches:
