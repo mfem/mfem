@@ -46,7 +46,12 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
       {
          if (gko::CudaExecutor::get_num_devices() > 0)
          {
-            executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+#ifdef MFEM_USE_CUDA
+            int current_device = 0;
+            MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::OmpExecutor::create());
+#endif
          }
          else
             MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
@@ -57,7 +62,12 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
       {
          if (gko::HipExecutor::get_num_devices() > 0)
          {
-            executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
+#ifdef MFEM_USE_HIP
+            int current_device = 0;
+            MFEM_GPU_CHECK(hipGetDevice(&current_device));
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::OmpExecutor::create());
+#endif
          }
          else
             mfem::err << "gko::HipExecutor::get_num_devices() did not report "
@@ -77,7 +87,12 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
    {
       if (gko::CudaExecutor::get_num_devices() > 0)
       {
-         executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+#ifdef MFEM_USE_CUDA
+         int current_device = 0;
+         MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+         executor = gko::CudaExecutor::create(current_device,
+                                              gko::OmpExecutor::create());
+#endif
       }
       else
          MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
@@ -87,7 +102,11 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
    {
       if (gko::HipExecutor::get_num_devices() > 0)
       {
-         executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
+#ifdef MFEM_USE_HIP
+         int current_device = 0;
+         MFEM_GPU_CHECK(hipGetDevice(&current_device));
+         executor = gko::HipExecutor::create(current_device, gko::OmpExecutor::create());
+#endif
       }
       else
          MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
