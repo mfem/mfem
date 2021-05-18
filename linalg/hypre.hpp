@@ -1560,10 +1560,10 @@ public:
    void Solve();
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<double> & eigenvalues);
+   void GetEigenvalues(Array<double> & eigenvalues) const;
 
    /// Extract a single eigenvector
-   HypreParVector & GetEigenvector(unsigned int i);
+   const HypreParVector & GetEigenvector(unsigned int i) const;
 
    /// Transfer ownership of the converged eigenvectors
    HypreParVector ** StealEigenvectors() { return multi_vec->StealVectors(); }
@@ -1611,9 +1611,10 @@ private:
    // MultiVector to store eigenvectors
    HYPRE_ParVector * multi_vec;
 
-   HypreParVector ** eigenvectors;
+   // HypreParVector wrappers to contain eigenvectors
+   mutable HypreParVector ** eigenvectors;
 
-   void createDummyVectors();
+   void createDummyVectors() const;
 
 public:
    HypreAME(MPI_Comm comm);
@@ -1634,10 +1635,10 @@ public:
    void Solve();
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<double> & eigenvalues);
+   void GetEigenvalues(Array<double> & eigenvalues) const;
 
    /// Extract a single eigenvector
-   HypreParVector & GetEigenvector(unsigned int i);
+   const HypreParVector & GetEigenvector(unsigned int i) const;
 
    /// Transfer ownership of the converged eigenvectors
    HypreParVector ** StealEigenvectors();
