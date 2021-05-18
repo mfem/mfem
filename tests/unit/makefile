@@ -58,7 +58,7 @@ PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o)
 PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
 # TMOP numerical seq/par files and tests
-TMOP_FILES = $(SRC)miniapps/test_tmop.cpp
+TMOP_FILES = $(SRC)miniapps/test_tmop_pa.cpp
 
 SEQ_TMOP_TESTS = tmop_tests_cpu tmop_tests_debug
 SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda)

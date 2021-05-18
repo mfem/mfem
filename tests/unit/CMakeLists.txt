@@ -79,7 +79,7 @@ set(UNIT_TESTS_SRCS
   fem/test_var_order.cpp
   # The following are tested separately (keep the comment as a reminder):
   # miniapps/test_sedov.cpp
-  # miniapps/test_tmop.cpp
+  # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
   # ceed/test_ceed_main.cpp
 )
