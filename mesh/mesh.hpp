@@ -433,7 +433,7 @@ protected:
    void GenerateNCFaceInfo();
 
    /// Begin construction of a mesh
-   void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
+   void InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem);
 
    // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
    void FinalizeCheck();
@@ -600,10 +600,10 @@ public:
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
-   Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim = -1)
+   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
    {
-      if (_spaceDim == -1) { _spaceDim = _Dim; }
-      InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
+      if (spaceDim_ == -1) { spaceDim_ = Dim_; }
+      InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
    }
 
    /** @name Methods for Mesh construction.
@@ -1199,7 +1199,7 @@ public:
 
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
-   void CheckPartitioning(int *partitioning);
+   void CheckPartitioning(int *partitioning_);
 
    void CheckDisplacements(const Vector &displacements, double &tmax);
 
@@ -1632,7 +1632,7 @@ private:
    double p[2], s;
    Vector tip;
 public:
-   NodeExtrudeCoefficient(const int dim, const int _n, const double _s);
+   NodeExtrudeCoefficient(const int dim, const int n_, const double s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
