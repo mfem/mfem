@@ -60,11 +60,11 @@ PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcud
 # TMOP numerical seq/par files and tests
 TMOP_FILES = $(SRC)miniapps/test_tmop_pa.cpp
 
-SEQ_TMOP_TESTS = tmop_tests_cpu tmop_tests_debug
-SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda)
+SEQ_TMOP_TESTS = tmop_pa_tests_cpu tmop_pa_tests_debug
+SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_pa_tests_cuda)
 # SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda_uvm)
-PAR_TMOP_TESTS = ptmop_tests_cpu
-PAR_TMOP_TESTS += $(if $(USE_CUDA),ptmop_tests_cuda)
+PAR_TMOP_TESTS = ptmop_pa_tests_cpu
+PAR_TMOP_TESTS += $(if $(USE_CUDA),ptmop_pa_tests_cuda)
 
 SEQ_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.cpu.o)
 SEQ_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.debug.o)
@@ -172,10 +172,10 @@ copy-miniapps-meshing-data:
 # TMOP Template rule for devices
 # 1: postfix of 'tmop_tests_', 2: prefix of '_OBJECT_FILES',
 # 3: configuration string for the MFEM device, separated with '$(comma)'
-define tmop_tests
-tmop_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
-tmop_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_DEVICE='"$(3)"'
-tmop_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
+define tmop_pa_tests
+tmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
+tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_DEVICE='"$(3)"'
+tmop_pa_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(<) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
@@ -184,16 +184,16 @@ $$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_M
 	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
 	   $$(TMOP_TESTS_FLAGS) -o $$(@)
 endef
-$(eval $(call tmop_tests,cpu,CPU,cpu))
-$(eval $(call tmop_tests,debug,DEBUG,debug))
-$(eval $(call tmop_tests,cuda,CUDA,cuda))
-# $(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+$(eval $(call tmop_pa_tests,cpu,CPU,cpu))
+$(eval $(call tmop_pa_tests,debug,DEBUG,debug))
+$(eval $(call tmop_pa_tests,cuda,CUDA,cuda))
+# $(eval $(call tmop_pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
-define ptmop_tests
-ptmop_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
-ptmop_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
-ptmop_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_DEVICE='"$(3)"'
-ptmop_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
+define ptmop_pa_tests
+ptmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
+ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
+ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_DEVICE='"$(3)"'
+ptmop_pa_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(<) $$(PAR_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
@@ -202,10 +202,10 @@ $$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_
 	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
 	   $$(TMOP_TESTS_FLAGS) -o $$(@)
 endef
-$(eval $(call ptmop_tests,cpu,CPU,cpu))
-#$(eval $(call ptmop_tests,debug,DEBUG,debug))
-$(eval $(call ptmop_tests,cuda,CUDA,cuda))
-#$(eval $(call ptmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+$(eval $(call ptmop_pa_tests,cpu,CPU,cpu))
+#$(eval $(call ptmop_pa_tests,debug,DEBUG,debug))
+$(eval $(call ptmop_pa_tests,cuda,CUDA,cuda))
+#$(eval $(call ptmop_pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .

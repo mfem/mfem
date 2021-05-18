@@ -66,19 +66,20 @@ set(SRCS
   fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
   nonlininteg_vectorconvection_mf.cpp
+  qinterp/det.cpp
+  qinterp/eval_by_nodes.cpp
+  qinterp/eval_by_vdim.cpp
+  qinterp/grad_by_nodes.cpp
+  qinterp/grad_by_vdim.cpp
+  qinterp/grad_phys_by_nodes.cpp
+  qinterp/grad_phys_by_vdim.cpp
   quadinterpolator.cpp
-  quadinterpolator/quadinterpolator_det.cpp
-  quadinterpolator/quadinterpolator_eval_by_nodes.cpp
-  quadinterpolator/quadinterpolator_eval_by_vdim.cpp
-  quadinterpolator/quadinterpolator_grad_by_nodes.cpp
-  quadinterpolator/quadinterpolator_grad_by_vdim.cpp
-  quadinterpolator/quadinterpolator_grad_phys_by_nodes.cpp
-  quadinterpolator/quadinterpolator_grad_phys_by_vdim.cpp
   quadinterpolator_face.cpp
   restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop/tmop_pa.cpp
+  tmop/tmop_pa_da3.cpp
   tmop/tmop_pa_h2d.cpp
   tmop/tmop_pa_h2d_c0.cpp
   tmop/tmop_pa_h2m.cpp
@@ -93,13 +94,12 @@ set(SRCS
   tmop/tmop_pa_h3s_c0.cpp
   tmop/tmop_pa_jp2.cpp
   tmop/tmop_pa_jp3.cpp
-  tmop/tmop_pa_jt2_tc.cpp
-  tmop/tmop_pa_jt3_tc.cpp
-  tmop/tmop_pa_jt3_datc.cpp
   tmop/tmop_pa_p2.cpp
   tmop/tmop_pa_p2_c0.cpp
   tmop/tmop_pa_p3.cpp
   tmop/tmop_pa_p3_c0.cpp
+  tmop/tmop_pa_tc2.cpp
+  tmop/tmop_pa_tc3.cpp
   tmop/tmop_pa_w2.cpp
   tmop/tmop_pa_w2_c0.cpp
   tmop/tmop_pa_w3.cpp
@@ -144,10 +144,10 @@ set(HDRS
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
+  qinterp/dispatch.hpp
+  qinterp/eval.hpp
+  qinterp/grad.hpp
   quadinterpolator.hpp
-  quadinterpolator/quadinterpolator_dispatch.hpp
-  quadinterpolator/quadinterpolator_eval.hpp
-  quadinterpolator/quadinterpolator_grad.hpp
   quadinterpolator_face.hpp
   restriction.hpp
   fespacehierarchy.hpp

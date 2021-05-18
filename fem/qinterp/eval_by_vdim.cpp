@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "../quadinterpolator.hpp"
-#include "quadinterpolator_dispatch.hpp"
-#include "quadinterpolator_eval.hpp"
+#include "dispatch.hpp"
+#include "eval.hpp"
 
 namespace mfem
 {
