@@ -11,6 +11,9 @@
 
 name: repo-check
 
+permissions:
+  actions: write
+
 on:
   push:
     branches:
@@ -23,6 +26,10 @@ jobs:
     runs-on: ubuntu-18.04 # needed for astyle 2.05.1
 
     steps:
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.9.0
+      with:
+        access_token: ${{ github.token }}
     - name: checkout mfem
       uses: actions/checkout@v2
       with:
