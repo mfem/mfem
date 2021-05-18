@@ -831,12 +831,12 @@ static void tmop_tests(int id = 0, bool all = false)
 
 #if defined(MFEM_TMOP_MPI)
 #ifndef MFEM_TMOP_DEVICE
-TEST_CASE("TMOP", "[TMOP], [Parallel]")
+TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
 {
    tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
 }
 #else
-TEST_CASE("TMOP", "[TMOP], [Parallel]")
+TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
 {
    Device device;
    device.Configure(MFEM_TMOP_DEVICE);
@@ -846,12 +846,12 @@ TEST_CASE("TMOP", "[TMOP], [Parallel]")
 #endif
 #else
 #ifndef MFEM_TMOP_DEVICE
-TEST_CASE("TMOP", "[TMOP]")
+TEST_CASE("tmop_pa", "[TMOP_PA]")
 {
    tmop_tests(0, launch_all_non_regression_tests);
 }
 #else
-TEST_CASE("TMOP", "[TMOP]")
+TEST_CASE("tmop_pa", "[TMOP_PA]")
 {
    Device device;
    device.Configure(MFEM_TMOP_DEVICE);
