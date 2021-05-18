@@ -3994,25 +3994,6 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    // The destination of the projected discontinuous flux
    GridFunction smooth_flux(&smooth_flux_fes);
    smooth_flux = 0.0;
-   /*
-   HypreParMatrix* A = a->ParallelAssemble();
-   HypreParVector* B = b->ParallelAssemble();
-   HypreParVector* X = smooth_flux.ParallelProject();
-
-   delete a;
-   delete b;
-
-   // Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-   // preconditioner from hypre.
-   HypreBoomerAMG *amg = new HypreBoomerAMG(*A);
-   amg->SetPrintLevel(0);
-   HyprePCG *pcg = new HyprePCG(*A);
-   pcg->SetTol(solver_tol);
-   pcg->SetMaxIter(solver_max_it);
-   pcg->SetPrintLevel(0);
-   pcg->SetPreconditioner(*amg);
-   pcg->Mult(*B, *X);
-   */
 
    OperatorPtr A;
    Vector B, X;
@@ -4021,7 +4002,7 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
    GSSmoother M((SparseMatrix&)(*A));
-   PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+   PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
 
    // Extract the parallel grid function corresponding to the finite element
    // approximation X. This is the local solution on each processor.
