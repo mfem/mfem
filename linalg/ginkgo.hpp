@@ -49,8 +49,8 @@ public:
 };
 
 /**
-* This class wraps an MFEM vector object for Ginkgo's use.  It
-* is allows Ginkgo and MFEM to operate directly on the same
+* This class wraps an MFEM vector object for Ginkgo's use. It
+* allows Ginkgo and MFEM to operate directly on the same
 * data, and is necessary to use MFEM Operators with Ginkgo
 * solvers.
 *
@@ -64,8 +64,10 @@ public:
                  gko::size_type size, Vector *mfem_vec,
                  bool ownership = false)
       : gko::matrix::Dense<double>(
-           exec, gko::dim<2> {size, 1},
-   gko::Array<double>::view(exec, size,
+           exec,
+           gko::dim<2> {size, 1},
+   gko::Array<double>::view(exec,
+                            size,
                             mfem_vec->ReadWrite(
                                exec != exec->get_master() ? true : false)),
    1)
@@ -90,20 +92,22 @@ public:
             mfem_vec, deleter{});
       }
    }
+
    static std::unique_ptr<VectorWrapper> create(
-      std::shared_ptr<const gko::Executor> exec, gko::size_type size,
-      Vector *mfem_vec, bool ownership = false)
+      std::shared_ptr<const gko::Executor> exec,
+      gko::size_type size,
+      Vector *mfem_vec,
+      bool ownership = false)
    {
       return std::unique_ptr<VectorWrapper>(
                 new VectorWrapper(exec, size, mfem_vec, ownership));
    }
+
    // Return reference to MFEM Vector object
-   Vector &get_mfem_vec_ref() const { return *(this->wrapped_vec.get()); }
+   Vector &get_mfem_vec_ref() { return *(this->wrapped_vec.get()); }
+
    // Return const reference to MFEM Vector object
-   const Vector &get_mfem_vec_const_ref() const
-   {
-      return const_cast<const Vector &>(*(this->wrapped_vec.get()));
-   }
+   const Vector &get_mfem_vec_const_ref() const { return *(this->wrapped_vec.get()); }
 
    // Override base Dense class implementation for creating new vectors
    // with same executor and size as self
@@ -119,17 +123,17 @@ public:
       // If this function is called, Ginkgo is creating this
       // object and should control the memory, so ownership is
       // set to true
-      return VectorWrapper::create(
-                this->get_executor(), this->get_size()[0], mfem_vec,
-                true);
+      return VectorWrapper::create(this->get_executor(),
+                                   this->get_size()[0],
+                                   mfem_vec,
+                                   true);
    }
 
    // Override base Dense class implementation for creating new vectors
    // with same executor and type as self, but with a different size.
    // This function will create "one large VectorWrapper" of size
    // size[0] * size[1], since MFEM Vectors only have one dimension.
-   virtual std::unique_ptr<gko::matrix::Dense<double>>
-                                                    create_with_type_of_impl(
+   virtual std::unique_ptr<gko::matrix::Dense<double>>create_with_type_of_impl(
                                                        std::shared_ptr<const gko::Executor> exec,
                                                        const gko::dim<2> &size,
                                                        gko::size_type stride) const override
@@ -159,7 +163,7 @@ public:
 
    // Override base Dense class implementation for creating new sub-vectors
    // from a larger vector.
-   virtual std::unique_ptr<gko::matrix::Dense<double>> create_submatrix_impl(
+   virtual std::unique_ptr<gko::matrix::Dense<double>>create_submatrix_impl(
                                                        const gko::span &rows,
                                                        const gko::span &columns,
                                                        const gko::size_type stride) override
@@ -536,7 +540,7 @@ public:
 
    /**
     * Return a pointer to the generated preconditioner for a specific matrix
-    * (that has previously been sith with @p SetOperator).
+    * (that has previously been set with @p SetOperator).
     */
    const std::shared_ptr<gko::LinOp> GetGeneratedPreconditioner() const
    {
@@ -594,25 +598,6 @@ class GinkgoIterativeSolver : public Solver
 {
 public:
    /**
-    * Constructor.
-    *
-    * The @p exec defines the paradigm where the solution is computed.
-    * @p use_implicit_res_norm is for internal use by the derived classes
-    * for specific Ginkgo solvers; it indicates whether the solver makes
-    * an implicit residual norm estimate available for convergence checking.
-    * Each derived class automatically sets the correct value when calling this
-    * base class constructor.
-    *
-    */
-   GinkgoIterativeSolver(GinkgoExecutor &exec,
-                         bool use_implicit_res_norm);
-
-   /**
-    * Destructor.
-    */
-   virtual ~GinkgoIterativeSolver() = default;
-
-   /**
     * Return a pointer to the LinOpFactory that will generate the solver
     * with the parameters set through the specific constructor.
     */
@@ -650,7 +635,26 @@ public:
       return this->needs_wrapped_vecs;
    };
 
+   /**
+    * Destructor.
+    */
+   virtual ~GinkgoIterativeSolver() = default;
+
 protected:
+   /**
+    * Constructor.
+    *
+    * The @p exec defines the paradigm where the solution is computed.
+    * @p use_implicit_res_norm is for internal use by the derived classes
+    * for specific Ginkgo solvers; it indicates whether the solver makes
+    * an implicit residual norm estimate available for convergence checking.
+    * Each derived class automatically sets the correct value when calling this
+    * base class constructor.
+    *
+    */
+   GinkgoIterativeSolver(GinkgoExecutor &exec,
+                         bool use_implicit_res_norm);
+
    bool use_implicit_res_norm;
    int print_level;
    int max_iter;
