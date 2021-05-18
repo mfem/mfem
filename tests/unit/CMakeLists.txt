@@ -132,8 +132,8 @@ endif()
 
 #-----------------------------------------------------------
 # SERIAL SEDOV + TMOP TESTS:
-#   sedov_tests_{cpu,debug,cuda,cuda_uvm}
-#    tmop_tests_{cpu,debug,cuda}
+#     sedov_tests_{cpu,debug,cuda,cuda_uvm}
+#   tmop_pa_tests_{cpu,debug,cuda}
 #-----------------------------------------------------------
 # Function to add one device serial test from the tests/unit/miniapp directory.
 # All device unit tests are built into a seperate executable, in order to be
@@ -181,9 +181,9 @@ function(add_serial_miniapp_test name test_uvm)
 endfunction(add_serial_miniapp_test)
 
 add_serial_miniapp_test(sedov ON)  # UVM ON
-add_serial_miniapp_test(tmop OFF)  # UVM OFF
+add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
-add_dependencies(tmop_tests_cpu copy_miniapps_meshing_data)
+add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
 
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:
@@ -247,8 +247,8 @@ endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------
 # PARALLEL SEDOV + TMOP TESTS:
-#   psedov_tests_{cpu,debug,cuda,cuda_uvm}
-#    ptmop_tests_{cpu,cuda}
+#     psedov_tests_{cpu,debug,cuda,cuda_uvm}
+#   ptmop_pa_tests_{cpu,cuda}
 #-----------------------------------------------------------
 # Function to add one MPI executable for a test.
 function(add_mpi_executable_test name dev)
@@ -301,5 +301,5 @@ endfunction(add_parallel_miniapp_test)
 # Additional MPI unit tests
 if (MFEM_USE_MPI)
    add_parallel_miniapp_test(sedov TRUE)
-   add_parallel_miniapp_test(tmop FALSE)
+   add_parallel_miniapp_test(tmop_pa FALSE)
 endif(MFEM_USE_MPI)
