@@ -75,7 +75,7 @@ void GetRelatedIntegrationPoints(const IntegrationPoint& ip, int dim,
  * of resolution res. Also tests at integration points
  * that are outside the element.
  */
-void TestCalcShape(FiniteElement* fe, int res)
+void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
 {
    int dim = fe->GetDim();
 
@@ -102,7 +102,7 @@ void TestCalcShape(FiniteElement* fe, int res)
       {
          IntegrationPoint& ip = ipArr[j];
          fe->CalcShape(ip, weights);
-         REQUIRE( weights.Sum() == MFEM_Approx(1.) );
+         REQUIRE(weights.Sum() == MFEM_Approx(1., tol, tol));
       }
    }
 }
@@ -173,7 +173,7 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_SegmentElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_SegmentElement fe(order);
-         TestCalcShape(&fe, resolution);
+         TestCalcShape(&fe, resolution, 5e-12*std::pow(10, order));
       }
    }
 
@@ -184,7 +184,7 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_TriangleElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_TriangleElement fe(order);
-         TestCalcShape(&fe, resolution);
+         TestCalcShape(&fe, resolution, 5e-12*std::pow(10, order));
       }
    }
 
@@ -195,7 +195,7 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_QuadrilateralElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_QuadrilateralElement fe(order);
-         TestCalcShape(&fe, resolution);
+         TestCalcShape(&fe, resolution, 5e-12*std::pow(10, order));
       }
    }
 
@@ -206,7 +206,7 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_TetrahedronElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_TetrahedronElement fe(order);
-         TestCalcShape(&fe, resolution);
+         TestCalcShape(&fe, resolution, 5e-12*std::pow(10, order));
       }
    }
 
@@ -217,7 +217,7 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_HexahedronElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_HexahedronElement fe(order);
-         TestCalcShape(&fe, resolution);
+         TestCalcShape(&fe, resolution, 5e-12*std::pow(10, order));
       }
    }
 
@@ -228,7 +228,7 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_WedgeElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_WedgeElement fe(order);
-         TestCalcShape(&fe, resolution);
+         TestCalcShape(&fe, resolution, 5e-12*std::pow(10, order));
       }
    }
 
