@@ -36,6 +36,9 @@
 using namespace std;
 using namespace mfem;
 
+double GetVectorMax(int vdim, const ParGridFunction &x);
+double GetScalarMax(const ParGridFunction &x);
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -73,6 +76,10 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+
+   Vector bbMin(dim);
+   Vector bbMax(dim);
+   mesh->GetBoundingBox(bbMin, bbMax);
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
@@ -302,23 +309,58 @@ int main(int argc, char *argv[])
                yComp.ProjectCoefficient(yCoef);
                zComp.ProjectCoefficient(zCoef);
 
+               double max_x = GetScalarMax(xComp);
+               double max_y = GetScalarMax(yComp);
+               double max_z = GetScalarMax(zComp);
+               double max_r = std::max(max_x, std::max(max_y, max_z));
+
+               ostringstream x_cmd;
+               x_cmd << " window_title 'Eigenmode " << i+1 << '/' << nev
+                     << " X, Lambda = " << eigenvalues[i] - shift << "'"
+                     << " valuerange -"<< max_r << ' ' << max_r;
+               if (i == 0)
+               {
+                  x_cmd << " keys aa"
+                        << " window_geometry 0 0 400 350";
+               }
+
                mode_x_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << xComp << flush
-                           << "window_title 'Eigenmode " << i+1 << '/' << nev
-                           << " X, Lambda = " << eigenvalues[i] - shift
-                           << "'" << endl;
+                           << x_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
+
+               ostringstream y_cmd;
+               y_cmd << " window_title 'Eigenmode " << i+1 << '/' << nev
+                     << " Y, Lambda = " << eigenvalues[i] - shift << "'"
+                     << " valuerange -"<< max_r << ' ' << max_r;
+               if (i == 0)
+               {
+                  y_cmd << " keys aa "
+                        << " window_geometry 403 0 400 350";
+               }
+
                mode_y_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << yComp << flush
-                           << "window_geometry 403 0 400 350 "
-                           << "window_title 'Eigenmode " << i+1 << '/' << nev
-                           << " Y, Lambda = " << eigenvalues[i] - shift
-                           << "'" << endl;
+                           << y_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
+
+               ostringstream z_cmd;
+               z_cmd << " window_title 'Eigenmode " << i+1 << '/' << nev
+                     << " Z, Lambda = " << eigenvalues[i] - shift << "'"
+                     << " valuerange -"<< max_r << ' ' << max_r;
+               if (i == 0)
+               {
+                  z_cmd << " keys aa "
+                        << " window_geometry 806 0 400 350";
+               }
+
                mode_z_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << zComp << flush
-                           << "window_geometry 806 0 400 350 "
-                           << "window_title 'Eigenmode " << i+1 << '/' << nev
-                           << " Z, Lambda = " << eigenvalues[i] - shift
-                           << "'" << endl;
+                           << z_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
 
                VectorGridFunctionCoefficient dmodeCoef(&dx);
                InnerProductCoefficient dyCoef(yVecCoef, dmodeCoef);
@@ -327,20 +369,45 @@ int main(int argc, char *argv[])
                dyComp.ProjectCoefficient(dyCoef);
                dzComp.ProjectCoefficient(dzCoef);
 
+               double min_d = max_r / bbMax[0] - bbMin[0];
+
+               max_y = GetScalarMax(dyComp);
+               max_z = GetScalarMax(dzComp);
+               max_r = std::max(std::max(max_y, max_z), min_d);
+
+               ostringstream dy_cmd;
+               dy_cmd << " window_title 'Curl Eigenmode "
+                      << i+1 << '/' << nev
+                      << " Y, Lambda = " << eigenvalues[i] - shift << "'"
+                      << "valuerange -"<< max_r << ' ' << max_r;
+               if (i == 0)
+               {
+                  dy_cmd << " keys aa"
+                         << " window_geometry 403 375 400 350";
+               }
+
                mode_dy_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dyComp << flush
-                            << "window_geometry 0 375 400 350 "
-                            << "window_title 'Curl Eigenmode "
-                            << i+1 << '/' << nev
-                            << " Y, Lambda = " << eigenvalues[i] - shift
-                            << "'" << endl;
+                            << dy_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
+
+               ostringstream dz_cmd;
+               dz_cmd << " window_title 'Curl Eigenmode "
+                      << i+1 << '/' << nev
+                      << " Z, Lambda = " << eigenvalues[i] - shift << "'"
+                      << "valuerange -"<< max_r << ' ' << max_r;
+               if (i == 0)
+               {
+                  dz_cmd << " keys aa"
+                         << " window_geometry 806 375 400 350";
+               }
+
                mode_dz_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dzComp << flush
-                            << "window_geometry 403 375 400 350 "
-                            << "window_title 'Curl Eigenmode "
-                            << i+1 << '/' << nev
-                            << " Z, Lambda = " << eigenvalues[i] - shift
-                            << "'" << endl;
+                            << dz_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
             }
             char c;
             if (mpi.Root())
@@ -414,18 +481,41 @@ int main(int argc, char *argv[])
                xyComp.ProjectCoefficient(xyCoef);
                zComp.ProjectCoefficient(zCoef);
 
+               double max_v = GetVectorMax(2, xyComp);
+               double max_s = GetScalarMax(zComp);
+               double max_r = std::max(max_v, max_s);
+
+               ostringstream xy_cmd;
+               xy_cmd << " window_title 'Eigenmode " << i+1 << '/' << nev
+                      << " XY, Lambda = " << eigenvalues[i] - shift << "'"
+                      << " valuerange 0.0 " << max_r;
+               if (i == 0)
+               {
+                  xy_cmd << " keys aavvv"
+                         << " window_geometry 0 0 400 350";
+               }
+
                mode_xy_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << xyComp << flush
-                            << "keys vvv "
-                            << "window_title 'Eigenmode " << i+1 << '/' << nev
-                            << " XY, Lambda = " << eigenvalues[i] - shift
-                            << "'" << endl;
+                            << xy_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
+
+               ostringstream z_cmd;
+               z_cmd << " window_title 'Eigenmode " << i+1 << '/' << nev
+                     << " Z, Lambda = " << eigenvalues[i] - shift << "'"
+                     << " valuerange -"<< max_r << ' ' << max_r;
+               if (i == 0)
+               {
+                  z_cmd << " keys aa"
+                        << " window_geometry 403 0 400 350";
+               }
+
                mode_z_sock << "parallel " << num_procs << " " << myid << "\n"
                            << "solution\n" << pmesh << zComp << flush
-                           << "window_geometry 403 0 400 350 "
-                           << "window_title 'Eigenmode " << i+1 << '/' << nev
-                           << " Z, Lambda = " << eigenvalues[i] - shift
-                           << "'" << endl;
+                           << z_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
 
                VectorGridFunctionCoefficient dmodeCoef(&dx);
                MatrixVectorProductCoefficient dxyCoef(xyMatCoef, dmodeCoef);
@@ -434,21 +524,47 @@ int main(int argc, char *argv[])
                dxyComp.ProjectCoefficient(dxyCoef);
                dzComp.ProjectCoefficient(dzCoef);
 
+               double min_d = max_r / std::min(bbMax[0] - bbMin[0],
+                                               bbMax[1] - bbMin[1]);
+
+               max_v = GetVectorMax(2, dxyComp);
+               max_s = GetScalarMax(dzComp);
+               max_r = std::max(std::max(max_v, max_s), min_d);
+
+               ostringstream dxy_cmd;
+               dxy_cmd << " window_title 'Curl Eigenmode "
+                       << i+1 << '/' << nev
+                       << " XY, Lambda = " << eigenvalues[i] - shift << "'"
+                       << " valuerange 0.0 " << max_r << '\n';
+               if (i == 0)
+               {
+                  dxy_cmd << " keys aavvv "
+                          << " window_geometry 0 375 400 350";
+
+               }
+
                mode_dxy_sock << "parallel " << num_procs << " " << myid << "\n"
                              << "solution\n" << pmesh << dxyComp << flush
-                             << "keys vvv "
-                             << "window_geometry 0 375 400 350 "
-                             << "window_title 'Curl Eigenmode "
-                             << i+1 << '/' << nev
-                             << " XY, Lambda = " << eigenvalues[i] - shift
-                             << "'" << endl;
+                             << dxy_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
+
+               ostringstream dz_cmd;
+               dz_cmd << " window_title 'Curl Eigenmode "
+                      << i+1 << '/' << nev
+                      << " Z, Lambda = " << eigenvalues[i] - shift << "'"
+                      << " valuerange -" << max_r << ' ' << max_r;
+               if (i == 0)
+               {
+                  dz_cmd << " keys aa"
+                         << " window_geometry 403 375 400 350";
+               }
+
                mode_dz_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dzComp << flush
-                            << "window_geometry 403 375 400 350 "
-                            << "window_title 'Curl Eigenmode "
-                            << i+1 << '/' << nev
-                            << " Z, Lambda = " << eigenvalues[i] - shift
-                            << "'" << endl;
+                            << dz_cmd.str() << endl << flush;
+
+               MPI_Barrier(MPI_COMM_WORLD);
             }
             char c;
             if (mpi.Root())
@@ -492,6 +608,9 @@ int main(int argc, char *argv[])
                       << "window_title 'Eigenmode " << i+1 << '/' << nev
                       << ", Lambda = " << eigenvalues[i] - shift
                       << "'" << endl;
+
+            MPI_Barrier(MPI_COMM_WORLD);
+
             mode_deriv_sock << "parallel " << num_procs << " " << myid << "\n"
                             << "solution\n" << pmesh << dx << flush
                             << "window_geometry 0 375 400 350 "
@@ -499,6 +618,8 @@ int main(int argc, char *argv[])
                             << i+1 << '/' << nev
                             << ", Lambda = " << eigenvalues[i] - shift
                             << "'" << endl;
+
+            MPI_Barrier(MPI_COMM_WORLD);
 
             char c;
             if (mpi.Root())
@@ -527,4 +648,19 @@ int main(int argc, char *argv[])
    delete fec_rt;
 
    return 0;
+}
+
+double GetVectorMax(int vdim, const ParGridFunction &x)
+{
+   Vector zeroVec(vdim); zeroVec = 0.0;
+   VectorConstantCoefficient zero(zeroVec);
+   double nrm = x.ComputeMaxError(zero);
+   return nrm;
+}
+
+double GetScalarMax(const ParGridFunction &x)
+{
+   ConstantCoefficient zero(0.0);
+   double nrm = x.ComputeMaxError(zero);
+   return nrm;
 }
