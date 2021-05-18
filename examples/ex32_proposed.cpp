@@ -3,9 +3,8 @@
 // Compile with: make ex32
 //
 // Sample runs:  ex32 -m ../data/hexagon.mesh -o 2
-//               ex32 -m ../data/star.mesh -o 3
-//               ex32 -m ../data/amr-quad.mesh
-//               ex32 -m ../data/amr-quad.mesh -o 2
+//               ex32 -m ../data/inline-tri.mesh -o 3
+//               ex32 -m ../data/amr-quad.mesh -o 3
 //
 // Description:  This is a version of Example 30 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the
@@ -74,7 +73,6 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
       mesh.SetCurvature(2);
    }
-   mesh.EnsureNCMesh();
 
    // 4. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
@@ -189,7 +187,7 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 3, 500, 1e-12, 1e-12);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;

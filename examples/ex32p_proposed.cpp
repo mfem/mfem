@@ -2,10 +2,9 @@
 //
 // Compile with: make ex32p
 //
-// Sample runs:  mpirun -np 4 ex32p -m ../data/hexagon.mesh -o 2
-//               mpirun -np 4 ex32p -m ../data/star.mesh -o 3
-//               mpirun -np 4 ex32p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex32p -m ../data/amr-quad.mesh -o 2
+// Sample runs:  mpirun -np 3 ex32p -m ../data/hexagon.mesh -o 2
+//               mpirun -np 4 ex32p -m ../data/inline-tri.mesh -o 3
+//               mpirun -np 4 ex32p -m ../data/amr-quad.mesh -o 3
 //
 // Description:  This is a version of Example 30 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the
@@ -203,7 +202,7 @@ int main(int argc, char *argv[])
 
       sol.ProjectBdrCoefficientTangent(zeroCoef, ess_bdr);
 
-      const int copy_interior = 1;
+      const int copy_interior = 0;
       a.FormLinearSystem(ess_tdof_list, sol, b, A, X, B, copy_interior);
 
       // 17. Solve the linear system A X = B.
