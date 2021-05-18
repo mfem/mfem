@@ -62,6 +62,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.9.0
+      with:
+        access_token: ${{ github.token }}
+
     # Checkout MFEM in "mfem" subdirectory. Final path:
     # /home/runner/work/mfem/mfem/mfem
     # Note: Done now to access "install-hypre" and "install-metis" actions.
