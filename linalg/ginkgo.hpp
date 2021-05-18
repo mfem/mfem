@@ -133,7 +133,7 @@ public:
    // with same executor and type as self, but with a different size.
    // This function will create "one large VectorWrapper" of size
    // size[0] * size[1], since MFEM Vectors only have one dimension.
-   virtual std::unique_ptr<gko::matrix::Dense<double>>create_with_type_of_impl(
+   virtual std::unique_ptr<gko::matrix::Dense<double>> create_with_type_of_impl(
                                                        std::shared_ptr<const gko::Executor> exec,
                                                        const gko::dim<2> &size,
                                                        gko::size_type stride) const override
@@ -163,7 +163,7 @@ public:
 
    // Override base Dense class implementation for creating new sub-vectors
    // from a larger vector.
-   virtual std::unique_ptr<gko::matrix::Dense<double>>create_submatrix_impl(
+   virtual std::unique_ptr<gko::matrix::Dense<double>> create_submatrix_impl(
                                                        const gko::span &rows,
                                                        const gko::span &columns,
                                                        const gko::size_type stride) override
