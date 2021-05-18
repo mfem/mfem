@@ -102,7 +102,7 @@ void TestCalcShape(FiniteElement* fe, int res)
       {
          IntegrationPoint& ip = ipArr[j];
          fe->CalcShape(ip, weights);
-         REQUIRE( weights.Sum() == MFEM_Approx(1.) );
+         REQUIRE( weights.Sum() == MFEM_Approx(1.,1e-10,1e-10) );
       }
    }
 }
