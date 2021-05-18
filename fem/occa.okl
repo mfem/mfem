@@ -18,6 +18,8 @@
 
 #define DQ1D (D1D*Q1D)
 
+#define D2D (D1D*D1D)
+
 #define Q2D (Q1D*Q1D)
 #define Q3D (Q1D*Q1D*Q1D)
 
@@ -196,6 +198,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
    }
 }
 
+#if 0
+// ORIGINAL VERSION
 @kernel void DiffusionApply2D_GPU(const int NE,
                                   @restrict const DofToQuad_t B,
                                   @restrict const DofToQuad_t G,
@@ -310,6 +314,200 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
       }
    }
 }
+#else
+
+// these are guesses for how many elements to process in a thread-block
+#if Q1D==1
+#define E1D 64
+#elif Q1D==2
+#define E1D 32
+#elif Q1D==3
+#define E1D 21
+#elif Q1D==4
+#define E1D 16
+#elif Q1D==5
+#define E1D 12
+#elif Q1D==6
+#define E1D 10
+#elif Q1D==7
+#define E1D 9
+#elif Q1D==8
+#define E1D 8
+#elif Q1D==9
+#define E1D 5
+#elif Q1D==10
+#define E1D 4
+#else
+#define E1D 1
+#endif
+
+
+// TW VERSION
+@kernel void DiffusionApply2D_GPU(const int NE,
+                                  @restrict const double *B, 
+                                  @restrict const double *G,
+                                  @restrict const double *Bt,
+                                  @restrict const double *Gt,
+                                  @restrict const double *op,
+                                  @restrict const double *X,
+                                  @restrict double *Y) {
+  // Iterate over elements
+  for (int eOff = 0; eOff < NE; eOff += E1D; @outer) {
+
+    // Store dof <--> quad mappings
+    @shared double s_B[Q1D][D1D];
+    @shared double s_G[Q1D][D1D];
+    
+    // Store xy planes in @shared memory
+    @shared double s_wk0[E1D][Q1D][Q1D];
+    @shared double s_wk1[E1D][Q1D][Q1D];
+
+    // Registers for thread local values
+    @exclusive double r_u, r_v;
+
+    // Reuse wk0 for input
+#define s_X s_wk0
+
+    // element number for this thread
+    @exclusive int e;
+    
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
+	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+	  {
+	    // load B(asis) and G(radient) matrices
+	    int dx = qx, dy = qy;
+	    if(dx<D1D && ez==0)
+	      {
+		int id = qy + Q1D*dx;
+		s_B[qy][dx] = B[id]; // check this
+		s_G[qy][dx] = G[id];
+	      }
+	    
+	    // find element for this thread
+	    e = ez + eOff;
+	    if(e<NE && dx<D1D && dy<D1D)
+	      {
+		s_X[ez][dy][dx] = X[dx + dy*D1D + e*D2D];
+	      }
+	  }
+    
+    
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+      for(int dy = 0; dy < Q1D; ++dy; @inner(1))
+	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+	  {
+	    double u = 0.0;
+	    double v = 0.0;
+	    
+	    if(dy<D1D){
+#pragma unroll D1D
+	      for(int dx = 0; dx < D1D; ++dx){
+		const double coords = s_X[ez][dy][dx];
+		u += s_G[qx][dx] * coords;
+		v += s_B[qx][dx] * coords;
+	      }
+	      r_u = u;
+	      r_v = v;
+	    }
+	  }
+
+    // swap reg<>shared
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
+	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+	  {
+	    s_wk0[ez][qy][qx] = r_u;
+	    s_wk1[ez][qy][qx] = r_v;
+	  }
+    
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
+	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+	  {
+	    // prefetch Jacobian values
+	    double O11 = 0, O12 = 0, O21 = 0, O22 = 0;
+	    
+	    if(e<NE){
+	      int Ngeo = 3;
+	      int id = e*Ngeo*Q2D  + qy*Q1D + qx;
+	      O11 = op[id+0*Q2D];
+	      O21 = op[id+1*Q2D];
+	      O22 = op[id+2*Q2D];
+	      O12 = O21;
+	    }
+	    
+	    double gX = 0.0;
+	    double gY = 0.0;
+#pragma unroll D1D
+	    for(int dy = 0; dy < D1D; ++dy){
+	      gX += s_wk0[ez][dy][qx] * s_B[qy][dy];
+	      gY += s_wk1[ez][dy][qx] * s_G[qy][dy];
+	    }
+	    r_u = (O11 * gX) + (O12 * gY);
+	    r_v = (O21 * gX) + (O22 * gY);
+	  }
+    
+    // swap reg<>shared
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
+	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+	  {
+	    s_wk0[ez][qy][qx] = r_u;
+	    s_wk1[ez][qy][qx] = r_v;
+	  }
+
+    
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))      
+      for(int qy = 0; qy < Q1D; ++qy; @inner(1))	
+	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
+	  {
+	    if(dx<D1D){
+	      double u = 0.0;
+	      double v = 0.0;
+	      
+#pragma unroll Q1D
+	      for (int qx = 0; qx < Q1D; ++qx)
+		{
+		  u += s_G[qx][dx] * s_wk0[ez][qy][qx]; // TW
+		  v += s_B[qx][dx] * s_wk1[ez][qy][qx];
+		}
+	      
+	      r_u = u;
+	      r_v = v;
+	    }
+	  }
+    
+    // swap reg<>shared
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
+	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+	  {
+	    s_wk0[ez][qy][qx] = r_u;
+	    s_wk1[ez][qy][qx] = r_v;
+	  }
+      
+    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+      for(int dy = 0; dy < Q1D; ++dy; @inner(1))
+	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
+	  {
+	    if(dx<D1D && dy<D1D && e<NE){
+	      double u = Y[dx+dy*D1D+e*D2D];
+	      
+#pragma unroll Q1D
+	      for (int qy = 0; qy < Q1D; ++qy)
+		{
+		  u += s_wk0[ez][qy][dx] * s_B[qy][dy];
+		  u += s_wk1[ez][qy][dx] * s_G[qy][dy];
+		}
+	      
+	      Y[dx + dy*D1D + e*D2D] = (u);
+	    }
+	  }
+  }
+}
+#endif
+
 
 @kernel void DiffusionApply3D_CPU(const int NE,
                                   @restrict const DofToQuad_t B,
