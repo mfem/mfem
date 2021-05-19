@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
+   mesh.EnsureNCMesh(true);
    int dim = mesh.Dimension();
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
@@ -126,8 +127,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels = 0;
+         //(int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -140,7 +141,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -177,6 +178,15 @@ int main(int argc, char *argv[])
    {
       cout << "Number of finite element unknowns: " << size << endl;
    }
+
+   // 8. Set element polynomial orders
+   //
+   //
+   if (myid == 0)
+   {
+      fespace.SetElementOrder(0, order+1);
+   }
+   fespace.Update(false);
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined

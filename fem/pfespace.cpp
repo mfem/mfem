@@ -168,11 +168,11 @@ void ParFiniteElementSpace::Construct()
          // TODO: what to do with gcomm and the cut space groups in var-order spaces?
       }
 
-      Array<VarOrderBits> ghost_edge_orders, ghost_face_orders;
+      /*Array<VarOrderBits> ghost_edge_orders, ghost_face_orders;
       if (IsVariableOrder() || NeedDoubleFaces())
       {
          CalcGhostEdgeFaceVarOrders(ghost_edge_orders, ghost_face_orders);
-      }
+      }*/
 
       ngedofs = ngfdofs = 0;
 
@@ -185,8 +185,7 @@ void ParFiniteElementSpace::Construct()
       {
          if (IsVariableOrder())
          {
-            ngedofs = MakeDofTable(1, ghost_edge_orders,
-                                   ghost_var_dofs[0], &(ghost_var_orders[0]));
+            ngedofs = MakeGhostEdgeDofTable();
          }
          else // the simple case: all ghost edges are of the same order
          {
@@ -200,8 +199,8 @@ void ParFiniteElementSpace::Construct()
       {
          if (IsVariableOrder() || NeedDoubleFaces())
          {
-            ngfdofs = MakeDofTable(2, ghost_face_orders,
-                                   ghost_var_dofs[1], &(ghost_var_orders[1]));
+            ngfdofs = 0;/*MakeDofTable(2, ghost_face_orders,
+            FIXME                  ghost_var_dofs[1], &(ghost_var_orders[1]));*/
          }
          else
          {
@@ -334,13 +333,12 @@ void ParFiniteElementSpace
 }
 
 
-void ParFiniteElementSpace::MakeGhostEdgeDofTable()
+int ParFiniteElementSpace::MakeGhostEdgeDofTable()
 {
    typedef Triple<int, int, int> TripleInt;
    Array<TripleInt> edge_order_rank;
 
    Array<int> E;
-
    for (int i = 0; i < pncmesh->GetNGhostElements(); i++)
    {
       int ghost = mesh->GetNE() + i;
@@ -359,6 +357,7 @@ void ParFiniteElementSpace::MakeGhostEdgeDofTable()
       }
    }
 
+   // sort and remove duplicities in edge/order, end up with minimum ranks
    edge_order_rank.Sort();
    auto end =
       std::unique(edge_order_rank.begin(), edge_order_rank.end(),
@@ -366,11 +365,35 @@ void ParFiniteElementSpace::MakeGhostEdgeDofTable()
          {
             return (a.one == b.one) && (a.two == b.two);
          });
-   edge_order_rank.SetSize(end - edge_order_rank.begin());
 
+   int jsize = end - edge_order_rank.begin();
+   edge_order_rank.SetSize(jsize);
 
+   // make the DOF tables/arrays
+   Array<Connection> list_edge_dof(jsize);
+   ghost_var_orders[0].SetSize(jsize);
+   ghost_var_owners[0].SetSize(jsize);
 
+   int total_dofs = 0;
+   for (int i = 0; i < jsize; i++)
+   {
+      auto &eor = edge_order_rank[i];
+      int dofs = fec->GetNumDof(Geometry::SEGMENT, eor.two);
 
+      list_edge_dof[i] = Connection(eor.one, total_dofs);
+      total_dofs += dofs;
+
+      ghost_var_orders[i] = eor.two;
+      ghost_var_owners[i] = eor.three;
+   }
+
+   int nedges = mesh->GetNEdges() + pncmesh->GetNGhostEdges();
+   list_edge_dof.Append(Connection(nedges, total_dofs)); // terminator
+
+   // create ghost edge dof Table
+   ghost_var_dofs[0].MakeFromList(nedges, list_edge_dof);
+
+   return total_dofs;
 }
 
 

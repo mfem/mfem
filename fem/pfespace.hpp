@@ -124,7 +124,7 @@ private:
    void CalcGhostEdgeFaceVarOrders(Array<VarOrderBits> &ghost_edge_orders,
                                    Array<VarOrderBits> &ghost_face_orders) const;
 
-   void MakeGhostEdgeDofTable();
+   int MakeGhostEdgeDofTable();
 
    /// Return var-order edge/face (entity=1,2) first DOF corresponding to 'order'.
    int FirstVarDof(int entity, int index, int order) const;
