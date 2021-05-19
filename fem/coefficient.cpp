@@ -239,9 +239,9 @@ double DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
    return GridFunc->GetDivergence(T);
 }
 
-void VectorDeltaCoefficient::SetDirection(const Vector &_d)
+void VectorDeltaCoefficient::SetDirection(const Vector &d_)
 {
-   dir = _d;
+   dir = d_;
    (*this).vdim = dir.Size();
 }
 
@@ -506,33 +506,33 @@ VectorSumCoefficient::VectorSumCoefficient(int dim)
    A = 0.0; B = 0.0;
 }
 
-VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
+VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A_,
                                            VectorCoefficient &B_,
-                                           double _alpha, double _beta)
-   : VectorCoefficient(_A.GetVDim()),
-     ACoef(&_A), BCoef(&B_),
-     A(_A.GetVDim()), B(_A.GetVDim()),
+                                           double alpha_, double beta_)
+   : VectorCoefficient(A_.GetVDim()),
+     ACoef(&A_), BCoef(&B_),
+     A(A_.GetVDim()), B(A_.GetVDim()),
      alphaCoef(NULL), betaCoef(NULL),
-     alpha(_alpha), beta(_beta)
+     alpha(alpha_), beta(beta_)
 {
-   MFEM_ASSERT(_A.GetVDim() == B_.GetVDim(),
+   MFEM_ASSERT(A_.GetVDim() == B_.GetVDim(),
                "VectorSumCoefficient:  "
                "Arguments must have the same dimension.");
 }
 
-VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
+VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A_,
                                            VectorCoefficient &B_,
-                                           Coefficient &_alpha,
-                                           Coefficient &_beta)
-   : VectorCoefficient(_A.GetVDim()),
-     ACoef(&_A), BCoef(&B_),
-     A(_A.GetVDim()),
-     B(_A.GetVDim()),
-     alphaCoef(&_alpha),
-     betaCoef(&_beta),
+                                           Coefficient &alpha_,
+                                           Coefficient &beta_)
+   : VectorCoefficient(A_.GetVDim()),
+     ACoef(&A_), BCoef(&B_),
+     A(A_.GetVDim()),
+     B(A_.GetVDim()),
+     alphaCoef(&alpha_),
+     betaCoef(&beta_),
      alpha(0.0), beta(0.0)
 {
-   MFEM_ASSERT(_A.GetVDim() == B_.GetVDim(),
+   MFEM_ASSERT(A_.GetVDim() == B_.GetVDim(),
                "VectorSumCoefficient:  "
                "Arguments must have the same dimension.");
 }
@@ -569,8 +569,8 @@ void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 NormalizedVectorCoefficient::NormalizedVectorCoefficient(VectorCoefficient &A,
-                                                         double _tol)
-   : VectorCoefficient(A.GetVDim()), a(&A), tol(_tol)
+                                                         double tol_)
+   : VectorCoefficient(A.GetVDim()), a(&A), tol(tol_)
 {}
 
 void NormalizedVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -631,9 +631,9 @@ void IdentityMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 
 MatrixSumCoefficient::MatrixSumCoefficient(MatrixCoefficient &A,
                                            MatrixCoefficient &B,
-                                           double _alpha, double _beta)
+                                           double alpha_, double beta_)
    : MatrixCoefficient(A.GetHeight(), A.GetWidth()),
-     a(&A), b(&B), alpha(_alpha), beta(_beta),
+     a(&A), b(&B), alpha(alpha_), beta(beta_),
      ma(A.GetHeight(), A.GetWidth())
 {
    MFEM_ASSERT(A.GetHeight() == B.GetHeight() && A.GetWidth() == B.GetWidth(),
@@ -950,18 +950,18 @@ VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
    QuadratureFunction &qf)
    : VectorCoefficient(qf.GetVDim()), QuadF(qf), index(0) { }
 
-void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
+void VectorQuadratureFunctionCoefficient::SetComponent(int index_, int length_)
 {
-   MFEM_VERIFY(_index >= 0, "Index must be >= 0");
-   MFEM_VERIFY(_index < QuadF.GetVDim(),
+   MFEM_VERIFY(index_ >= 0, "Index must be >= 0");
+   MFEM_VERIFY(index_ < QuadF.GetVDim(),
                "Index must be < QuadratureFunction length");
-   index = _index;
+   index = index_;
 
-   MFEM_VERIFY(_length > 0, "Length must be > 0");
-   MFEM_VERIFY(_length <= QuadF.GetVDim() - index,
+   MFEM_VERIFY(length_ > 0, "Length must be > 0");
+   MFEM_VERIFY(length_ <= QuadF.GetVDim() - index,
                "Length must be <= (QuadratureFunction length - index)");
 
-   vdim = _length;
+   vdim = length_;
 }
 
 void VectorQuadratureFunctionCoefficient::Eval(Vector &V,

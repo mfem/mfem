@@ -51,6 +51,7 @@ examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
 examples/ex2[0-9]p_proposed
+examples/ex3[0-9]_proposed
 examples/ex3[0-9]p_proposed
 
 examples/refined.mesh
@@ -77,6 +78,7 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/mode_deriv_*
 examples/ex5-p-*.bp
 examples/ex9-p-*.bp
 examples/ex12-p-*.bp
@@ -219,6 +221,11 @@ miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
 
+miniapps/mtop/parheat
+miniapps/mtop/ParHeat*
+miniapps/mtop/seqheat
+miniapps/mtop/SeqHeat*
+
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
 miniapps/navier/navier_kovasznay_vs
@@ -274,6 +281,11 @@ miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
 miniapps/solvers/block-solvers
+miniapps/solvers/lor_solvers
+miniapps/solvers/plor_solvers
+miniapps/solvers/ParaView
+miniapps/solvers/mesh.*
+miniapps/solvers/sol.*
 
 # Unit test binary and outputs
 tests/unit/output_meshes

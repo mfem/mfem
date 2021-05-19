@@ -6,7 +6,7 @@
 // Sample runs:  mpirun -np 4 ex31p -m ../data/hexagon.mesh -o 2
 //               mpirun -np 4 ex31p -m ../data/star.mesh
 //               mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 2 -n 4 -rs 1
-//               mpirun -np 4 ex31p -m ../data/square-disc-nurbs.mesh
+//               mpirun -np 4 ex31p -m ../data/square-disc-nurbs.mesh -rs 3 -o 3
 //               mpirun -np 4 ex31p -m ../data/amr-quad.mesh -o 2 -rs 1
 //               mpirun -np 4 ex31p -m ../data/amr-hex.mesh -rs 1
 //               mpirun -np 4 ex31p -m ../data/fichera.mesh -rs 1
