@@ -122,7 +122,7 @@ jobs:
         retention-days: 1
 
 
-  builds-and-tests:
+  builds:
     needs: dependencies
     strategy:
       matrix:
@@ -147,6 +147,103 @@ jobs:
             mpi: parallel
             build-system: cmake
     name: Build-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    # Only get MPI if defined for the job.
+    # TODO: It would be nice to have only one step, e.g. with a dedicated
+    # action, but I (@adrienbernede) don't see how at the moment.
+    - name: get MPI (Linux)
+      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
+      run: |
+        sudo apt-get install mpich libmpich-dev
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    - name: Set up Homebrew
+      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
+
+    - name: get MPI (MacOS)
+      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      run: |
+        export HOMEBREW_NO_INSTALL_CLEANUP=1
+        brew install openmpi
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    - name: download hypre artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: hypre-${{ matrix.os }}
+        path: ${{ env.HYPRE_TOP_DIR }}
+
+    - name: download metis artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: metis-${{ matrix.os }}
+        path: ${{ env.METIS_TOP_DIR }}
+
+    # Checkout MFEM in "mfem" subdirectory. Final path:
+    # /home/runner/work/mfem/mfem/mfem
+    - name: checkout mfem
+      uses: actions/checkout@v2
+      with:
+        path: ${{ env.MFEM_TOP_DIR }}
+        # Fetch the complete history for codecov to access commits ID
+        fetch-depth: 0
+
+    # MFEM build and test
+    - name: build
+      uses: mfem/github-actions/build-mfem@bernede1/optimize-deps-space
+      with:
+        os: ${{ matrix.os }}
+        target: ${{ matrix.target }}
+        codecov: ${{ matrix.codecov }}
+        mpi: ${{ matrix.mpi }}
+        build-system: ${{ matrix.build-system }}
+        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
+        mfem-dir: ${{ env.MFEM_TOP_DIR }}
+
+    # Run checks (and only checks) on debug targets
+    - name: checks
+      if: matrix.build-system == 'make' && matrix.target == 'debug'
+      run: |
+        cd ${{ env.MFEM_TOP_DIR }}  && make check
+
+    - name: upload mfem artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: mfem-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+        path: ${{ env.MFEM_TOP_DIR }}
+        retention-days: 1
+
+
+  tests:
+    needs: builds
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-10.15]
+        target: [debug, optim]
+        mpi: [sequential, parallel]
+        build-system: [make]
+        # 'include' allows us to
+        # - add a variable without creating a new matrix dimension.
+        # - add a new combination ('build-system: cmake' case here)
+        #
+        # note: we will gather coverage info for any non-debug run except the
+        # CMake build.
+        include:
+          - target: debug
+            codecov: NO
+          - target: optim
+            codecov: YES
+          - os: ubuntu-18.04
+            target: optim
+            codecov: NO
+            mpi: parallel
+            build-system: cmake
+    name: Test-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
     runs-on: ${{ matrix.os }}
 
@@ -194,6 +291,12 @@ jobs:
         name: metis-${{ matrix.os }}
         path: ${{ env.METIS_TOP_DIR }}
 
+    - name: download mfem artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: mfem-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+        path: ${{ env.MFEM_TOP_DIR }}
+
     # Checkout MFEM in "mfem" subdirectory. Final path:
     # /home/runner/work/mfem/mfem/mfem
     - name: checkout mfem
@@ -202,30 +305,6 @@ jobs:
         path: ${{ env.MFEM_TOP_DIR }}
         # Fetch the complete history for codecov to access commits ID
         fetch-depth: 0
-
-    # MFEM build and test
-    - name: build
-      uses: mfem/github-actions/build-mfem@bernede1/optimize-deps-space
-      with:
-        os: ${{ matrix.os }}
-        target: ${{ matrix.target }}
-        codecov: ${{ matrix.codecov }}
-        mpi: ${{ matrix.mpi }}
-        build-system: ${{ matrix.build-system }}
-        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
-        metis-dir: ${{ env.METIS_TOP_DIR }}
-        mfem-dir: ${{ env.MFEM_TOP_DIR }}
-
-    # Run checks (and only checks) on debug targets
-    - name: checks
-      if: matrix.build-system == 'make' && matrix.target == 'debug'
-      run: |
-        cd ${{ env.MFEM_TOP_DIR }}  && make check
-
-    - name: unit tests
-      if: matrix.build-system == 'make' && matrix.target == 'optim'
-      run: |
-        cd ${{ env.MFEM_TOP_DIR }} && make unittest
 
     - name: tests
       if: matrix.build-system == 'make' && matrix.target == 'optim'
