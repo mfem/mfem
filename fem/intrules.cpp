@@ -878,8 +878,8 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
-IntegrationRules::IntegrationRules(int Ref, int _type):
-   quad_type(_type)
+IntegrationRules::IntegrationRules(int Ref, int type_):
+   quad_type(type_)
 {
    refined = Ref;
 

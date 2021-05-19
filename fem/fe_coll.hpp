@@ -1096,10 +1096,10 @@ public:
    Local_FECollection(const char *fe_name);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type _GeomType) const
-   { return (GeomType == _GeomType) ? Local_Element : NULL; }
-   virtual int DofForGeometry(Geometry::Type _GeomType) const
-   { return (GeomType == _GeomType) ? Local_Element->GetDof() : 0; }
+      Geometry::Type GeomType_) const
+   { return (GeomType == GeomType_) ? Local_Element : NULL; }
+   virtual int DofForGeometry(Geometry::Type GeomType_) const
+   { return (GeomType == GeomType_) ? Local_Element->GetDof() : 0; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const
    { return NULL; }

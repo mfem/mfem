@@ -40,7 +40,7 @@ public:
        The specified Jacobian matrix, #Jtr, can be used by metrics that cannot
        be written just as a function of the target->physical Jacobian matrix,
        Jpt. */
-   virtual void SetTargetJacobian(const DenseMatrix &_Jtr) { Jtr = &_Jtr; }
+   virtual void SetTargetJacobian(const DenseMatrix &Jtr_) { Jtr = &Jtr_; }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -88,11 +88,11 @@ public:
       wt_arr.Append(wt);
    }
 
-   virtual void SetTargetJacobian(const DenseMatrix &_Jtr)
+   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
    {
       for (int i = 0; i < tmop_q_arr.Size(); i++)
       {
-         tmop_q_arr[i]->SetTargetJacobian(_Jtr);
+         tmop_q_arr[i]->SetTargetJacobian(Jtr_);
       }
    }
 
@@ -1430,7 +1430,7 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void   SetFDhScale(double _dxscale) { dxscale = _dxscale; }
+   void   SetFDhScale(double dxscale_) { dxscale = dxscale_; }
    bool   GetFDFlag() const { return fdflag; }
    double GetFDh()    const { return dx; }
 

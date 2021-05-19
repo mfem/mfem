@@ -39,7 +39,7 @@ IterativeSolver::IterativeSolver()
 }
 
 #ifdef MFEM_USE_MPI
-IterativeSolver::IterativeSolver(MPI_Comm _comm)
+IterativeSolver::IterativeSolver(MPI_Comm comm_)
    : Solver(0, true)
 {
    oper = NULL;
@@ -48,7 +48,7 @@ IterativeSolver::IterativeSolver(MPI_Comm _comm)
    print_level = -1;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
-   comm = _comm;
+   comm = comm_;
 }
 #endif
 
@@ -2139,16 +2139,16 @@ void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
    problem = &prob;
 }
 
-void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
+void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
 {
-   lo.SetDataAndSize(_lo.GetData(), _lo.Size());
-   hi.SetDataAndSize(_hi.GetData(), _hi.Size());
+   lo.SetDataAndSize(lo_.GetData(), lo_.Size());
+   hi.SetDataAndSize(hi_.GetData(), hi_.Size());
 }
 
-void SLBQPOptimizer::SetLinearConstraint(const Vector &_w, double _a)
+void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
 {
-   w.SetDataAndSize(_w.GetData(), _w.Size());
-   a = _a;
+   w.SetDataAndSize(w_.GetData(), w_.Size());
+   a = a_;
 }
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
@@ -3132,7 +3132,7 @@ KLUSolver::~KLUSolver()
 DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
                                            const SparseMatrix &block_dof_)
    : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
-     block_solvers(block_dof.NumRows())
+     block_solvers(new DenseMatrixInverse[block_dof.NumRows()])
 {
    DenseMatrix sub_A;
    for (int i = 0; i < block_dof.NumRows(); ++i)
