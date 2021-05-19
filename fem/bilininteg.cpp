@@ -2990,8 +2990,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       }
    }
 
-   double beta = 1;
-
    // elmat := -elmat + sigma*elmat^t + jmat
    if (kappa_is_nonzero)
    {
@@ -3019,10 +3017,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          elmat(i,i) *= (sigma - beta*1.);
       }
    }
-
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //std::cout << " full cell " << std::endl;
-   //exit(1);
 }
 
 

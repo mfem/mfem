@@ -544,6 +544,7 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
 void GetNormalDFaceDofStencil(const int dim, const int face_id,
                  const int dof1d, Array<int> &faceMap)
 {
+   int end = dof1d-1;
    switch (dim)
    {
       case 1:
@@ -568,7 +569,7 @@ void GetNormalDFaceDofStencil(const int dim, const int face_id,
                {
                   for (int s = 0; s < dof1d; ++s)
                   {
-                     faceMap[dof1d*j+s] = dof1d-1-s + j*dof1d;
+                     faceMap[dof1d*j+s] = end-s + j*dof1d;
                   }
                }
                break;
@@ -577,7 +578,7 @@ void GetNormalDFaceDofStencil(const int dim, const int face_id,
                {
                   for (int s = 0; s < dof1d; ++s)
                   {
-                     faceMap[dof1d*i+s] = (dof1d-1-s)*dof1d + i;
+                     faceMap[dof1d*i+s] = (end-s)*dof1d + i;
                   }
                }
                break;
@@ -590,10 +591,97 @@ void GetNormalDFaceDofStencil(const int dim, const int face_id,
                   }
                }
                break;
+            default:
+               MFEM_ABORT("Invalid face_id");
          }
          break;
       case 3:
-         MFEM_ABORT("GetNormalDFaceDofStencil not implemented for 3D!");
+         switch (face_id)
+         {
+            // dof = i + j*dof1d + k*dof1d*dof1d 
+            case 0: // BOTTOM
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     for (int s = 0; s < dof1d; ++s)
+                     {
+                        faceMap[s+i*dof1d+j*dof1d*dof1d] = i + j*dof1d + s*dof1d*dof1d;
+                     }
+                  }
+               }
+               break;
+            case 1: // SOUTH
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     for (int s = 0; s < dof1d; ++s)
+                     {
+                        faceMap[s+i*dof1d+j*dof1d*dof1d] = i + s*dof1d + j*dof1d*dof1d;
+                     }
+                  }
+               }
+               break;
+            case 2: // EAST
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     for (int s = 0; s < dof1d; ++s)
+                     {
+                        faceMap[s+i*dof1d+j*dof1d*dof1d] = end-s + i*dof1d + j*dof1d*dof1d;
+                     }
+                  }
+               }
+               break;
+            case 3: // NORTH
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     for (int s = 0; s < dof1d; ++s)
+                     {
+                        faceMap[s+i*dof1d+j*dof1d*dof1d] = (end-s)*dof1d + i + j*dof1d*dof1d;
+                     }
+                  }
+               }
+               break;
+            case 4: // WEST
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     for (int s = 0; s < dof1d; ++s)
+                     {
+                        faceMap[s+i*dof1d+j*dof1d*dof1d] = s + i*dof1d + j*dof1d*dof1d;
+                     }
+                  }
+               }
+               break;
+            case 5: // TOP
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     for (int s = 0; s < dof1d; ++s)
+                     {
+                        faceMap[s+i*dof1d+j*dof1d*dof1d] = (end-s)*dof1d*dof1d + i + j*dof1d;
+                     }
+                  }
+               }
+               break;
+            default: 
+               MFEM_ABORT("Invalid face_id");
+         }
+         break;
+#ifdef MFEM_DEBUG
+         for(int k = 0 ; k < dof1d*dof1d*dof1d ; k++ )
+         {
+            MFEM_VERIFY( (faceMap[k] >= dof1d*dof1d*dof1d) or (faceMap[k] < 0 ) ,
+            "Invalid faceMap values.");
+         }
+#endif
    }
 }
 
@@ -1560,7 +1648,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    std::cout << "dof1d " << dof1d << std::endl;
    std::cout << "dof " << dof << std::endl;
-   //exit(1);
 
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
@@ -1576,7 +1663,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
    // Operator parameters
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nfdofs*2;
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof*2;
    width = fes.GetVSize();
 
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -1624,8 +1711,8 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    IntegrationPoint zero;
    double zeropt[1] = {0};
    zero.Set(zeropt,1);
-   auto u_face    = Reshape(Bf.Write(), dof1d, dof1d, nf, 2);
-   auto dudn_face = Reshape(Gf.Write(), dof1d, dof1d, nf, 2);
+   auto u_face    = Reshape(Bf.Write(), dof1d, dof, nf, 2);
+   auto dudn_face = Reshape(Gf.Write(), dof1d, dof, nf, 2);
 
    // Computation of scatter indices
    int f_ind=0;
@@ -1706,12 +1793,10 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                {
                   u_face(i,p,f_ind,1) = bf(i);
                   dudn_face(i,p,f_ind,1) = gf(i);
-                  //std::cout << i << " " << p  << " " << u_face(i,p,f_ind,1) << " " <<  dudn_face(i,p,f_ind,1) << std::endl;
+                  std::cout << i << " " << p  << " " << u_face(i,p,f_ind,1) << " " <<  dudn_face(i,p,f_ind,1) << std::endl;
                }
-               //exit(1);
             }
          }
-         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
          // Compute task-local scatter id for each face dof
          for (int d = 0; d < dof; ++d)
@@ -1723,7 +1808,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                const int gid = elementMap[e1*elem_dofs + did];
                const int lid = dof*dof1d*f_ind + dof1d*d + k;
                scatter_indices1[lid] = gid;
-
                // todo - guard this with (m==L2FaceValues::DoubleValued
                // For double-values face dofs, compute second scatter index
                if (type==FaceType::Interior && e2>=0) // interior face
@@ -1813,7 +1897,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
-               for (int k = 0; k < dof; ++k)
+               for (int k = 0; k < dof1d; ++k)
                {
                   if (type==FaceType::Interior && e2>=0) // interior face
                   {
@@ -1903,111 +1987,87 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs, nd
    const int dim = fes.GetMesh()->SpaceDimension();
-   const int nd = (dim==2)? dof*dof : dof*dof*dof ;
    const int vd = vdim;
    // is x transposed?
    const bool t = byvdim;
-   auto u_face    = Reshape(Bf.Read(), dof1d, dof1d, nf, 2);
-   auto dudn_face = Reshape(Gf.Read(), dof1d, dof1d, nf, 2);
+   auto u_face    = Reshape(Bf.Read(), dof1d, dof, nf, 2);
+   auto dudn_face = Reshape(Gf.Read(), dof1d, dof, nf, 2);
    y = 0.0;
 
-/*
-   Vector testv;
-   testv.SetSize(dof*nf);
-   testv = 0.0;
-   auto test = Reshape(testv.Write(), dof, nf);
-*/
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, 2, nf, 2);
+      auto d_y = Reshape(y.Write(), dof, vd, 2, nf, 2);
          
       // Loop over all face dofs
-      MFEM_FORALL(i, nd*vd*nf,
+      MFEM_FORALL(i, dof1d*dof*vd*nf,
       {
-
          const int k = i % dof1d;
-         const int dof = (i/dof1d) % dof1d;
-         const int face = i / (nd);
+         const int fdof = (i/dof1d) % dof;
+         const int face = i / (dof1d*dof);
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {  
-            //d_y( dof*dof1d+0 , c, 0, face, 0) += d_x(t?c:idx1, t?idx1:c)*u_face(k,dof,face,0);
-            //d_y( dof*dof1d+0 , c, 0, face, 1) += d_x(t?c:idx1, t?idx1:c)*dudn_face(k,dof,face,0);
-            d_y( dof*dof1d+k , c, 0, face, 0) = d_x(t?c:idx1, t?idx1:c);
-            
-
-            //test += d_x(t?c:idx1, t?idx1:c)*dudn_face(k,dof,face,0);
-
-            //std::cout << k << " " << dudn_face(k,dof,face,1) << " " << d_x(t?c:idx1, t?idx1:c) << " " <<  test << std::endl;
+            d_y( fdof , c, 0, face, 0) += d_x(t?c:idx1, t?idx1:c)*u_face(k,fdof,face,0);
+            d_y( fdof , c, 0, face, 1) += d_x(t?c:idx1, t?idx1:c)*dudn_face(k,fdof,face,0);
          }
          // other side 
          const int idx2 = d_indices2[i];
-         for (int c = 0; c < vd; ++c)
+         if( idx2==-1 )
          {
-            //d_y( dof*dof1d+0 , c, 1, face, 0) += ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) )*u_face(k,dof,face,1);
-            //d_y( dof*dof1d+0 , c, 1, face, 1) += ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) )*dudn_face(k,dof,face,0);
-
-            //test(dof,face) +=  ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) )*dudn_face(k,dof,face,1);
-
-            d_y( dof*dof1d+k, c, 1, face, 0) = ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) );
-            //std::cout << k << " " << dof << " " << face << " " << dudn_face(k,dof,face,1) << " " << d_x(t?c:idx2, t?idx2:c) << std::endl;
+            for (int c = 0; c < vd; ++c)
+            {
+               d_y( fdof , c, 1, face, 0) = 0.0;
+               d_y( fdof , c, 1, face, 1) = 0.0;
+            }
          }
-
-         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-         //exit(1);
-
+         else
+         {
+            for (int c = 0; c < vd; ++c)
+            {
+               d_y( fdof , c, 1, face, 0) += d_x(t?c:idx2, t?idx2:c)*u_face(k,fdof,face,1);
+               d_y( fdof , c, 1, face, 1) += d_x(t?c:idx2, t?idx2:c)*dudn_face(k,fdof,face,1);
+            }
+         }
       });
    }
    else
    {
       mfem_error("not yet implemented.");
-      /*
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, nf);
-      MFEM_FORALL(i, nfdofs,
-      {
-         const int dof = i % nd;
-         const int face = i / nd;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
-         }
-      });
-      */
    }
 
-  // auto test2 = Reshape(testv.Read(), dof, nf);
-/*
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   for (int f = 0; f < nf; f++)          
-      for (int d = 0; d < dof; d++)
-      {
-         std::cout << d << " " << f << " " <<  test2(d,f) << std::endl;
-      }
-*/
-
-
+   std::cout << " restrict y" << std::endl;
+   y.Print(std::cout,1);
+   std::cout << " end restrict y" << std::endl;
 }
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
+   /*
+   std::cout << "multT x " << std::endl;
+   x.Print(std::cout,1);
+   std::cout << "end multT x " << std::endl;
+*/
+/*
+   std::cout << "Bf " << std::endl;
+   Bf.Print(std::cout,dof1d);
+   std::cout << "Gf " << std::endl;
+   Gf.Print(std::cout,dof1d);
+*/
+   auto u_face    = Reshape(Bf.Read(), dof1d, dof, nf, 2);
+   auto dudn_face = Reshape(Gf.Read(), dof1d, dof, nf, 2);
+
    // Assumes all elements have the same number of dofs
-   const int nd = dof*dof1d; //this is for 2D, need to generalize for 3D
    const int vd = vdim;
    const bool t = byvdim;
-   const int dofs = nfdofs;
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
 
    if (m == L2FaceValues::DoubleValued)
    {
-      auto d_x = Reshape(x.Read(), dof1d, dof, vd, 2, nf, 2);
+      auto d_x = Reshape(x.Read(), dof, vd, 2, nf, 2);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
@@ -2018,17 +2078,24 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
             //double dofValue = 0;
             for (int j = offset; j < nextOffset; ++j)
             {
-               int idx_j = d_indices[j];
-               bool isE1 = idx_j < dofs;
+               int idx_j0 = d_indices[j];
+               bool isE1 = idx_j0 < nfdofs;
                // we use e1 e2 but then use D0 D1 in the PA kernel 
-               idx_j = isE1 ? idx_j : idx_j - 2*dofs;
+               int idx_j = isE1 ? idx_j0 : idx_j0 - 2*nfdofs;
                int s = idx_j % dof1d;
                int did = (idx_j/dof1d) % dof1d;
-               int faceid = idx_j / nd;
-               double dofValue = isE1 ? 
-               d_x( s, did, c, 0, faceid, 0)
-               :d_x( s, did, c, 1, faceid, 0);
-               d_y(t?c:i,t?i:c) += dofValue;
+               int faceid = idx_j / (dof1d*dof);
+
+               if( isE1 )
+               {
+                  d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 0)*u_face(s,did,faceid,0);
+                  d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0);
+               }
+               else
+               {
+                  d_y(t?c:i,t?i:c) += d_x( did, c, 1, faceid, 0)*u_face(s,did,faceid,1);
+                  d_y(t?c:i,t?i:c) += d_x( did, c, 1, faceid, 1)*dudn_face(s,did,faceid,1);
+               }
             }
          }
       });
