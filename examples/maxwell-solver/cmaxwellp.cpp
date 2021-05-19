@@ -184,10 +184,10 @@ int main(int argc, char *argv[])
    int nrlayers = 4;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
-   // lengths[0][1] = 0.0;
-   // lengths[1][1] = 0.0;
-   // lengths[1][0] = 0.0;
-   // lengths[0][0] = 0.0;
+   lengths[0][1] = 0.0;
+   lengths[1][1] = 0.0;
+   lengths[1][0] = 0.0;
+   lengths[0][0] = 0.0;
    if (exact_known) lengths = 0.0;
    CartesianPML pml(pmesh,lengths);
    pml.SetAttributes(pmesh);
@@ -295,9 +295,7 @@ int main(int argc, char *argv[])
    if (mat_curlcoeff)
    {
       Alpha = new MatrixComplexCoefficient(
-            // new MatrixFunctionCoefficient(cdim,Mcurlcoeff),nullptr,true,false);
-            new MatrixFunctionCoefficient(cdim,Mcurlcoeff), 
-            new MatrixFunctionCoefficient(cdim,Mcurlcoeff),true,true);
+            new MatrixFunctionCoefficient(cdim,Mcurlcoeff),nullptr,true,false);
       Amu = new ScalarMatrixProductComplexCoefficient(&muinv,Alpha);
       restr_Amu = new MatrixRestrictedComplexCoefficient(Amu,attr);
    }
@@ -405,27 +403,27 @@ int main(int argc, char *argv[])
    //                (mat_masscoeff) ? Mws->real() : nullptr,
    //                nx, ny, nz, bct, &lossCoef);
    
-   // S = new ParDST(&a,lengths, omega, nrlayers, 
-   //                (mat_curlcoeff) ? nullptr : alpha, 
-   //                (mat_masscoeff) ? nullptr : ws,
-   //                (mat_curlcoeff) ? Alpha : nullptr,
-   //                (mat_masscoeff) ? Mws : nullptr,
-   //                nx, ny, nz, bct, &lossCoef);                  
-   // // chrono.Stop();
-   // // double t1 = chrono.RealTime();
+   S = new ParDST(&a,lengths, omega, nrlayers, 
+                  (mat_curlcoeff) ? nullptr : alpha, 
+                  (mat_masscoeff) ? nullptr : ws,
+                  (mat_curlcoeff) ? Alpha : nullptr,
+                  (mat_masscoeff) ? Mws : nullptr,
+                  nx, ny, nz, bct, &lossCoef);                  
+   // chrono.Stop();
+   // double t1 = chrono.RealTime();
 
-   // // chrono.Clear();
-   // // chrono.Start();
-   // // X = 0.0;
-	// GMRESSolver gmres(MPI_COMM_WORLD);
-	// // gmres.iterative_mode = true;
-   // gmres.SetPreconditioner(*S);
-	// gmres.SetOperator(*Ac);
-	// gmres.SetRelTol(1e-8);
-	// gmres.SetMaxIter(20);
-	// gmres.SetPrintLevel(1);
-	// gmres.Mult(B, X);
-   // delete S;
+   // chrono.Clear();
+   // chrono.Start();
+   // X = 0.0;
+	GMRESSolver gmres(MPI_COMM_WORLD);
+	// gmres.iterative_mode = true;
+   gmres.SetPreconditioner(*S);
+	gmres.SetOperator(*Ac);
+	gmres.SetRelTol(1e-8);
+	gmres.SetMaxIter(20);
+	gmres.SetPrintLevel(1);
+	gmres.Mult(B, X);
+   delete S;
    // chrono.Stop();
    // double t2 = chrono.RealTime();
 
