@@ -29,6 +29,8 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <map>
+#include <set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -1226,12 +1228,12 @@ void Mesh::SetAttributes()
    }
 }
 
-void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
+void Mesh::InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem)
 {
    SetEmpty();
 
-   Dim = _Dim;
-   spaceDim = _spaceDim;
+   Dim = Dim_;
+   spaceDim = spaceDim_;
 
    NumOfVertices = 0;
    vertices.SetSize(NVert);  // just allocate space for vertices
@@ -3359,7 +3361,7 @@ void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
    vertices.MakeRef(reinterpret_cast<Vertex*>(vertex_data), NumOfVertices);
 }
 
-Mesh::Mesh(double *_vertices, int num_vertices,
+Mesh::Mesh(double *vertices_, int num_vertices,
            int *element_indices, Geometry::Type element_type,
            int *element_attributes, int num_elements,
            int *boundary_indices, Geometry::Type boundary_type,
@@ -3379,7 +3381,7 @@ Mesh::Mesh(double *_vertices, int num_vertices,
                                Geometry::NumVerts[boundary_type] : 0;
 
    // assuming Vertex is POD
-   vertices.MakeRef(reinterpret_cast<Vertex*>(_vertices), num_vertices);
+   vertices.MakeRef(reinterpret_cast<Vertex*>(vertices_), num_vertices);
    NumOfVertices = num_vertices;
 
    for (int i = 0; i < num_elements; i++)
@@ -4432,6 +4434,165 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+}
+
+Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
+{
+   Mesh periodic_mesh(orig_mesh, true); // Make a copy of the original mesh
+   const FiniteElementSpace *nodal_fes = orig_mesh.GetNodalFESpace();
+   int nodal_order = nodal_fes ? nodal_fes->GetMaxElementOrder() : 1;
+   periodic_mesh.SetCurvature(nodal_order, true);
+
+   // renumber element vertices
+   for (int i = 0; i < periodic_mesh.GetNE(); i++)
+   {
+      Element *el = periodic_mesh.GetElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+   // renumber boundary element vertices
+   for (int i = 0; i < periodic_mesh.GetNBE(); i++)
+   {
+      Element *el = periodic_mesh.GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+
+   periodic_mesh.RemoveUnusedVertices();
+   return periodic_mesh;
+}
+
+std::vector<int> Mesh::CreatePeriodicVertexMapping(
+   const std::vector<Vector> &translations, double tol) const
+{
+   int sdim = SpaceDimension();
+
+   Vector coord(sdim), at(sdim), dx(sdim);
+   Vector xMax(sdim), xMin(sdim), xDiff(sdim);
+   xMax = xMin = xDiff = 0.0;
+
+   // Get a list of all vertices on the boundary
+   set<int> bdr_v;
+   for (int be = 0; be < GetNBE(); be++)
+   {
+      Array<int> dofs;
+      GetBdrElementVertices(be,dofs);
+
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         bdr_v.insert(dofs[i]);
+
+         coord = GetVertex(dofs[i]);
+         for (int j = 0; j < sdim; j++)
+         {
+            xMax[j] = max(xMax[j], coord[j]);
+            xMin[j] = min(xMin[j], coord[j]);
+         }
+      }
+   }
+   add(xMax, -1.0, xMin, xDiff);
+   double dia = xDiff.Norml2(); // compute mesh diameter
+
+   // We now identify coincident vertices. Several originally distinct vertices
+   // may become coincident under the periodic mapping. One of these vertices
+   // will be identified as the "primary" vertex, and all other coincident
+   // vertices will be considered as "replicas".
+
+   // replica2primary[v] is the index of the primary vertex of replica `v`
+   map<int, int> replica2primary;
+   // primary2replicas[v] is a set of indices of replicas of primary vertex `v`
+   map<int, set<int>> primary2replicas;
+
+   // We begin with the assumption that all vertices are primary, and that there
+   // are no replicas.
+   for (int v : bdr_v) { primary2replicas[v]; }
+
+   // Make `r` and all of `r`'s replicas be replicas of `p`. Delete `r` from the
+   // list of primary vertices.
+   auto make_replica = [&replica2primary, &primary2replicas](int r, int p)
+   {
+      if (r == p) { return; }
+      primary2replicas[p].insert(r);
+      replica2primary[r] = p;
+      for (int s : primary2replicas[r])
+      {
+         primary2replicas[p].insert(s);
+         replica2primary[s] = p;
+      }
+      primary2replicas.erase(r);
+   };
+
+   for (unsigned int i = 0; i < translations.size(); i++)
+   {
+      for (int vi : bdr_v)
+      {
+         coord = GetVertex(vi);
+         add(coord, translations[i], at);
+
+         for (int vj : bdr_v)
+         {
+            coord = GetVertex(vj);
+            add(at, -1.0, coord, dx);
+            if (dx.Norml2() > dia*tol) { continue; }
+
+            // The two vertices vi and vj are coincident.
+
+            // Are vertices `vi` and `vj` already primary?
+            bool pi = primary2replicas.find(vi) != primary2replicas.end();
+            bool pj = primary2replicas.find(vj) != primary2replicas.end();
+
+            if (pi && pj)
+            {
+               // Both vertices are currently primary
+               // Demote `vj` to be a replica of `vi`
+               make_replica(vj, vi);
+            }
+            else if (pi && !pj)
+            {
+               // `vi` is primary and `vj` is a replica
+               int owner_of_vj = replica2primary[vj];
+               // Make `vi` and its replicas be replicas of `vj`'s owner
+               make_replica(vi, owner_of_vj);
+            }
+            else if (!pi && pj)
+            {
+               // `vi` is currently a replica and `vj` is currently primary
+               // Make `vj` and its replicas be replicas of `vi`'s owner
+               int owner_of_vi = replica2primary[vi];
+               make_replica(vj, owner_of_vi);
+            }
+            else
+            {
+               // Both vertices are currently replicas
+               // Make `vj`'s owner and all of its owner's replicas be replicas
+               // of `vi`'s owner
+               int owner_of_vi = replica2primary[vi];
+               int owner_of_vj = replica2primary[vj];
+               make_replica(owner_of_vj, owner_of_vi);
+            }
+            break;
+         }
+      }
+   }
+
+   std::vector<int> v2v(GetNV());
+   for (size_t i = 0; i < v2v.size(); i++)
+   {
+      v2v[i] = i;
+   }
+   for (auto &&r2p : replica2primary)
+   {
+      v2v[r2p.first] = r2p.second;
+   }
+   return v2v;
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
@@ -6694,15 +6855,15 @@ void FindPartitioningComponents(Table &elem_elem,
    }
 }
 
-void Mesh::CheckPartitioning(int *partitioning)
+void Mesh::CheckPartitioning(int *partitioning_)
 {
    int i, n_empty, n_mcomp;
    Array<int> component, num_comp;
-   const Array<int> _partitioning(partitioning, GetNE());
+   const Array<int> partitioning(partitioning_, GetNE());
 
    ElementToElementTable();
 
-   FindPartitioningComponents(*el_to_el, _partitioning, component, num_comp);
+   FindPartitioningComponents(*el_to_el, partitioning, component, num_comp);
 
    n_empty = n_mcomp = 0;
    for (i = 0; i < num_comp.Size(); i++)
@@ -11347,9 +11508,9 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
-NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
-                                               const double _s)
-   : VectorCoefficient(dim), n(_n), s(_s), tip(p, dim-1)
+NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int n_,
+                                               const double s_)
+   : VectorCoefficient(dim), n(n_), s(s_), tip(p, dim-1)
 {
 }
 

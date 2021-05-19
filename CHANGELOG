@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.3, released on April 30, 2021
-=======================================
+Version 4.3, released on May XX, 2021
+=====================================
 
 Discretization improvements
 ---------------------------
@@ -117,6 +117,10 @@ Meshing improvements
   meshes, simplex meshes, etc.) are now available as "named constructors", e.g.
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
+
+- Added support for creating periodic meshes with Mesh::MakePeriodic. The
+  requisite periodic vertex mappings can be created with
+  Mesh::CreatePeriodicVertexMapping.
 
 - Added support for 1D non-conforming meshes (which can be useful for parallel
   load balancing and derefinement).
