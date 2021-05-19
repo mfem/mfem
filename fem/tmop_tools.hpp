@@ -32,7 +32,7 @@ private:
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
-   AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACYFULL,
+   AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
               double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
         ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
@@ -85,7 +85,7 @@ public:
        that Mult() moves the nodes of the mesh corresponding to @a fes. */
    SerialAdvectorCGOper(const Vector &x_start, GridFunction &vel,
                         FiniteElementSpace &fes,
-                        AssemblyLevel al = AssemblyLevel::LEGACYFULL);
+                        AssemblyLevel al = AssemblyLevel::LEGACY);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -107,7 +107,7 @@ public:
        that Mult() moves the nodes of the mesh corresponding to @a pfes. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
                      ParFiniteElementSpace &pfes,
-                     AssemblyLevel al = AssemblyLevel::LEGACYFULL);
+                     AssemblyLevel al = AssemblyLevel::LEGACY);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -142,6 +142,9 @@ protected:
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
+
+   double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
+   double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 
 public:
 #ifdef MFEM_USE_MPI
@@ -194,8 +197,6 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
    virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
-   double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
-   double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

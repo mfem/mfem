@@ -369,7 +369,7 @@ public:
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
-       When the AssemblyLevel is not LEGACYFULL, and the mesh has hanging nodes,
+       When the AssemblyLevel is not LEGACY, and the mesh has hanging nodes,
        this method returns |P^T| d_l, where d_l is the diagonal of the form
        before applying conforming assembly, P^T is the transpose of the
        conforming prolongation, and |.| denotes the entry-wise absolute value.
