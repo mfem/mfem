@@ -2235,6 +2235,8 @@ L2_FECollection::~L2_FECollection()
 RT_FECollection::RT_FECollection(const int order, const int dim,
                                  const int cb_type, const int ob_type)
    : FiniteElementCollection(order + 1)
+   , dim(dim)
+   , cb_type(cb_type)
    , ob_type(ob_type)
 {
    int p = order;
@@ -2248,7 +2250,8 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       const char *cb_name = BasisType::Name(cb_type); // this may abort
       MFEM_ABORT("unknown closed BasisType: " << cb_name);
    }
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::IntegratedGLL)
    {
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("unknown open BasisType: " << ob_name);
@@ -2519,6 +2522,9 @@ DG_Interface_FECollection::DG_Interface_FECollection(const int p, const int dim,
 ND_FECollection::ND_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
    : FiniteElementCollection(dim > 1 ? p : p - 1)
+   , dim(dim)
+   , cb_type(cb_type)
+   , ob_type(ob_type)
 {
    MFEM_VERIFY(p >= 1, "ND_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 1 && dim <= 3, "ND_FECollection requires 1 <= dim <= 3.");
@@ -2558,7 +2564,8 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
    int cp_type = BasisType::GetQuadrature1D(cb_type);
 
    // Error checking
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::IntegratedGLL)
    {
       const char *ob_name = BasisType::Name(ob_type);
       MFEM_ABORT("Invalid open basis point type: " << ob_name);

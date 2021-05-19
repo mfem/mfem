@@ -113,9 +113,9 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Make the GridFunction the owner of #fec and #fes.
-   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
+   void MakeOwner(FiniteElementCollection *fec_) { fec = fec_; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
 
@@ -338,9 +338,9 @@ public:
     *  through SLBPQ optimization.
     *  Intended to be used for discontinuous FE functions. */
    void ImposeBounds(int i, const Vector &weights,
-                     const Vector &_lo, const Vector &_hi);
+                     const Vector &lo_, const Vector &hi_);
    void ImposeBounds(int i, const Vector &weights,
-                     double _min = 0.0, double _max = infinity());
+                     double min_ = 0.0, double max_ = infinity());
 
    /** On a non-conforming mesh, make sure the function lies in the conforming
        space by multiplying with R and then with P, the conforming restriction
@@ -910,8 +910,8 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
-   ExtrudeCoefficient(Mesh *m, Coefficient &s, int _n)
-      : n(_n), mesh_in(m), sol_in(s) { }
+   ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
+      : n(n_), mesh_in(m), sol_in(s) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ExtrudeCoefficient() { }
 };
