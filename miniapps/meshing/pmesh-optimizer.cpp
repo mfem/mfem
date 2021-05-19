@@ -432,7 +432,7 @@ int main (int argc, char *argv[])
    ParGridFunction aspr3d(&ind_fesv);
 
    const AssemblyLevel al =
-      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
+      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
 
    switch (target_id)
    {
@@ -693,7 +693,8 @@ int main (int argc, char *argv[])
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   ParGridFunction dist(pfespace);
+   ParFiniteElementSpace dist_pfespace(pmesh, fec); // scalar space
+   ParGridFunction dist(&dist_pfespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
@@ -915,10 +916,8 @@ int main (int argc, char *argv[])
       {
          if (pa)
          {
-            Vector diag(a.FESpace()->GetTrueVSize());
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            a.GetGradient(x.GetTrueVector()).AssembleDiagonal(diag);
-            S_prec = new OperatorJacobiSmoother(diag, a.GetEssentialTrueDofs());
+            S_prec = new OperatorJacobiSmoother;
          }
          else
          {
