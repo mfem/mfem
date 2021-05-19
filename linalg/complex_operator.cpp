@@ -1062,7 +1062,6 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
    delete [] id->isol_loc;
 #else
    // real
-   MFEM_ABORT("Not implemented yet");
    double * rhs_glob_r = nullptr;
    double * rhs_glob_i = nullptr;
    if (myid == 0)
@@ -1070,10 +1069,11 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
       rhs_glob_r = new double[global_num_rows];
       rhs_glob_i = new double[global_num_rows];
    }
-   MPI_Gatherv(datax, n, MPI_DOUBLE,
+   double * xdata = x.GetData();
+   MPI_Gatherv(xdata, n, MPI_DOUBLE,
                rhs_glob_r, recv_counts,
                displs, MPI_DOUBLE, 0, comm);
-   MPI_Gatherv(&datax[n], n, MPI_DOUBLE,
+   MPI_Gatherv(&xdata[n], n, MPI_DOUBLE,
                rhs_glob_i, recv_counts,
                displs, MPI_DOUBLE, 0, comm);
 
@@ -1097,11 +1097,12 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
          rhs_glob_i[i] = rhs_glob[i].i;
       }
    }
+   double * ydata = y.GetData();
    MPI_Scatterv(rhs_glob_r, recv_counts, displs,
-                MPI_DOUBLE, datay, n,
+                MPI_DOUBLE, ydata, n,
                 MPI_DOUBLE, 0, comm);
    MPI_Scatterv(rhs_glob_i, recv_counts, displs,
-                MPI_DOUBLE, &datay[n], n,
+                MPI_DOUBLE, &ydata[n], n,
                 MPI_DOUBLE, 0, comm);
 
    if (myid == 0)
