@@ -1621,7 +1621,6 @@ void NewtonSolver::SetOperator(const Operator &op)
    width = op.Width();
    MFEM_ASSERT(height == width, "square Operator is required.");
 
-   xcur.SetSize(width);
    r.SetSize(width);
    c.SetSize(width);
 }
@@ -1635,12 +1634,12 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
-   ProcessNewState(x);
-
    if (!iterative_mode)
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    oper->Mult(x, r);
    if (have_b)
@@ -1822,6 +1821,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    // r = F(x)-b
    oper->Mult(x, r);

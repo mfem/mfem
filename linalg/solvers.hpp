@@ -442,7 +442,7 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector xcur, r, c;
+   mutable Vector r, c;
    mutable Operator *grad;
 
    // Adaptive linear solver rtol variables
@@ -503,9 +503,6 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
-
-   const Vector &GetCurrentResidual() const { return r; }
-   const Vector &GetCurrentIterate() const { return xcur; }
 
    /// Enable adaptive linear solver relative tolerance algorithm.
    /** Compute a relative tolerance for the Krylov method after each nonlinear

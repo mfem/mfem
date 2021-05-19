@@ -843,6 +843,7 @@ protected:
    mutable double avg_volume;
    double volume_scale;
    const TargetType target_type;
+   bool uses_phys_coords; // see UsesPhysicalCoordinates()
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -856,15 +857,22 @@ protected:
    void ComputeAvgVolume() const;
 
    template<int DIM>
-   bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                const IntegrationRule *ir,
-                                DenseTensor &Jtr,
-                                const Vector &xe) const;
+   bool ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 const Vector &xe,
+                                 DenseTensor &Jtr) const;
+
+   // CPU fallback that uses ComputeElementTargets()
+   void ComputeAllElementTargets_Fallback(const FiniteElementSpace &fes,
+                                          const IntegrationRule &ir,
+                                          const Vector &xe,
+                                          DenseTensor &Jtr) const;
 
 public:
    /// Constructor for use in serial
    TargetConstructor(TargetType ttype)
-      : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype)
+      : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype),
+        uses_phys_coords(false)
    {
 #ifdef MFEM_USE_MPI
       comm = MPI_COMM_NULL;
@@ -874,7 +882,7 @@ public:
    /// Constructor for use in parallel
    TargetConstructor(TargetType ttype, MPI_Comm mpicomm)
       : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype),
-        comm(mpicomm) { }
+        uses_phys_coords(false), comm(mpicomm) { }
 #endif
    virtual ~TargetConstructor() { }
 
@@ -893,6 +901,11 @@ public:
 
    TargetType GetTargetType() const { return target_type; }
 
+   /** @brief Return true if the methods ComputeElementTargets(),
+       ComputeAllElementTargets(), and ComputeElementTargetsGradient() use the
+       physical node coordinates provided by the parameters 'elfun', or 'xe'. */
+   bool UsesPhysicalCoordinates() const { return uses_phys_coords; }
+
    /// Checks if the target matrices contain non-trivial size specification.
    virtual bool ContainsVolumeInfo() const;
 
@@ -904,10 +917,19 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
-                                        DenseTensor &Jtr,
-                                        const Vector &xe = Vector()) const;
+   /** @brief Computes reference-to-target transformation Jacobians for all
+       quadrature points in all elements.
+
+       @param[in] fes  The nodal FE space
+       @param[in] ir   The quadrature rule to use for all elements
+       @param[in] xe   E-vector with the current physical coordinates/positions;
+                       this parameter is used only when needed by the target
+                       constructor, see UsesPhysicalCoordinates()
+       @param[out] Jtr The computed ref->target Jacobian matrices. */
+   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const Vector &xe,
+                                         DenseTensor &Jtr) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -915,7 +937,7 @@ public:
                                               DenseTensor &dJtr) const;
 };
 
-class TMOPMatrixCoefficient  : public MatrixCoefficient
+class TMOPMatrixCoefficient : public MatrixCoefficient
 {
 public:
    explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
@@ -940,7 +962,8 @@ protected:
 public:
    AnalyticAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
-        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL) { }
+        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL)
+   { uses_phys_coords = true; }
 
    virtual void SetAnalyticTargetSpec(Coefficient *sspec,
                                       VectorCoefficient *vspec,
@@ -954,10 +977,10 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
-                                        DenseTensor &Jtr,
-                                        const Vector &xe = Vector()) const;
+   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const Vector &xe,
+                                         DenseTensor &Jtr) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -1000,9 +1023,6 @@ protected:
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
    AdaptivityEvaluator *adapt_eval;
-
-   // PA extension
-   struct { mutable Vector tspec_e; } PA;
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
@@ -1094,7 +1114,6 @@ public:
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
    const Vector &GetTspecPert2H()   { return tspec_pert2h; }
    const Vector &GetTspecPertMixH() { return tspec_pertmix; }
-   const FiniteElementSpace *GetTspecFesv() const { return tspec_fesv; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -1106,10 +1125,10 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
-                                        const IntegrationRule *ir,
-                                        DenseTensor &Jtr,
-                                        const Vector &xe = Vector()) const;
+   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const Vector &xe,
+                                         DenseTensor &Jtr) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -1191,30 +1210,41 @@ protected:
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    // PA extension
-   //  E: E-vector for TMOP-energy
-   //  O: E-Vector or Q-Vector of 1.0
-   //  W: Weight wector of R^t. Constructed as PA.R^T * PA.O
+   // ------------
+   //  E: Q-vector for TMOP-energy
+   //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
    // X0: E-vector for initial nodal coordinates used for limiting.
    //  H: Q-Vector for Hessian associated with the metric term.
    // C0: Q-Vector for spatial weight used for the limiting term.
    // LD: E-Vector constructed using limiting distance grid function (delta).
    // H0: Q-Vector for Hessian associated with the limiting term.
-
+   //
    // maps:     Dof2Quad map for fespace associate with nodal coordinates.
    // maps_lim: Dof2Quad map for fespace associated with the limiting distance
    //            grid function.
+   //
+   // Jtr_debug_grad
+   //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
+   //     is set to true by AssembleGradPA(); any other call to
+   //     ComputeAllElementTargets() will set the flag to false. This flag will
+   //     be used to check that Jtr is the one set by AssembleGradPA() when
+   //     performing operations with the gradient like AddMultGradPA() and
+   //     AssembleGradDiagonalPA().
+   //
+   // TODO:
+   //   * Merge LD, C0, H0 into one scalar Q-vector
    struct
    {
       bool enabled;
       int dim, ne, nq;
       mutable DenseTensor Jtr;
-      mutable bool setup_Grad, setup_Jtr;
-      mutable Vector E, O, W, X0, H, C0, LD, H0;
+      mutable bool Jtr_needs_update;
+      mutable bool Jtr_debug_grad;
+      mutable Vector E, O, X0, H, C0, LD, H0;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
-      const Operator *R;
       const IntegrationRule *ir;
    } PA;
 
@@ -1261,7 +1291,8 @@ protected:
 
    void DisableLimiting()
    {
-      nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
+      nodes0 = NULL; coeff0 = NULL; lim_dist = NULL;
+      delete lim_func; lim_func = NULL;
    }
 
    const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
@@ -1310,8 +1341,8 @@ protected:
    void AssembleDiagonalPA_C0_2D(Vector&) const;
    void AssembleDiagonalPA_C0_3D(Vector&) const;
 
-   void EnableLimitingPA(const GridFunction &n0);
-   void ComputeElementTargetsPA(const Vector &xe = Vector()) const;
+   void AssemblePA_Limiting();
+   void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
