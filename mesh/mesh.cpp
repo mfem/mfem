@@ -4511,7 +4511,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    // are no replicas.
    for (int v : bdr_v) { primary2replicas[v]; }
 
-   // Make `r` and all of `r`'s replicas replicas of `p`. Delete `r` from the
+   // Make `r` and all of `r`'s replicas be replicas of `p`. Delete `r` from the
    // list of primary vertices.
    auto make_replica = [&replica2primary, &primary2replicas](int r, int p)
    {
@@ -4555,21 +4555,21 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
             {
                // `vi` is primary and `vj` is a replica
                int owner_of_vj = replica2primary[vj];
-               // Make `vi` and its replicas replicas of `vj`'s owner
+               // Make `vi` and its replicas be replicas of `vj`'s owner
                make_replica(vi, owner_of_vj);
             }
             else if (!pi && pj)
             {
                // `vi` is currently a replica and `vj` is currently primary
-               // Make `vj` and its replicas replicas of `vi`'s owner
+               // Make `vj` and its replicas be replicas of `vi`'s owner
                int owner_of_vi = replica2primary[vi];
                make_replica(vj, owner_of_vi);
             }
             else
             {
                // Both vertices are currently replicas
-               // Make `vj`'s owner and all of its owner's replicas replicas of
-               // `vi`'s owner
+               // Make `vj`'s owner and all of its owner's replicas be replicas
+               // of `vi`'s owner
                int owner_of_vi = replica2primary[vi];
                int owner_of_vj = replica2primary[vj];
                make_replica(owner_of_vj, owner_of_vi);
