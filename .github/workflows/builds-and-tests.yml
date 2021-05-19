@@ -79,14 +79,13 @@ jobs:
     # Install will only run on cache miss.
     - name: cache hypre
       id: hypre-cache
-      if: matrix.mpi == 'parallel'
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space-v1
 
     - name: install hypre
-      if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
+      if: steps.hypre-cache.outputs.cache-hit != 'true'
       uses: mfem/github-actions/build-hypre@bernede1/optimize-deps-space
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
@@ -103,14 +102,13 @@ jobs:
     # Install will only run on cache miss.
     - name: cache metis
       id: metis-cache
-      if: matrix.mpi == 'parallel'
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space-v1
 
     - name: install metis
-      if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
+      if: steps.metis-cache.outputs.cache-hit != 'true'
       uses: mfem/github-actions/build-metis@bernede1/optimize-deps-space
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
