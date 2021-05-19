@@ -83,7 +83,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space-v1
 
     - name: install hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -107,7 +107,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space-v1
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
