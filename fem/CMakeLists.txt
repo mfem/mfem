@@ -107,6 +107,7 @@ set(SRCS
   tmop_tools.cpp
   gslib.cpp
   transfer.cpp
+  lor.cpp
   )
 
 set(HDRS
@@ -165,6 +166,7 @@ set(HDRS
   tmop_tools.hpp
   gslib.hpp
   transfer.hpp
+  lor.hpp
   )
 
 if (MFEM_USE_SIDRE)
