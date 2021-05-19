@@ -97,7 +97,7 @@ public:
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
          "Open uniform", "Closed uniform", "Open half uniform",
-         "Seredipity", "Closed Gauss-Legendre",
+         "Serendipity", "Closed Gauss-Legendre",
          "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
@@ -1126,7 +1126,7 @@ public:
    { dofs = 1.0; }
 };
 
-/// A 1D quadractic finite element with uniformly spaced nodes
+/// A 1D quadratic finite element with uniformly spaced nodes
 class Quad1DFiniteElement : public NodalFiniteElement
 {
 public:
