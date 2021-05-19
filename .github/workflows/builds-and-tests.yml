@@ -127,11 +127,11 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space
 
     - name: get hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@v1.0
+      uses: mfem/github-actions/build-hypre@bernede1/optimize-deps-space
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
@@ -144,18 +144,18 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v1.0
+      uses: mfem/github-actions/build-metis@bernede1/optimize-deps-space
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v1.0
+      uses: mfem/github-actions/build-mfem@bernede1/optimize-deps-space
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -190,7 +190,7 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@v1.0
+      uses: mfem/github-actions/upload-coverage@bernede1/optimize-deps-space
       with:
         name: ${{ matrix.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
