@@ -45,9 +45,11 @@ protected:
    const int nedofs;
    Array<int> offsets;
    Array<int> indices;
-   Array<int> gatherMap;
-
 public:
+
+  // TW hack this here for the moment
+  Array<int> gatherMap;
+  
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;

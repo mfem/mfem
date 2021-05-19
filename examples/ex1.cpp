@@ -65,6 +65,19 @@
 using namespace std;
 using namespace mfem;
 
+#include <sys/time.h>
+double getTod(){
+  struct timeval time;
+  if(gettimeofday( &time, 0 )) return -1;
+  
+ long cur_time = 1000000 * time.tv_sec + time.tv_usec;
+ double sec = cur_time / 1000000.0;
+ return sec;
+}
+
+
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -120,7 +133,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+	(int)ceil(log(1000000./(order*order*mesh.GetNE()))/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -224,8 +237,15 @@ int main(int argc, char *argv[])
          }
          else
          {
+
             OperatorJacobiSmoother M(a, ess_tdof_list);
+
             PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+	    
+	    double tic = getTod();
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+	    double toc = getTod();
+	    printf("PCG: elapsed %g\n", toc-tic);
          }
       }
       else

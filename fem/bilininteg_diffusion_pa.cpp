@@ -316,6 +316,7 @@ static void PADiffusionSetup(const int dim,
                              const int Q1D,
                              const int coeffDim,
                              const int NE,
+			     const Array<int> &gatherMap,
                              const Array<double> &W,
                              const Vector &J,
                              const Vector &C,
@@ -327,7 +328,7 @@ static void PADiffusionSetup(const int dim,
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-         OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, C, D);
+	OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, C, D);
          return;
       }
 #else
@@ -357,6 +358,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -490,7 +492,17 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
                    Device::GetDeviceMemoryType());
-   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
+
+   ElementDofOrdering ordering = UsesTensorBasis(fes)?
+     ElementDofOrdering::LEXICOGRAPHIC:
+     ElementDofOrdering::NATIVE;
+   
+   const Operator *OP = fes.GetElementRestriction(ordering);
+   const ElementRestriction *ER = dynamic_cast<const ElementRestriction*>(OP);
+   
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne,
+		    ER->gatherMap,
+		    ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }
 
@@ -936,6 +948,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 static void OccaPADiffusionApply2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+				   const Array<int> &gatherMap,
                                    const Array<double> &B,
                                    const Array<double> &G,
                                    const Array<double> &Bt,
@@ -947,6 +960,8 @@ static void OccaPADiffusionApply2D(const int D1D,
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
+   const occa::memory o_gatherMap = OccaMemoryRead(gatherMap.GetMemory(), gatherMap.Size());
+
    const occa::memory o_B = OccaMemoryRead(B.GetMemory(), B.Size());
    const occa::memory o_G = OccaMemoryRead(G.GetMemory(), G.Size());
    const occa::memory o_Bt = OccaMemoryRead(Bt.GetMemory(), Bt.Size());
@@ -977,7 +992,7 @@ static void OccaPADiffusionApply2D(const int D1D,
                                         "DiffusionApply2D_GPU", props);
          OccaDiffApply2D_gpu.emplace(id, DiffusionApply2D_GPU);
       }
-      OccaDiffApply2D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_D, o_X, o_Y);
+      OccaDiffApply2D_gpu.at(id)(NE, o_gatherMap, o_B, o_G, o_Bt, o_Gt, o_D, o_X, o_Y);
    }
 }
 
@@ -1829,6 +1844,7 @@ static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
                              const int NE,
+			     const Array<int> &gatherMap,
                              const bool symm,
                              const Array<double> &B,
                              const Array<double> &G,
@@ -1843,7 +1859,7 @@ static void PADiffusionApply(const int dim,
    {
       if (dim == 2)
       {
-         OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,D,X,Y);
+	OccaPADiffusionApply2D(D1D,Q1D,NE,gatherMap, B,G,Bt,Gt,D,X,Y);
          return;
       }
       if (dim == 3)
@@ -1900,7 +1916,15 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
+     // TW: extract gatherMap here  ( I assume there is a less nasty way to do this)
+     ElementDofOrdering ordering = UsesTensorBasis(*fespace)?
+       ElementDofOrdering::LEXICOGRAPHIC:
+       ElementDofOrdering::NATIVE;
+
+     const Operator *OP = fespace->GetElementRestriction(ordering);
+     const ElementRestriction *ER = dynamic_cast<const ElementRestriction*>(OP);
+     
+     PADiffusionApply(dim, dofs1D, quad1D, ne, ER->gatherMap, symmetric,
                        maps->B, maps->G, maps->Bt, maps->Gt,
                        pa_data, x, y);
    }

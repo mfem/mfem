@@ -396,13 +396,25 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
+     
+     // TW: switched to using local2local to global2global
+#if 0
       elem_restrict->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AddMultPA(localX, localY);
+         integrators[i]->AddMultPA(localX, localY);	 
       }
       elem_restrict->MultTranspose(localY, y);
+#else
+      y = 0.0;
+      //      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+	integrators[i]->AddMultPA(x, y);
+      }
+#endif
+
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
