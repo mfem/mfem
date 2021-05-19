@@ -16,6 +16,8 @@
 //    ex9 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
 //    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+//    ex9 -m ../data/periodic-square.msh -p 0 -r 2 -dt 0.005 -tf 2
+//    ex9 -m ../data/periodic-cube.msh -p 0 -r 1 -o 2 -tf 2
 //
 // Device sample runs:
 //    ex9 -pa
