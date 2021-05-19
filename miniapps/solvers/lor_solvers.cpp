@@ -45,6 +45,8 @@
 // assembly/matrix-free algorithms (except in the case of L2, which remains
 // future work).
 //
+// Compile with: make lor-solvers
+//
 // Sample runs:
 //
 //    lor_solvers -fe h
