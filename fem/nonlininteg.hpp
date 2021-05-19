@@ -193,9 +193,9 @@ public:
 
    /// A reference-element to target-element transformation that can be used to
    /// evaluate Coefficient%s.
-   /** @note It is assumed that _Ttr.SetIntPoint() is already called for the
+   /** @note It is assumed that Ttr_.SetIntPoint() is already called for the
        point of interest. */
-   void SetTransformation(ElementTransformation &_Ttr) { Ttr = &_Ttr; }
+   void SetTransformation(ElementTransformation &Ttr_) { Ttr = &Ttr_; }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -263,11 +263,11 @@ protected:
    inline void EvalCoeffs() const;
 
 public:
-   NeoHookeanModel(double _mu, double _K, double _g = 1.0)
-      : mu(_mu), K(_K), g(_g), have_coeffs(false) { c_mu = c_K = c_g = NULL; }
+   NeoHookeanModel(double mu_, double K_, double g_ = 1.0)
+      : mu(mu_), K(K_), g(g_), have_coeffs(false) { c_mu = c_K = c_g = NULL; }
 
-   NeoHookeanModel(Coefficient &_mu, Coefficient &_K, Coefficient *_g = NULL)
-      : mu(0.0), K(0.0), g(1.0), c_mu(&_mu), c_K(&_K), c_g(_g),
+   NeoHookeanModel(Coefficient &mu_, Coefficient &K_, Coefficient *g_ = NULL)
+      : mu(0.0), K(0.0), g(1.0), c_mu(&mu_), c_K(&K_), c_g(g_),
         have_coeffs(true) { }
 
    virtual double EvalW(const DenseMatrix &J) const;
@@ -336,7 +336,7 @@ private:
    Vector Sh_p;
 
 public:
-   IncompressibleNeoHookeanIntegrator(Coefficient &_mu) : c_mu(&_mu) { }
+   IncompressibleNeoHookeanIntegrator(Coefficient &mu_) : c_mu(&mu_) { }
 
    virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
