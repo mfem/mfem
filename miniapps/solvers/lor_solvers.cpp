@@ -37,7 +37,7 @@
 // equivalence is shown in [2]:
 //
 // [1]. M. Gerritsma. Edge functions for spectral element methods. Spectral and
-//      High Order Methods for Partial Differential Equations (2010).
+//      High Order Methods for Partial Differential Equations. (2010)
 // [2]. C. Dohrmann. Spectral equivalence properties of higher-order tensor
 //      product finite elements and applications to preconditioning. (2021)
 //
