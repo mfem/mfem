@@ -16,15 +16,15 @@
 //   Assumes that all sources and boundary conditions oscillate with the same
 //   frequency although not necessarily in phase with one another.  This
 //   assumption implies that we can factor out the time dependence which we
-//   take to be of the form exp(i omega t).  With these assumptions we can
+//   take to be of the form exp(-i omega t).  With these assumptions we can
 //   write the Maxwell equations in the form:
 //
-//   i omega epsilon E = Curl mu^{-1} B - J
-//   i omega B         = - Curl E
+//   -i omega epsilon E = Curl mu^{-1} B - J
+//    i omega B         = Curl E
 //
 //   Which combine to yield:
 //
-//   Curl mu^{-1} Curl E - omega^2 epsilon E = - i omega J
+//   Curl mu^{-1} Curl E - omega^2 epsilon E = i omega J
 //
 //   In a cold plasma the dielectric tensor, epsilon, is complex-valued and
 //   anisotropic.  The anisotropy aligns with the external magnetic field and
@@ -103,34 +103,49 @@ using namespace mfem::common;
 using namespace mfem::plasma;
 
 // Admittance for Absorbing Boundary Condition
-Coefficient * SetupRealAdmittanceCoefficient(const Mesh & mesh,
-                                             const Array<int> & abcs);
-
-// Admittance for Complex-Valued Sheath Boundary Condition
-void SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
-                                 Coefficient *& etaInvReCoef,
-                                 Coefficient *& etaInvImCoef);
+Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
+                                         const Array<int> & abcs);
 
 // Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
-static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
+static Vector pw_bdr_eta_inv_(0);  // Piecewise inverse impedance values
 
 // Storage for user-supplied, complex-valued impedance
-static Vector pw_eta_re_(0);      // Piecewise real impedance
-static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
-static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
-static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
+//static Vector pw_eta_re_(0);      // Piecewise real impedance
+//static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
+//static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
+//static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
 // Current Density Function
 static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
+static Vector slab_params_
+(0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
 
-void rod_current_source(const Vector &x, Vector &j);
-void j_src(const Vector &x, Vector &j)
+void rod_current_source_r(const Vector &x, Vector &j);
+void rod_current_source_i(const Vector &x, Vector &j);
+void slab_current_source_r(const Vector &x, Vector &j);
+void slab_current_source_i(const Vector &x, Vector &j);
+void j_src_r(const Vector &x, Vector &j)
 {
    if (rod_params_.Size() > 0)
    {
-      rod_current_source(x, j);
+      rod_current_source_r(x, j);
+   }
+   else if (slab_params_.Size() > 0)
+   {
+      slab_current_source_r(x, j);
+   }
+}
+void j_src_i(const Vector &x, Vector &j)
+{
+   if (rod_params_.Size() > 0)
+   {
+      rod_current_source_i(x, j);
+   }
+   else if (slab_params_.Size() > 0)
+   {
+      slab_current_source_i(x, j);
    }
 }
 
@@ -231,22 +246,29 @@ public:
    }
 };
 */
-/*
-class ColdPlasmaPlaneWave: public VectorCoefficient
+class ColdPlasmaPlaneWaveE: public VectorCoefficient
 {
 public:
-   ColdPlasmaPlaneWave(char type,
-                       double omega,
-                       const Vector & B,
-                       const Vector & number,
-                       const Vector & charge,
-                       const Vector & mass,
-                       bool realPart = true);
+   ColdPlasmaPlaneWaveE(char type,
+                        double omega,
+                        const Vector & B,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        bool realPart = true);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
 
-   void SetPhaseShift(const Vector &k) { k_ = k; }
+   void SetPhaseShift(const Vector & beta)
+   { beta_r_ = beta; beta_i_ = 0.0; }
+   void SetPhaseShift(const Vector & beta_r,
+                      const Vector & beta_i)
+   { beta_r_ = beta_r; beta_i_ = beta_i; }
+
+   void GetWaveVector(Vector & k_r, Vector & k_i) const
+   { k_r = k_r_; k_i = k_i_; }
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -260,18 +282,28 @@ private:
    double xJ_;
    double dx_;
    double Lx_;
-   Vector k_;
+   complex<double> kappa_;
+   Vector b_;   // Normalized vector in direction of B
+   Vector bc_;  // Normalized vector perpendicular to b_, (by-bz,bz-bx,bx-by)
+   Vector bcc_; // Normalized vector perpendicular to b_ and bc_
+   Vector e_r_;
+   Vector e_i_;
+   Vector k_r_;
+   Vector k_i_;
+   Vector beta_r_;
+   Vector beta_i_;
 
-   const Vector & B_;
+   // const Vector & B_;
    const Vector & numbers_;
    const Vector & charges_;
    const Vector & masses_;
+   const Vector & temps_;
 
-   double S_;
-   double D_;
-   double P_;
+   complex<double> S_;
+   complex<double> D_;
+   complex<double> P_;
 };
-*/
+
 void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
@@ -300,8 +332,9 @@ void display_banner(ostream & os);
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
+   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   display_banner(mfem::out);
 
    int logging = 1;
 
@@ -319,14 +352,15 @@ int main(int argc, char *argv[])
    bool visit = true;
 
    double freq = 1.0e6;
-   const char * wave_type = "R";
+   const char * wave_type = " ";
 
    Vector BVec(3);
    BVec = 0.0; BVec(0) = 0.1;
 
    bool phase_shift = false;
-   Vector kVec(3);
-   kVec = 0.0;
+   Vector kVec;
+   Vector kReVec;
+   Vector kImVec;
 
    double hz = -1.0;
 
@@ -341,7 +375,7 @@ int main(int argc, char *argv[])
    Vector tpp;
 
    Array<int> abcs; // Absorbing BC attributes
-   Array<int> sbcs; // Sheath BC attributes
+   Array<int> sbca; // Sheath BC attributes
    Array<int> peca; // Perfect Electric Conductor BC attributes
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
@@ -361,12 +395,19 @@ int main(int argc, char *argv[])
    solOpts.relTol = 1e-4;
    solOpts.euLvl = 1;
 
+   bool logo = false;
+   bool per_y = false;
    bool pa = false;
    const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
+   args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
+                  "--no-print-logo", "Print logo and exit.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&per_y, "-per-y", "--periodic-in-y", "-no-per-y",
+                  "--not-periodic-in-y",
+                  "The input mesh is periodic in the y-direction.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -409,10 +450,10 @@ int main(int argc, char *argv[])
                   "'Z' - Zero");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
-   args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
-                  "z-Component of wave vector.");
-   // args.AddOption(&numbers, "-num", "--number-densites",
-   //               "Number densities of the various species");
+   args.AddOption(&kVec, "-k-vec", "--phase-vector",
+                  "Phase shift vector across periodic directions."
+                  " For complex phase shifts input 3 real phase shifts "
+                  "followed by 3 imaginary phase shifts");
    args.AddOption(&charges, "-q", "--charges",
                   "Charges of the various species "
                   "(in units of electron charge)");
@@ -442,16 +483,23 @@ int main(int argc, char *argv[])
                   "Euclid factorization level for ILU(k).");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
+   /*
    args.AddOption(&pw_eta_re_, "-pwz-r", "--piecewise-eta-r",
                   "Piecewise values of Real part of Complex Impedance "
                   "(one value per abc surface)");
    args.AddOption(&pw_eta_im_, "-pwz-i", "--piecewise-eta-i",
                   "Piecewise values of Imaginary part of Complex Impedance "
                   "(one value per abc surface)");
+   */
    args.AddOption(&rod_params_, "-rod", "--rod_params",
                   "3D Vector Amplitude, 2D Position, Radius");
+   args.AddOption(&slab_params_, "-slab", "--slab_params",
+                  "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
+                  "2D Position, 2D Size");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
+   args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
+                  "Sheath Boundary Condition Surfaces");
    args.AddOption(&peca, "-pecs", "--pec-bc-surf",
                   "Perfect Electrical Conductor Boundary Condition Surfaces");
    args.AddOption(&dbca1, "-dbcs1", "--dirichlet-bc-1-surf",
@@ -504,6 +552,10 @@ int main(int argc, char *argv[])
       return 1;
    }
    Device device(device_config);
+   if (logo)
+   {
+      return 1;
+   }
    if (mpi.Root())
    {
       device.Print();
@@ -606,7 +658,7 @@ int main(int argc, char *argv[])
       hz = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
-   if (kVec[2] != 0.0)
+   if (kVec.Size() != 0)
    {
       phase_shift = true;
    }
@@ -653,42 +705,42 @@ int main(int argc, char *argv[])
 
       cout << "\nWavelengths (meters):\n";
       cout << "   Free Space Wavelength: " << lam0 << '\n';
-      /*
-      if (S < D)
+      complex<double> lamL = lam0 / sqrt(S-D);
+      complex<double> lamR = lam0 / sqrt(S+D);
+      complex<double> lamO = lam0 / sqrt(P);
+      complex<double> lamX = lam0 * sqrt(S/(S*S-D*D));
+      if (fabs(lamL.real()) > fabs(lamL.imag()))
       {
-         cout << "   Decaying L mode:       " << lam0 / sqrt(D-S) << '\n';
+         cout << "   Oscillating L mode:    " << lamL << '\n';
       }
       else
       {
-         cout << "   Oscillating L mode:    " << lam0 / sqrt(S-D) << '\n';
+         cout << "   Decaying L mode:       " << lamL << '\n';
       }
-      if (S < - D)
+      if (fabs(lamR.real()) > fabs(lamR.imag()))
       {
-         cout << "   Decaying R mode:       " << lam0 / sqrt(-S-D) << '\n';
+         cout << "   Oscillating R mode:    " << lamR << '\n';
       }
       else
       {
-         cout << "   Oscillating R mode:    " << lam0 / sqrt(S+D) << '\n';
+         cout << "   Decaying R mode:       " << lamR << '\n';
       }
-      if (P < 0)
+      if (fabs(lamO.real()) > fabs(lamO.imag()))
       {
-         cout << "   Decaying O mode:       " << lam0 / sqrt(-P) << '\n';
+         cout << "   Oscillating O mode:    " << lamO << '\n';
       }
       else
       {
-         cout << "   Oscillating O mode:    " << lam0 / sqrt(P) << '\n';
+         cout << "   Decaying O mode:       " << lamO << '\n';
       }
-      if ((S * S - D * D) / S < 0)
+      if (fabs(lamX.real()) > fabs(lamX.imag()))
       {
-         cout << "   Decaying X mode:       " << lam0 * sqrt(-S/(S*S-D*D))
-              << '\n';
+         cout << "   Oscillating X mode:    " << lamX << '\n';
       }
       else
       {
-         cout << "   Oscillating X mode:    " << lam0 * sqrt(S/(S*S-D*D))
-              << '\n';
+         cout << "   Decaying X mode:       " << lamX << '\n';
       }
-      */
       cout << endl;
    }
 
@@ -703,8 +755,6 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-   //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
    Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
@@ -713,39 +763,11 @@ int main(int argc, char *argv[])
    Mesh * mesh = Extrude2D(mesh2d, 3, hz);
    delete mesh2d;
    {
-      /*
-      vector<Vector> trans(1);
-      trans[0].SetSize(3);
-      trans[0] = 0.0; trans[0][2] = hz;
-      */
       Array<int> v2v(mesh->GetNV());
       for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
       for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
 
       Mesh * per_mesh = MakePeriodicMesh(mesh, v2v);
-      /*
-      ofstream ofs("per_mesh.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-      cout << "Chekcing eltrans from mesh" << endl;
-      for (int i=0; i<mesh->GetNBE(); i++)
-      {
-        ElementTransformation * eltrans = mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
-      }
-      cout << "Chekcing eltrans from per_mesh" << endl;
-      for (int i=0; i<per_mesh->GetNBE(); i++)
-      {
-        ElementTransformation * eltrans = per_mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
-      }
-      */
       delete mesh;
       mesh = per_mesh;
    }
@@ -766,46 +788,21 @@ int main(int argc, char *argv[])
    { cout << "Building Parallel Mesh ..." << endl; }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /*
-   {
-     for (int i=0; i<pmesh.GetNBE(); i++)
-       {
-    cout << i << '\t' << pmesh.GetBdrElementBaseGeometry(i)
-         << '\t' << pmesh.GetBdrAttribute(i) << endl;
-       }
-   }
-   */
+
    if (mpi.Root())
    {
       cout << "Starting initialization." << endl;
    }
 
-   // If values for Voltage BCs were not set issue a warning and exit
-   /*
-   if ( ( vbcs.Size() > 0 && kbcs.Size() == 0 ) ||
-        ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
-        ( vbcv.Size() < vbcs.Size() ) )
-   {
-      if ( mpi.Root() )
-      {
-         cout << "The surface current (K) boundary condition requires "
-              << "surface current boundary condition surfaces (with -kbcs), "
-              << "voltage boundary condition surface (with -vbcs), "
-              << "and voltage boundary condition values (with -vbcv)."
-              << endl;
-      }
-      return 3;
-   }
-   */
+   double Bmag = BVec.Norml2();
+   Vector BUnitVec(3);
+   BUnitVec(0) = BVec(0)/Bmag;
+   BUnitVec(1) = BVec(1)/Bmag;
+   BUnitVec(2) = BVec(2)/Bmag;
+
    VectorConstantCoefficient BCoef(BVec);
-   VectorConstantCoefficient kCoef(kVec);
-   /*
-   double ion_frac = 0.0;
-   ConstantCoefficient rhoCoef1(rho1);
-   ConstantCoefficient rhoCoef2(rhoCoef1.constant * (1.0 - ion_frac));
-   ConstantCoefficient rhoCoef3(rhoCoef1.constant * ion_frac);
-   ConstantCoefficient tempCoef(10.0 * q_);
-   */
+   VectorConstantCoefficient BUnitCoef(BUnitVec);
+
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
@@ -853,23 +850,6 @@ int main(int argc, char *argv[])
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
    }
-   /*
-   for (int i=0; i<=nspecies; i++)
-   {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(tempCoef);
-   }
-   */
-   /*
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
-   density_gf.ProjectCoefficient(rhoCoef1);
-
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(1));
-   density_gf.ProjectCoefficient(rhoCoef2);
-
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
-   density_gf.ProjectCoefficient(rhoCoef3);
-   */
 
    if (mpi.Root())
    {
@@ -880,11 +860,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient muInvCoef(1.0 / mu0_);
 
    // Create a coefficient describing the surface admittance
-   Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
-
-   Coefficient * etaInvReCoef = NULL;
-   Coefficient * etaInvImCoef = NULL;
-   SetupComplexAdmittanceCoefs(pmesh, sbcs, etaInvReCoef, etaInvImCoef);
+   Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density, temperature,
@@ -896,52 +872,115 @@ int main(int argc, char *argv[])
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses);
+   SheathImpedance z_r(BField, density, temperature,
+                       L2FESpace, H1FESpace,
+                       omega, charges, masses, true);
+   SheathImpedance z_i(BField, density, temperature,
+                       L2FESpace, H1FESpace,
+                       omega, charges, masses, false);
 
-   /*
-   ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
-                               numbers, charges, masses, true);
-   ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
-                               numbers, charges, masses, false);
-   */
-   /*
-   if (wave_type[0] == 'J' && slab_params_.Size() == 5)
+   ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
+                                numbers, charges, masses, temps, true);
+   ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
+                                numbers, charges, masses, temps, false);
+
+   if (wave_type[0] != ' ')
    {
-      EReCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
-                             mesh_dim_[0]);
-      EImCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
-                             mesh_dim_[0]);
+      Vector kr(3), ki(3);
+      EReCoef.GetWaveVector(kr, ki);
+
+      mfem::out << "Plane wave propagation vector: ("
+                << complex<double>(kr(0),ki(0)) << ","
+                << complex<double>(kr(1),ki(1)) << ","
+                << complex<double>(kr(2),ki(2)) << ")" << endl;
+
+      if (!phase_shift)
+      {
+         kVec.SetSize(6);
+         kVec = 0.0;
+
+         if (per_y)
+         {
+            kVec[1] = kr[1];
+            kVec[4] = ki[1];
+         }
+
+         kVec[2] = kr[2];
+         kVec[5] = ki[2];
+
+         phase_shift = true;
+      }
+
+      kReVec.SetDataAndSize(&kVec[0], 3);
+      kImVec.SetDataAndSize(&kVec[3], 3);
+
+      EReCoef.SetPhaseShift(kReVec, kImVec);
+      EImCoef.SetPhaseShift(kReVec, kImVec);
    }
-   */
-   /*
-   if (phase_shift)
+   else
    {
-      EReCoef.SetPhaseShift(kVec);
-      EImCoef.SetPhaseShift(kVec);
+      if (phase_shift)
+      {
+         if (kVec.Size() >= 3)
+         {
+            kReVec.SetDataAndSize(&kVec[0], 3);
+         }
+         else
+         {
+            kReVec.SetSize(3);
+            kReVec = 0.0;
+         }
+         if (kVec.Size() >= 6)
+         {
+            kImVec.SetDataAndSize(&kVec[3], 3);
+         }
+         else
+         {
+            kImVec.SetSize(3);
+            kImVec = 0.0;
+         }
+      }
    }
-   */
-   if (visualization)
+
+   mfem::out << "Setting phase shift of ("
+             << complex<double>(kReVec[0],kImVec[0]) << ","
+             << complex<double>(kReVec[1],kImVec[1]) << ","
+             << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
+
+   VectorConstantCoefficient kReCoef(kReVec);
+   VectorConstantCoefficient kImCoef(kImVec);
+
+   if (visualization && wave_type[0] != ' ')
    {
       if (mpi.Root())
       {
          cout << "Visualize input fields." << endl;
       }
-      // ParComplexGridFunction EField(&HCurlFESpace);
-      // EField.ProjectCoefficient(EReCoef, EImCoef);
+      ParComplexGridFunction EField(&HCurlFESpace);
+      EField.ProjectCoefficient(EReCoef, EImCoef);
+
+      Vector zeroVec(3); zeroVec = 0.0;
+      VectorConstantCoefficient zeroCoef(zeroVec);
+      double max_Er = EField.real().ComputeMaxError(zeroCoef);
+      double max_Ei = EField.imag().ComputeMaxError(zeroCoef);
 
       char vishost[] = "localhost";
       int  visport   = 19916;
 
       int Wx = 0, Wy = 0; // window position
       int Ww = 350, Wh = 350; // window size
-      int offx = Ww+10;//, offy = Wh+45; // window offsets
+      int offx = Ww+10, offy = Wh+45; // window offsets
 
-      socketstream /*sock_Er, sock_Ei,*/ sock_B;
-      // sock_Er.precision(8);
-      // sock_Ei.precision(8);
+      socketstream sock_Er, sock_Ei, sock_B;
+      sock_Er.precision(8);
+      sock_Ei.precision(8);
       sock_B.precision(8);
 
+      ostringstream er_keys, ei_keys;
+      er_keys << "aaAcpppppvvv valuerange 0.0 " << max_Er;
+      ei_keys << "aaAcpppppvvv valuerange 0.0 " << max_Ei;
+
       Wx += 2 * offx;
-      /*
       VisualizeField(sock_Er, vishost, visport,
                      EField.real(), "Exact Electric Field, Re(E)",
                      Wx, Wy, Ww, Wh);
@@ -952,7 +991,7 @@ int main(int argc, char *argv[])
                      Wx, Wy, Ww, Wh);
       Wx -= offx;
       Wy += offy;
-      */
+
       VisualizeField(sock_B, vishost, visport,
                      BField, "Background Magnetic Field",
                      Wx, Wy, Ww, Wh);
@@ -979,13 +1018,6 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-   /*
-   Array<ComplexVectorCoefficientByAttr> dbcs(1);
-   dbcs[0].attr = dbca;
-   dbcs[0].real = &EReCoef;
-   dbcs[0].imag = &EImCoef;
-   */
-
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0);
 
    Array<ComplexVectorCoefficientByAttr> dbcs(dbcsSize);
@@ -1043,6 +1075,7 @@ int main(int argc, char *argv[])
          dbcs[c].attr = peca;
          dbcs[c].real = &zeroCoef;
          dbcs[c].imag = &zeroCoef;
+         mfem::out << "PEC Surfaces: "; dbcs[c].attr.Print(mfem::out);
          c++;
       }
       if (dbca1.Size() > 0)
@@ -1050,6 +1083,7 @@ int main(int argc, char *argv[])
          dbcs[c].attr = dbca1;
          dbcs[c].real = &dbc1ReCoef;
          dbcs[c].imag = &dbc1ImCoef;
+         mfem::out << "Dirichlet(1) Surfaces: "; dbcs[c].attr.Print(mfem::out);
          c++;
       }
       if (dbca2.Size() > 0)
@@ -1057,6 +1091,7 @@ int main(int argc, char *argv[])
          dbcs[c].attr = dbca2;
          dbcs[c].real = &dbc2ReCoef;
          dbcs[c].imag = &dbc2ImCoef;
+         mfem::out << "Dirichlet(2) Surfaces: "; dbcs[c].attr.Print(mfem::out);
          c++;
       }
    }
@@ -1127,6 +1162,16 @@ int main(int argc, char *argv[])
       }
    }
 
+   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   if (sbca.Size() > 0)
+   {
+      sbcs[0].real = &z_r;
+      sbcs[0].imag = &z_i;
+      sbcs[0].attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+                   sbcs[0].attr_marker);
+   }
+
    if (mpi.Root())
    {
       cout << "Creating Cold Plasma Dielectric solver." << endl;
@@ -1136,13 +1181,18 @@ int main(int argc, char *argv[])
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
-                 conv, BCoef, epsilon_real, epsilon_imag, epsilon_abs,
-                 muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
-                 (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs, nbcs,
+                 conv, BUnitCoef,
+                 epsilon_real, epsilon_imag, epsilon_abs,
+                 muInvCoef, etaInvCoef,
+                 (phase_shift) ? &kReCoef : NULL,
+                 (phase_shift) ? &kImCoef : NULL,
+                 abcs, dbcs, nbcs, sbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
-                 (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
+                 (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                 j_src_r : NULL,
+                 (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                 j_src_i : NULL, vis_u, pa);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -1153,9 +1203,19 @@ int main(int argc, char *argv[])
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("STIX2D-AMR-Parallel", &pmesh);
 
+   Array<ParComplexGridFunction*> auxFields;
+
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
+
+      auxFields.SetSize(1);
+      auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
+
+      auxFields[0]->ProjectCoefficient(EReCoef, EImCoef);
+
+      visit_dc.RegisterField("Re_E_Exact", &auxFields[0]->real());
+      visit_dc.RegisterField("Im_E_Exact", &auxFields[0]->imag());
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -1181,14 +1241,15 @@ int main(int argc, char *argv[])
       // Solve the system and compute any auxiliary fields
       CPD.Solve();
 
-      /*
-      // Compute error
-      double glb_error = CPD.GetError(EReCoef, EImCoef);
-      if (mpi.Root())
+      if (wave_type[0] != ' ')
       {
-         cout << "Global L2 Error " << glb_error << endl;
+         // Compute error
+         double glb_error_E = CPD.GetError(EReCoef, EImCoef);
+         if (mpi.Root())
+         {
+            cout << "Global L2 Error in E field " << glb_error_E << endl;
+         }
       }
-      */
 
       // Determine the current size of the linear system
       int prob_size = CPD.GetProblemSize();
@@ -1254,20 +1315,6 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { cout << "Refining ..." << endl; }
       {
          pmesh.RefineByError(errors, threshold);
-         /*
-              Array<Refinement> refs;
-              for (int i=0; i<pmesh.GetNE(); i++)
-              {
-                 if (errors[i] > threshold)
-                 {
-                    refs.Append(Refinement(i, 3));
-                 }
-              }
-              if (refs.Size() > 0)
-              {
-                 pmesh.GeneralRefinement(refs);
-              }
-         */
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
@@ -1284,9 +1331,11 @@ int main(int argc, char *argv[])
 
          // Update again after rebalancing
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                rhoCoef, tempCoef, size_h1, size_l2, density_offsets,
-                temperature_offsets, density, temperature, density_gf,
-                temperature_gf);
+                rhoCoef, tempCoef,
+                size_h1, size_l2,
+                density_offsets, temperature_offsets,
+                density, temperature,
+                density_gf, temperature_gf);
          CPD.Update();
       }
    }
@@ -1297,9 +1346,10 @@ int main(int argc, char *argv[])
       CPD.DisplayAnimationToGLVis();
    }
 
-   // delete epsCoef;
-   // delete muInvCoef;
-   // delete sigmaCoef;
+   for (int i=0; i<auxFields.Size(); i++)
+   {
+      delete auxFields[i];
+   }
 
    return 0;
 }
@@ -1354,16 +1404,24 @@ void Update(ParFiniteElementSpace & H1FESpace,
    }
 }
 
+const char * banner[6] =
+{
+   R"(  _________ __   __       ________      ___)",
+   R"( /   _____//  |_|__|__  __\_____  \  __| _/)",
+   R"( \_____  \\   __\  \  \/  //  ____/ / __ | )",
+   R"( /        \|  | |  |>    </       \/ /_/ | )",
+   R"(/_______  /|__| |__/__/\_ \_______ \____ | )",
+   R"(        \/               \/       \/    \/ )"
+};
+
 // Print the stix2d ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-   os << "  _________ __   __       ________      ___" << endl
-      << " /   _____//  |_|__|__  __\\_____  \\  __| _/" << endl
-      << " \\_____  \\\\   __\\  \\  \\/  //  ____/ / __ | " << endl
-      << " /        \\|  | |  |>    </       \\/ /_/ | " << endl
-      << "/_______  /|__| |__/__/\\_ \\_______ \\____ | " << endl
-      << "        \\/               \\/       \\/    \\/ "  << endl
-      << endl
+   for (int i=0; i<6; i++)
+   {
+      os << banner[i] << endl;
+   }
+   os << endl
       << "* Thomas H. Stix was a pioneer in the use of radio frequency"
       << " waves to heat" << endl
       << "  terrestrial plasmas to solar temperatures. He made important"
@@ -1378,7 +1436,7 @@ void display_banner(ostream & os)
 // The Admittance is an optional coefficient defined on boundary surfaces which
 // can be used in conjunction with absorbing boundary conditions.
 Coefficient *
-SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
+SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
 {
    Coefficient * coef = NULL;
 
@@ -1388,80 +1446,41 @@ SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
                   "Each impedance value must be associated with exactly one "
                   "absorbing boundary surface.");
 
-      pw_eta_inv_.SetSize(mesh.bdr_attributes.Size());
+      pw_bdr_eta_inv_.SetSize(mesh.bdr_attributes.Size());
 
       if ( abcs[0] == -1 )
       {
-         pw_eta_inv_ = 1.0 / pw_eta_[0];
+         pw_bdr_eta_inv_ = 1.0 / pw_eta_[0];
       }
       else
       {
-         pw_eta_inv_ = 0.0;
+         pw_bdr_eta_inv_ = 0.0;
 
          for (int i=0; i<pw_eta_.Size(); i++)
          {
-            pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
+            pw_bdr_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
          }
       }
-      coef = new PWConstCoefficient(pw_eta_inv_);
+      coef = new PWConstCoefficient(pw_bdr_eta_inv_);
    }
 
    return coef;
 }
 
-// Complex Admittance is an optional pair of coefficients, defined on boundary
-// surfaces, which can be used to approximate a sheath boundary condition.
-void
-SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
-                            Coefficient *& etaInvReCoef,
-                            Coefficient *& etaInvImCoef )
-{
-   if (pw_eta_re_.Size() > 0)
-   {
-      MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
-                  pw_eta_im_.Size() == sbcs.Size(),
-                  "Each impedance value must be associated with exactly one "
-                  "sheath boundary surface.");
-
-      pw_eta_inv_re_.SetSize(mesh.bdr_attributes.Size());
-      pw_eta_inv_im_.SetSize(mesh.bdr_attributes.Size());
-
-      if ( sbcs[0] == -1 )
-      {
-         double zmag2 = pow(pw_eta_re_[0], 2) + pow(pw_eta_im_[0], 2);
-         pw_eta_inv_re_ =  pw_eta_re_[0] / zmag2;
-         pw_eta_inv_im_ = -pw_eta_im_[0] / zmag2;
-      }
-      else
-      {
-         pw_eta_inv_re_ = 0.0;
-         pw_eta_inv_im_ = 0.0;
-
-         for (int i=0; i<pw_eta_re_.Size(); i++)
-         {
-            double zmag2 = pow(pw_eta_re_[i], 2) + pow(pw_eta_im_[i], 2);
-            if ( zmag2 > 0.0 )
-            {
-               pw_eta_inv_re_[sbcs[i]-1] =  pw_eta_re_[i] / zmag2;
-               pw_eta_inv_im_[sbcs[i]-1] = -pw_eta_im_[i] / zmag2;
-            }
-         }
-      }
-      etaInvReCoef = new PWConstCoefficient(pw_eta_inv_re_);
-      etaInvImCoef = new PWConstCoefficient(pw_eta_inv_im_);
-   }
-}
-
-void rod_current_source(const Vector &x, Vector &j)
+void rod_current_source_r(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
 
-   double x0 = rod_params_(3);
-   double y0 = rod_params_(4);
-   double radius = rod_params_(5);
+   bool cmplx = rod_params_.Size() == 9;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = rod_params_(o+0);
+   double y0 = rod_params_(o+1);
+   double radius = rod_params_(o+2);
 
    double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
 
@@ -1472,6 +1491,90 @@ void rod_current_source(const Vector &x, Vector &j)
       j(2) = rod_params_(2);
    }
    // j *= height;
+}
+
+void rod_current_source_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   bool cmplx = rod_params_.Size() == 9;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = rod_params_(o+0);
+   double y0 = rod_params_(o+1);
+   double radius = rod_params_(o+2);
+
+   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+
+   if (r2 <= radius * radius)
+   {
+      if (cmplx)
+      {
+         j(0) = rod_params_(3);
+         j(1) = rod_params_(4);
+         j(2) = rod_params_(5);
+      }
+   }
+   // j *= height;
+}
+
+void slab_current_source_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   bool cmplx = slab_params_.Size() == 10;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = slab_params_(o+0);
+   double y0 = slab_params_(o+1);
+   double dx = slab_params_(o+2);
+   double dy = slab_params_(o+3);
+
+   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
+       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   {
+      j(0) = slab_params_(0);
+      j(1) = slab_params_(1);
+      j(2) = slab_params_(2);
+      j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+   }
+}
+
+void slab_current_source_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   bool cmplx = slab_params_.Size() == 10;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = slab_params_(o+0);
+   double y0 = slab_params_(o+1);
+   double dx = slab_params_(o+2);
+   double dy = slab_params_(o+3);
+
+   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
+       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   {
+      if (cmplx)
+      {
+         j(0) = slab_params_(3);
+         j(1) = slab_params_(4);
+         j(2) = slab_params_(5);
+         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+      }
+   }
 }
 
 void e_bc_r(const Vector &x, Vector &E)
@@ -1486,14 +1589,15 @@ void e_bc_i(const Vector &x, Vector &E)
    E.SetSize(3);
    E = 0.0;
 }
-/*
-ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
-                                         double omega,
-                                         const Vector & B,
-                                         const Vector & number,
-                                         const Vector & charge,
-                                         const Vector & mass,
-                                         bool realPart)
+
+ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
+                                           double omega,
+                                           const Vector & B,
+                                           const Vector & number,
+                                           const Vector & charge,
+                                           const Vector & mass,
+                                           const Vector & temp,
+                                           bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
@@ -1501,20 +1605,114 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
      Bmag_(B.Norml2()),
      Jy_(0.0),
      xJ_(0.5),
+     dx_(0.05),
      Lx_(1.0),
-     k_(0),
-     B_(B),
+     kappa_(0.0),
+     b_(B),
+     bc_(3),
+     bcc_(3),
+     e_r_(3),
+     e_i_(3),
+     k_r_(3),
+     k_i_(3),
+     beta_r_(3),
+     beta_i_(3),
      numbers_(number),
      charges_(charge),
-     masses_(mass)
+     masses_(mass),
+     temps_(temp)
 {
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_);
+   b_ *= 1.0 / Bmag_;
+
+   {
+      double bx = b_(0);
+      double by = b_(1);
+      double bz = b_(2);
+
+      bc_(0) = by - bz;
+      bc_(1) = bz - bx;
+      bc_(2) = bx - by;
+
+      bcc_(0) = by*by + bz*bz - bx*(by + bz);
+      bcc_(1) = bz*bz + bx*bx - by*(bz + bx);
+      bcc_(2) = bx*bx + by*by - bz*(bx + by);
+
+      bc_  *= 1.0 / bc_.Norml2();
+      bcc_ *= 1.0 / bcc_.Norml2();
+   }
+
+   beta_r_ = 0.0;
+   beta_i_ = 0.0;
+
+   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
+   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
+   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
+
+   switch (type_)
+   {
+      case 'L':
+      {
+         kappa_ = omega_ * sqrt(S_ - D_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         k_r_.Set(kappa_.real(), b_);
+         k_i_.Set(kappa_.imag(), b_);
+
+         e_r_.Set(M_SQRT1_2, bc_);
+         e_i_.Set(M_SQRT1_2, bcc_);
+      }
+      break;
+      case 'R':
+      {
+         kappa_ = omega_ * sqrt(S_ + D_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         k_r_.Set(kappa_.real(), b_);
+         k_i_.Set(kappa_.imag(), b_);
+
+         e_r_.Set( M_SQRT1_2, bc_);
+         e_i_.Set(-M_SQRT1_2, bcc_);
+      }
+      break;
+      case 'O':
+      {
+         kappa_ = omega_ * sqrt(P_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         k_r_.Set(kappa_.real(), bc_);
+         k_i_.Set(kappa_.imag(), bc_);
+
+         e_r_.Set(1.0, b_);
+         e_i_ = 0.0;
+      }
+      break;
+      case 'X':
+      {
+         kappa_ = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         k_r_.Set(kappa_.real(), bc_);
+         k_i_.Set(kappa_.imag(), bc_);
+
+         complex<double> den = sqrt(S_ * S_ + D_ * D_);
+         complex<double> ec  = D_ / den;
+         complex<double> ecc = S_ / den;
+
+         e_r_.Set(ecc.real(), bcc_);
+         e_r_.Add(ec.imag(), bc_);
+         e_i_.Set(-ec.real(), bc_);
+         e_i_.Add(ecc.imag(), bcc_);
+      }
+      break;
+      case 'J':
+         // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
+         //           "Current slab require a magnetic field in the z-direction.");
+         break;
+   }
 }
 
-void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
-                               const IntegrationPoint &ip)
+void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
 {
    V.SetSize(3);
 
@@ -1522,151 +1720,103 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
    Vector x(x_data, 3);
    T.Transform(ip, x);
 
+   complex<double> i = complex<double>(0.0,1.0);
+
    switch (type_)
    {
-      case 'L':
+      case 'L': // Left Circularly Polarized, propagating along B
+      case 'R': // Right Circularly Polarized, propagating along B
+      case 'O': // Ordinary wave propagating perpendicular to B
+      case 'X': // eXtraordinary wave propagating perpendicular to B
       {
-         bool osc = S_ - D_ > 0.0;
-         double kL = omega_ * sqrt(fabs(S_-D_)) / c0_;
+         complex<double> kx = 0.0;
+         for (int d=0; d<3; d++)
+         {
+            kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
+         }
+         complex<double> phase = exp(i * kx);
+         double phase_r = phase.real();
+         double phase_i = phase.imag();
 
          if (realPart_)
          {
-            V[0] = 0.0;
-            V[1] = osc ?  sin(kL * x[0]) : 0.0;
-            V[2] = osc ?  cos(kL * x[0]) : exp(-kL * x[0]);
+            for (int d=0; d<3; d++)
+            {
+               V[d] = e_r_[d] * phase_r - e_i_[d] * phase_i;
+            }
          }
          else
          {
-            V[0] = 0.0;
-            V[1] = osc ?  cos(kL * x[0]) : exp(-kL * x[0]);
-            V[2] = osc ? -sin(kL * x[0]) : 0.0;
+            for (int d=0; d<3; d++)
+            {
+               V[d] = e_r_[d] * phase_i + e_i_[d] * phase_r;
+            }
          }
       }
       break;
-      case 'R':
+      case 'J':  // Slab of current density perpendicular to propagation
       {
-         bool osc = S_ + D_ > 0.0;
-         double kR = omega_ * sqrt(fabs(S_+D_)) / c0_;
+         /*
+          if (k_.Size() == 0)
+               {
+                  complex<double> kE = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
 
-         if (realPart_)
-         {
-            V[0] = 0.0;
-            V[1] = osc ? -sin(kR * x[0]) : 0.0;
-            V[2] = osc ?  cos(kR * x[0]) : exp(-kR * x[0]);
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = osc ? -cos(kR * x[0]) : -exp(-kR * x[0]);
-            V[2] = osc ? -sin(kR * x[0]) : 0.0;
-         }
-      }
-      break;
-      case 'O':
-      {
-         bool osc = P_ > 0.0;
-         double kO = omega_ * sqrt(fabs(P_)) / c0_;
+                  complex<double> skL = sin(kE * Lx_);
+                  complex<double> E0 = i * Jy_ /
+                                       (omega_ * epsilon0_ * skL *
+                                        (S_ * S_ - D_ * D_));
 
-         if (realPart_)
-         {
-            V[0] = 0.0;
-            V[1] = osc ? cos(kO * x[0]) : exp(-kO * x[0]);
-            V[2] = 0.0;
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = osc ? -sin(kO * x[0]) : 0.0;
-            V[2] = 0.0;
-         }
-      }
-      break;
-      case 'X':
-      {
-         bool osc = (S_ * S_ - D_ * D_) / S_ > 0.0;
-         double kE = omega_ * sqrt(fabs((S_ * S_ - D_ * D_) / S_)) / c0_;
+                  complex<double> Ex = i * D_ * E0;
+                  complex<double> Ey = S_ * E0;
 
-         if (realPart_)
-         {
-            V[0] = osc ? -D_ * sin(kE * x[0]) : 0.0;
-            V[1] = 0.0;
-            V[2] = osc ?  S_ * cos(kE * x[0]) : S_ * exp(-kE * x[0]);
-         }
-         else
-         {
-            V[0] = osc ? -D_ * cos(kE * x[0]) : -D_ * exp(-kE * x[0]);
-            V[1] = 0.0;
-            V[2] = osc ? -S_ * sin(kE * x[0]) : 0.0;
-         }
-         V /= sqrt(S_ * S_ + D_ * D_);
-      }
-      break;
-      case 'J':
-      {
-         if (k_.Size() == 0)
-         {
-            bool osc = (S_ * S_ - D_ * D_) / S_ > 0.0;
-            double kE = omega_ * sqrt(fabs((S_ * S_ - D_ * D_) / S_)) / c0_;
+                  if (x[0] <= xJ_ - 0.5 * dx_)
+                  {
+                     complex<double> skLJ = sin(kE * (Lx_ - xJ_));
+                     complex<double> skd  = sin(kE * 0.5 * dx_);
+                     complex<double> skx  = sin(kE * x[0]);
 
-            double (*sfunc)(double) = osc ?
-                                      static_cast<double (*)(double)>(&sin) :
-                                      static_cast<double (*)(double)>(&sinh);
-            double (*cfunc)(double) = osc ?
-                                      static_cast<double (*)(double)>(&cos) :
-                                      static_cast<double (*)(double)>(&cosh);
+                     Ex *= -2.0 * skLJ * skd * skx;
+                     Ey *= -2.0 * skLJ * skd * skx;
+                  }
+                  else if (x[0] <= xJ_ + 0.5 * dx_)
+                  {
+                     complex<double> ck1  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
+                     complex<double> ck2  = cos(kE * (xJ_ - 0.5 * dx_));
+                     complex<double> skx  = sin(kE * x[0]);
+                     complex<double> skLx = sin(kE * (Lx_ - x[0]));
 
-            double skL   = (*sfunc)(kE * Lx_);
-            double csckL = 1.0 / skL;
+                     Ex *= skL - ck1 * skx - ck2 * skLx;
+                     Ey *= skL - ck1 * skx - ck2 * skLx;
+                  }
+                  else
+                  {
+                     complex<double> skJ  = sin(kE * xJ_);
+                     complex<double> skd  = sin(kE * 0.5 * dx_);
+                     complex<double> skLx = sin(kE * (Lx_ - x[0]));
 
-            if (realPart_)
-            {
-               V[0] = D_ / S_;
-               V[1] = 0.0;
-               V[2] = 0.0;
-            }
-            else
-            {
-               V[0] = 0.0;
-               V[1] = -1.0;
-               V[2] = 0.0;
-            }
+                     Ex *= -2.0 * skJ * skd * skLx;
+                     Ey *= -2.0 * skJ * skd * skLx;
+                  }
 
-            if (x[0] <= xJ_ - 0.5 * dx_)
-            {
-               double skx    = (*sfunc)(kE * x[0]);
-               double skLxJ  = (*sfunc)(kE * (Lx_ - xJ_));
-               double skd    = (*sfunc)(kE * 0.5 * dx_);
-               double a = skx * skLxJ * skd;
-
-               V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-               if (!osc) { V *= -1.0; }
-            }
-            else if (x[0] <= xJ_ + 0.5 * dx_)
-            {
-               double skx      = (*sfunc)(kE * x[0]);
-               double skLx     = (*sfunc)(kE * (Lx_ - x[0]));
-               double ckxJmd   = (*cfunc)(kE * (xJ_ - 0.5 * dx_));
-               double ckLxJmd  = (*cfunc)(kE * (Lx_ - xJ_ - 0.5 * dx_));
-               double a = skx * ckLxJmd + skLx * ckxJmd - skL;
-
-               V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-            }
-            else
-            {
-               double skLx = (*sfunc)(kE * (Lx_ - x[0]));
-               double skxJ = (*sfunc)(kE * xJ_);
-               double skd  = (*sfunc)(kE * 0.5 * dx_);
-               double a = skLx * skxJ * skd;
-
-               V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-               if (!osc) { V *= -1.0; }
-            }
-         }
-         else
-         {
-            // General phase shift
-            V = 0.0; // For now...
-         }
+                  if (realPart_)
+                  {
+                     V[0] = Ex.real();
+                     V[1] = Ey.real();
+                     V[2] = 0.0;
+                  }
+                  else
+                  {
+                     V[0] = Ex.imag();
+                     V[1] = Ey.imag();
+                     V[2] = 0.0;
+                  }
+               }
+               else
+               {
+                  // General phase shift
+                  V = 0.0; // For now...
+               }
+         */
       }
       break;
       case 'Z':
@@ -1674,4 +1824,3 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
          break;
    }
 }
-*/

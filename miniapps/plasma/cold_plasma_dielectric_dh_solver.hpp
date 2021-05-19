@@ -46,12 +46,13 @@ struct SolverOptions
    int euLvl;
 };
 */
+/*
 struct ComplexCoefficientByAttr : public AttributeArrays
 {
    Coefficient * real;
    Coefficient * imag;
 };
-/*
+
 struct ComplexVectorCoefficientByAttr
 {
    Array<int> attr;
@@ -310,7 +311,7 @@ public:
                Coefficient * etaCoef,
                VectorCoefficient * kReCoef,
                VectorCoefficient * kImCoef,
-               // Array<int> & abcs,
+               Array<int> & abcs,
                Array<ComplexVectorCoefficientByAttr> & dbcs,
                Array<ComplexVectorCoefficientByAttr> & nbcs,
                Array<ComplexCoefficientByAttr> & sbcs,
@@ -750,15 +751,6 @@ private:
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_bdr_marker_;
 
-   // Array of 0's and 1's marking the location of sheath surfaces
-   // Array<int> sbc_marker_;
-
-   // Array of 0's and 1's marking the location of Dirichlet boundaries
-   // Array<int> dbc_marker_;
-   // void   (*e_r_bc_)(const Vector&, Vector&);
-   // void   (*e_i_bc_)(const Vector&, Vector&);
-
-   // Array<int> * dbcs_;
    Array<ComplexVectorCoefficientByAttr> * dbcs_;
    Array<int> dbc_bdr_marker_;
    Array<int> dbc_nd_tdofs_;

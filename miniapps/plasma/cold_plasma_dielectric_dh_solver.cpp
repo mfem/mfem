@@ -459,14 +459,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          Coefficient * etaCoef,
                          VectorCoefficient * kReCoef,
                          VectorCoefficient * kImCoef,
-                         // Array<int> & abcs,
+                         Array<int> & abcs,
                          Array<ComplexVectorCoefficientByAttr> & dbcs,
                          Array<ComplexVectorCoefficientByAttr> & nbcs,
                          Array<ComplexCoefficientByAttr> & sbcs,
-                         // void   (*e_r_bc )(const Vector&, Vector&),
-                         // void   (*e_i_bc )(const Vector&, Vector&),
-                         // VectorCoefficient & EReCoef,
-                         // VectorCoefficient & EImCoef,
                          void (*j_r_src)(const Vector&, Vector&),
                          void (*j_i_src)(const Vector&, Vector&),
                          bool vis_u, bool pa)
@@ -482,7 +478,6 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      vis_u_(vis_u),
      pa_(pa),
      omega_(omega),
-     // solNorm_(-1.0),
      pmesh_(&pmesh),
      L2FESpace_(NULL),
      L2FESpace2p_(NULL),
@@ -780,8 +775,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       Vector j(3); j = 0.0;
       jiCoef_ = new VectorConstantCoefficient(j);
    }
-   rhsrCoef_ = new ScalarVectorProductCoefficient(omega_, *jiCoef_);
-   rhsiCoef_ = new ScalarVectorProductCoefficient(-omega_, *jrCoef_);
+   //rhsrCoef_ = new ScalarVectorProductCoefficient(omega_, *jiCoef_);
+   //rhsiCoef_ = new ScalarVectorProductCoefficient(-omega_, *jrCoef_);
 
    if (nbcs_->Size() > 0)
    {
@@ -1088,8 +1083,8 @@ CPDSolverDH::~CPDSolverDH()
    delete negsinkx_;
    delete coskx_;
    delete sinkx_;
-   delete rhsrCoef_;
-   delete rhsiCoef_;
+   // delete rhsrCoef_;
+   // delete rhsiCoef_;
    delete jrCoef_;
    delete jiCoef_;
    // delete erCoef_;
@@ -1654,6 +1649,7 @@ CPDSolverDH::Solve()
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
       while (H_iter < 15)
       {
+         if ( phi_diff < 1e-3) {break;}
          nzD12_->Update();
          nzD12_->Assemble(0);
          nzD12_->Finalize();
@@ -1727,7 +1723,7 @@ CPDSolverDH::Solve()
 
          if (myid_ == 0) { cout << H_iter << '\t' << phi_diff << endl; }
 
-         *prev_phi_ = *phi_;
+         prev_phi_->Vector::operator=((Vector&)(*phi_));
 
          H_iter++;
       }

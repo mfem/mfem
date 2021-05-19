@@ -124,24 +124,25 @@ using namespace mfem::common;
 using namespace mfem::plasma;
 
 // Admittance for Absorbing Boundary Condition
-Coefficient * SetupRealAdmittanceCoefficient(const Mesh & mesh,
-                                             const Array<int> & abcs);
+Coefficient * SetupImpedanceCoefficient(const Mesh & mesh,
+                                        const Array<int> & abcs);
 
 // Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
-static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
+static Vector pw_bdr_eta_(0);  // Piecewise impedance values (by bdr attr)
 
 // Storage for user-supplied, complex-valued impedance
-static Vector pw_eta_re_(0);      // Piecewise real impedance
-static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
-static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
-static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
+//static Vector pw_eta_re_(0);      // Piecewise real impedance
+//static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
+//static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
+//static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
 // Current Density Function
 static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
 static Vector slab_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
+static int slab_profile_;
 
 void rod_current_source_r(const Vector &x, Vector &j);
 void rod_current_source_i(const Vector &x, Vector &j);
@@ -475,18 +476,22 @@ int main(int argc, char *argv[])
                   "Euclid factorization level for ILU(k).");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
+   /*
    args.AddOption(&pw_eta_re_, "-pwz-r", "--piecewise-eta-r",
                   "Piecewise values of Real part of Complex Impedance "
                   "(one value per abc surface)");
    args.AddOption(&pw_eta_im_, "-pwz-i", "--piecewise-eta-i",
                   "Piecewise values of Imaginary part of Complex Impedance "
                   "(one value per abc surface)");
+   */
    args.AddOption(&rod_params_, "-rod", "--rod_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, Radius");
    args.AddOption(&slab_params_, "-slab", "--slab_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, 2D Size");
+   args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
+                  "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
@@ -789,23 +794,6 @@ int main(int argc, char *argv[])
       cout << "Starting initialization." << endl;
    }
 
-   // If values for Voltage BCs were not set issue a warning and exit
-   /*
-   if ( ( vbcs.Size() > 0 && kbcs.Size() == 0 ) ||
-        ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
-        ( vbcv.Size() < vbcs.Size() ) )
-   {
-      if ( mpi.Root() )
-      {
-         cout << "The surface current (K) boundary condition requires "
-              << "surface current boundary condition surfaces (with -kbcs), "
-              << "voltage boundary condition surface (with -vbcs), "
-              << "and voltage boundary condition values (with -vbcv)."
-              << endl;
-      }
-      return 3;
-   }
-   */
    double Bmag = BVec.Norml2();
    Vector BUnitVec(3);
    BUnitVec(0) = BVec(0)/Bmag;
@@ -814,14 +802,7 @@ int main(int argc, char *argv[])
 
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
-   // VectorConstantCoefficient kCoef(kVec);
-   /*
-   double ion_frac = 0.0;
-   ConstantCoefficient rhoCoef1(rho1);
-   ConstantCoefficient rhoCoef2(rhoCoef1.constant * (1.0 - ion_frac));
-   ConstantCoefficient rhoCoef3(rhoCoef1.constant * ion_frac);
-   ConstantCoefficient tempCoef(10.0 * q_);
-   */
+
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
@@ -871,23 +852,6 @@ int main(int argc, char *argv[])
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
    }
-   /*
-   for (int i=0; i<=nspecies; i++)
-   {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(tempCoef);
-   }
-   */
-   /*
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
-   density_gf.ProjectCoefficient(rhoCoef1);
-
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(1));
-   density_gf.ProjectCoefficient(rhoCoef2);
-
-   density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
-   density_gf.ProjectCoefficient(rhoCoef3);
-   */
 
    if (mpi.Root())
    {
@@ -898,7 +862,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient muCoef(mu0_);
 
    // Create a coefficient describing the surface admittance
-   Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
+   Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
    InverseDielectricTensor epsilonInv_real(BField, density, temperature,
@@ -1009,11 +973,6 @@ int main(int argc, char *argv[])
       kReVec.SetDataAndSize(&kVec[0], 3);
       kImVec.SetDataAndSize(&kVec[3], 3);
 
-      mfem::out << "Setting phase shift of ("
-                << complex<double>(kReVec[0],kImVec[0]) << ","
-                << complex<double>(kReVec[1],kImVec[1])   << ","
-                << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
-
       HReCoef.SetPhaseShift(kReVec, kImVec);
       HImCoef.SetPhaseShift(kReVec, kImVec);
       EReCoef.SetPhaseShift(kReVec, kImVec);
@@ -1043,6 +1002,11 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   mfem::out << "Setting phase shift of ("
+             << complex<double>(kReVec[0],kImVec[0]) << ","
+             << complex<double>(kReVec[1],kImVec[1]) << ","
+             << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
 
    VectorConstantCoefficient kReCoef(kReVec);
    VectorConstantCoefficient kImCoef(kImVec);
@@ -1074,13 +1038,6 @@ int main(int argc, char *argv[])
       double max_Hi = HField.imag().ComputeMaxError(zeroCoef);
       double max_Er = EField.real().ComputeMaxError(zeroCoef);
       double max_Ei = EField.imag().ComputeMaxError(zeroCoef);
-      /*
-      ParComplexGridFunction ZCoef(&H1FESpace);
-      // Array<int> ess_bdr(mesh->bdr_attributes.Size());
-      // ess_bdr = 1;
-      // ZCoef.ProjectBdrCoefficient(z_r, z_i, ess_bdr);
-      ZCoef.ProjectCoefficient(z_r, z_i);
-       */
 
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -1089,14 +1046,12 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      socketstream sock_Hr, sock_Hi, sock_Er, sock_Ei, /*sock_zr, sock_zi, */ sock_B;
+      socketstream sock_Hr, sock_Hi, sock_Er, sock_Ei, sock_B;
       sock_Hr.precision(8);
       sock_Hi.precision(8);
       sock_Er.precision(8);
       sock_Ei.precision(8);
       sock_B.precision(8);
-      // sock_zr.precision(8);
-      // sock_zi.precision(8);
 
       ostringstream hr_keys, hi_keys;
       hr_keys << "aaAcPPPPvvv valuerange 0.0 " << max_Hr;
@@ -1125,24 +1080,13 @@ int main(int argc, char *argv[])
                      EField.imag(), "Exact Electric Field, Im(E)",
                      Wx, Wy, Ww, Wh, ei_keys.str().c_str());
 
-      // Wx -= offx;
-      // Wy += offy;
+      Wx -= offx;
+      Wy += offy;
 
-      /*
       VisualizeField(sock_B, vishost, visport,
-                    BField, "Background Magnetic Field",
-                    Wx, Wy, Ww, Wh);
+                     BField, "Background Magnetic Field",
+                     Wx, Wy, Ww, Wh);
 
-
-      VisualizeField(sock_zr, vishost, visport,
-                    ZCoef.real(), "Real Sheath Impedance",
-                    Wx, Wy, Ww, Wh);
-
-      VisualizeField(sock_zi, vishost, visport,
-                    ZCoef.imag(), "Imaginary Sheath Impedance",
-                    Wx, Wy, Ww, Wh);
-      */
-      /*
       for (int i=0; i<charges.Size(); i++)
       {
          Wx += offx;
@@ -1157,16 +1101,6 @@ int main(int argc, char *argv[])
                         density_gf, oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
       }
-
-
-        socketstream sock;
-        sock.precision(8);
-
-        temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
-        VisualizeField(sock, vishost, visport,
-                         temperature_gf, "Temp",
-                         Wx, Wy, Ww, Wh);
-       */
    }
 
    if (mpi.Root())
@@ -1175,13 +1109,6 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-   /*
-   Array<ComplexVectorCoefficientByAttr> dbcs(1);
-   dbcs[0].attr = dbca;
-   dbcs[0].real = &EReCoef;
-   dbcs[0].imag = &EImCoef;
-   */
-
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
                   (dbcaw.Size() > 0);
 
@@ -1359,10 +1286,10 @@ int main(int argc, char *argv[])
                    (CPDSolverDH::PrecondType)prec,
                    conv, BUnitCoef,
                    epsilonInv_real, epsilonInv_imag, epsilon_abs,
-                   muCoef, etaInvCoef,
+                   muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
-                   //abcs,
+                   abcs,
                    dbcs, nbcs, sbcs,
                    // e_bc_r, e_bc_i,
                    // EReCoef, EImCoef,
@@ -1438,14 +1365,6 @@ int main(int argc, char *argv[])
             cout << "Global L2 Error in E field " << glb_error_E << endl;
          }
       }
-      /*
-      // Compute error
-      double glb_error = CPD.GetError(EReCoef, EImCoef);
-      if (mpi.Root())
-      {
-         cout << "Global L2 Error " << glb_error << endl;
-      }
-      */
 
       // Determine the current size of the linear system
       int prob_size = CPD.GetProblemSize();
@@ -1511,20 +1430,6 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { cout << "Refining ..." << endl; }
       {
          pmesh.RefineByError(errors, threshold);
-         /*
-              Array<Refinement> refs;
-              for (int i=0; i<pmesh.GetNE(); i++)
-              {
-                 if (errors[i] > threshold)
-                 {
-                    refs.Append(Refinement(i, 3));
-                 }
-              }
-              if (refs.Size() > 0)
-              {
-                 pmesh.GeneralRefinement(refs);
-              }
-         */
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
@@ -1558,9 +1463,6 @@ int main(int argc, char *argv[])
       CPD.DisplayAnimationToGLVis();
    }
 
-   // delete epsCoef;
-   // delete muInvCoef;
-   // delete sigmaCoef;
    for (int i=0; i<auxFields.Size(); i++)
    {
       delete auxFields[i];
@@ -1648,10 +1550,10 @@ void display_banner(ostream & os)
       << "  notation, \"S, D, P\"." << endl<< endl << flush;
 }
 
-// The Admittance is an optional coefficient defined on boundary surfaces which
+// The Impedance is an optional coefficient defined on boundary surfaces which
 // can be used in conjunction with absorbing boundary conditions.
 Coefficient *
-SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
+SetupImpedanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
 {
    Coefficient * coef = NULL;
 
@@ -1661,22 +1563,22 @@ SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
                   "Each impedance value must be associated with exactly one "
                   "absorbing boundary surface.");
 
-      pw_eta_inv_.SetSize(mesh.bdr_attributes.Size());
+      pw_bdr_eta_.SetSize(mesh.bdr_attributes.Size());
 
       if ( abcs[0] == -1 )
       {
-         pw_eta_inv_ = 1.0 / pw_eta_[0];
+         pw_bdr_eta_ = pw_eta_[0];
       }
       else
       {
-         pw_eta_inv_ = 0.0;
+         pw_bdr_eta_ = 0.0;
 
          for (int i=0; i<pw_eta_.Size(); i++)
          {
-            pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
+            pw_bdr_eta_[abcs[i]-1] = pw_eta_[i];
          }
       }
-      coef = new PWConstCoefficient(pw_eta_inv_);
+      coef = new PWConstCoefficient(pw_bdr_eta_);
    }
 
    return coef;
@@ -1759,7 +1661,8 @@ void slab_current_source_r(const Vector &x, Vector &j)
       j(0) = slab_params_(0);
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
-      j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+      if (slab_profile_ == 1)
+      { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
    }
 }
 
@@ -1787,7 +1690,8 @@ void slab_current_source_i(const Vector &x, Vector &j)
          j(0) = slab_params_(3);
          j(1) = slab_params_(4);
          j(2) = slab_params_(5);
-         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+         if (slab_profile_ == 1)
+         { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
       }
    }
 }

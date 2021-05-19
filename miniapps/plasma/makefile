@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = stix1d stix2d stix3d stix2d_dh
+PAR_MINIAPPS = stix1d stix2d stix3d stix1d_dh stix2d_dh
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -80,4 +80,5 @@ clean-build:
 
 clean-exec:
 	@rm -rf STIX1D-AMR-Parallel* STIX2D-AMR-Parallel* STIX3D-AMR-Parallel*
+	@rm -rf STIX1D-DH-AMR-Parallel* STIX2D-DH-AMR-Parallel*
 

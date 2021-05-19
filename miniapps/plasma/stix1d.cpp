@@ -216,8 +216,9 @@ int main(int argc, char *argv[])
    BVec = 0.0; BVec(0) = 0.1;
 
    bool phase_shift = false;
-   Vector kVec(3);
-   kVec = 0.0;
+   Vector kVec;
+   Vector kReVec;
+   Vector kImVec;
 
    Vector numbers;
    Vector charges;
@@ -230,7 +231,7 @@ int main(int argc, char *argv[])
    Vector tpp;
 
    Array<int> abcs; // Absorbing BC attributes
-   Array<int> sbcs; // Sheath BC attributes
+   Array<int> sbca; // Sheath BC attributes
    Array<int> dbca; // Dirichlet BC attributes
    int num_elements = 10;
 
@@ -279,10 +280,10 @@ int main(int argc, char *argv[])
                   "Background magnetic flux parameters");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
-   args.AddOption(&kVec[1], "-ky", "--wave-vector-y",
-                  "y-Component of wave vector.");
-   args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
-                  "z-Component of wave vector.");
+   args.AddOption(&kVec, "-k-vec", "--phase-vector",
+                  "Phase shift vector across periodic directions."
+                  " For complex phase shifts input 3 real phase shifts "
+                  "followed by 3 imaginary phase shifts");
    args.AddOption(&numbers, "-num", "--number-densites",
                   "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
@@ -324,7 +325,7 @@ int main(int argc, char *argv[])
                   "Amplitude");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
-   args.AddOption(&sbcs, "-sbcs", "--sheath-bc-surf",
+   args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
                   "Sheath Boundary Condition Surfaces");
    args.AddOption(&dbca, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
@@ -469,7 +470,7 @@ int main(int argc, char *argv[])
       mesh_dim_[2] = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
-   if (kVec[1] != 0.0 || kVec[2] != 0.0)
+   if (kVec.Size() != 0)
    {
       phase_shift = true;
    }
@@ -692,10 +693,6 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
 
-   Coefficient * etaInvReCoef = NULL;
-   Coefficient * etaInvImCoef = NULL;
-   SetupComplexAdmittanceCoefs(pmesh, sbcs, etaInvReCoef, etaInvImCoef);
-
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density, temperature,
                                  L2FESpace, H1FESpace,
@@ -706,6 +703,12 @@ int main(int argc, char *argv[])
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses);
+   SheathImpedance z_r(BField, density, temperature,
+                       L2FESpace, H1FESpace,
+                       omega, charges, masses, true);
+   SheathImpedance z_i(BField, density, temperature,
+                       L2FESpace, H1FESpace,
+                       omega, charges, masses, false);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, temps, true);
@@ -724,6 +727,14 @@ int main(int argc, char *argv[])
       EReCoef.SetPhaseShift(kVec);
       EImCoef.SetPhaseShift(kVec);
    }
+
+   mfem::out << "Setting phase shift of ("
+             << complex<double>(kReVec[0],kImVec[0]) << ","
+             << complex<double>(kReVec[1],kImVec[1]) << ","
+             << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
+
+   VectorConstantCoefficient kReCoef(kReVec);
+   VectorConstantCoefficient kImCoef(kImVec);
 
    tic_toc.Stop();
 
@@ -777,6 +788,16 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
+   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   if (sbca.Size() > 0)
+   {
+      sbcs[0].real = &z_r;
+      sbcs[0].imag = &z_i;
+      sbcs[0].attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
+                   sbcs[0].attr_marker);
+   }
+
    // Create the Magnetostatic solver
    if (mpi.Root() && logging > 0)
    {
@@ -786,9 +807,10 @@ int main(int argc, char *argv[])
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, *BCoef, epsilon_real, epsilon_imag, epsilon_abs,
-                 muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
-                 (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs, nbcs,
+                 muInvCoef, etaInvCoef,
+                 (phase_shift) ? &kReCoef : NULL,
+                 (phase_shift) ? &kImCoef : NULL,
+                 abcs, dbcs, nbcs, sbcs,
                  (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
@@ -981,16 +1003,24 @@ void Update(ParFiniteElementSpace & H1FESpace,
    }
 }
 
+const char * banner[6] =
+{
+   R"(  _________ __   __        ____     ___)",
+   R"( /   _____//  |_|__|__  __/_   | __| _/)",
+   R"( \_____  \\   __\  \  \/  /|   |/ __ | )",
+   R"( /        \|  | |  |>    < |   / /_/ | )",
+   R"(/_______  /|__| |__/__/\_ \|___\____ | )",
+   R"(        \/               \/         \/ )"
+};
+
 // Print the STIX1D ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-   os << "  _________ __   __        ____     ___" << endl
-      << " /   _____//  |_|__|__  __/_   | __| _/" << endl
-      << " \\_____  \\\\   __\\  \\  \\/  /|   |/ __ | " << endl
-      << " /        \\|  | |  |>    < |   / /_/ | " << endl
-      << "/_______  /|__| |__/__/\\_ \\|___\\____ | " << endl
-      << "        \\/               \\/         \\/ " << endl
-      << endl
+   for (int i=0; i<6; i++)
+   {
+      os << banner[i] << endl;
+   }
+   os << endl
       << "* Thomas H. Stix was a pioneer in the use of radio frequency"
       << " waves to heat" << endl
       << "  terrestrial plasmas to solar temperatures. He made important"

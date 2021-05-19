@@ -27,25 +27,21 @@ complex<double> R_cold_plasma(double omega,
                               const Vector & temp)
 {
    complex<double> val(1.0, 0.0);
-   complex<double> mass_correction(1.0, 0.0);
-   for (int i=1; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      double Te = temp[i] * q_;
-      double coul_log = CoulombLog(n, Te);
-      double nuei = nu_ei(q, coul_log, m, Te, n);
-      complex<double> collision_correction(0, nuei/omega);
-      mass_correction += collision_correction;
-   }
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = nu_ei(q, coul_log, m, Te, n); // nu_art(Te);
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
       double q = charge[i];
       double m = mass[i];
-      complex<double> m_eff = m*mass_correction;
+      complex<double> m_eff = m;
+      if ( i == 0) {m_eff = m*collision_correction;}
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * (omega + w_c));
@@ -61,25 +57,21 @@ complex<double> L_cold_plasma(double omega,
                               const Vector & temp)
 {
    complex<double> val(1.0, 0.0);
-   complex<double> mass_correction(1.0, 0.0);
-   for (int i=1; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      double Te = temp[i] * q_;
-      double coul_log = CoulombLog(n, Te);
-      double nuei = nu_ei(q, coul_log, m, Te, n);
-      complex<double> collision_correction(0, nuei/omega);
-      mass_correction += collision_correction;
-   }
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = nu_ei(q, coul_log, m, Te, n); // nu_art(Te);
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
       double q = charge[i];
       double m = mass[i];
-      complex<double> m_eff = m*mass_correction;
+      complex<double> m_eff = m;
+      if ( i == 0) {m_eff = m*collision_correction;}
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * (omega - w_c));
@@ -95,28 +87,25 @@ complex<double> S_cold_plasma(double omega,
                               const Vector & temp)
 {
    complex<double> val(1.0, 0.0);
-   complex<double> mass_correction(1.0, 0.0);
-   for (int i=1; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      double Te = temp[i] * q_;
-      double coul_log = CoulombLog(n, Te);
-      double nuei = nu_ei(q, coul_log, m, Te, n);
-      complex<double> collision_correction(0, nuei/omega);
-      mass_correction += collision_correction;
-   }
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = nu_ei(q, coul_log, m, Te, n); // nu_art(Te);
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
       double q = charge[i];
       double m = mass[i];
-      complex<double> m_eff = m*mass_correction;
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m*collision_correction; }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega - w_c * w_c);
+
    }
    return val;
 }
@@ -129,28 +118,24 @@ complex<double> D_cold_plasma(double omega,
                               const Vector & temp)
 {
    complex<double> val(0.0, 0.0);
-   complex<double> mass_correction(1.0, 0.0);
-   for (int i=1; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      double Te = temp[i] * q_;
-      double coul_log = CoulombLog(n, Te);
-      double nuei = nu_ei(q, coul_log, m, Te, n);
-      complex<double> collision_correction(0, nuei/omega);
-      mass_correction += collision_correction;
-   }
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = nu_ei(q, coul_log, m, Te, n); // nu_art(Te);
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
       double q = charge[i];
       double m = mass[i];
-      complex<double> m_eff = m*mass_correction;
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m*collision_correction; }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
-      val += w_p * w_p * w_c / (omega *(omega * omega - w_c * w_c));
+      val += w_p * w_p * w_c / (omega * (omega * omega - w_c * w_c));
    }
    return val;
 }
@@ -162,30 +147,82 @@ complex<double> P_cold_plasma(double omega,
                               const Vector & temp)
 {
    complex<double> val(1.0, 0.0);
-   complex<double> mass_correction(1.0, 0.0);
-   for (int i=1; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      double Te = temp[i] * q_;
-      double coul_log = CoulombLog(n, Te);
-      double nuei = nu_ei(q, coul_log, m, Te, n);
-      complex<double> collision_correction(0, nuei/omega);
-      mass_correction += collision_correction;
-   }
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = nu_ei(q, coul_log, m, Te, n);
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
       double q = charge[i];
       double m = mass[i];
-      complex<double> m_eff = m*mass_correction;
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m*collision_correction; }
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega);
    }
    return val;
 }
+// """""""""""""""""""""""""""""""""""""""""""""""""""""""
+// Jim's old sheath impedance parameterization code for Kohno et al 2017
+double gabsANY(double x)
+{
+   return 0.00013542350902761945 - 0.052148081768838075*x +
+          0.2834385542799402*x*exp(-x) + 0.03053282857790852*pow(x,
+                                                                 2) - 0.006477393187352886*pow(x, 3) + 0.0006099729221975197*pow(x,
+                                                                       4) - 0.00002165822780075613*pow(x, 5);
+}
+
+double gargANY(double x)
+{
+   return -1.5282736631594822 + 0.7292398258852378*x - 0.17951815090296652*pow(x,
+                                                                               2) + 0.01982701480205563*pow(x, 3) - 0.0008171081897105175*pow(x,
+                                                                                     4) + 1.8339439276641656*tanh(0.91*x);
+}
+
+complex<double> ficmplxANY1(double x)
+{
+   complex<double> val(0,1);
+   return gabsANY(x)*exp(val*gargANY(x));
+}
+
+double xafun(double x)
+{
+   return 1.0042042386309231 - 0.040348243785481734*x + 0.0015928747555414683*pow(
+             x, 2) - 0.000028423592601970268*pow(x, 3)+ 0.06435835731325179*tanh(0.5*x);
+}
+
+double maxfun(double x)
+{
+   return 0.10853383673713796 - 0.006244170771533145*x +
+          0.00024234826741913128*pow(x, 2) - 4.199121776132657e-6*pow(x,
+                                                                      3)+ 0.008906384119401499*tanh(0.5*x);
+}
+
+complex<double> ficmplxANY(double omega, double vpp)
+{return (maxfun(vpp)/maxfun(10))*ficmplxANY1(omega*xafun(10)/xafun(vpp));}
+
+double vrectfun(double x)
+{   return 3.069981715829813 + 0.06248514679413549*x + 0.04681196334146159*pow(x, 2) - 0.002436325220160285*pow(x, 3) + 0.00004692674475799567*pow(x, 4);}
+
+complex<double> fdcmplxANY(double omega, double vpp)
+{
+   complex<double> val(0,1);
+   double delta = pow(vrectfun(vpp),(3.0/4.0));
+   complex<double> zinvd = -val*omega/delta;
+   return zinvd;
+}
+
+complex<double> fecmplxANY(double vpp)
+{   return 1.4912697017617276 - 0.39149171343072803*exp(-vpp) - 0.35029055741496556*vpp + 0.04370283762859965*pow(vpp, 2) - 0.0029806529060161235*pow(vpp, 3) + 0.00010448291016092317*pow(vpp, 4)- 1.4687221698127053e-6*pow(vpp, 5);}
+
+complex<double> ftotcmplxANY(double omega, double vpp)
+{ return ficmplxANY(omega, vpp) + fdcmplxANY(omega, vpp) + fecmplxANY(vpp);}
+// """""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 double mu(double mass_e, double mass_i)
 {
@@ -468,8 +505,16 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag); // Unitless
 
-   complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-                                             masses_[0], masses_[1]);
+   // Jim's old parametrization (Kohno et al 2017):
+   complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
+
+   // Jim's newest parametrization (Myra et al 2017):
+   //complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
+   //                                         masses_[0], masses_[1]);
+
+   // Fixed sheath impedance:
+   //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
+
    /*
    cout << "Check 1:" << phi0avg(0.4, 6.) - 6.43176481712605 << endl;
    cout << "Check 2:" << niw(.2, .3, 13,masses_[0], masses_[1])- 0.07646452845544677 << endl;
@@ -480,24 +525,14 @@ double SheathImpedance::Eval(ElementTransformation &T,
    cout << "Check 7:" << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real()-0.05185050837032144 << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.0394656455302314 << endl;
     */
 
-   //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
-
    if (realPart_)
    {
-      // return (zsheath_norm.real()*9.0e11*1e-4*
-      //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
-
-      //return (zsheath_norm.real()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
-      return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi);
+      return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
 
    }
    else
    {
-      // return (zsheath_norm.imag()*9.0e11*1e-4*
-      //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
-
-      //return (zsheath_norm.imag()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
-      return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi);
+      return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
    }
 }
 

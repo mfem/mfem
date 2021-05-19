@@ -65,6 +65,9 @@ inline double nu_ei(double charge, double coul_log, double mass,
            * pow(Te, 1.5));
 }
 
+// Collisional frequency profile from Kohno et al 2017:
+inline double nu_art(double x) { return (3e11*exp(-x/0.1)); }
+
 std::complex<double> R_cold_plasma(double omega, double Bmag,
                                    const Vector & number,
                                    const Vector & charge,
@@ -94,7 +97,28 @@ std::complex<double> D_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp);
+// """""""""""""""""""""""""""""""""""""""""""""""""""""""
+// Jim's old sheath parameterization from Kohno et al 2017:
+double gabsANY(double x);
 
+double gargANY(double x);
+
+std::complex<double> ficmplxANY1(double x);
+
+double xafun(double x);
+
+double maxfun(double x);
+
+std::complex<double> ficmplxANY(double omega, double vpp);
+
+double vrectfun(double x);
+
+std::complex<double> fdcmplxANY(double omega, double vpp);
+
+std::complex<double> fecmplxANY(double vpp);
+
+std::complex<double> ftotcmplxANY(double omega, double vpp);
+// """""""""""""""""""""""""""""""""""""""""""""""""""""""
 double mu(double mass_e, double mass_i);
 
 double ff(double x);
