@@ -9820,7 +9820,7 @@ void NodalTensorFiniteElement::Calc1DShape(IntegrationPoint &ip,
                                           Vector &shape,
                                           Vector &dshape) const
 {
-   const int p = order;
+   //const int p = order;
    basis1d.Eval(ip.x, shape, dshape);
 }
 
@@ -9828,7 +9828,7 @@ void PositiveTensorFiniteElement::Calc1DShape(IntegrationPoint &ip,
                                           Vector &shape,
                                           Vector &dshape) const
 {
-   const int p = order;
+   //const int p = order;
    basis1d.Eval(ip.x, shape, dshape);
 }
 
