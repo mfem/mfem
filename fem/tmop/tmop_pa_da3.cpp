@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
+MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                            const int NE,
                            const int ncomp,
                            const int sizeidx,
@@ -114,54 +114,57 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
          }
       }
    });
-   return true;
 }
 
 // PA.Jtr Size = (dim, dim, PA.ne*PA.nq);
-bool DiscreteAdaptTC::ComputeElementTargetsPA(const FiniteElementSpace *pa_fes,
-                                              const IntegrationRule *ir,
-                                              DenseTensor &Jtr,
-                                              const Vector &xe) const
+void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
+                                               const IntegrationRule &ir,
+                                               const Vector &xe,
+                                               DenseTensor &Jtr) const
 {
    MFEM_VERIFY(target_type == IDEAL_SHAPE_GIVEN_SIZE ||
                target_type == GIVEN_SHAPE_AND_SIZE,"");
 
+   MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
    const FiniteElementSpace *fes = tspec_fesv;
 
-   if (!fes) { return false;}
+   // Cases that are not implemented below
+   if (skewidx != -1 ||
+       aspectratioidx != -1 ||
+       orientationidx != -1 ||
+       fes->GetMesh()->Dimension() != 3 ||
+       sizeidx == -1)
+   {
+      return ComputeAllElementTargets_Fallback(pa_fes, ir, xe, Jtr);
+   }
 
+   const Mesh *mesh = fes->GetMesh();
+   const int NE = mesh->GetNE();
+   // Quick return for empty processors:
+   if (NE == 0) { return; }
+   const int dim = mesh->Dimension();
+   MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
+               "mixed meshes are not supported");
+   MFEM_VERIFY(!fes->IsVariableOrder(), "variable orders are not supported");
    const FiniteElement &fe = *fes->GetFE(0);
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
-   const int DIM = W.Height();
-   const int NE = fes->GetMesh()->GetNE();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const DofToQuad &maps = fe.GetDofToQuad(*ir, mode);
+   const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const Array<double> &B = maps.B;
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
 
-   const bool SizeKernel = sizeidx != -1;
-
-   // If it is not implemented, fallback to host
-   if (skewidx != -1) { return false; }
-   if (aspectratioidx != -1) { return false; }
-   if (orientationidx != -1) { return false; }
-
-   if (DIM == 3 && SizeKernel)
-   {
-      Vector tspec_e;
-      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-      const Operator *R = fes->GetElementRestriction(ordering);
-      MFEM_VERIFY(R,"");
-      MFEM_VERIFY(R->Height() == NE*ncomp*D1D*D1D*D1D,"");
-      tspec_e.SetSize(R->Height(), Device::GetDeviceMemoryType());
-      tspec_e.UseDevice(true);
-      tspec.UseDevice(true);
-      R->Mult(tspec, tspec_e);
-      const int id = (D1D << 4 ) | Q1D;
-      MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,W,B,tspec_e,Jtr);
-   }
-   return false;
+   Vector tspec_e;
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *R = fes->GetElementRestriction(ordering);
+   MFEM_VERIFY(R,"");
+   MFEM_VERIFY(R->Height() == NE*ncomp*D1D*D1D*D1D,"");
+   tspec_e.SetSize(R->Height(), Device::GetDeviceMemoryType());
+   tspec_e.UseDevice(true);
+   tspec.UseDevice(true);
+   R->Mult(tspec, tspec_e);
+   const int id = (D1D << 4 ) | Q1D;
+   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,W,B,tspec_e,Jtr);
 }
 
 } // namespace mfem

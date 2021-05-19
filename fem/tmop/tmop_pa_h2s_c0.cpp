@@ -25,7 +25,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
                            const int NE,
                            const DenseTensor &j_,
                            const Array<double> &w_,
-                           const Array<double> &b_,
                            const Array<double> &bld_,
                            Vector &h0_,
                            const int d1d,
@@ -43,7 +42,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
    const auto LD = Reshape(lim_dist.Read(), D1D, D1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto bld = Reshape(bld_.Read(), Q1D, D1D);
 
    auto H0 = Reshape(h0_.Write(), DIM, DIM, Q1D, Q1D, NE);
@@ -56,7 +54,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double B[MQ1*MD1];
       MFEM_SHARED double BLD[MQ1*MD1];
 
       MFEM_SHARED double XY[NBZ][MD1*MD1];
@@ -65,7 +62,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,LD,XY);
 
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
 
       kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BLD,XY,DQ);
@@ -106,20 +102,20 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
 
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
 {
+   MFEM_CONTRACT_VAR(X);
    const int N = PA.ne;
-   const int D1D = PA.maps->ndof;
-   const int Q1D = PA.maps->nqpt;
+   const int D1D = PA.maps_lim->ndof;
+   const int Q1D = PA.maps_lim->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const double ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W   = PA.ir->GetWeights();
-   const Array<double> &B   = PA.maps->B;
    const Array<double> &BLD = PA.maps_lim->B;
    const Vector &C0 = PA.C0;
    Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,ln,LD,C0,N,J,W,BLD,H0);
 }
 
 } // namespace mfem
