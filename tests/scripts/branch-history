@@ -67,7 +67,7 @@ my $max_blob_kb = 200;
 # Maximum acceptable size (in K) of any commit in the branch
 my $max_commit_kb = 400;
 # Maximum acceptable size (in K) of the sum of the commit sizes in the branch
-my $max_branch_kb = 2000;
+my $max_branch_kb = 3000;
 
 my $status = 0; # Return code
 
