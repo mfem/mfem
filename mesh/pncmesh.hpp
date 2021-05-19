@@ -170,6 +170,12 @@ public:
       return groups[id];
    }
 
+   /// Find group ID of a (sorted) list of ranks. Make a new group if not found.
+   GroupId GetGroupId(const CommGroup &group);
+
+   /// Find group ID of a single-rank group.
+   GroupId GetSingletonGroup(int rank);
+
    /// Return true if group 'id' contains the given rank.
    bool GroupContains(GroupId id, int rank) const;
 
@@ -323,9 +329,6 @@ protected: // implementation
    virtual void ElementSharesFace(int elem, int local, int face);
    virtual void ElementSharesEdge(int elem, int local, int enode);
    virtual void ElementSharesVertex(int elem, int local, int vnode);
-
-   GroupId GetGroupId(const CommGroup &group);
-   GroupId GetSingletonGroup(int rank);
 
    Array<int> tmp_owner; // temporary
    Array<char> tmp_shared_flag; // temporary

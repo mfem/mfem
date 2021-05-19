@@ -384,7 +384,7 @@ int ParFiniteElementSpace::MakeGhostEdgeDofTable()
       total_dofs += dofs;
 
       ghost_var_orders[i] = eor.two;
-      ghost_var_owners[i] = eor.three;
+      ghost_var_owners[i] = pncmesh->GetSingletonGroup(eor.three);
    }
 
    int nedges = mesh->GetNEdges() + pncmesh->GetNGhostEdges();
@@ -2420,13 +2420,49 @@ int ParFiniteElementSpace
                GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
                GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
 
-               GetBareDofs(entity, id.index, dofs);
-
-               for (int j = 0; j < dofs.Size(); j++)
+               if (!IsVariableOrder() || entity == 0)
                {
-                  int dof = dofs[j];
-                  dof_owner[dof] = owner;
-                  dof_group[dof] = group;
+                  GetBareDofs(entity, id.index, dofs);
+
+                  // constant-order space: simply mark DOFs with owner/group
+                  for (int j = 0; j < dofs.Size(); j++)
+                  {
+                     int dof = dofs[j];
+                     dof_owner[dof] = owner;
+                     dof_group[dof] = group;
+                  }
+               }
+               else // variable-order space
+               {
+                  // regular DOFs: just use the same owner/group for all variants
+                  const Table &var_dofs =
+                     (entity == 1) ? var_edge_dofs : var_face_dofs;
+
+                  const int *beg = var_dofs.GetRow(id.index);
+                  const int *end = var_dofs.GetRow(id.index + 1);
+
+                  int base = nvdofs + (entity == 2) ? nedofs : 0;
+
+                  for (const int *dof = beg; dof < end; dof++)
+                  {
+                     dof_owner[base + *dof] = owner;
+                     dof_group[base + *dof] = group;
+                  }
+
+                  // ghost DOF variants: note the fine-grained variant owners
+                  const int *I = ghost_var_dofs[entity-1].GetI();
+                  const int *J = ghost_var_dofs[entity-1].GetJ();
+
+                  base = ndofs + ngvdofs + (entity == 2) ? ngedofs : 0;
+
+                  for (int j = I[id.index]; j < I[id.index+1]; j++)
+                  {
+                     for (int dof = J[j]; dof < J[j+1]; dof++)
+                     {
+                        dof_owner[base + dof] = ghost_var_owners[entity-1][j];
+                        dof_group[base + dof] = group;
+                     }
+                  }
                }
             }
          }
