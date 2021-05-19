@@ -180,6 +180,10 @@ Version 4.2.1 (development)
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
 
+- Added support for creating periodic meshes with Mesh::MakePeriodic. The
+  requisite periodic vertex mappings can be created with
+  Mesh::CreatePeriodicVertexMapping.
+
 - Added support for transferring dual fields between high-order and low-order
   refined finite element spaces using the transposed versions of the
   L2ProjectionGridTransfer operators. This functionality is illustrated in the
