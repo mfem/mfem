@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator.hpp"
-#include "quadinterpolator/quadinterpolator_dispatch.hpp"
+#include "qinterp/dispatch.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
