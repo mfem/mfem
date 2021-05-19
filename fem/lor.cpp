@@ -337,7 +337,7 @@ void CheckBasisType(const FiniteElementSpace &fes)
    CheckScalarBasisType<H1_FECollection>(fes);
    CheckVectorBasisType<ND_FECollection>(fes);
    CheckVectorBasisType<RT_FECollection>(fes);
-   // L2 is a bit more complicated, for now don't verify basis typpe
+   // L2 is a bit more complicated, for now don't verify basis type
 }
 
 LORBase::LORBase(FiniteElementSpace &fes_ho_)
