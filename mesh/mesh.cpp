@@ -3896,8 +3896,9 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    MFEM_VERIFY(ref_factors.Size() == orig_ne && orig_ne > 0,
                "Number of refinement factors must equal number of elements")
    MFEM_VERIFY(ref_factors.Min() >= 1, "Refinement factor must be >= 1");
-   MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
-               ref_type == BasisType::GaussLobatto, "Invalid refinement type");
+   const int q_type = BasisType::GetQuadrature1D(ref_type);
+   MFEM_VERIFY(Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid,
+               "Invalid refinement type. Must use closed basis type.");
 
    int min_ref = ref_factors.Min();
    int max_ref = ref_factors.Max();
@@ -3930,7 +3931,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    DenseMatrix phys_pts;
 
    GeometryRefiner refiner;
-   refiner.SetType(BasisType::GetQuadrature1D(ref_type));
+   refiner.SetType(q_type);
 
    // Add refined elements and set vertex coordinates
    for (int el = 0; el < orig_ne; el++)
