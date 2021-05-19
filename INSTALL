@@ -682,7 +682,7 @@ The specific libraries and their options are:
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
-  Versions: HIOP >= 0.1.
+  Versions: HIOP >= 0.4.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at

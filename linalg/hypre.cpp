@@ -64,7 +64,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
-                               double *_data, HYPRE_BigInt *col) : Vector()
+                               double *data_, HYPRE_BigInt *col) : Vector()
 {
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
@@ -76,7 +76,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    // hypre_ParVectorInitialize(x) does not allocate memory!
    hypre_ParVectorInitialize(x);
    // Set the internal data array to the one passed in
-   hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
+   hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
    _SetDataAndSize_();
    own_ParVector = 1;
 }
@@ -166,10 +166,10 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
    return *this;
 }
 
-void HypreParVector::SetData(double *_data)
+void HypreParVector::SetData(double *data_)
 {
-   hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
-   Vector::SetData(_data);
+   hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
+   Vector::SetData(data_);
 }
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
@@ -2376,17 +2376,17 @@ HypreSmoother::HypreSmoother() : Solver()
    A_is_symmetric = false;
 }
 
-HypreSmoother::HypreSmoother(const HypreParMatrix &_A, int _type,
-                             int _relax_times, double _relax_weight, double _omega,
-                             int _poly_order, double _poly_fraction, int _eig_est_cg_iter)
+HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
+                             int relax_times_, double relax_weight_, double omega_,
+                             int poly_order_, double poly_fraction_, int eig_est_cg_iter_)
 {
-   type = _type;
-   relax_times = _relax_times;
-   relax_weight = _relax_weight;
-   omega = _omega;
-   poly_order = _poly_order;
-   poly_fraction = _poly_fraction;
-   eig_est_cg_iter = _eig_est_cg_iter;
+   type = type_;
+   relax_times = relax_times_;
+   relax_weight = relax_weight_;
+   omega = omega_;
+   poly_order = poly_order_;
+   poly_fraction = poly_fraction_;
+   eig_est_cg_iter = eig_est_cg_iter_;
 
    l1_norms = NULL;
    pos_l1_norms = false;
@@ -2395,35 +2395,35 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &_A, int _type,
    fir_coeffs = NULL;
    A_is_symmetric = false;
 
-   SetOperator(_A);
+   SetOperator(A_);
 }
 
-void HypreSmoother::SetType(HypreSmoother::Type _type, int _relax_times)
+void HypreSmoother::SetType(HypreSmoother::Type type_, int relax_times_)
 {
-   type = static_cast<int>(_type);
-   relax_times = _relax_times;
+   type = static_cast<int>(type_);
+   relax_times = relax_times_;
 }
 
-void HypreSmoother::SetSOROptions(double _relax_weight, double _omega)
+void HypreSmoother::SetSOROptions(double relax_weight_, double omega_)
 {
-   relax_weight = _relax_weight;
-   omega = _omega;
+   relax_weight = relax_weight_;
+   omega = omega_;
 }
 
-void HypreSmoother::SetPolyOptions(int _poly_order, double _poly_fraction,
-                                   int _eig_est_cg_iter)
+void HypreSmoother::SetPolyOptions(int poly_order_, double poly_fraction_,
+                                   int eig_est_cg_iter_)
 {
-   poly_order = _poly_order;
-   poly_fraction = _poly_fraction;
-   eig_est_cg_iter = _eig_est_cg_iter;
+   poly_order = poly_order_;
+   poly_fraction = poly_fraction_;
+   eig_est_cg_iter = eig_est_cg_iter_;
 }
 
-void HypreSmoother::SetTaubinOptions(double _lambda, double _mu,
-                                     int _taubin_iter)
+void HypreSmoother::SetTaubinOptions(double lambda_, double mu_,
+                                     int taubin_iter_)
 {
-   lambda = _lambda;
-   mu = _mu;
-   taubin_iter = _taubin_iter;
+   lambda = lambda_;
+   mu = mu_;
+   taubin_iter = taubin_iter_;
 }
 
 void HypreSmoother::SetWindowByName(const char* name)
@@ -2718,10 +2718,10 @@ HypreSolver::HypreSolver()
    error_mode = ABORT_HYPRE_ERRORS;
 }
 
-HypreSolver::HypreSolver(const HypreParMatrix *_A)
-   : Solver(_A->Height(), _A->Width())
+HypreSolver::HypreSolver(const HypreParMatrix *A_)
+   : Solver(A_->Height(), A_->Width())
 {
-   A = _A;
+   A = A_;
    setup_called = 0;
    B = X = NULL;
    error_mode = ABORT_HYPRE_ERRORS;
@@ -2813,7 +2813,7 @@ HyprePCG::HyprePCG(MPI_Comm comm) : precond(NULL)
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
 }
 
-HyprePCG::HyprePCG(const HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
+HyprePCG::HyprePCG(const HypreParMatrix &A_) : HypreSolver(&A_), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -2864,14 +2864,14 @@ void HyprePCG::SetPrintLevel(int print_lvl)
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_lvl);
 }
 
-void HyprePCG::SetPreconditioner(HypreSolver &_precond)
+void HyprePCG::SetPreconditioner(HypreSolver &precond_)
 {
-   precond = &_precond;
+   precond = &precond_;
 
    HYPRE_ParCSRPCGSetPrecond(pcg_solver,
-                             _precond.SolveFcn(),
-                             _precond.SetupFcn(),
-                             _precond);
+                             precond_.SolveFcn(),
+                             precond_.SetupFcn(),
+                             precond_);
 }
 
 void HyprePCG::SetResidualConvergenceOptions(int res_frequency, double rtol)
@@ -2978,8 +2978,8 @@ HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
    SetDefaultOptions();
 }
 
-HypreGMRES::HypreGMRES(const HypreParMatrix &_A)
-   : HypreSolver(&_A), precond(NULL)
+HypreGMRES::HypreGMRES(const HypreParMatrix &A_)
+   : HypreSolver(&A_), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -3052,14 +3052,14 @@ void HypreGMRES::SetPrintLevel(int print_lvl)
    HYPRE_GMRESSetPrintLevel(gmres_solver, print_lvl);
 }
 
-void HypreGMRES::SetPreconditioner(HypreSolver &_precond)
+void HypreGMRES::SetPreconditioner(HypreSolver &precond_)
 {
-   precond = &_precond;
+   precond = &precond_;
 
    HYPRE_ParCSRGMRESSetPrecond(gmres_solver,
-                               _precond.SolveFcn(),
-                               _precond.SetupFcn(),
-                               _precond);
+                               precond_.SolveFcn(),
+                               precond_.SetupFcn(),
+                               precond_);
 }
 
 void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
@@ -3144,8 +3144,8 @@ HypreFGMRES::HypreFGMRES(MPI_Comm comm) : precond(NULL)
    SetDefaultOptions();
 }
 
-HypreFGMRES::HypreFGMRES(const HypreParMatrix &_A)
-   : HypreSolver(&_A), precond(NULL)
+HypreFGMRES::HypreFGMRES(const HypreParMatrix &A_)
+   : HypreSolver(&A_), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -3213,13 +3213,13 @@ void HypreFGMRES::SetPrintLevel(int print_lvl)
    HYPRE_ParCSRFlexGMRESSetPrintLevel(fgmres_solver, print_lvl);
 }
 
-void HypreFGMRES::SetPreconditioner(HypreSolver &_precond)
+void HypreFGMRES::SetPreconditioner(HypreSolver &precond_)
 {
-   precond = &_precond;
+   precond = &precond_;
    HYPRE_ParCSRFlexGMRESSetPrecond(fgmres_solver,
-                                   _precond.SolveFcn(),
-                                   _precond.SetupFcn(),
-                                   _precond);
+                                   precond_.SolveFcn(),
+                                   precond_.SetupFcn(),
+                                   precond_);
 }
 
 void HypreFGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
@@ -4676,7 +4676,7 @@ HypreLOBPCG::SetMassMatrix(Operator & M)
 }
 
 void
-HypreLOBPCG::GetEigenvalues(Array<double> & eigs)
+HypreLOBPCG::GetEigenvalues(Array<double> & eigs) const
 {
    // Initialize eigenvalues array with marker values
    eigs.SetSize(nev);
@@ -4687,8 +4687,8 @@ HypreLOBPCG::GetEigenvalues(Array<double> & eigs)
    }
 }
 
-HypreParVector &
-HypreLOBPCG::GetEigenvector(unsigned int i)
+const HypreParVector &
+HypreLOBPCG::GetEigenvector(unsigned int i) const
 {
    return multi_vec->GetVector(i);
 }
@@ -4952,19 +4952,19 @@ void
 HypreAME::Solve()
 {
    HYPRE_AMESolve(ame_solver);
+
+   // Grab a pointer to the eigenvalues from AME
+   HYPRE_AMEGetEigenvalues(ame_solver,&eigenvalues);
+
+   // Grad a pointer to the eigenvectors from AME
+   HYPRE_AMEGetEigenvectors(ame_solver,&multi_vec);
 }
 
 void
-HypreAME::GetEigenvalues(Array<double> & eigs)
+HypreAME::GetEigenvalues(Array<double> & eigs) const
 {
    // Initialize eigenvalues array with marker values
    eigs.SetSize(nev); eigs = -1.0;
-
-   if ( eigenvalues == NULL )
-   {
-      // Grab eigenvalues from AME
-      HYPRE_AMEGetEigenvalues(ame_solver,&eigenvalues);
-   }
 
    // Copy eigenvalues to eigs array
    for (int i=0; i<nev; i++)
@@ -4974,24 +4974,18 @@ HypreAME::GetEigenvalues(Array<double> & eigs)
 }
 
 void
-HypreAME::createDummyVectors()
+HypreAME::createDummyVectors() const
 {
-   if ( multi_vec == NULL )
-   {
-      HYPRE_AMEGetEigenvectors(ame_solver,&multi_vec);
-   }
-
    eigenvectors = new HypreParVector*[nev];
    for (int i=0; i<nev; i++)
    {
       eigenvectors[i] = new HypreParVector(multi_vec[i]);
       eigenvectors[i]->SetOwnership(1);
    }
-
 }
 
-HypreParVector &
-HypreAME::GetEigenvector(unsigned int i)
+const HypreParVector &
+HypreAME::GetEigenvector(unsigned int i) const
 {
    if ( eigenvectors == NULL )
    {
