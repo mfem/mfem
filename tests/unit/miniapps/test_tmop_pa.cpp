@@ -677,6 +677,9 @@ public:
                   args[QOR] = itoa(q, qor);
                   for (int ls : LINEAR_SOLVERS)
                   {
+                     // skip some linear solver & metric combinations
+                     // that lead to non positive definite operators
+                     if (ls == 1 && m != 1) { continue; }
                      char lsb[2] {};
                      args[LS] = itoa(ls, lsb);
                      for (int n : NEWTON_LOOPS)
