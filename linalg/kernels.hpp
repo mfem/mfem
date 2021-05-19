@@ -276,7 +276,7 @@ void Add(const int height, const int width, const TA *Adata, TB *Bdata)
    }
 }
 
-/** @brief Compute B += alpha*A, where the matrices A and B are of size
+/** @brief Compute B = alpha*A, where the matrices A and B are of size
     @a height x @a width with data @a Adata and @a Bdata. */
 template<typename TA, typename TB>
 MFEM_HOST_DEVICE inline

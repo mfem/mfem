@@ -1051,6 +1051,78 @@ void TargetConstructor::ComputeAvgVolume() const
 #endif
 }
 
+void TargetConstructor::ComputeAllElementTargets_Fallback(
+   const FiniteElementSpace &fes,
+   const IntegrationRule &ir,
+   const Vector &xe,
+   DenseTensor &Jtr) const
+{
+   // Fallback to the 1-element method, ComputeElementTargets()
+
+   // When UsesPhysicalCoordinates() == true, we assume 'xe' uses
+   // ElementDofOrdering::LEXICOGRAPHIC iff 'fe' is a TensorFiniteElement.
+
+   const Mesh *mesh = fes.GetMesh();
+   const int NE = mesh->GetNE();
+   // Quick return for empty processors:
+   if (NE == 0) { return; }
+   const int dim = mesh->Dimension();
+   MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
+               "mixed meshes are not supported");
+   MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
+   const FiniteElement &fe = *fes.GetFE(0);
+   const int sdim = fes.GetVDim();
+   const int nvdofs = sdim*fe.GetDof();
+   MFEM_VERIFY(!UsesPhysicalCoordinates() ||
+               xe.Size() == NE*nvdofs, "invalid input Vector 'xe'!");
+   const int NQ = ir.GetNPoints();
+   const Array<int> *dof_map = nullptr;
+   if (UsesPhysicalCoordinates())
+   {
+      const TensorBasisElement *tfe =
+         dynamic_cast<const TensorBasisElement *>(&fe);
+      if (tfe)
+      {
+         dof_map = &tfe->GetDofMap();
+         if (dof_map->Size() == 0) { dof_map = nullptr; }
+      }
+   }
+
+   Vector elfun_lex, elfun_nat;
+   DenseTensor J;
+   xe.HostRead();
+   Jtr.HostWrite();
+   if (UsesPhysicalCoordinates() && dof_map != nullptr)
+   {
+      elfun_nat.SetSize(nvdofs);
+   }
+   for (int e = 0; e < NE; e++)
+   {
+      if (UsesPhysicalCoordinates())
+      {
+         if (!dof_map)
+         {
+            elfun_nat.SetDataAndSize(xe.GetData()+e*nvdofs, nvdofs);
+         }
+         else
+         {
+            elfun_lex.SetDataAndSize(xe.GetData()+e*nvdofs, nvdofs);
+            const int ndofs = fe.GetDof();
+            for (int d = 0; d < sdim; d++)
+            {
+               for (int i_lex = 0; i_lex < ndofs; i_lex++)
+               {
+                  elfun_nat[(*dof_map)[i_lex]+d*ndofs] =
+                     elfun_lex[i_lex+d*ndofs];
+               }
+            }
+         }
+      }
+      J.UseExternalData(Jtr(e*NQ).Data(), sdim, dim, NQ);
+      ComputeElementTargets(e, fe, ir, elfun_nat, J);
+   }
+}
+
 bool TargetConstructor::ContainsVolumeInfo() const
 {
    switch (target_type)
@@ -1070,6 +1142,7 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                               const Vector &elfun,
                                               DenseTensor &Jtr) const
 {
+   MFEM_CONTRACT_VAR(elfun);
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
    const FiniteElement *nfe = (target_type != IDEAL_SHAPE_UNIT_SIZE) ?
@@ -1135,15 +1208,18 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void TargetConstructor::ComputeElementTargetsGradient(const IntegrationRule &ir,
-                                                      const Vector &elfun,
-                                                      IsoparametricTransformation &Tpr,
-                                                      DenseTensor &dJtr) const
+void TargetConstructor::ComputeElementTargetsGradient(
+   const IntegrationRule &ir,
+   const Vector &elfun,
+   IsoparametricTransformation &Tpr,
+   DenseTensor &dJtr) const
 {
+   MFEM_CONTRACT_VAR(elfun);
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
    // TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
-   for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++) { dJtr(i) = 0.; }
+   for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++)
+   { dJtr(i) = 0.; }
 }
 
 void AnalyticAdaptTC::SetAnalyticTargetSpec(Coefficient *sspec,
@@ -2121,11 +2197,11 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
    nodes0 = &n0;
    coeff0 = &w0;
    lim_dist = &dist;
+   MFEM_VERIFY(lim_dist->FESpace()->GetVDim() == 1,
+               "'dist' must be a scalar GridFunction!");
 
    delete lim_func;
    lim_func = (lfunc) ? lfunc : new TMOP_QuadraticLimiter;
-
-   if (PA.enabled) { EnableLimitingPA(n0); }
 }
 
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
@@ -2137,8 +2213,6 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
 
    delete lim_func;
    lim_func = (lfunc) ? lfunc : new TMOP_QuadraticLimiter;
-
-   if (PA.enabled) { EnableLimitingPA(n0); }
 }
 
 void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
@@ -2946,8 +3020,10 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
-   PA.setup_Jtr = false;
-   PA.setup_Grad = false;
+   if (discr_tc)
+   {
+      PA.Jtr_needs_update = true;
+   }
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }
