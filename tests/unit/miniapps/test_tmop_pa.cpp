@@ -574,7 +574,7 @@ static void tmop_require(int id, const char *args[])
    REQUIRE(res[0].dot == MFEM_Approx(res[1].dot));
    REQUIRE(res[0].tauval == MFEM_Approx(res[1].tauval));
    REQUIRE(res[0].init_energy == MFEM_Approx(res[1].init_energy));
-   REQUIRE(res[0].final_energy == MFEM_Approx(res[1].final_energy));
+   REQUIRE(res[0].final_energy == MFEM_Approx(res[1].final_energy, 2e-12));
    REQUIRE(res[0].diag == MFEM_Approx(res[1].diag));
 }
 
