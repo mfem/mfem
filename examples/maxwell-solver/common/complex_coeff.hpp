@@ -25,8 +25,16 @@ public:
 
    virtual ~ComplexCoefficient()
    {
-      if (own_r) delete cr; 
-      if (own_i) delete ci; 
+      if (own_r) 
+      {
+         delete cr;
+         cr = nullptr;
+      } 
+      if (own_i) 
+      {
+         delete ci;
+         ci = nullptr;
+      } 
    }
 };
 
@@ -67,8 +75,16 @@ public:
 
    virtual ~MatrixComplexCoefficient()
    {
-      if (own_r) delete cr; 
-      if (own_i) delete ci; 
+      if (own_r) 
+      {
+         delete cr;
+         cr = nullptr;
+      } 
+      if (own_i) 
+      {
+         delete ci;
+         ci = nullptr;
+      } 
    }
 };
 
@@ -118,13 +134,41 @@ public:
    }
    virtual ~ProductComplexCoefficient()
    {
-      if(a) delete a;
-      if(b) delete b;
-      if(c) delete c;
-      if(d) delete d;
-      if (tmp) delete tmp;
-      if (own_r) delete cr;
-      if (own_i) delete ci;
+      if (a) 
+      {
+         delete a;
+         a = nullptr;
+      }
+      if (b) 
+      {
+         delete b;
+         b = nullptr;
+      }
+      if (c) 
+      {
+         delete c;
+         c = nullptr;
+      }
+      if (d) 
+      {
+         delete d;
+         d = nullptr;
+      }
+      if (tmp) 
+      {
+         delete tmp;
+         tmp = nullptr;
+      }
+      if (own_r) 
+      {
+         delete cr;
+         cr = nullptr;
+      }
+      if (own_i) 
+      {
+         delete ci;
+         ci = nullptr;
+      }
    }
 };
 
@@ -157,14 +201,46 @@ public:
 
    virtual ~ScalarMatrixProductComplexCoefficient()
    {
-      if(a) delete a;
-      if(b) delete b;
-      if(c) delete c;
-      if(d) delete d;
-      if (tmp1) delete tmp1;
-      if (tmp2) delete tmp2;
-      if (own_r) delete cr;
-      if (own_i) delete ci;
+      if(a) 
+      {
+         delete a;
+         a = nullptr;
+      }
+      if(b) 
+      {
+         delete b;
+         b = nullptr;
+      }
+      if(c) 
+      {
+         delete c;
+         c = nullptr;
+      }
+      if(d) 
+      {
+         delete d;
+         d = nullptr;
+      }
+      if (tmp1) 
+      {
+         delete tmp1;
+         tmp1 = nullptr;
+      }
+      if (tmp2) 
+      {
+         delete tmp2;
+         tmp2 = nullptr;
+      }
+      if (own_r) 
+      {
+         delete cr;
+         cr = nullptr;
+      }
+      if (own_i) 
+      {
+         delete ci;
+         ci = nullptr;
+      }
    }
 };
 
@@ -194,13 +270,41 @@ public:
    }
    virtual ~MatrixMatrixProductComplexCoefficient()
    {
-      if(a) delete a;
-      if(b) delete b;
-      if(c) delete c;
-      if(d) delete d;
-      if (tmp) delete tmp;
-      if (own_r) delete cr;
-      if (own_i) delete ci;
+      if (a) 
+      {
+         delete a;
+         a = nullptr;
+      }
+      if (b) 
+      {
+         delete b;
+         b = nullptr;
+      }
+      if (c) 
+      {
+         delete c;
+         c = nullptr;
+      }
+      if (d) 
+      {
+         delete d;
+         d = nullptr;
+      }
+      if (tmp)   
+      {
+         delete tmp;
+         tmp = nullptr;
+      }
+      if (own_r) 
+      {
+         delete cr;
+         cr = nullptr;
+      }
+      if (own_i) 
+      {
+         delete ci;
+         ci = nullptr;
+      }
    }
 };
 

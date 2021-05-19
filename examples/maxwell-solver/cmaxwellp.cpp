@@ -295,7 +295,9 @@ int main(int argc, char *argv[])
    if (mat_curlcoeff)
    {
       Alpha = new MatrixComplexCoefficient(
-            new MatrixFunctionCoefficient(cdim,Mcurlcoeff),nullptr,true,false);
+            // new MatrixFunctionCoefficient(cdim,Mcurlcoeff),nullptr,true,false);
+            new MatrixFunctionCoefficient(cdim,Mcurlcoeff), 
+            new MatrixFunctionCoefficient(cdim,Mcurlcoeff),true,true);
       Amu = new ScalarMatrixProductComplexCoefficient(&muinv,Alpha);
       restr_Amu = new MatrixRestrictedComplexCoefficient(Amu,attr);
    }
@@ -303,28 +305,41 @@ int main(int argc, char *argv[])
    {
       alpha = new ComplexCoefficient(
             new FunctionCoefficient(curlcoeff),nullptr, true,false);
+            // new FunctionCoefficient(curlcoeff),new FunctionCoefficient(curlcoeff), true,true);
       amu = new ProductComplexCoefficient(&muinv,alpha);
       restr_amu = new RestrictedComplexCoefficient(amu,attr);
    }
    
    // Integrators inside the computational domain (excluding the PML region)
    ParSesquilinearForm a(fespace, conv);
+   CurlCurlIntegrator * curl_integ_re = nullptr;
+   CurlCurlIntegrator * curl_integ_im = nullptr;
+   VectorFEMassIntegrator * mass_integ_re = nullptr;
+   VectorFEMassIntegrator * mass_integ_im = nullptr;
    if (mat_curlcoeff)
    {
-     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_Amu->real()),NULL);
+      curl_integ_re = (restr_Amu->real()) ? new CurlCurlIntegrator(*restr_Amu->real()) : nullptr;
+      curl_integ_im = (restr_Amu->imag()) ? new CurlCurlIntegrator(*restr_Amu->imag()) : nullptr;
    }
    else
    {
-     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_amu->real()),NULL);
+      curl_integ_re = (restr_amu->real()) ? new CurlCurlIntegrator(*restr_amu->real()) : nullptr;
+      curl_integ_im = (restr_amu->imag()) ? new CurlCurlIntegrator(*restr_amu->imag()) : nullptr;
    }
+
    if (mat_masscoeff)
    {
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_Mwsomeg->real()),NULL);
+      mass_integ_re = (restr_Mwsomeg->real()) ? new VectorFEMassIntegrator(*restr_Mwsomeg->real()) : nullptr;
+      mass_integ_im = (restr_Mwsomeg->imag()) ? new VectorFEMassIntegrator(*restr_Mwsomeg->imag()) : nullptr;
    }
    else
    {
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_wsomeg->real()),NULL);
+      mass_integ_re = (restr_wsomeg->real()) ? new VectorFEMassIntegrator(*restr_wsomeg->real()) : nullptr;
+      mass_integ_im = (restr_wsomeg->imag()) ? new VectorFEMassIntegrator(*restr_wsomeg->imag()) : nullptr;
    }
+
+   a.AddDomainIntegrator(curl_integ_re,curl_integ_im);
+   a.AddDomainIntegrator(mass_integ_re,mass_integ_im);
    a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
 
    MatrixComplexCoefficient * pml_c1 = new MatrixComplexCoefficient(
@@ -383,12 +398,12 @@ int main(int argc, char *argv[])
    ParDST * S = nullptr;
    
 
-   S = new ParDST(&a,lengths, omega, nrlayers, 
-                  (mat_curlcoeff) ? nullptr : alpha->real(), 
-                  (mat_masscoeff) ? nullptr : ws->real(),
-                  (mat_curlcoeff) ? Alpha->real() : nullptr,
-                  (mat_masscoeff) ? Mws->real() : nullptr,
-                  nx, ny, nz, bct, &lossCoef);
+   // S = new ParDST(&a,lengths, omega, nrlayers, 
+   //                (mat_curlcoeff) ? nullptr : alpha->real(), 
+   //                (mat_masscoeff) ? nullptr : ws->real(),
+   //                (mat_curlcoeff) ? Alpha->real() : nullptr,
+   //                (mat_masscoeff) ? Mws->real() : nullptr,
+   //                nx, ny, nz, bct, &lossCoef);
    
    // S = new ParDST(&a,lengths, omega, nrlayers, 
    //                (mat_curlcoeff) ? nullptr : alpha, 
@@ -396,21 +411,21 @@ int main(int argc, char *argv[])
    //                (mat_curlcoeff) ? Alpha : nullptr,
    //                (mat_masscoeff) ? Mws : nullptr,
    //                nx, ny, nz, bct, &lossCoef);                  
-   // chrono.Stop();
-   // double t1 = chrono.RealTime();
+   // // chrono.Stop();
+   // // double t1 = chrono.RealTime();
 
-   // chrono.Clear();
-   // chrono.Start();
-   // X = 0.0;
-	GMRESSolver gmres(MPI_COMM_WORLD);
-	// gmres.iterative_mode = true;
-   gmres.SetPreconditioner(*S);
-	gmres.SetOperator(*Ac);
-	gmres.SetRelTol(1e-8);
-	gmres.SetMaxIter(20);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
-   delete S;
+   // // chrono.Clear();
+   // // chrono.Start();
+   // // X = 0.0;
+	// GMRESSolver gmres(MPI_COMM_WORLD);
+	// // gmres.iterative_mode = true;
+   // gmres.SetPreconditioner(*S);
+	// gmres.SetOperator(*Ac);
+	// gmres.SetRelTol(1e-8);
+	// gmres.SetMaxIter(20);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
+   // delete S;
    // chrono.Stop();
    // double t2 = chrono.RealTime();
 
@@ -421,9 +436,9 @@ int main(int argc, char *argv[])
    //       << ", setup time: " << t1
    //       << ", solution time: " << t2 << endl; 
 
-   // ComplexMUMPSSolver mumps;
-   // mumps.SetOperator(*Ah);
-   // mumps.Mult(B,X);
+   ComplexMUMPSSolver mumps;
+   mumps.SetOperator(*Ah);
+   mumps.Mult(B,X);
 
    // // {
    // //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
@@ -508,7 +523,7 @@ int main(int argc, char *argv[])
 
 
    // // 18. Free the used memory.
-   delete c2;
+   // delete c2;
    delete pml_c2;
    delete c1;      
    delete pml_c1;
