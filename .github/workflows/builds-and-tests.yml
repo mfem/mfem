@@ -16,7 +16,7 @@ name: builds-and-tests
 # is set to have permissive access. However, this is not a good practice
 # security-wise. Here we use an external action, so we restrict the
 # permission to the minimum required.
-# When the 'permissions' is set, all the scoped not mentioned are set to the
+# When the 'permissions' is set, all the scopes not mentioned are set to the
 # most restrictive setting. So the following is enough.
 permissions:
   actions: write
