@@ -426,13 +426,13 @@ public:
         ||∇(u-uₕ)||ₑ ≦ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
     where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
     corresponding faces. u is the analytic solution and uₕ the discretized
-    solution. hₖ and hₑ are factors dependend on the face and element geometry.
+    solution. hₖ and hₑ are factors dependent on the face and element geometry.
     J is the jump function, i.e. the difference between the limits at each point
     for each side of the face. A custom method to compute hₖ can be provided. It
     is also possible to estimate the error only on a subspace by feeding this
     class an attribute array describing the subspace.
 
-    @note This algorithm is only for Poisson problems a proper error esimator.
+    @note This algorithm is only for Poisson problems a proper error estimator.
     The current implementation does not reflect this, because the "C" factor is
     not included.
     It further assumes that the approximation error at the boundary is small

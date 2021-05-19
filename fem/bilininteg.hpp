@@ -699,7 +699,7 @@ protected:
    {
       return "MixedScalarDerivativeIntegrator:  "
              "Trial and test spaces must both be scalar fields in 1D "
-             "and the trial space must implement CaldDShape.";
+             "and the trial space must implement CalcDShape.";
    }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
@@ -2924,11 +2924,11 @@ public:
 
     - F. Bassi and S. Rebay. A high order discontinuous Galerkin method for
       compressible turbulent flows. In B. Cockburn, G. E. Karniadakis, and
-      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77–88. Springer
+      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77-88. Springer
       Berlin Heidelberg, 2000.
     - D. N. Arnold, F. Brezzi, B. Cockburn, and L. D. Marini. Unified analysis
       of discontinuous Galerkin methods for elliptic problems. SIAM Journal on
-      Numerical Analysis, 39(5):1749–1779, 2002.
+      Numerical Analysis, 39(5):1749-1779, 2002.
 */
 class DGDiffusionBR2Integrator : public BilinearFormIntegrator
 {
