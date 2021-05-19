@@ -71,9 +71,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    # This external action allows to interrupt a workflow already running on
-    # the same branch to save resource
-    - name: Cancel Previous Runs
+    # This external action allows to interrupt a workflow alrealy running on
+    # the same branch to same resource
+    - name: cancel previous runs
       uses: styfle/cancel-workflow-action@0.9.0
       with:
         access_token: ${{ github.token }}
@@ -129,7 +129,7 @@ jobs:
         path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space
 
-    - name: get hypre
+    - name: install hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
       uses: mfem/github-actions/build-hypre@bernede1/optimize-deps-space
       with:

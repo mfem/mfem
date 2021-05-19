@@ -33,43 +33,43 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
-    - name: Cancel Previous Runs
+    - name: cancel previous runs
       uses: styfle/cancel-workflow-action@0.9.0
       with:
         access_token: ${{ github.token }}
 
-    - name: checkout MFEM
+    - name: checkout mfem
       uses: actions/checkout@v2
       with:
         path: mfem
 
-    - name: Get MPI (Linux)
+    - name: get MPI (Linux)
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
-    - name: Cache Hypre Install
+    - name: cache hypre
       id: hypre-cache
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2
 
-    - name: Get Hypre
+    - name: install hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
       uses: mfem/github-actions/build-hypre@master
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
 
-    - name: Cache Metis Install
+    - name: cache metis
       id: metis-cache
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2
 
-    - name: Install Metis
+    - name: install metis
       if: steps.metis-cache.outputs.cache-hit != 'true'
       uses: mfem/github-actions/build-metis@master
       with:
