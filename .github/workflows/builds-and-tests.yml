@@ -59,17 +59,17 @@ jobs:
         access_token: ${{ github.token }}
 
     - name: get MPI (Linux)
-      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
+      if: matrix.os == 'ubuntu-18.04'
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: Set up Homebrew
-      if: ( matrix.mpi == 'parallel' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
+      if: matrix.os == 'macos-10.15'
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
     - name: get MPI (MacOS)
-      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      if: matrix.os == 'macos-10.15'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
