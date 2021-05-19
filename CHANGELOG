@@ -192,6 +192,10 @@ Version 4.2.1 (development)
   example solves a simple Poisson problem using H1 elements (the same problem as
   ex1), but is intended to be extremely simple and approachable for new users.
 
+- Added support for creating periodic meshes with Mesh::MakePeriodic. The
+  requisite periodic vertex mappings can be created with
+  Mesh::CreatePeriodicVertexMapping.
+
 - Added support for transferring dual fields between high-order and low-order
   refined finite element spaces using the transposed versions of the
   L2ProjectionGridTransfer operators. This functionality is illustrated in the
