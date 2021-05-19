@@ -34,6 +34,17 @@
 #include <fstream>
 #include <iostream>
 
+#include "../config/config.hpp"
+#include "../fem/nonlininteg.hpp"
+#include "../fem/fespace.hpp"
+#include "../fem/libceed/ceed.hpp"
+#include "../fem/fem.hpp"
+
+#include "../fem/restriction.hpp"
+#include "../fem/gridfunc.hpp"
+#include "../fem/fespace.hpp"
+#include "../general/forall.hpp"
+
 //#include </usr/local/include/gperftools/profiler.h>  
 
 using namespace std;
@@ -48,11 +59,13 @@ int main(int argc, char *argv[])
    //ProfilerStart("/tmp/data.prof");
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   //const char *mesh_file = "../data/inline-hex.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh"; 
    int ref_levels = 2;
    int order = 6;
    double sigma = -1.0;
    double kappa = -1.0;
+   double beta = 1;
    double eta = 0.0;
    bool visualization = 1;
    bool pa = true;
@@ -78,6 +91,9 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
+                  " See the documentation of class DGDiffusionIntegrator.");
+   args.AddOption(&beta, "-b", "--beta",
+                  " bleh ."
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
@@ -198,9 +214,9 @@ int main(int argc, char *argv[])
    afull->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
    afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
    if(intf)
-   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
    if(bdyf)
-   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
    afull->Assemble();
    afull->Finalize();
 
@@ -219,9 +235,9 @@ int main(int argc, char *argv[])
    {
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       if(intf)
-      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
       if(bdyf)
-      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
    }
    else if (eta > 0)
    {
@@ -232,6 +248,7 @@ int main(int argc, char *argv[])
    }
    else
    {
+      /*
       // Default setting
       if(intf)
       {
@@ -246,13 +263,17 @@ int main(int argc, char *argv[])
          std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          exit(0);
       }
+      */
+         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+         exit(0);
    }
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    
    a->Assemble();
 
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
+   std::cout << "done assembling " << std::endl;
+   //exit(1);
    a->Finalize();
 
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
@@ -267,23 +288,37 @@ int main(int argc, char *argv[])
       yout = xfull;
       youtfull = xfull;
 
+      auto test = Reshape(x.ReadWrite(), x.Size());
+      auto testfull = Reshape(xfull.ReadWrite(), xfull.Size());
+
       switch (initial)
       {
          case 0:
+            // f = constant = 1
             x = 1.0;
             xfull = 1.0;
             break;
          case 1:
+            // plateaus
             x.ProjectCoefficient(f1);
             xfull.ProjectCoefficient(f1);
             break;
          case 2:
+            // x^2*exp(y)
             x.ProjectCoefficient(f2);
             xfull.ProjectCoefficient(f2);
             break;
          case 3:
+            // exact solution for square
             x.ProjectCoefficient(f);
             xfull.ProjectCoefficient(f);
+            break;
+         case 4:
+            for(int i = 0; i < x.Size() ; i++ )
+            {
+               test(i) = i;
+               testfull(i) = i;
+            }
             break;
          default:
             std::cout << "no case for initial " << initial << std::endl;
@@ -293,27 +328,27 @@ int main(int argc, char *argv[])
       std::chrono::time_point<std::chrono::system_clock> StartTime;
       std::chrono::time_point<std::chrono::system_clock> EndTime;
 
-      StartTime = std::chrono::system_clock::now();
-
       std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      StartTime = std::chrono::system_clock::now();
       afull->Mult(xfull,youtfull);
+      EndTime = std::chrono::system_clock::now();
+
       youtfull += 1000.0;
       youtfull -= 1000.0;
       std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-      EndTime = std::chrono::system_clock::now();
-
       auto timefull = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
-      StartTime = std::chrono::system_clock::now();
-
       std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      StartTime = std::chrono::system_clock::now();
       a->Mult(x,yout);
+      EndTime = std::chrono::system_clock::now();
+
       yout += 1000.0;
       yout -= 1000.0;
       std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-      EndTime = std::chrono::system_clock::now();
 
       auto timex = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
@@ -323,23 +358,35 @@ int main(int argc, char *argv[])
       ydiff = yout;
       ydiff -= youtfull;
 
-      std::cout << "               yout" << std::endl;
-      //yout.Print(mfem::out,1);
-      std::cout << "               youtfull"  << std::endl;
-      //youtfull.Print(mfem::out,1);
-      std::cout << "               ydiff" << std::endl;
-      //ydiff.Print(mfem::out,1);
+      Vector xdiff;
+      xdiff = x;
+      xdiff -= xfull;
 
-      std::cout << " Timing full = " << timefull << std::endl; 
-      std::cout << " Timing pa   = " << timex << std::endl; 
+      if( true )
+      {
+         //std::cout << "x" << std::endl;
+         //x.Print(std::cout,1);
+         //std::cout << "xfull" << std::endl;
+         //xfull.Print(std::cout,1);
+         std::cout << "               yout" << std::endl;
+         yout.Print(mfem::out,1);
+         std::cout << "               youtfull"  << std::endl;
+         youtfull.Print(mfem::out,1);
+         std::cout << "               ydiff" << std::endl;
+         ydiff.Print(mfem::out,1);
+      }
+
+      std::cout << " Timing full = " << double(timefull) << std::endl; 
+      std::cout << " Timing pa   = " << double(timex) << std::endl; 
 
       double errnorm = ydiff.Normlinf();
-      std::cout << "               ||ydiff|| = " << std::endl << errnorm << std::endl;
-      //exit(0);
+      std::cout << "               ||xdiff|| = " << xdiff.Normlinf() << std::endl;
+      std::cout << "               ||ydiff|| = " << errnorm << std::endl;
+      exit(1);
       std::cout << "----------------------------------" << std::endl;
    }
-   int print_iter = 2;
-   int max_num_iter = 2000;
+   int print_iter = 3;
+   int max_num_iter = 800;
    double rtol = 1.0e-12;
    double atol = 1.0e-14;
    rtol = 1.0e-8; 
@@ -365,13 +412,15 @@ int main(int argc, char *argv[])
 
       StartTime = std::chrono::system_clock::now();
 
-      PCG(*Afull, Mfull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
+      auto solver = PCGr(*Afull, Mfull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
 
       EndTime = std::chrono::system_clock::now();
 
-      auto timefull = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+      auto timefull = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
-      std::cout << "full solver time (ms): " << timefull << std::endl;
+      std::cout << "full solver time (ms): " << double(timefull)/1000.0 << std::endl;
+      double iters = solver.GetNumIterations();
+      std::cout << "update rate (iters/ms): " << iters/timefull << std::endl;
 
       std::cout << "----------------------------------" << std::endl;
    }
@@ -397,13 +446,15 @@ int main(int argc, char *argv[])
 
       StartTime = std::chrono::system_clock::now();
 
-      PCG(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
+      auto solver = PCGr(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
 
       EndTime = std::chrono::system_clock::now();
 
-      auto timefull = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+      auto timepa = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
-      std::cout << "pa   solver time (ms): " << timefull << std::endl;
+      std::cout << "pa   solver time (ms): " << double(timepa)/1000.0 << std::endl;
+      double iters = solver.GetNumIterations();
+      std::cout << "update rate (iters/ms): " << iters/timepa << std::endl;
 
       std::cout << "----------------------------------" << std::endl;
    }   
