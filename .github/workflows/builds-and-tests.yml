@@ -125,6 +125,7 @@ jobs:
 
 
   builds-and-tests:
+    needs: dependencies
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-10.15]
