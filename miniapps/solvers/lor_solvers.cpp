@@ -37,13 +37,15 @@
 // equivalence is shown in [2]:
 //
 // [1]. M. Gerritsma. Edge functions for spectral element methods. Spectral and
-//      High Order Methods for Partial Differential Equations (2010).
+//      High Order Methods for Partial Differential Equations. (2010)
 // [2]. C. Dohrmann. Spectral equivalence properties of higher-order tensor
 //      product finite elements and applications to preconditioning. (2021)
 //
 // The action of the high-order operator is computed using MFEM's partial
 // assembly/matrix-free algorithms (except in the case of L2, which remains
 // future work).
+//
+// Compile with: make lor_solvers
 //
 // Sample runs:
 //
@@ -138,7 +140,7 @@ int main(int argc, char *argv[])
       a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(-1.0, kappa));
       a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(-1.0, kappa));
    }
-   // TODO: L2 diffusion not implemented with partial assemble
+   // TODO: L2 diffusion not implemented with partial assembly
    if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
 
