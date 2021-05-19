@@ -51,6 +51,7 @@ examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
 examples/ex2[0-9]p_proposed
+examples/ex3[0-9]_proposed
 examples/ex3[0-9]p_proposed
 
 examples/refined.mesh
@@ -77,6 +78,7 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/mode_deriv_*
 examples/ex5-p-*.bp
 examples/ex9-p-*.bp
 examples/ex12-p-*.bp
