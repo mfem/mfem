@@ -196,15 +196,15 @@ public:
    mutable double Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
-       _use_long_ints = true. */
-   ComplexUMFPackSolver(bool _use_long_ints = false, bool transa_ = false)
-      : use_long_ints(_use_long_ints), transa(transa_) { Init(); }
+       use_long_ints_ = true. */
+   ComplexUMFPackSolver(bool use_long_ints_ = false, bool transa_ = false)
+      : use_long_ints(use_long_ints_), transa(transa_) { Init(); }
    /** @brief Factorize the given ComplexSparseMatrix using the defaults.
        For larger matrices, if the solver fails, set the parameter
-       @a _use_long_ints = true. */
-   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool _use_long_ints = false,
+       @a use_long_ints_ = true. */
+   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool use_long_ints_ = false,
                         bool transa_ = false)
-      : use_long_ints(_use_long_ints), transa(transa_) { Init(); SetOperator(A); }
+      : use_long_ints(use_long_ints_), transa(transa_) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be
        a ComplexSparseMatrix.

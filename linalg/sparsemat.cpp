@@ -3013,7 +3013,7 @@ SparseMatrix &SparseMatrix::operator*=(double a)
    return (*this);
 }
 
-void SparseMatrix::Print(std::ostream & out, int _width) const
+void SparseMatrix::Print(std::ostream & out, int width_) const
 {
    int i, j;
 
@@ -3026,12 +3026,12 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
          for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
          {
             out << " (" << nd->Column << "," << nd->Value << ")";
-            if ( !((j+1) % _width) )
+            if ( !((j+1) % width_) )
             {
                out << '\n';
             }
          }
-         if (j % _width)
+         if (j % width_)
          {
             out << '\n';
          }
@@ -3049,12 +3049,12 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
       for (j = I[i]; j < I[i+1]; j++)
       {
          out << " (" << J[j] << "," << A[j] << ")";
-         if ( !((j+1-I[i]) % _width) )
+         if ( !((j+1-I[i]) % width_) )
          {
             out << '\n';
          }
       }
-      if ((j-I[i]) % _width)
+      if ((j-I[i]) % width_)
       {
          out << '\n';
       }
@@ -3656,10 +3656,10 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
 {
    DenseMatrix R (P, 't'); // R = P^T
    DenseMatrix *AP   = Mult (A, P);
-   DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
-   Mult (R, *AP, *_RAP);
+   DenseMatrix *RAP_ = new DenseMatrix(R.Height(), AP->Width());
+   Mult (R, *AP, *RAP_);
    delete AP;
-   return _RAP;
+   return RAP_;
 }
 
 DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
@@ -3670,9 +3670,9 @@ DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
    delete RA;
    DenseMatrix  *RAtP = Mult(*R, AtP);
    delete R;
-   DenseMatrix * _RAP = new DenseMatrix(*RAtP, 't');
+   DenseMatrix * RAP_ = new DenseMatrix(*RAtP, 't');
    delete RAtP;
-   return _RAP;
+   return RAP_;
 }
 
 SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
@@ -3681,9 +3681,9 @@ SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
    SparseMatrix *P  = Transpose (R);
    SparseMatrix *AP = Mult (A, *P);
    delete P;
-   SparseMatrix *_RAP = Mult (R, *AP, ORAP);
+   SparseMatrix *RAP_ = Mult (R, *AP, ORAP);
    delete AP;
-   return _RAP;
+   return RAP_;
 }
 
 SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
