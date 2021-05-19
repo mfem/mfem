@@ -188,14 +188,12 @@ jobs:
       with:
         name: hypre-${{ matrix.os }}
         path: ${{ env.HYPRE_TOP_DIR }}
-        retention-days: 1
 
     - name: download metis artifact
       uses: actions/download-artifact@v2
       with:
         name: metis-${{ matrix.os }}
         path: ${{ env.METIS_TOP_DIR }}
-        retention-days: 1
 
     # Checkout MFEM in "mfem" subdirectory. Final path:
     # /home/runner/work/mfem/mfem/mfem
