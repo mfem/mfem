@@ -463,11 +463,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
-      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
+      if (energy_out > energy_in + 0.2*fabs(energy_in) ||
+          std::isnan(energy_out) != 0)
       {
          if (print_level >= 0)
          {
-            mfem::out << "Scale = " << scale << " Increasing energy.\n";
+            mfem::out << "Scale = " << scale << " Increasing energy: "
+                      << energy_in << " --> " << energy_out << '\n';
          }
          scale *= 0.5; continue;
       }
@@ -480,7 +482,10 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (norm_out > 1.2*norm_in)
       {
          if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Norm increased.\n"; }
+         {
+            mfem::out << "Scale = " << scale << " Norm increased: "
+                      << norm_in << " --> " << norm_out << '\n';
+         }
          scale *= 0.5; continue;
       }
       else { x_out_ok = true; break; }
@@ -509,6 +514,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       else
       {
          mfem::out << "Energy decrease: "
+                   << energy_in << " --> " << energy_out << " or "
                    << (energy_in - energy_out) / energy_in * 100.0
                    << "% with " << scale << " scaling.\n";
       }

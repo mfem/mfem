@@ -768,6 +768,8 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({4,2}).
           TID({7}).MID({302,321})).Run(id,all);
 
+   // Note: order 1 has no interior nodes, so all residuals are zero and the
+   // Newton iteration exits immediately.
    Launch(Launch::Args("Toroid-Hex").
           MESH("../../data/toroid-hex.mesh").
           POR({1,2}).QOR({2,4,8}).
