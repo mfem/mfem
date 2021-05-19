@@ -482,19 +482,28 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
 
    if (MQc)
    {
-      sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(*restr_Amu->real()),NULL);
+      CurlCurlIntegrator * Amu_integ_re = (restr_Amu->real()) ? new CurlCurlIntegrator(*restr_Amu->real()) : nullptr;
+      CurlCurlIntegrator * Amu_integ_im = (restr_Amu->imag()) ? new CurlCurlIntegrator(*restr_Amu->imag()) : nullptr;
+      sqf[ip]->AddDomainIntegrator(Amu_integ_re,Amu_integ_im);
    }
    else
    {
-      sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(*restr_amu->real()),NULL);
+      CurlCurlIntegrator * amu_integ_re = (restr_amu->real()) ? new CurlCurlIntegrator(*restr_amu->real()) : nullptr;
+      CurlCurlIntegrator * amu_integ_im = (restr_amu->imag()) ? new CurlCurlIntegrator(*restr_amu->imag()) : nullptr;
+
+      sqf[ip]->AddDomainIntegrator(amu_integ_re,amu_integ_im);
    }
    if (MQm)
    {
-      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_Mwsomeg->real()),NULL);
+      VectorFEMassIntegrator * Mws_integ_re = (restr_Mwsomeg->real()) ? new VectorFEMassIntegrator(*restr_Mwsomeg->real()) : nullptr;
+      VectorFEMassIntegrator * Mws_integ_im = (restr_Mwsomeg->imag()) ? new VectorFEMassIntegrator(*restr_Mwsomeg->imag()) : nullptr;
+      sqf[ip]->AddDomainIntegrator(Mws_integ_re,Mws_integ_im);
    }
    else
    {
-      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_wsomeg->real()),NULL);
+      VectorFEMassIntegrator * ws_integ_re = (restr_wsomeg->real()) ? new VectorFEMassIntegrator(*restr_wsomeg->real()) : nullptr;
+      VectorFEMassIntegrator * ws_integ_im = (restr_wsomeg->imag()) ? new VectorFEMassIntegrator(*restr_wsomeg->imag()) : nullptr;
+      sqf[ip]->AddDomainIntegrator(ws_integ_re,ws_integ_im);
    }
 
    if (LossCoeff) 
