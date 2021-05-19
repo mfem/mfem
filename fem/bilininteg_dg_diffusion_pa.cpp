@@ -217,21 +217,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    dofs1D = maps->ndof;
    quad1D = maps->nqpt; 
 
-/*
-   // Initialize face restriction operators
-   bf.SetSize(dofs1D); 
-   gf.SetSize(dofs1D); 
-
-   // Evaluate shape function defined on [0,1] on the x=0 face in 1d
-   IntegrationPoint zero;
-   double zeropt[1];
-   zero.Set(zeropt,1);
-   const FiniteElement &elv = *fes.GetFE(0);
-   elv.Calc1DShape(zero, bf, gf);
-   //  {df/dn}(0) = -{df/dx}(0)   
-   gf *= -1.0;
-*/
-
    coeff_data_1_old.SetSize( 4 * nq * nf, Device::GetMemoryType());
    coeff_data_2_old.SetSize( 2 * nq * nf, Device::GetMemoryType());
    coeff_data_3_old.SetSize( 2 * nq * nf, Device::GetMemoryType());
@@ -337,9 +322,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          *fes.GetTraceElement(e0, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
          const FiniteElement &el2 =
          *fes.GetTraceElement(e1, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
-
-         //const FiniteElement &elf1 = *fes.GetFE(e0);
-         //const FiniteElement &elf2 = *fes.GetFE(e1);
 
          int ndof1, ndof2, ndofs;
          bool kappa_is_nonzero = (kappa != 0.);
@@ -592,7 +574,7 @@ void PADGDiffusionApply2D(const int NF,
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
       }
-      
+
       // 3. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)
       for (int d = 0; d < D1D; ++d)
       {
@@ -640,8 +622,6 @@ void PADGDiffusionApply3D(const int NF,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
    // vdim is confusing as it seems to be used differently based on the context
    const int VDIM = 1;
    const int NS = 2; // number of values per face (2 for double-values faces)
@@ -665,7 +645,7 @@ void PADGDiffusionApply3D(const int NF,
    // Loop over all faces
    MFEM_FORALL(f, NF,
    {
-      // 2. Interpolate u and du/dn along the face
+      // 1. Interpolate u and du/dn along the face
       //    Bu = B:u, and Gu = G:u   
       double Bu0[max_Q1D][max_D1D][VDIM];
       double Bu1[max_Q1D][max_D1D][VDIM];
@@ -726,7 +706,7 @@ void PADGDiffusionApply3D(const int NF,
          }
       }
 
-      // 3. Form numerical fluxes
+      // 2. Form numerical fluxes
       double D1[max_Q1D][max_Q1D][VDIM];
       double D0[max_Q1D][max_Q1D][VDIM];
       double D1jumpu[max_Q1D][max_Q1D][VDIM];
@@ -749,12 +729,11 @@ void PADGDiffusionApply3D(const int NF,
          }
       }
       
-      // 4. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
+      // 3. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
       double BD1[max_Q1D][max_D1D][VDIM];
       double BD0[max_Q1D][max_D1D][VDIM];
       double BD1jumpu[max_Q1D][max_D1D][VDIM];
       double BD0jumpu[max_Q1D][max_D1D][VDIM];
-
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int d = 0; d < D1D; ++d)
