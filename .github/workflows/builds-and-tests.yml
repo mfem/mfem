@@ -43,6 +43,87 @@ env:
 # (https://github.com/actions/cache/pull/489)
 
 jobs:
+  dependencies:
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-10.15]
+    name: Deps-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    # This external action allows to interrupt a workflow alrealy running on
+    # the same branch to same resource
+    - name: cancel previous runs
+      uses: styfle/cancel-workflow-action@0.9.0
+      with:
+        access_token: ${{ github.token }}
+
+    - name: get MPI (Linux)
+      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
+      run: |
+        sudo apt-get install mpich libmpich-dev
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    - name: Set up Homebrew
+      if: ( matrix.mpi == 'parallel' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
+      uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
+
+    - name: get MPI (MacOS)
+      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      run: |
+        export HOMEBREW_NO_INSTALL_CLEANUP=1
+        brew install openmpi
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    # Get Hypre through cache, or build it.
+    # Install will only run on cache miss.
+    - name: cache hypre
+      id: hypre-cache
+      if: matrix.mpi == 'parallel'
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space
+
+    - name: install hypre
+      if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-hypre@bernede1/optimize-deps-space
+      with:
+        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
+        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+
+    - name: upload hypre artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: hypre-${{ matrix.os }}
+        path: ${{ env.HYPRE_TOP_DIR }}
+        retention-days: 1
+
+    # Get Metis through cache, or build it.
+    # Install will only run on cache miss.
+    - name: cache metis
+      id: metis-cache
+      if: matrix.mpi == 'parallel'
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.METIS_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space
+
+    - name: install metis
+      if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-metis@bernede1/optimize-deps-space
+      with:
+        metis-archive: ${{ env.METIS_ARCHIVE }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
+
+    - name: upload metis artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: metis-${{ matrix.os }}
+        path: ${{ env.METIS_TOP_DIR }}
+        retention-days: 1
+
+
   builds-and-tests:
     strategy:
       matrix:
@@ -66,28 +147,11 @@ jobs:
             codecov: NO
             mpi: parallel
             build-system: cmake
-    name: ${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+    name: Build-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
     runs-on: ${{ matrix.os }}
 
     steps:
-    # This external action allows to interrupt a workflow alrealy running on
-    # the same branch to same resource
-    - name: cancel previous runs
-      uses: styfle/cancel-workflow-action@0.9.0
-      with:
-        access_token: ${{ github.token }}
-
-    # Checkout MFEM in "mfem" subdirectory. Final path:
-    # /home/runner/work/mfem/mfem/mfem
-    # Note: Done now to access "install-hypre" and "install-metis" actions.
-    - name: checkout mfem
-      uses: actions/checkout@v2
-      with:
-        path: ${{ env.MFEM_TOP_DIR }}
-        # Fetch the complete history for codecov to access commits ID
-        fetch-depth: 0
-
     # Only get MPI if defined for the job.
     # TODO: It would be nice to have only one step, e.g. with a dedicated
     # action, but I (@adrienbernede) don't see how at the moment.
@@ -113,45 +177,34 @@ jobs:
         brew install openmpi
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
-    - name: get MPI (MacOS)
+    - name: get lcov (MacOS)
       if: matrix.codecov == 'YES' && matrix.os == 'macos-10.15'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install lcov
 
-    # Get Hypre through cache, or build it.
-    # Install will only run on cache miss.
-    - name: cache hypre
-      id: hypre-cache
-      if: matrix.mpi == 'parallel'
-      uses: actions/cache@v2
+    - name: download hypre artifact
+      uses: actions/download-artifact@v2
       with:
+        name: hypre-${{ matrix.os }}
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space
+        retention-days: 1
 
-    - name: install hypre
-      if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@bernede1/optimize-deps-space
+    - name: download metis artifact
+      uses: actions/download-artifact@v2
       with:
-        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
-        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
-
-    # Get Metis through cache, or build it.
-    # Install will only run on cache miss.
-    - name: cache metis
-      id: metis-cache
-      if: matrix.mpi == 'parallel'
-      uses: actions/cache@v2
-      with:
+        name: metis-${{ matrix.os }}
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space
+        retention-days: 1
 
-    - name: install metis
-      if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@bernede1/optimize-deps-space
+    # Checkout MFEM in "mfem" subdirectory. Final path:
+    # /home/runner/work/mfem/mfem/mfem
+    - name: checkout mfem
+      uses: actions/checkout@v2
       with:
-        metis-archive: ${{ env.METIS_ARCHIVE }}
-        metis-dir: ${{ env.METIS_TOP_DIR }}
+        path: ${{ env.MFEM_TOP_DIR }}
+        # Fetch the complete history for codecov to access commits ID
+        fetch-depth: 0
 
     # MFEM build and test
     - name: build
