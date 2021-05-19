@@ -128,6 +128,8 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
    const Array<double> &W   = PA.ir->GetWeights();
    const Array<double> &B   = PA.maps->B;
    const Array<double> &BLD = PA.maps_lim->B;
+   MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
+   MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
    const Vector &O = PA.O;

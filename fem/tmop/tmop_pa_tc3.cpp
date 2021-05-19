@@ -114,18 +114,25 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
 }
 
 template<> bool
-TargetConstructor::ComputeElementTargetsPA<3>(const FiniteElementSpace *fes,
-                                              const IntegrationRule *ir,
-                                              DenseTensor &Jtr,
-                                              const Vector&) const
+TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
+                                               const IntegrationRule &ir,
+                                               const Vector &,
+                                               DenseTensor &Jtr) const
 {
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != nullptr, "");
-   MFEM_VERIFY(fes->GetFE(0)->GetGeomType() == Geometry::CUBE, "");
+   const Mesh *mesh = fes.GetMesh();
+   const int NE = mesh->GetNE();
+   // Quick return for empty processors:
+   if (NE == 0) { return true; }
+   const int dim = mesh->Dimension();
+   MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
+               "mixed meshes are not supported");
+   MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
+   const FiniteElement &fe = *fes.GetFE(0);
+   MFEM_VERIFY(fe.GetGeomType() == Geometry::CUBE, "");
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
-   const FiniteElement *fe = fes->GetFE(0);
-   const int NE = fes->GetMesh()->GetNE();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const Array<double> &B = maps.B;
    const Array<double> &G = maps.G;
    const int D1D = maps.ndof;
@@ -144,7 +151,7 @@ TargetConstructor::ComputeElementTargetsPA<3>(const FiniteElementSpace *fes,
       {
          MFEM_VERIFY(nodes, "");
          const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-         const Operator *R = fes->GetElementRestriction(ordering);
+         const Operator *R = fes.GetElementRestriction(ordering);
          Vector X(R->Height(), Device::GetDeviceMemoryType());
          X.UseDevice(true);
          R->Mult(*nodes, X);

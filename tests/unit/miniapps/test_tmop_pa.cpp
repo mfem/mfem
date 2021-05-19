@@ -28,7 +28,7 @@
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
-#define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
+#define PFesGetParMeshGetComm(pfes) pfes.GetComm()
 #define SetDiscreteTargetSize SetParDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetParDiscreteTargetAspectRatio
 #define GradientClass HypreParMatrix
@@ -44,6 +44,7 @@ typedef int MPI_Session;
 #define SetDiscreteTargetSize SetSerialDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetSerialDiscreteTargetAspectRatio
 #define GradientClass SparseMatrix
+#define ParEnableNormalization EnableNormalization
 #endif
 
 using namespace std;
@@ -128,11 +129,11 @@ int tmop(int id, Req &res, int argc, char *argv[])
 #else
    pmesh = new Mesh(smesh);
 #endif
+   smesh.Clear();
 
    REQUIRE(order > 0);
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fes(pmesh, &fec, dim);
-   pmesh->SetNodalFESpace(&fes);
    ParGridFunction x0(&fes), x(&fes);
    pmesh->SetNodalGridFunction(&x);
 
@@ -206,7 +207,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction aspr3d(&ind_fesv);
    const AssemblyLevel al =
-      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
+      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
 
    switch (target_id)
    {
@@ -291,9 +292,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetIntegrationRule(*ir);
 
-   if (normalization == 1) { he_nlf_integ->EnableNormalization(x0); }
+   if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x0); }
 
-   ParGridFunction dist(&fes);
+   ParFiniteElementSpace dist_fes(pmesh, &fec); // scalar space
+   ParGridFunction dist(&dist_fes);
    dist = 1.0;
    if (normalization == 1) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
@@ -331,7 +333,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       TMOPComboIntegrator *combo = new TMOPComboIntegrator;
       combo->AddTMOPIntegrator(he_nlf_integ);
       combo->AddTMOPIntegrator(he_nlf_integ2);
-      if (normalization) { combo->EnableNormalization(x0); }
+      if (normalization) { combo->ParEnableNormalization(x0); }
       if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
       nlf.AddDomainIntegrator(combo);
    }
@@ -362,7 +364,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          ParNonlinearForm nlf_fa(&fes);
          TMOP_Integrator *nlfi_fa = new TMOP_Integrator(metric, target_c);
          nlfi_fa->SetIntegrationRule(*ir);
-         if (normalization == 1) { nlfi_fa->EnableNormalization(x0); }
+         if (normalization == 1) { nlfi_fa->ParEnableNormalization(x0); }
          if (lim_const != 0.0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
          nlf_fa.AddDomainIntegrator(nlfi_fa);
          nlf_fa.SetEssentialBC(ess_bdr);
@@ -398,9 +400,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
       {
          if (pa)
          {
-            nlf.GetGradient(xt).AssembleDiagonal(d);
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec = new OperatorJacobiSmoother(d, nlf.GetEssentialTrueDofs());
+            S_prec = new OperatorJacobiSmoother;
          }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
          else
@@ -471,7 +472,9 @@ int tmop(int id, Req &res, int argc, char *argv[])
       ConstantCoefficient lim_coeff(lim_const);
       if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
-      if (normalization == 1) { he_nlf_integ->EnableNormalization(x); }
+      if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x); }
+
+      nlf.Setup();
 
       newton->Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
@@ -773,7 +776,7 @@ static void tmop_tests(int id = 0, bool all = false)
    Launch(Launch::Args("Toroid-Hex + limiting").
           MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).
-          POR({1,2}).QOR({2,4}).
+          POR({1,2}).QOR({2,4}).NL({3,1}).
           TID({1,2}).MID({321})).Run(id,all);
 
    Launch(Launch::Args("Toroid-Hex + limiting + norm.").
