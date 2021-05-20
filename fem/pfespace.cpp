@@ -13,6 +13,8 @@
 
 #ifdef MFEM_USE_MPI
 
+#define MFEM_DEBUG_PMATRIX
+
 #include "pfespace.hpp"
 #include "prestriction.hpp"
 #include "../general/forall.hpp"
@@ -2255,8 +2257,8 @@ void ParFiniteElementSpace
       os << i << ": ";
       if (i < (nvdofs + nedofs + nfdofs) || i >= ndofs)
       {
-         int ent, idx, edof;
-         UnpackDof(i, ent, idx, edof);
+         int ent, idx, order, edof;
+         UnpackDof(i, ent, idx, order, edof);
 
          os << edof << " @ ";
          if (i > ndofs) { os << "ghost "; }
@@ -2267,6 +2269,8 @@ void ParFiniteElementSpace
             default: os << "face "; break;
          }
          os << idx << "; ";
+
+         if (order) { os << "order " << order << "; "; }
 
          if (i < deps.Height() && deps.RowSize(i))
          {
@@ -2443,7 +2447,7 @@ int ParFiniteElementSpace
                      const int *beg = var_dofs.GetRow(id.index);
                      const int *end = var_dofs.GetRow(id.index + 1);
 
-                     int base = nvdofs + (entity == 2) ? nedofs : 0;
+                     int base = nvdofs + (entity == 2 ? nedofs : 0);
 
                      for (const int *dof = beg; dof < end; dof++)
                      {
@@ -2456,7 +2460,7 @@ int ParFiniteElementSpace
                   const int *I = ghost_var_dofs[entity-1].GetI();
                   const int *J = ghost_var_dofs[entity-1].GetJ();
 
-                  int base = ndofs + ngvdofs + (entity == 2) ? ngedofs : 0;
+                  int base = ndofs + ngvdofs + (entity == 2 ? ngedofs : 0);
 
                   for (int j = I[id.index]; j < I[id.index+1]; j++)
                   {
@@ -2641,7 +2645,7 @@ int ParFiniteElementSpace
       }
 
 #ifdef MFEM_DEBUG_PMATRIX
-      /*static int dump = 0;
+      static int dump = 0;
       if (dump < 10)
       {
          char fname[100];
@@ -2649,7 +2653,7 @@ int ParFiniteElementSpace
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
-      }*/
+      }
 #endif
 
       // send current batch of messages
