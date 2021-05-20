@@ -48,7 +48,8 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
-// TODO: put this outside #ifdef MFEM_USE_MPI
+#endif // MFEM_USE_MPI
+
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace& flux_fespace_,
@@ -58,7 +59,9 @@ KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
    , solution(&sol_)
    , flux_space(&flux_fespace_)
    , own_flux_fespace(false)
+#ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
+#endif // MFEM_USE_MPI
 {
    ResetCoefficientFunctions();
 }
@@ -72,7 +75,9 @@ KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
    , solution(&sol_)
    , flux_space(flux_fespace_)
    , own_flux_fespace(true)
+#ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
+#endif // MFEM_USE_MPI
 {
    ResetCoefficientFunctions();
 }
@@ -97,10 +102,12 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
    {
       auto FT = [&]()
       {
+#ifdef MFEM_USE_MPI
          if (shared_face)
          {
             return dynamic_cast<ParMesh*>(mesh)->GetSharedFaceTransformations(f);
          }
+#endif // MFEM_USE_MPI
          return mesh->GetFaceElementTransformations(f);
       }();
       const auto order = FT->GetFE()->GetOrder();
@@ -160,8 +167,10 @@ void KellyErrorEstimator::ComputeEstimates()
 
    // 1. Compute fluxes in discontinuous space
    GridFunction *flux =
+#ifdef MFEM_USE_MPI
       isParallel ? new ParGridFunction(dynamic_cast<ParFiniteElementSpace*>
                                        (flux_space)) :
+#endif // MFEM_USE_MPI
       new GridFunction(flux_space);
 
    *flux = 0.0;
@@ -308,9 +317,9 @@ void KellyErrorEstimator::ComputeEstimates()
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 
-   // 3. Add error contribution from shared interior faces
-   // Synchronize face data.
+#ifdef MFEM_USE_MPI
    if (!isParallel)
+#endif // MFEM_USE_MPI
    {
       // Finalize element errors
       for (int e = 0; e < xfes->GetNE(); e++)
@@ -323,6 +332,11 @@ void KellyErrorEstimator::ComputeEstimates()
       total_error = error_estimates.Sum();
       return;
    }
+
+#ifdef MFEM_USE_MPI
+
+   // 3. Add error contribution from shared interior faces
+   // Synchronize face data.
 
    ParGridFunction *pflux = dynamic_cast<ParGridFunction*>(flux);
    MFEM_VERIFY(pflux, "flux is not a ParGridFunction pointer");
@@ -439,10 +453,8 @@ void KellyErrorEstimator::ComputeEstimates()
    double process_local_error = error_estimates.Sum();
    MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
                  MPI_SUM, pfes->GetComm());
-}
-
 #endif // MFEM_USE_MPI
-
+}
 
 void LpErrorEstimator::ComputeEstimates()
 {
