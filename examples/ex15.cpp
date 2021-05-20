@@ -19,6 +19,14 @@
 //               ex15 -m ../data/square-disc.mesh
 //               ex15 -m ../data/escher.mesh -r 2 -tf 0.3
 //
+//               Kelly estimator:
+//
+//               ex15 -est 1
+//               ex15 -est 1 -o 1 -y 0.4
+//               ex15 -est 1 -o 4 -y 0.1
+//               ex15 -est 1 -n 5
+//               ex15 -est 1 -p 1 -n 3
+//
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.
 //               The mesh is adapted to a time-dependent solution by refinement
 //               as well as by derefinement. For simplicity, the solution is
@@ -28,10 +36,10 @@
 //               At each outer iteration the right hand side function is changed
 //               to mimic a time dependent problem.  Within each inner iteration
 //               the problem is solved on a sequence of meshes which are locally
-//               refined according to a simple ZZ error estimator.  At the end
-//               of the inner iteration the error estimates are also used to
-//               identify any elements which may be over-refined and a single
-//               derefinement step is performed.
+//               refined according to a simple ZZ or Kelly error estimator.  At
+//               the end of the inner iteration the error estimates are also
+//               used to identify any elements which may be over-refined and a
+//               single derefinement step is performed.
 //
 //               The example demonstrates MFEM's capability to refine and
 //               derefine nonconforming meshes, in 2D and 3D, and on linear,
