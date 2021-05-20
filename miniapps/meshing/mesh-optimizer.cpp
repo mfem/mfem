@@ -95,7 +95,6 @@
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
-#include <cfloat>
 #include <fstream>
 #include <iostream>
 #include "mesh-optimizer.hpp"
