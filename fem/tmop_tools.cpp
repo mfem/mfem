@@ -33,7 +33,6 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    const int pnt_cnt = new_field.Size()/ncomp;
 
    new_field = field0;
-   new_field.HostReadWrite();
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
