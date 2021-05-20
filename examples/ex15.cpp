@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    int nc_limit = 3;         // maximum level of hanging nodes
    bool visualization = true;
    bool visit = false;
+   int which_estimator = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -98,6 +99,9 @@ int main(int argc, char *argv[])
                   "Maximum level of hanging nodes.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&which_estimator, "-est", "--estimator",
+                  "Which estimator to use: "
+                  "0 = ZZ, 1 = Kelly. Defaults to ZZ.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -186,19 +190,38 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("solution", &x);
    int vis_cycle = 0;
 
-   // 9. As in Example 6, we set up a Zienkiewicz-Zhu estimator that will be
-   //    used to obtain element error indicators. The integrator needs to
-   //    provide the method ComputeElementFlux. The smoothed flux space is a
-   //    vector valued H1 space here.
-   FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+   // 9. As in Example 6, we set up an estimator that will be used to obtain
+   //    element error indicators. The integrator needs to provide the method
+   //    ComputeElementFlux. The smoothed flux space is a vector valued H1 (ZZ)
+   //    or L2 (Kelly) space here.
+   L2_FECollection flux_fec(order, dim);
+   ErrorEstimator* estimator{nullptr};
+
+   switch (which_estimator)
+   {
+      case 1:
+      {
+         auto flux_fes = new FiniteElementSpace(&mesh, &flux_fec, sdim);
+         estimator = new KellyErrorEstimator(*integ, x, flux_fes);
+         break;
+      }
+
+      default:
+         std::cout << "Unknown estimator. Falling back to ZZ." << std::endl;
+      case 0:
+      {
+         auto flux_fes = new FiniteElementSpace(&mesh, &fec, sdim);
+         estimator = new ZienkiewiczZhuEstimator(*integ, x, flux_fes);
+         break;
+      }
+   }
 
    // 10. As in Example 6, we also need a refiner. This time the refinement
    //     strategy is based on a fixed threshold that is applied locally to each
    //     element. The global threshold is turned off by setting the total error
    //     fraction to zero. We also enforce a maximum refinement ratio between
    //     adjacent elements.
-   ThresholdRefiner refiner(estimator);
+   ThresholdRefiner refiner(*estimator);
    refiner.SetTotalErrorFraction(0.0); // use purely local threshold
    refiner.SetLocalErrorGoal(max_elem_error);
    refiner.PreferConformingRefinement();
@@ -207,7 +230,7 @@ int main(int argc, char *argv[])
    // 11. A derefiner selects groups of elements that can be coarsened to form
    //     a larger element. A conservative enough threshold needs to be set to
    //     prevent derefining elements that would immediately be refined again.
-   ThresholdDerefiner derefiner(estimator);
+   ThresholdDerefiner derefiner(*estimator);
    derefiner.SetThreshold(hysteresis * max_elem_error);
    derefiner.SetNCLimit(nc_limit);
 
@@ -307,6 +330,8 @@ int main(int argc, char *argv[])
       a.Update();
       b.Update();
    }
+
+   delete estimator;
 
    return 0;
 }
