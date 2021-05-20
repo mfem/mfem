@@ -554,9 +554,9 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   auto I = this->ReadI();
-   auto J = this->ReadJ();
-   auto A = this->ReadData();
+   const auto I = this->ReadI();
+   const auto J = this->ReadJ();
+   const auto A = this->ReadData();
    auto dd = d.Write();
 
    MFEM_FORALL(i, height,
@@ -2413,21 +2413,21 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
+   const int H = height;
    const int nnz = J.Capacity();
-
+   const bool scale = (sc != 1.0);
    const bool use_dev = b.UseDevice() || x.UseDevice();
 
-   auto bp = b.Read(use_dev);
+   const auto Ap = Read(A, nnz, use_dev);
+   const auto Ip = Read(I, height+1, use_dev);
+   const auto Jp = Read(J, nnz, use_dev);
+
+   const auto bp = b.Read(use_dev);
    auto xp = x.Write(use_dev);
 
-   auto Ap = Read(A, nnz);
-   auto Ip = Read(I, height+1);
-   auto Jp = Read(J, nnz);
-
-   bool scale = (sc != 1.0);
-   MFEM_FORALL(i, height,
+   MFEM_FORALL_SWITCH(use_dev, i, H,
    {
-      int end = Ip[i+1];
+      const int end = Ip[i+1];
       for (int j = Ip[i]; true; j++)
       {
          if (j == end)
@@ -2440,20 +2440,12 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-
-            if (scale)
-            {
-               xp[i] = sc * bp[i] / Ap[j];
-            }
-            else
-            {
-               xp[i] = bp[i] / Ap[j];
-            }
+            const double s = scale ? sc : 1.0;
+            xp[i] = s * bp[i] / Ap[j];
             break;
          }
       }
    });
-   return;
 }
 
 void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
@@ -2973,6 +2965,8 @@ SparseMatrix &SparseMatrix::operator=(double a)
 {
    if (Rows == NULL)
    {
+      HostReadWriteI();
+      HostReadWriteJ();
       const int nnz = J.Capacity();
       double *h_A = HostWrite(A, nnz);
       for (int i = 0; i < nnz; i++)

@@ -280,7 +280,13 @@ public:
 
    Vector &operator*=(double c);
 
+   /// Component-wise scaling: (*this)(i) *= v(i)
+   Vector &operator*=(const Vector &v);
+
    Vector &operator/=(double c);
+
+   /// Component-wise division: (*this)(i) /= v(i)
+   Vector &operator/=(const Vector &v);
 
    Vector &operator-=(double c);
 

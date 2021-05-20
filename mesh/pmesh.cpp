@@ -4813,6 +4813,7 @@ void ParMesh::PrintAsOne(std::ostream &out) const
       ParGridFunction *pnodes = dynamic_cast<ParGridFunction *>(Nodes);
       if (pnodes)
       {
+         pnodes->HostReadWrite();
          pnodes->SaveAsOne(out);
       }
       else
@@ -4823,6 +4824,7 @@ void ParMesh::PrintAsOne(std::ostream &out) const
          {
             // create a wrapper ParGridFunction
             ParGridFunction ParNodes(pfes, Nodes);
+            ParNodes.HostRead();
             ParNodes.SaveAsOne(out);
          }
          else

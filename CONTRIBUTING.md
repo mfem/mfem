@@ -106,6 +106,8 @@ The MFEM source code has the following structure:
   |   └── superlu
   ├── fem
   │   └── ceed
+  │   └── qinterp
+  │   └── tmop
   ├── general
   ├── linalg
   │   └── simd
