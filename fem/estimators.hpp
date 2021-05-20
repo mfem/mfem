@@ -443,11 +443,11 @@ class KellyErrorEstimator final : public ErrorEstimator
 public:
    /// Function type to compute the local coefficient hₑ of an element.
    using ElementCoefficientFunction =
-      std::function<double(ParMesh*, const int)>;
+      std::function<double(Mesh*, const int)>;
    /** @brief Function type to compute the local coefficient hₖ of a face. The
        third argument is true for shared faces and false for local faces. */
    using FaceCoefficientFunction =
-      std::function<double(ParMesh*, const int, const bool)>;
+      std::function<double(Mesh*, const int, const bool)>;
 
 private:
    int current_sequence = -1;
@@ -478,11 +478,15 @@ private:
    FaceCoefficientFunction compute_face_coefficient;
 
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
-   ParGridFunction* solution;               ///< Not owned.
+   GridFunction* solution;               ///< Not owned.
 
-   ParFiniteElementSpace*
+   FiniteElementSpace*
    flux_space; /**< @brief Ownership based on own_flux_fes. */
    bool own_flux_fespace; ///< Ownership flag for flux_space.
+
+#ifdef MFEM_USE_MPI
+   const bool isParallel;
+#endif
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -512,8 +516,8 @@ public:
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
    */
-   KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
-                       ParFiniteElementSpace& flux_fes_,
+   KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
+                       FiniteElementSpace& flux_fes_,
                        const Array<int> &attributes_ = Array<int>());
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
@@ -524,8 +528,8 @@ public:
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
    */
-   KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
-                       ParFiniteElementSpace* flux_fes_,
+   KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
+                       FiniteElementSpace* flux_fes_,
                        const Array<int> &attributes_ = Array<int>());
 
    ~KellyErrorEstimator();
