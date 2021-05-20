@@ -330,6 +330,7 @@ void KellyErrorEstimator::ComputeEstimates()
       }
 
       total_error = error_estimates.Sum();
+      delete flux;
       return;
    }
 
@@ -437,6 +438,7 @@ void KellyErrorEstimator::ComputeEstimates()
       // because the error is stored on the remote process and
       // recomputed there.
    }
+   delete flux;
 
    // Finalize element errors
    for (int e = 0; e < xfes->GetNE(); e++)
