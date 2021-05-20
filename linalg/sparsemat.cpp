@@ -2415,7 +2415,6 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 
    const int H = height;
    const int nnz = J.Capacity();
-   const bool scale = (sc != 1.0);
    const bool use_dev = b.UseDevice() || x.UseDevice();
 
    const auto Ap = Read(A, nnz, use_dev);
@@ -2440,8 +2439,7 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-            const double s = scale ? sc : 1.0;
-            xp[i] = s * bp[i] / Ap[j];
+            xp[i] = sc * bp[i] / Ap[j];
             break;
          }
       }
