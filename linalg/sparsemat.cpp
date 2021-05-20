@@ -2500,8 +2500,13 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
    int i, j, gi, gj, s, t;
    double a;
 
-   HostReadWriteI();
-   HostReadWriteJ();
+   if (Finalized())
+   {
+      HostReadI();
+      HostReadJ();
+      HostReadWriteData();
+   }
+
    for (i = 0; i < rows.Size(); i++)
    {
       if ((gi=rows[i]) < 0) { gi = -1-gi, s = -1; }
