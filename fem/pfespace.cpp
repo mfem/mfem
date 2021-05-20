@@ -1775,7 +1775,7 @@ static void FindVarDof(const Table &var_dofs, const Array<char> &var_orders,
    const int *jpos = std::lower_bound(J, J+sizeJ, dof);
    MFEM_VERIFY(jpos < J+sizeJ, "DOF not found");
 
-   const int *ipos = std::lower_bound(I, I+sizeI, *jpos);
+   const int *ipos = std::lower_bound(I, I+sizeI, jpos-J);
    MFEM_VERIFY(ipos < I+sizeI, "index not found");
 
    index = ipos - I;
@@ -2434,26 +2434,29 @@ int ParFiniteElementSpace
                }
                else // variable-order space
                {
-                  // regular DOFs: just use the same owner/group for all variants
-                  const Table &var_dofs =
-                     (entity == 1) ? var_edge_dofs : var_face_dofs;
-
-                  const int *beg = var_dofs.GetRow(id.index);
-                  const int *end = var_dofs.GetRow(id.index + 1);
-
-                  int base = nvdofs + (entity == 2) ? nedofs : 0;
-
-                  for (const int *dof = beg; dof < end; dof++)
+                  if (!pncmesh->IsGhost(entity, id.index))
                   {
-                     dof_owner[base + *dof] = owner;
-                     dof_group[base + *dof] = group;
+                     // regular DOFs: just use the same owner/group for all variants
+                     const Table &var_dofs =
+                        (entity == 1) ? var_edge_dofs : var_face_dofs;
+
+                     const int *beg = var_dofs.GetRow(id.index);
+                     const int *end = var_dofs.GetRow(id.index + 1);
+
+                     int base = nvdofs + (entity == 2) ? nedofs : 0;
+
+                     for (const int *dof = beg; dof < end; dof++)
+                     {
+                        dof_owner[base + *dof] = owner;
+                        dof_group[base + *dof] = group;
+                     }
                   }
 
                   // ghost DOF variants: note the fine-grained variant owners
                   const int *I = ghost_var_dofs[entity-1].GetI();
                   const int *J = ghost_var_dofs[entity-1].GetJ();
 
-                  base = ndofs + ngvdofs + (entity == 2) ? ngedofs : 0;
+                  int base = ndofs + ngvdofs + (entity == 2) ? ngedofs : 0;
 
                   for (int j = I[id.index]; j < I[id.index+1]; j++)
                   {
