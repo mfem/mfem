@@ -2502,6 +2502,8 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
    int i, j, gi, gj, s, t;
    double a;
 
+   HostReadWriteI();
+   HostReadWriteJ();
    for (i = 0; i < rows.Size(); i++)
    {
       if ((gi=rows[i]) < 0) { gi = -1-gi, s = -1; }
@@ -2965,8 +2967,6 @@ SparseMatrix &SparseMatrix::operator=(double a)
 {
    if (Rows == NULL)
    {
-      HostReadWriteI();
-      HostReadWriteJ();
       const int nnz = J.Capacity();
       double *h_A = HostWrite(A, nnz);
       for (int i = 0; i < nnz; i++)
