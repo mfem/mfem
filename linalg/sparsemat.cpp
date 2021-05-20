@@ -1919,6 +1919,8 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 
    if (Rows == NULL)
    {
+      const auto &I = this->I; // only use const access for I
+      const auto &J = this->J; // only use const access for J
       for (int j = I[rc]; j < I[rc+1]; j++)
       {
          const int col = J[j];
@@ -2415,7 +2417,6 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 
    const int H = height;
    const int nnz = J.Capacity();
-   const bool scale = (sc != 1.0);
    const bool use_dev = b.UseDevice() || x.UseDevice();
 
    const auto Ap = Read(A, nnz, use_dev);
@@ -2440,8 +2441,7 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-            const double s = scale ? sc : 1.0;
-            xp[i] = s * bp[i] / Ap[j];
+            xp[i] = sc * bp[i] / Ap[j];
             break;
          }
       }
@@ -2501,6 +2501,13 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
 {
    int i, j, gi, gj, s, t;
    double a;
+
+   if (Finalized())
+   {
+      HostReadI();
+      HostReadJ();
+      HostReadWriteData();
+   }
 
    for (i = 0; i < rows.Size(); i++)
    {
@@ -2965,8 +2972,6 @@ SparseMatrix &SparseMatrix::operator=(double a)
 {
    if (Rows == NULL)
    {
-      HostReadWriteI();
-      HostReadWriteJ();
       const int nnz = J.Capacity();
       double *h_A = HostWrite(A, nnz);
       for (int i = 0; i < nnz; i++)
