@@ -1919,6 +1919,8 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 
    if (Rows == NULL)
    {
+      const auto &I = this->I; // only use const access for I
+      const auto &J = this->J; // only use const access for J
       for (int j = I[rc]; j < I[rc+1]; j++)
       {
          const int col = J[j];
