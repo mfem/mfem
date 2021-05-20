@@ -1162,7 +1162,6 @@ static void PAMassApply(const int dim,
                         Vector &y)
 {
    const double *B = b.Read();
-   const double *Bt = bt.Read();
    const double *D = d.Read();
    const double *X = x.Read();
    double *Y = y.ReadWrite();

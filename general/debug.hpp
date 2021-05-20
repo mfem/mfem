@@ -116,7 +116,7 @@ public:
       static bool ini_dbg = false;
       if (!ini_dbg)
       {
-         const char *DBG = getenv("DBG");
+         const char *DBG = getenv("DBG") || getenv("MFEM_DEBUG");
          const char *MPI = getenv("MPI");
          env_dbg = DBG != nullptr;
          env_mpi = MPI != nullptr;
