@@ -405,6 +405,8 @@ public:
    double *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
+   void Swap(DenseMatrix &other);
+
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
 };
@@ -892,6 +894,7 @@ public:
    {
       mfem::Swap(tdata, t.tdata);
       mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
    }
 
    ~DenseTensor() { tdata.Delete(); }

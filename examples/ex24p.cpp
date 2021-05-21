@@ -166,8 +166,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace trial_fes(pmesh, trial_fec);
    ParFiniteElementSpace test_fes(pmesh, test_fec);
 
-   HYPRE_Int trial_size = trial_fes.GlobalTrueVSize();
-   HYPRE_Int test_size = test_fes.GlobalTrueVSize();
+   HYPRE_BigInt trial_size = trial_fes.GlobalTrueVSize();
+   HYPRE_BigInt test_size = test_fes.GlobalTrueVSize();
 
    if (myid == 0)
    {
