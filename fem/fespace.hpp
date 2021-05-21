@@ -638,7 +638,7 @@ public:
 
    /// Returns indices of degrees of freedom for boundary element 'bel'.
    virtual DofTransformation *GetBdrElementDofs(int bel,
-						Array<int> &dofs) const;
+                                                Array<int> &dofs) const;
 
    /** @brief Returns the indices of the degrees of freedom for the specified
        face, including the DOFs for the edges and the vertices of the face. */
