@@ -95,6 +95,16 @@ Version 4.2.1 (development)
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
+- The TMOP mesh optimization algorithms were extended to GPU:
+   - QualityMetric #1, #2, #7 and #77 are available in 2D, #302, #303, #315
+     and #321 in 3D
+   - Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
+   - Kernels for normalization and limiting have been added
+   - The AdvectorCG now also supports AssemblyLevel::PARTIAL
+
+- Added a new command line boolean option (`--all`) to the unit tests to launch
+  *all* non-regression tests.
+
 - Added support for different modes of QuadratureInterpolator on GPU.
   The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
   be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
