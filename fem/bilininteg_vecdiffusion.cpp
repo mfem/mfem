@@ -23,11 +23,10 @@ namespace mfem
 
 // PA Diffusion Assemble 2D kernel
 static void PAVectorDiffusionSetup2D(const int Q1D,
-				     const int coeffDim,
                                      const int NE,
                                      const Array<double> &w,
                                      const Vector &j,
-                                     const Vector &COEFF,
+                                     const Vector &c,
                                      Vector &op)
 {
    const int NQ = Q1D*Q1D;
@@ -36,7 +35,9 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
-   const auto C = Reshape(COEFF.Read(), NQ, NE);
+   const bool const_c = c.Size() == 1;
+   const auto C = const_c ? Reshape(c.Read(), 1,1) :
+                  Reshape(c.Read(), Q1D, NE);
 
 
    MFEM_FORALL(e, NE,
@@ -47,7 +48,9 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * C(q,e) / ((J11*J22)-(J21*J12));
+
+         const double C1 = const_c ? C(0,0) : C(q,e);
+         const double c_detJ = W[q] * C1 / ((J11*J22)-(J21*J12));
          y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
          y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
          y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
@@ -57,11 +60,10 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
 
 // PA Diffusion Assemble 3D kernel
 static void PAVectorDiffusionSetup3D(const int Q1D,
-				     const int coeffDim,
                                      const int NE,
                                      const Array<double> &w,
                                      const Vector &j,
-                                     const Vector &COEFF,
+                                     const Vector &c,
                                      Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
@@ -69,7 +71,10 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
 
-   const auto C = Reshape(COEFF.Read(), NQ, NE);
+   const bool const_c = c.Size() == 1;
+   const auto C = const_c ? Reshape(c.Read(), 1,1) :
+                  Reshape(c.Read(), Q1D,NE);
+
 
    MFEM_FORALL(e, NE,
    {
@@ -87,7 +92,10 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * C(q,e) / detJ;
+
+         const double C1 = const_c ? C(0,0) : C(q,e);
+
+         const double c_detJ = W[q] * C1 / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -111,11 +119,10 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
 
 static void PAVectorDiffusionSetup(const int dim,
                                    const int Q1D,
-				   const int coeffDim,
                                    const int NE,
                                    const Array<double> &W,
                                    const Vector &J,
-                                   const Vector &COEFF,
+                                   const Vector &C,
                                    Vector &op)
 {
    if (!(dim == 2 || dim == 3))
@@ -124,11 +131,11 @@ static void PAVectorDiffusionSetup(const int dim,
    }
    if (dim == 2)
    {
-     PAVectorDiffusionSetup2D(Q1D, coeffDim, NE, W, J, COEFF, op);
+      PAVectorDiffusionSetup2D(Q1D, NE, W, J, C, op);
    }
    if (dim == 3)
    {
-     PAVectorDiffusionSetup3D(Q1D, coeffDim, NE, W, J, COEFF, op);
+      PAVectorDiffusionSetup3D(Q1D, NE, W, J, C, op);
    }
 }
 
@@ -156,19 +163,20 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
-   // double coeff = 1.0;
-   int coeffDim = 1;
+
+   MFEM_VERIFY(!VQ && !MQ,
+               "Only scalar coefficient supported for partial assembly for VectorDiffusionIntegrator");
    Vector coeff;
    if (Q == nullptr)
-     {
-       coeff.SetSize(1);
-       coeff(0) = 1.0;
-     }
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
+   }
    else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-     {
-       coeff.SetSize(1);
-       coeff(0) = cQ->constant;
-     }
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
    else if (QuadratureFunctionCoefficient* cQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
@@ -184,24 +192,18 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
-     coeff.SetSize(nq * ne);
-     auto C = Reshape(coeff.HostWrite(), nq, ne);
-     for (int e = 0; e < ne; ++e)
-       {
+      coeff.SetSize(nq * ne);
+      auto Co = Reshape(coeff.HostWrite(), nq, ne);
+      for (int e = 0; e < ne; ++e)
+      {
          ElementTransformation& T = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
-	   {
-	     C(q,e) = Q->Eval(T, ir->IntPoint(q));
-	   }
-       }
+         {
+            Co(q,e) = Q->Eval(T, ir->IntPoint(q));
+         }
+      }
    }
 
-   // if (Q)
-   // {
-   //    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-   //    MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-   //    coeff = cQ->constant;
-   // }
    const Array<double> &w = ir->GetWeights();
    const Vector &j = geom->J;
    Vector &d = pa_data;
@@ -215,7 +217,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto J = Reshape(j.Read(), NQ, SDIM, DIM, ne);
       auto D = Reshape(d.Write(), NQ, SDIM, ne);
 
-     auto C = Reshape(coeff.HostWrite(), nq, ne);
+      auto C = Reshape(coeff.HostWrite(), nq, ne);
 
       MFEM_FORALL(e, ne,
       {
@@ -241,7 +243,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
-     PAVectorDiffusionSetup(dim, quad1D, coeffDim, ne, w, j, coeff, d);
+      PAVectorDiffusionSetup(dim, quad1D, ne, w, j, coeff, d);
    }
 }
 
