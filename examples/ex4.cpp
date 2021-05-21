@@ -58,7 +58,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int ser_ref_levels = -1;
    int order = 1;
    bool set_bc = true;
    bool static_cond = false;
@@ -72,8 +71,6 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&ser_ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
                   "Impose or not essential boundary conditions.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
@@ -115,8 +112,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 25,000
    //    elements.
    {
-      int ref_levels = (ser_ref_levels >= 0) ? ser_ref_levels :
-                       (int)floor(log(25000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(25000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
