@@ -54,6 +54,7 @@ template <int N, int Dim, typename T, typename... Args>
 class Init
 {
 public:
+   MFEM_HOST_DEVICE
    static inline int result(int* sizes, T first, Args... args)
    {
       sizes[N - 1] = first;
@@ -66,6 +67,7 @@ template <int Dim, typename T, typename... Args>
 class Init<Dim, Dim, T, Args...>
 {
 public:
+   MFEM_HOST_DEVICE
    static inline int result(int* sizes, T first, Args... args)
    {
       sizes[Dim - 1] = first;
@@ -87,15 +89,15 @@ public:
    /// Default constructor
    DeviceTensor() = delete;
 
-   /// Constructor to initialize a tensor from the Scalar array _data
-   template <typename... Args>
-   DeviceTensor(Scalar* _data, Args... args)
+   /// Constructor to initialize a tensor from the Scalar array data_
+   template <typename... Args> MFEM_HOST_DEVICE
+   DeviceTensor(Scalar* data_, Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? _data : NULL;
+      data = (capacity > 0) ? data_ : NULL;
    }
 
    /// Copy constructor
@@ -110,7 +112,7 @@ public:
    }
 
    /// Conversion to `Scalar *`.
-   inline operator Scalar *() const { return data; }
+   MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE inline
@@ -140,6 +142,7 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,double> DeviceVector;
 typedef DeviceTensor<2,double> DeviceMatrix;
+typedef DeviceTensor<2,const double> ConstDeviceMatrix;
 
 } // mfem namespace
 

@@ -97,6 +97,7 @@ The MFEM source code has the following structure:
   ├── doc
   ├── examples
   │   ├── amgx
+  │   ├── caliper
   │   ├── ginkgo
   │   ├── hiop
   │   ├── petsc
@@ -115,6 +116,7 @@ The MFEM source code has the following structure:
   │   ├── electromagnetics
   │   ├── gslib
   │   ├── meshing
+  │   ├── mtop
   │   ├── navier
   │   ├── nurbs
   │   ├── performance
@@ -425,6 +427,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Add/update the `CMakeLists.txt` file in the new miniapp directory.
       - [ ] Consider adding a new test for the new miniapp.
    - [ ] List the new miniapp in `doc/CodeDocumentation.dox`
+   - [ ] If new miniapps directory (e.g.`miniapps/nurbs`), add it to `MINIAPP_SUBDIRS` in the `makefile`.
    - [ ] If new miniapps directory (e.g.`miniapps/nurbs`), list it in `doc/CodeDocumentation.conf.in`
    - [ ] Companion pull request for documentation in [mfem/web](https://github.com/mfem/web) repo:
      - [ ] Update or add miniapp-specific documentation, see e.g. the `src/meshing.md` and `src/electromagnetics.md` files.

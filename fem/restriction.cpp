@@ -1062,8 +1062,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
-   int face_id1, face_id2;
-   int orientation;
+   int face_id1 = -1, face_id2 = -1;
+   int orientation = -1;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
