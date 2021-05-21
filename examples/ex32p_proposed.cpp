@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
    int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    int max_amr_its = 100;
    int max_dofs = 20000;
