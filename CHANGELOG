@@ -110,6 +110,13 @@ Meshing improvements
 - Added new mesh quality metrics and improved the untangling capabilities of the
   TMOP-based mesh optimization algorithms.
 
+- The TMOP mesh optimization algorithms were extended to GPU:
+   - QualityMetric #1, #2, #7 and #77 are available in 2D, #302, #303, #315
+     and #321 in 3D
+   - Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
+   - Kernels for normalization and limiting have been added
+   - The AdvectorCG now also supports AssemblyLevel::PARTIAL
+
 - Added support for creating refined meshes for all element types (e.g. by
   splitting high-order elements into low-order refined elements), including
   mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
@@ -139,16 +146,6 @@ High-performance computing
 
 - Added support for explicit vectorization in the high-performance templated
   code for Fujitsu's A64FX ARM microprocessor architecture.
-
-- The TMOP mesh optimization algorithms were extended to GPU:
-   - QualityMetric #1, #2, #7 and #77 are available in 2D, #302, #303, #315
-     and #321 in 3D
-   - Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
-   - Kernels for normalization and limiting have been added
-   - The AdvectorCG now also supports AssemblyLevel::PARTIAL
-
-- Added a new command line boolean option (`--all`) to the unit tests to launch
-  *all* non-regression tests.
 
 - Added support for different modes of QuadratureInterpolator on GPU.
   The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
@@ -220,6 +217,9 @@ Miscellaneous
 
 - Added support for Caliper: a library to integrate performance profiling
   capabilities into applications. See examples/caliper for more details.
+
+- Added a new command line boolean option (`--all`) to the unit tests to launch
+  *all* non-regression tests.
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
