@@ -531,7 +531,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 {
    MAlev = M_.GetAssemblyLevel();
    KAlev = K_.GetAssemblyLevel();
-   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       M.Reset(M_.ParallelAssemble(), true);
       K.Reset(K_.ParallelAssemble(), true);
@@ -545,7 +545,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
 
@@ -609,7 +609,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 {
    delete rJacobian;
-   Operator::Type otype = (KAlev == AssemblyLevel::LEGACYFULL ?
+   Operator::Type otype = (KAlev == AssemblyLevel::LEGACY ?
                            Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    if (isImplicit())
    {
@@ -626,7 +626,7 @@ Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 Operator& FE_Evolution::GetImplicitGradient(const Vector &x, const Vector &xp,
                                             double shift) const
 {
-   Operator::Type otype = (MAlev == AssemblyLevel::LEGACYFULL ?
+   Operator::Type otype = (MAlev == AssemblyLevel::LEGACY ?
                            Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    delete iJacobian;
    if (isImplicit())
