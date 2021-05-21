@@ -449,12 +449,15 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
                    $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
+ifeq ($(shell uname -s),Linux)
+JIT_LIB = -lrt
+endif
 JIT_DEFINES  = -DMFEM_JIT_MAIN
 JIT_DEFINES += -DMFEM_CXX="$(MFEM_CXX)"
 JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
 $(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
                    $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(<) $(JIT_DEFINES)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(<) $(JIT_DEFINES) $(JIT_LIB)
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)

@@ -47,14 +47,15 @@ using std::string;
 using std::istream;
 using std::ostream;
 
-#define MFEM_DEBUG_COLOR 198
-#include "debug.hpp"
-
 #include "../config/config.hpp"
 
 #include "error.hpp"
 #include "mjit.hpp"
 #include "globals.hpp"
+
+#undef MFEM_DEBUG_COLOR
+#define MFEM_DEBUG_COLOR 198
+#include "debug.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -315,55 +316,55 @@ bool Compile(const char *cc, const char *co,
    constexpr int PM = PATH_MAX;
    constexpr const char *fpic = XC "-fPIC";
    constexpr const char *shell = MFEM_JIT_SHELL_COMMAND;
-   constexpr const char *archive = MFEM_JIT_CACHE_LIBRARY ".a";
-   constexpr const char *objects = MFEM_JIT_CACHE_LIBRARY ".so";
+   constexpr const char *libar = MFEM_JIT_CACHE ".a";
+   constexpr const char *libso = MFEM_JIT_CACHE ".so";
 
    // If there is already a JIT library, use it and create the lib_so
-   if (check_for_lib_ar && GetVersion() == 0 && std::fstream(archive))
+   if (check_for_lib_ar && GetVersion() == 0 && std::fstream(libar))
    {
       const char *argv_so[] =
       {
-         shell, cxx, "-shared", "-o", objects, beg_load, archive, end_load,
+         shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load,
          XL"-rpath,.", nullptr
       };
       if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
-      if (!getenv("TMP")) { unlink(cc); }
+      if (!getenv("TMP")) { shm_unlink(cc); }
       return true;
    }
 
    // MFEM source path, include path & lib_so_v
    const int version = GetVersion(true);
-   char lib_so_v[PM], Imsrc[PM], Imbin[PM];
+   char libso_v[PM], Imsrc[PM], Iminc[PM];
    if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
-   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
-   if (snprintf(lib_so_v, PM, "%s.so.%d", MFEM_JIT_CACHE_LIBRARY, version) < 0)
+   if (snprintf(Iminc, PM, "-I%s/include ", mins) < 0) { return false; }
+   if (snprintf(libso_v, PM, "%s.so.%d", MFEM_JIT_CACHE, version) < 0)
    { return false; }
 
    // Compilation
    const char *argv_co[] =
-   { shell, cxx, cxxflags, fpic, "-c", DC Imsrc, Imbin, "-o", co, cc, nullptr };
+   { shell, cxx, cxxflags, fpic, "-c", DC Imsrc, Iminc, "-o", co, cc, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
 
    // Update archive
-   const char *argv_ar[] = { shell, "ar", "-rv", archive, co, nullptr };
+   const char *argv_ar[] = { shell, "ar", "-rv", libar, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
 
    // Create shared library
    const char *argv_so[] =
-   {shell, cxx, "-shared", "-o", lib_so_v, beg_load, archive, end_load, nullptr};
+   {shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load, nullptr};
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
 
    // Install shared library
    const char *install[] =
 #ifdef __APPLE__
-   { shell, "install", lib_so_v, objects, nullptr };
+   { shell, "install", libso, libso_v, nullptr };
 #else
-      { shell, "install", "--backup=none", lib_so_v, lib_so, nullptr };
+      { shell, "install", "--backup=none", libso, libso_v, nullptr };
 #endif
    if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
 
-   if (!getenv("TMP")) { unlink(cc); }
-   if (!getenv("TMP")) { unlink(co); }
+   if (!getenv("TMP")) { ::shm_unlink(cc); }
+   if (!getenv("TMP")) { ::shm_unlink(co); }
    return true;
 }
 
@@ -1371,7 +1372,7 @@ static void tokens(context_t &pp)
    if (token(id, "FORALL_2D")) { return forall(id,pp); }
    if (token(id, "FORALL_3D")) { return forall(id,pp); }
    if (pp.ker.is_embed) { pp.ker.embed += id; }
-   // During the __forall body, add MFEM_* id tokens
+   // During the forall body, add MFEM_* id tokens
    if (pp.ker.is_forall) { pp.ker.forall.body += id; return; }
    pp.out << id;
 }
