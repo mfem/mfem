@@ -42,12 +42,52 @@ groups_serial=(
    "Performance miniapps:"
    "miniapps/performance"
    "ex1.cpp"'
+'"amgx"
+   "AmgX examples:"
+   "examples/amgx"
+   "ex1.cpp"'
+'"caliper"
+   "Caliper examples:"
+   "examples/caliper"
+   "ex1.cpp"'
+'"ginkgo"
+   "Ginkgo examples:"
+   "examples/ginkgo"
+   "ex1.cpp"'
+'"hiop"
+   "HiOp examples:"
+   "examples/hiop"
+   "ex9.cpp"'
+'"pumi"
+   "PUMI examples:"
+   "examples/pumi"
+   "ex1.cpp ex2.cpp"'
 #   ""'
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
     mesh-optimizer.cpp minimal-surface.cpp"'
+'"adjoint"
+   "Adjoint miniapps:"
+   "miniapps/adjoint"
+   "cvsRoberts_ASAi_dns.cpp"'
+'"gslib"
+   "GSLIB miniapps:"
+   "miniapps/gslib"
+   "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp "'
+'"nurbs"
+   "NURBS miniapps:"
+   "miniapps/nurbs"
+   "nurbs_ex1.cpp"'
+'"tools"
+   "Tools miniapps:"
+   "miniapps/tools"
+   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp lor-transfer.cpp"'
+'"toys"
+   "Toys miniapps:"
+   "miniapps/toys"
+   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp snake.cpp"'
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
@@ -72,6 +112,26 @@ groups_parallel=(
    "Performance miniapps:"
    "miniapps/performance"
    "ex1p.cpp"'
+'"amgx"
+   "AmgX examples:"
+   "examples/amgx"
+   "ex1p.cpp"'
+'"caliper"
+   "Caliper examples:"
+   "examples/caliper"
+   "ex1p.cpp"'
+'"hiop"
+   "HiOp examples:"
+   "examples/hiop"
+   "ex9p.cpp"'
+'"pumi"
+   "PUMI examples:"
+   "examples/pumi"
+   "ex1p.cpp ex6p.cpp"'
+'"superlu"
+   "Superlu examples:"
+   "examples/superlu"
+   "ex1p.cpp"'
 #   ""'
 '"meshing"
    "Meshing miniapps:"
@@ -82,6 +142,34 @@ groups_parallel=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+'"adjoint"
+   "Adjoint miniapps:"
+   "miniapps/adjoint"
+   "adjoint_advection_diffusion.cpp"'
+'"gslib"
+   "GSLIB miniapps:"
+   "miniapps/gslib"
+   "pfindpts.cpp schwarz_ex1p.cpp"'
+'"navier"
+   "Navier miniapps:"
+   "miniapps/navier"
+   "navier_cht.cpp"'
+'"nurbs"
+   "NURBS miniapps:"
+   "miniapps/nurbs"
+   "nurbs_ex1p.cpp nurbs_ex11p.cpp"'
+'"shifted"
+   "Shifted miniapps:"
+   "miniapps/shifted"
+   "distance.cpp"'
+'"solvers"
+   "Solvers miniapps:"
+   "miniapps/solvers"
+   "block-solvers.cpp"'
+'"tools"
+   "Tools miniapps:"
+   "miniapps/tools"
+   "convert-cd.cpp get-values.cpp load-dc.cpp"'
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
@@ -109,6 +197,30 @@ groups_all=(
    "Performance miniapps:"
    "miniapps/performance"
    "ex1{,p}.cpp"'
+'"amgx"
+   "AmgX examples:"
+   "examples/amgx"
+   "ex1.cpp ex1p.cpp"'
+'"caliper"
+   "Caliper examples:"
+   "examples/caliper"
+   "ex1.cpp ex1p.cpp"'
+'"ginkgo"
+   "Ginkgo examples:"
+   "examples/ginkgo"
+   "ex1.cpp"'
+'"hiop"
+   "HiOp examples:"
+   "examples/hiop"
+   "ex9.cpp ex9p.cpp"'
+'"pumi"
+   "PUMI examples:"
+   "examples/pumi"
+   "ex1.cpp ex1p.cpp ex2.cpp ex6p.cpp"'
+'"superlu"
+   "Superlu examples:"
+   "examples/superlu"
+   "ex1p.cpp"'
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
@@ -119,6 +231,38 @@ groups_all=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+'"adjoint"
+   "Adjoint miniapps:"
+   "miniapps/adjoint"
+   "adjoint_advection_diffusion.cpp cvsRoberts_ASAi_dns.cpp"'
+'"gslib"
+   "GSLIB miniapps:"
+   "miniapps/gslib"
+   "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp pfindpts.cpp schwarz_ex1p.cpp"'
+'"navier"
+   "Navier miniapps:"
+   "miniapps/navier"
+   "navier_cht.cpp"'
+'"nurbs"
+   "NURBS miniapps:"
+   "miniapps/nurbs"
+   "nurbs_ex1.cpp nurbs_ex1p.cpp nurbs_ex11p.cpp"'
+'"shifted"
+   "Shifted miniapps:"
+   "miniapps/shifted"
+   "distance.cpp"'
+'"solvers"
+   "Solvers miniapps:"
+   "miniapps/solvers"
+   "block-solvers.cpp"'
+'"tools"
+   "Tools miniapps:"
+   "miniapps/tools"
+   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp lor-transfer.cpp"'
+'"toys"
+   "Toys miniapps:"
+   "miniapps/toys"
+   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp snake.cpp"'
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
@@ -444,6 +588,8 @@ function go_group()
       mkdir -p "${group_output_dir}" || exit 1
    fi
    for src in "$@"; do
+      ex_run_suffix=${run_suffix} && [[ $src =~ ex0p?\.cpp ]] \
+         && ex_run_suffix=""
       cd "${mfem_dir}/${group_dir}" || exit 1
       extract_sample_runs "${src}" || continue
       [ "${#runs[@]}" -eq 0 ] && continue
@@ -463,7 +609,7 @@ function go_group()
       fi
       for run in "${runs[@]}"; do
          if [ "${run}" == "" ]; then continue; fi
-         eval go \"\${run_prefix} \${run} \${run_suffix}\" $output
+         eval go \"\${run_prefix} \${run} \${ex_run_suffix}\" $output
       done
    done
    ${make} clean-exec
