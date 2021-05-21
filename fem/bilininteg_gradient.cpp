@@ -117,6 +117,7 @@ static void PAGradientSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
 
+   const bool const_c = c.Size() == 1;
    const auto C = const_c ? Reshape(c.Read(), 1,1) :
                   Reshape(c.Read(), Q1D,NE);
 
