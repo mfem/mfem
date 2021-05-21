@@ -694,7 +694,7 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
    // Check for interior face dofs on triangles (the use of TETRAHEDRON
    // is not an error)
    bool nd_fdof  = fec->HasFaceDofs(Geometry::TETRAHEDRON,
-				    GetMaxElementOrder());
+                                    GetMaxElementOrder());
    if (!nd_fdof)
    {
       nd_strias = false;

@@ -161,7 +161,7 @@ TEST_CASE("Identity Linear Interpolators",
       {
          dim = 3;
          mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
-				      2.0, 3.0, 5.0);
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -540,7 +540,7 @@ TEST_CASE("Derivative Linear Interpolators",
       {
          dim = 3;
          mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
-				      2.0, 3.0, 5.0);
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -760,7 +760,7 @@ TEST_CASE("Product Linear Interpolators",
       {
          dim = 3;
          mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
-				      2.0, 3.0, 5.0);
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
