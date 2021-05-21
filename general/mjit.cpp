@@ -109,8 +109,6 @@ enum Command
    SYSTEM_CALL
 };
 
-constexpr int TIMEOUT = 4000;
-
 static bool MPI_Inited()
 {
    int ini = false;
@@ -189,6 +187,8 @@ int System(char *argv[])
 #undef MFEM_JIT_SHOW_MAIN_CODE
 #if defined(MFEM_JIT_MAIN) || defined(MFEM_JIT_SHOW_MAIN_CODE)
 
+constexpr int THREAD_TIMEOUT = 4000;
+
 static inline int nsleep(const long us)
 {
    const long ns = us *1000L;
@@ -207,7 +207,7 @@ static int THREAD_Worker(char *argv[], int *status)
    const char *command_c_str = command.c_str();
    dbg("command_c_str: %s", command_c_str);
    dbg("Waiting for the cookie from parent...");
-   int timeout = TIMEOUT;
+   int timeout = THREAD_TIMEOUT;
    while (*status != SYSTEM_CALL && timeout > 0) { nsleep(timeout--); }
    dbg("Got it, now do the system call");
    const int return_value = std::system(command_c_str);
@@ -234,7 +234,7 @@ static int MPI_Spawned(int argc, char *argv[], int *status)
       return EXIT_FAILURE;
    }
    // Now inform the thread worker to launch the system call
-   int timeout = TIMEOUT;
+   int timeout = THREAD_TIMEOUT;
    for (*status  = mfem::jit::SYSTEM_CALL;
         *status == mfem::jit::SYSTEM_CALL && timeout>0;
         nsleep(timeout--));
@@ -368,7 +368,7 @@ bool Compile(const char *cc, const char *co,
 }
 
 // *****************************************************************************
-// * STRUCTS: argument_t, template_t, kernel_t, context_t and error_t
+// * STRUCTS: argument_t, kernel_t, context_t and error_t
 // *****************************************************************************
 struct argument_t
 {
@@ -384,25 +384,15 @@ struct argument_t
 typedef list<argument_t>::iterator argument_it;
 
 // *****************************************************************************
-struct template_t
-{
-   string args, params;
-   string Targs, Tparams;
-   list<list<int> > ranges;
-   string return_t, signature;
-};
-
-// *****************************************************************************
 struct forall_t { int d; string e, N, X, Y, Z, body; };
 
 // *****************************************************************************
 struct kernel_t
 {
-   bool __jit;
-   bool __embed;
-   bool __forall;
-   bool __template;
-   bool __single_source;
+   bool is_jit;
+   bool is_embed;
+   bool is_forall;
+   bool is_single_source;
    string mfem_cxx;           // holds MFEM_CXX
    string mfem_build_flags;   // holds MFEM_BUILD_FLAGS
    string mfem_source_dir;    // holds MFEM_SOURCE_DIR
@@ -421,7 +411,6 @@ struct kernel_t
    string args;
    string args_wo_amp;
    string d2u, u2d;           // double to unsigned place holders
-   struct template_t tpl;     // source of the instanciated templates
    string embed;              // source of the embed function
    struct forall_t forall;    // source of the lambda forall
 };
@@ -494,9 +483,9 @@ char get(context_t &pp) { return static_cast<char>(pp.in.get()); }
 int put(const char c, context_t &pp)
 {
    if (is_newline(c)) { pp.line++; }
-   if (pp.ker.__embed) { pp.ker.embed += c; }
-   // if we are storing the lbody, just save it w/o output
-   if (pp.ker.__forall) { pp.ker.forall.body += c; return c;}
+   if (pp.ker.is_embed) { pp.ker.embed += c; }
+   // if we are storing the lambda body, just save it w/o output
+   if (pp.ker.is_forall) { pp.ker.forall.body += c; return c;}
    pp.out.put(c);
    return c;
 }
@@ -760,7 +749,7 @@ void ppKerDbg(context_t &pp)
 // *****************************************************************************
 void jitArgs(context_t &pp)
 {
-   if (! pp.ker.__jit) { return; }
+   if (! pp.ker.is_jit) { return; }
    pp.ker.mfem_cxx = MFEM_JIT_STRINGIFY(MFEM_CXX);
    pp.ker.mfem_build_flags = MFEM_JIT_STRINGIFY(MFEM_BUILD_FLAGS);
    pp.ker.mfem_source_dir = MFEM_SOURCE_DIR;
@@ -773,7 +762,7 @@ void jitArgs(context_t &pp)
    pp.ker.args_wo_amp.clear();
    pp.ker.d2u.clear();
    pp.ker.u2d.clear();
-   const bool single_source = pp.ker.__single_source;
+   const bool single_source = pp.ker.is_single_source;
    //ppKerDbg(pp);
    //DBG("%s",single_source?"single_source":"");
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
@@ -906,7 +895,7 @@ void jitArgs(context_t &pp)
          pp.ker.params += name;
       }
    }
-   if (pp.ker.__single_source)
+   if (pp.ker.is_single_source)
    {
       //DBG(" => 6")
       addComa(pp.ker.Tparams);
@@ -917,7 +906,7 @@ void jitArgs(context_t &pp)
 // *****************************************************************************
 void jitPrefix(context_t &pp)
 {
-   if (not pp.ker.__jit) { return; }
+   if (not pp.ker.is_jit) { return; }
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>\n";
    pp.out << "#include <limits>\n";
@@ -946,7 +935,7 @@ void jitPrefix(context_t &pp)
 // *****************************************************************************
 void jitPostfix(context_t &pp)
 {
-   if (not pp.ker.__jit) { return; }
+   if (not pp.ker.is_jit) { return; }
    if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
    if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
    if (pp.block != -1) { return; }
@@ -982,7 +971,7 @@ void jitPostfix(context_t &pp)
           << pp.ker.args << ");\n";
    // Stop counting the blocks and flush the kernel status
    pp.block--;
-   pp.ker.__jit = false;
+   pp.ker.is_jit = false;
 }
 
 // *****************************************************************************
@@ -1045,6 +1034,7 @@ bool jitGetArgs(context_t &pp)
       drop_name(pp);
       // Qualifiers
       if (id=="const") { pp.out << id; arg.is_const = true; continue; }
+      if (id=="restrict") { pp.out << id; arg.is_restrict = true; continue; }
       if (id=="__restrict") { pp.out << id; arg.is_restrict = true; continue; }
       // Types
       if (id=="char") { pp.out << id; arg.type = id; continue; }
@@ -1136,9 +1126,9 @@ void jitAmpFromPtr(context_t &pp)
 }
 
 // *****************************************************************************
-void __jit(context_t &pp)
+void jit(context_t &pp)
 {
-   pp.ker.__jit = true;
+   pp.ker.is_jit = true;
    next(pp);
    // return type should be void for now, or we could hit a 'static'
    // or even a 'template' which triggers the '__single_source' case
@@ -1150,7 +1140,7 @@ void __jit(context_t &pp)
       // copy the 'template<...>' in Tparams_src
       pp.out << get_id(pp);
       // tag our kernel as a '__single_source' one
-      pp.ker.__single_source = true;
+      pp.ker.is_single_source = true;
       next(pp);
       check(pp, pp.in.peek()=='<',"no '<' in single source kernel!");
       put(pp);
@@ -1213,9 +1203,9 @@ void __jit(context_t &pp)
 // *****************************************************************************
 // * MFEM_EMBED
 // *****************************************************************************
-void __embed(context_t &pp)
+void embed(context_t &pp)
 {
-   pp.ker.__embed = true;
+   pp.ker.is_embed = true;
    // Goto first '{'
    while ('{' != put(pp));
    // Starts counting the compound statements
@@ -1225,246 +1215,21 @@ void __embed(context_t &pp)
 // *****************************************************************************
 void embedPostfix(context_t &pp)
 {
-   if (not pp.ker.__embed) { return; }
+   if (not pp.ker.is_embed) { return; }
    if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
    if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
    if (pp.block!=-1) { return; }
    check(pp,pp.in.peek()=='}',"no compound statements found");
    put(pp);
    pp.block--;
-   pp.ker.__embed = false;
+   pp.ker.is_embed = false;
    pp.ker.embed += "\n";
 }
 
 // *****************************************************************************
-// * MFEM_TEMPLATE and MFEM_RANGE
-// *****************************************************************************
-void __range(context_t &pp, argument_t &arg)
-{
-   char c;
-   bool dash = false;
-   // Verify and eat '('
-   check(pp,get(pp)=='(',"templated kernel should declare the range");
-   do
-   {
-      const int n = get_digit(pp);
-      if (dash)
-      {
-         for (int i=arg.range.back()+1; i<n; i++)
-         {
-            arg.range.push_back(i);
-         }
-      }
-      dash = false;
-      arg.range.push_back(n);
-      c = get(pp);
-      assert(!pp.in.eof());
-      //check(pp, (c==',' || c=='-' || c==')'), "unknown MFEM_TEMPLATE range");
-      if (c=='-')
-      {
-         dash = true;
-      }
-   }
-   while (c!=')');
-}
-
-// *****************************************************************************
-void templateGetArgs(context_t &pp)
-{
-   int nargs = 0;
-   int targs = 0;
-   argument_t arg;
-   pp.args.clear();
-   // Go to first possible argument
-   drop_space(pp);
-   if (is_void(pp)) { assert(false); }
-   string current_arg;
-   for (int p=0; true;)
-   {
-      skip_space(pp,current_arg);
-      comments(pp);
-      if (is_star(pp))
-      {
-         arg.is_ptr = true;
-         current_arg += get(pp);
-         continue;
-      }
-      skip_space(pp,current_arg);
-      comments(pp);
-      if (is_coma(pp))
-      {
-         current_arg += get(pp);
-         continue;
-      }
-      const string &id = peekid(pp);
-      drop_name(pp);
-      // Qualifiers
-      if (id=="MFEM_RANGE") { __range(pp,arg); arg.is_tpl = true; continue; }
-      if (id=="const") { current_arg += id; arg.is_const = true; continue; }
-      // Types
-      if (id=="char") { current_arg += id; arg.type = id; continue; }
-      if (id=="int") { current_arg += id; arg.type = id; continue; }
-      if (id=="short") { current_arg += id; arg.type = id; continue; }
-      if (id=="unsigned") { current_arg += id; arg.type = id; continue; }
-      if (id=="long") { current_arg += id; arg.type = id; continue; }
-      if (id=="bool") { current_arg += id; arg.type = id; continue; }
-      if (id=="float") { current_arg += id; arg.type = id; continue; }
-      if (id=="double") { current_arg += id; arg.type = id; continue; }
-      if (id=="size_t") { current_arg += id; arg.type = id; continue; }
-      // focus on the name, we should have qual & type
-      arg.name = id;
-      if (not arg.is_tpl)
-      {
-         pp.args.push_back(arg);
-         pp.ker.tpl.signature += current_arg + id;
-         {
-            pp.ker.tpl.args += (nargs==0)?"":", ";
-            pp.ker.tpl.args +=  arg.name;
-         }
-         nargs += 1;
-      }
-      else
-      {
-         pp.ker.tpl.Tparams += (targs==0)?"":", ";
-         pp.ker.tpl.Tparams += "const " + arg.type + " " + arg.name;
-         pp.ker.tpl.ranges.push_back(arg.range);
-         {
-            pp.ker.tpl.Targs += (targs==0)?"":", ";
-            pp.ker.tpl.Targs += arg.name;
-         }
-         targs += 1;
-      }
-      pp.ker.tpl.params += current_arg + id + (nargs==0 and targs>0?",":"");
-      arg = argument_t();
-      current_arg = string();
-      const int c = pp.in.peek();
-      assert(not pp.in.eof());
-      if (c == '(') { p+=1; }
-      if (c == ')') { p-=1; }
-      if (p < 0) { break; }
-      skip_space(pp,current_arg);
-      comments(pp);
-      check(pp,pp.in.peek()==',',"no coma while in args");
-      get(pp);
-      if (nargs > 0) { current_arg += ","; }
-   }
-}
-
-// *****************************************************************************
-void __template(context_t &pp)
-{
-   pp.ker.__template = true;
-   pp.ker.tpl = template_t();
-   drop_space(pp);
-   comments(pp);
-   check(pp, is_void(pp) or is_static(pp),"template w/o void or static");
-   if (is_static(pp))
-   {
-      pp.ker.tpl.return_t += get_id(pp);
-      skip_space(pp,pp.ker.tpl.return_t);
-   }
-   const string void_return_type = get_id(pp);
-   pp.ker.tpl.return_t += void_return_type;
-   // Get kernel's name
-   skip_space(pp,pp.ker.tpl.return_t);
-   const string name = get_id(pp);
-   pp.ker.name = name;
-   skip_space(pp, pp.ker.tpl.return_t);
-   // check we are at the left parenthesis
-   check(pp,pp.in.peek()=='(',"no 1st '(' in kernel");
-   get(pp);
-   // Get the arguments
-   templateGetArgs(pp);
-   // Make sure we have hit the last ')' of the arguments
-   check(pp,pp.in.peek()==')',"no last ')' in kernel");
-   pp.ker.tpl.signature += get(pp);
-   // Now dump the templated kernel needs before the body
-   pp.out << "template<";
-   pp.out << pp.ker.tpl.Tparams;
-   pp.out << ">\n";
-   pp.out << pp.ker.tpl.return_t;
-   pp.out << "__" << pp.ker.name;
-   pp.out << "(" << pp.ker.tpl.signature;
-   // Std body dump to pp.out
-   skip_space(pp);
-   // Make sure we are about to start a compound statement
-   check(pp,pp.in.peek()=='{',"no compound statement found");
-   put(pp);
-   // Starts counting the compound statements
-   pp.block = 0;
-}
-
-// *****************************************************************************
-static list<list<int> > templateOuterProduct(const list<list<int> > &v)
-{
-   list<list<int> > s = {{}};
-   for (const auto &u : v)
-   {
-      list<list<int> > r;
-      for (const auto &x:s)
-      {
-         for (const auto y:u)
-         {
-            r.push_back(x);
-            r.back().push_back(y);
-         }
-      }
-      s = std::move(r);
-   }
-   return s;
-}
-
-// *****************************************************************************
-void templatePostfix(context_t &pp)
-{
-   if (not pp.ker.__template) { return; }
-   if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
-   if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
-   if (pp.block!=-1) { return; }
-   check(pp,pp.in.peek()=='}',"no compound statements found");
-   put(pp);
-   // Stop counting the compound statements and flush the T status
-   pp.block--;
-   pp.ker.__template = false;
-   // Now push template kernel launcher
-   pp.out << "\n" << pp.ker.tpl.return_t << pp.ker.name;
-   pp.out << "(" << pp.ker.tpl.params << "){";
-   pp.out << "\n\ttypedef ";
-   pp.out << pp.ker.tpl.return_t << "(*__T" << pp.ker.name << ")";
-   pp.out << "(" << pp.ker.tpl.signature << ";";
-   pp.out << "\n\tconst size_t id = hash_args(std::hash<size_t>()(0), "
-          << pp.ker.tpl.Targs << ");";
-   pp.out << "\n\tstatic std::unordered_map<size_t, "
-          << "__T" << pp.ker.name << "> call = {";
-   for (list<int> range : templateOuterProduct(pp.ker.tpl.ranges))
-   {
-      pp.out << "\n\t\t{";
-      size_t i=1;
-      const size_t n = range.size();
-      size_t hash = 0;
-      for (int r : range) { hash = mfem::jit::hash_args(hash,r); }
-      pp.out << std::hex << "0x" << hash;
-      pp.out << ",&__"<<pp.ker.name<<"<";
-      for (int r : range)
-      {
-         pp.out << std::to_string(r) << (i==n?"":",");
-         i+=1;
-      }
-      pp.out << ">},";
-   }
-   pp.out << "\n\t};";
-   pp.out << "\n\tassert(call[id]);";
-   pp.out << "\n\tcall[id](";
-   pp.out << pp.ker.tpl.args;
-   pp.out << ");";
-   pp.out << "\n}";
-}
-
-
-// *****************************************************************************
 // * MFEM_UNROLL
 // *****************************************************************************
-void __unroll(context_t &pp)
+void unroll(context_t &pp)
 {
    //DBG("__unroll")
    while ('(' != get(pp)) {assert(not pp.in.eof());}
@@ -1478,7 +1243,7 @@ void __unroll(context_t &pp)
    check(pp,is_semicolon(pp),"no last semicolon found");
    get(pp);
    // only if we are in a forall, we push the unrolling
-   if (pp.ker.__forall)
+   if (pp.ker.is_forall)
    {
       pp.ker.forall.body += "#pragma unroll ";
       pp.ker.forall.body += depth.c_str();
@@ -1488,18 +1253,18 @@ void __unroll(context_t &pp)
 // *****************************************************************************
 // * MFEM_FORALL_[2|3]D
 // *****************************************************************************
-void __forall(const string &id, context_t &pp)
+void forall(const string &id, context_t &pp)
 {
    const int d = pp.ker.forall.d = id.c_str()[12] - 0x30;
-   if (not pp.ker.__jit)
+   if (not pp.ker.is_jit)
    {
       //DBG("id:%s, d:%d",id.c_str(),d)
-      if (d == 2 ) { pp.out << "MFEM_FORALL_2D"; }
-      if (d == 3 ) { pp.out << "MFEM_FORALL_3D"; }
+      if (d == 2) { pp.out << "MFEM_FORALL_2D"; }
+      if (d == 3) { pp.out << "MFEM_FORALL_3D"; }
       return;
    }
-   //DBG("__forall")
-   pp.ker.__forall = true;
+   //DBG("is_forall")
+   pp.ker.is_forall = true;
    pp.ker.forall.body.clear();
 
    check(pp,is_left_parenthesis(pp),"no 1st '(' in MFEM_FORALL");
@@ -1549,7 +1314,7 @@ void __forall(const string &id, context_t &pp)
 // *****************************************************************************
 void forallPostfix(context_t &pp)
 {
-   if (not pp.ker.__forall) { return; }
+   if (not pp.ker.is_forall) { return; }
    //DBG("forallPostfix 1")
    if (pp.parenthesis >= 0 && pp.in.peek() == '(') { pp.parenthesis++; }
    if (pp.parenthesis >= 0 && pp.in.peek() == ')') { pp.parenthesis--; }
@@ -1562,7 +1327,7 @@ void forallPostfix(context_t &pp)
    check(pp,is_semicolon(pp),"no last semicolon found");
    get(pp);
    pp.parenthesis--;
-   pp.ker.__forall = false;
+   pp.ker.is_forall = false;
 #ifdef MFEM_USE_CUDA
    pp.out << "if (use_dev){";
    const char *ND = pp.ker.forall.d == 2 ? "2D" : "3D";
@@ -1600,15 +1365,14 @@ static void tokens(context_t &pp)
 {
    if (peekn(pp, 4) != "MFEM") { return; }
    const string &id = get_id(pp);
-   if (token(id, "JIT")) { return __jit(pp); }
-   if (token(id, "EMBED")) { return __embed(pp); }
-   if (token(id, "UNROLL")) { return __unroll(pp); }
-   if (token(id, "TEMPLATE")) { return __template(pp); }
-   if (token(id, "FORALL_2D")) { return __forall(id,pp); }
-   if (token(id, "FORALL_3D")) { return __forall(id,pp); }
-   if (pp.ker.__embed ) { pp.ker.embed += id; }
+   if (token(id, "JIT")) { return jit(pp); }
+   if (token(id, "EMBED")) { return embed(pp); }
+   if (token(id, "UNROLL")) { return unroll(pp); }
+   if (token(id, "FORALL_2D")) { return forall(id,pp); }
+   if (token(id, "FORALL_3D")) { return forall(id,pp); }
+   if (pp.ker.is_embed) { pp.ker.embed += id; }
    // During the __forall body, add MFEM_* id tokens
-   if (pp.ker.__forall) { pp.ker.forall.body += id; return; }
+   if (pp.ker.is_forall) { pp.ker.forall.body += id; return; }
    pp.out << id;
 }
 
@@ -1625,11 +1389,10 @@ inline bool eof(context_t &pp)
 int preprocess(context_t &pp)
 {
    jitHeader(pp);
-   pp.ker.__jit = false;
-   pp.ker.__embed = false;
-   pp.ker.__forall = false;
-   pp.ker.__template = false;
-   pp.ker.__single_source = false;
+   pp.ker.is_jit = false;
+   pp.ker.is_embed = false;
+   pp.ker.is_forall = false;
+   pp.ker.is_single_source = false;
    do
    {
       tokens(pp);
@@ -1637,7 +1400,6 @@ int preprocess(context_t &pp)
       jitPostfix(pp);
       embedPostfix(pp);
       forallPostfix(pp);
-      templatePostfix(pp);
    }
    while (not eof(pp));
    return 0;
