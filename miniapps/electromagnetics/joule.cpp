@@ -276,7 +276,6 @@ int main(int argc, char *argv[])
    // 4. Read the serial mesh from the given mesh file on all processors. We can
    //    handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code.
-   cout << mpi.WorldRank() << ": reading mesh" << endl;
    Mesh *mesh;
    mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -372,7 +371,6 @@ int main(int argc, char *argv[])
    // 7. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter.
-   cout << mpi.WorldRank() << ": refining mesh in serial" << endl;
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -381,16 +379,13 @@ int main(int argc, char *argv[])
    // 8. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   cout << mpi.WorldRank() << ": building parallel mesh" << endl;
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   cout << mpi.WorldRank() << ": refining mesh in parallel" << endl;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
    // Make sure tet-only meshes are marked for local refinement.
-   cout << mpi.WorldRank() << ": finalizing mesh in parallel" << endl;
    pmesh->Finalize(true);
 
    // 9. Apply non-uniform non-conforming mesh refinement to the mesh.  The
@@ -418,7 +413,6 @@ int main(int argc, char *argv[])
    //     non-uniform way it will be computationally unbalanced.
    if (pmesh->Nonconforming())
    {
-      cout << mpi.WorldRank() << ": rebalancing mesh in parallel" << endl;
       pmesh->Rebalance();
    }
 
