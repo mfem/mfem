@@ -647,7 +647,7 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (dim == 1 || mixed_mesh)
+   if (dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
    {
       for (int i = 0; i < NE; i++)
       {
