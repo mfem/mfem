@@ -101,6 +101,15 @@ public:
       return const_cast<Operator &>(*this);
    }
 
+   /** @brief Computes the diagonal entries into @a diag. Typically, this
+       operation only makes sense for linear Operator%s. In some cases, only an
+       approximation of the diagonal is computed. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      MFEM_CONTRACT_VAR(diag);
+      MFEM_ABORT("Not relevant or not implemented for this Operator.");
+   }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
@@ -314,7 +323,7 @@ public:
    virtual double GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double _t) { t = _t; }
+   virtual void SetTime(const double t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -764,6 +773,23 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Approximate diagonal of the RAP Operator.
+   /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
+       multiplied be P^T.
+
+       When P is the FE space prolongation operator on a mesh without hanging
+       nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
+       of A is also exact. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      A.AssembleDiagonal(APx);
+      P.MultTranspose(APx, diag);
+
+      // TODO: For an AMR mesh, a convergent diagonal can be assembled with
+      // |P^T| APx, where |P^T| has entry-wise absolute values of the conforming
+      // prolongation transpose operator. See BilinearForm::AssembleDiagonal.
+   }
+
    /// Application of the transpose.
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
@@ -801,7 +827,10 @@ public:
 
     Square operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormLinearSystem. */
+    general, matrix-free system formulation of Operator::FormLinearSystem.
+
+    Do not confuse with ConstrainedSolver, which despite the name has very
+    different functionality. */
 class ConstrainedOperator : public Operator
 {
 protected:
@@ -828,8 +857,11 @@ public:
    virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
-   void SetDiagonalPolicy(const DiagonalPolicy _diag_policy)
-   { diag_policy = _diag_policy; }
+   void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
+   { diag_policy = diag_policy_; }
+
+   /// Diagonal of A, modified according to the used DiagonalPolicy.
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -927,7 +959,7 @@ public:
 #endif
 
 #ifdef MFEM_USE_MPI
-   PowerMethod(MPI_Comm _comm) : comm(_comm) {}
+   PowerMethod(MPI_Comm comm_) : comm(comm_) {}
 #endif
 
    /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr

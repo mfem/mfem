@@ -403,10 +403,10 @@ TripleProductOperator::~TripleProductOperator()
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool _own_A,
-                                         DiagonalPolicy _diag_policy)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A),
-     diag_policy(_diag_policy)
+                                         bool own_A_,
+                                         DiagonalPolicy diag_policy_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
+     diag_policy(diag_policy_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -416,6 +416,37 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(height, mem_type); w.UseDevice(true);
+}
+
+void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
+{
+   A->AssembleDiagonal(diag);
+
+   if (diag_policy == DIAG_KEEP) { return; }
+
+   const int csz = constraint_list.Size();
+   auto d_diag = diag.ReadWrite();
+   auto idx = constraint_list.Read();
+   switch (diag_policy)
+   {
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 1.0;
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 0.0;
+         });
+         break;
+      default:
+         MFEM_ABORT("unknown diagonal policy");
+         break;
+   }
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
@@ -496,8 +527,8 @@ RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
    const Array<int> &test_list,
-   bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+   bool own_A_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();

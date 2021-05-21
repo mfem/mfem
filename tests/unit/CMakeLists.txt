@@ -21,8 +21,12 @@ set(UNIT_TESTS_SRCS
   general/test_array.cpp
   general/test_mem.cpp
   general/test_text.cpp
+  general/test_umpire_mem.cpp
   general/test_zlib.cpp
+  linalg/test_cg_indefinite.cpp
+  linalg/test_chebyshev.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
   linalg/test_ilu.cpp
@@ -35,15 +39,18 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
-  linalg/test_cg_indefinite.cpp
   linalg/test_vector.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_pmesh.cpp
+  mesh/test_periodic_mesh.cpp
+  mesh/test_vtu.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
+  fem/test_assembly_levels.cpp
+  fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
   fem/test_calcvshape.cpp
@@ -51,9 +58,12 @@ set(UNIT_TESTS_SRCS
   fem/test_calccurlshape.cpp
   fem/test_calcdivshape.cpp
   fem/test_datacollection.cpp
+  fem/test_derefine.cpp
   fem/test_estimator.cpp
+  fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
   fem/test_fe.cpp
+  fem/test_get_value.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
@@ -62,12 +72,16 @@ set(UNIT_TESTS_SRCS
   fem/test_linear_fes.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
-  fem/test_pa_kernels.cpp
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
+  fem/test_pa_kernels.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
+  fem/test_sparse_matrix.cpp
   fem/test_sum_bilin.cpp
+  fem/test_tet_reorder.cpp
+  fem/test_transfer.cpp
+  fem/test_var_order.cpp
   miniapps/test_sedov.cpp
 )
 
@@ -190,6 +204,10 @@ if (MFEM_USE_MPI)
    add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
    target_link_libraries(punit_tests mfem)
    add_test(NAME punit_tests COMMAND punit_tests)
+   add_test(NAME punit_tests_np=${MFEM_MPI_NP}
+            COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
+            ${MPIEXEC_POSTFLAGS})
 
    set(PAR_SEDOV_TESTS_SRCS punit_test_main.cpp miniapps/test_sedov.cpp)
    if (MFEM_USE_CUDA)

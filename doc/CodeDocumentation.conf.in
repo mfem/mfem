@@ -766,6 +766,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/mesh \
                          @MFEM_SOURCE_DIR@/fem \
                          @MFEM_SOURCE_DIR@/examples \
+                         @MFEM_SOURCE_DIR@/examples/caliper \
                          @MFEM_SOURCE_DIR@/examples/amgx \
                          @MFEM_SOURCE_DIR@/examples/ginkgo \
                          @MFEM_SOURCE_DIR@/examples/hiop \
@@ -778,9 +779,12 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \
                          @MFEM_SOURCE_DIR@/miniapps/meshing \
+                         @MFEM_SOURCE_DIR@/miniapps/mtop \
                          @MFEM_SOURCE_DIR@/miniapps/navier \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
                          @MFEM_SOURCE_DIR@/miniapps/performance \
+                         @MFEM_SOURCE_DIR@/miniapps/shifted \
+                         @MFEM_SOURCE_DIR@/miniapps/solvers \
                          @MFEM_SOURCE_DIR@/miniapps/tools \
                          @MFEM_SOURCE_DIR@/miniapps/toys
 

@@ -233,7 +233,7 @@ void FaceQuadratureInterpolator::Eval3D(
       }
       if (eval_flags & VALUES)
       {
-         double Bu[max_NQ1D][max_ND1D][VDIM];
+         double Bu[max_NQ1D][max_ND1D][max_VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)
          {
             for (int q = 0; q < NQ1D; ++q)
@@ -249,7 +249,7 @@ void FaceQuadratureInterpolator::Eval3D(
                }
             }
          }
-         double BBu[max_NQ1D][max_NQ1D][VDIM];
+         double BBu[max_NQ1D][max_NQ1D][max_VDIM];
          for (int q2 = 0; q2 < NQ1D; ++q2)
          {
             for (int q1 = 0; q1 < NQ1D; ++q1)
@@ -275,8 +275,8 @@ void FaceQuadratureInterpolator::Eval3D(
           || (eval_flags & NORMALS))
       {
          // We only compute the tangential derivatives
-         double Gu[max_NQ1D][max_ND1D][VDIM];
-         double Bu[max_NQ1D][max_ND1D][VDIM];
+         double Gu[max_NQ1D][max_ND1D][max_VDIM];
+         double Bu[max_NQ1D][max_ND1D][max_VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)
          {
             for (int q = 0; q < NQ1D; ++q)
@@ -299,8 +299,8 @@ void FaceQuadratureInterpolator::Eval3D(
                }
             }
          }
-         double BGu[max_NQ1D][max_NQ1D][VDIM];
-         double GBu[max_NQ1D][max_NQ1D][VDIM];
+         double BGu[max_NQ1D][max_NQ1D][max_VDIM];
+         double GBu[max_NQ1D][max_NQ1D][max_VDIM];
          for (int q2 = 0; q2 < NQ1D; ++q2)
          {
             for (int q1 = 0; q1 < NQ1D; ++q1)
