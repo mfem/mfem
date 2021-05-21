@@ -71,18 +71,16 @@ namespace mfem
 namespace jit
 {
 
-inline int argn(char *argv[], int argc = 0)
+static inline int argn(char *argv[], int argc = 0)
 {
    while (argv[argc]) { argc += 1; }
    return argc;
 }
 
-// Implementation of mfem::jit::System used in the mjit header for compilation.
+// Implementation of mfem::jit::System
+#if !defined(MFEM_USE_MPI)
 // The serial implementation does nothing special but launching the =system=
 // command.
-// The parallel implementation will spawn the =mjit= binary on one mpi rank to
-// be able to run on one core and use MPI to broadcast the compilation output.
-#if !defined(MFEM_USE_MPI)
 static int System(char *argv[])
 {
    const int argc = argn(argv);
@@ -101,19 +99,30 @@ static int System(char *argv[])
 bool Root() { return true; }
 
 #else
+// The parallel implementation will spawn the =mjit= binary on one mpi rank to
+// be able to run on one core and use MPI to broadcast the compilation output.
 
+// Different commands that can be broadcasted
 enum Command
 {
    READY,
-   SYSTEM_CALL,
-   TIMEOUT = 4000
+   SYSTEM_CALL
 };
 
-inline bool MPI_Inited()
+constexpr int TIMEOUT = 4000;
+
+static bool MPI_Inited()
 {
    int ini = false;
    MPI_Initialized(&ini);
    return ini ? true : false;
+}
+
+static int MPI_Size()
+{
+   int size = 1;
+   if (MPI_Inited()) { MPI_Comm_size(MPI_COMM_WORLD, &size); }
+   return size;
 }
 
 bool Root()
@@ -121,13 +130,6 @@ bool Root()
    int world_rank = 0;
    if (MPI_Inited()) { MPI_Comm_rank(MPI_COMM_WORLD, &world_rank); }
    return world_rank == 0;
-}
-
-int MPI_Size()
-{
-   int size = 1;
-   if (MPI_Inited()) { MPI_Comm_size(MPI_COMM_WORLD, &size); }
-   return size;
 }
 
 int System(char *argv[])
@@ -138,7 +140,7 @@ int System(char *argv[])
    char mjit[PATH_MAX];
    if (snprintf(mjit, PATH_MAX, "%s/bin/mjit", MFEM_INSTALL_DIR) < 0)
    { return EXIT_FAILURE; }
-   //dbg(mjit);
+   dbg(mjit);
    // If we have not been launch with mpirun, just fold back to serial case,
    // which has a shift in the arguments
    if (!MPI_Inited() || MPI_Size()==1)
@@ -176,6 +178,7 @@ int System(char *argv[])
    if (errcode != EXIT_SUCCESS) { return EXIT_FAILURE; }
    // Broadcast READY through intercomm, and wait for return
    int status = mfem::jit::READY;
+   // MPI_ROOT stands as a special value for intercomms
    MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, intercomm);
    MPI_Bcast(&status, 1, MPI_INT, root, intercomm);
    MPI_Barrier(comm);
@@ -183,9 +186,10 @@ int System(char *argv[])
    return status;
 }
 
-#if defined(MFEM_JIT_MAIN)
+#undef MFEM_JIT_SHOW_MAIN_CODE
+#if defined(MFEM_JIT_MAIN) || defined(MFEM_JIT_SHOW_MAIN_CODE)
 
-inline int nsleep(const long us)
+static inline int nsleep(const long us)
 {
    const long ns = us *1000L;
    const struct timespec rqtp = { 0, ns };
@@ -205,10 +209,10 @@ static int THREAD_Worker(char *argv[], int *status)
    dbg("Waiting for the cookie from parent...");
    int timeout = TIMEOUT;
    while (*status != SYSTEM_CALL && timeout > 0) { nsleep(timeout--); }
-   dbg("Got it, now system call");
+   dbg("Got it, now do the system call");
    const int return_value = std::system(command_c_str);
    dbg("return_value: %d", return_value);
-   *status = return_value == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+   *status = (return_value == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
    return return_value;
 }
 
@@ -224,37 +228,50 @@ static int MPI_Spawned(int argc, char *argv[], int *status)
    int ready = 0;
    // Waiting for the parent MPI to set 'READY'
    MPI_Bcast(&ready, 1, MPI_INT, 0, intercomm);
-   assert(ready == READY);
+   if (ready != READY)
+   {
+      dbg("Spawned JIT process did not received READY!");
+      return EXIT_FAILURE;
+   }
    // Now inform the thread worker to launch the system call
    int timeout = TIMEOUT;
    for (*status  = mfem::jit::SYSTEM_CALL;
         *status == mfem::jit::SYSTEM_CALL && timeout>0;
         nsleep(timeout--));
-   assert(timeout>0);
-   // Broadcast back the result to the MPI parents
+   if (timeout == 0)
+   {
+      dbg("Spawned JIT process timeout!");
+      return EXIT_FAILURE;
+   }
+   // The worker should have updated the status in memory
+   // Broadcast back the result to the MPI world
    MPI_Bcast(status, 1, MPI_INT, MPI_ROOT, intercomm);
    MPI_Finalize();
    return EXIT_SUCCESS;
 }
 
+// The MPI sub group can fork before MPI_Init
 static int ProcessFork(int argc, char *argv[])
 {
-   DBG("[ProcessFork]");
-   dbg();
+   dbg("\033[33m[ProcessFork]");
    constexpr void *addr = 0;
    constexpr int len = sizeof(int);
    constexpr int prot = PROT_READ | PROT_WRITE;
    constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
+   // One integer in memory to exchange the status of the command
    int *status = (int*) mmap(addr, len, prot, flags, -1, 0);
    if (!status) { return EXIT_FAILURE; }
    *status = 0;
    const pid_t child_pid = fork();
    if (child_pid != 0 )
    {
-      if (MPI_Spawned(argc, argv, status)!=0) { return EXIT_FAILURE; }
+      // The child will keep on toward MPI_Init and connect through intercomm
+      if (MPI_Spawned(argc, argv, status) != 0) { return EXIT_FAILURE; }
       if (munmap(addr, len) != 0) { dbg("munmap error"); return EXIT_FAILURE; }
       return EXIT_SUCCESS;
    }
+   // Worker will now be able to launch the std::system
+   // but will wait for the MPI child in the sub world to connect with the world
    return THREAD_Worker(argv, status);
 }
 #endif // MFEM_JIT_MAIN
@@ -298,15 +315,15 @@ bool Compile(const char *cc, const char *co,
    constexpr int PM = PATH_MAX;
    constexpr const char *fpic = XC "-fPIC";
    constexpr const char *shell = MFEM_JIT_SHELL_COMMAND;
-   constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
-   constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
+   constexpr const char *archive = MFEM_JIT_CACHE_LIBRARY ".a";
+   constexpr const char *objects = MFEM_JIT_CACHE_LIBRARY ".so";
 
    // If there is already a JIT library, use it and create the lib_so
-   if (check_for_lib_ar && GetVersion() == 0 && std::fstream(lib_ar))
+   if (check_for_lib_ar && GetVersion() == 0 && std::fstream(archive))
    {
       const char *argv_so[] =
       {
-         shell, cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load,
+         shell, cxx, "-shared", "-o", objects, beg_load, archive, end_load,
          XL"-rpath,.", nullptr
       };
       if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
@@ -328,18 +345,18 @@ bool Compile(const char *cc, const char *co,
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
 
    // Update archive
-   const char *argv_ar[] = { shell, "ar", "-rv", lib_ar, co, nullptr };
+   const char *argv_ar[] = { shell, "ar", "-rv", archive, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
 
    // Create shared library
    const char *argv_so[] =
-   {shell, cxx, "-shared", "-o", lib_so_v, beg_load, lib_ar, end_load, nullptr};
+   {shell, cxx, "-shared", "-o", lib_so_v, beg_load, archive, end_load, nullptr};
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
 
    // Install shared library
    const char *install[] =
 #ifdef __APPLE__
-   { shell, "install", lib_so_v, lib_so, nullptr };
+   { shell, "install", lib_so_v, objects, nullptr };
 #else
       { shell, "install", "--backup=none", lib_so_v, lib_so, nullptr };
 #endif
@@ -1630,7 +1647,7 @@ int preprocess(context_t &pp)
 
 } // namespace mfem
 
-#ifdef MFEM_JIT_MAIN
+#if defined(MFEM_JIT_MAIN) || defined(MFEM_JIT_SHOW_MAIN_CODE)
 int main(const int argc, char* argv[])
 {
    string input, output, file;

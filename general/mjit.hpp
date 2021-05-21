@@ -26,15 +26,21 @@ namespace mfem
 namespace jit
 {
 
+// One character used as the kernel prefix
 #define MFEM_JIT_SYMBOL_PREFIX 'k'
+
+// command line option to launch a compilation
 #define MFEM_JIT_SHELL_COMMAND "-c"
+
+// base name of the cache library
 #define MFEM_JIT_CACHE_LIBRARY "libmjit"
 
-// Hash functions to combine arguments and its <const char*> specialization
+// Hash numbers used to combine arguments and its <const char*> specialization
 constexpr size_t M_PHI = 0x9e3779b9ull;
 constexpr size_t M_FNV_PRIME = 0x100000001b3ull;
 constexpr size_t M_FNV_BASIS = 0xcbf29ce484222325ull;
 
+// Generic templated hash function
 template <typename T> struct hash
 {
    inline size_t operator()(const T& h) const noexcept
@@ -43,6 +49,7 @@ template <typename T> struct hash
    }
 };
 
+// Specialized <const char*> hash function
 template<> struct hash<const char*>
 {
    inline size_t operator()(const char *s) const noexcept
@@ -54,20 +61,26 @@ template<> struct hash<const char*>
    }
 };
 
+// Hash combine function
 template <typename T> inline
 size_t hash_combine(const size_t &s, const T &v) noexcept
 { return s ^ (mfem::jit::hash<T> {}(v) + M_PHI + (s<<6) + (s>>2));}
 
+// Terminal hash arguments function
 template<typename T> inline
 size_t hash_args(const size_t &seed, const T &that) noexcept
 { return hash_combine(seed, that); }
 
+// Templated hash arguments function
 template<typename T, typename... Args> inline
 size_t hash_args(const size_t &seed, const T &arg, Args... args)
 noexcept { return hash_args(hash_combine(seed, arg), args...); }
 
+// Union to hold either a double or a uint64_t
 typedef union {double d; uint64_t u;} union_du_t;
 
+// 32 bits hash to string function, shifted to offset which should be sized to
+// MFEM_JIT_SYMBOL_PREFIX
 inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
 {
    h = ((h & 0xFFFFull) << 32) | ((h & 0xFFFF0000ull) >> 16);
@@ -80,6 +93,7 @@ inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
    memcpy(str + offset, &h, sizeof(h));
 }
 
+// 64 bits hash to string function
 inline void uint64str(uint64_t hash, char *str, const char *ext = "")
 {
    str[0] = MFEM_JIT_SYMBOL_PREFIX;
@@ -92,10 +106,11 @@ inline void uint64str(uint64_t hash, char *str, const char *ext = "")
 /// Returns true if MPI world rank is zero.
 bool Root();
 
-/// Returns the version of shared library.
+/// Returns the shared library version of the current run.
+/// Initialized at '0' and can be incremented by setting 'inc' to true.
 int GetVersion(bool inc = false);
 
-/// Root MPI process file creation.
+/// Root MPI process file creation, outputing the source of the kernel.
 template<typename... Args>
 inline bool Create(const char *cc, const size_t hash,
                    const char *src, Args... args)
@@ -109,61 +124,75 @@ inline bool Create(const char *cc, const size_t hash,
 }
 
 /// Compile the source file with PIC flags, updating the cache library.
-bool Compile(const char *input, const char *output,
-             const char *cxx, const char *cxxflags,
-             const char *mfem_source_dir, const char *mfem_install_dir,
-             const bool check_for_lib_ar);
+bool Compile(const char *input,  // kernel source file name
+             const char *output, // kernel object file name
+             const char *cxx,    // compiler
+             const char *flags,  // compilation flags
+             const char *mfem_source_dir,
+             const char *mfem_install_dir,
+             const bool check);  // check for existing archive
 
 template<typename... Args>
-inline bool Compile(const size_t hash, const bool check_for_lib_ar,
-                    const char *src,
-                    const char *cxx, const char *cxxflags,
-                    const char *msrc, const char *mins,
+inline bool Compile(const size_t hash, // kernel hash id
+                    const bool check, // check for existing archive
+                    const char *src,  // kernel source
+                    const char *cxx,  // compiler used when compiling MFEM
+                    const char *flags,// MFEM_CXXFLAGS
+                    const char *msrc, // MFEM_SOURCE_DIR
+                    const char *mins, // MFEM_INSTALL_DIR
                     Args... args)
 {
-   char cc[21], co[21];
-   uint64str(hash, co, ".co");
-   uint64str(hash, cc, ".cc");
-   if (!Create(cc, hash, src, args...) !=0 ) { return false; }
-   return Compile(cc, co, cxx, cxxflags, msrc, mins, check_for_lib_ar);
+   // MFEM_JIT_SYMBOL_PREFIX + hex64 string + extension + '\0': 1 + 16 + 3 + 1
+   char input[21], output[21];
+   uint64str(hash, output, ".co");
+   uint64str(hash, input, ".cc");
+   if (!Create(input, hash, src, args...) !=0 ) { return false; }
+   return Compile(input, output, cxx, flags, msrc, mins, check);
 }
 
+/// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
 inline void *Lookup(const size_t hash, Args... args)
 {
-   char symbol[18];
+   char symbol[18]; // MFEM_JIT_SYMBOL_PREFIX + hex64 string + '\0' = 18
    uint64str(hash, symbol);
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
-   constexpr const char *soname = MFEM_JIT_CACHE_LIBRARY ".so";
+   constexpr const char *so_name = MFEM_JIT_CACHE_LIBRARY ".so";
 
-   char soname_ver[PATH_MAX];
+   constexpr int PM = PATH_MAX;
+   char so_version[PM];
    const int version = GetVersion();
-   if (snprintf(soname_ver, PATH_MAX, "%s.so.%d",
-                MFEM_JIT_CACHE_LIBRARY, version) < 0)
+   if (snprintf(so_version,PM,"%s.so.%d",MFEM_JIT_CACHE_LIBRARY,version)<0)
    { return nullptr; }
 
    void *handle = nullptr;
-   const bool first = version == 0;
-   // We first try to open the lib_so
-   handle = dlopen(first ? soname : soname_ver, mode);
+   const bool first_compilation = (version == 0);
+   // We first try to open the shared cache library
+   handle = dlopen(first_compilation ? so_name : so_version, mode);
+   // If no handle was found, fold back looking for the archive
    if (!handle)
    {
-      if (!Compile(hash, true, args...)) { return nullptr; }
-      handle = dlopen(first ? soname : soname_ver, mode);
+      constexpr bool check_for_archive = true;
+      if (!Compile(hash, check_for_archive, args...)) { return nullptr; }
+      handle = dlopen(first_compilation ? so_name : so_version, mode);
    }
    if (!handle) { return nullptr; }
+   // Now look for the kernel symbol
    if (!dlsym(handle, symbol))
    {
+      // If not found, avoid using the archive and update the shared objects
       dlclose(handle);
-      if (!Compile(hash, false, args...)) { return nullptr; }
-      handle = dlopen(soname_ver, mode);
+      constexpr bool check_for_archive = false;
+      if (!Compile(hash, check_for_archive, args...)) { return nullptr; }
+      handle = dlopen(so_version, mode);
    }
    if (!handle) { return nullptr; }
    if (!dlsym(handle, symbol)) { return nullptr; }
-   if (!getenv("TMP")) { unlink(soname_ver); }
+   if (!getenv("TMP")) { unlink(so_version); }
    return handle;
 }
 
+/// Symbol search from a given handle
 template<typename kernel_t>
 inline kernel_t Symbol(const size_t hash, void *handle)
 {
@@ -172,6 +201,7 @@ inline kernel_t Symbol(const size_t hash, void *handle)
    return (kernel_t) dlsym(handle, symbol);
 }
 
+/// Kernel class
 template<typename kernel_t> class kernel
 {
    const size_t seed, hash;
@@ -182,10 +212,14 @@ template<typename kernel_t> class kernel
    const char *cxx, *src, *flags, *msrc, *mins;
 
 public:
-   template<typename... Tparams>
-   kernel(const char *name,
-          const char *cxx, const char *src, const char *flags,
-          const char *msrc, const char* mins, Tparams... args):
+   template<typename... Args>
+   kernel(const char *name,  // kernel name
+          const char *cxx,   // compiler
+          const char *src,   // kernel source filename
+          const char *flags, // MFEM_CXXFLAGS
+          const char *msrc,  // MFEM_SOURCE_DIR
+          const char* mins,  // MFEM_INSTALL_DIR
+          Args... args):
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
       name((uint64str(hash, symbol),name)),
@@ -194,11 +228,11 @@ public:
       cxx(cxx), src(src), flags(flags), msrc(msrc), mins(mins)
    { assert(handle); }
 
-   /// Kernel launch w/o return type
+   /// Kernel launch without return type
    template<typename... Args>
    void operator_void(Args... args) { code(args...); }
 
-   /// Kernel launch w/ return type
+   /// Kernel launch with return type
    template<typename T, typename... Args>
    T operator()(const T type, Args... args) { return code(type, args...); }
 

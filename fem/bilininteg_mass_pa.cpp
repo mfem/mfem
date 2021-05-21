@@ -1230,6 +1230,7 @@ static void PAMassApply(const int dim,
       }
    }
 #else // MFEM_USE_JIT
+   MFEM_CONTRACT_VAR(bt);
    if (dim == 2)
    {
       const int NBZ = (D1D==2 || D1D==3) ? 16:
