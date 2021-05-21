@@ -138,7 +138,7 @@ endif()
 #   tmop_pa_tests_{cpu,debug,cuda}
 #-----------------------------------------------------------
 # Function to add one device serial test from the tests/unit/miniapp directory.
-# All device unit tests are built into a seperate executable, in order to be
+# All device unit tests are built into a separate executable, in order to be
 # able to change the device.
 function(add_serial_miniapp_test name test_uvm)
     string(TOUPPER ${name} NAME)

@@ -654,7 +654,7 @@ int main (int argc, char *argv[])
    // Finite differences for computations of derivatives.
    if (fdscheme)
    {
-      MFEM_VERIFY(pa == false, "PA for finite differences is not imlemented.");
+      MFEM_VERIFY(pa == false, "PA for finite differences is not implemented.");
 
       he_nlf_integ->EnableFiniteDifferences(x);
    }
