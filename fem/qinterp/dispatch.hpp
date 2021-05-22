@@ -11,7 +11,7 @@
 
 // Internal header, included only by .cpp files
 
-#include "quadinterpolator.hpp"
+#include "../quadinterpolator.hpp"
 
 namespace mfem
 {
