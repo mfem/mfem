@@ -1438,7 +1438,8 @@ void HypreParMatrix::Threshold(double threshold)
 
 void HypreParMatrix::DropSmallEntries(double tol)
 {
-   HYPRE_Int err = 0;
+   HYPRE_Int err = 0, old_err = hypre_error_flag;
+   hypre_error_flag = 0;
 
 #if MFEM_HYPRE_VERSION < 21400
 
@@ -1477,6 +1478,8 @@ void HypreParMatrix::DropSmallEntries(double tol)
 #endif
 
    MFEM_VERIFY(!err, "error encountered: error code = " << err);
+
+   hypre_error_flag = old_err;
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
@@ -1813,7 +1816,11 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
 {
    hypre_ParCSRMatrix *C;
+#if MFEM_HYPRE_VERSION <= 22000
+   hypre_ParcsrAdd(alpha, A, beta, B, &C);
+#else
    hypre_ParCSRMatrixAdd(alpha, A, beta, B, &C);
+#endif
 
    return new HypreParMatrix(C);
 }
@@ -1821,7 +1828,11 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix *C;
+#if MFEM_HYPRE_VERSION <= 22000
+   hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
+#else
    hypre_ParCSRMatrixAdd(1.0, *A, 1.0, *B, &C);
+#endif
 
    return new HypreParMatrix(C);
 }
@@ -2475,6 +2486,8 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (type >= 1 && type <= 4)
    {
       hypre_ParCSRComputeL1Norms(*A, type, NULL, &l1_norms);
+      // The above call will set the hypre_error_flag when it encounters zero
+      // rows in A.
    }
    else if (type == 5)
    {
