@@ -89,15 +89,15 @@ public:
    /// Default constructor
    DeviceTensor() = delete;
 
-   /// Constructor to initialize a tensor from the Scalar array _data
+   /// Constructor to initialize a tensor from the Scalar array data_
    template <typename... Args> MFEM_HOST_DEVICE
-   DeviceTensor(Scalar* _data, Args... args)
+   DeviceTensor(Scalar* data_, Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? _data : NULL;
+      data = (capacity > 0) ? data_ : NULL;
    }
 
    /// Copy constructor
@@ -140,9 +140,16 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 
 
 typedef DeviceTensor<1,int> DeviceArray;
+typedef DeviceTensor<1,const int> ConstDeviceArray;
+
 typedef DeviceTensor<1,double> DeviceVector;
+typedef DeviceTensor<1,const double> ConstDeviceVector;
+
 typedef DeviceTensor<2,double> DeviceMatrix;
 typedef DeviceTensor<2,const double> ConstDeviceMatrix;
+
+typedef DeviceTensor<3,double> DeviceCube;
+typedef DeviceTensor<3,const double> ConstDeviceCube;
 
 } // mfem namespace
 

@@ -1342,10 +1342,9 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    }
 }
 
-const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
-                                                     &trial_fe,
-                                                     const FiniteElement &test_fe,
-                                                     ElementTransformation &Trans)
+const IntegrationRule &ConvectionIntegrator::GetRule(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans)
 {
    int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
 
