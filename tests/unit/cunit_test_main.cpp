@@ -11,7 +11,9 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
+
+bool launch_all_non_regression_tests = false;
 
 int main(int argc, char *argv[])
 {
@@ -20,12 +22,20 @@ int main(int argc, char *argv[])
    // There must be exactly one instance.
    Catch::Session session;
 
+   // Build a new command line parser on top of Catch's
+   using namespace Catch::clara;
+   auto cli = session.cli() |
+              Opt(launch_all_non_regression_tests) ["--all"] ("all tests");
+   session.cli(cli);
+
+   // For floating point comparisons, print 8 digits for single precision
+   // values, and 16 digits for double precision values.
+   Catch::StringMaker<float>::precision = 8;
+   Catch::StringMaker<double>::precision = 16;
+
    // Apply provided command line arguments.
    int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
+   if (r != 0) { return r; }
 
    auto cfg = session.configData();
 
@@ -36,6 +46,9 @@ int main(int argc, char *argv[])
    // MPI. This is done because there is no MPI session initialized.
    cfg.testsOrTags.push_back("~[Parallel]");
 #endif
+
+   std::cout << "INFO: Test filter: [CUDA] ~[Parallel]" << std::endl;
+   device.Print();
 
    session.useConfigData(cfg);
 
