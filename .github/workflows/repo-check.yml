@@ -31,7 +31,7 @@ jobs:
     - name: copyright check
       run: |
         cd mfem
-        if git grep -l "^#.*\-2020" > matches.txt
+        if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt
         then
           echo "Please update the following files to Copyright (c) 2010-2021:"
           cat matches.txt
