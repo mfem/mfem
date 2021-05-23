@@ -2619,9 +2619,18 @@ void ParMesh::GetGhostFaceTransformation(
 }
 
 FaceElementTransformations *ParMesh::
-GetSharedFaceTransformations(int sf, bool fill2)
+GetSharedFaceTransformations(int sf, bool fill2, bool direct)
 {
-   int FaceNo = GetSharedFace(sf);
+   //AV: Disregard this change, just temporary while we do some refactoring
+   int FaceNo;// = GetSharedFace(sf);
+   if (direct)
+   {
+      FaceNo = sf;
+   }
+   else
+   {
+      FaceNo = GetSharedFace(sf);
+   }
 
    FaceInfo &face_info = faces_info[FaceNo];
 

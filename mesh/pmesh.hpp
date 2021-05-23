@@ -347,9 +347,9 @@ public:
 
    /** Get the FaceElementTransformations for the given shared face (edge 2D).
        In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+       elements, respectively. Use direct if sf is the face number */
    FaceElementTransformations *
-   GetSharedFaceTransformations(int sf, bool fill2 = true);
+   GetSharedFaceTransformations(int sf, bool fill2 = true, bool direct = false);
 
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)

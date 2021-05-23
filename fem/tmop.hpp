@@ -804,6 +804,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -1467,6 +1469,17 @@ public:
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
+
+   void ReleaseTemporaryMemory()
+   {
+      if (PA.enabled)
+      {
+         PA.H.GetMemory().DeleteDevice();
+         PA.H0.GetMemory().DeleteDevice();
+         //PA.Jtr.GetMemory().DeleteDevice();
+         //PA.setup_Jtr = false;
+      }
+   }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
