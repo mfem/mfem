@@ -39,6 +39,19 @@ jobs:
         else
           echo "No outdated copyright found."
         fi
+
+  license-check:
+    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
+
+    steps:
+    - name: checkout mfem
+      uses: actions/checkout@v2
+      with:
+        path: mfem
+
+    - name: license check
+      run: |
+        cd mfem
         if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
         then
           echo "Please update the following files to the BSD-3 license:"
@@ -47,6 +60,17 @@ jobs:
         else
           echo "No GNU GPL license found."
         fi
+
+  release-check:
+    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
+
+    steps:
+    - name: checkout mfem
+      uses: actions/checkout@v2
+      with:
+        path: mfem
+
+    - name: relsease check
         if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
         then
           echo "Please update the following files to LLNL-CODE-806117:"
