@@ -39,7 +39,7 @@ jobs:
         else
           echo "No outdated copyright found."
         fi
-        if git grep -li "^#.*GNU\ Lesser\ General\ Public\ License" > matches.txt
+        if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
         then
           echo "Please update the following files to the BSD-3 license:"
           cat matches.txt
@@ -47,7 +47,7 @@ jobs:
         else
           echo "No GNU GPL license found."
         fi
-        if git grep -l "^#.*LLNL\-CODE\-443211" > matches.txt
+        if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
         then
           echo "Please update the following files to LLNL-CODE-806117:"
           cat matches.txt
