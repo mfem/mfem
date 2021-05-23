@@ -71,6 +71,8 @@ jobs:
         path: mfem
 
     - name: relsease check
+      run: |
+        cd mfem
         if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
         then
           echo "Please update the following files to LLNL-CODE-806117:"
