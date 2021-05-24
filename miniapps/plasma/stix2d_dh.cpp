@@ -186,8 +186,8 @@ public:
                         const Vector & charge,
                         const Vector & mass,
                         const Vector & temp,
-                        bool realPart = true);
                         int nuprof,
+                        bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
@@ -246,8 +246,8 @@ public:
                         const Vector & charge,
                         const Vector & mass,
                         const Vector & temp,
-                        bool realPart = true);
                         int nuprof,
+                        bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }

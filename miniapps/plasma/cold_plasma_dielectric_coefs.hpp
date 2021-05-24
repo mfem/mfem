@@ -177,7 +177,7 @@ public:
               double omega,
               const Vector & charges,
               const Vector & masses,
-              bool realPart = true);
+              bool realPart);
 
    SheathBase(const SheathBase &sb, bool realPart = true);
 
@@ -222,10 +222,10 @@ public:
                             double omega,
                             const Vector & charges,
                             const Vector & masses,
-                            bool realPart = true);
+                            bool realPart);
 
    RectifiedSheathPotential(const SheathBase &sb,
-                            bool realPart = true)
+                            bool realPart)
       : SheathBase(sb, realPart)
    {}
 
@@ -245,11 +245,11 @@ public:
                    double omega,
                    const Vector & charges,
                    const Vector & masses,
-                   bool realPart = true);
+                   bool realPart);
 
    SheathImpedance(const SheathBase &sb,
                    const ParGridFunction & B,
-                   bool realPart = true)
+                   bool realPart)
       : SheathBase(sb, realPart), B_(B) {}
 
    double Eval(ElementTransformation &T,
@@ -270,8 +270,8 @@ public:
                 double omega,
                 const Vector & charges,
                 const Vector & masses,
-                bool realPart = true);
                 int nuprof,
+                bool realPart);
 
    // Copy constructor
    StixCoefBase(StixCoefBase & s);
@@ -335,8 +335,8 @@ public:
              double omega,
              const Vector & charges,
              const Vector & masses,
-             bool realPart = true);
              int nuprof,
+             bool realPart);
 
    StixSCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -356,8 +356,8 @@ public:
              double omega,
              const Vector & charges,
              const Vector & masses,
-             bool realPart = true);
              int nuprof,
+             bool realPart);
 
    StixDCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -377,8 +377,8 @@ public:
              double omega,
              const Vector & charges,
              const Vector & masses,
-             bool realPart = true);
              int nuprof,
+             bool realPart);
 
    StixPCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -398,8 +398,8 @@ public:
                   double omega,
                   const Vector & charges,
                   const Vector & masses,
-                  bool realPart = true);
                   int nuprof,
+                  bool realPart);
 
    StixTensorBase(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -422,8 +422,8 @@ public:
                     double omega,
                     const Vector & charges,
                     const Vector & masses,
-                    bool realPart = true);
                     int nuprof,
+                    bool realPart);
 
    DielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -445,8 +445,8 @@ public:
                            double omega,
                            const Vector & charges,
                            const Vector & masses,
-                           bool realPart = true);
                            int nuprof,
+                           bool realPart);
 
    InverseDielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
