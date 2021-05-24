@@ -67,7 +67,6 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    const Table& e2dTable = pfes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
-   Mesh::FaceInformation info;
    int e1, e2;
    int face_id1, face_id2;
    int orientation;
@@ -78,7 +77,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    int f_ind=0;
    for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -174,7 +173,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -220,7 +219,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -576,7 +575,6 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    const Table& e2dTable = pfes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
-   Mesh::FaceInformation info;
    int e1, e2;
    int face_id1, face_id2;
    int orientation;
@@ -594,7 +592,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -799,7 +797,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;

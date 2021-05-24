@@ -1230,7 +1230,7 @@ public:
    /** This method aims to provide face information in a deciphered format, i.e.
        Mesh::FaceInformation, compared to the raw encoded information returned
        by Mesh::GetFaceElements and Mesh::GetFaceInfos. */
-   void GetFaceInformation(int f, FaceInformation &info) const;
+   FaceInformation GetFaceInformation(int f) const;
 
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
