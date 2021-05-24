@@ -48,7 +48,7 @@ static void OccaPADiffusionSetup2D(const int D1D,
                                      "DiffusionSetup2D", props);
       OccaDiffSetup2D_ker.emplace(id, DiffusionSetup2D);
    }
-   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
+   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);    
 }
 
 static void OccaPADiffusionSetup3D(const int D1D,
@@ -316,7 +316,6 @@ static void PADiffusionSetup(const int dim,
                              const int Q1D,
                              const int coeffDim,
                              const int NE,
-			     const Array<int> &gatherMap,
                              const Array<double> &W,
                              const Vector &J,
                              const Vector &C,
@@ -493,17 +492,51 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
                    Device::GetDeviceMemoryType());
 
-   ElementDofOrdering ordering = UsesTensorBasis(fes)?
-     ElementDofOrdering::LEXICOGRAPHIC:
-     ElementDofOrdering::NATIVE;
-   
-   const Operator *OP = fes.GetElementRestriction(ordering);
-   const ElementRestriction *ER = dynamic_cast<const ElementRestriction*>(OP);
-   
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne,
-		    ER->gatherMap,
 		    ir->GetWeights(),
-                    geom->J, coeff, pa_data);
+		    geom->J, coeff, pa_data);
+
+
+#ifdef MFEM_USE_OCCA
+   if (DeviceCanUseOcca()){
+     // TW: derived from fem/ceed/util.cpp:InitTensorRestriction
+     const mfem::FiniteElement *fe = fes.GetFE(0);
+     const mfem::TensorBasisElement * tfe =
+       dynamic_cast<const mfem::TensorBasisElement *>(fe);
+     MFEM_VERIFY(tfe, "invalid FE");
+     const mfem::Array<int>& dof_map = tfe->GetDofMap();
+     
+     CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
+     const mfem::Table &el_dof = fes.GetElementToDofTable();
+     twGatherMap.SetSize(el_dof.Size_of_connections());
+     const int dof = fe->GetDof();
+     const int stride = compstride == 1 ? fes.GetVDim() : 1;
+     if (dof_map.Size()>0)
+       {
+	 for (int i = 0; i < mesh->GetNE(); i++)
+	   {
+	     const int el_offset = dof * i;
+	     for (int j = 0; j < dof; j++)
+	       {
+		 twGatherMap[j+el_offset] = stride*el_dof.GetJ()[dof_map[j]+el_offset];
+	       }
+	   }
+       }
+     else // dof_map.Size == 0, means dof_map[j]==j;
+       {
+	 for (int i = 0; i < mesh->GetNE(); i++)
+	   {
+	     const int el_offset = dof * i;
+	     for (int j = 0; j < dof; j++)
+	       {
+		 twGatherMap[j+el_offset] = stride*el_dof.GetJ()[j+el_offset];
+	       }
+	   }
+       }
+   }
+#endif
+
+   
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -1914,17 +1947,9 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       ceedOp->AddMult(x, y);
    }
-   else
+   else     
    {
-     // TW: extract gatherMap here  ( I assume there is a less nasty way to do this)
-     ElementDofOrdering ordering = UsesTensorBasis(*fespace)?
-       ElementDofOrdering::LEXICOGRAPHIC:
-       ElementDofOrdering::NATIVE;
-
-     const Operator *OP = fespace->GetElementRestriction(ordering);
-     const ElementRestriction *ER = dynamic_cast<const ElementRestriction*>(OP);
-     
-     PADiffusionApply(dim, dofs1D, quad1D, ne, ER->gatherMap, symmetric,
+     PADiffusionApply(dim, dofs1D, quad1D, ne, twGatherMap, symmetric,
                        maps->B, maps->G, maps->Bt, maps->Gt,
                        pa_data, x, y);
    }

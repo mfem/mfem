@@ -1968,6 +1968,10 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
+#ifdef MFEM_USE_OCCA
+  mfem::Array<int> twGatherMap;
+#endif
+  
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator()
