@@ -1591,7 +1591,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                      {
                         MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
                         MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
-                        
                         // Reference coordinates (xi, eta) in [0,1]^2
                         // Fine face coordinates (x, y)
                         // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
