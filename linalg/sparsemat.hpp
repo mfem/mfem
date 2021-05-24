@@ -152,7 +152,7 @@ public:
    SparseMatrix(const Vector & v);
 
    // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
-   void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
+   void UseCuSparse(bool useCuSparse_ = true) { useCuSparse = useCuSparse_;}
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);

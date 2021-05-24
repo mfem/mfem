@@ -73,8 +73,8 @@ double discrete_aspr_2d(const Vector &x)
    double th = 22.5*M_PI/180.;
    double xn =  cos(th)*xc + sin(th)*yc;
    double yn = -sin(th)*xc + cos(th)*yc;
-   //double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-   //double stretch = 1/cos(th2);
+   // double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+   // double stretch = 1/cos(th2);
    xc = xn; yc = yn;
 
    double tfac = 20;

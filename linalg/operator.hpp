@@ -323,7 +323,7 @@ public:
    virtual double GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double _t) { t = _t; }
+   virtual void SetTime(const double t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -857,8 +857,8 @@ public:
    virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
-   void SetDiagonalPolicy(const DiagonalPolicy _diag_policy)
-   { diag_policy = _diag_policy; }
+   void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
+   { diag_policy = diag_policy_; }
 
    /// Diagonal of A, modified according to the used DiagonalPolicy.
    virtual void AssembleDiagonal(Vector &diag) const;
@@ -959,7 +959,7 @@ public:
 #endif
 
 #ifdef MFEM_USE_MPI
-   PowerMethod(MPI_Comm _comm) : comm(_comm) {}
+   PowerMethod(MPI_Comm comm_) : comm(comm_) {}
 #endif
 
    /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr
