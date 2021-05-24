@@ -1561,7 +1561,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             else // Non-conforming face
             {
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
-               Key key(ptMat, face_id2);
+               Key key(ptMat, face_id1 + 6*orientation);
                auto itr = interp_map.find(key);
                if (itr == interp_map.end())
                {
@@ -1573,13 +1573,32 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   DenseMatrix* interp_mat = new DenseMatrix(dof,dof);
                   Vector shape(dof);
                   IntegrationPoint f_ip;
-                  double x_min(0), x_max(0), y_min(0), y_max(0);
+                  double x_min(0), x_max(0);
+
+                  double a0, a1, a2, a3, b0, b1, b2, b3;
+
                   switch (trace_fe->GetGeomType())
                   {
                      case Geometry::SQUARE:
                      {
                         MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
                         MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
+                        
+                        // Reference coordinates (xi, eta) in [0,1]^2
+                        // Fine face coordinates (x, y)
+                        // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+                        // y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
+                        a0 = (*ptMat)(0,0);
+                        a1 = (*ptMat)(0,1);
+                        a2 = (*ptMat)(0,2);
+                        a3 = (*ptMat)(0,3);
+
+                        b0 = (*ptMat)(1,0);
+                        b1 = (*ptMat)(1,1);
+                        b2 = (*ptMat)(1,2);
+                        b3 = (*ptMat)(1,3);
+                        
+                        /*
                         x_min = x_max = (*ptMat)(0,0);
                         y_min = y_max = (*ptMat)(1,0);
                         for (size_t v = 1; v < 4; v++)
@@ -1591,41 +1610,73 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                            y_min = b < y_min ? b : y_min;
                            y_max = b > y_max ? b : y_max;
                         }
-                        bool invert_x = face_id2==3 || face_id2==4;
+                        bool invert_x_e1 = face_id1==3 || face_id1==4;
+                        bool invert_x_e2 = face_id2==3 || face_id2==4;
+                        bool invert_y_e1 = (face_id1==0);
+                        bool invert_y_e2 = (face_id2==0);
+                        bool invert_x = invert_x_e1;
+                        bool invert_y = invert_y_e1;
+                        std::cout << "orientation = " << orientation << std::endl;
+                        std::cout << "face_id1 = " << face_id1 << ", face_id2 = " << face_id2 << std::endl;
+                        std::cout << "x_min = " << x_min << ", x_max = " << x_max << std::endl;
+                        std::cout << "y_min = " << y_min << ", y_max = " << y_max << std::endl;
+                        switch (orientation)
+                        {
+                           case 0:
+                              break;
+                           case 1:
+                              std::swap(invert_x,invert_y);
+                              break;
+                           case 2:
+                              invert_x = !invert_x;
+                              std::swap(invert_x,invert_y);
+                              break;
+                           case 3:
+                              invert_x = !invert_x;
+                              break;
+                           case 4:
+                              invert_x = !invert_x;
+                              invert_y = !invert_y;
+                              break;
+                           case 5:
+                              invert_x = !invert_x;
+                              invert_y = !invert_y;
+                              std::swap(invert_x,invert_y);
+                              break;
+                           case 6:
+                              invert_y = !invert_y;
+                              std::swap(invert_x,invert_y);
+                              break;
+                           case 7:
+                              invert_y = !invert_y;
+                              break;
+                           default:
+                              // TODO add error?
+                              break;
+                        }
+                        // invert_x = invert_x_e2? invert_x : !invert_x;
+                        // invert_y = invert_y_e2? invert_y : !invert_y;
                         if (invert_x)
                         {
                            const double piv = x_min;
                            x_min = 1-x_max;
                            x_max = 1-piv;
                         }
-                        bool invert_y = face_id2==0;
                         if (invert_y)
                         {
                            const double piv = y_min;
                            y_min = 1-y_max;
                            y_max = 1-piv;
                         }
+                        */
                      }
                      break;
                      case Geometry::SEGMENT:
                      {
                         MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
                         MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
-                        bool invert = face_id2==2 || face_id2==3;
-                        double a = (*ptMat)(0,0);
-                        double b = (*ptMat)(0,1);
-                        double x1 = !invert ? a : 1.0-a;
-                        double x2 = !invert ? b : 1.0-b;
-                        if ( x1 < x2 )
-                        {
-                           x_min = x1;
-                           x_max = x2;
-                        }
-                        else
-                        {
-                           x_min = x2;
-                           x_max = x1;
-                        }
+                        x_min = (*ptMat)(0,0);
+                        x_max = (*ptMat)(0,1);
                      }
                      break;
                      default: MFEM_ABORT("unsupported geometry");
@@ -1637,18 +1688,51 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                      switch (trace_fe->GetGeomType())
                      {
                         case Geometry::SQUARE:
-                           f_ip.y = y_min + (y_max - y_min) * ip.y;
+                        {
+                           double xi = ip.x, eta = ip.y;
+                           f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
+                           f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
+                           break;
+                        }
                         case Geometry::SEGMENT:
                            f_ip.x = x_min + (x_max - x_min) * ip.x;
                            break;
                         default: MFEM_ABORT("unsupported geometry");
                      }
                      trace_fe->CalcShape(f_ip, shape);
+
+                     int li = 0;
+                     if (dim == 2)
+                     {
+                        li = ToLexOrdering(dim, face_id2, dof1d, i);
+                        li = PermuteFaceL2(dim, face_id2, face_id1,
+                                           orientation, dof1d, li);
+                     }
+                     else if (dim == 3)
+                     {
+                        li = ToLexOrdering(dim, face_id1, dof1d, i);
+                     }
+                     else
+                     {
+                        MFEM_ABORT("Bad dim");
+                     }
+
                      for (int j = 0; j < dof; j++)
                      {
-                        (*interp_mat)(i,j) = shape(j);
+                        const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
+                        (*interp_mat)(li,lj) = shape(j);
                      }
                   }
+                  // DenseMatrix LocalInterp(3DDofs, 3DDofs); // with GetLocalinterp
+                  // for (size_t i = 0; i < 2DDofs; i++)
+                  // {
+                  //    int pi = faceMap2[i];
+                  //    for (size_t j = 0; j < 2DDofs; j++)
+                  //    {
+                  //       int pj = faceMap2[j];
+                  //       FaceLocalInterp(i,j) = LocalInterp(pi,pj);
+                  //    }
+                  // }
                   interp_map[key] = {nc_cpt, interp_mat};
                   interp_config[f_ind] = nc_cpt;
                   nc_cpt++;
@@ -1660,8 +1744,18 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             }
             for (int d = 0; d < dof; ++d)
             {
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                            orientation, dof1d, d);
+               // TODO: fix Will's bad idea
+               int pd;
+               if (info.conformity==Mesh::FaceConformity::Conforming)
+               {
+                  pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                     orientation, dof1d, d);
+               }
+               else
+               {
+                  // For non-conforming the permutaiton is in the interpolation
+                  pd = d;
+               }
                const int face_dof = faceMap2[pd];
                const int gid = elementMap[e2*elem_dofs + face_dof];
                const int lid = dof*f_ind + d;
