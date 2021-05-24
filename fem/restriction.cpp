@@ -1735,15 +1735,30 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
              type==FaceType::Interior &&
              info.location==Mesh::FaceLocation::Interior)
          {
-            for (int d = 0; d < dof; ++d)
+            if (info.conformity==Mesh::FaceConformity::Conforming)
             {
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                            orientation, dof1d, d);
-               const int did = faceMap2[pd];
-               const int gid = elementMap[e2*elem_dofs + did];
-               const int lid = dof*f_ind + d;
-               // We shift lid to express that it's e2 of f
-               gather_indices[offsets[gid]++] = nfdofs + lid;
+               for (int d = 0; d < dof; ++d)
+               {
+                  int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                         orientation, dof1d, d);
+                  const int did = faceMap2[pd];
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof*f_ind + d;
+                  // We shift lid to express that it's e2 of f
+                  gather_indices[offsets[gid]++] = nfdofs + lid;
+               }
+            }
+            else
+            {
+               for (int d = 0; d < dof; ++d)
+               {
+                  // The permutation is handled by the interpolation operator.
+                  const int did = faceMap2[d];
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof*f_ind + d;
+                  // We shift lid to express that it's e2 of f
+                  gather_indices[offsets[gid]++] = nfdofs + lid;
+               }
             }
          }
          f_ind++;
