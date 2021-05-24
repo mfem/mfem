@@ -84,7 +84,7 @@ static void PAGradientSetup2D(const int Q1D,
 
    const bool const_c = c.Size() == 1;
    const auto C = const_c ? Reshape(c.Read(), 1,1) :
-                  Reshape(c.Read(), Q1D, NE);
+                  Reshape(c.Read(), NQ, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -119,7 +119,7 @@ static void PAGradientSetup3D(const int Q1D,
 
    const bool const_c = c.Size() == 1;
    const auto C = const_c ? Reshape(c.Read(), 1,1) :
-                  Reshape(c.Read(), Q1D,NE);
+                  Reshape(c.Read(), NQ,NE);
 
    MFEM_FORALL(e, NE,
    {
