@@ -482,6 +482,7 @@ public:
    TransportCoefFactory() {}
 
    Coefficient * GetScalarCoef(std::string &name, std::istream &input);
+   VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);
 };
 
 /** Given the electron temperature in eV this coefficient returns an
@@ -2603,6 +2604,29 @@ public:
    }
 };
 
+class CirculationVector : public VectorCoefficient
+{
+private:
+   double w_;
+   double vz_;
+
+   mutable Vector x_;
+
+public:
+   CirculationVector(double w) : VectorCoefficient(2), w_(w) {}
+   CirculationVector(double w, double vz)
+      : VectorCoefficient(3), w_(w), vz_(vz), x_(3) {}
+
+   void Eval(Vector & V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      V.SetSize(vdim);
+      V[0] = -w_ * x_[1];
+      V[1] =  w_ * x_[0];
+      if (vdim > 2) { V[2] = vz_; }
+   }
+};
+
 Coefficient *
 TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
@@ -2636,4 +2660,21 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       return CoefFactory::GetScalarCoef(name, input);
    }
    return sCoefs[--coef_idx];
+}
+
+VectorCoefficient *
+TransportCoefFactory::GetVectorCoef(std::string &name, std::istream &input)
+{
+   int coef_idx = -1;
+   if (name == "CirculationVector")
+   {
+      double w, vz;
+      input >> w >> vz;
+      coef_idx = vCoefs.Append(new CirculationVector(w, vz));
+   }
+   else
+   {
+      return CoefFactory::GetVectorCoef(name, input);
+   }
+   return vCoefs[--coef_idx];
 }
