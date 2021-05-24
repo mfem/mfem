@@ -1745,7 +1745,6 @@ void CPDSolverDH::locateTrueSBCDofs(const Array<int> & sbc_bdr_marker,
          sbc_h1_tdof_marker[i] = 1 - sbc_h1_tdof_marker[i];
       }
 
-      Array<int> ess_tdof;
       H1FESpace_->MarkerToList(sbc_h1_tdof_marker, non_sbc_h1_tdofs);
 
       HCurlFESpace_->GetEssentialTrueDofs(sbc_bdr_marker, sbc_nd_tdofs);
