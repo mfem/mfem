@@ -453,7 +453,7 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    double density_val = EvalIonDensity(T, ip);
-   double temp_val = EvalElectronTemp(T, ip);
+   // double temp_val = EvalElectronTemp(T, ip);
 
    // double Te = temp_val * q_; // Electron temperature, Units: J
 
@@ -464,7 +464,8 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
 
    complex<double> phi = EvalSheathPotential(T, ip);
    double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
-   double volt_norm = (phi_mag/2)/temp_val ;
+   //double volt_norm = (phi_mag)/temp_val ; // V zero-to-peak
+   double volt_norm = (2*phi_mag)/15.0 ; // V peak-to-peak
 
    double phiRec = phi0avg(w_norm, volt_norm);
 
@@ -503,7 +504,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
    complex<double> phi = EvalSheathPotential(T, ip); // Units: V
 
    double density_val = EvalIonDensity(T, ip);       // Units: # / m^3
-   double temp_val = EvalElectronTemp(T, ip);        // Units: eV
+   // double temp_val = EvalElectronTemp(T, ip);        // Units: eV
 
    double wci = omega_c(Bmag, charges_[1], masses_[1]);        // Units: s^{-1}
    double wpi = omega_p(density_val, charges_[1], masses_[1]); // Units: s^{-1}
@@ -511,21 +512,22 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double w_norm = omega_ / wpi; // Unitless
    double wci_norm = wci / wpi;  // Unitless
    double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
-   double volt_norm = (phi_mag/2)/temp_val ; // Unitless
+   double volt_norm = (phi_mag)/15.0 ; // Unitless: V zero-to-peak
+   //double volt_norm = (2*phi_mag)/15.0 ; // Unitless: V peak-to-peak
+   if ( volt_norm > 20) {cout << "Warning: V_RF > Z Parameterization Limit!" << endl;}
 
-   //double debye_length = debye(temp_val, density_val*1e-6); // Input temp needs to be in eV, Units: cm
-   double debye_length = debye(temp_val, density_val); // Units: m
+   double debye_length = debye(15.0, density_val); // Units: m
    Vector nor(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag); // Unitless
 
    // Jim's old parametrization (Kohno et al 2017):
-   complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
+   //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
 
    // Jim's newest parametrization (Myra et al 2017):
-   //complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-   //                                         masses_[0], masses_[1]);
+   complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
+                                             masses_[0], masses_[1]);
 
    // Fixed sheath impedance:
    //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
