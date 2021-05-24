@@ -452,9 +452,8 @@ void KerLeanMult::token_COMA(Token &) const
        << "   r_Aq[j][i][k] += Aqtmp;\n"
        << " }}SYNC_THREADS;\n"
        << "}\n";
-   if (ops_stack.empty()) { assert(false); }  // something is wrong
-   const int op = ops_stack.top();
-   assert(op == TOK::GRAD_OP) ; // Grad operation
+   if (ops_stack.empty()) { assert(false); } // something is wrong
+   assert(ops_stack.top() == TOK::GRAD_OP) ; // Grad operation
 }
 
 /** @endcond */

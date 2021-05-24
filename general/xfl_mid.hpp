@@ -71,6 +71,7 @@ public:
          assert(ufl.ctx.var.find(name) != ufl.ctx.var.end());
          assert(ufl.ctx.N.find(name) != ufl.ctx.N.end());
          const xfl::var &var = ufl.ctx.var.at(name);
+         static_cast<void>(var); // avoid unused variable ‘var’ error
          const int N = ufl.ctx.N.at(name);
          // dbg("Found IDENTIFIER %s = %d", name.c_str(), N);
          assert(var.name == name);
