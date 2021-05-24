@@ -120,8 +120,8 @@ static void ceed_benchmark_options(std::ostringstream &out)
                          "--no-visualization",
                          "Enable or disable GLVis visualization.");
           args.Parse();
-   if (!args.Good()) { if (myid == 0) { args.PrintUsage(std::cout); } return 1; }
-   if (myid == 0) { args.PrintOptions(std::cout); }
+   if (!args.Good()) { if (myid == 0) { args.PrintUsage(mfem::out); } return 1; }
+   if (myid == 0) { args.PrintOptions(mfem::out); }
    assert(SOL_P == order); // Make sure order is in sync with SOL_P
 
    ParMesh *pmesh = nullptr;
@@ -135,14 +135,14 @@ static void ceed_benchmark_options(std::ostringstream &out)
          {
             if (myid == 0)
             {
-               std::cout << "Serial refinement: level " << l << " -> level " << l+1
+               mfem::out << "Serial refinement: level " << l << " -> level " << l+1
                          << " ..." << std::flush;
             }
             mesh->UniformRefinement();
             MPI_Barrier(MPI_COMM_WORLD);
             if (myid == 0)
             {
-               std::cout << " done." << std::endl;
+               mfem::out << " done." << std::endl;
             }
          }
       }
@@ -158,18 +158,18 @@ static void ceed_benchmark_options(std::ostringstream &out)
          {
             if (myid == 0)
             {
-               std::cout << "Parallel refinement: level " << l << " -> level " << l+1
+               mfem::out << "Parallel refinement: level " << l << " -> level " << l+1
                          << " ..." << std::flush;
             }
             pmesh->UniformRefinement();
             MPI_Barrier(MPI_COMM_WORLD);
             if (myid == 0)
             {
-               std::cout << " done." << std::endl;
+               mfem::out << " done." << std::endl;
             }
          }
       }
-      pmesh->PrintInfo(std::cout);
+      pmesh->PrintInfo(mfem::out);
    }
        ) << "\n\n";
 }
@@ -330,14 +330,15 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
          //assert(false);
          constexpr int N = 16;
          Element::Type quad = Element::Type::QUADRILATERAL;
-         const bool generate_edges = false, sfc_ordering = true;
-         const double sx = 1.0, sy = 1.0;
-         msh = new mfem::Mesh(N, N, quad, generate_edges, sx, sy, sfc_ordering);
+         //const bool generate_edges = false, sfc_ordering = true;
+         //const double sx = 1.0, sy = 1.0;
+         //msh = new mfem::Mesh(N, N, quad, generate_edges, sx, sy, sfc_ordering);
+         msh = new mfem::Mesh(mfem::Mesh::MakeCartesian2D(N, N, quad));
       }
       auto res = ufl.ctx.msh.emplace(msh_name, msh);
       if (res.second == false)
       {
-         std::cerr << "MSH already present: " << res.first->first << std::endl;
+         mfem::err << "MSH already present: " << res.first->first << std::endl;
          std::abort();
       }
    }
@@ -352,18 +353,19 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
       // assert(false);
       void *msh;
       {
-         assert(false);
+         //assert(false);
          constexpr int N = 16;
          Element::Type hex = Element::Type::HEXAHEDRON;
-         const bool generate_edges = false, sfc_ordering = true;
-         const double sx = 1.0, sy = 1.0, sz = 1.0;
-         msh = new mfem::Mesh(N, N, N, hex, generate_edges, sx, sy, sz,
-                              sfc_ordering);
+         //const bool generate_edges = false, sfc_ordering = true;
+         //const double sx = 1.0, sy = 1.0, sz = 1.0;
+         /*msh = new mfem::Mesh(N, N, N, hex, generate_edges, sx, sy, sz,
+                              sfc_ordering);*/
+         msh = new mfem::Mesh(mfem::Mesh::MakeCartesian3D(N, N, N, hex));
       }
       auto res = ufl.ctx.msh.emplace(msh_name, msh);
       if (res.second == false)
       {
-         std::cerr << "MSH already present: " << res.first->first << std::endl;
+         mfem::err << "MSH already present: " << res.first->first << std::endl;
          std::abort();
       }
    }
@@ -423,7 +425,7 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
             const std::string &name = next_token->Name();
             if (ufl.ctx.N.find(name) == ufl.ctx.N.end())
             {
-               std::cerr << "Unkown variable '" << name << "': " << strerror(errno)
+               mfem::err << "Unkown variable '" << name << "': " << strerror(errno)
                          << std::endl;
                std::abort();
             }
@@ -500,7 +502,7 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
                     xfl::fes{id->Name(), mesh_name, fec_name, msh, fes});  // MFEM objects
       if (res.second == false)
       {
-         std::cerr << "FES already present: " << res.first->first << std::endl;
+         mfem::err << "FES already present: " << res.first->first << std::endl;
          std::abort();
       }
       // assert(false);
@@ -609,7 +611,7 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
          dbg("\033[31mvariable:%s", name.c_str());
          if (ufl.ctx.N.find(name) == ufl.ctx.N.end())
          {
-            std::cerr << "Unkown variable '" << name << "': " << strerror(errno)
+            mfem::err << "Unkown variable '" << name << "': " << strerror(errno)
                       << std::endl;
             std::abort();
          }
@@ -635,7 +637,7 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
                     xfl::fec{id->Name(), family_name, type_name, order, dim, fec});
       if (res.second == false)
       {
-         std::cerr << "FEC already present: " << res.first->first << std::endl;
+         mfem::err << "FEC already present: " << res.first->first << std::endl;
          std::abort();
       }
    }
@@ -860,7 +862,7 @@ void Code::args_expr_list_args_expr_list_coma_assign_expr_d(Rule *n) const
 void Code::args_expr_list_args_expr_list_coma_assign_expr_u(Rule *) const {}
 
 // *****************************************************************************
-void Code::def_statement_nl_d(Rule *n) const
+void Code::def_statement_nl_d(Rule*) const
 {
    if (!ufl.ctx.nodes[0])
    {
@@ -878,7 +880,7 @@ void Code::def_statement_nl_d(Rule *n) const
 void Code::def_statement_nl_u(Rule *) const {}
 
 // *****************************************************************************
-void Code::statement_decl_nl_d(Rule *n) const
+void Code::statement_decl_nl_d(Rule*) const
 {
    dbg("LHS=true");
    yy::rules.at(lhs_lhs) = true;
@@ -1100,9 +1102,9 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             out << "\t\t\tvoid Setup() {\n";
             out << "\t\t\t\tint myid = 0; MPI_Comm_rank(MPI_COMM_WORLD, &myid);\n";
             out << "\t\t\t\tif(myid == 0){\n";
-            out << "\t\t\t\t\tstd::cout << \"XFL(SIMD_\" << SIMD_SIZE <<\") version using integration rule with "
+            out << "\t\t\t\t\tmfem::out << \"XFL(SIMD_\" << SIMD_SIZE <<\") version using integration rule with "
                 << (Q1D*Q1D*Q1D) << " points ...\\n\";\n";
-            out << "\t\t\t\t\tstd::cout << \"D1D:" << D1D << ", Q1D:" << Q1D << "\\n\";\n";
+            out << "\t\t\t\t\tmfem::out << \"D1D:" << D1D << ", Q1D:" << Q1D << "\\n\";\n";
             out << "\t\t\t\t}\n";
 
             out << "\t\t\t\tdx.SetSize(NQ*NE*" << shp[0] << "*" << shp[1]

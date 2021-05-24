@@ -31,7 +31,7 @@ v = TestFunction(fes)
 bc = DirichletBC(fes)
 
 # Set up the linear form b(.) which corresponds to the right-hand side.
-rhs_coef = Expression('x(0)*x(1) / (x(0)*x(0)+x(1)*x(1))')
+#rhs_coef = Expression('x(0)*x(1) / (x(0)*x(0)+x(1)*x(1))')
 #b = rhs_coef*v*dx
 b = v*dx
 

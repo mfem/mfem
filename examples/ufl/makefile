@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex1
+SEQ_EXAMPLES = ex1 bp3
 PAR_EXAMPLES =
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -65,7 +65,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
 clean-build:
-	rm -f *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

@@ -8,10 +8,14 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#include <numeric>
+
 #include "mfem.hpp"
 
+#include "general/globals.hpp"
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
+
 
 // Kernels addons //////////////////////////////////////////////////////////////
 #ifndef MFEM_USE_MPI
@@ -216,9 +220,9 @@ public:
         NR(nfes->GetElementRestriction(e_ordering)),
         type(mesh->GetElementBaseGeometry(0)),
         ir(IntRules.Get(type, q)),
-        geom(mesh->GetGeometricFactors(ir, flags, mode)),
+        geom(mesh->GetGeometricFactors(ir, flags)),
         maps(&pfes->GetFE(0)->GetDofToQuad(ir, mode)),
-        nqi(nfes->GetQuadratureInterpolator(ir, mode)),
+        nqi(nfes->GetQuadratureInterpolator(ir)),
         SDIM(mesh->SpaceDimension()),
         VDIM(pfes->GetVDim()),
         NDOFS(pfes->GetNDofs()),
@@ -302,10 +306,10 @@ public:
         NR(nfes->GetElementRestriction(e_ordering)),
         type(mesh->GetElementBaseGeometry(0)),
         ir(IntRules.Get(type, q)),
-        geom(mesh->GetGeometricFactors(ir, flags, mode)),
+        geom(mesh->GetGeometricFactors(ir, flags)),
         maps(&pfes->GetFE(0)->GetDofToQuad(ir, mode)),
-        qi(pfes->GetQuadratureInterpolator(ir, mode)),
-        nqi(nfes->GetQuadratureInterpolator(ir, mode)),
+        qi(pfes->GetQuadratureInterpolator(ir)),
+        nqi(nfes->GetQuadratureInterpolator(ir)),
         SDIM(mesh->SpaceDimension()),
         VDIM(pfes->GetVDim()),
         NDOFS(pfes->GetNDofs()),
@@ -405,7 +409,7 @@ public:
    }
 
    // + operator on QForms
-   QForm &operator+(QForm &rhs)
+   QForm &operator+(QForm &)
    {
       assert(false);  // not supported
       return *this;
@@ -470,7 +474,7 @@ public:
    ParFiniteElementSpace *ParFESpace() const { return nullptr; }
    double Value() const { return value; }
    double Value() { return value; }
-   double operator*(TestFunction &v) { return 0.0; }
+   double operator*(TestFunction&) { return 0.0; }
    ConstantCoefficient *ConstantCoeff() const { return cst; }
    FunctionCoefficient *FunctionCoeff() const { return nullptr; }
    operator const double *() const { return nullptr; }  // qf eval
@@ -518,7 +522,7 @@ static mfem::ParMesh *MeshToPMesh(mfem::Mesh *mesh)
    assert(nxyz);
    const int mesh_p = 1;
    mesh->SetCurvature(mesh_p, false, -1, Ordering::byNODES);
-   int *partitioning = mesh->CartesianPartitioning(nxyz);
+   //int *partitioning = mesh->CartesianPartitioning(nxyz);
    ParMesh *pmesh = nullptr;
    NewParMesh(pmesh, mesh, partitioning);
    return pmesh;
@@ -539,22 +543,16 @@ mfem::Mesh &Mesh(mfem::Mesh *mesh) { return *mesh; }
 
 mfem::ParMesh &UnitSquareMesh(int nx, int ny)
 {
-   const double sx = 1.0, sy = 1.0;
    Element::Type quad = Element::Type::QUADRILATERAL;
-   const bool edges = false, sfc = true;
-   mfem::Mesh *mesh =
-      new mfem::Mesh(nx, ny, quad, edges, sx, sy, sfc);
-   return *MeshToPMesh(mesh);
+   mfem::Mesh mesh = mfem::Mesh::MakeCartesian2D(nx, ny, quad);
+   return *MeshToPMesh(&mesh);
 }
 
 mfem::ParMesh &UnitHexMesh(int nx, int ny, int nz)
 {
    Element::Type hex = Element::Type::HEXAHEDRON;
-   const bool edges = false, sfc = true;
-   const double sx = 1.0, sy = 1.0, sz = 1.0;
-   mfem::Mesh *mesh =
-      new mfem::Mesh(nx, ny, nz, hex, edges, sx, sy, sz, sfc);
-   return *MeshToPMesh(mesh);
+   mfem::Mesh mesh = mfem::Mesh::MakeCartesian3D(nx, ny, nz, hex);
+   return *MeshToPMesh(&mesh);
 }
 
 /** ****************************************************************************
@@ -772,16 +770,16 @@ int benchmark(xfl::Problem *pb, xfl::Function &x, Array<int> ess_tdof_list,
 
    if (myid == 0)
    {
-      std::cout << "Number of finite element unknowns: " << dofs <<  std::endl;
-      std::cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
+      mfem::out << "Number of finite element unknowns: " << dofs <<  std::endl;
+      mfem::out << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
                 << std::endl;
-      std::cout << "Time per CG step: "
+      mfem::out << "Time per CG step: "
                 << rt_max / cg_iter << " ("
                 << rt_min / cg_iter << ") sec." << std::endl;
-      std::cout << "\033[32m";
-      std::cout << "\"DOFs/sec\" in CG: " << mdofs_max << " ("
+      mfem::out << "\033[32m";
+      mfem::out << "\"DOFs/sec\" in CG: " << mdofs_max << " ("
                 << mdofs_min << ") million.";
-      std::cout << "\033[m" << std::endl;
+      mfem::out << "\033[m" << std::endl;
    }
    delete pb;
    return 0;
@@ -877,9 +875,9 @@ constexpr int hexahedron = Element::Type::HEXAHEDRON;
 template <typename... Args>
 void print(const char *fmt, Args... args)
 {
-   std::cout << std::flush;
+   mfem::out << std::flush;
    std::printf(fmt, args...);
-   std::cout << std::endl;
+   mfem::out << std::endl;
 }
 
 inline bool UsesTensorBasis(const FiniteElementSpace *fes)
@@ -890,4 +888,20 @@ inline bool UsesTensorBasis(const FiniteElementSpace *fes)
 int sym(int u) { return u; }
 int dot(int u, int v) { return u * v; }
 
+/// CPP addons /////////////////////////////////////////////////////////////////
+namespace cpp
+{
+
+// *****************************************************************************
+struct Range : public std::vector<int>
+{
+   Range(const int n) : vector<int>(n)
+   {
+      // Fills the range with sequentially increasing values
+      std::iota(std::begin(*this), std::end(*this), 0);
+   }
+};
+
 }  // namespace mfem
+
+}  // namespace cpp
