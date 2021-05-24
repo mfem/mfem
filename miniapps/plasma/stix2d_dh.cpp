@@ -187,6 +187,7 @@ public:
                         const Vector & mass,
                         const Vector & temp,
                         bool realPart = true);
+                        int nuprof,
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
@@ -206,6 +207,7 @@ public:
 private:
    char type_;
    bool realPart_;
+   int nuprof_;
    double omega_;
    double Bmag_;
    double Jy_;
@@ -245,6 +247,7 @@ public:
                         const Vector & mass,
                         const Vector & temp,
                         bool realPart = true);
+                        int nuprof,
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
@@ -264,6 +267,7 @@ public:
 private:
    char type_;
    bool realPart_;
+   int nuprof_;
    double omega_;
    double Bmag_;
    double Jy_;
@@ -361,6 +365,7 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
@@ -433,6 +438,9 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
+                  "Temperature Profile Type: \n"
+                  "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -676,15 +684,15 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -867,13 +875,15 @@ int main(int argc, char *argv[])
    // Create tensor coefficients describing the dielectric permittivity
    InverseDielectricTensor epsilonInv_real(BField, density, temperature,
                                            L2FESpace, H1FESpace,
-                                           omega, charges, masses, true);
+                                           omega, charges, masses, nuprof,
+                                           true);
    InverseDielectricTensor epsilonInv_imag(BField, density, temperature,
                                            L2FESpace, H1FESpace,
-                                           omega, charges, masses, false);
+                                           omega, charges, masses, nuprof,
+                                           false);
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
-                                   omega, charges, masses);
+                                   omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -882,23 +892,23 @@ int main(int argc, char *argv[])
                        omega, charges, masses, false);
 
    ColdPlasmaPlaneWaveH HReCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, true);
+                                numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveH HImCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, false);
+                                numbers, charges, masses, temps, nuprof, false);
 
    ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, true);
+                                numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, false);
+                                numbers, charges, masses, temps, nuprof, false);
 
    if (check_eps_inv)
    {
       DielectricTensor epsilon_real(BField, density, temperature,
                                     L2FESpace, H1FESpace,
-                                    omega, charges, masses, true);
+                                    omega, charges, masses, nuprof, true);
       DielectricTensor epsilon_imag(BField, density, temperature,
                                     L2FESpace, H1FESpace,
-                                    omega, charges, masses, false);
+                                    omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
       DenseMatrix epsInvIm(3,3);
       DenseMatrix epsRe(3,3);
@@ -1716,10 +1726,12 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
                                            const Vector & charge,
                                            const Vector & mass,
                                            const Vector & temp,
+                                           int nuprof,
                                            bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
+     nuprof_(nuprof),
      omega_(omega),
      Bmag_(B.Norml2()),
      Jy_(0.0),
@@ -1763,9 +1775,11 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
+   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
@@ -1956,10 +1970,12 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
                                            const Vector & charge,
                                            const Vector & mass,
                                            const Vector & temp,
+                                           int nuprof,
                                            bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
+     nuprof_(nuprof),
      omega_(omega),
      Bmag_(B.Norml2()),
      Jy_(0.0),
@@ -2003,9 +2019,11 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
+   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {

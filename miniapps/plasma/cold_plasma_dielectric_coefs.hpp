@@ -72,31 +72,37 @@ std::complex<double> R_cold_plasma(double omega, double Bmag,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
-                                   const Vector & temp);
+                                   const Vector & temp,
+                                   int nuprof);
 
 std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
-                                   const Vector & temp);
+                                   const Vector & temp,
+                                   int nuprof);
 
 std::complex<double> P_cold_plasma(double omega,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
-                                   const Vector & temp);
+                                   const Vector & temp,
+                                   int nuprof);
 
 std::complex<double> S_cold_plasma(double omega, double Bmag,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
-                                   const Vector & temp);
+                                   const Vector & temp,
+                                   int nuprof);
 
 std::complex<double> D_cold_plasma(double omega, double Bmag,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
-                                   const Vector & temp);
+                                   const Vector & temp,
+                                   int nuprof);
+
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath parameterization from Kohno et al 2017:
 double gabsANY(double x);
@@ -265,6 +271,7 @@ public:
                 const Vector & charges,
                 const Vector & masses,
                 bool realPart = true);
+                int nuprof,
 
    // Copy constructor
    StixCoefBase(StixCoefBase & s);
@@ -275,6 +282,9 @@ public:
 
    void SetOmega(double omega) { omega_ = omega; }
    double GetOmega() const { return omega_; }
+
+   void SetNu(int nuprof) { nuprof_ = nuprof; }
+   double GetNu() const { return nuprof_; }
 
    const ParGridFunction & GetBField() const { return B_; }
    const BlockVector & GetDensityFields() const { return density_; }
@@ -302,6 +312,7 @@ protected:
 
    double omega_;
    bool realPart_;
+   int nuprof_;
 
    mutable Vector BVec_;
    ParGridFunction density_gf_;
@@ -325,6 +336,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              bool realPart = true);
+             int nuprof,
 
    StixSCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -345,6 +357,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              bool realPart = true);
+             int nuprof,
 
    StixDCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -365,6 +378,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              bool realPart = true);
+             int nuprof,
 
    StixPCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -385,6 +399,7 @@ public:
                   const Vector & charges,
                   const Vector & masses,
                   bool realPart = true);
+                  int nuprof,
 
    StixTensorBase(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -408,6 +423,7 @@ public:
                     const Vector & charges,
                     const Vector & masses,
                     bool realPart = true);
+                    int nuprof,
 
    DielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -430,6 +446,7 @@ public:
                            const Vector & charges,
                            const Vector & masses,
                            bool realPart = true);
+                           int nuprof,
 
    InverseDielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -450,7 +467,8 @@ public:
                        const ParFiniteElementSpace & H1FESpace,
                        double omega,
                        const Vector & charges,
-                       const Vector & masses);
+                       const Vector & masses,
+                       int nuprof);
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
