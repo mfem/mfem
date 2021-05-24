@@ -537,7 +537,7 @@ void KerOreoMult::token_COMA(Token &) const
        << "}\n";
    if (ops_stack.empty()) { assert(false); }  // something is wrong
    const int op = ops_stack.top();
-   assert(op == TOK::GRAD_OP) ; // Grad operation
+   MFEM_VERIFY(op == TOK::GRAD_OP, "Grad operation error!") ; // Grad operation
 }
 
 /** @endcond */

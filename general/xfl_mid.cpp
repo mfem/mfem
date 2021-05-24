@@ -458,7 +458,7 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
          auto res = ufl.ctx.fec.emplace(
                        fec_name,
                        xfl::fec{fec_name, family_name, type_name, order, dim, fec});
-         assert(res.second);
+         MFEM_VERIFY(res.second, "");
          // assert(false);
       }
       else if (next_token->Number() == TOK::IDENTIFIER)    // fec variable
@@ -514,7 +514,7 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
       ufl.ctx.tmp.type = TOK::FINITE_ELEMENT;
 
       const Node *fe = ufl.GetToken(TOK::FINITE_ELEMENT, n);
-      assert(fe);
+      MFEM_VERIFY(fe, "");
       assert(n->child);
       assert(n->child->next);
       assert(n->child->next->IsRule());

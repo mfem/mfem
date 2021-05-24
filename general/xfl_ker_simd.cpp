@@ -52,7 +52,7 @@ KerSimdSetup::KerSimdSetup(const int K, xfl &ufl, Node *root,
    const mfem::IntegrationRule &ir = mfem::IntRules.Get(GeomType, q);
    const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
    const int D1D = p + 1;
-   assert(Q1D >= D1D);
+   MFEM_VERIFY(Q1D >= D1D, "");
 
    out << "\n";
    out << "#include <thread>\n";

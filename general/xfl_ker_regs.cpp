@@ -469,7 +469,7 @@ void KerRegsMult::token_COMA(Token &) const
    //out << "\t\t\t\tReal u[DX0], v[DX0]; \n";
 
    const int op = ops_stack.top();
-   assert(op == TOK::GRAD_OP) ; // Grad operation
+   MFEM_VERIFY(op == TOK::GRAD_OP, "Grad operation error!") ; // Grad operation
    //out << "\t\t\t\tkernels::PullGrad1<Q1D>(qx,qy,qz,QQQ,u); \n";
    //ops_stack.pop();
    //out << "\t\t\t\tkernels::Mult(DX0,DX1,&DX(0,0,qx,qy,qz,e),u,v); \n";
