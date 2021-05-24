@@ -1041,8 +1041,9 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
-void Mesh::GetFaceInformation(int f, FaceInformation &info) const
+Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
 {
+   FaceInformation info;
    int e1, e2;
    int inf1, inf2;
    int ncface;
@@ -1096,6 +1097,7 @@ void Mesh::GetFaceInformation(int f, FaceInformation &info) const
          info.elem_2_index = e2==-1 ? e2 : -1 - e2;
       }
    }
+   return info;
 }
 
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const

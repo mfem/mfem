@@ -1063,7 +1063,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
-   Mesh::FaceInformation info;
    int e1, e2;
    int face_id1 = -1, face_id2 = -1;
    int orientation = -1;
@@ -1074,7 +1073,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -1146,7 +1145,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -1193,7 +1192,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -1502,7 +1501,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
-   Mesh::FaceInformation info;
    int e1, e2;
    int face_id1, face_id2;
    int orientation;
@@ -1520,7 +1518,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
@@ -1583,6 +1581,9 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   DenseMatrix* interp_mat = new DenseMatrix(dof,dof);
                   Vector shape(dof);
                   IntegrationPoint f_ip;
+                  std::cout << "face_id1 = " << face_id1
+                            << ", face_id2 = " << face_id2
+                            << ", orientation = " << orientation << std::endl;
 
                   switch (trace_fe->GetGeomType())
                   {
@@ -1702,7 +1703,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      mesh.GetFaceInformation(f, info);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       e1 = info.elem_1_index;
       e2 = info.elem_2_index;
       face_id1 = info.elem_1_local_face;
