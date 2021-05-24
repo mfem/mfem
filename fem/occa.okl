@@ -19,6 +19,7 @@
 #define DQ1D (D1D*Q1D)
 
 #define D2D (D1D*D1D)
+#define D3D (D1D*D1D*D1D)
 
 #define Q2D (Q1D*Q1D)
 #define Q3D (Q1D*Q1D*Q1D)
@@ -316,227 +317,30 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 }
 #endif
 
-#if 0
-// TW VERSION  (local to local)
-// these are guesses for how many elements to process in a thread-block
-#if Q1D==1
-#define E1D 64
-#elif Q1D==2
-#define E1D 32
-#elif Q1D==3
-#define E1D 21
-#elif Q1D==4
-#define E1D 16
-#elif Q1D==5
-#define E1D 12
-#elif Q1D==6
-#define E1D 10
-#elif Q1D==7
-#define E1D 9
-#elif Q1D==8
-#define E1D 8
-#elif Q1D==9
-#define E1D 5
-#elif Q1D==10
-#define E1D 4
-#else
-#define E1D 1
-#endif
-
-
-// TW VERSION
-@kernel void DiffusionApply2D_GPU(const int NE,
-				  @restrict const int *gatherMap,
-                                  @restrict const double *B, 
-                                  @restrict const double *G,
-                                  @restrict const double *Bt,
-                                  @restrict const double *Gt,
-                                  @restrict const double *op,
-                                  @restrict const double *X,
-                                  @restrict double *Y) {
-  // Iterate over elements
-  for (int eOff = 0; eOff < NE; eOff += E1D; @outer) {
-
-    // Store dof <--> quad mappings
-    @shared double s_B[Q1D][D1D];
-    @shared double s_G[Q1D][D1D];
-    
-    // Store xy planes in @shared memory
-    @shared double s_wk0[E1D][Q1D][Q1D];
-    @shared double s_wk1[E1D][Q1D][Q1D];
-
-    // Registers for thread local values
-    @exclusive double r_u, r_v;
-
-    // Reuse wk0 for input
-#define s_X s_wk0
-
-    // element number for this thread
-    @exclusive int e;
-    
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
-	  {
-	    // load B(asis) and G(radient) matrices
-	    int dx = qx, dy = qy;
-	    if(dx<D1D && ez==0)
-	      {
-		int id = qy + Q1D*dx;
-		s_B[qy][dx] = B[id]; // check this
-		s_G[qy][dx] = G[id];
-	      }
-	    
-	    // find element for this thread
-	    e = ez + eOff;
-	    if(e<NE && dx<D1D && dy<D1D)
-	      {
-		s_X[ez][dy][dx] = X[dx + dy*D1D + e*D2D];
-	      }
-	  }
-    
-    
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
-      for(int dy = 0; dy < Q1D; ++dy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
-	  {
-	    double u = 0.0;
-	    double v = 0.0;
-	    
-	    if(dy<D1D){
-#pragma unroll D1D
-	      for(int dx = 0; dx < D1D; ++dx){
-		const double coords = s_X[ez][dy][dx];
-		u += s_G[qx][dx] * coords;
-		v += s_B[qx][dx] * coords;
-	      }
-	      r_u = u;
-	      r_v = v;
-	    }
-	  }
-
-    // swap reg<>shared
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
-	  {
-	    s_wk0[ez][qy][qx] = r_u;
-	    s_wk1[ez][qy][qx] = r_v;
-	  }
-    
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
-	  {
-	    // prefetch Jacobian values
-	    double O11 = 0, O12 = 0, O21 = 0, O22 = 0;
-	    
-	    if(e<NE){
-	      int Ngeo = 3;
-	      int id = e*Ngeo*Q2D  + qy*Q1D + qx;
-	      O11 = op[id+0*Q2D];
-	      O21 = op[id+1*Q2D];
-	      O22 = op[id+2*Q2D];
-	      O12 = O21;
-	    }
-	    
-	    double gX = 0.0;
-	    double gY = 0.0;
-#pragma unroll D1D
-	    for(int dy = 0; dy < D1D; ++dy){
-	      gX += s_wk0[ez][dy][qx] * s_B[qy][dy];
-	      gY += s_wk1[ez][dy][qx] * s_G[qy][dy];
-	    }
-	    r_u = (O11 * gX) + (O12 * gY);
-	    r_v = (O21 * gX) + (O22 * gY);
-	  }
-    
-    // swap reg<>shared
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
-	  {
-	    s_wk0[ez][qy][qx] = r_u;
-	    s_wk1[ez][qy][qx] = r_v;
-	  }
-
-    
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))      
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))	
-	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
-	  {
-	    if(dx<D1D){
-	      double u = 0.0;
-	      double v = 0.0;
-	      
-#pragma unroll Q1D
-	      for (int qx = 0; qx < Q1D; ++qx)
-		{
-		  u += s_G[qx][dx] * s_wk0[ez][qy][qx]; // TW
-		  v += s_B[qx][dx] * s_wk1[ez][qy][qx];
-		}
-	      
-	      r_u = u;
-	      r_v = v;
-	    }
-	  }
-    
-    // swap reg<>shared
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
-	  {
-	    s_wk0[ez][qy][qx] = r_u;
-	    s_wk1[ez][qy][qx] = r_v;
-	  }
-      
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
-      for(int dy = 0; dy < Q1D; ++dy; @inner(1))
-	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
-	  {
-	    if(dx<D1D && dy<D1D && e<NE){
-	      double u = Y[dx+dy*D1D+e*D2D];
-	      
-#pragma unroll Q1D
-	      for (int qy = 0; qy < Q1D; ++qy)
-		{
-		  u += s_wk0[ez][qy][dx] * s_B[qy][dy];
-		  u += s_wk1[ez][qy][dx] * s_G[qy][dy];
-		}
-	      
-	      Y[dx + dy*D1D + e*D2D] = (u);
-	    }
-	  }
-  }
-}
-#endif
-
-
-#if 1
 // TW version (global to local)
 // these are guesses for how many elements to process in a thread-block
 #if Q1D==1
-#define E1D 64
+#define E2D 64
 #elif Q1D==2
-#define E1D 32
+#define E2D 32
 #elif Q1D==3
-#define E1D 21
+#define E2D 21
 #elif Q1D==4
-#define E1D 16
+#define E2D 16
 #elif Q1D==5
-#define E1D 12
+#define E2D 12
 #elif Q1D==6
-#define E1D 10
+#define E2D 10
 #elif Q1D==7
-#define E1D 9
+#define E2D 9
 #elif Q1D==8
-#define E1D 8
+#define E2D 8
 #elif Q1D==9
-#define E1D 5
+#define E2D 5
 #elif Q1D==10
-#define E1D 4
+#define E2D 4
 #else
-#define E1D 1
+#define E2D 1
 #endif
 
 
@@ -551,15 +355,15 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
                                   @restrict const double *X,
                                   @restrict double *Y) {
   // Iterate over elements
-  for (int eOff = 0; eOff < NE; eOff += E1D; @outer) {
+  for (int eOff = 0; eOff < NE; eOff += E2D; @outer) {
 
     // Store dof <--> quad mappings
     @shared double s_B[Q1D][D1D];
     @shared double s_G[Q1D][D1D];
     
     // Store xy planes in @shared memory
-    @shared double s_wk0[E1D][Q1D][Q1D];
-    @shared double s_wk1[E1D][Q1D][Q1D];
+    @shared double s_wk0[E2D][Q1D][Q1D];
+    @shared double s_wk1[E2D][Q1D][Q1D];
 
     // Registers for thread local values
     @exclusive double r_u, r_v;
@@ -570,7 +374,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
     // element number for this thread
     @exclusive int e, globalId, globalSign;
     
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
       for(int qy = 0; qy < Q1D; ++qy; @inner(1))
 	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
 	  {
@@ -606,7 +410,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	  }
     
     
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
       for(int dy = 0; dy < Q1D; ++dy; @inner(1))
 	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
 	  {
@@ -626,7 +430,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	  }
 
     // swap reg<>shared
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
       for(int qy = 0; qy < Q1D; ++qy; @inner(1))
 	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
 	  {
@@ -634,7 +438,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	    s_wk1[ez][qy][qx] = r_v;
 	  }
     
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
       for(int qy = 0; qy < Q1D; ++qy; @inner(1))
 	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
 	  {
@@ -662,7 +466,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	  }
     
     // swap reg<>shared
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
       for(int qy = 0; qy < Q1D; ++qy; @inner(1))
 	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
 	  {
@@ -671,7 +475,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	  }
 
     
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))      
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))      
       for(int qy = 0; qy < Q1D; ++qy; @inner(1))	
 	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
 	  {
@@ -692,7 +496,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	  }
     
     // swap reg<>shared
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
       for(int qy = 0; qy < Q1D; ++qy; @inner(1))
 	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
 	  {
@@ -700,7 +504,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	    s_wk1[ez][qy][qx] = r_v;
 	  }
       
-    for(int ez = 0; ez < E1D; ++ez; @inner(2))
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
       for(int dy = 0; dy < Q1D; ++dy; @inner(1))
 	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
 	  {
@@ -723,8 +527,6 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	  }
   }
 }
-#endif
-
 
 
 @kernel void DiffusionApply3D_CPU(const int NE,
@@ -881,7 +683,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
   }
 }
 
-@kernel void DiffusionApply3D_GPU(const int NE,
+@kernel void DiffusionApply3D_GPU_old(const int NE,
                                   @restrict const DofToQuad_t B,
                                   @restrict const DofToQuad_t G,
                                   @restrict const QuadToDof_t Bt,
@@ -1042,6 +844,249 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
     }
   }
 }
+
+@kernel void DiffusionApply3D_GPU(const int NE,
+				  @restrict const int *gatherMap,
+				  @restrict const double *B, 
+                                  @restrict const double *GG,
+                                  @restrict const double *Bt,
+                                  @restrict const double *Gt,
+                                  @restrict const double *op,
+                                  @restrict const double *X,
+                                  @restrict double *Y) {
+
+  for(int e=0;e<NE;++e;@outer(0)){
+
+    @shared double s_q[Q1D][Q1D][Q1D];
+    @shared double s_Jqr[Q1D][Q1D];
+    @shared double s_Jqs[Q1D][Q1D];
+    
+    @shared double s_B[Q1D][D1D];
+    @shared double s_G[Q1D][Q1D];
+    
+    @exclusive double r_wk[Q1D];
+
+    @exclusive int globalId, globalSign;
+    
+    for(int b=0;b<Q1D;++b;@inner(1)){
+      for(int a=0;a<Q1D;++a;@inner(0)){
+	if(a<D1D){
+	  s_B[b][a] = B[b+Q1D*a];
+	}
+	// check the format for this 
+	s_GG[b][a] = G[b+Q1D*a];
+      }
+    }
+
+    // interp in 't'
+    for(int b=0;b<Q1D;++b;@inner(1)){
+      for(int a=0;a<Q1D;++a;@inner(0)){
+
+	for(int k=0;k<Q1D;++k){
+	  r_wk[k] = 0;
+	}
+
+	if(a<D1D && b<D1D){
+	  
+	  //#pragma unroll D1D
+	  for(int c=0;c<D1D;++c){
+	    
+	    // TW this needs to be fixed for multiple fields
+	    // find global index
+	    const int gid = gatherMap[e*D3D+c*D1D*D1D + b*D1D + a];
+	    // check if non-negative
+	    const bool plus = gid >= 0;
+	    // adjust look up based on if bc or not
+	    globalId = plus ? gid : -1-gid;
+	    // look up value
+	    double Xgid = X[globalId];
+	    globalSign = (plus) ? 1:-1;
+
+	    // load
+	    double q_cba  = globalSign*Xgid;
+
+	    //#pragma unroll Q1D
+	    for(int k=0;k<Q1D;++k){
+	      r_wk[k] += s_B[k][c]*q_cba;
+	    }
+	  }
+	}
+
+	for(int k=0;k<Q1D;++k){
+	  s_q[k][b][a] = r_wk[k];
+	  r_wk[k] = 0;
+	}
+      }
+    }
+
+    // transform in 's'
+    for(int k=0;k<Q1D;++k;@inner(1)){
+      for(int a=0;a<Q1D;++a;@inner(0)){
+	if(a<D1D){
+
+	  //#pragma unroll D1D
+	  for(int b=0;b<D1D;++b){
+	    double q_kba = s_q[k][b][a];
+	    //#pragma unroll Q1D
+	    for(int j=0;j<Q1D;++j){
+	      r_wk[j] += s_B[j][b]*q_kba;
+	    }
+	  }
+	}
+	
+	for(int j=0;j<Q1D;++j){
+	  s_q[k][j][a] = r_wk[j];
+	  r_wk[j] = 0;
+	}
+      }
+    }
+    
+    // transform in 'r'
+    for(int k=0;k<Q1D;++k;@inner(1)){
+      for(int j=0;j<Q1D;++j;@inner(0)){
+
+	//#pragma unroll D1D
+	for(int a=0;a<D1D;++a){
+	  double q_kja = s_q[k][j][a];
+	  //#pragma unroll Q1D
+	  for(int i=0;i<Q1D;++i){
+	    r_wk[i] += s_B[i][a]*q_kja;
+	  }
+	}
+	
+	for(int i=0;i<Q1D;++i){
+	  s_q[k][j][i] = r_wk[i];
+	  r_wk[i] = 0;
+	}
+      }
+    }
+
+#pragma unroll Q1D
+    for(int k=0;k<Q1D;++k){
+      
+      for(int j=0;j<Q1D;++j;@inner(1)){
+	for(int i=0;i<Q1D;++i;@inner(0)){
+
+	  double qr = 0, qs = 0, qt = 0;
+
+	  //#pragma unroll Q1D
+	  for(int n=0;n<Q1D;++n){
+	    qr += s_GG[i][n]*s_q[k][j][n]; // max 2*12TB/s / 16 => 1.5TF/s
+	    qs += s_GG[j][n]*s_q[k][n][i];
+	    qt += s_GG[k][n]*s_q[n][j][i];
+	  }
+
+	  // hard coded parameters
+	  const int gbase = e*6*Q3D + i + j*Q1D + k*Q1D*Q1D;
+	  const double G00 = op[gbase+0*Q3D];
+	  const double G01 = op[gbase+1*Q3D];
+	  const double G02 = op[gbase+2*Q3D];
+	  const double G11 = op[gbase+3*Q3D];
+	  const double G12 = op[gbase+4*Q3D];
+	  const double G22 = op[gbase+5*Q3D];
+	  
+	  double Jqr = G00*qr + G01*qs + G02*qt;
+	  double Jqs = G01*qr + G11*qs + G12*qt;
+	  double Jqt = G02*qr + G12*qs + G22*qt;
+	  
+	  s_Jqr[j][i] = Jqr;
+	  s_Jqs[j][i] = Jqs;
+
+	  //#pragma unroll Q1D
+	  for(int n=0;n<Q1D;++n){
+	    r_wk[n] += s_GG[k][n]*Jqt;
+	  }
+	}
+      }
+      
+      for(int j=0;j<Q1D;++j;@inner(1)){
+	for(int i=0;i<Q1D;++i;@inner(0)){
+
+	  //#pragma unroll Q1D
+	  for(int n=0;n<Q1D;++n){
+	    r_wk[k] += s_GG[n][i]*s_Jqr[j][n];
+	    r_wk[k] += s_GG[n][j]*s_Jqs[n][i];
+	  }
+	}
+      }
+    }
+
+    for(int j=0;j<Q1D;++j;@inner(1)){
+      for(int i=0;i<Q1D;++i;@inner(0)){
+	
+	// test in 't'
+	//#pragma unroll D1D
+	for(int c=0;c<D1D;++c){
+	  double tmp = 0;
+	  //#pragma unroll Q1D
+	  for(int k=0;k<Q1D;++k){
+	    tmp += s_B[k][c]*r_wk[k];
+	  }
+	  s_q[c][j][i] = tmp;
+	}
+      }
+    }
+
+    for(int c=0;c<Q1D;++c;@inner(1)){
+      for(int i=0;i<Q1D;++i;@inner(0)){
+	if(c<D1D){
+	  
+	  for(int j=0;j<D1D;++j){
+	    r_wk[j] = s_q[c][j][i];
+	  }
+	  
+	  // test in 's'
+	  //#pragma unroll D1D
+	  for(int b=0;b<D1D;++b){
+	    double tmp = 0;
+	    //#pragma unroll Q1D
+	    for(int j=0;j<Q1D;++j){
+	      tmp += s_B[j][b]*r_wk[j]; // 3TF/s
+	    }
+	    s_q[c][b][i] = tmp;
+	  }
+	}
+      }
+    }
+
+    for(int c=0;c<Q1D;++c;@inner(1)){
+      for(int b=0;b<Q1D;++b;@inner(0)){
+	if(b<D1D && c<D1D){
+	  
+	  for(int i=0;i<D1D;++i){
+	    r_wk[i] = s_q[c][b][i];
+	  }
+	  
+	  // test in 'r'
+	  //#pragma unroll D1D
+	  for(int a=0;a<D1D;++a){
+	    double tmp = 0;
+	    //#pragma unroll Q1D
+	    for(int i=0;i<Q1D;++i){
+	      tmp += s_B[i][a]*r_wk[i]; // 3TF/s
+	    }
+	    s_q[c][b][a] = tmp;
+	  }
+	}
+      }
+    }
+
+    // fixed to here ?
+    for(int b=0;b<Q1D;++b;@inner(1)){
+      for(int a=0;a<Q1D;++a;@inner(0)){
+	if(a<D1D && b<D1D){
+	  for(int c=0;c<D1D;++c){
+	    double Aq_cba = globalSign*s_q[c][b][a];
+	    atomicAdd(Y+globalId, Aq_cba);
+	  }
+	}
+      }
+    }
+  }
+}
+
+
+
 
 @kernel void MassApply2D_CPU(const int NE,
                              @restrict const DofToQuad_t B,

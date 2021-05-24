@@ -993,6 +993,7 @@ static void OccaPADiffusionApply2D(const int D1D,
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
+
    const occa::memory o_gatherMap = OccaMemoryRead(gatherMap.GetMemory(), gatherMap.Size());
 
    const occa::memory o_B = OccaMemoryRead(B.GetMemory(), B.Size());
@@ -1033,6 +1034,7 @@ static void OccaPADiffusionApply2D(const int D1D,
 static void OccaPADiffusionApply3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
+				   const Array<int> &gatherMap,
                                    const Array<double> &B,
                                    const Array<double> &G,
                                    const Array<double> &Bt,
@@ -1044,6 +1046,9 @@ static void OccaPADiffusionApply3D(const int D1D,
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
+
+   const occa::memory o_gatherMap = OccaMemoryRead(gatherMap.GetMemory(), gatherMap.Size());
+   
    const occa::memory o_B = OccaMemoryRead(B.GetMemory(), B.Size());
    const occa::memory o_G = OccaMemoryRead(G.GetMemory(), G.Size());
    const occa::memory o_Bt = OccaMemoryRead(Bt.GetMemory(), Bt.Size());
@@ -1074,7 +1079,7 @@ static void OccaPADiffusionApply3D(const int D1D,
                                         "DiffusionApply3D_GPU", props);
          OccaDiffApply3D_gpu.emplace(id, DiffusionApply3D_GPU);
       }
-      OccaDiffApply3D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_D, o_X, o_Y);
+      OccaDiffApply3D_gpu.at(id)(NE, o_gatherMap, o_B, o_G, o_Bt, o_Gt, o_D, o_X, o_Y);
    }
 }
 #endif // MFEM_USE_OCCA
@@ -1893,13 +1898,13 @@ static void PADiffusionApply(const int dim,
       if (dim == 2)
       {
 	OccaPADiffusionApply2D(D1D,Q1D,NE,gatherMap, B,G,Bt,Gt,D,X,Y);
-         return;
+	return;
       }
       if (dim == 3)
-      {
-         OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,D,X,Y);
-         return;
-      }
+	{
+	  OccaPADiffusionApply3D(D1D,Q1D,NE,gatherMap,B,G,Bt,Gt,D,X,Y);
+	  return;
+	}
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
