@@ -144,6 +144,8 @@ examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
 examples/petsc/mode_*
 
+examples/arpack/ex11
+
 examples/pumi/ex1
 examples/pumi/ex[126]p
 examples/pumi/refined.mesh
