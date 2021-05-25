@@ -462,6 +462,19 @@ MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
 
+MFEM_USE_ADEPT = YES/NO
+  Enable automatic differentiation using the ADEPT library.
+  (http://www.met.reading.ac.uk/clouds/adept)
+  Please, compile the library with flag --disable-openmp.
+
+MFEM_USE_FADBADPP = YES/NO
+  Enable automatic differentiation using the FADBAD++ library.
+  www.fadbad.com/fadbad.html
+
+MFEM_USE_ADFORWARD = YES/NO
+  Enable forward mode for AD packages. This option is valid
+  only if the AD package supports two modes (backward/forward).
+
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
    platform and programming model for general computing on graphical processing
@@ -684,6 +697,16 @@ The specific libraries and their options are:
   Options: HIOP_OPT, HIOP_LIB.
   Versions: HIOP >= 0.4.
 
+- ADEPT (optional), used with MFEM_USE_ADEPT = YES
+  URL: www.met.reading.ac.uk/clouds/adept/
+  Options: ADEPT_OPT, ADEPT_LIB
+  Versions: 1.1 and 2.0.5
+
+- FADBAD++ (optiobal), used with MFEM_USE_FADBADPP = YES
+  URL: www.fadbad.com/fadbad.html
+  Options: FADBADPP_OPT
+  Versions: 2.1
+
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
   the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
@@ -875,6 +898,9 @@ MFEM_USE_MPFR
 MFEM_USE_ZLIB
 MFEM_USE_PUMI
 MFEM_USE_HIOP
+MFEM_USE_ADEPT
+MFEM_USE_FADBADPP
+MFEM_USE_ADFORWARD
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_CEED
@@ -931,6 +957,8 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - POSIXCLOCKS
  - PUMI
  - HIOP
+ - ADEPT
+ - FADBAD++
  - OCCA
  - RAJA
  - UMPIRE
