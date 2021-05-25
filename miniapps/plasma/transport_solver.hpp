@@ -3713,6 +3713,47 @@ public:
                                    DenseMatrix &elmat);
 };
 
+class DGAdvDiffBaseIntegrator
+{
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   VectorCoefficient *beta;
+   Coefficient *QPara;
+   Coefficient *QPerp;
+   double lambda, sigma, kappa1, kappa2;
+
+   DGAdvDiffBaseIntegrator(Coefficient & q, VectorCoefficient & b,
+                           double l, double s, double k1, double k2)
+      :
+      Q(&q),
+      MQ(NULL),
+      beta(&b),
+      QPara(NULL),
+      QPerp(NULL),
+      lambda(l),
+      sigma(s),
+      kappa1(k1),
+      kappa2(k2)
+   { }
+
+   DGAdvDiffBaseIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
+                           Coefficient &qPara, Coefficient &qPerp,
+                           double l, double s, double k1, double k2)
+      :
+      Q(NULL),
+      MQ(&q),
+      beta(&b),
+      QPara(&qPara),
+      QPerp(&qPerp),
+      lambda(l),
+      sigma(s),
+      kappa1(k1),
+      kappa2(k2)
+   { }
+
+};
+
 /** Integrator for the DG form:
 
     < {- Q grad(u) + beta u}_alpha, [v] >
@@ -3756,45 +3797,26 @@ public:
     slight modifications). Note in particular that our sigma parameter is the
     negative of the theta parameter from the paper.
 */
-class DGAdvDiffIntegrator : public BilinearFormIntegrator
+class DGAdvDiffIntegrator : public BilinearFormIntegrator,
+   DGAdvDiffBaseIntegrator
 {
-protected:
-   Coefficient *Q;
-   MatrixCoefficient *MQ;
-   VectorCoefficient *beta;
-   Coefficient *tau;
-   double sigma, kappa1, kappa2;
-
+private:
 #ifndef MFEM_THREAD_SAFE
    Vector shape1, shape2, nQdshape1, nQdshape2;
    DenseMatrix dshape1, dshape2;
 #endif
 
+   double ComputeUpwindingParam(double epsilon, double betaMag);
+
 public:
    DGAdvDiffIntegrator(Coefficient & q, VectorCoefficient & b,
-                       Coefficient &t, double s, double k1, double k2)
-      :
-      Q(&q),
-      MQ(NULL),
-      beta(&b),
-      tau(&t),
-      sigma(s),
-      kappa1(k1),
-      kappa2(k2)
-   { }
+                       double l, double s, double k1, double k2)
+      : DGAdvDiffBaseIntegrator(q, b, l, s, k1, k2) {}
 
    DGAdvDiffIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
-                       Coefficient &qp,
-                       Coefficient &t, double s, double k1, double k2)
-      :
-      Q(&qp),
-      MQ(&q),
-      beta(&b),
-      tau(&t),
-      sigma(s),
-      kappa1(k1),
-      kappa2(k2)
-   { }
+                       Coefficient &qPara, Coefficient &qPerp,
+                       double l, double s, double k1, double k2)
+      : DGAdvDiffBaseIntegrator(q, b, qPara, qPerp, l, s, k1, k2) {}
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3803,15 +3825,10 @@ public:
                                    DenseMatrix &elmat);
 };
 
-class DGAdvDiffBdrIntegrator : public BilinearFormIntegrator
+class DGAdvDiffBdrIntegrator : public BilinearFormIntegrator,
+   DGAdvDiffBaseIntegrator
 {
-protected:
-   Coefficient *Q;
-   MatrixCoefficient *MQ;
-   VectorCoefficient *beta;
-   Coefficient *tau;
-   double sigma, kappa1, kappa2;
-
+private:
 #ifndef MFEM_THREAD_SAFE
    Vector shape1, nQdshape1;
    DenseMatrix dshape1;
@@ -3819,29 +3836,13 @@ protected:
 
 public:
    DGAdvDiffBdrIntegrator(Coefficient & q, VectorCoefficient & b,
-                          Coefficient &t, double s, double k1, double k2)
-      :
-      Q(&q),
-      MQ(NULL),
-      beta(&b),
-      tau(&t),
-      sigma(s),
-      kappa1(k1),
-      kappa2(k2)
-   { }
+                          double l, double s, double k1, double k2)
+      : DGAdvDiffBaseIntegrator(q, b, l, s, k1, k2) {}
 
    DGAdvDiffBdrIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
-                          Coefficient & qp, Coefficient &t,
-                          double s, double k1, double k2)
-      :
-      Q(&qp),
-      MQ(&q),
-      beta(&b),
-      tau(&t),
-      sigma(s),
-      kappa1(k1),
-      kappa2(k2)
-   { }
+                          Coefficient &qPara, Coefficient &qPerp,
+                          double l, double s, double k1, double k2)
+      : DGAdvDiffBaseIntegrator(q, b, qPara, qPerp, l, s, k1, k2) {}
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3860,13 +3861,11 @@ public:
     where Q is a scalar or matrix diffusion coefficient and v is the test
     function. The parameters sigma and kappa should be the same as the ones
     used in the DGDiffusionIntegrator. */
-class DGAdvDiffDirichletLFIntegrator : public LinearFormIntegrator
+class DGAdvDiffDirichletLFIntegrator : public LinearFormIntegrator,
+   DGAdvDiffBaseIntegrator
 {
-protected:
-   Coefficient *uD, *Q;
-   MatrixCoefficient *MQ;
-   VectorCoefficient *beta;
-   double sigma, kappa1, kappa2;
+private:
+   Coefficient *uD;
 
    // these are not thread-safe!
    Vector shape, dshape_dn, nor, nh, ni, vb;
@@ -3876,19 +3875,26 @@ public:
    DGAdvDiffDirichletLFIntegrator(Coefficient &u,
                                   Coefficient &q,
                                   VectorCoefficient & b,
-                                  const double s,
-                                  const double k1,
-                                  const double k2)
-      : uD(&u), Q(&q), MQ(NULL), beta(&b), sigma(s), kappa1(k1), kappa2(k2) { }
+                                  double l,
+                                  double s,
+                                  double k1,
+                                  double k2)
+      : DGAdvDiffBaseIntegrator(q, b, l, s, k1, k2),
+        uD(&u)
+   { }
 
    DGAdvDiffDirichletLFIntegrator(Coefficient &u,
                                   MatrixCoefficient &q,
                                   VectorCoefficient & b,
-                                  Coefficient &qp,
-                                  const double s,
-                                  const double k1,
-                                  const double k2)
-      : uD(&u), Q(&qp), MQ(&q), beta(&b), sigma(s), kappa1(k1), kappa2(k2) { }
+                                  Coefficient &qPara,
+                                  Coefficient &qPerp,
+                                  double l,
+                                  double s,
+                                  double k1,
+                                  double k2)
+      : DGAdvDiffBaseIntegrator(q, b, qPara, qPerp, l, s, k1, k2),
+        uD(&u)
+   { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

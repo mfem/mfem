@@ -5032,6 +5032,19 @@ void DGAnisoDiffusionIntegrator::AssembleFaceMatrix(
    }
 }
 
+double DGAdvDiffIntegrator::ComputeUpwindingParam(double epsilon,
+                                                  double betaMag)
+{
+   // Diffusion dominated
+   if (lambda * epsilon > betaMag) { return 0.1; }
+
+   // Advection dominated
+   if (lambda * epsilon < 1e-5 * betaMag) { return 0.8; }
+
+   // Transitional region
+   return 0.1 - 0.14 * log10(lambda * epsilon / betaMag);
+}
+
 void DGAdvDiffIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                              const FiniteElement &el2,
                                              FaceElementTransformations &Trans,
@@ -5040,7 +5053,7 @@ void DGAdvDiffIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
    int dim, ndof1, ndof2;
 
    double w, a00, a01, a10, q1, q2, t1, t2, t, b1n, nQ1n, nQ2n,
-          alpha1, alpha2;
+          alpha1, alpha2, bnrm;
 
    dim = el1.GetDim();
    Vector nor(dim);
@@ -5128,10 +5141,25 @@ void DGAdvDiffIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          q1 = Q->Eval(*Trans.Elem1, eip1);
          q2 = Q->Eval(*Trans.Elem2, eip2);
       }
-      if (MQ)
+      else if (MQ)
       {
          MQ->Eval(Q1, *Trans.Elem1, eip1);
          MQ->Eval(Q2, *Trans.Elem2, eip2);
+
+         double qPara1 = 0.0, qPara2 = 0.0;
+         double qPerp1 = 0.0, qPerp2 = 0.0;
+         if (QPara)
+         {
+            qPara1 = QPara->Eval(*Trans.Elem1, eip1);
+            qPara2 = QPara->Eval(*Trans.Elem2, eip2);
+         }
+         if (QPerp)
+         {
+            qPerp1 = QPerp->Eval(*Trans.Elem1, eip1);
+            qPerp2 = QPerp->Eval(*Trans.Elem2, eip2);
+         }
+         q1 = std::max(qPara1, qPerp1);
+         q2 = std::max(qPara2, qPerp2);
       }
 
       beta->Eval(B1, *Trans.Elem1, eip1);
@@ -5140,8 +5168,10 @@ void DGAdvDiffIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       // beta should be continuous but it may not be
       add(0.5, B1, 0.5, B2, B);
 
-      t1 = tau->Eval(*Trans.Elem1, eip1);
-      t2 = tau->Eval(*Trans.Elem2, eip2);
+      bnrm = sqrt(B * B);
+
+      t1 = ComputeUpwindingParam(q1, bnrm);
+      t2 = ComputeUpwindingParam(q2, bnrm);
 
       // tau should be continuous but just in case...
       t = 0.5 * (t1 + t2);
@@ -5263,7 +5293,7 @@ DGAdvDiffBdrIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 {
    int dim, ndof1;
 
-   double w, a00, a01, a10, q1, t1, b1n, nQ1n;
+   double w, a00, a01, a10, q1, b1n, nQ1n;
 
    dim = el1.GetDim();
    Vector nor(dim);
@@ -5334,14 +5364,23 @@ DGAdvDiffBdrIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       {
          q1 = Q->Eval(*Trans.Elem1, eip1);
       }
-      if (MQ)
+      else if (MQ)
       {
          MQ->Eval(Q1, *Trans.Elem1, eip1);
+
+         double qPara1 = 0.0, qPerp1 = 0.0;
+         if (QPara)
+         {
+            qPara1 = QPara->Eval(*Trans.Elem1, eip1);
+         }
+         if (QPerp)
+         {
+            qPerp1 = QPerp->Eval(*Trans.Elem1, eip1);
+         }
+         q1 = std::max(qPara1, qPerp1);
       }
 
       beta->Eval(B1, *Trans.Elem1, eip1);
-
-      t1 = tau->Eval(*Trans.Elem1, eip1);
 
       if (dim == 1)
       {
