@@ -862,22 +862,22 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
     @shared double s_Jqs[Q1D][Q1D];
     
     @shared double s_B[Q1D][D1D];
-    @shared double s_G[Q1D][Q1D];
+    @shared double s_GG[Q1D][Q1D];
     
     @exclusive double r_wk[Q1D];
 
-    @exclusive int globalId, globalSign;
-    
     for(int b=0;b<Q1D;++b;@inner(1)){
       for(int a=0;a<Q1D;++a;@inner(0)){
 	if(a<D1D){
 	  s_B[b][a] = B[b+Q1D*a];
 	}
 	// check the format for this 
-	s_GG[b][a] = G[b+Q1D*a];
+	s_GG[b][a] = GG[b*Q1D+a];
       }
     }
 
+    @barrier("local");
+    
     // interp in 't'
     for(int b=0;b<Q1D;++b;@inner(1)){
       for(int a=0;a<Q1D;++a;@inner(0)){
@@ -897,10 +897,10 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	    // check if non-negative
 	    const bool plus = gid >= 0;
 	    // adjust look up based on if bc or not
-	    globalId = plus ? gid : -1-gid;
+	    int globalId = plus ? gid : -1-gid;
 	    // look up value
 	    double Xgid = X[globalId];
-	    globalSign = (plus) ? 1:-1;
+	    int globalSign = (plus) ? 1:-1;
 
 	    // load
 	    double q_cba  = globalSign*Xgid;
@@ -963,6 +963,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
 #pragma unroll Q1D
     for(int k=0;k<Q1D;++k){
+
+      @barrier("local");
       
       for(int j=0;j<Q1D;++j;@inner(1)){
 	for(int i=0;i<Q1D;++i;@inner(0)){
@@ -998,6 +1000,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	  }
 	}
       }
+
+      @barrier("local");
       
       for(int j=0;j<Q1D;++j;@inner(1)){
 	for(int i=0;i<Q1D;++i;@inner(0)){
@@ -1013,29 +1017,39 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
     for(int j=0;j<Q1D;++j;@inner(1)){
       for(int i=0;i<Q1D;++i;@inner(0)){
-	
-	// test in 't'
-	//#pragma unroll D1D
-	for(int c=0;c<D1D;++c){
-	  double tmp = 0;
-	  //#pragma unroll Q1D
-	  for(int k=0;k<Q1D;++k){
-	    tmp += s_B[k][c]*r_wk[k];
-	  }
-	  s_q[c][j][i] = tmp;
+	for(int k=0;k<Q1D;++k){
+	  s_q[k][j][i] = r_wk[k];
 	}
       }
     }
 
-    for(int c=0;c<Q1D;++c;@inner(1)){
-      for(int i=0;i<Q1D;++i;@inner(0)){
-	if(c<D1D){
-	  
-	  for(int j=0;j<D1D;++j){
-	    r_wk[j] = s_q[c][j][i];
+    // test in 'r'
+    for(int k=0;k<Q1D;++k;@inner(1)){
+      for(int j=0;j<Q1D;++j;@inner(0)){
+	for(int i=0;i<Q1D;++i){
+	  r_wk[i] = s_q[k][j][i];
+	}
+	
+	//#pragma unroll D1D
+	for(int a=0;a<D1D;++a){
+	  double tmp = 0;
+	  //#pragma unroll Q1D
+	  for(int i=0;i<Q1D;++i){
+	    tmp += s_B[i][a]*r_wk[i]; // 3TF/s
+	  }
+	  s_q[k][j][a] = tmp;
+	}
+      }
+    }
+
+    // test in 's'
+    for(int k=0;k<Q1D;++k;@inner(1)){
+      for(int a=0;a<Q1D;++a;@inner(0)){
+	if(a<D1D){
+	  for(int j=0;j<Q1D;++j){
+	    r_wk[j] = s_q[k][j][a];
 	  }
 	  
-	  // test in 's'
 	  //#pragma unroll D1D
 	  for(int b=0;b<D1D;++b){
 	    double tmp = 0;
@@ -1043,40 +1057,38 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	    for(int j=0;j<Q1D;++j){
 	      tmp += s_B[j][b]*r_wk[j]; // 3TF/s
 	    }
-	    s_q[c][b][i] = tmp;
+	    s_q[k][b][a] = tmp;
 	  }
 	}
       }
     }
 
-    for(int c=0;c<Q1D;++c;@inner(1)){
-      for(int b=0;b<Q1D;++b;@inner(0)){
-	if(b<D1D && c<D1D){
-	  
-	  for(int i=0;i<D1D;++i){
-	    r_wk[i] = s_q[c][b][i];
-	  }
-	  
-	  // test in 'r'
-	  //#pragma unroll D1D
-	  for(int a=0;a<D1D;++a){
-	    double tmp = 0;
-	    //#pragma unroll Q1D
-	    for(int i=0;i<Q1D;++i){
-	      tmp += s_B[i][a]*r_wk[i]; // 3TF/s
-	    }
-	    s_q[c][b][a] = tmp;
-	  }
-	}
-      }
-    }
 
-    // fixed to here ?
+    // test in 't' and store
     for(int b=0;b<Q1D;++b;@inner(1)){
       for(int a=0;a<Q1D;++a;@inner(0)){
 	if(a<D1D && b<D1D){
+	  for(int k=0;k<Q1D;++k){
+	    r_wk[k] = s_q[k][b][a];
+	  }
+	  //#pragma unroll D1D
 	  for(int c=0;c<D1D;++c){
-	    double Aq_cba = globalSign*s_q[c][b][a];
+	    double tmp = 0;
+	    //#pragma unroll Q1D
+	    for(int k=0;k<Q1D;++k){
+	      tmp += s_B[k][c]*r_wk[k]; // 3TF/s
+	    }
+	    
+	    const int gid = gatherMap[e*D3D+c*D1D*D1D + b*D1D + a];
+	    // check if non-negative
+	    const bool plus = gid >= 0;
+	    // adjust look up based on if bc or not
+	    int globalId = plus ? gid : -1-gid;
+	    // look up value
+	    int globalSign = (plus) ? 1:-1;
+	    
+	    // load
+	    double Aq_cba  = globalSign*tmp;
 	    atomicAdd(Y+globalId, Aq_cba);
 	  }
 	}

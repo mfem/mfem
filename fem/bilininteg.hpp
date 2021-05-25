@@ -1970,6 +1970,7 @@ private:
 
 #ifdef MFEM_USE_OCCA
   mfem::Array<int> twGatherMap;
+  mfem::Array<double> twGG;
 #endif
   
 public:
