@@ -14,11 +14,17 @@
 
 #include "catch.hpp"
 
-/// MFEM_Approx can be used to compare floating point values within an absolute
-/// tolerance of `margin` (default value 1e-12).
-inline Approx MFEM_Approx(double val, double margin = 1e-12)
+/// Command line '--all' option to launch all non-regression tests.
+extern bool launch_all_non_regression_tests;
+
+/** @brief MFEM_Approx can be used to compare floating point values within an
+    absolute tolerance of @a abs_tol (default value 1e-12) and relative
+    tolerance of @a rel_tol (default value 1e-12). */
+inline Approx MFEM_Approx(double val,
+                          double abs_tol = 1e-12,
+                          double rel_tol = 1e-12)
 {
-   return Approx(val).margin(margin);
+   return Approx(val).margin(abs_tol).epsilon(rel_tol);
 }
 
 #endif

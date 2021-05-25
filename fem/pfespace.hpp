@@ -54,16 +54,16 @@ private:
    mutable Array<int> ldof_ltdof;
 
    /// Offsets for the dofs in each processor in global numbering.
-   mutable Array<HYPRE_Int> dof_offsets;
+   mutable Array<HYPRE_BigInt> dof_offsets;
 
    /// Offsets for the true dofs in each processor in global numbering.
-   mutable Array<HYPRE_Int> tdof_offsets;
+   mutable Array<HYPRE_BigInt> tdof_offsets;
 
    /// Offsets for the true dofs in neighbor processor in global numbering.
-   mutable Array<HYPRE_Int> tdof_nb_offsets;
+   mutable Array<HYPRE_BigInt> tdof_nb_offsets;
 
    /// Previous 'dof_offsets' (before Update()), column partition of T.
-   Array<HYPRE_Int> old_dof_offsets;
+   Array<HYPRE_BigInt> old_dof_offsets;
 
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
@@ -72,6 +72,11 @@ private:
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
+
+   /** Used to indicate that the space is nonconforming (even if the underlying
+       mesh has NULL @a ncmesh). This occurs in low-order preconditioning on
+       nonconforming meshes. */
+   bool nonconf_P;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
@@ -149,8 +154,8 @@ private:
    HypreParMatrix*
    MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
                        int local_rows, int local_cols,
-                       Array<HYPRE_Int> &row_starts,
-                       Array<HYPRE_Int> &col_starts) const;
+                       Array<HYPRE_BigInt> &row_starts,
+                       Array<HYPRE_BigInt> &col_starts) const;
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix() const;
@@ -160,8 +165,8 @@ private:
        and the DOF -> true DOF map ('dof_tdof'). Returns the number of
        vector true DOFs. All pointer arguments are optional and can be NULL. */
    int BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
-                                            Array<HYPRE_Int> &dof_offs,
-                                            Array<HYPRE_Int> &tdof_offs,
+                                            Array<HYPRE_BigInt> &dof_offs,
+                                            Array<HYPRE_BigInt> &tdof_offs,
                                             Array<int> *dof_tdof,
                                             bool partial = false) const;
 
@@ -183,6 +188,14 @@ private:
    /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
    virtual void UpdateMeshPointer(Mesh *new_mesh);
 
+   /// Copies the prolongation and restriction matrices from @a fes.
+   ///
+   /// Used for low order preconditioning on non-conforming meshes. If the DOFs
+   /// require a permutation, it will be supplied by non-NULL @a perm. NULL @a
+   /// perm indicates that no permutation is required.
+   virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
+                                               const Array<int> *perm);
+
 public:
    // Face-neighbor data
    // Number of face-neighbor dofs
@@ -192,7 +205,7 @@ public:
    // Face-neighbor to ldof in the face-neighbor numbering
    Table face_nbr_ldof;
    // The global ldof indices of the face-neighbor dofs
-   Array<HYPRE_Int> face_nbr_glob_dof_map;
+   Array<HYPRE_BigInt> face_nbr_glob_dof_map;
    // Local face-neighbor data: face-neighbor to ldof
    Table send_face_nbr_ldof;
 
@@ -255,11 +268,11 @@ public:
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
-   HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
-   HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
-   HYPRE_Int GlobalVSize() const
+   HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }
+   HYPRE_BigInt *GetTrueDofOffsets() const { return tdof_offsets; }
+   HYPRE_BigInt GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
-   HYPRE_Int GlobalTrueVSize() const
+   HYPRE_BigInt GlobalTrueVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumCols(); }
 
    /// Return the number of local vector true dofs.
@@ -342,14 +355,14 @@ public:
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;
    /// Returns the global tdof number of the given local degree of freedom
-   HYPRE_Int GetGlobalTDofNumber(int ldof) const;
+   HYPRE_BigInt GetGlobalTDofNumber(int ldof) const;
    /** Returns the global tdof number of the given local degree of freedom in
        the scalar version of the current finite element space. The input should
        be a scalar local dof. */
-   HYPRE_Int GetGlobalScalarTDofNumber(int sldof);
+   HYPRE_BigInt GetGlobalScalarTDofNumber(int sldof);
 
-   HYPRE_Int GetMyDofOffset() const;
-   HYPRE_Int GetMyTDofOffset() const;
+   HYPRE_BigInt GetMyDofOffset() const;
+   HYPRE_BigInt GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
    /** @brief Return logical transpose of restriction matrix, but in
@@ -373,7 +386,7 @@ public:
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
-   const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 
@@ -381,8 +394,8 @@ public:
    void LoseDofOffsets() { dof_offsets.LoseData(); }
    void LoseTrueDofOffsets() { tdof_offsets.LoseData(); }
 
-   bool Conforming() const { return pmesh->pncmesh == NULL; }
-   bool Nonconforming() const { return pmesh->pncmesh != NULL; }
+   bool Conforming() const { return pmesh->pncmesh == NULL && !nonconf_P; }
+   bool Nonconforming() const { return pmesh->pncmesh != NULL || nonconf_P; }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the
