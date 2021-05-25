@@ -2429,6 +2429,23 @@ struct SolverParams
    TransPrecParams prec;
 };
 
+/** The DGTransportTDO class is designed to be used with an implicit
+    ODESolver to solve a specific set of coupled transport equations
+    using a Discontinuous Galerkin (DG) discretization of the relevant
+    PDEs.
+
+    This system of transport equations consists of mass conservation
+    equations for one species of neutrals and one species of ions,
+    momentum conservation for the ion species, and static pressure
+    equations for ions and electrons.  The static pressure equations
+    take the place of energy conservation equations.
+
+    The field variables are density of neutrals, density of ions,
+    velocity of ions in a direction parallel to the magnetic field,
+    and the ion and electron temperatures. The electron density is
+    assumed to depend on the ion density in such a way that
+    quasi-neutrality is maintained e.g. n_e = z_i n_i.
+*/
 class DGTransportTDO : public TimeDependentOperator
 {
 private:
