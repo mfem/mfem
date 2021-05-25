@@ -2604,6 +2604,40 @@ public:
    }
 };
 
+class SinPhi: public Coefficient
+{
+private:
+   double a_, b_;
+   int n_;
+
+   mutable Vector x_;
+
+   double (*sinFunc)(int n, const Vector &x);
+
+   static double Sin1(int n, const Vector &x)
+   { return x[1] / sqrt(x[0] * x[0] + x[1] * x[1]); }
+
+   static double Sin2(int n, const Vector &x)
+   { return 2.0 * x[0] * x[1] / (x[0] * x[0] + x[1] * x[1]); }
+
+   static double SinN(int n, const Vector &x)
+   {
+      double phi = atan2(x[1], x[0]);
+      return sin((double)n * phi);
+   }
+
+public:
+   SinPhi(double a, double b, int n)
+      : a_(a), b_(b), n_(n), x_(3)
+   { sinFunc = (n == 1) ? Sin1 : ((n == 2) ? Sin2 : SinN); }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ + b_ * (*sinFunc)(n_, x_);
+   }
+};
+
 class CirculationVector : public VectorCoefficient
 {
 private:
@@ -2654,6 +2688,13 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       double a, b, kx, ky;
       input >> a >> b >> kx >> ky;
       coef_idx = sCoefs.Append(new ExpSinSin2D(a, b, kx, ky));
+   }
+   else if (name == "SinPhi")
+   {
+      double a, b;
+      int n;
+      input >> a >> b >> n;
+      coef_idx = sCoefs.Append(new SinPhi(a, b, n));
    }
    else
    {
