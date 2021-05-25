@@ -130,8 +130,8 @@ int main(int argc, char *argv[])
 
    // Define a finite element space on the mesh. Here we use continuous
    // Lagrange finite elements of the specified order. If order < 1, we
-   // instead use an isoparametric/isogeometric space.
-   if (order <= 0) { order = 1; }
+   // fix it to 1.
+   if (order < 1) { order = 1; }
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfespace(&pmesh, &fec);
 
@@ -168,7 +168,9 @@ int main(int argc, char *argv[])
    // partially cut by its boundary, or completely outside the domain.
    Dist_Level_Set_Coefficient dist_fun_level_coef(level_set_type);
    level_set_val.ProjectCoefficient(dist_fun_level_coef);
+   // exchange elements located on different processes and sharing common face
    level_set_val.ExchangeFaceNbrData();
+   // explain what is going on?
    ShiftedFaceMarker marker(pmesh, level_set_val, pfespace, include_cut_cell);
    Array<int> elem_marker;
    marker.MarkElements(elem_marker);
@@ -211,6 +213,7 @@ int main(int argc, char *argv[])
    }
 
    // Make a list of inactive tdofs that will be eliminated from the system.
+   // explain - we aim to remove all T-dofs outside the physical domain
    Array<int> ess_tdof_list;
    Array<int> ess_shift_bdr;
    marker.ListEssentialTDofs(elem_marker, sbm_dofs, ess_tdof_list,
@@ -220,6 +223,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace distance_vec_space(&pmesh, &fec, dim);
    ParGridFunction distance(&distance_vec_space);
    VectorCoefficient *dist_vec = NULL;
+   // explain
    if (level_set_type == 4)
    {
       // Discrete distance vector.
@@ -357,6 +361,7 @@ int main(int argc, char *argv[])
 
    // Assemble the bilinear form and the corresponding linear system,
    // applying any necessary transformations.
+   // explain - we have to know what KeepNbrBlock does?
    a.KeepNbrBlock();
    a.Assemble();
 
@@ -387,6 +392,19 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("diffusion.gf");
    sol_ofs.precision(8);
    x.SaveAsOne(sol_ofs);
+
+   // Save the solution in ParaView format
+   if (visualization)
+   {
+       ParaViewDataCollection dacol("ParaViewDiffusion", &pmesh);
+       dacol.SetLevelsOfDetail(order);
+       dacol.RegisterField("distance", &distance);
+       dacol.RegisterField("solution", &x);
+       dacol.SetTime(1.0);
+       dacol.SetCycle(1);
+       dacol.Save();
+   }
+
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
