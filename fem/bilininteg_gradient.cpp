@@ -25,7 +25,7 @@ namespace mfem
    \b Q1D number of quadrature points in one dimension.
    \b w quadrature weights.
    \b j element Jacobians.
-   \b COEFF coefficient at quadrature points.
+   \b c coefficient at quadrature points.
 
    The function is used precompute data needed at quadrature points during
    the action. */
