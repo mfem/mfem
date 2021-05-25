@@ -396,13 +396,13 @@ int main(int argc, char *argv[])
    // Save the solution in ParaView format
    if (visualization)
    {
-       ParaViewDataCollection dacol("ParaViewDiffusion", &pmesh);
-       dacol.SetLevelsOfDetail(order);
-       dacol.RegisterField("distance", &distance);
-       dacol.RegisterField("solution", &x);
-       dacol.SetTime(1.0);
-       dacol.SetCycle(1);
-       dacol.Save();
+      ParaViewDataCollection dacol("ParaViewDiffusion", &pmesh);
+      dacol.SetLevelsOfDetail(order);
+      dacol.RegisterField("distance", &distance);
+      dacol.RegisterField("solution", &x);
+      dacol.SetTime(1.0);
+      dacol.SetCycle(1);
+      dacol.Save();
    }
 
 
