@@ -78,6 +78,11 @@ if (MFEM_USE_MPI)
   endif()
 endif()
 
+if (MFEM_USE_ARPACK)
+  list(APPEND SRCS eigensolvers.cpp arpack.cpp)
+  list(APPEND HDRS eigensolvers.hpp arpack.hpp)
+endif()
+
 if (MFEM_USE_SUNDIALS)
   list(APPEND SRCS sundials.cpp)
   list(APPEND HDRS sundials.hpp)
