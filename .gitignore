@@ -304,7 +304,13 @@ tests/convergence/prates
 tests/par-mesh-format/ex1p
 
 # VPATH builds
-build-*/*
+build-*/
+
+# User config
+user-*
+￼
+# VSCode
+￼.vscode 
 
 # PETSc automated build
 petsc-build/*
