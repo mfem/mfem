@@ -626,6 +626,21 @@ inline void TAdjugate(const A_layout_t &a, const A_data_t &A,
    template Adjugate<scalar_t>(a, A, b, B);
 }
 
+// Compute the adjugate matrix of a (small) matrix: B = adj(A).
+// Host+device version.
+template <typename scalar_t,
+          typename A_layout_t, typename A_data_t,
+          typename B_layout_t, typename B_data_t>
+MFEM_HOST_DEVICE
+inline void TAdjugateHD(const A_layout_t &a, const A_data_t &A,
+                        const B_layout_t &b, B_data_t &B)
+{
+   MFEM_STATIC_ASSERT(A_layout_t::rank == 2 && B_layout_t::rank == 2,
+                      "invalid ranks");
+   internal::MatrixOps<A_layout_t::dim_1,A_layout_t::dim_2>::
+   template AdjugateHD<scalar_t>(a, A, b, B);
+}
+
 // Compute the adjugate and the determinant of a (small) matrix: B = adj(A),
 // return det(A).
 template <typename scalar_t,
