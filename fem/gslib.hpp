@@ -85,7 +85,7 @@ public:
    FindPointsGSLIB();
 
 #ifdef MFEM_USE_MPI
-   FindPointsGSLIB(MPI_Comm _comm);
+   FindPointsGSLIB(MPI_Comm comm_);
 #endif
 
    virtual ~FindPointsGSLIB();
@@ -199,7 +199,7 @@ public:
       overset(true) { }
 
 #ifdef MFEM_USE_MPI
-   OversetFindPointsGSLIB(MPI_Comm _comm) : FindPointsGSLIB(_comm),
+   OversetFindPointsGSLIB(MPI_Comm comm_) : FindPointsGSLIB(comm_),
       overset(true) { }
 #endif
 
