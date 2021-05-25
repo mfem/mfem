@@ -35,7 +35,7 @@ protected:
                              Array<int> &sface_dof_list) const;
 
 public:
-   // Element type related to shifted boundaries (not interfaces).
+   /// Element type related to shifted boundaries (not interfaces).
    enum SBElementType {INSIDE, OUTSIDE, CUT};
 
    ShiftedFaceMarker(ParMesh &pm, ParGridFunction &ls,
@@ -44,13 +44,24 @@ public:
       : pmesh(pm), ls_func(ls), pfes_sltn(space_sltn),
         include_cut_cell(include_cut_cell_) { }
 
+   /// Mark all the elements in the mesh using the @a SBElementType
    void MarkElements(Array<int> &elem_marker) const;
 
+   /// List dofs associated with the surrogate boundary.
+   /// If @a include_cut_cell = false, the surrogate boundary includes faces
+   /// between elements cut by the true boundary and the elements that are
+   /// located inside the true domain.
+   /// If @a include_cut_cell = true, the surrogate boundary is the faces
+   /// between elements outside the true domain and the elements cut by the true
+   /// boundary.
    void ListShiftedFaceDofs(const Array<int> &elem_marker,
                             Array<int> &sface_dof_list) const;
 
-   // Related to shifted boundary methods, where inactive dofs must be
-   // eliminated from the system, based on the element markers.
+   /// List the dofs that will be inactive for the computation on the surrogate
+   /// domain. This include dofs for the elements located outside the
+   /// true domain (and optionally, for the elements cut by the true boundary,
+   /// if @a include_cut_cell = true) minus the dofs that are located on the
+   /// surrogate boundary.
    void ListEssentialTDofs(const Array<int> &elem_marker,
                            const Array<int> &sface_dof_list,
                            Array<int> &ess_tdof_list,

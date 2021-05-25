@@ -137,16 +137,20 @@ int main(int argc, char *argv[])
 
    Vector vxyz;
 
+   // Set the nodal grid function for the mesh, and modify the nodal positions
+   // for level_set_type = 3 such that some of the mesh elements are intersected
+   // by the true boundary (y = 0).
    ParFiniteElementSpace pfespace_mesh(&pmesh, &fec, dim);
    pmesh.SetNodalFESpace(&pfespace_mesh);
    ParGridFunction x_mesh(&pfespace_mesh);
    pmesh.SetNodalGridFunction(&x_mesh);
    vxyz = *pmesh.GetNodes();
    int nodes_cnt = vxyz.Size()/dim;
-   if (level_set_type == 3)   //stretch quadmesh from [0, 1] to [-1.e-4, 1]
+   if (level_set_type == 3)
    {
       for (int i = 0; i < nodes_cnt; i++)
       {
+         // Shift the mesh from y = [0, 1] to [-1.e-4, 1].
          vxyz(i+nodes_cnt) = (1.+1.e-4)*vxyz(i+nodes_cnt)-1.e-4;
       }
    }
@@ -168,9 +172,12 @@ int main(int argc, char *argv[])
    // partially cut by its boundary, or completely outside the domain.
    Dist_Level_Set_Coefficient dist_fun_level_coef(level_set_type);
    level_set_val.ProjectCoefficient(dist_fun_level_coef);
-   // exchange elements located on different processes and sharing common face
+   // Exchange information for ghost elements i.e. elements that share a face
+   // with element on the current processor, but are located on another
+   // processor.
    level_set_val.ExchangeFaceNbrData();
-   // explain what is going on?
+   // Setup the class to mark all elements based on wether they are located
+   // inside or outside the true domain, or intersected by the true boundary.
    ShiftedFaceMarker marker(pmesh, level_set_val, pfespace, include_cut_cell);
    Array<int> elem_marker;
    marker.MarkElements(elem_marker);
@@ -213,7 +220,10 @@ int main(int argc, char *argv[])
    }
 
    // Make a list of inactive tdofs that will be eliminated from the system.
-   // explain - we aim to remove all T-dofs outside the physical domain
+   // The inactive tdofs are the dofs for the elements located outside the
+   // true domain (and optionally, for the elements cut by the true boundary,
+   // if include_cut_cell = true) minus the dofs that are located on the
+   // surrogate boundary.
    Array<int> ess_tdof_list;
    Array<int> ess_shift_bdr;
    marker.ListEssentialTDofs(elem_marker, sbm_dofs, ess_tdof_list,
@@ -223,7 +233,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace distance_vec_space(&pmesh, &fec, dim);
    ParGridFunction distance(&distance_vec_space);
    VectorCoefficient *dist_vec = NULL;
-   // explain
+   // Compute the distance field using the HeatDistanceSolver for
+   // level_set_type == 4 or analytically for all other level set types.
    if (level_set_type == 4)
    {
       // Discrete distance vector.
@@ -361,8 +372,6 @@ int main(int argc, char *argv[])
 
    // Assemble the bilinear form and the corresponding linear system,
    // applying any necessary transformations.
-   // explain - we have to know what KeepNbrBlock does?
-   a.KeepNbrBlock();
    a.Assemble();
 
    // Project the exact solution as an initial condition for Dirichlet boundary.
