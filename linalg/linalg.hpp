@@ -48,6 +48,11 @@
 #include "ginkgo.hpp"
 #endif
 
+#ifdef MFEM_USE_ARPACK
+#include "eigensolvers.hpp"
+#include "arpack.hpp"
+#endif
+
 #ifdef MFEM_USE_MPI
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
