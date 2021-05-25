@@ -20,7 +20,7 @@ on:
 
 jobs:
   copyright-check:
-    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
+    runs-on: ubuntu-18.04
 
     steps:
     - name: checkout mfem
@@ -41,7 +41,7 @@ jobs:
         fi
 
   license-check:
-    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
+    runs-on: ubuntu-18.04
 
     steps:
     - name: checkout mfem
@@ -62,7 +62,7 @@ jobs:
         fi
 
   release-check:
-    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
+    runs-on: ubuntu-18.04
 
     steps:
     - name: checkout mfem
