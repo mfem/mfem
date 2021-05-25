@@ -3672,6 +3672,47 @@ public:
                                    const Vector &elfun, Vector &elvect);
 };
 
+/** Integrator for the DG form:
+
+    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
+    + kappa < {h^{-1} cot(theta_T) Q_max^2/Q_min} [u], [v] >,
+
+    where Q is a matrix diffusion coefficient and u, v are the trial
+    and test spaces, respectively. Q_max and Q_min are the global
+    approximations of the maximum and minimum eigenvalues of Q. The
+    function cot(theta_T) is a measure of the distortion of the mesh
+    with theta_T approximating the minimum interior angle of each
+    element. The parameters sigma and kappa determine the DG method to
+    be used (when this integrator is added to the "broken"
+    DiffusionIntegrator):
+    * sigma = -1, kappa >= kappa0: symm. interior penalty (IP or SIPG) method,
+    * sigma = +1, kappa > 0: non-symmetric interior penalty (NIPG) method,
+    * sigma = +1, kappa = 0: the method of Baumann and Oden. */
+class DGAnisoDiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   MatrixCoefficient *MQ;
+   Coefficient *CotTheta;
+   double q0, q1;
+   double sigma, kappa;
+
+   // these are not thread-safe!
+   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
+   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
+public:
+   DGAnisoDiffusionIntegrator(MatrixCoefficient &q,
+                              Coefficient &cotTheta,
+                              const double qMin, const double qMax,
+                              const double s, const double k)
+      : MQ(&q), CotTheta(&cotTheta), q0(qMin), q1(qMax), sigma(s), kappa(k) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
 } // namespace transport
 
 } // namespace plasma
