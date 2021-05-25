@@ -116,208 +116,91 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
                                   @restrict const SymmOperator2D_t op,
                                   @restrict const DLocal2D_t X,
                                   @restrict DLocal2D_t Y) {
-   // Iterate over elements
-   for (int e = 0; e < NE; ++e; @outer) {
-      for (int dummy = 0; dummy < 1; ++dummy; @inner) {
-         double grad[Q1D][Q1D][2];
-         for (int qy = 0; qy < Q1D; ++qy) {
-            for (int qx = 0; qx < Q1D; ++qx) {
-               grad[qy][qx][0] = 0;
-               grad[qy][qx][1] = 0;
-            }
-         }
-
-         for (int dy = 0; dy < D1D; ++dy) {
-            double gradX[Q1D][2];
-            for (int qx = 0; qx < Q1D; ++qx) {
-               gradX[qx][0] = 0;
-               gradX[qx][1] = 0;
-            }
-
-            for (int dx = 0; dx < D1D; ++dx) {
-               const double s = X(dx, dy, e);
-               for (int qx = 0; qx < Q1D; ++qx) {
-                  gradX[qx][0] += s * B(qx, dx);
-                  gradX[qx][1] += s * G(qx, dx);
-               }
-            }
-
-            for (int qy = 0; qy < Q1D; ++qy) {
-               const double wy  = B(qy, dy);
-               const double wDy = G(qy, dy);
-               for (int qx = 0; qx < Q1D; ++qx) {
-                  grad[qy][qx][0] += gradX[qx][1] * wy;
-                  grad[qy][qx][1] += gradX[qx][0] * wDy;
-               }
-            }
-         }
-
-         // Calculate Dxy, xDy in plane
-         for (int qy = 0; qy < Q1D; ++qy) {
-            for (int qx = 0; qx < Q1D; ++qx) {
-               const int q = QUAD_2D_ID(qx, qy);
-               const double O11 = op(q, 0, e);
-               const double O12 = op(q, 1, e);
-               const double O22 = op(q, 2, e);
-
-               const double gradX = grad[qy][qx][0];
-               const double gradY = grad[qy][qx][1];
-
-               grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
-               grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
-            }
-         }
-
-         for (int qy = 0; qy < Q1D; ++qy) {
-            double gradX[D1D][2];
-            for (int dx = 0; dx < D1D; ++dx) {
-               gradX[dx][0] = 0;
-               gradX[dx][1] = 0;
-            }
-
-            for (int qx = 0; qx < Q1D; ++qx) {
-               const double gX = grad[qy][qx][0];
-               const double gY = grad[qy][qx][1];
-               for (int dx = 0; dx < D1D; ++dx) {
-                  const double wx  = Bt(dx, qx);
-                  const double wDx = Gt(dx, qx);
-                  gradX[dx][0] += gX * wDx;
-                  gradX[dx][1] += gY * wx;
-               }
-            }
-
-            for (int dy = 0; dy < D1D; ++dy) {
-               const double wy  = Bt(dy, qy);
-               const double wDy = Gt(dy, qy);
-               for (int dx = 0; dx < D1D; ++dx) {
-                  Y(dx, dy, e) += ((gradX[dx][0] * wy) +
-                                   (gradX[dx][1] * wDy));
-               }
-            }
-         }
+  // Iterate over elements
+  for (int e = 0; e < NE; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
+      double grad[Q1D][Q1D][2];
+      for (int qy = 0; qy < Q1D; ++qy) {
+	for (int qx = 0; qx < Q1D; ++qx) {
+	  grad[qy][qx][0] = 0;
+	  grad[qy][qx][1] = 0;
+	}
       }
-   }
+
+      for (int dy = 0; dy < D1D; ++dy) {
+	double gradX[Q1D][2];
+	for (int qx = 0; qx < Q1D; ++qx) {
+	  gradX[qx][0] = 0;
+	  gradX[qx][1] = 0;
+	}
+
+	for (int dx = 0; dx < D1D; ++dx) {
+	  const double s = X(dx, dy, e);
+	  for (int qx = 0; qx < Q1D; ++qx) {
+	    gradX[qx][0] += s * B(qx, dx);
+	    gradX[qx][1] += s * G(qx, dx);
+	  }
+	}
+
+	for (int qy = 0; qy < Q1D; ++qy) {
+	  const double wy  = B(qy, dy);
+	  const double wDy = G(qy, dy);
+	  for (int qx = 0; qx < Q1D; ++qx) {
+	    grad[qy][qx][0] += gradX[qx][1] * wy;
+	    grad[qy][qx][1] += gradX[qx][0] * wDy;
+	  }
+	}
+      }
+
+      // Calculate Dxy, xDy in plane
+      for (int qy = 0; qy < Q1D; ++qy) {
+	for (int qx = 0; qx < Q1D; ++qx) {
+	  const int q = QUAD_2D_ID(qx, qy);
+	  const double O11 = op(q, 0, e);
+	  const double O12 = op(q, 1, e);
+	  const double O22 = op(q, 2, e);
+
+	  const double gradX = grad[qy][qx][0];
+	  const double gradY = grad[qy][qx][1];
+
+	  grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+	  grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
+	}
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy) {
+	double gradX[D1D][2];
+	for (int dx = 0; dx < D1D; ++dx) {
+	  gradX[dx][0] = 0;
+	  gradX[dx][1] = 0;
+	}
+
+	for (int qx = 0; qx < Q1D; ++qx) {
+	  const double gX = grad[qy][qx][0];
+	  const double gY = grad[qy][qx][1];
+	  for (int dx = 0; dx < D1D; ++dx) {
+	    const double wx  = Bt(dx, qx);
+	    const double wDx = Gt(dx, qx);
+	    gradX[dx][0] += gX * wDx;
+	    gradX[dx][1] += gY * wx;
+	  }
+	}
+
+	for (int dy = 0; dy < D1D; ++dy) {
+	  const double wy  = Bt(dy, qy);
+	  const double wDy = Gt(dy, qy);
+	  for (int dx = 0; dx < D1D; ++dx) {
+	    Y(dx, dy, e) += ((gradX[dx][0] * wy) +
+			     (gradX[dx][1] * wDy));
+	  }
+	}
+      }
+    }
+  }
 }
 
-#if 0
-// ORIGINAL VERSION
-@kernel void DiffusionApply2D_GPU(const int NE,
-                                  @restrict const DofToQuad_t B,
-                                  @restrict const DofToQuad_t G,
-                                  @restrict const QuadToDof_t Bt,
-                                  @restrict const QuadToDof_t Gt,
-                                  @restrict const SymmOperator2D_t op,
-                                  @restrict const DLocal2D_t X,
-                                  @restrict DLocal2D_t Y) {
-   // Iterate over elements
-   for (int eOff = 0; eOff < NE; eOff += M2_ELEMENT_BATCH; @outer) {
-      // Store dof <--> quad mappings
-      @shared double s_B[DQ1D] @dim(Q1D, D1D);
-      @shared double s_G[DQ1D] @dim(Q1D, D1D);
-      @shared double s_Bt[DQ1D] @dim(D1D, Q1D);
-      @shared double s_Gt[DQ1D] @dim(D1D, Q1D);
 
-      // Store xy planes in @shared memory
-      @shared double s_xy[DQ1D] @dim(D1D, Q1D);
-      @shared double s_xDy[DQ1D] @dim(D1D, Q1D);
-      @shared double s_grad[2 * Q2D] @dim(2, Q1D, Q1D);
-
-      @exclusive double r_x[M1D];
-      @exclusive double r_y[Q1D];
-
-      for (int x = 0; x < M1D; ++x; @inner) {
-         for (int id = x; id < DQ1D; id += M1D) {
-            s_B[id]  = B[id];
-            s_G[id] = G[id];
-            s_Bt[id]  = Bt[id];
-            s_Gt[id] = Gt[id];
-         }
-      }
-
-      for (int e = eOff; e < (eOff + M2_ELEMENT_BATCH); ++e) {
-         if (e < NE) {
-            for (int dx = 0; dx < D1D; ++dx; @inner) {
-               if (dx < D1D) {
-                  for (int qy = 0; qy < Q1D; ++qy) {
-                     s_xy(dx, qy) = 0;
-                     s_xDy(dx, qy) = 0;
-                  }
-                  for (int dy = 0; dy < D1D; ++dy) {
-                     r_x[dy] = X(dx, dy, e);
-                  }
-                  for (int qy = 0; qy < Q1D; ++qy) {
-                     double xy = 0;
-                     double xDy = 0;
-                     for (int dy = 0; dy < D1D; ++dy) {
-                        xy  += r_x[dy] * s_B(qy, dy);
-                        xDy += r_x[dy] * s_G(qy, dy);
-                     }
-                     s_xy(dx, qy)  = xy;
-                     s_xDy(dx, qy) = xDy;
-                  }
-               }
-            }
-            for (int qy = 0; qy < M1D; ++qy; @inner) {
-               if (qy < Q1D) {
-                  for (int qx = 0; qx < Q1D; ++qx) {
-                     double gradX = 0, gradY = 0;
-                     for (int dx = 0; dx < D1D; ++dx) {
-                        gradX += s_xy(dx, qy)  * s_G(qx, dx);
-                        gradY += s_xDy(dx, qy) * s_B(qx, dx);
-                     }
-
-                     const int q = QUAD_2D_ID(qx, qy);
-                     const double O11 = op(q, 0, e);
-                     const double O12 = op(q, 1, e);
-                     const double O22 = op(q, 2, e);
-
-                     s_grad(0, qx, qy) = (O11 * gradX) + (O12 * gradY);
-                     s_grad(1, qx, qy) = (O12 * gradX) + (O22 * gradY);
-                  }
-               }
-            }
-
-            for (int qx = 0; qx < Q1D; ++qx; @inner) {
-               if (qx < Q1D) {
-                  for (int dy = 0; dy < D1D; ++dy) {
-                     s_xy(dy, qx) = 0;
-                     s_xDy(dy, qx) = 0;
-                  }
-                  for (int qy = 0; qy < Q1D; ++qy) {
-                     r_x[qy] = s_grad(0, qx, qy);
-                     r_y[qy] = s_grad(1, qx, qy);
-                  }
-                  for (int dy = 0; dy < D1D; ++dy) {
-                     double xy  = 0;
-                     double xDy = 0;
-                     for (int qy = 0; qy < Q1D; ++qy) {
-                        xy  += r_x[qy] * s_Bt(dy, qy);
-                        xDy += r_y[qy] * s_Gt(dy, qy);
-                     }
-                     s_xy(dy, qx) = xy;
-                     s_xDy(dy, qx) = xDy;
-                  }
-               }
-            }
-            for (int dx = 0; dx < D1D; ++dx; @inner) {
-               if (dx < D1D) {
-                  for (int dy = 0; dy < D1D; ++dy) {
-                     double s = 0;
-                     for (int qx = 0; qx < Q1D; ++qx) {
-                        s += ((s_xy(dy, qx) * s_Gt(dx, qx)) +
-                              (s_xDy(dy, qx) * s_Bt(dx, qx)));
-                     }
-                     Y(dx, dy, e) += s;
-                  }
-               }
-            }
-         }
-      }
-   }
-}
-#endif
-
-// TW version (global to local)
+// TW version (global to global)
 // these are guesses for how many elements to process in a thread-block
 #if Q1D==1
 #define E2D 64
@@ -362,8 +245,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
     @shared double s_G[Q1D][D1D];
     
     // Store xy planes in @shared memory
-    @shared double s_wk0[E2D][Q1D][Q1D];
-    @shared double s_wk1[E2D][Q1D][Q1D];
+    @shared double s_wk0[E2D][M1D][M1D];
+    @shared double s_wk1[E2D][M1D][M1D];
 
     // Registers for thread local values
     @exclusive double r_u, r_v;
@@ -375,8 +258,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
     @exclusive int e, globalId, globalSign;
     
     for(int ez = 0; ez < E2D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
 	  {
 	    // load B(asis) and G(radient) matrices
 	    int dx = qx, dy = qy;
@@ -401,23 +284,20 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 		// look up value
 		double Xgid = X[globalId];
 		globalSign = (plus) ? 1:-1;
-		
 		// adjust sign based on plus
-		//		double res = plus ? Xgid : -Xgid;
-		// load
 		s_X[ez][dy][dx] = globalSign*Xgid;
 	      }
 	  }
     
     
     for(int ez = 0; ez < E2D; ++ez; @inner(2))
-      for(int dy = 0; dy < Q1D; ++dy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+      for(int dy = 0; dy < M1D; ++dy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
 	  {
 	    double u = 0.0;
 	    double v = 0.0;
 	    
-	    if(dy<D1D){
+	    if(qx<Q1D && dy<D1D){
 #pragma unroll D1D
 	      for(int dx = 0; dx < D1D; ++dx){
 		const double coords = s_X[ez][dy][dx];
@@ -431,44 +311,46 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
     // swap reg<>shared
     for(int ez = 0; ez < E2D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
 	  {
 	    s_wk0[ez][qy][qx] = r_u;
 	    s_wk1[ez][qy][qx] = r_v;
 	  }
     
     for(int ez = 0; ez < E2D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
 	  {
-	    // prefetch Jacobian values
-	    double O11 = 0, O12 = 0, O21 = 0, O22 = 0;
+	    if(qx<Q1D && qy<Q1D){
+	      // prefetch Jacobian values
+	      double O11 = 0, O12 = 0, O21 = 0, O22 = 0;
 	    
-	    if(e<NE){
-	      int Ngeo = 3;
-	      int id = e*Ngeo*Q2D  + qy*Q1D + qx;
-	      O11 = op[id+0*Q2D];
-	      O21 = op[id+1*Q2D];
-	      O22 = op[id+2*Q2D];
-	      O12 = O21;
-	    }
+	      if(e<NE){
+		int Ngeo = 3;
+		int id = e*Ngeo*Q2D  + qy*Q1D + qx;
+		O11 = op[id+0*Q2D];
+		O21 = op[id+1*Q2D];
+		O22 = op[id+2*Q2D];
+		O12 = O21;
+	      }
 	    
-	    double gX = 0.0;
-	    double gY = 0.0;
+	      double gX = 0.0;
+	      double gY = 0.0;
 #pragma unroll D1D
-	    for(int dy = 0; dy < D1D; ++dy){
-	      gX += s_wk0[ez][dy][qx] * s_B[qy][dy];
-	      gY += s_wk1[ez][dy][qx] * s_G[qy][dy];
+	      for(int dy = 0; dy < D1D; ++dy){
+		gX += s_wk0[ez][dy][qx] * s_B[qy][dy];
+		gY += s_wk1[ez][dy][qx] * s_G[qy][dy];
+	      }
+	      r_u = (O11 * gX) + (O12 * gY);
+	      r_v = (O21 * gX) + (O22 * gY);
 	    }
-	    r_u = (O11 * gX) + (O12 * gY);
-	    r_v = (O21 * gX) + (O22 * gY);
 	  }
     
     // swap reg<>shared
     for(int ez = 0; ez < E2D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
 	  {
 	    s_wk0[ez][qy][qx] = r_u;
 	    s_wk1[ez][qy][qx] = r_v;
@@ -476,10 +358,10 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
     
     for(int ez = 0; ez < E2D; ++ez; @inner(2))      
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))	
-	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))	
+	for(int dx = 0; dx < M1D; ++dx; @inner(0))
 	  {
-	    if(dx<D1D){
+	    if(dx<D1D && qy<Q1D){
 	      double u = 0.0;
 	      double v = 0.0;
 	      
@@ -497,16 +379,18 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
     
     // swap reg<>shared
     for(int ez = 0; ez < E2D; ++ez; @inner(2))
-      for(int qy = 0; qy < Q1D; ++qy; @inner(1))
-	for(int qx = 0; qx < Q1D; ++qx; @inner(0))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
 	  {
-	    s_wk0[ez][qy][qx] = r_u;
-	    s_wk1[ez][qy][qx] = r_v;
+	    if(qx<Q1D && qy<Q1D){
+	      s_wk0[ez][qy][qx] = r_u;
+	      s_wk1[ez][qy][qx] = r_v;
+	    }
 	  }
       
     for(int ez = 0; ez < E2D; ++ez; @inner(2))
-      for(int dy = 0; dy < Q1D; ++dy; @inner(1))
-	for(int dx = 0; dx < Q1D; ++dx; @inner(0))
+      for(int dy = 0; dy < M1D; ++dy; @inner(1))
+	for(int dx = 0; dx < M1D; ++dx; @inner(0))
 	  {
 	    if(dx<D1D && dy<D1D && e<NE){
 	      //	      double u = Y[dx+dy*D1D+e*D2D];
@@ -518,16 +402,14 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 		  u += s_wk0[ez][qy][dx] * s_B[qy][dy];
 		  u += s_wk1[ez][qy][dx] * s_G[qy][dy];
 		}
-	      
-	      // local:	      Y[dx + dy*D1D + e*D2D] = (u);
-	      // global:      Y[globalId] += globalSign*u;
+	      // retrieve gather sign and index
 	      double gsu = globalSign*u;
 	      atomicAdd(Y+globalId, gsu);
 	    }
 	  }
   }
 }
-
+#undef s_X
 
 @kernel void DiffusionApply3D_CPU(const int NE,
                                   @restrict const DofToQuad_t B,
@@ -683,168 +565,12 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
   }
 }
 
-@kernel void DiffusionApply3D_GPU_old(const int NE,
-                                  @restrict const DofToQuad_t B,
-                                  @restrict const DofToQuad_t G,
-                                  @restrict const QuadToDof_t Bt,
-                                  @restrict const QuadToDof_t Gt,
-                                  @restrict const SymmOperator3D_t op,
-                                  @restrict const DLocal3D_t X,
-                                  @restrict DLocal3D_t Y) {
-  // Iterate over elements
-  for (int e = 0; e < NE; ++e; @outer) {
-    // Store dof <--> quad mappings
-    @shared double s_B[DQ1D] @dim(Q1D, D1D);
-    @shared double s_G[DQ1D] @dim(Q1D, D1D);
-    @shared double s_Bt[DQ1D] @dim(D1D, Q1D);
-    @shared double s_Gt[DQ1D] @dim(D1D, Q1D);
-
-    // Store xy planes in @shared memory
-    @shared double s_z[M2D] @dim(M1D, M1D);
-    @shared double s_Dz[M2D] @dim(M1D, M1D);
-    @shared double s_xyDz[Q2D] @dim(Q1D, Q1D);
-
-    // Store z axis as registers
-    @exclusive double r_qz[Q1D];
-    @exclusive double r_qDz[Q1D];
-    @exclusive double r_dDxyz[D1D];
-    @exclusive double r_dxDyz[D1D];
-    @exclusive double r_dxyDz[D1D];
-
-    for (int y = 0; y < M1D; ++y; @inner) {
-      for (int x = 0; x < M1D; ++x; @inner) {
-        const int id = (y * M1D) + x;
-        // Fetch Q <--> D maps
-        if (id < DQ1D) {
-          s_B[id]  = B[id];
-          s_G[id] = G[id];
-          s_Bt[id]  = Bt[id];
-          s_Gt[id] = Gt[id];
-        }
-        // Initialize our Z axis
-        for (int qz = 0; qz < Q1D; ++qz) {
-          r_qz[qz] = 0;
-          r_qDz[qz] = 0;
-        }
-        // Initialize our solution updates in the Z axis
-        for (int dz = 0; dz < D1D; ++dz) {
-          r_dDxyz[dz] = 0;
-          r_dxDyz[dz] = 0;
-          r_dxyDz[dz] = 0;
-        }
-      }
-    }
-
-    for (int dy = 0; dy < M1D; ++dy; @inner) {
-      for (int dx = 0; dx < M1D; ++dx; @inner) {
-        if ((dx < D1D) && (dy < D1D)) {
-          for (int dz = 0; dz < D1D; ++dz) {
-            const double s = X(dx, dy, dz, e);
-            // Calculate D -> Q in the Z axis
-            for (int qz = 0; qz < Q1D; ++qz) {
-              r_qz[qz]  += s * s_B(qz, dz);
-              r_qDz[qz] += s * s_G(qz, dz);
-            }
-          }
-        }
-      }
-    }
-    // For each xy plane
-    for (int qz = 0; qz < Q1D; ++qz) {
-      // Fill xy plane at given z position
-      for (int dy = 0; dy < M1D; ++dy; @inner) {
-        for (int dx = 0; dx < M1D; ++dx; @inner) {
-          if ((dx < D1D) && (dy < D1D)) {
-            s_z(dx, dy)  = r_qz[qz];
-            s_Dz(dx, dy) = r_qDz[qz];
-          }
-        }
-      }
-      // Calculate Dxyz, xDyz, xyDz in plane
-      for (int qy = 0; qy < M1D; ++qy; @inner) {
-        for (int qx = 0; qx < M1D; ++qx; @inner) {
-          if ((qx < Q1D) && (qy < Q1D)) {
-            double Dxyz = 0;
-            double xDyz = 0;
-            double xyDz = 0;
-            for (int dy = 0; dy < D1D; ++dy) {
-              const double wy  = s_B(qy, dy);
-              const double wDy = s_G(qy, dy);
-              for (int dx = 0; dx < D1D; ++dx) {
-                const double wx  = s_B(qx, dx);
-                const double wDx = s_G(qx, dx);
-                const double z  = s_z(dx, dy);
-                const double Dz = s_Dz(dx, dy);
-                Dxyz += wDx * wy  * z;
-                xDyz += wx  * wDy * z;
-                xyDz += wx  * wy  * Dz;
-              }
-            }
-
-            const int q = QUAD_3D_ID(qx, qy, qz);
-            const double O11 = op(q, 0, e);
-            const double O12 = op(q, 1, e);
-            const double O13 = op(q, 2, e);
-            const double O22 = op(q, 3, e);
-            const double O23 = op(q, 4, e);
-            const double O33 = op(q, 5, e);
-
-            const double qDxyz = (O11 * Dxyz) + (O12 * xDyz) + (O13 * xyDz);
-            const double qxDyz = (O12 * Dxyz) + (O22 * xDyz) + (O23 * xyDz);
-            const double qxyDz = (O13 * Dxyz) + (O23 * xDyz) + (O33 * xyDz);
-
-            for (int dz = 0; dz < D1D; ++dz) {
-              const double wz  = s_Bt(dz, qz);
-              const double wDz = s_Gt(dz, qz);
-              r_dDxyz[dz] += wz  * qDxyz;
-              r_dxDyz[dz] += wz  * qxDyz;
-              r_dxyDz[dz] += wDz * qxyDz;
-            }
-          }
-        }
-      }
-      @barrier("s_z_s_Dz_sync_1");
-    }
-    // Iterate over xy planes to compute solution
-    for (int dz = 0; dz < D1D; ++dz) {
-      // Place xy plane in @shared memory
-      for (int qy = 0; qy < M1D; ++qy; @inner) {
-        for (int qx = 0; qx < M1D; ++qx; @inner) {
-          if ((qx < Q1D) && (qy < Q1D)) {
-            s_z(qx, qy)    = r_dDxyz[dz];
-            s_Dz(qx, qy)   = r_dxDyz[dz];
-            s_xyDz(qx, qy) = r_dxyDz[dz];
-          }
-        }
-      }
-      // Finalize solution in xy plane
-      for (int dy = 0; dy < M1D; ++dy; @inner) {
-        for (int dx = 0; dx < M1D; ++dx; @inner) {
-          if ((dx < D1D) && (dy < D1D)) {
-            double solZ = 0;
-            for (int qy = 0; qy < Q1D; ++qy) {
-              const double wy  = s_Bt(dy, qy);
-              const double wDy = s_Gt(dy, qy);
-              for (int qx = 0; qx < Q1D; ++qx) {
-                const double wx  = s_Bt(dx, qx);
-                const double wDx = s_Gt(dx, qx);
-                const double Dxyz = s_z(qx, qy);
-                const double xDyz = s_Dz(qx, qy);
-                const double xyDz = s_xyDz(qx, qy);
-                solZ += ((wDx * wy  * Dxyz) +
-                         (wx  * wDy * xDyz) +
-                         (wx  * wy  * xyDz));
-              }
-            }
-            Y(dx, dy, dz, e) += solZ;
-          }
-        }
-      }
-      @barrier("s_z_s_Dz_s_xyDz_sync_1");
-    }
-  }
-}
-
+// Tim Warburton version derived using techniques from:
+// Świrydowicz, Kasia, Noel Chalmers, Ali Karakus, and Tim Warburton. 
+// "Acceleration of tensor-product operations for high-order finite element methods."
+// The International Journal of High Performance Computing Applications 33, no. 4 (2019): 735-757.
+//
+// This version is designed to use a relatively small amount of shared memory ** and ** register space
 @kernel void DiffusionApply3D_GPU(const int NE,
 				  @restrict const int *gatherMap,
 				  @restrict const double *B, 
@@ -866,21 +592,23 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
     
     @exclusive double r_wk[Q1D];
 
-    for(int b=0;b<Q1D;++b;@inner(1)){
-      for(int a=0;a<Q1D;++a;@inner(0)){
-	if(a<D1D){
+    for(int b=0;b<M1D;++b;@inner(1)){
+      for(int a=0;a<M1D;++a;@inner(0)){
+	if(a<D1D && b<Q1D){
 	  s_B[b][a] = B[b+Q1D*a];
 	}
-	// check the format for this 
-	s_GG[b][a] = GG[b*Q1D+a];
+	// check the format for this
+	if(a<Q1D && b<Q1D){
+	  s_GG[b][a] = GG[b*Q1D+a];
+	}
       }
     }
 
     @barrier("local");
     
     // interp in 't'
-    for(int b=0;b<Q1D;++b;@inner(1)){
-      for(int a=0;a<Q1D;++a;@inner(0)){
+    for(int b=0;b<M1D;++b;@inner(1)){
+      for(int a=0;a<M1D;++a;@inner(0)){
 
 	for(int k=0;k<Q1D;++k){
 	  r_wk[k] = 0;
@@ -910,19 +638,21 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	      r_wk[k] += s_B[k][c]*q_cba;
 	    }
 	  }
-	}
 
+	  for(int k=0;k<Q1D;++k){
+	    s_q[k][b][a] = r_wk[k];
+	  }
+	}
 	for(int k=0;k<Q1D;++k){
-	  s_q[k][b][a] = r_wk[k];
 	  r_wk[k] = 0;
 	}
       }
     }
 
     // transform in 's'
-    for(int k=0;k<Q1D;++k;@inner(1)){
-      for(int a=0;a<Q1D;++a;@inner(0)){
-	if(a<D1D){
+    for(int k=0;k<M1D;++k;@inner(1)){
+      for(int a=0;a<M1D;++a;@inner(0)){
+	if(a<D1D && k<Q1D){
 
 	  //#pragma unroll D1D
 	  for(int b=0;b<D1D;++b){
@@ -932,30 +662,37 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	      r_wk[j] += s_B[j][b]*q_kba;
 	    }
 	  }
-	}
 	
+	  for(int j=0;j<Q1D;++j){
+	    s_q[k][j][a] = r_wk[j];
+	  }
+	}
 	for(int j=0;j<Q1D;++j){
-	  s_q[k][j][a] = r_wk[j];
 	  r_wk[j] = 0;
 	}
       }
     }
     
     // transform in 'r'
-    for(int k=0;k<Q1D;++k;@inner(1)){
-      for(int j=0;j<Q1D;++j;@inner(0)){
+    for(int k=0;k<M1D;++k;@inner(1)){
+      for(int j=0;j<M1D;++j;@inner(0)){
 
-	//#pragma unroll D1D
-	for(int a=0;a<D1D;++a){
-	  double q_kja = s_q[k][j][a];
-	  //#pragma unroll Q1D
+	if(j<Q1D && k<Q1D){
+	  //#pragma unroll D1D
+	  for(int a=0;a<D1D;++a){
+	    double q_kja = s_q[k][j][a];
+	    //#pragma unroll Q1D
+	    for(int i=0;i<Q1D;++i){
+	      r_wk[i] += s_B[i][a]*q_kja;
+	    }
+	  }
+	  
 	  for(int i=0;i<Q1D;++i){
-	    r_wk[i] += s_B[i][a]*q_kja;
+	    s_q[k][j][i] = r_wk[i];
 	  }
 	}
-	
+
 	for(int i=0;i<Q1D;++i){
-	  s_q[k][j][i] = r_wk[i];
 	  r_wk[i] = 0;
 	}
       }
@@ -966,86 +703,93 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
       @barrier("local");
       
-      for(int j=0;j<Q1D;++j;@inner(1)){
-	for(int i=0;i<Q1D;++i;@inner(0)){
+      for(int j=0;j<M1D;++j;@inner(1)){
+	for(int i=0;i<M1D;++i;@inner(0)){
 
-	  double qr = 0, qs = 0, qt = 0;
+	  if(i<Q1D && j<Q1D){
+	    double qr = 0, qs = 0, qt = 0;
 
-	  //#pragma unroll Q1D
-	  for(int n=0;n<Q1D;++n){
-	    qr += s_GG[i][n]*s_q[k][j][n]; // max 2*12TB/s / 16 => 1.5TF/s
-	    qs += s_GG[j][n]*s_q[k][n][i];
-	    qt += s_GG[k][n]*s_q[n][j][i];
-	  }
+	    //#pragma unroll Q1D
+	    for(int n=0;n<Q1D;++n){
+	      qr += s_GG[i][n]*s_q[k][j][n]; // max 2*12TB/s / 16 => 1.5TF/s
+	      qs += s_GG[j][n]*s_q[k][n][i];
+	      qt += s_GG[k][n]*s_q[n][j][i];
+	    }
 
-	  // hard coded parameters
-	  const int gbase = e*6*Q3D + i + j*Q1D + k*Q1D*Q1D;
-	  const double G00 = op[gbase+0*Q3D];
-	  const double G01 = op[gbase+1*Q3D];
-	  const double G02 = op[gbase+2*Q3D];
-	  const double G11 = op[gbase+3*Q3D];
-	  const double G12 = op[gbase+4*Q3D];
-	  const double G22 = op[gbase+5*Q3D];
+	    // hard coded parameters
+	    const int gbase = e*6*Q3D + i + j*Q1D + k*Q1D*Q1D;
+	    const double G00 = op[gbase+0*Q3D];
+	    const double G01 = op[gbase+1*Q3D];
+	    const double G02 = op[gbase+2*Q3D];
+	    const double G11 = op[gbase+3*Q3D];
+	    const double G12 = op[gbase+4*Q3D];
+	    const double G22 = op[gbase+5*Q3D];
 	  
-	  double Jqr = G00*qr + G01*qs + G02*qt;
-	  double Jqs = G01*qr + G11*qs + G12*qt;
-	  double Jqt = G02*qr + G12*qs + G22*qt;
+	    double Jqr = G00*qr + G01*qs + G02*qt;
+	    double Jqs = G01*qr + G11*qs + G12*qt;
+	    double Jqt = G02*qr + G12*qs + G22*qt;
 	  
-	  s_Jqr[j][i] = Jqr;
-	  s_Jqs[j][i] = Jqs;
+	    s_Jqr[j][i] = Jqr;
+	    s_Jqs[j][i] = Jqs;
 
-	  //#pragma unroll Q1D
-	  for(int n=0;n<Q1D;++n){
-	    r_wk[n] += s_GG[k][n]*Jqt;
+	    //#pragma unroll Q1D
+	    for(int n=0;n<Q1D;++n){
+	      r_wk[n] += s_GG[k][n]*Jqt;
+	    }
 	  }
 	}
       }
-
+      
       @barrier("local");
       
-      for(int j=0;j<Q1D;++j;@inner(1)){
-	for(int i=0;i<Q1D;++i;@inner(0)){
-
-	  //#pragma unroll Q1D
-	  for(int n=0;n<Q1D;++n){
-	    r_wk[k] += s_GG[n][i]*s_Jqr[j][n];
-	    r_wk[k] += s_GG[n][j]*s_Jqs[n][i];
+      for(int j=0;j<M1D;++j;@inner(1)){
+	for(int i=0;i<M1D;++i;@inner(0)){
+	  if(i<Q1D && j<Q1D){
+	    //#pragma unroll Q1D
+	    for(int n=0;n<Q1D;++n){
+	      r_wk[k] += s_GG[n][i]*s_Jqr[j][n];
+	      r_wk[k] += s_GG[n][j]*s_Jqs[n][i];
+	    }
 	  }
 	}
       }
     }
 
-    for(int j=0;j<Q1D;++j;@inner(1)){
-      for(int i=0;i<Q1D;++i;@inner(0)){
-	for(int k=0;k<Q1D;++k){
-	  s_q[k][j][i] = r_wk[k];
+    for(int j=0;j<M1D;++j;@inner(1)){
+      for(int i=0;i<M1D;++i;@inner(0)){
+	if(i<Q1D && j<Q1D){
+	  for(int k=0;k<Q1D;++k){
+	    s_q[k][j][i] = r_wk[k];
+	  }
 	}
       }
     }
 
     // test in 'r'
-    for(int k=0;k<Q1D;++k;@inner(1)){
-      for(int j=0;j<Q1D;++j;@inner(0)){
-	for(int i=0;i<Q1D;++i){
-	  r_wk[i] = s_q[k][j][i];
-	}
-	
-	//#pragma unroll D1D
-	for(int a=0;a<D1D;++a){
-	  double tmp = 0;
-	  //#pragma unroll Q1D
+    for(int k=0;k<M1D;++k;@inner(1)){
+      for(int j=0;j<M1D;++j;@inner(0)){
+	if(j<Q1D && k<Q1D){
 	  for(int i=0;i<Q1D;++i){
-	    tmp += s_B[i][a]*r_wk[i]; // 3TF/s
+	    r_wk[i] = s_q[k][j][i];
 	  }
-	  s_q[k][j][a] = tmp;
+	
+	  //#pragma unroll D1D
+	  for(int a=0;a<D1D;++a){
+	    double tmp = 0;
+	    //#pragma unroll Q1D
+	    for(int i=0;i<Q1D;++i){
+	      tmp += s_B[i][a]*r_wk[i]; // 3TF/s
+	    }
+	    s_q[k][j][a] = tmp;
+	  }
 	}
       }
     }
 
     // test in 's'
-    for(int k=0;k<Q1D;++k;@inner(1)){
-      for(int a=0;a<Q1D;++a;@inner(0)){
-	if(a<D1D){
+    for(int k=0;k<M1D;++k;@inner(1)){
+      for(int a=0;a<M1D;++a;@inner(0)){
+	if(a<D1D && k<Q1D){
 	  for(int j=0;j<Q1D;++j){
 	    r_wk[j] = s_q[k][j][a];
 	  }
@@ -1065,8 +809,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
 
     // test in 't' and store
-    for(int b=0;b<Q1D;++b;@inner(1)){
-      for(int a=0;a<Q1D;++a;@inner(0)){
+    for(int b=0;b<M1D;++b;@inner(1)){
+      for(int a=0;a<M1D;++a;@inner(0)){
 	if(a<D1D && b<D1D){
 	  for(int k=0;k<Q1D;++k){
 	    r_wk[k] = s_q[k][b][a];
