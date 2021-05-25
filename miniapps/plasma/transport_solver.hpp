@@ -3713,6 +3713,194 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the DG form:
+
+    < {- Q grad(u) + beta u}_alpha, [v] >
+    - sigma < [u], {- Q grad(v) + beta v}_alpha >
+    + sigma < [u], {beta v} >
+    + kappa < [u], [v] >
+
+    Where:
+       {Psi}_alpha = alpha_1 Psi_1 + alpha_2 Psi_2 and alpha_2 = 1 - alpha_1
+       {Psi} = (Psi_1 + Psi_2) / 2
+       [phi] = n_1 phi_1 + n_2 phi_2
+    The diffusion coefficient is the matrix Q, the advection coefficient is
+    the vector beta.  The parameter sigma determines the DG method to be used
+    (when this integrator is added to the "broken" DiffusionIntegrator and
+    the ConservativeConvectionIntegrator):
+    * sigma = -1: symm. interior penalty (IP or SIPG) method,
+    * sigma = +1: non-symmetric interior penalty (NIPG) method,
+
+    The alpha parameters are determined using a continuous scalar field tau
+    according to:
+       alpha = (0.5, 0.5) + 0.5 tau (sign(beta.n_1), sign(beta.n_2))
+    When tau = 0 this leads to an equal weighting across interelement
+    boundaries. When tau = 1 this leads to classical upwinding. Values between
+    these extremes can be used to control the degree of upwinding between each
+    pair of elements.
+
+    The parameter kappa is a penalty parameter which encourages continuity of
+    the solution. See the 2007 paper "Estimation of penalty parameters for
+    symmetric interior penalty Galerkin methods" by Y. Epshteyn and B. Riviere
+    for advice on selecting kappa. Crudely the rule is:
+       kappa > p (p+1) f(Q) g(T_h) in 2D
+       kappa > p (p+2) f(Q) g(T_h) in 3D
+    Where g(T_h) is a function of the mesh spacing and distortion, and f(Q)
+    is (Q_max)^2/Q_min with Q_max and Q_min being the maximum and minimum
+    eigenvalues of the diffusion coefficient. It's likely that the advection
+    velocity should also contribute to kappa but exactly how is unclear.
+
+    Finally it should be noted that this formulation is borowed from the 2009
+    paper "Discontinuous Galerkin methods for advection-diffusion-reaction
+    problems" by B. Ayuso and D. Marini where it appears as equation 3.8 (with
+    slight modifications). Note in particular that our sigma parameter is the
+    negative of the theta parameter from the paper.
+*/
+class DGAdvDiffIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   VectorCoefficient *beta;
+   Coefficient *tau;
+   double sigma, kappa1, kappa2;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector shape1, shape2, nQdshape1, nQdshape2;
+   DenseMatrix dshape1, dshape2;
+#endif
+
+public:
+   DGAdvDiffIntegrator(Coefficient & q, VectorCoefficient & b,
+                       Coefficient &t, double s, double k1, double k2)
+      :
+      Q(&q),
+      MQ(NULL),
+      beta(&b),
+      tau(&t),
+      sigma(s),
+      kappa1(k1),
+      kappa2(k2)
+   { }
+
+   DGAdvDiffIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
+                       Coefficient &qp,
+                       Coefficient &t, double s, double k1, double k2)
+      :
+      Q(&qp),
+      MQ(&q),
+      beta(&b),
+      tau(&t),
+      sigma(s),
+      kappa1(k1),
+      kappa2(k2)
+   { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+class DGAdvDiffBdrIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   VectorCoefficient *beta;
+   Coefficient *tau;
+   double sigma, kappa1, kappa2;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector shape1, nQdshape1;
+   DenseMatrix dshape1;
+#endif
+
+public:
+   DGAdvDiffBdrIntegrator(Coefficient & q, VectorCoefficient & b,
+                          Coefficient &t, double s, double k1, double k2)
+      :
+      Q(&q),
+      MQ(NULL),
+      beta(&b),
+      tau(&t),
+      sigma(s),
+      kappa1(k1),
+      kappa2(k2)
+   { }
+
+   DGAdvDiffBdrIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
+                          Coefficient & qp, Coefficient &t,
+                          double s, double k1, double k2)
+      :
+      Q(&qp),
+      MQ(&q),
+      beta(&b),
+      tau(&t),
+      sigma(s),
+      kappa1(k1),
+      kappa2(k2)
+   { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Boundary linear integrator for imposing non-zero Dirichlet boundary
+    conditions, to be used in conjunction with DGDiffusionIntegrator.
+    Specifically, given the Dirichlet data u_D, the linear form assembles the
+    following integrals on the boundary:
+
+    sigma < u_D, (Q grad(v)).n > + kappa < {h^{-1} Q} u_D, v >,
+
+    where Q is a scalar or matrix diffusion coefficient and v is the test
+    function. The parameters sigma and kappa should be the same as the ones
+    used in the DGDiffusionIntegrator. */
+class DGAdvDiffDirichletLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   Coefficient *uD, *Q;
+   MatrixCoefficient *MQ;
+   VectorCoefficient *beta;
+   double sigma, kappa1, kappa2;
+
+   // these are not thread-safe!
+   Vector shape, dshape_dn, nor, nh, ni, vb;
+   DenseMatrix dshape, mq, adjJ;
+
+public:
+   DGAdvDiffDirichletLFIntegrator(Coefficient &u,
+                                  Coefficient &q,
+                                  VectorCoefficient & b,
+                                  const double s,
+                                  const double k1,
+                                  const double k2)
+      : uD(&u), Q(&q), MQ(NULL), beta(&b), sigma(s), kappa1(k1), kappa2(k2) { }
+
+   DGAdvDiffDirichletLFIntegrator(Coefficient &u,
+                                  MatrixCoefficient &q,
+                                  VectorCoefficient & b,
+                                  Coefficient &qp,
+                                  const double s,
+                                  const double k1,
+                                  const double k2)
+      : uD(&u), Q(&qp), MQ(&q), beta(&b), sigma(s), kappa1(k1), kappa2(k2) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect)
+   {
+      mfem_error("DGAdvDiffDirichletLFIntegrator::AssembleRHSElementVect");
+   }
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+};
+
 } // namespace transport
 
 } // namespace plasma
