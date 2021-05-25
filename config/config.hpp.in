@@ -91,6 +91,9 @@
 // Enable MFEM functionality based on the SuiteSparse library.
 // #define MFEM_USE_SUITESPARSE
 
+// Enable MFEM functionality based on the ARPACK library.
+// #define MFEM_USE_ARPACK
+
 // Enable MFEM functionality based on the SuperLU library.
 // #define MFEM_USE_SUPERLU
 // #define MFEM_USE_SUPERLU5
