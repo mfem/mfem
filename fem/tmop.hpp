@@ -606,6 +606,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -1216,6 +1218,8 @@ public:
       {
          PA.H.GetMemory().DeleteDevice();
          PA.H0.GetMemory().DeleteDevice();
+         //PA.Jtr.GetMemory().DeleteDevice();
+         //PA.setup_Jtr = false;
       }
    }
 };

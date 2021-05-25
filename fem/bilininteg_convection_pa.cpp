@@ -900,11 +900,18 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetNE();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
+#ifdef MFEM_USE_UMPIRE
+   const MemoryType temp_type = Device::GetDeviceMemoryType() == MemoryType::DEVICE_UMPIRE
+      ? MemoryType::DEVICE_UMPIRE_2 : Device::GetDeviceMemoryType();
+#else
+   const MemoryType temp_type = Device::GetDeviceMemoryType();
+#endif
+
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode, temp_type);
    maps = &el.GetDofToQuad(*ir, mode);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, temp_type);
    Vector vel;
    if (VectorConstantCoefficient *cQ =
           dynamic_cast<VectorConstantCoefficient*>(Q))
@@ -915,7 +922,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                dynamic_cast<VectorGridFunctionCoefficient*>(Q))
    {
       Vector xe;
-      vel.SetSize(dim * nq * ne);
+      vel.SetSize(dim * nq * ne, temp_type);
 
       const GridFunction *gf = vgfQ->GetGridFunction();
       const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;

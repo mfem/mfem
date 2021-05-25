@@ -49,7 +49,13 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes)
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const int flags = GeometricFactors::JACOBIANS |
                      GeometricFactors::COORDINATES;
-   geom = mesh->GetGeometricFactors(*ir, flags, mode);
+#ifdef MFEM_USE_UMPIRE
+   const MemoryType temp_type = Device::GetDeviceMemoryType() == MemoryType::DEVICE_UMPIRE
+      ? MemoryType::DEVICE_UMPIRE_2 : Device::GetDeviceMemoryType();
+#else
+   const MemoryType temp_type = Device::GetDeviceMemoryType();
+#endif
+   geom = mesh->GetGeometricFactors(*ir, flags, mode, temp_type);
    maps = &el.GetDofToQuad(*ir, mode);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
