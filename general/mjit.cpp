@@ -44,6 +44,7 @@
 #include <iostream>
 
 #include <dlfcn.h>
+#include <sys/select.h>
 
 using std::list;
 using std::regex;
@@ -102,37 +103,48 @@ static int System(char *argv[])
    return ::system(command_c_str);
 }
 
+static inline void FlushAndWait(const int fd)
+{
+   if (::close(fd) < 0) { perror(strerror(errno)); }
+   ::wait(nullptr);
+}
+
 // In-memory compilation
-static int InMemCompile(int ifd, char *imap,
-                        int ofd, char *omap,
-                        const char *co,
+static int InMemCompile(const char *imem,
+                        char *&omem, size_t &nw,
                         char *argv[])
 {
-   dbg("ccfd:%s, imap:%p, cofd:%s", ifd, (void*)imap, ofd);
-   dbg("len:%d pmap:%p", strlen(imap), (void*)imap);
-   //dbg("kernel:\n%s", imap);
+   const size_t nbytes = std::strlen(imem);
+   dbg("cc:%p, len:%d", (void*)imem, nbytes);
+   //dbg("kernel:\n%s", cc);
 
    const int argc = argn(argv);
    if (argc < 1) { return EXIT_FAILURE; }
-   string command(argv[0]);
-   for (int k = 1; k < argc && argv[k]; k++)
-   {
-      command.append(" ");
-      command.append(argv[k]);
-   }
-   const char *command_c_str = command.c_str();
-   dbg(command_c_str);
 
+   // debug command line
+   {
+      string command(argv[0]);
+      for (int k = 1; k < argc && argv[k]; k++)
+      {
+         command.append(" ");
+         command.append(argv[k]);
+      }
+      const char *command_c_str = command.c_str();
+      dbg(command_c_str);
+   }
+
+   // input, output and error pipes
    int ip[2], op[2], ep[2];
    constexpr size_t PIPE_READ = 0;
    constexpr size_t PIPE_WRITE = 1;
+
    if (pipe(ip) == -1) { perror("Input Pipe failed"); exit(1); }
    if (pipe(op) == -1) { perror("Output Pipe failed"); exit(1); }
    if (pipe(ep) == -1) { perror("Error Pipe failed"); exit(1); }
 
-   if (fork() == 0)            // Child process which calls the compiler
+   if (fork() == 0)           // Child process which calls the compiler
    {
-      close(STDIN_FILENO);     // closing stdin
+      close(STDIN_FILENO);    // closing stdin
       dup2(ip[PIPE_READ],0);  // replacing stdin with pipe read
       close(ip[PIPE_READ]);   // close reading end
       close(ip[PIPE_WRITE]);  // no longer needed
@@ -150,55 +162,67 @@ static int InMemCompile(int ifd, char *imap,
    }
 
    // Parent process
-   size_t nbyte = std::strlen(imap);
-   write(ip[PIPE_WRITE], imap, nbyte);
 
-   close(ip[PIPE_WRITE]);
+   // close unused sides of the pipes
    close(op[PIPE_WRITE]);
    close(ep[PIPE_WRITE]);
 
-   char buffer[1024];
-   size_t nr;
+   // write all source present in memory to the 'input' pipe
+   write(ip[PIPE_WRITE], imem, nbytes);
+   close(ip[PIPE_WRITE]);
 
-   const mode_t mode = S_IRUSR | S_IWUSR;
-   const int oflag = O_CREAT | O_RDWR | O_TRUNC;
-   int debug_co_fd = ::open(co, oflag, mode);
+   char buffer[8192];
+   constexpr size_t SIZE = sizeof(buffer);
+   size_t nr, ne = 0, osize = 0; // number of read & error bytes
 
-   int obj_sz = 0, err_sz = 0;
-
-   // first scan error pipe
-   while ((nr = read(ep[PIPE_READ], buffer, sizeof(buffer))) > 0)
+   // Scan error pipe with timeout
    {
-      write(STDERR_FILENO, buffer, nr);
-      err_sz += nr;
-   }
-   ::close(ep[PIPE_READ]);
-   if (err_sz > 0)
-   {
-      ::close(op[PIPE_READ]);
-      ::wait(nullptr);
-      return perror("Compilation error!"), 1;
+      fd_set set;
+      struct timeval timeout {1, 0}; // one second
+      FD_ZERO(&set); // clear the set
+      FD_SET(ep[PIPE_READ], &set); // add the descriptor we need a timeout on
+      const int rv = select(ep[PIPE_READ]+1, &set, NULL, NULL, &timeout);
+      if (rv == -1) { return perror("select()"), EXIT_FAILURE; }
+      else if (rv == 0) { /* printf("No data within 1 seconds.\n"); */ }
+      else
+      {
+         dbg("Error data is available now.");
+         while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
+         {
+            ::write(STDOUT_FILENO, buffer, nr);
+            dbg("buffer: %s",buffer);
+            ne += nr;
+         }
+         dbg("ne: %d",ne);
+         ::close(ep[PIPE_READ]);
+         if (ne > 0)
+         {
+            FlushAndWait(op[PIPE_READ]);
+            return perror("Compilation error!"), EXIT_FAILURE;
+         }
+      }
+      ::close(ep[PIPE_READ]);
    }
 
-   // then get
-   while ((nr = read(op[PIPE_READ], buffer, sizeof(buffer))) > 0)
+   // then get the object from output pipe
+   nw = 0;
+   osize = SIZE;
+   omem = (char*) ::realloc(nullptr, SIZE);
+   while ((nr = ::read(op[PIPE_READ], buffer, SIZE)) > 0)
    {
-      std::printf("\033[32m[PARNT] nr:%ld\033[m\n", nr);
-      fflush(0);
-      //write(STDOUT_FILENO, buffer, nr); // debug stdout trace
-      ::memcpy((void*)omap, buffer, nr);
-      obj_sz += nr;
-      // write also to file for debug
-      write(debug_co_fd, buffer, nr);
+      nw += nr;
+      if (nw > osize)
+      {
+         dbg("omem.realloc(%d + %d);", osize, SIZE);
+         omem = (char*) ::realloc(omem, osize + SIZE);
+         osize += SIZE;
+      }
+      ::memcpy(omem + nw - nr, buffer, nr);
    }
-   if (::close(debug_co_fd) < 0) { perror("!close(debug_co_fd)"); }
-   //dbg("[PARNT] Waiting for child process termination");
-   dbg("object size:%d", obj_sz);
-   ::close(op[PIPE_READ]);
-   ::wait(nullptr);
-   return 0;
+   dbg("object size:%d", nw);
+   FlushAndWait(op[PIPE_READ]);
+   return EXIT_SUCCESS;
 }
-
 
 bool Root() { return true; }
 
@@ -393,15 +417,17 @@ int GetCurrentRuntimeVersion(bool increment)
 
 // *****************************************************************************
 /// Compile the source file with PIC flags, updating the cache library.
-bool Compile(const char *cc, const int ifd,
-             char *imap, char *omap,
-             const char *co, const int ofd,
-             const char *cxx, const char *flags,
-             const char *msrc, const char *mins,
+bool Compile(const char *imem,
+             char *&omem,
+             char co[21],
+             const char *cxx,
+             const char *flags,
+             const char *msrc,
+             const char *mins,
              const bool check_for_ar)
 {
-   dbg("cc:%s, co:%s",cc,co);
-   dbg("ifd:%s, imap:%p, ofd:%s",ifd, (void*)imap,ofd);
+   dbg("cc: %p, co: %p", (void*)imem, (void*)omem);
+   assert(omem == nullptr);
 #ifndef MFEM_USE_CUDA
 #define MFEM_JIT_DEVICE_CODE
 #define MFEM_JIT_COMPILER_OPTION
@@ -427,18 +453,16 @@ bool Compile(const char *cc, const int ifd,
    constexpr const char *libso = MFEM_JIT_CACHE ".so";
 
    // If there is already a JIT archive, use it and create the lib_so
-   if (false && check_for_ar && GetCurrentRuntimeVersion() == 0 &&
-       std::fstream(libar))
+   if (check_for_ar && GetCurrentRuntimeVersion() == 0 && std::fstream(libar))
    {
       dbg("Using JIT archive!");
-      assert(false);
       const char *argv_so[] =
       {
          shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load,
          MFEM_JIT_LINKER_OPTION "-rpath,.", nullptr
       };
       if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
-      if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(cc); }
+      delete imem;
       return true;
    }
 
@@ -450,17 +474,7 @@ bool Compile(const char *cc, const int ifd,
    if (snprintf(libso_v, PM, "%s.so.%d", MFEM_JIT_CACHE, version) < 0)
    { return false; }
 
-#if 0
-   dbg("Compilation");
-   const char *argv_co[] =
-   {
-      shell, cxx, flags, fpic, "-c",
-      MFEM_JIT_DEVICE_CODE Imsrc, Iminc, "-o", co, cc, nullptr
-   };
-   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
-#else
-   dbg("In Memory Compilation");
-
+   dbg("Tokenizing MFEM_CXXFLAGS");
    regex reg("\\s+");
    string cxxflags(flags);
    auto cxxargv =
@@ -473,10 +487,10 @@ bool Compile(const char *cc, const int ifd,
    argv.push_back(cxx);
    for (auto &a : cxxargv)
    {
+      // instead of: argv.push_back(strdup(a.data()));
       using uptr = std::unique_ptr<char, decltype(&std::free)>;
       uptr *t_copy = new uptr(strdup(a.data()), &std::free);
       argv.push_back(t_copy->get());
-      //argv.push_back(strdup(a.data()));
    }
    argv.push_back("-Wno-unused-variable");
    argv.push_back(fpic);
@@ -492,15 +506,23 @@ bool Compile(const char *cc, const int ifd,
    argv.push_back("-");
    argv.push_back(nullptr);
 
-   if (mfem::jit::InMemCompile(ifd, imap,
-                               ofd, omap,
-                               co,
+   size_t nw = 0;
+   if (mfem::jit::InMemCompile(imem, omem, nw,
                                const_cast<char**>(argv.data())) != 0)
    {
       return false;
    }
-   //void *so = fdlopen(ofd,RTLD_LAZY);
-#endif
+   delete imem;
+
+   // saving on disk the object that is still in memory
+   dbg("nw:%d",nw);
+   assert(omem != nullptr && nw > 0);
+   const mode_t mode = S_IRUSR | S_IWUSR;
+   const int oflag = O_CREAT | O_RDWR | O_TRUNC;
+   int co_fd = ::open(co, oflag, mode);
+   ::write(co_fd, omem, nw);
+   if (::close(co_fd) < 0) { perror("!close(debug_co_fd)"); }
+   free(omem); // done with realloc
 
    dbg("Update archive");
    const char *argv_ar[] = { shell, "ar", "-rv", libar, co, nullptr };
@@ -520,9 +542,7 @@ bool Compile(const char *cc, const int ifd,
 #endif
    if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
 
-   dbg("Unlink");
-   if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(cc); }
-   if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(co); }
+   if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
 
    return true;
 }
