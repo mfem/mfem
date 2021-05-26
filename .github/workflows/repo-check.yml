@@ -19,7 +19,7 @@ on:
   pull_request:
 
 jobs:
-  copyright-check:
+  repo-check:
     runs-on: ubuntu-18.04
 
     steps:
@@ -29,6 +29,7 @@ jobs:
         path: mfem
 
     - name: copyright check
+      id: copyright
       run: |
         cd mfem
         if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt
@@ -39,17 +40,10 @@ jobs:
         else
           echo "No outdated copyright found."
         fi
-
-  license-check:
-    runs-on: ubuntu-18.04
-
-    steps:
-    - name: checkout mfem
-      uses: actions/checkout@v2
-      with:
-        path: mfem
+      continue-on-error: true
 
     - name: license check
+      id: license
       run: |
         cd mfem
         if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
@@ -60,17 +54,10 @@ jobs:
         else
           echo "No GNU GPL license found."
         fi
-
-  release-check:
-    runs-on: ubuntu-18.04
-
-    steps:
-    - name: checkout mfem
-      uses: actions/checkout@v2
-      with:
-        path: mfem
+      continue-on-error: true
 
     - name: relsease check
+      id: release
       run: |
         cd mfem
         if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
@@ -81,6 +68,11 @@ jobs:
         else
           echo "No outdated release number found."
         fi
+      continue-on-error: true
+
+    - name: wrapping up
+      if: steps.copyright.outcome != 'success' || steps.license.outcome != 'success' || steps.release.outcome != 'success'
+      run: exit 1
 
   code-style:
     runs-on: ubuntu-16.04 # needed for astyle 2.05.1
