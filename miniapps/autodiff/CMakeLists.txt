@@ -16,7 +16,9 @@ list(APPEND SEQADIFF_COMMON_HEADERS
         fdual.hpp
 	tadvector.hpp
 	taddensemat.hpp
-	adnonlininteg.hpp)
+	adnonlininteg.hpp
+	admfem.hpp)
+
 
 convert_filenames_to_full_paths(SEQADIFF_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQADIFF_COMMON_HEADERS)
@@ -29,6 +31,11 @@ add_mfem_miniapp(seqadiff
 	MAIN seq_example.cpp
 	${SEQADIFF_COMMON_FILES}
 	LIBRARIES mfem)
+
+add_mfem_miniapp(seqtest
+	MAIN seq_test.cpp
+	${SEQADIFF_COMMON_FILES}
+        LIBRARIES mfem)
 
 if(MFEM_USE_MPI)
 
