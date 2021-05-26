@@ -13,6 +13,7 @@
 #define MFEM_EIGENSOLVERS
 
 #include "vector.hpp"
+#include "operator.hpp"
 
 namespace mfem
 {
