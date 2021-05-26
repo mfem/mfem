@@ -45,6 +45,8 @@
 
 #include <dlfcn.h>
 #include <sys/select.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 using std::list;
 using std::regex;
@@ -106,7 +108,7 @@ static int System(char *argv[])
 static inline void FlushAndWait(const int fd)
 {
    if (::close(fd) < 0) { perror(strerror(errno)); }
-   ::wait(nullptr);
+   wait(nullptr);
 }
 
 // In-memory compilation
@@ -189,8 +191,8 @@ static int InMemCompile(const char *imem,
          dbg("Error data is available now.");
          while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
          {
-            ::write(STDOUT_FILENO, buffer, nr);
-            dbg("buffer: %s",buffer);
+            const size_t nw = ::write(STDOUT_FILENO, buffer, nr);
+            dbg("buffer: %s, nw:%d",buffer,nw);
             ne += nr;
          }
          dbg("ne: %d",ne);
@@ -507,8 +509,7 @@ bool Compile(const char *imem,
    argv.push_back(nullptr);
 
    size_t nw = 0;
-   if (mfem::jit::InMemCompile(imem, omem, nw,
-                               const_cast<char**>(argv.data())) != 0)
+   if (InMemCompile(imem, omem, nw, const_cast<char**>(argv.data())) != 0)
    {
       return false;
    }
@@ -520,8 +521,9 @@ bool Compile(const char *imem,
    const mode_t mode = S_IRUSR | S_IWUSR;
    const int oflag = O_CREAT | O_RDWR | O_TRUNC;
    int co_fd = ::open(co, oflag, mode);
-   ::write(co_fd, omem, nw);
-   if (::close(co_fd) < 0) { perror("!close(debug_co_fd)"); }
+   const size_t written = ::write(co_fd, omem, nw);
+   if (written != nw) { return perror("!write object"), false; }
+   if (::close(co_fd) < 0) { return perror("!close object"), false; }
    free(omem); // done with realloc
 
    dbg("Update archive");
