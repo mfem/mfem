@@ -19,7 +19,7 @@ on:
   pull_request:
 
 jobs:
-  repo-check:
+  file-headers-check:
     runs-on: ubuntu-18.04
 
     steps:
