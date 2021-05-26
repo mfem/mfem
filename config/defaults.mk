@@ -148,6 +148,7 @@ MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
 MFEM_USE_ARPACK        = NO
+MFEM_USE_SPECTRA       = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -309,7 +310,16 @@ NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
 
 # ARPACK library configuration
 ARPACK_DIR = @MFEM_DIR@/../ARPACK
+ARPACK_OPT = -I$(ARPACK_DIR)
 ARPACK_LIB = -L$(ARPACK_DIR) -lparpack -larpack
+
+# EIGEN library configuration
+EIGEN_DIR = @MFEM_DIR@/../eigen
+EIGEN_OPT = -I$(EIGEN_DIR)
+
+# SPECTRA library configuration
+SPECTRA_DIR = @MFEM_DIR@/../spectra/include
+SPECTRA_OPT = -I$(SPECTRA_DIR) $(EIGEN_OPT)
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 PETSC_ARCH := arch-linux2-c-debug

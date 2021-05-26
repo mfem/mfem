@@ -49,8 +49,13 @@
 #endif
 
 #ifdef MFEM_USE_ARPACK
-#include "eigensolvers.hpp"
+#include "eigensolver.hpp"
 #include "arpack.hpp"
+#endif
+
+#ifdef MFEM_USE_SPECTRA
+#include "eigen.hpp"
+#include "spectra.hpp"
 #endif
 
 #ifdef MFEM_USE_MPI
