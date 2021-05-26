@@ -11,20 +11,22 @@
 using namespace std;
 using namespace mfem;
 
+GridFunction* ProlongToMaxOrder(const GridFunction *x);
+
 void gaussian_beam(const Vector & X, complex<double> & p, std::vector<complex<double>> & dp, complex<double> & d2p);
 double exact_beam(const Vector & X);
 void grad_beam(const Vector & X, Vector & gradp);
 double rhs(const Vector & X);
-
-double omega = 21.0 * 2.*M_PI;
-
+int select_refinement(Mesh * mesh, int elem);
+double omega = 47.2 * 2.*M_PI;
+// #define indefinite
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
-   int max_dofs = 100000;
+   int max_dofs = 200000;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -50,6 +52,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
    mesh.UniformRefinement();
+   mesh.EnsureNCMesh();
 
 
    H1_FECollection fec(order, dim);
@@ -61,12 +64,15 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
    FunctionCoefficient frhs(rhs);
+#ifdef indefinite   
    ConstantCoefficient omeg(-omega*omega);
-
+#else
+   ConstantCoefficient omeg(omega*omega);
+#endif
    BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
    BilinearFormIntegrator *minteg = new MassIntegrator(omeg);
    a.AddDomainIntegrator(integ);
-   // a.AddDomainIntegrator(minteg);
+   a.AddDomainIntegrator(minteg);
    // b.AddDomainIntegrator(new DomainLFIntegrator(zero));
    b.AddDomainIntegrator(new DomainLFIntegrator(frhs));
 
@@ -89,26 +95,27 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
+   socketstream mesh_sock;
    if (visualization)
    {
       sol_sock.open(vishost, visport);
+      mesh_sock.open(vishost, visport);
       // sol_sock.precision(8);
       // sol_sock << "solution\n" << mesh << x << flush;
    }
    // cin.get();
 
    
-   FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic(false);
 
-   ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.7);
+
+   // ThresholdRefiner refiner(estimator);
+   // refiner.SetTotalErrorFraction(0.7);
 
    ConvergenceStudy rates;
 
    for (int it = 0; ; it++)
    {
+
       int cdofs = fespace.GetTrueVSize();
       cout << "\nAMR iteration " << it << endl;
       cout << "Number of unknowns: " << cdofs << endl;
@@ -119,6 +126,7 @@ int main(int argc, char *argv[])
       // 14. Set Dirichlet boundary values in the GridFunction x.
       //     Determine the list of Dirichlet true DOFs in the linear system.
       Array<int> ess_tdof_list;
+      x = 0.0;
       x.ProjectBdrCoefficient(gbeam, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -149,8 +157,22 @@ int main(int argc, char *argv[])
       // 19. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
+         L2_FECollection ordersfec(0,dim);
+         FiniteElementSpace ordersfes(&mesh,&ordersfec);
+         GridFunction orders(&ordersfes);
+         for (int i = 0;i<mesh.GetNE(); i++)
+         {
+            Array<int> elem_dofs;
+            ordersfes.GetElementDofs(i,elem_dofs);
+            MFEM_VERIFY(elem_dofs.Size() == 1,"Wrong elem_dofs size");
+            orders[elem_dofs[0]] = fespace.GetElementOrder(i);
+         }
+         mesh_sock.precision(8);
+         mesh_sock << "solution\n" << mesh << orders << flush;
+
          sol_sock.precision(8);
-         sol_sock << "solution\n" << mesh << x << flush;
+         GridFunction* x_vis = ProlongToMaxOrder(&x);
+         sol_sock << "solution\n" << mesh << *x_vis << flush;
       }
 
       if (cdofs > max_dofs)
@@ -158,15 +180,97 @@ int main(int argc, char *argv[])
          cout << "Reached the maximum number of dofs. Stop." << endl;
          break;
       }
-
-      refiner.Apply(mesh);
-      if (refiner.Stop())
+      FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
+      ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+      estimator.SetAnisotropic(false);
+      const Vector errors = estimator.GetLocalErrors();
+      // refine 25%
+      double thresh = 0.5;
+      Array<Refinement> elements_to_refine;
+      Array<int> href_elems;
+      Array<int> pref_elems;
+      double max_error = errors.Max();
+      // cout << "max_error = " << max_error << endl;
+      // errors.Print();
+      // cin.get();
+      int maxp = 6;
+      for (int i = 0; i<mesh.GetNE(); i++)
       {
-         cout << "Stopping criterion satisfied. Stop." << endl;
-         break;
+         if (errors(i) >= thresh * max_error)
+         {
+            int ref = select_refinement(&mesh,i);
+            if(ref)
+            {
+               // elements_to_refine.Append(Refinement(i));
+               href_elems.Append(i);
+            }
+            else
+            {
+               cout << "Pref" << endl;
+               int p = fespace.GetElementOrder(i);
+               // fespace.SetElementOrder(i, p+1);
+               pref_elems.Append(i);
+
+               // order refine also its lower order face neighbors
+               Array<int> edges,cor;
+               mesh.GetElementEdges(i,edges,cor);
+               for (int ie = 0; ie<edges.Size(); ie++)
+               {
+                  int iedge = edges[ie];
+                  int el0, el1;
+                  mesh.GetFaceElements(iedge,&el0,&el1);
+                  // cout << "el0 =" << el0 << endl;
+                  // cout << "el1 =" << el1 << endl;
+                  int el = (el0 == i) ? el1 : el0;
+                  if (el <0) continue;
+                  if (fespace.GetElementOrder(el) < p)
+                  {
+                     pref_elems.Append(el);
+                  }
+               }
+
+            }
+         }
+      }
+      pref_elems.Sort();
+      pref_elems.Unique();
+      for (int j = 0; j<pref_elems.Size(); j++)
+      {
+         int k = pref_elems[j];
+         int ref = select_refinement(&mesh,k);
+         if (ref)
+         {
+            href_elems.Append(k);
+         }
+         else
+         {
+            int p = fespace.GetElementOrder(k);
+            if (p < maxp)
+               fespace.SetElementOrder(k, p+1);
+         }
       }
 
-      fespace.Update();
+      fespace.Update(false);
+      x.Update();
+      a.Update();
+      b.Update();
+
+      href_elems.Sort();
+      href_elems.Unique();
+      for (int j = 0; j<href_elems.Size(); j++)
+      {
+         int k = href_elems[j];
+         elements_to_refine.Append(Refinement(k));
+      }
+
+      mesh.GeneralRefinement(elements_to_refine,-1);
+      // if (refiner.Stop())
+      // {
+      //    cout << "Stopping criterion satisfied. Stop." << endl;
+      //    break;
+      // }
+
+      fespace.Update(false);
       x.Update();
 
       // 22. Inform also the bilinear and linear forms that the space has
@@ -174,7 +278,7 @@ int main(int argc, char *argv[])
       a.Update();
       b.Update();
    }
-   rates.Print();
+   rates.Print(true);
 
    return 0;
 }
@@ -207,8 +311,13 @@ double rhs(const Vector & X)
    complex<double> p, d2p;
    std::vector<complex<double>> dp(2);
    gaussian_beam(X,p,dp,d2p);
-   return -d2p.real();
-   // return -d2p.real() - omega * omega * p.real();
+   // return -d2p.real();
+#ifdef indefinite     
+   return -d2p.real() - omega * omega * p.real();
+#else
+   return -d2p.real() + omega * omega * p.real();
+#endif   
+
 }
 
 
@@ -280,4 +389,63 @@ void gaussian_beam(const Vector & X, complex<double> & p, std::vector<complex<do
 
    d2p = (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim + (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
        + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim + (zd2pdxdy*dxdyprim + zd2pdydy*dydyprim)*dydyprim;
+}
+
+
+int select_refinement(Mesh * mesh, int elem)
+{
+   double h = mesh->GetElementSize(elem);
+   // return (h > 6.0/omega) ? 1 : 0;
+   return 1;
+}
+
+
+
+GridFunction* ProlongToMaxOrder(const GridFunction *x)
+{
+   const FiniteElementSpace *fespace = x->FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   const FiniteElementCollection *fec = fespace->FEColl();
+
+   // find the max order in the space
+   int max_order = 1;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      max_order = std::max(fespace->GetElementOrder(i), max_order);
+   }
+
+   // create a visualization space of max order for all elements
+   FiniteElementCollection *l2fec =
+      new L2_FECollection(max_order, mesh->Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace *l2space = new FiniteElementSpace(mesh, l2fec);
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   GridFunction *prolonged_x = new GridFunction(l2space);
+
+   // interpolate solution vector in the larger space
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Geometry::Type geom = mesh->GetElementGeometry(i);
+      T.SetIdentityTransformation(geom);
+
+      Array<int> dofs;
+      fespace->GetElementDofs(i, dofs);
+      Vector elemvect, l2vect;
+      x->GetSubVector(dofs, elemvect);
+
+      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
+      const auto *l2fe = l2fec->GetFE(geom, max_order);
+
+      l2fe->GetTransferMatrix(*fe, T, I);
+      l2space->GetElementDofs(i, dofs);
+      l2vect.SetSize(dofs.Size());
+
+      I.Mult(elemvect, l2vect);
+      prolonged_x->SetSubVector(dofs, l2vect);
+   }
+
+   prolonged_x->MakeOwner(l2fec);
+   return prolonged_x;
 }
