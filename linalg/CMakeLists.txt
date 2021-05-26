@@ -83,6 +83,11 @@ if (MFEM_USE_ARPACK)
   list(APPEND HDRS eigensolvers.hpp arpack.hpp)
 endif()
 
+if (MFEM_USE_SPECTRA)
+  list(APPEND SRCS spectra.cpp)
+  list(APPEND HDRS eigen.hpp spectra.hpp)
+endif()
+
 if (MFEM_USE_SUNDIALS)
   list(APPEND SRCS sundials.cpp)
   list(APPEND HDRS sundials.hpp)
