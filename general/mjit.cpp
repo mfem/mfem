@@ -42,6 +42,8 @@
 #include <algorithm>
 #include <iostream>
 
+#include <dlfcn.h>
+
 using std::list;
 using std::string;
 using std::istream;
@@ -80,8 +82,8 @@ static inline int argn(char *argv[], int argc = 0)
 
 // Implementation of mfem::jit::System
 #if !defined(MFEM_USE_MPI)
-// The serial implementation does nothing special but launching the =system=
-// command.
+// The serial implementation does nothing special but launching
+// the =system= command.
 static int System(char *argv[])
 {
    const int argc = argn(argv);
@@ -94,8 +96,92 @@ static int System(char *argv[])
    }
    const char *command_c_str = command.c_str();
    dbg(command_c_str);
-   return system(command_c_str);
+   return ::system(command_c_str);
 }
+
+// In-memory compilation
+static int InMemCompile(int ccfd, char *imap,
+                        int cofd, char *omap,
+                        const char *co,
+                        char *argv[])
+{
+   dbg("ccfd:%s, imap:%p, cofd:%s", ccfd, (void*)imap, cofd);
+   dbg("len:%d pmap:%p", strlen(imap), (void*)imap);
+   //dbg("kernel:\n%s", imap);
+
+   const int argc = argn(argv);
+   if (argc < 1) { return EXIT_FAILURE; }
+   string command(argv[0]);
+   for (int k = 1; k < argc && argv[k]; k++)
+   {
+      command.append(" ");
+      command.append(argv[k]);
+   }
+   const char *command_c_str = command.c_str();
+   dbg(command_c_str);
+
+   int ifd[2], ofd[2];
+   constexpr size_t PIPE_READ = 0;
+   constexpr size_t PIPE_WRITE = 1;
+   if (pipe(ifd) == -1) { perror("Input Pipe failed"); exit(1); }
+   if (pipe(ofd) == -1) { perror("Output Pipe failed"); exit(1); }
+   if (fork() == 0)           // fork: gcc
+   {
+      close(STDIN_FILENO);    // closing stdin
+      dup(ifd[PIPE_READ]);    // replacing stdin with pipe read
+      close(ifd[PIPE_READ]);  // close reading end in the child
+      close(ifd[PIPE_WRITE]); // this descriptor is no longer needed
+
+      dup2(ofd[PIPE_WRITE],1);// send stdout to the output pipe
+      dup2(ofd[PIPE_WRITE],2);// send stderr to the pipe
+      close(ofd[PIPE_READ]);  // this descriptor is no longer needed
+      close(ofd[PIPE_WRITE]); // this descriptor is no longer needed
+
+      // no printf, as it goes to stdout, in object!
+      //std::printf("\033[33m[CHILD] execvp\033[m\n"); fflush(0);
+      execvp(argv[0], (char*const*) argv);
+      perror("execvp failed");
+      exit(1);
+   }
+
+   // ---- Continue parent process ---------//
+   std::printf("\033[32m[PARNT] PID of parent process = %d \n", getpid());
+   fflush(0);
+
+   size_t nbyte = std::strlen(imap);
+   write(ifd[PIPE_WRITE], imap, nbyte);
+
+   close(ifd[PIPE_WRITE]);
+   close(ofd[PIPE_WRITE]);
+
+   char buffer[1024];
+   size_t nr;
+
+   const mode_t mode = S_IRUSR | S_IWUSR;
+   const int oflag = O_CREAT | O_RDWR | O_TRUNC;
+   int debug_co_fd = ::open(co, oflag, mode);
+
+   int obj_sz = 0;
+
+   while ((nr = read(ofd[PIPE_READ], buffer, sizeof(buffer))) > 0)
+   {
+      std::printf("\033[32m[PARNT] nr:%ld\033[m\n", nr);
+      fflush(0);
+      //write(STDOUT_FILENO, buffer, nr); // debug stdout trace
+      ::memcpy((void*)omap, buffer, nr);
+      obj_sz += nr;
+      // write also to file for debug
+      write(debug_co_fd, buffer, nr);
+   }
+   if (::close(debug_co_fd)<0) { perror("!close(debug_co_fd)"); }
+
+   dbg("[PARNT] Waiting for child process termination");
+   dbg("object size:%d", obj_sz);
+   ::close(ofd[PIPE_READ]);
+   ::wait(nullptr);
+   return 0;
+}
+
 
 bool Root() { return true; }
 
@@ -290,45 +376,51 @@ int GetVersion(bool inc)
 
 // *****************************************************************************
 /// Compile the source file with PIC flags, updating the cache library.
-bool Compile(const char *cc, const char *co,
+bool Compile(const char *cc, const int ifd,
+             char *imap, char *omap,
+             const char *co, const int ofd,
              const char *cxx, const char *cxxflags,
              const char *msrc, const char *mins,
              const bool check_for_lib_ar)
 {
+   dbg("cc:%s, co:%s",cc,co);
+   dbg("ifd:%s, imap:%p, ofd:%s",ifd, (void*)imap,ofd);
 #ifndef MFEM_USE_CUDA
-#define DC
-#define XC ""
-#define XL "-Wl,"
+#define MFEM_JIT_DEVICE_CODE
+#define MFEM_JIT_COMPILER_OPTION
+#define MFEM_JIT_LINKER_OPTION "-Wl,"
 #else
-#define DC "-dc",
-#define XL "-Xlinker="
-#define XC "-Xcompiler="
+#define MFEM_JIT_DEVICE_CODE "-dc",
+#define MFEM_JIT_LINKER_OPTION "-Xlinker="
+#define MFEM_JIT_COMPILER_OPTION "-Xcompiler="
 #endif
 
 #ifndef __APPLE__
-   constexpr const char *beg_load = XL "--whole-archive";
-   constexpr const char *end_load = XL "--no-whole-archive";
+   constexpr const char *beg_load = MFEM_JIT_LINKER_OPTION "--whole-archive";
+   constexpr const char *end_load = MFEM_JIT_LINKER_OPTION "--no-whole-archive";
 #else
    constexpr const char *beg_load = "-all_load";
    constexpr const char *end_load = "";
 #endif
 
    constexpr int PM = PATH_MAX;
-   constexpr const char *fpic = XC "-fPIC";
+   constexpr const char *fpic = MFEM_JIT_COMPILER_OPTION "-fPIC";
    constexpr const char *shell = MFEM_JIT_SHELL_COMMAND;
    constexpr const char *libar = MFEM_JIT_CACHE ".a";
    constexpr const char *libso = MFEM_JIT_CACHE ".so";
 
-   // If there is already a JIT library, use it and create the lib_so
-   if (check_for_lib_ar && GetVersion() == 0 && std::fstream(libar))
+   // If there is already a JIT archive, use it and create the lib_so
+   if (false && check_for_lib_ar && GetVersion() == 0 && std::fstream(libar))
    {
+      dbg("Using JIT archive!");
+      assert(false);
       const char *argv_so[] =
       {
          shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load,
-         XL"-rpath,.", nullptr
+         MFEM_JIT_LINKER_OPTION "-rpath,.", nullptr
       };
       if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
-      if (!getenv("TMP")) { shm_unlink(cc); }
+      if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(cc); }
       return true;
    }
 
@@ -340,21 +432,25 @@ bool Compile(const char *cc, const char *co,
    if (snprintf(libso_v, PM, "%s.so.%d", MFEM_JIT_CACHE, version) < 0)
    { return false; }
 
-   // Compilation
+#if 0
+   dbg("Compilation");
    const char *argv_co[] =
-   { shell, cxx, cxxflags, fpic, "-c", DC Imsrc, Iminc, "-o", co, cc, nullptr };
+   {
+      shell, cxx, cxxflags, fpic, "-c",
+      MFEM_JIT_DEVICE_CODE Imsrc, Iminc, "-o", co, cc, nullptr
+   };
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
 
-   // Update archive
+   dbg("Update archive");
    const char *argv_ar[] = { shell, "ar", "-rv", libar, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
 
-   // Create shared library
+   dbg("Create shared library");
    const char *argv_so[] =
    {shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load, nullptr};
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
 
-   // Install shared library
+   dbg("Install shared library");
    const char *install[] =
 #ifdef __APPLE__
    { shell, "install", libso, libso_v, nullptr };
@@ -363,8 +459,29 @@ bool Compile(const char *cc, const char *co,
 #endif
    if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
 
-   if (!getenv("TMP")) { ::shm_unlink(cc); }
-   if (!getenv("TMP")) { ::shm_unlink(co); }
+   dbg("Unlink");
+   if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(cc); }
+   if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(co); }
+
+#else
+   dbg("In Memory Compilation");
+   const char *argv_co_mem[] =
+   {
+      cxx,
+      // "-Wall", // generates NBZ warning
+      "-std=c++11", //cxxflags,
+      fpic, "-c",
+      "-pipe", "-x", "c++",
+      "-I.",
+      MFEM_JIT_DEVICE_CODE Imsrc, Iminc,
+      "-o", "/dev/stdout",
+      "-",
+      nullptr
+   };
+   if (mfem::jit::InMemCompile(ifd,imap,ofd,omap,co,
+                               const_cast<char**>(argv_co_mem)) != 0) { return false; }
+   //void *so = fdlopen(ofd,RTLD_LAZY);
+#endif
    return true;
 }
 
@@ -914,7 +1031,7 @@ void jitPrefix(context_t &pp)
    pp.out << "#include <cstring>\n";
    pp.out << "#include <stdbool.h>\n";
    pp.out << "#define MJIT_FORALL\n";
-   pp.out << "#include \"general/mjit.hpp\"\n";
+   pp.out << "#include \"/Users/camier1/home/sawmill/okina-jit/mfem/include/mfem/general/mjit.hpp\"\n";
    if (not pp.ker.embed.empty())
    {
       // push to suppress 'declared but never referenced' warnings
