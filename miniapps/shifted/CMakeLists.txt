@@ -11,9 +11,13 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-	dist_solver.cpp)
+	dist_solver.cpp
+	sbm_solver.cpp 
+	marking.cpp)
   list(APPEND DIST_COMMON_HEADERS
-	dist_solver.hpp)
+	dist_solver.hpp
+	sbm_solver.hpp
+        marking.hpp)
 
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -24,6 +28,11 @@ set(DIST_COMMON_FILES
 
 add_mfem_miniapp(distance
     MAIN distance.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(diffusion
+    MAIN diffusion.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
