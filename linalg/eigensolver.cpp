@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
-#include "eigensolvers.hpp"
+#include "eigensolver.hpp"
 
 using namespace std;
 
