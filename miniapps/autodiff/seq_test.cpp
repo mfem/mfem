@@ -78,5 +78,20 @@ int main(int argc, char *argv[])
     rr1.Print(std::cout);
     hh1.Print(std::cout);
 
+    //using lambda expression
+    auto func = [](mfem::Vector& vparam, mfem::ad::ADVectorType& uu, mfem::ad::ADVectorType& vres) {
+        auto kapa = vparam[0]; //diffusion coefficient
+        auto load = vparam[1]; //volumetric influx
+
+        vres[0] = kapa * uu[0];
+        vres[1] = kapa * uu[1];
+        vres[2] = kapa * uu[2];
+        vres[3] = -load;
+    };
+
+    mfem::FResidualAutoDiff<4,4,2> fdr(func);
+    fdr.QGradResidual(param,state,hh1); //computes the gradient of func and stores the result in hh1
+    std::cout<<"LambdaAutoDiff"<<std::endl;
+    hh1.Print(std::cout);
 
 }
