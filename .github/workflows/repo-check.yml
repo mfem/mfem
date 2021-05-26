@@ -19,8 +19,8 @@ on:
   pull_request:
 
 jobs:
-  copyright-check:
-    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
+  repo-check:
+    runs-on: ubuntu-18.04
 
     steps:
     - name: checkout mfem
@@ -29,6 +29,7 @@ jobs:
         path: mfem
 
     - name: copyright check
+      id: copyright
       run: |
         cd mfem
         if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt
@@ -39,17 +40,10 @@ jobs:
         else
           echo "No outdated copyright found."
         fi
-
-  license-check:
-    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
-
-    steps:
-    - name: checkout mfem
-      uses: actions/checkout@v2
-      with:
-        path: mfem
+      continue-on-error: true
 
     - name: license check
+      id: license
       run: |
         cd mfem
         if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
@@ -60,17 +54,10 @@ jobs:
         else
           echo "No GNU GPL license found."
         fi
+      continue-on-error: true
 
-  release-check:
-    runs-on: ubuntu-18.04 # needed for astyle 2.05.1
-
-    steps:
-    - name: checkout mfem
-      uses: actions/checkout@v2
-      with:
-        path: mfem
-
-    - name: relsease check
+    - name: release check
+      id: release
       run: |
         cd mfem
         if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
@@ -81,7 +68,21 @@ jobs:
         else
           echo "No outdated release number found."
         fi
+      continue-on-error: true
 
+    - name: wrap-up
+      if: steps.copyright.outcome != 'success' || steps.license.outcome != 'success' || steps.release.outcome != 'success'
+      run: |
+        if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
+          echo "copyright check failed, unroll log for details"
+        fi
+        if [[ "${{ steps.license.outcome }}" != "success" ]]; then
+          echo "license check failed, unroll log for details"
+        fi
+        if [[ "${{ steps.release.outcome }}" != "success" ]]; then
+          echo "release check failed, unroll log for details"
+        fi
+        exit 1
   code-style:
     runs-on: ubuntu-16.04 # needed for astyle 2.05.1
 
@@ -92,12 +93,10 @@ jobs:
     - name: get astyle
       run: |
         sudo apt-get install astyle=2.05.1-0ubuntu1
-
     - name: style check
       run: |
         cd tests/scripts
         ./runtest code-style
-
   documentation:
     runs-on: ubuntu-18.04
 
@@ -108,12 +107,10 @@ jobs:
     - name: get doxygen and graphviz
       run: |
         sudo apt-get install doxygen graphviz
-
     - name: build documentation
       run: |
         cd tests/scripts
         ./runtest documentation
-
   branch-history:
     if: github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
     runs-on: ubuntu-18.04
@@ -130,3 +127,4 @@ jobs:
         git checkout -b gh-actions-branch-history
         cd tests/scripts
         ./runtest branch-history
+	
