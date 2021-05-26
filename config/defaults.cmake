@@ -57,6 +57,8 @@ option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 option(MFEM_USE_ADEPT "Enable AD using ADEPT" OFF)
 option(MFEM_USE_FADBADPP "Enable AD using FADBAD++" OFF)
+option(MFEM_USE_CODIPACK "Enable AD using CoDiPack" OFF)
+option(MFEM_USE_EIGEN "Enable Eigen" OFF)
 option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
 option(MFEM_USE_CALIPER "Enable Caliper support" OFF)
 option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
@@ -226,6 +228,12 @@ set(ADEPT_LIBRARIES "-L${MFEM_DIR}/../adept-1.1/lib -ladept" CACHE STRING "The A
 
 set(FADBADPP_INCLUDE_DIRS "${MFEM_DIR}/../FADBAD++" CACHE STRING "Path to FADBAD++ headers.")
 set(FADBADPP_LIBRARIES "")
+
+set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/inlude" CACHE STRING "Path to CoDoPack headers.")
+set(CODIPACK_LIBRARIES "")
+
+set(EIGEN_INCLUDE_DIRS "${MFEM_DIR}/../Eigen/" CACHE STRING "Path to Eigen headers.")
+set(EIGEN_LIBRARIES "")
 
 # Some useful variables:
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules
