@@ -98,7 +98,10 @@ MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
 MFEM_PERF_CXXFLAGS_xlc = -mcpu=native
 
 # - Clang extra options:
-MFEM_PERF_CXXFLAGS_clang += -march=native
+ifneq ($(MFEM_MACHINE),arm64)
+  # -march=native is unavailable for ARM
+  MFEM_PERF_CXXFLAGS_clang += -march=native
+endif
 MFEM_PERF_CXXFLAGS_clang += $(PEDANTIC_FLAG) -Wall
 MFEM_PERF_CXXFLAGS_clang += -fcolor-diagnostics
 MFEM_PERF_CXXFLAGS_clang += -fvectorize
