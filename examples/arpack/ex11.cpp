@@ -45,7 +45,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int ser_ref_levels = 3;
    int order = 1;
    int nev = 5;
