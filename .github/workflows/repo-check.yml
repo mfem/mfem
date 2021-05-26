@@ -72,7 +72,17 @@ jobs:
 
     - name: wrapping up
       if: steps.copyright.outcome != 'success' || steps.license.outcome != 'success' || steps.release.outcome != 'success'
-      run: exit 1
+      run: |
+        if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
+          echo "copyright check failed, unroll log for details"
+        fi
+        if [[ "${{ steps.license.outcome }}" != "success" ]]; then
+          echo "license check failed, unroll log for details"
+        fi
+        if [[ "${{ steps.release.outcome }}" != "success" ]]; then
+          echo "release check failed, unroll log for details"
+        fi
+        exit 1
 
   code-style:
     runs-on: ubuntu-16.04 # needed for astyle 2.05.1
