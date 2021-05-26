@@ -146,6 +146,12 @@ examples/petsc/elastic_energy.*
 examples/petsc/mode_*
 
 examples/arpack/ex11
+examples/arpack/mode_*
+examples/arpack/ex11.mesh
+
+examples/spectra/ex11
+examples/spectra/mode_*
+examples/spectra/ex11.mesh
 
 examples/pumi/ex1
 examples/pumi/ex[126]p
