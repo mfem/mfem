@@ -11,7 +11,7 @@
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../../build-parallel
+MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/spectra/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
