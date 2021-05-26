@@ -33,6 +33,7 @@
 
 #include <list>
 #include <cmath>
+#include <regex>
 #include <string>
 #include <cstring>
 #include <ciso646>
@@ -45,6 +46,8 @@
 #include <dlfcn.h>
 
 using std::list;
+using std::regex;
+using std::vector;
 using std::string;
 using std::istream;
 using std::ostream;
@@ -100,12 +103,12 @@ static int System(char *argv[])
 }
 
 // In-memory compilation
-static int InMemCompile(int ccfd, char *imap,
-                        int cofd, char *omap,
+static int InMemCompile(int ifd, char *imap,
+                        int ofd, char *omap,
                         const char *co,
                         char *argv[])
 {
-   dbg("ccfd:%s, imap:%p, cofd:%s", ccfd, (void*)imap, cofd);
+   dbg("ccfd:%s, imap:%p, cofd:%s", ifd, (void*)imap, ofd);
    dbg("len:%d pmap:%p", strlen(imap), (void*)imap);
    //dbg("kernel:\n%s", imap);
 
@@ -120,39 +123,39 @@ static int InMemCompile(int ccfd, char *imap,
    const char *command_c_str = command.c_str();
    dbg(command_c_str);
 
-   int ifd[2], ofd[2];
+   int ip[2], op[2], ep[2];
    constexpr size_t PIPE_READ = 0;
    constexpr size_t PIPE_WRITE = 1;
-   if (pipe(ifd) == -1) { perror("Input Pipe failed"); exit(1); }
-   if (pipe(ofd) == -1) { perror("Output Pipe failed"); exit(1); }
-   if (fork() == 0)           // fork: gcc
+   if (pipe(ip) == -1) { perror("Input Pipe failed"); exit(1); }
+   if (pipe(op) == -1) { perror("Output Pipe failed"); exit(1); }
+   if (pipe(ep) == -1) { perror("Error Pipe failed"); exit(1); }
+
+   if (fork() == 0)            // Child process which calls the compiler
    {
-      close(STDIN_FILENO);    // closing stdin
-      dup(ifd[PIPE_READ]);    // replacing stdin with pipe read
-      close(ifd[PIPE_READ]);  // close reading end in the child
-      close(ifd[PIPE_WRITE]); // this descriptor is no longer needed
+      close(STDIN_FILENO);     // closing stdin
+      dup2(ip[PIPE_READ],0);  // replacing stdin with pipe read
+      close(ip[PIPE_READ]);   // close reading end
+      close(ip[PIPE_WRITE]);  // no longer needed
 
-      dup2(ofd[PIPE_WRITE],1);// send stdout to the output pipe
-      dup2(ofd[PIPE_WRITE],2);// send stderr to the pipe
-      close(ofd[PIPE_READ]);  // this descriptor is no longer needed
-      close(ofd[PIPE_WRITE]); // this descriptor is no longer needed
+      dup2(op[PIPE_WRITE],1); // send stdout to the output pipe
+      close(op[PIPE_READ]);   // no longer needed
+      close(op[PIPE_WRITE]);  // no longer needed
 
-      // no printf, as it goes to stdout, in object!
-      //std::printf("\033[33m[CHILD] execvp\033[m\n"); fflush(0);
-      execvp(argv[0], (char*const*) argv);
-      perror("execvp failed");
-      exit(1);
+      dup2(ep[PIPE_WRITE],2); // send stderr to the error pipe
+      close(ep[PIPE_READ]);   // no longer needed
+      close(ep[PIPE_WRITE]);  // no longer needed
+
+      ::execvp(argv[0], const_cast<char* const*>(argv));
+      exit((perror("execvp failed"),1));
    }
 
-   // ---- Continue parent process ---------//
-   std::printf("\033[32m[PARNT] PID of parent process = %d \n", getpid());
-   fflush(0);
-
+   // Parent process
    size_t nbyte = std::strlen(imap);
-   write(ifd[PIPE_WRITE], imap, nbyte);
+   write(ip[PIPE_WRITE], imap, nbyte);
 
-   close(ifd[PIPE_WRITE]);
-   close(ofd[PIPE_WRITE]);
+   close(ip[PIPE_WRITE]);
+   close(op[PIPE_WRITE]);
+   close(ep[PIPE_WRITE]);
 
    char buffer[1024];
    size_t nr;
@@ -161,9 +164,24 @@ static int InMemCompile(int ccfd, char *imap,
    const int oflag = O_CREAT | O_RDWR | O_TRUNC;
    int debug_co_fd = ::open(co, oflag, mode);
 
-   int obj_sz = 0;
+   int obj_sz = 0, err_sz = 0;
 
-   while ((nr = read(ofd[PIPE_READ], buffer, sizeof(buffer))) > 0)
+   // first scan error pipe
+   while ((nr = read(ep[PIPE_READ], buffer, sizeof(buffer))) > 0)
+   {
+      write(STDERR_FILENO, buffer, nr);
+      err_sz += nr;
+   }
+   ::close(ep[PIPE_READ]);
+   if (err_sz > 0)
+   {
+      ::close(op[PIPE_READ]);
+      ::wait(nullptr);
+      return perror("Compilation error!"), 1;
+   }
+
+   // then get
+   while ((nr = read(op[PIPE_READ], buffer, sizeof(buffer))) > 0)
    {
       std::printf("\033[32m[PARNT] nr:%ld\033[m\n", nr);
       fflush(0);
@@ -173,11 +191,10 @@ static int InMemCompile(int ccfd, char *imap,
       // write also to file for debug
       write(debug_co_fd, buffer, nr);
    }
-   if (::close(debug_co_fd)<0) { perror("!close(debug_co_fd)"); }
-
-   dbg("[PARNT] Waiting for child process termination");
+   if (::close(debug_co_fd) < 0) { perror("!close(debug_co_fd)"); }
+   //dbg("[PARNT] Waiting for child process termination");
    dbg("object size:%d", obj_sz);
-   ::close(ofd[PIPE_READ]);
+   ::close(op[PIPE_READ]);
    ::wait(nullptr);
    return 0;
 }
@@ -366,11 +383,11 @@ static int ProcessFork(int argc, char *argv[])
 #endif // MFEM_USE_MPI
 
 // *****************************************************************************
-int GetVersion(bool inc)
+int GetCurrentRuntimeVersion(bool increment)
 {
    static int version = 0;
    const int actual = version;
-   if (inc) { version += 1; }
+   if (increment) { version += 1; }
    return actual;
 }
 
@@ -379,9 +396,9 @@ int GetVersion(bool inc)
 bool Compile(const char *cc, const int ifd,
              char *imap, char *omap,
              const char *co, const int ofd,
-             const char *cxx, const char *cxxflags,
+             const char *cxx, const char *flags,
              const char *msrc, const char *mins,
-             const bool check_for_lib_ar)
+             const bool check_for_ar)
 {
    dbg("cc:%s, co:%s",cc,co);
    dbg("ifd:%s, imap:%p, ofd:%s",ifd, (void*)imap,ofd);
@@ -410,7 +427,8 @@ bool Compile(const char *cc, const int ifd,
    constexpr const char *libso = MFEM_JIT_CACHE ".so";
 
    // If there is already a JIT archive, use it and create the lib_so
-   if (false && check_for_lib_ar && GetVersion() == 0 && std::fstream(libar))
+   if (false && check_for_ar && GetCurrentRuntimeVersion() == 0 &&
+       std::fstream(libar))
    {
       dbg("Using JIT archive!");
       assert(false);
@@ -425,7 +443,7 @@ bool Compile(const char *cc, const int ifd,
    }
 
    // MFEM source path, include path & lib_so_v
-   const int version = GetVersion(true);
+   const int version = GetCurrentRuntimeVersion(true);
    char libso_v[PM], Imsrc[PM], Iminc[PM];
    if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
    if (snprintf(Iminc, PM, "-I%s/include ", mins) < 0) { return false; }
@@ -436,10 +454,53 @@ bool Compile(const char *cc, const int ifd,
    dbg("Compilation");
    const char *argv_co[] =
    {
-      shell, cxx, cxxflags, fpic, "-c",
+      shell, cxx, flags, fpic, "-c",
       MFEM_JIT_DEVICE_CODE Imsrc, Iminc, "-o", co, cc, nullptr
    };
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
+#else
+   dbg("In Memory Compilation");
+
+   regex reg("\\s+");
+   string cxxflags(flags);
+   auto cxxargv =
+      vector<std::string>(
+         std::sregex_token_iterator{begin(cxxflags), end(cxxflags), reg, -1},
+         std::sregex_token_iterator{});
+   //for (auto a : cxxargv) { std::cout << a << std::endl; }
+
+   vector<const char *> argv;
+   argv.push_back(cxx);
+   for (auto &a : cxxargv)
+   {
+      using uptr = std::unique_ptr<char, decltype(&std::free)>;
+      uptr *t_copy = new uptr(strdup(a.data()), &std::free);
+      argv.push_back(t_copy->get());
+      //argv.push_back(strdup(a.data()));
+   }
+   argv.push_back("-Wno-unused-variable");
+   argv.push_back(fpic);
+   argv.push_back("-c");
+   argv.push_back("-pipe");
+   argv.push_back("-x");
+   argv.push_back("c++");
+   argv.push_back("-I.");
+   argv.push_back(Imsrc); // MFEM_JIT_DEVICE_CODE ?
+   argv.push_back(Iminc);
+   argv.push_back("-o");
+   argv.push_back("/dev/stdout");
+   argv.push_back("-");
+   argv.push_back(nullptr);
+
+   if (mfem::jit::InMemCompile(ifd, imap,
+                               ofd, omap,
+                               co,
+                               const_cast<char**>(argv.data())) != 0)
+   {
+      return false;
+   }
+   //void *so = fdlopen(ofd,RTLD_LAZY);
+#endif
 
    dbg("Update archive");
    const char *argv_ar[] = { shell, "ar", "-rv", libar, co, nullptr };
@@ -463,25 +524,6 @@ bool Compile(const char *cc, const int ifd,
    if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(cc); }
    if (!getenv("MFEM_NUNLINK")) { ::shm_unlink(co); }
 
-#else
-   dbg("In Memory Compilation");
-   const char *argv_co_mem[] =
-   {
-      cxx,
-      // "-Wall", // generates NBZ warning
-      "-std=c++11", //cxxflags,
-      fpic, "-c",
-      "-pipe", "-x", "c++",
-      "-I.",
-      MFEM_JIT_DEVICE_CODE Imsrc, Iminc,
-      "-o", "/dev/stdout",
-      "-",
-      nullptr
-   };
-   if (mfem::jit::InMemCompile(ifd,imap,ofd,omap,co,
-                               const_cast<char**>(argv_co_mem)) != 0) { return false; }
-   //void *so = fdlopen(ofd,RTLD_LAZY);
-#endif
    return true;
 }
 

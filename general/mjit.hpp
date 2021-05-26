@@ -115,115 +115,7 @@ bool Root();
 
 /// Returns the shared library version of the current run.
 /// Initialized at '0' and can be incremented by setting 'inc' to true.
-int GetVersion(bool inc = false);
-
-/*
-/// Base file class
-template <class T> class File
-{
-protected:
-   int fd;
-   size_t size;
-   const char *pathname;
-public:
-   File(const char *file, size_t sz = 0)
-   {
-      size = sz;
-      pathname = file;
-      static_cast<T*>(this)->init();
-   }
-   static int Open() { return T::Open(); }
-   static int Close() { return T::Close(); }
-   static int Unlink() { return T::Unlink(); }
-};
-
-/// Standard file class
-class StdFile: public File<StdFile>
-{
-public:
-   int init(const char *pathname, size_t size)
-   {
-      dbg();
-      int fd = Open(pathname);
-      return fd;
-   }
-
-   static int Open(const char *pathname)
-   {
-      dbg("pathname: %s", pathname);
-      const int fd = ::open(pathname, O_RDONLY, S_IRUSR|S_IRWXG);
-      if (fd == -1)
-         exit(EXIT_FAILURE|
-              printf("\033[31;1m[open] file failed: %s\033[m\n",
-                     strerror(errno)));
-      return fd;
-   }
-
-   static int Close(const int fd)
-   {
-      if (::close(fd) == -1)
-         exit(EXIT_FAILURE|
-              printf("\033[31;1m[close] failed: %s\033[m\n",
-                     strerror(errno)));
-      return 0;
-   }
-
-   static int Unlink(const char *pathname)
-   {
-      dbg("pathname: %s",pathname);
-      if (::unlink(pathname) == -1)
-         exit(EXIT_FAILURE|
-              printf("\033[31;1m[unlink] Error removing %s: %s\033[m\n",
-                     pathname, strerror(errno)));
-      return EXIT_SUCCESS;
-   }
-};
-
-/// Shared-memory file class
-class ShmFile: public File<ShmFile>
-{
-public:
-   int init(const char *pathname, size_t size)
-   {
-      dbg();
-      int fd = Open(pathname);
-      if (::ftruncate(fd, size) < 0)
-         exit(EXIT_FAILURE|
-              printf("\033[31;1m[shmInit] ftruncate failed: %s\033[m\n",
-                     strerror(errno)));
-      return fd;
-   }
-
-   static int Open(const char *pathname)
-   {
-      dbg("Shared memory name: %s", pathname);
-      const int fd = shm_open(pathname, O_CREAT | O_RDWR, 0666);
-      if (fd == -1)
-         exit(EXIT_FAILURE|
-              printf("\033[31;1m[shmInit] Shared memory failed: %s\033[m\n",
-                     strerror(errno)));
-      return fd;
-   }
-
-   static int Close(const int fd)
-   {
-      if (::close(fd) == -1)
-         exit(EXIT_FAILURE|
-              printf("\033[31;1m[shmClose] Close failed: %s\033[m\n",
-                     strerror(errno)));
-      return 0;
-   }
-
-   static int Unlink(const char *pathname)
-   {
-      if (::shm_unlink(pathname) == -1)
-         exit(EXIT_FAILURE|
-              printf("\033[31;1m[shmUnlink] Error removing %s: %s\033[m\n",
-                     pathname, strerror(errno)));
-      return EXIT_SUCCESS;
-   }
-};
-*/
+int GetCurrentRuntimeVersion(bool increment = false);
 
 /// Root MPI process file creation, outputing the source of the kernel.
 template<typename... Args>
@@ -241,13 +133,7 @@ inline bool CreateInput(const char *input, const size_t h,
    const mode_t mode = S_IRUSR | S_IWUSR;
    const int oflag = O_CREAT | O_RDWR | O_EXCL;
    fd = ::shm_open(input, oflag, mode);
-   if (fd < 0)
-   {
-      exit(EXIT_FAILURE|
-           printf("\033[31;1m[shmOpen] Shared memory failed: %s\033[m\n",
-                  strerror(errno)));
-      return false;
-   }
+   if (fd < 0) { return perror(strerror(errno)), false; }
 
    // determine the necessary buffer size
    const int size = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
@@ -270,16 +156,14 @@ inline bool CreateInput(const char *input, const size_t h,
                        flags,   // Segment visible by other processes
                        fd,      // File descriptor
                        0x00);   // Offset from beggining of file
-   if (pmap == MAP_FAILED) { dbg("!pmap"); return false; }
+   if (pmap == MAP_FAILED) { return perror(strerror(errno)), false; }
 
    if (std::snprintf(pmap, size, src, h, h, h, args...) < 0)
    {
-      dbg("!snprintf");
-      return false;
+      return perror("snprintf error occured"), false;
    }
 
-   dbg("ifd:%d",fd);
-   if (::close(fd) < 0) { dbg("!close"); return false; }
+   if (::close(fd) < 0) { return perror(strerror(errno)), false; }
 
    return true;
 }
@@ -358,6 +242,7 @@ inline bool Compile(const size_t hash, // kernel hash id
                     const char *mins,  // MFEM_INSTALL_DIR
                     Args... args)
 {
+   dbg();
    char *imap = nullptr;
    char *omap = nullptr;
    int ifd, ofd;
@@ -397,7 +282,7 @@ inline void *Lookup(const size_t hash, Args... args)
 
    constexpr int PM = PATH_MAX;
    char so_version[PM];
-   const int version = GetVersion();
+   const int version = GetCurrentRuntimeVersion();
    if (snprintf(so_version,PM,"%s.so.%d",MFEM_JIT_CACHE,version)<0)
    { return nullptr; }
 
@@ -413,6 +298,7 @@ inline void *Lookup(const size_t hash, Args... args)
       if (!Compile(hash, check_for_archive, args...)) { return nullptr; }
       handle = dlopen(first_compilation ? so_name : so_version, mode);
    }
+   else { dbg("Found MFEM JIT cache lib: %s", so_name); }
    if (!handle) { dbg("!handle-2"); return nullptr; }
    // Now look for the kernel symbol
    if (!dlsym(handle, symbol))
@@ -425,7 +311,7 @@ inline void *Lookup(const size_t hash, Args... args)
    }
    if (!handle) { return nullptr; }
    if (!dlsym(handle, symbol)) { return nullptr; }
-   if (!getenv("TMP")) { shm_unlink(so_version); }
+   if (!getenv("MFEM_NUNLINK")) { shm_unlink(so_version); }
    return handle;
 }
 
