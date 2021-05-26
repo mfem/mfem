@@ -83,6 +83,7 @@ jobs:
           echo "release check failed, unroll log for details"
         fi
         exit 1
+
   code-style:
     runs-on: ubuntu-16.04 # needed for astyle 2.05.1
 
@@ -93,10 +94,12 @@ jobs:
     - name: get astyle
       run: |
         sudo apt-get install astyle=2.05.1-0ubuntu1
+
     - name: style check
       run: |
         cd tests/scripts
         ./runtest code-style
+
   documentation:
     runs-on: ubuntu-18.04
 
@@ -107,10 +110,12 @@ jobs:
     - name: get doxygen and graphviz
       run: |
         sudo apt-get install doxygen graphviz
+
     - name: build documentation
       run: |
         cd tests/scripts
         ./runtest documentation
+
   branch-history:
     if: github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
     runs-on: ubuntu-18.04
@@ -127,4 +132,3 @@ jobs:
         git checkout -b gh-actions-branch-history
         cd tests/scripts
         ./runtest branch-history
-	
