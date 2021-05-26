@@ -8,6 +8,58 @@
 
 namespace mfem {
 
+
+#ifdef MFEM_USE_CODIPACK
+#else
+namespace ad {
+typedef ad::FDual<double> ADFloatType;
+typedef TADVector<ADFloatType> ADVectorType;
+typedef TADDenseMatrix<ADFloatType> ADMatrixType;
+}
+#endif
+
+
+template<int residual_size=1, int state_size=1, int param_size=0>
+class FResidualAutoDiff
+{
+#ifdef MFEM_USE_CODIPACK //CoDiPack implementation
+public:
+private:
+#else
+public:
+    FResidualAutoDiff(std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
+    {
+            F=F_;
+    }
+
+    void QGradResidual(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    {
+        //use native AD package
+        jac.SetSize(residual_size, state_size);
+        jac = 0.0;
+        {
+           ad::ADVectorType aduu(uu); //all dual numbers are initialized to zero
+           ad::ADVectorType rr(residual_size);
+
+           for (int ii = 0; ii < state_size; ii++)
+           {
+              aduu[ii].dual(1.0);
+              F(vparam,aduu,rr);
+              for (int jj = 0; jj < residual_size; jj++)
+              {
+                 jac(jj, ii) = rr[jj].dual();
+              }
+              aduu[ii].dual(0.0);
+           }
+        }
+    }
+
+private:
+    std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F;
+#endif //bative mfem implementation
+};
+
+
 template<template<typename, typename, typename, int, int, int> class CTD
          , int residual_size=1, int state_size=1, int param_size=0>
 class QResidualAutoDiff
