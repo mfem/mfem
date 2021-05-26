@@ -80,12 +80,13 @@ int main(int argc, char *argv[])
 
     //using lambda expression
     auto func = [](mfem::Vector& vparam, mfem::ad::ADVectorType& uu, mfem::ad::ADVectorType& vres) {
-        auto kapa = vparam[0]; //diffusion coefficient
+    //auto func = [](auto& vparam, auto& uu, auto& vres) { //c++14
+        auto kappa = vparam[0]; //diffusion coefficient
         auto load = vparam[1]; //volumetric influx
 
-        vres[0] = kapa * uu[0];
-        vres[1] = kapa * uu[1];
-        vres[2] = kapa * uu[2];
+        vres[0] = kappa * uu[0];
+        vres[1] = kappa * uu[1];
+        vres[2] = kappa * uu[2];
         vres[3] = -load;
     };
 
@@ -93,5 +94,24 @@ int main(int argc, char *argv[])
     fdr.QGradResidual(param,state,hh1); //computes the gradient of func and stores the result in hh1
     std::cout<<"LambdaAutoDiff"<<std::endl;
     hh1.Print(std::cout);
+
+
+    double kappa = param[0];
+    double load =  param[1];
+    //using lambda expression
+    auto func01 = [&kappa,&load](mfem::Vector& vparam, mfem::ad::ADVectorType& uu, mfem::ad::ADVectorType& vres) {
+    //auto func = [](auto& vparam, auto& uu, auto& vres) { //c++14
+
+        vres[0] = kappa * uu[0];
+        vres[1] = kappa * uu[1];
+        vres[2] = kappa * uu[2];
+        vres[3] = -load;
+    };
+
+    mfem::FResidualAutoDiff<4,4,2> fdr01(func01);
+    fdr01.QGradResidual(param,state,hh1);
+    std::cout<<"LambdaAutoDiff 01"<<std::endl;
+    hh1.Print(std::cout);
+
 
 }
