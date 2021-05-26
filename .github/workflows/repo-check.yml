@@ -56,7 +56,7 @@ jobs:
         fi
       continue-on-error: true
 
-    - name: relsease check
+    - name: release check
       id: release
       run: |
         cd mfem
@@ -70,7 +70,7 @@ jobs:
         fi
       continue-on-error: true
 
-    - name: wrapping up
+    - name: wrap-up
       if: steps.copyright.outcome != 'success' || steps.license.outcome != 'success' || steps.release.outcome != 'success'
       run: |
         if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
