@@ -1524,14 +1524,16 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       face_id1 = info.elem_1_local_face;
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
+      // We skip non-conforming master faces, as they will be treated by the
+      // slave faces.
       if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
       {
          continue;
       }
       if (dof_reorder)
       {
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for hex
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for quad and hex
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for quad and hex
       }
       else
       {
@@ -1542,6 +1544,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       if ( type==FaceType::Interior &&
            info.location==Mesh::FaceLocation::Interior )
       {
+         // Extract scatter indices for elem1
          for (int d = 0; d < dof; ++d)
          {
             const int face_dof = faceMap1[d];
@@ -1555,6 +1558,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             if ( info.conformity==Mesh::FaceConformity::Conforming )
             {
                interp_config[f_ind] = conforming;
+               // Extract scatter indices for elem2
                for (int d = 0; d < dof; ++d)
                {
                   int pd = PermuteFaceL2(dim, face_id1, face_id2,
@@ -1568,6 +1572,8 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             }
             else // Non-conforming face
             {
+               MFEM_ASSERT(e_ordering == ElementDofOrdering::LEXICOGRAPHIC,
+                  "The following interpolation operator is lexicographic.");
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
                Key key(ptMat, face_id1 + 6*face_id2);
                auto itr = interp_map.find(key);
@@ -1653,7 +1659,10 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                {
                   interp_config[f_ind] = itr->second.first;
                }
-               // The permutation is achieved by the interpolation operator.
+               // Extract scatter indices for elem2
+               // Contrary to the conforming case, there is no need to call
+               // PermuteFaceL2, the permutation is achieved by the
+               // interpolation operator for simplicity.
                for (int d = 0; d < dof; ++d)
                {
                   const int face_dof = faceMap2[d];
@@ -1669,6 +1678,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       else if ( type==FaceType::Boundary &&
                 info.location==Mesh::FaceLocation::Boundary )
       {
+         // Extract scatter indices for elem1
          for (int d = 0; d < dof; ++d)
          {
             const int face_dof = faceMap1[d];
@@ -1679,6 +1689,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          }
          if ( m==L2FaceValues::DoubleValued )
          {
+            // Extract scatter indices for elem2
             for (int d = 0; d < dof; ++d)
             {
                const int lid = dof*f_ind + d;
@@ -1711,7 +1722,8 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       }
       if (info.location==Mesh::FaceLocation::Shared)
       {
-         MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction.");
+         MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction. Use "
+         "ParNCL2FaceRestriction");
       }
       if ((type==FaceType::Interior &&
            info.location==Mesh::FaceLocation::Interior) ||
@@ -1720,6 +1732,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       {
          GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
+         // Extract gather indices for elem1
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
@@ -1734,6 +1747,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          {
             if (info.conformity==Mesh::FaceConformity::Conforming)
             {
+               // Extract gather indices for elem2
                for (int d = 0; d < dof; ++d)
                {
                   int pd = PermuteFaceL2(dim, face_id1, face_id2,
@@ -1747,6 +1761,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             }
             else
             {
+               // Extract gather indices for elem2
                for (int d = 0; d < dof; ++d)
                {
                   // The permutation is handled by the interpolation operator.

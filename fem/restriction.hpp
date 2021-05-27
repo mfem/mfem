@@ -155,56 +155,107 @@ protected:
                      const L2FaceValues m = L2FaceValues::DoubleValued);
 
 public:
-   L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
-                     const FaceType,
+   /** @brief Constructs an L2FaceRestriction.
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2 */
+   L2FaceRestriction(const FiniteElementSpace& fes,
+                     const ElementDofOrdering ordering,
+                     const FaceType type,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector.
+
+       The format of y is:
+       if m==L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
+       if m==L2FacesValues::SingleValued (face_dofs x vdim x nf) */
    void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector. */
    void MultTranspose(const Vector &x, Vector &y) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
    virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
+
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat,
                              const bool keep_nbr_block = false) const;
+
    /// This methods adds the DG face matrices to the element matrices.
    virtual void AddFaceMatricesToElementMatrices(Vector &fea_data,
                                                  Vector &ea_data) const;
 };
 
+/** @brief Operator that extracts face degrees of freedom for non-conforming 
+    meshes.
+
+    In order to support face restrictions on non-conforming meshes, this
+    operator interpolates master (coarse) face degrees of freedom onto the
+    slave (fine) face. This allows face integrators to treat non-conforming
+    faces just as regular conforming faces. */
 class NCL2FaceRestriction : public L2FaceRestriction
 {
 protected:
-   Array<int> interp_config;
-   int nc_size;
-   Vector interpolators;
+   Array<int> interp_config; // interpolator index for each face
+   int nc_size; // number of non-conforming interpolators
+   Vector interpolators; // face_dofs x face_dofs x nc_size
 
    NCL2FaceRestriction(const FiniteElementSpace&,
                        const FaceType,
                        const L2FaceValues m = L2FaceValues::DoubleValued);
 
 public:
-   NCL2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
-                       const FaceType,
+   /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
+       NCL2FaceRestriction for .
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2 */
+   NCL2FaceRestriction(const FiniteElementSpace& fes,
+                       const ElementDofOrdering ordering,
+                       const FaceType type,
                        const L2FaceValues m = L2FaceValues::DoubleValued);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector.
+
+       The format of y is:
+       if m==L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
+       if m==L2FacesValues::SingleValued (face_dofs x vdim x nf) */
    void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector. */
    void MultTranspose(const Vector &x, Vector &y) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
+
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
+
    /// This methods adds the DG face matrices to the element matrices.
    void AddFaceMatricesToElementMatrices(Vector &fea_data,
                                          Vector &ea_data) const override;
 
 protected:
-   static const int conforming = -1;
+   static const int conforming = -1; // helper value
+
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.
