@@ -3907,6 +3907,156 @@ public:
                                        Vector &elvect);
 };
 
+/** Integrator for the DG form:
+
+    < {- Q grad(u)}_alpha, [v] >
+    - sigma < [u], {- Q grad(v)}_alpha >
+    + kappa < [u], [v] >
+
+    Where:
+       {Psi}_alpha = alpha_1 Psi_1 + alpha_2 Psi_2 and alpha_2 = 1 - alpha_1
+       {Psi} = (Psi_1 + Psi_2) / 2
+       [phi] = n_1 phi_1 + n_2 phi_2
+    The diffusion coefficient is the matrix Q.  The parameter sigma determines
+    the DG method to be used
+    (when this integrator is added to the "broken" DiffusionIntegrator:
+    * sigma = -1: symm. interior penalty (IP or SIPG) method,
+    * sigma = +1: non-symmetric interior penalty (NIPG) method,
+
+    The alpha parameters are determined using a continuous scalar field tau
+    according to:
+       alpha = (0.5, 0.5) + 0.5 tau (sign(beta.n_1), sign(beta.n_2))
+
+    The parameter kappa is a penalty parameter which encourages continuity of
+    the solution. See the 2007 paper "Estimation of penalty parameters for
+    symmetric interior penalty Galerkin methods" by Y. Epshteyn and B. Riviere
+    for advice on selecting kappa. Crudely the rule is:
+       kappa > p (p+1) f(Q) g(T_h) in 2D
+       kappa > p (p+2) f(Q) g(T_h) in 3D
+    Where g(T_h) is a function of the mesh spacing and distortion, and f(Q)
+    is (Q_max)^2/Q_min with Q_max and Q_min being the maximum and minimum
+    eigenvalues of the diffusion coefficient. It's likely that the advection
+    velocity should also contribute to kappa but exactly how is unclear.
+
+    Finally it should be noted that this formulation is borowed from the 2009
+    paper "Discontinuous Galerkin methods for advection-diffusion-reaction
+    problems" by B. Ayuso and D. Marini where it appears as equation 3.8 (with
+    slight modifications). Note in particular that our sigma parameter is the
+    negative of the theta parameter from the paper.
+*/
+class DGAnisoDiffBaseIntegrator
+{
+protected:
+   MatrixCoefficient *MQ;
+   Coefficient *QPara;
+   Coefficient *QPerp;
+   double sigma, kappa;
+
+   DGAnisoDiffBaseIntegrator(MatrixCoefficient & q,
+                             Coefficient &qPara, Coefficient &qPerp,
+                             double s, double k)
+      :
+      MQ(&q),
+      QPara(&qPara),
+      QPerp(&qPerp),
+      sigma(s),
+      kappa(k)
+   { }
+
+};
+
+class DGAnisoDiffIntegrator : public BilinearFormIntegrator,
+   DGAnisoDiffBaseIntegrator
+{
+private:
+   MatrixCoefficient *MQ;
+   Coefficient *QPara;
+   Coefficient *QPerp;
+   double sigma, kappa;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector shape1, shape2, nQdshape1, nQdshape2;
+   DenseMatrix dshape1, dshape2;
+#endif
+
+public:
+   DGAnisoDiffIntegrator(MatrixCoefficient & q,
+                         Coefficient &qPara, Coefficient &qPerp,
+                         double s, double k)
+      : DGAnisoDiffBaseIntegrator(q, qPara, qPerp, s, k)
+   {}
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+class DGAnisoDiffBdrIntegrator : public BilinearFormIntegrator,
+   DGAnisoDiffBaseIntegrator
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   Vector shape1, nQdshape1;
+   DenseMatrix dshape1;
+#endif
+
+public:
+   DGAnisoDiffBdrIntegrator(MatrixCoefficient & q,
+                            Coefficient &qPara, Coefficient &qPerp,
+                            double s, double k)
+      : DGAnisoDiffBaseIntegrator(q, qPara, qPerp, s, k) {}
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Boundary linear integrator for imposing non-zero Dirichlet boundary
+    conditions, to be used in conjunction with DGDiffusionIntegrator.
+    Specifically, given the Dirichlet data u_D, the linear form assembles the
+    following integrals on the boundary:
+
+    sigma < u_D, (Q grad(v)).n > + kappa < {h^{-1} Q} u_D, v >,
+
+    where Q is a scalar or matrix diffusion coefficient and v is the test
+    function. The parameters sigma and kappa should be the same as the ones
+    used in the DGDiffusionIntegrator. */
+class DGAnisoDiffDirichletLFIntegrator : public LinearFormIntegrator,
+   DGAnisoDiffBaseIntegrator
+{
+private:
+   Coefficient *uD;
+
+   // these are not thread-safe!
+   Vector shape, dshape_dn, nor, nh, ni, vb;
+   DenseMatrix dshape, mq, adjJ;
+
+public:
+   DGAnisoDiffDirichletLFIntegrator(Coefficient &u,
+                                    MatrixCoefficient &q,
+                                    Coefficient &qPara,
+                                    Coefficient &qPerp,
+                                    double s,
+                                    double k)
+      : DGAnisoDiffBaseIntegrator(q, qPara, qPerp, s, k),
+        uD(&u)
+   { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect)
+   {
+      mfem_error("DGAnisoDiffDirichletLFIntegrator::AssembleRHSElementVect");
+   }
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+};
+
 } // namespace transport
 
 } // namespace plasma
