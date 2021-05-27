@@ -340,6 +340,7 @@ int ParFiniteElementSpace::MakeGhostEdgeDofTable()
    typedef Triple<int, int, int> TripleInt;
    Array<TripleInt> edge_order_rank;
 
+   // loop over ghost elements and their edges, prepare ghost edge table
    Array<int> E;
    for (int i = 0; i < pncmesh->GetNGhostElements(); i++)
    {
@@ -385,8 +386,8 @@ int ParFiniteElementSpace::MakeGhostEdgeDofTable()
       list_edge_dof[i] = Connection(eor.one, total_dofs);
       total_dofs += dofs;
 
-      ghost_var_orders[i] = eor.two;
-      ghost_var_owners[i] = pncmesh->GetSingletonGroup(eor.three);
+      ghost_var_orders[0][i] = eor.two;
+      ghost_var_owners[0][i] = pncmesh->GetSingletonGroup(eor.three);
    }
 
    int nedges = mesh->GetNEdges() + pncmesh->GetNGhostEdges();
@@ -2444,15 +2445,18 @@ int ParFiniteElementSpace
                      const Table &var_dofs =
                         (entity == 1) ? var_edge_dofs : var_face_dofs;
 
-                     const int *beg = var_dofs.GetRow(id.index);
-                     const int *end = var_dofs.GetRow(id.index + 1);
+                     const int *I = var_dofs.GetI();
+                     const int *J = var_dofs.GetJ();
 
                      int base = nvdofs + (entity == 2 ? nedofs : 0);
 
-                     for (const int *dof = beg; dof < end; dof++)
+                     for (int j = I[id.index]; j < I[id.index+1]; j++)
                      {
-                        dof_owner[base + *dof] = owner;
-                        dof_group[base + *dof] = group;
+                        for (int dof = J[j]; dof < J[j+1]; dof++)
+                        {
+                           dof_owner[base + dof] = owner;
+                           dof_group[base + dof] = group;
+                        }
                      }
                   }
 
