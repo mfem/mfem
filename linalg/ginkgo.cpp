@@ -75,7 +75,7 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
          break;
       }
       default:
-         mfem::err << "Invalid ExecType specificed" << std::endl;
+         mfem::err << "Invalid ExecType specified" << std::endl;
    }
 }
 
