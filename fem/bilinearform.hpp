@@ -176,6 +176,8 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
+   Hybridization *GetHybridization() const { return hybridization; }
+
    /** @brief Enable the use of static condensation. For details see the
        description for class StaticCondensation in fem/staticcond.hpp This method
        should be called before assembly. If the number of unknowns after static
@@ -369,7 +371,7 @@ public:
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
-       When the AssemblyLevel is not LEGACYFULL, and the mesh has hanging nodes,
+       When the AssemblyLevel is not LEGACY, and the mesh has hanging nodes,
        this method returns |P^T| d_l, where d_l is the diagonal of the form
        before applying conforming assembly, P^T is the transpose of the
        conforming prolongation, and |.| denotes the entry-wise absolute value.

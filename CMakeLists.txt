@@ -179,6 +179,12 @@ endif()
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
+  if (MFEM_MPIEXEC)
+    set(MPIEXEC ${MFEM_MPIEXEC})
+  endif()
+  if (MFEM_MPIEXEC_NP)
+    set(MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
+  endif()
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
@@ -417,8 +423,8 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE SuperLUDist MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+    SLEPC MESQUITE MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
     CUSPARSE MKL_CPARDISO AMGX CALIPER)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
