@@ -458,6 +458,10 @@ MFEM_USE_UMPIRE = YES/NO
    discovery, provision, and management of memory on machines with multiple
    memory devices like NUMA and GPUs.
 
+MFEM_USE_BENCHMARK = YES/NO
+   Enables support for Umpire, a library to benchmark code snippets, similar to
+   unit tests.
+
 MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
@@ -737,6 +741,11 @@ The specific libraries and their options are:
   Options: UMPIRE_DIR, UMPIRE_OPT, UMPIRE_LIB.
   Versions: Umpire >= 2.0.0.
 
+- Benchmark, used when MFEM_USE_BENCHMARK = YES.
+  URL: https://github.com/google/benchmark
+  Options: BENCHMARK_DIR, BENCHMARK_LIB.
+  Versions: Benchmark >= 1.5.2.
+
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
   Options: MPFR_OPT, MPFR_LIB.
@@ -883,6 +892,7 @@ MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
 MFEM_USE_CALIPER
+MFEM_USE_BENCHMARK
 
 The following options are CMake specific:
 
@@ -937,6 +947,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
  - CALIPER
+ - BENCHMARK
 
 The following built-in CMake packages are also used:
 

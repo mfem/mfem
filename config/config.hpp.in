@@ -177,4 +177,7 @@
 // Enable interface to the MKL CPardiso library.
 // #define MFEM_USE_MKL_CPARDISO
 
+// Enable functionality based on the Benchmark library.
+// #define MFEM_USE_BENCHMARK
+
 #endif // MFEM_CONFIG_HEADER
