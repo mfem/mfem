@@ -86,6 +86,27 @@ static inline int argn(char *argv[], int argc = 0)
    return argc;
 }
 
+// Implementation of mfem::jit::System
+#if !defined(MFEM_USE_MPI)
+// The serial implementation does nothing special but launching
+// the =system= command.
+static int System(char *argv[])
+{
+   const int argc = argn(argv);
+   if (argc < 2) { return EXIT_FAILURE; }
+   string command(argv[1]);
+   for (int k = 2; k < argc && argv[k]; k++)
+   {
+      command.append(" ");
+      command.append(argv[k]);
+   }
+   const char *command_c_str = command.c_str();
+   dbg(command_c_str);
+   return ::system(command_c_str);
+}
+
+bool Root() { return true; }
+
 static inline void FlushAndWait(const int fd)
 {
    if (::close(fd) < 0) { perror(strerror(errno)); }
@@ -206,27 +227,6 @@ static int InMemCompile(const char *imem,
    FlushAndWait(op[PIPE_READ]);
    return EXIT_SUCCESS;
 }
-
-// Implementation of mfem::jit::System
-#if !defined(MFEM_USE_MPI)
-// The serial implementation does nothing special but launching
-// the =system= command.
-static int System(char *argv[])
-{
-   const int argc = argn(argv);
-   if (argc < 2) { return EXIT_FAILURE; }
-   string command(argv[1]);
-   for (int k = 2; k < argc && argv[k]; k++)
-   {
-      command.append(" ");
-      command.append(argv[k]);
-   }
-   const char *command_c_str = command.c_str();
-   dbg(command_c_str);
-   return ::system(command_c_str);
-}
-
-bool Root() { return true; }
 
 #else
 // The parallel implementation will spawn the =mjit= binary on one mpi rank to
