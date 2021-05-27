@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
       own_fec = 1;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl;

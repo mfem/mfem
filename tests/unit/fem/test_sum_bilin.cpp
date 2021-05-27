@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,7 +21,7 @@ namespace pa_kernels
 
 TEST_CASE("H1 SumIntegrator", "[SumIntegrator][PartialAssembly]")
 {
-   Mesh mesh(1, 1, 1, Element::HEXAHEDRON);
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    H1_FECollection fec(2, mesh.Dimension());
    FiniteElementSpace fes(&mesh, &fec);
 
@@ -130,7 +130,7 @@ TEST_CASE("H1 SumIntegrator", "[SumIntegrator][PartialAssembly]")
 
 TEST_CASE("DG SumIntegrator", "[SumIntegrator][PartialAssembly]")
 {
-   Mesh mesh(2, 1, 1, Element::HEXAHEDRON);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
    DG_FECollection fec(2, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 

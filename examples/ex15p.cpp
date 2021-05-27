@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
       //     time step resolved to the prescribed tolerance in each element.
       for (int ref_it = 1; ; ref_it++)
       {
-         HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+         HYPRE_BigInt global_dofs = fespace.GlobalTrueVSize();
          if (myid == 0)
          {
             cout << "Iteration: " << ref_it << ", number of unknowns: "

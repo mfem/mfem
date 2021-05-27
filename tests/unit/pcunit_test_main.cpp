@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,8 +13,12 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+bool launch_all_non_regression_tests = false;
+
 #ifdef MFEM_USE_MPI
 mfem::MPI_Session *GlobalMPISession;
+#else
+#error "This test should be disabled without MFEM_USE_MPI!"
 #endif
 
 int main(int argc, char *argv[])
@@ -24,6 +28,12 @@ int main(int argc, char *argv[])
    // There must be exactly one instance.
    Catch::Session session;
 
+   // Build a new command line parser on top of Catch's
+   using namespace Catch::clara;
+   auto cli = session.cli() |
+              Opt(launch_all_non_regression_tests) ["--all"] ("all tests");
+   session.cli(cli);
+
    // For floating point comparisons, print 8 digits for single precision
    // values, and 16 digits for double precision values.
    Catch::StringMaker<float>::precision = 8;
@@ -31,10 +41,7 @@ int main(int argc, char *argv[])
 
    // Apply provided command line arguments.
    int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
+   if (r != 0) { return r; }
 
 #ifdef MFEM_USE_MPI
    mfem::MPI_Session mpi;
@@ -49,9 +56,8 @@ int main(int argc, char *argv[])
 
    if (mpi.Root())
    {
-      mfem::out
-            << "WARNING: Only running the [Parallel] [CUDA] label."
-            << std::endl;
+      std::cout << "INFO: Test filter: [Parallel] [CUDA]" << std::endl;
+      device.Print();
    }
 #endif
 

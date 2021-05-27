@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,12 +28,14 @@ private:
    Vector nodes0;
    Vector field0;
    const double dt_scale;
+   const AssemblyLevel al;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
-   AdvectorCG(double timestep_scale = 0.5)
+   AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
+              double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
-        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale) { }
+        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
@@ -76,12 +78,14 @@ protected:
    GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable BilinearForm M, K;
+   const AssemblyLevel al;
 
 public:
    /** Here @a fes is the FESpace of the function that will be moved. Note
        that Mult() moves the nodes of the mesh corresponding to @a fes. */
    SerialAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                        FiniteElementSpace &fes);
+                        FiniteElementSpace &fes,
+                        AssemblyLevel al = AssemblyLevel::LEGACY);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -96,12 +100,14 @@ protected:
    GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable ParBilinearForm M, K;
+   const AssemblyLevel al;
 
 public:
    /** Here @a pfes is the ParFESpace of the function that will be moved. Note
        that Mult() moves the nodes of the mesh corresponding to @a pfes. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                     ParFiniteElementSpace &pfes);
+                     ParFiniteElementSpace &pfes,
+                     AssemblyLevel al = AssemblyLevel::LEGACY);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -136,6 +142,9 @@ protected:
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
+
+   double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
+   double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 
 public:
 #ifdef MFEM_USE_MPI

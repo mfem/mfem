@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# This script is meant be launched in the root directory of MFEM to compile all
+# the dependencies of MFEM for all the specs in CI. By doing so, we obtain a
+# Spack instance that can be used as an upstream.
+# Note: needs mfem-uberenv in MFEM repo (run tests/gitlab/get_mfem_uberenv)
+
+# This patch applies shared permissions to Spack installations.
+cd tests/uberenv
+git apply upstream-permission.patch
+cd -
+
+# call uberenv for all specs in CI
+git grep -e "^[^#]" .gitlab | grep "SPEC" \
+                            | cut -d' ' -f6- \
+                            | sed 's/"//g' \
+                            | while read -r line; do
+  python ./tests/uberenv/uberenv.py --spec="$line"
+done
+
+# We revert the patch to leave the repo as found.
+cd tests/uberenv
+git apply -R upstream-permission.patch
+cd -
