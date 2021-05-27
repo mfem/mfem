@@ -628,7 +628,7 @@ double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                               int numSteps, double tolerance, int seed)
 {
    v1.SetSize(v0.Size());
-   if (seed != -1)
+   if (seed != 0)
    {
       v0.Randomize(seed);
    }
