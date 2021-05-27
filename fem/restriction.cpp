@@ -1581,9 +1581,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   DenseMatrix* interp_mat = new DenseMatrix(dof,dof);
                   Vector shape(dof);
                   IntegrationPoint f_ip;
-                  std::cout << "face_id1 = " << face_id1
-                            << ", face_id2 = " << face_id2
-                            << ", orientation = " << orientation << std::endl;
 
                   switch (trace_fe->GetGeomType())
                   {
