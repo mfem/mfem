@@ -89,6 +89,7 @@ class FiniteElementSpace
    friend class InterpolationGridTransfer;
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
+   friend class LORBase;
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -361,6 +362,14 @@ protected:
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
 
+   /// @brief Copies the prolongation and restriction matrices from @a fes.
+   ///
+   /// Used for low order preconditioning on non-conforming meshes. If the DOFs
+   /// require a permutation, it will be supplied by non-NULL @a perm. NULL @a
+   /// perm indicates that no permutation is required.
+   virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
+                                               const Array<int> *perm);
+
 public:
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
@@ -404,8 +413,8 @@ public:
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
-   bool Conforming() const { return mesh->Conforming(); }
-   bool Nonconforming() const { return mesh->Nonconforming(); }
+   bool Conforming() const { return mesh->Conforming() && cP == NULL; }
+   bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
 
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
@@ -940,6 +949,11 @@ public:
 
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 {
+   // TODO: mixed meshes: return true if there is at least one tensor-product
+   // Geometry in the global mesh and the FE collection returns a
+   // TensorBasisElement for that Geometry?
+
+   // Potential issue: empty local mesh --> no element 0.
    return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
 

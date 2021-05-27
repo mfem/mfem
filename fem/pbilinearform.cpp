@@ -140,10 +140,10 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    {
       // handle the case when 'a' contains off-diagonal
       int lvsize = pfes->GetVSize();
-      const HYPRE_Int *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
-      HYPRE_Int ldof_offset = pfes->GetMyDofOffset();
+      const HYPRE_BigInt *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
+      HYPRE_BigInt ldof_offset = pfes->GetMyDofOffset();
 
-      Array<HYPRE_Int> glob_J(A_local->NumNonZeroElems());
+      Array<HYPRE_BigInt> glob_J(A_local->NumNonZeroElems());
       int *J = A_local->GetJ();
       for (int i = 0; i < glob_J.Size(); i++)
       {
@@ -378,7 +378,7 @@ void ParBilinearForm::FormLinearSystem(
    else
    {
       // Variational restriction with P
-      X.SetSize(pfes->TrueVSize());
+      X.SetSize(P.Width());
       B.SetSize(X.Size());
       P.MultTranspose(b, B);
       R.Mult(x, X);

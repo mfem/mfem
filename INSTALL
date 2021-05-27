@@ -536,9 +536,11 @@ directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
 The specific libraries and their options are:
 
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
+  See also the "Specific options for hypre" section at the end of this file.
   URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
-  Versions: HYPRE >= 2.10.0b.
+  Versions: HYPRE >= 2.10.0b,
+            HYPRE >= 2.20.0 for '--enable-mixedint' support.
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
@@ -681,7 +683,7 @@ The specific libraries and their options are:
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
-  Versions: HIOP >= 0.1.
+  Versions: HIOP >= 0.4.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
@@ -970,3 +972,19 @@ MFEM_MPIEXEC    = mpirun # default
 MFEM_MPIEXEC_NP = -np    # default
 MFEM_MPIEXEC    = srun   # example for platforms using SLURM
 MFEM_MPIEXEC_NP = -n     # example for platforms using SLURM
+
+
+Specific options for hypre
+==========================
+The hypre library has multiple options to define local and global index storage
+sizes. By default, all indices are stored as an architecture aware integer. For
+most platforms, this will be 32-bit. This limits the maximum number of global
+degrees of freedom in a vector or matrix to about 2 billion. In order to solve
+larger problems, there are two options:
+
+1. Building hypre with '--enable-bigint' defines the local and global indices to
+   be 64-bit. This is convenient, but requires more memory than necessary.
+
+2. Building hypre with '--enable-mixedint' defines the local indiced to be
+   32-bit, while using a 64-bit storage for global indices. This option is
+   currently tested only in ex1p, and may not work in more general settings.
