@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -525,9 +525,11 @@ void L2ElementRestriction::FillI(SparseMatrix &mat) const
    const int elem_dofs = ndof;
    const int vd = vdim;
    auto I = mat.WriteI();
-   MFEM_FORALL(dof, ne*elem_dofs*vd,
+   const int isize = mat.Height() + 1;
+   const int interior_dofs = ne*elem_dofs*vd;
+   MFEM_FORALL(dof, isize,
    {
-      I[dof] = elem_dofs;
+      I[dof] = dof<interior_dofs ? elem_dofs : 0;
    });
 }
 
@@ -1060,8 +1062,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
-   int face_id1, face_id2;
-   int orientation;
+   int face_id1 = -1, face_id2 = -1;
+   int orientation = -1;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
@@ -1322,7 +1324,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
 }
 
 void L2FaceRestriction::FillI(SparseMatrix &mat,
-                              SparseMatrix &face_mat) const
+                              const bool keep_nbr_block) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
@@ -1339,7 +1341,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
 
 void L2FaceRestriction::FillJAndData(const Vector &ea_data,
                                      SparseMatrix &mat,
-                                     SparseMatrix &face_mat) const
+                                     const bool keep_nbr_block) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();

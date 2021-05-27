@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,14 +77,24 @@ public:
    explicit Vector(int s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(double *_data, int _size)
-   { data.Wrap(_data, _size, false); size = _size; }
+   Vector(double *data_, int size_)
+   { data.Wrap(data_, size_, false); size = size_; }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
+
+   /** @brief Create a Vector of size @a size_ using host MemoryType @a h_mt and
+       device MemoryType @a d_mt. */
+   Vector(int size_, MemoryType h_mt, MemoryType d_mt)
+      : data(size_, h_mt, d_mt), size(size_) { }
+
+   /// Create a vector using a braced initializer list
+   template <int N>
+   explicit Vector(const double (&values)[N]) : Vector(N)
+   { std::copy(values, values + N, GetData()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
@@ -95,10 +105,10 @@ public:
 
        Some derived classes, e.g. GridFunction, enable the use of the
        mfem::Device by default. */
-   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
+   virtual void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
    /// Return the device flag of the Memory object used by the Vector
-   bool UseDevice() const { return data.UseDevice(); }
+   virtual bool UseDevice() const { return data.UseDevice(); }
 
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
@@ -165,6 +175,12 @@ public:
    /// Destroy a vector
    void Destroy();
 
+   /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
+       and the data is valid only on device, move it to host before deleting.
+       Invalidates the device memory. */
+   void DeleteDevice(bool copy_to_host = true)
+   { data.DeleteDevice(copy_to_host); }
+
    /// Returns the size of the vector.
    inline int Size() const { return size; }
 
@@ -187,6 +203,18 @@ public:
    /** @note This conversion function makes it possible to use [] for indexing
        in addition to the overloaded operator()(int). */
    inline operator const double *() const { return data; }
+
+   /// STL-like begin.
+   inline double *begin() { return data; }
+
+   /// STL-like end.
+   inline double *end() { return data + size; }
+
+   /// STL-like begin (const version).
+   inline const double *begin() const { return data; }
+
+   /// STL-like end (const version).
+   inline const double *end() const { return data + size; }
 
    /// Return a reference to the Memory object used by the Vector.
    Memory<double> &GetMemory() { return data; }
@@ -245,7 +273,13 @@ public:
 
    Vector &operator*=(double c);
 
+   /// Component-wise scaling: (*this)(i) *= v(i)
+   Vector &operator*=(const Vector &v);
+
    Vector &operator/=(double c);
+
+   /// Component-wise division: (*this)(i) /= v(i)
+   Vector &operator/=(const Vector &v);
 
    Vector &operator-=(double c);
 
@@ -349,6 +383,12 @@ public:
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
 
+   /// Print the Vector size and hash of its data.
+   /** This is a compact text representation of the Vector contents that can be
+       used to compare vectors from different runs without the need to save the
+       whole vector. */
+   void PrintHash(std::ostream &out) const;
+
    /// Set random values in the vector.
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.
@@ -378,27 +418,27 @@ public:
    virtual ~Vector();
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
-   const double *Read(bool on_dev = true) const
+   virtual const double *Read(bool on_dev = true) const
    { return mfem::Read(data, size, on_dev); }
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), false).
-   const double *HostRead() const
+   virtual const double *HostRead() const
    { return mfem::Read(data, size, false); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), on_dev).
-   double *Write(bool on_dev = true)
+   virtual double *Write(bool on_dev = true)
    { return mfem::Write(data, size, on_dev); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), false).
-   double *HostWrite()
+   virtual double *HostWrite()
    { return mfem::Write(data, size, false); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), on_dev).
-   double *ReadWrite(bool on_dev = true)
+   virtual double *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, size, on_dev); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
-   double *HostReadWrite()
+   virtual double *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS

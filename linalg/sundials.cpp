@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -280,8 +280,8 @@ SundialsNVector::SundialsNVector()
    own_NVector = 1;
 }
 
-SundialsNVector::SundialsNVector(double *_data, int _size)
-   : Vector(_data, _size)
+SundialsNVector::SundialsNVector(double *data_, int size_)
+   : Vector(data_, size_)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(UseDevice());
@@ -314,9 +314,9 @@ SundialsNVector::SundialsNVector(MPI_Comm comm, int loc_size, long glob_size)
    _SetNvecDataAndSize_(glob_size);
 }
 
-SundialsNVector::SundialsNVector(MPI_Comm comm, double *_data, int loc_size,
+SundialsNVector::SundialsNVector(MPI_Comm comm, double *data_, int loc_size,
                                  long glob_size)
-   : Vector(_data, loc_size)
+   : Vector(data_, loc_size)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(comm, UseDevice());

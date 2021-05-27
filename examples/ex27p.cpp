@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
       h1 ? (FiniteElementCollection*)new H1_FECollection(order, dim) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
    ParFiniteElementSpace fespace(&pmesh, fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;
 
    // 6. Create "marker arrays" to define the portions of boundary associated
