@@ -29,21 +29,39 @@ class ParFiniteElementSpace;
 class ParL2FaceRestriction : public L2FaceRestriction
 {
 public:
-   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
+   /** @brief Constructs an ParL2FaceRestriction.
+
+       @param[in] fes      The ParFiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2 */
+   ParL2FaceRestriction(const ParFiniteElementSpace& fes,
+                        ElementDofOrdering ordering,
                         FaceType type,
                         L2FaceValues m = L2FaceValues::DoubleValued);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector.
+
+       The format of y is:
+       if m==L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
+       if m==L2FacesValues::SingleValued (face_dofs x vdim x nf) */
    void Mult(const Vector &x, Vector &y) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this L2FaceRestriction. */
+       given by this ParL2FaceRestriction. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this L2FaceRestriction. @a mat contains the interior dofs
+       given by this ParL2FaceRestriction. @a mat contains the interior dofs
        contribution, the @a face_mat contains the shared dofs contribution.*/
    void FillI(SparseMatrix &mat,
               SparseMatrix &face_mat) const;
+
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
-       pattern given by this L2FaceRestriction, and the values of ea_data.
+       pattern given by this ParL2FaceRestriction, and the values of ea_data.
        @a mat contains the interior dofs contribution, the @a face_mat contains
        the shared dofs contribution.*/
    void FillJAndData(const Vector &ea_data,
@@ -61,21 +79,39 @@ public:
 class ParNCL2FaceRestriction : public NCL2FaceRestriction
 {
 public:
-   ParNCL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
+   /** @brief Constructs an ParNCL2FaceRestriction.
+
+       @param[in] fes      The ParFiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2 */
+   ParNCL2FaceRestriction(const ParFiniteElementSpace& fes,
+                          ElementDofOrdering ordering,
                           FaceType type,
                           L2FaceValues m = L2FaceValues::DoubleValued);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector.
+
+       The format of y is:
+       if m==L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
+       if m==L2FacesValues::SingleValued (face_dofs x vdim x nf) */
    void Mult(const Vector &x, Vector &y) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this L2FaceRestriction. */
+       given by this ParNCL2FaceRestriction. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this L2FaceRestriction. @a mat contains the interior dofs
+       given by this ParNCL2FaceRestriction. @a mat contains the interior dofs
        contribution, the @a face_mat contains the shared dofs contribution.*/
    void FillI(SparseMatrix &mat,
               SparseMatrix &face_mat) const;
+
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
-       pattern given by this L2FaceRestriction, and the values of ea_data.
+       pattern given by this ParNCL2FaceRestriction, and the values of ea_data.
        @a mat contains the interior dofs contribution, the @a face_mat contains
        the shared dofs contribution.*/
    void FillJAndData(const Vector &ea_data,
