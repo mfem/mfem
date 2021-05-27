@@ -40,11 +40,14 @@
 # Directory used to place artifacts.
 
 variables:
-  BUILD_ROOT: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  BUILD_ROOT: ${CI_BUILDS_DIR}/MFEM/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM
   REBASELINE: "NO"
+  AUTOTEST: "NO"
   ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
+  AUTOTEST_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git
   ARTIFACTS_DIR: artifacts
 
 # The pipeline is divided into stages. Usually, these are also synchronization
@@ -64,6 +67,7 @@ stages:
   - c_build_and_test
   - setup
   - baseline_check
+  - baseline_to_autotest
   - baseline_publish
 
 # The setup job in setup stage don't rely on MFEM git repo. It prepares a
@@ -85,6 +89,9 @@ setup:
     - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
     - cd tests && git pull && cd ..
+    - cd ${AUTOTEST_ROOT}
+    - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
+    - cd autotest && git pull && cd ..
   needs: []
 
 .build_toss_3_x86_64_ib_script:
@@ -130,6 +137,8 @@ setup:
   srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
+  # commit to autotest
+  cd .. && cp -r _${BASELINE_TEST} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR} ; cd -
   if [[ -s ${_glob_err} ]]
   then
     echo "ERROR during ${BASELINE_TEST} execution";
@@ -195,7 +204,7 @@ setup:
       - ${ARTIFACTS_DIR}
   allow_failure: true
 
-# This job can only be manually triggers on a pipeline for master branch, or if
+# This job can only be manually triggered on a pipeline for master branch, or if
 # the pipeline was triggered with REBASELINE="YES"
 .rebaseline_mfem:
   stage: baseline_publish
