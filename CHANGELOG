@@ -73,6 +73,10 @@ Linear and nonlinear solvers
   as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348). See
   Example 3p and linalg/auxiliary.?pp.
 
+- Improved interface for using the Ginkgo library, including: support for matrix-
+  free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
+  support, and reduction of unnecessary data copies.
+
 - Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
   diffusion problems with the Ceed backend.
 
