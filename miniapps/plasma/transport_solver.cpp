@@ -2803,8 +2803,8 @@ DGTransportTDO::TransportOp::SetAnisoDiffusionTerm(StateVariableMatCoef &DCoef,
 void
 DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
    StateVariableMatCoef &DCoef,
-   StateVariableCoef &DParaCoef,
-   StateVariableCoef &DPerpCoef)
+   Coefficient *DParaCoef,
+   Coefficient *DPerpCoef)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -2817,13 +2817,19 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
       new ScalarMatrixProductCoefficient(dt_, DCoef);
    dtMCoefs_.Append(dtDCoef);
 
-   ProductCoefficient * dtDParaCoef =
-      new ProductCoefficient(dt_, DParaCoef);
-   dtSCoefs_.Append(dtDParaCoef);
+   ProductCoefficient * dtDParaCoef = NULL;
+   if (DParaCoef != NULL)
+   {
+      dtDParaCoef = new ProductCoefficient(dt_, *DParaCoef);
+      dtSCoefs_.Append(dtDParaCoef);
+   }
 
-   ProductCoefficient * dtDPerpCoef =
-      new ProductCoefficient(dt_, DPerpCoef);
-   dtSCoefs_.Append(dtDPerpCoef);
+   ProductCoefficient * dtDPerpCoef = NULL;
+   if (DPerpCoef != NULL)
+   {
+      dtDPerpCoef =  new ProductCoefficient(dt_, *DPerpCoef);
+      dtSCoefs_.Append(dtDPerpCoef);
+   }
 
    dbfi_.Append(new DiffusionIntegrator(DCoef));
    fbfi_.Append(new DGAnisoDiffIntegrator(DCoef,
@@ -2840,8 +2846,8 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
    blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
    blf_[index_]->AddInteriorFaceIntegrator(
       new DGAnisoDiffIntegrator(*dtDCoef,
-                                *dtDParaCoef,
-                                *dtDPerpCoef,
+                                dtDParaCoef,
+                                dtDPerpCoef,
                                 dg_.sigma,
                                 dg_.kappa));
 
@@ -2869,8 +2875,8 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
 
       blf_[index_]->AddBdrFaceIntegrator(
          new DGAnisoDiffBdrIntegrator(*dtDCoef,
-                                      *dtDParaCoef,
-                                      *dtDPerpCoef,
+                                      dtDParaCoef,
+                                      dtDPerpCoef,
                                       dg_.sigma,
                                       dg_.kappa),
          *bfbfi_marker_.Last());
@@ -2911,8 +2917,8 @@ void
 DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
    StateVariableMatCoef &DCoef,
    StateVariableVecCoef &VCoef,
-   StateVariableCoef &DParaCoef,
-   StateVariableCoef &DPerpCoef)
+   Coefficient *DParaCoef,
+   Coefficient *DPerpCoef)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -2930,13 +2936,19 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
       new ScalarVectorProductCoefficient(dt_, VCoef);
    dtVCoefs_.Append(dtVCoef);
 
-   ProductCoefficient * dtDParaCoef =
-      new ProductCoefficient(dt_, DParaCoef);
-   dtSCoefs_.Append(dtDParaCoef);
+   ProductCoefficient * dtDParaCoef = NULL;
+   if (DParaCoef != NULL)
+   {
+      dtDParaCoef = new ProductCoefficient(dt_, *DParaCoef);
+      dtSCoefs_.Append(dtDParaCoef);
+   }
 
-   ProductCoefficient * dtDPerpCoef =
-      new ProductCoefficient(dt_, DPerpCoef);
-   dtSCoefs_.Append(dtDPerpCoef);
+   ProductCoefficient * dtDPerpCoef = NULL;
+   if (DPerpCoef != NULL)
+   {
+      dtDPerpCoef = new ProductCoefficient(dt_, *DPerpCoef);
+      dtSCoefs_.Append(dtDPerpCoef);
+   }
 
    double lambda = 1.0;
    double kappa2 = 0.0;
@@ -2963,8 +2975,8 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
    blf_[index_]->AddInteriorFaceIntegrator(
       new DGAdvDiffIntegrator(*dtDCoef,
                               *dtVCoef,
-                              *dtDParaCoef,
-                              *dtDPerpCoef,
+                              dtDParaCoef,
+                              dtDPerpCoef,
                               lambda,
                               dg_.sigma,
                               dg_.kappa,
@@ -3001,8 +3013,8 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
       blf_[index_]->AddBdrFaceIntegrator(
          new DGAdvDiffBdrIntegrator(*dtDCoef,
                                     *dtVCoef,
-                                    *dtDParaCoef,
-                                    *dtDPerpCoef,
+                                    dtDParaCoef,
+                                    dtDPerpCoef,
                                     lambda,
                                     dg_.sigma,
                                     dg_.kappa,
@@ -3721,18 +3733,19 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    : TransportOp(mpi, dg, plasma, 1, "Ion Density", "Ion Density",
                  yGF, kGF, bcs, coefs, term_flag, vis_flag,
                  logging, log_prefix),
-     // DPerpConst_(DPerp),
      izCoef_(TeCoef_),
      rcCoef_(TeCoef_),
-     DPerpCoef_(DPerp),
-     DCoef_((eqncoefs_(IDCoefs::PARA_DIFFUSION_COEF) != NULL)
-            ? const_cast<Coefficient*>
-            (eqncoefs_(IDCoefs::PARA_DIFFUSION_COEF))
-            : NULL,
-            (eqncoefs_(IDCoefs::PERP_DIFFUSION_COEF) != NULL)
-            ? const_cast<Coefficient*>
-            (eqncoefs_(IDCoefs::PERP_DIFFUSION_COEF))
-            : &DPerpCoef_, B3Coef),
+     DPerpConstCoef_(DPerp),
+     DParaCoefPtr_((eqncoefs_(IDCoefs::PARA_DIFFUSION_COEF) != NULL)
+                   ? const_cast<Coefficient*>
+                   (eqncoefs_(IDCoefs::PARA_DIFFUSION_COEF))
+                   : NULL),
+     DPerpCoefPtr_((eqncoefs_(IDCoefs::PERP_DIFFUSION_COEF) != NULL)
+                   ? const_cast<Coefficient*>
+                   (eqncoefs_(IDCoefs::PERP_DIFFUSION_COEF))
+                   : &DPerpConstCoef_),
+     DCoef_(DParaCoefPtr_,
+            DPerpCoefPtr_, B3Coef),
      ViCoef_(viCoef_, B3Coef),
      SizCoef_(neCoef_, nnCoef_, izCoef_,  1.0),
      SrcCoef_(neCoef_, niCoef_, rcCoef_, -1.0),
@@ -3765,16 +3778,25 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    // dbfi_m_[1].Append(new MassIntegrator);
    SetTimeDerivativeTerm(niCoef_);
 
-   if (this->CheckTermFlag(DIFFUSION_TERM))
+   if (this->CheckTermFlag(DIFFUSION_TERM) &&
+       this->CheckTermFlag(ADVECTION_TERM))
    {
-      // Diffusion term: -Div(D_i Grad n_i)
-      SetDiffusionTerm(DCoef_);
+      // Advection-Diffusion term: -Div(D_i Grad n_i - v_i n_i)
+      SetAdvectionDiffusionTerm(DCoef_, ViCoef_, DParaCoefPtr_, DPerpCoefPtr_);
    }
-
-   if (this->CheckTermFlag(ADVECTION_TERM))
+   else
    {
-      // Advection term: Div(v_i n_i)
-      SetAdvectionTerm(ViCoef_, true);
+      if (this->CheckTermFlag(DIFFUSION_TERM))
+      {
+         // Diffusion term: -Div(D_i Grad n_i)
+         SetAnisotropicDiffusionTerm(DCoef_, DParaCoefPtr_, DPerpCoefPtr_);
+      }
+
+      if (this->CheckTermFlag(ADVECTION_TERM))
+      {
+         // Advection term: Div(v_i n_i)
+         SetAdvectionTerm(ViCoef_, true);
+      }
    }
 
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
@@ -3892,11 +3914,9 @@ void DGTransportTDO::IonDensityOp::PrepareDataFields()
 {
    if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
    {
-      if (eqncoefs_(IDCoefs::PARA_DIFFUSION_COEF) != NULL)
+      if (DParaCoefPtr_ != NULL)
       {
-         DParaGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
-          (*eqncoefs_(IDCoefs::PARA_DIFFUSION_COEF)));
+         DParaGF_->ProjectCoefficient(*DParaCoefPtr_);
       }
       else
       {
@@ -3905,15 +3925,13 @@ void DGTransportTDO::IonDensityOp::PrepareDataFields()
    }
    if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
    {
-      if (eqncoefs_(IDCoefs::PERP_DIFFUSION_COEF) != NULL)
+      if (DPerpCoefPtr_ != NULL)
       {
-         DPerpGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
-          (*eqncoefs_(IDCoefs::PERP_DIFFUSION_COEF)));
+         DPerpGF_->ProjectCoefficient(*DPerpCoefPtr_);
       }
       else
       {
-         DPerpGF_->ProjectCoefficient(DPerpCoef_);
+         *DPerpGF_ = 0.0;
       }
    }
    if (this->CheckVisFlag(ADVECTION_COEF))

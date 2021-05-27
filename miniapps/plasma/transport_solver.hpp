@@ -2687,8 +2687,8 @@ private:
            where index is the index of the equation.
        */
       void SetAnisotropicDiffusionTerm(StateVariableMatCoef &DCoef,
-                                       StateVariableCoef &DParaCoef,
-                                       StateVariableCoef &DPerpCoef);
+                                       Coefficient *DParaCoef,
+                                       Coefficient *DPerpCoef);
 
       /** Sets the advection-diffusion term on the right hand side of the
           equation to be:
@@ -2697,8 +2697,8 @@ private:
        */
       void SetAdvectionDiffusionTerm(StateVariableMatCoef &DCoef,
                                      StateVariableVecCoef &VCoef,
-                                     StateVariableCoef &DParaCoef,
-                                     StateVariableCoef &DPerpCoef);
+                                     Coefficient *DParaCoef,
+                                     Coefficient *DPerpCoef);
 
       /** Sets the advection term on the right hand side of the
       equation to be:
@@ -2877,7 +2877,9 @@ private:
       ApproxIonizationRate    izCoef_;
       ApproxRecombinationRate rcCoef_;
 
-      ConstantCoefficient     DPerpCoef_;
+      ConstantCoefficient     DPerpConstCoef_;
+      Coefficient *           DParaCoefPtr_;
+      Coefficient *           DPerpCoefPtr_;
       Aniso2DDiffusionCoef    DCoef_;
 
       IonAdvectionCoef        ViCoef_;
@@ -3761,14 +3763,14 @@ protected:
    { }
 
    DGAdvDiffBaseIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
-                           Coefficient &qPara, Coefficient &qPerp,
+                           Coefficient *qPara, Coefficient *qPerp,
                            double l, double s, double k1, double k2)
       :
       Q(NULL),
       MQ(&q),
       beta(&b),
-      QPara(&qPara),
-      QPerp(&qPerp),
+      QPara(qPara),
+      QPerp(qPerp),
       lambda(l),
       sigma(s),
       kappa1(k1),
@@ -3837,7 +3839,7 @@ public:
       : DGAdvDiffBaseIntegrator(q, b, l, s, k1, k2) {}
 
    DGAdvDiffIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
-                       Coefficient &qPara, Coefficient &qPerp,
+                       Coefficient *qPara, Coefficient *qPerp,
                        double l, double s, double k1, double k2)
       : DGAdvDiffBaseIntegrator(q, b, qPara, qPerp, l, s, k1, k2) {}
 
@@ -3863,7 +3865,7 @@ public:
       : DGAdvDiffBaseIntegrator(q, b, l, s, k1, k2) {}
 
    DGAdvDiffBdrIntegrator(MatrixCoefficient & q, VectorCoefficient & b,
-                          Coefficient &qPara, Coefficient &qPerp,
+                          Coefficient *qPara, Coefficient *qPerp,
                           double l, double s, double k1, double k2)
       : DGAdvDiffBaseIntegrator(q, b, qPara, qPerp, l, s, k1, k2) {}
 
@@ -3909,8 +3911,8 @@ public:
    DGAdvDiffDirichletLFIntegrator(Coefficient &u,
                                   MatrixCoefficient &q,
                                   VectorCoefficient & b,
-                                  Coefficient &qPara,
-                                  Coefficient &qPerp,
+                                  Coefficient *qPara,
+                                  Coefficient *qPerp,
                                   double l,
                                   double s,
                                   double k1,
@@ -3976,12 +3978,12 @@ protected:
    double sigma, kappa;
 
    DGAnisoDiffBaseIntegrator(MatrixCoefficient & q,
-                             Coefficient &qPara, Coefficient &qPerp,
+                             Coefficient *qPara, Coefficient *qPerp,
                              double s, double k)
       :
       MQ(&q),
-      QPara(&qPara),
-      QPerp(&qPerp),
+      QPara(qPara),
+      QPerp(qPerp),
       sigma(s),
       kappa(k)
    { }
@@ -4004,7 +4006,7 @@ private:
 
 public:
    DGAnisoDiffIntegrator(MatrixCoefficient & q,
-                         Coefficient &qPara, Coefficient &qPerp,
+                         Coefficient *qPara, Coefficient *qPerp,
                          double s, double k)
       : DGAnisoDiffBaseIntegrator(q, qPara, qPerp, s, k)
    {}
@@ -4027,7 +4029,7 @@ private:
 
 public:
    DGAnisoDiffBdrIntegrator(MatrixCoefficient & q,
-                            Coefficient &qPara, Coefficient &qPerp,
+                            Coefficient *qPara, Coefficient *qPerp,
                             double s, double k)
       : DGAnisoDiffBaseIntegrator(q, qPara, qPerp, s, k) {}
 
@@ -4061,8 +4063,8 @@ private:
 public:
    DGAnisoDiffDirichletLFIntegrator(Coefficient &u,
                                     MatrixCoefficient &q,
-                                    Coefficient &qPara,
-                                    Coefficient &qPerp,
+                                    Coefficient *qPara,
+                                    Coefficient *qPerp,
                                     double s,
                                     double k)
       : DGAnisoDiffBaseIntegrator(q, qPara, qPerp, s, k),
