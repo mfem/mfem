@@ -256,6 +256,10 @@ public:
 protected:
    static const int conforming = -1; // helper value
 
+   const DenseMatrix* ComputeCoarseToFineInterpolation(const DenseMatrix* ptMat,
+                                                       const int face_id1,
+                                                       const int face_id2,
+                                                       const int orientation);
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.

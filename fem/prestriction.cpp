@@ -583,7 +583,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    const int dim = pfes.GetMesh()->SpaceDimension();
    int nc_cpt = 0;
    using Key = std::pair<const DenseMatrix*,int>;
-   std::map<Key, std::pair<int,DenseMatrix*>> interp_map;
+   std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
    // Computation of scatter and offsets indices
    for (int i = 0; i <= ndofs; ++i)
    {
@@ -598,10 +598,6 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
       face_id1 = info.elem_1_local_face;
       face_id2 = info.elem_2_local_face;
       orientation = info.elem_2_orientation;
-      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
-      {
-         continue;
-      }
       if (dof_reorder)
       {
          GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
@@ -612,6 +608,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
          MFEM_ABORT("FaceRestriction not yet implemented for this type of "
                     "element.");
          // TODO Something with GetFaceDofs?
+      }
+      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
+      {
+         continue;
       }
       if (type==FaceType::Interior &&
           (info.location==Mesh::FaceLocation::Interior ||
@@ -668,79 +668,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                auto itr = interp_map.find(key);
                if (itr==interp_map.end())
                {
-                  // Computation of the interpolation matrix from coarse face to
-                  // fine face.
-                  // Assumes all trace elements are the same.
-                  const FiniteElement *trace_fe =
-                     fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
-                  DenseMatrix* interp_mat = new DenseMatrix(dof,dof);
-                  Vector shape(dof);
-                  IntegrationPoint f_ip;
-
-                  switch (trace_fe->GetGeomType())
-                  {
-                     case Geometry::SQUARE:
-                     {
-                        MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
-                        MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
-                        // Reference coordinates (xi, eta) in [0,1]^2
-                        // Fine face coordinates (x, y)
-                        // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
-                        // y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
-                        double a0, a1, a2, a3, b0, b1, b2, b3;
-                        a0 = (*ptMat)(0,0);
-                        a1 = (*ptMat)(0,1);
-                        a2 = (*ptMat)(0,2);
-                        a3 = (*ptMat)(0,3);
-
-                        b0 = (*ptMat)(1,0);
-                        b1 = (*ptMat)(1,1);
-                        b2 = (*ptMat)(1,2);
-                        b3 = (*ptMat)(1,3);
-                        const IntegrationRule & nodes = trace_fe->GetNodes();
-                        for (int i = 0; i < dof; i++)
-                        {
-                           const IntegrationPoint &ip = nodes[i];
-                           double xi = ip.x, eta = ip.y;
-                           f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
-                           f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
-                           trace_fe->CalcShape(f_ip, shape);
-                           int li = ToLexOrdering(dim, face_id1, dof1d, i);
-                           for (int j = 0; j < dof; j++)
-                           {
-                              const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
-                              (*interp_mat)(li,lj) = shape(j);
-                           }
-                        }
-                     }
-                     break;
-                     case Geometry::SEGMENT:
-                     {
-                        MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
-                        MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
-                        double x_min, x_max;
-                        x_min = (*ptMat)(0,0);
-                        x_max = (*ptMat)(0,1);
-                        const IntegrationRule & nodes = trace_fe->GetNodes();
-                        for (int i = 0; i < dof; i++)
-                        {
-                           const IntegrationPoint &ip = nodes[i];
-                           f_ip.x = x_min + (x_max - x_min) * ip.x;
-                           trace_fe->CalcShape(f_ip, shape);
-                           int li =  ToLexOrdering(dim, face_id2, dof1d, i);
-                           li = PermuteFaceL2(dim, face_id2, face_id1,
-                                              orientation, dof1d, li);
-                           for (int j = 0; j < dof; j++)
-                           {
-                              const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
-                              (*interp_mat)(li,lj) = shape(j);
-                           }
-                        }
-                     }
-                     break;
-                     default: MFEM_ABORT("unsupported geometry");
-                  }
-                  interp_map[key] = {nc_cpt, interp_mat};
+                  const DenseMatrix* interpolator =
+                     ComputeCoarseToFineInterpolation(ptMat,face_id1,face_id2,
+                                                      orientation);
+                  interp_map[key] = {nc_cpt, interpolator};
                   interp_config[f_ind] = nc_cpt;
                   nc_cpt++;
                }
@@ -770,7 +701,8 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                      const int did = face_dof;
                      const int gid = sharedDofs[did];
                      const int lid = dof*f_ind + d;
-                     // Trick to differentiate dof location inter/shared
+                     // Trick to differentiate dof location inter/shared:
+                     // we shift the gid by ndofs.
                      scatter_indices2[lid] = ndofs+gid;
                   }
                }
