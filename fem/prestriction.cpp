@@ -630,11 +630,41 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
             if ( info.conformity==Mesh::FaceConformity::Conforming )
             {
                interp_config[f_ind] = conforming;
+               if (info.location==Mesh::FaceLocation::Interior)
+               {
+                  for (int d = 0; d < dof; ++d)
+                  {
+                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                                orientation, dof1d, d);
+                     const int face_dof = faceMap2[pd];
+                     const int did = face_dof;
+                     const int gid = elementMap[e2*elem_dofs + did];
+                     const int lid = dof*f_ind + d;
+                     scatter_indices2[lid] = gid;
+                     ++offsets[gid + 1];
+                  }
+               }
+               else if (info.location==Mesh::FaceLocation::Shared)
+               {
+                  Array<int> sharedDofs;
+                  pfes.GetFaceNbrElementVDofs(e2, sharedDofs);
+                  for (int d = 0; d < dof; ++d)
+                  {
+                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                                orientation, dof1d, d);
+                     const int face_dof = faceMap2[pd];
+                     const int did = face_dof;
+                     const int gid = sharedDofs[did];
+                     const int lid = dof*f_ind + d;
+                     // Trick to differentiate dof location inter/shared
+                     scatter_indices2[lid] = ndofs+gid;
+                  }
+               }
             }
             else // Non-conforming face
             {
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
-               Key key(ptMat, face_id2);
+               Key key(ptMat, face_id1 + 6*face_id2);
                auto itr = interp_map.find(key);
                if (itr==interp_map.end())
                {
@@ -646,81 +676,69 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                   DenseMatrix* interp_mat = new DenseMatrix(dof,dof);
                   Vector shape(dof);
                   IntegrationPoint f_ip;
-                  double x_min(0), x_max(0), y_min(0), y_max(0);
+
                   switch (trace_fe->GetGeomType())
                   {
                      case Geometry::SQUARE:
                      {
-                        MFEM_ASSERT(ptMat->Height()==2, "Unexpected PtMat height.");
-                        MFEM_ASSERT(ptMat->Width()==4, "Unexpected PtMat width.");
-                        x_min = x_max = (*ptMat)(0,0);
-                        y_min = y_max = (*ptMat)(1,0);
-                        for (size_t v = 1; v < 4; v++)
+                        MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
+                        MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
+                        // Reference coordinates (xi, eta) in [0,1]^2
+                        // Fine face coordinates (x, y)
+                        // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+                        // y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
+                        double a0, a1, a2, a3, b0, b1, b2, b3;
+                        a0 = (*ptMat)(0,0);
+                        a1 = (*ptMat)(0,1);
+                        a2 = (*ptMat)(0,2);
+                        a3 = (*ptMat)(0,3);
+
+                        b0 = (*ptMat)(1,0);
+                        b1 = (*ptMat)(1,1);
+                        b2 = (*ptMat)(1,2);
+                        b3 = (*ptMat)(1,3);
+                        const IntegrationRule & nodes = trace_fe->GetNodes();
+                        for (int i = 0; i < dof; i++)
                         {
-                           const double a = (*ptMat)(0,v);
-                           x_min = a < x_min ? a : x_min;
-                           x_max = a > x_max ? a : x_max;
-                           const double b = (*ptMat)(1,v);
-                           y_min = b < y_min ? b : y_min;
-                           y_max = b > y_max ? b : y_max;
-                        }
-                        bool invert_x = face_id2==3 || face_id2==4;
-                        if (invert_x)
-                        {
-                           const double piv = x_min;
-                           x_min = 1-x_max;
-                           x_max = 1-piv;
-                        }
-                        bool invert_y = face_id2==0;
-                        if (invert_y)
-                        {
-                           const double piv = y_min;
-                           y_min = 1-y_max;
-                           y_max = 1-piv;
+                           const IntegrationPoint &ip = nodes[i];
+                           double xi = ip.x, eta = ip.y;
+                           f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
+                           f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
+                           trace_fe->CalcShape(f_ip, shape);
+                           int li = ToLexOrdering(dim, face_id1, dof1d, i);
+                           for (int j = 0; j < dof; j++)
+                           {
+                              const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
+                              (*interp_mat)(li,lj) = shape(j);
+                           }
                         }
                      }
                      break;
                      case Geometry::SEGMENT:
                      {
-                        MFEM_ASSERT(ptMat->Height()==1, "Unexpected PtMat height.");
-                        MFEM_ASSERT(ptMat->Width()==2, "Unexpected PtMat width.");
-                        bool invert = face_id2==2 || face_id2==3;
-                        double a = (*ptMat)(0,0);
-                        double b = (*ptMat)(0,1);
-                        double x1 = !invert ? a : 1.0-a;
-                        double x2 = !invert ? b : 1.0-b;
-                        if ( x1 < x2 )
+                        MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
+                        MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
+                        double x_min, x_max;
+                        x_min = (*ptMat)(0,0);
+                        x_max = (*ptMat)(0,1);
+                        const IntegrationRule & nodes = trace_fe->GetNodes();
+                        for (int i = 0; i < dof; i++)
                         {
-                           x_min = x1;
-                           x_max = x2;
-                        }
-                        else
-                        {
-                           x_min = x2;
-                           x_max = x1;
+                           const IntegrationPoint &ip = nodes[i];
+                           f_ip.x = x_min + (x_max - x_min) * ip.x;
+                           trace_fe->CalcShape(f_ip, shape);
+                           int li =  ToLexOrdering(dim, face_id2, dof1d, i);
+                           li = PermuteFaceL2(dim, face_id2, face_id1,
+                                              orientation, dof1d, li);
+                           for (int j = 0; j < dof; j++)
+                           {
+                              const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
+                              (*interp_mat)(li,lj) = shape(j);
+                           }
                         }
                      }
                      break;
                      default: MFEM_ABORT("unsupported geometry");
-                  }
-                  const IntegrationRule & nodes = trace_fe->GetNodes();
-                  for (int i = 0; i < dof; i++)
-                  {
-                     const IntegrationPoint &ip = nodes[i];
-                     switch (trace_fe->GetGeomType())
-                     {
-                        case Geometry::SQUARE:
-                           f_ip.y = y_min + (y_max - y_min) * ip.y;
-                        case Geometry::SEGMENT:
-                           f_ip.x = x_min + (x_max - x_min) * ip.x;
-                           break;
-                        default: MFEM_ABORT("unsupported geometry");
-                     }
-                     trace_fe->CalcShape(f_ip, shape);
-                     for (int j = 0; j < dof; j++)
-                     {
-                        (*interp_mat)(i,j) = shape(j);
-                     }
                   }
                   interp_map[key] = {nc_cpt, interp_mat};
                   interp_config[f_ind] = nc_cpt;
@@ -730,35 +748,31 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                {
                   interp_config[f_ind] = itr->second.first;
                }
-            }
-            if (info.location==Mesh::FaceLocation::Interior)
-            {
-               for (int d = 0; d < dof; ++d)
+               if (info.location==Mesh::FaceLocation::Interior)
                {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation, dof1d, d);
-                  const int face_dof = faceMap2[pd];
-                  const int did = face_dof;
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = gid;
-                  ++offsets[gid + 1];
+                  for (int d = 0; d < dof; ++d)
+                  {
+                     const int face_dof = faceMap2[d];
+                     const int did = face_dof;
+                     const int gid = elementMap[e2*elem_dofs + did];
+                     const int lid = dof*f_ind + d;
+                     scatter_indices2[lid] = gid;
+                     ++offsets[gid + 1];
+                  }
                }
-            }
-            else if (info.location==Mesh::FaceLocation::Shared)
-            {
-               Array<int> sharedDofs;
-               pfes.GetFaceNbrElementVDofs(e2, sharedDofs);
-               for (int d = 0; d < dof; ++d)
+               else if (info.location==Mesh::FaceLocation::Shared)
                {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation, dof1d, d);
-                  const int face_dof = faceMap2[pd];
-                  const int did = face_dof;
-                  const int gid = sharedDofs[did];
-                  const int lid = dof*f_ind + d;
-                  // Trick to differentiate dof location inter/shared
-                  scatter_indices2[lid] = ndofs+gid;
+                  Array<int> sharedDofs;
+                  pfes.GetFaceNbrElementVDofs(e2, sharedDofs);
+                  for (int d = 0; d < dof; ++d)
+                  {
+                     const int face_dof = faceMap2[d];
+                     const int did = face_dof;
+                     const int gid = sharedDofs[did];
+                     const int lid = dof*f_ind + d;
+                     // Trick to differentiate dof location inter/shared
+                     scatter_indices2[lid] = ndofs+gid;
+                  }
                }
             }
          }
@@ -827,15 +841,30 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
              type==FaceType::Interior &&
              info.location==Mesh::FaceLocation::Interior)
          {
-            for (int d = 0; d < dof; ++d)
+            if (info.conformity==Mesh::FaceConformity::Conforming)
             {
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                            orientation, dof1d, d);
-               const int did = faceMap2[pd];
-               const int gid = elementMap[e2*elem_dofs + did];
-               const int lid = dof*f_ind + d;
-               // We shift lid to express that it's e2 of f
-               gather_indices[offsets[gid]++] = nfdofs + lid;
+               for (int d = 0; d < dof; ++d)
+               {
+                  int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                         orientation, dof1d, d);
+                  const int did = faceMap2[pd];
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof*f_ind + d;
+                  // We shift lid to express that it's e2 of f
+                  gather_indices[offsets[gid]++] = nfdofs + lid;
+               }
+            }
+            else
+            {
+               for (int d = 0; d < dof; ++d)
+               {
+                  // The permutation is handled by the interpolation operator.
+                  const int did = faceMap2[d];
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof*f_ind + d;
+                  // We shift lid to express that it's e2 of f
+                  gather_indices[offsets[gid]++] = nfdofs + lid;
+               }
             }
          }
          f_ind++;
