@@ -119,24 +119,41 @@ int GetCurrentRuntimeVersion(bool increment = false);
 
 /// Root MPI process file creation, outputing the source of the kernel.
 template<typename... Args>
-inline char *CreateKernelSourceInMemory(const size_t hash,
-                                        const char *src,
-                                        Args... args)
+inline bool CreateKernelSourceInMemory(const size_t hash,
+                                       const char *src,
+                                       char *&cc,
+                                       Args... args)
 {
-   if (!Root()) { return nullptr; }
+   if (!Root()) { return true; }
    const int size = // determine the necessary buffer size
       1 + std::snprintf(nullptr, 0, src, hash, hash, hash, args...);
-   char *cc = new char[size];
+   cc = new char[size];
    if (std::snprintf(cc, size, src, hash, hash, hash, args...) < 0)
    {
-      return perror("snprintf error occured"), nullptr;
+      return perror("snprintf error occured"), false;
    }
-   return cc;
+   return true;
+}
+
+/// Root MPI process file creation, outputing the source of the kernel.
+template<typename... Args>
+inline bool CreateKernelSourceInFile(const char *input,
+                                     const size_t hash,
+                                     const char *src, Args... args)
+{
+   if (!Root()) { return true; }
+
+   const int fd = ::open(input, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
+   if (fd < 0) { return false; }
+   if (dprintf(fd, src, hash, hash, hash, args...) < 0) { return false; }
+   if (::close(fd) < 0) { return false; }
+   return true;
 }
 
 /// Compile the source file with PIC flags, updating the cache library
 bool Compile(const char *cc,    // kernel source in memory
              char *&co,         // kernel object in memory
+             char input[21],
              char output[21],
              const char *cxx,   // MFEM compiler
              const char *flags, // MFEM_CXXFLAGS
@@ -155,15 +172,21 @@ inline bool CreateAndCompile(const size_t hash, // kernel hash
                              Args... args)
 {
    char *cc, *co = nullptr;
-   if ((cc = CreateKernelSourceInMemory(hash, src, args...)) == nullptr)
+   if (!CreateKernelSourceInMemory(hash, src, cc, args...) != 0)
    {
       dbg("Error in CreateInput");
       return false;
    }
+
    // MFEM_JIT_SYMBOL_PREFIX + hex64 string + extension + '\0': 1 + 16 + 3 + 1
-   char output[21];
+   char input[21], output[21];
+   uint64str(hash, input, ".cc");
    uint64str(hash, output, ".co");
-   return Compile(cc, co, output, cxx, flags, msrc, mins, check);
+
+#if defined(MFEM_USE_MPI)
+   if (!CreateKernelSourceInFile(input, hash, src, args...) !=0 ) { return false; }
+#endif
+   return Compile(cc, co, input, output, cxx, flags, msrc, mins, check);
 }
 
 /// Lookup in the cache for the kernel with the given hash

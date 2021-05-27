@@ -86,25 +86,6 @@ static inline int argn(char *argv[], int argc = 0)
    return argc;
 }
 
-// Implementation of mfem::jit::System
-#if !defined(MFEM_USE_MPI)
-// The serial implementation does nothing special but launching
-// the =system= command.
-static int System(char *argv[])
-{
-   const int argc = argn(argv);
-   if (argc < 2) { return EXIT_FAILURE; }
-   string command(argv[1]);
-   for (int k = 2; k < argc && argv[k]; k++)
-   {
-      command.append(" ");
-      command.append(argv[k]);
-   }
-   const char *command_c_str = command.c_str();
-   dbg(command_c_str);
-   return ::system(command_c_str);
-}
-
 static inline void FlushAndWait(const int fd)
 {
    if (::close(fd) < 0) { perror(strerror(errno)); }
@@ -224,6 +205,25 @@ static int InMemCompile(const char *imem,
    dbg("object size:%d", nw);
    FlushAndWait(op[PIPE_READ]);
    return EXIT_SUCCESS;
+}
+
+// Implementation of mfem::jit::System
+#if !defined(MFEM_USE_MPI)
+// The serial implementation does nothing special but launching
+// the =system= command.
+static int System(char *argv[])
+{
+   const int argc = argn(argv);
+   if (argc < 2) { return EXIT_FAILURE; }
+   string command(argv[1]);
+   for (int k = 2; k < argc && argv[k]; k++)
+   {
+      command.append(" ");
+      command.append(argv[k]);
+   }
+   const char *command_c_str = command.c_str();
+   dbg(command_c_str);
+   return ::system(command_c_str);
 }
 
 bool Root() { return true; }
@@ -421,6 +421,7 @@ int GetCurrentRuntimeVersion(bool increment)
 /// Compile the source file with PIC flags, updating the cache library.
 bool Compile(const char *imem,
              char *&omem,
+             char cc[21],
              char co[21],
              const char *cxx,
              const char *flags,
@@ -428,7 +429,7 @@ bool Compile(const char *imem,
              const char *mins,
              const bool check_for_ar)
 {
-   dbg("cc: %p, co: %p", (void*)imem, (void*)omem);
+   dbg("imem: %p, omem: %p", (void*)imem, (void*)omem);
    assert(omem == nullptr);
 #ifndef MFEM_USE_CUDA
 #define MFEM_JIT_DEVICE_CODE
@@ -476,6 +477,8 @@ bool Compile(const char *imem,
    if (snprintf(libso_v, PM, "%s.so.%d", MFEM_JIT_CACHE, version) < 0)
    { return false; }
 
+#if !defined(MFEM_USE_MPI)
+
    dbg("Tokenizing MFEM_CXXFLAGS");
    regex reg("\\s+");
    string cxxflags(flags);
@@ -509,7 +512,8 @@ bool Compile(const char *imem,
    argv.push_back(nullptr);
 
    size_t nw = 0;
-   if (InMemCompile(imem, omem, nw, const_cast<char**>(argv.data())) != 0)
+   if (mfem::jit::InMemCompile(imem, omem, nw,
+                               const_cast<char**>(argv.data())) != 0)
    {
       return false;
    }
@@ -526,9 +530,18 @@ bool Compile(const char *imem,
    if (::close(co_fd) < 0) { return perror("!close object"), false; }
    free(omem); // done with realloc
 
+#else
+   // Compilation
+   const char *argv_co[] =
+   { shell, cxx, flags, fpic, "-c", MFEM_JIT_DEVICE_CODE Imsrc, Iminc, "-o", co, cc, nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
+   if (!getenv("MFEM_NUNLINK")) { ::unlink(cc); }
+#endif
+
    dbg("Update archive");
    const char *argv_ar[] = { shell, "ar", "-rv", libar, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
+   if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
 
    dbg("Create shared library");
    const char *argv_so[] =
@@ -543,9 +556,6 @@ bool Compile(const char *imem,
       { shell, "install", "--backup=none", libso, libso_v, nullptr };
 #endif
    if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
-
-   if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
-
    return true;
 }
 
