@@ -175,6 +175,10 @@ Version 4.2.1 (development)
   L2ProjectionGridTransfer operators. This functionality is illustrated in the
   lor-transfer miniapp.
 
+- Improved interface for using the Ginkgo library, including: support for matrix-
+  free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
+  support, and reduction of unnecessary data copies. 
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
