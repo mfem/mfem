@@ -2676,6 +2676,29 @@ private:
        */
       void SetDiffusionTerm(StateVariableCoef &DCoef);
       void SetDiffusionTerm(StateVariableMatCoef &DCoef);
+      /*
+       void SetAnisoDiffusionTerm(StateVariableMatCoef &DCoef,
+                                  Coefficient &SkewCoef,
+                                  double D_min, double D_max);
+      */
+      /** Sets the advection-diffusion term on the right hand side of the
+          equation to be:
+             Div(DCoef Grad y[index] - VCoef y[index])
+           where index is the index of the equation.
+       */
+      void SetAnisotropicDiffusionTerm(StateVariableMatCoef &DCoef,
+                                       StateVariableCoef &DParaCoef,
+                                       StateVariableCoef &DPerpCoef);
+
+      /** Sets the advection-diffusion term on the right hand side of the
+          equation to be:
+             Div(DCoef Grad y[index] - VCoef y[index])
+           where index is the index of the equation.
+       */
+      void SetAdvectionDiffusionTerm(StateVariableMatCoef &DCoef,
+                                     StateVariableVecCoef &VCoef,
+                                     StateVariableCoef &DParaCoef,
+                                     StateVariableCoef &DPerpCoef);
 
       /** Sets the advection term on the right hand side of the
       equation to be:
