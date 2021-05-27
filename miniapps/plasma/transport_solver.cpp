@@ -3055,7 +3055,8 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
       new ScalarVectorProductCoefficient(dt_, VCoef);
    dtVCoefs_.Append(dtVCoef);
 
-   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(VCoef));
+   // dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(VCoef));
+   dbfi_.Append(new ConservativeConvectionIntegrator(VCoef, 1.0));
    fbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
 
    if (bc)
@@ -3070,7 +3071,8 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
    }
 
    blf_[index_]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(*dtVCoef));
+      // new MixedScalarWeakDivergenceIntegrator(*dtVCoef));
+      new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
    blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
                                                                  1.0, -0.5));
 
@@ -3772,7 +3774,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    if (this->CheckTermFlag(ADVECTION_TERM))
    {
       // Advection term: Div(v_i n_i)
-      SetAdvectionTerm(ViCoef_);
+      SetAdvectionTerm(ViCoef_, true);
    }
 
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
@@ -3789,7 +3791,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    if (this->CheckTermFlag(SOURCE_TERM) &&
        eqncoefs_(IDCoefs::SOURCE_COEF) != NULL)
    {
-      // Source term from command line
+      // Source term from command line or input file
       SetSourceTerm(const_cast<Coefficient&>(*eqncoefs_(IDCoefs::SOURCE_COEF)));
    }
 
@@ -4025,7 +4027,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
 
    if (this->CheckTermFlag(ADVECTION_TERM))
    {
-      // Advection term: Div(m_i n_i V_i v_i)
+      // Advection term: Div(m_i n_i v_i v_i)
       SetAdvectionTerm(miniViCoef_, true);
    }
 
