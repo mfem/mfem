@@ -5493,14 +5493,11 @@ DGAdvDiffDirichletLFIntegrator::AssembleRHSElementVect(
 
       // compute uD through the face transformation
       u = uD->Eval(Tr, ip);
-      q = Q->Eval(*Tr.Elem1, eip);
       w = ip.weight * u / Tr.Elem1->Weight();
-      if (!MQ)
+      if (Q)
       {
-         if (Q)
-         {
-            w *= q;
-         }
+         q = Q->Eval(*Tr.Elem1, eip);
+         w *= q;
          ni.Set(w, nor);
       }
       else
@@ -5508,6 +5505,17 @@ DGAdvDiffDirichletLFIntegrator::AssembleRHSElementVect(
          nh.Set(w, nor);
          MQ->Eval(mq, *Tr.Elem1, eip);
          mq.MultTranspose(nh, ni);
+
+         double qPara = 0.0, qPerp = 0.0;
+         if (QPara)
+         {
+            qPara = QPara->Eval(*Tr.Elem1, eip);
+         }
+         if (QPerp)
+         {
+            qPerp = QPerp->Eval(*Tr.Elem1, eip);
+         }
+         q = std::max(qPara, qPerp);
       }
       beta->Eval(vb, *Tr.Elem1, eip);
       bn = vb * nor;
@@ -5747,9 +5755,9 @@ DGAnisoDiffIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
 void
 DGAnisoDiffBdrIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
-					     const FiniteElement &el2,
-					     FaceElementTransformations &Trans,
-					     DenseMatrix &elmat)
+                                             const FiniteElement &el2,
+                                             FaceElementTransformations &Trans,
+                                             DenseMatrix &elmat)
 {
    int dim, ndof1;
 
