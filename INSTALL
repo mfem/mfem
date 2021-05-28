@@ -58,8 +58,8 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
+- Conda-forge, https://conda-forge.org
 - Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
-- Conda-forge, https://conda-forge.org/
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
