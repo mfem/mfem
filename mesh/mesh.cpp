@@ -4813,36 +4813,17 @@ int Mesh::GetNFbyType(FaceType type) const
    int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
    if (nf<0)
    {
-      if (Conforming())
+      nf = 0;
+      for (int f = 0; f < GetNumFaces(); ++f)
       {
-         int e1, e2;
-         int inf1, inf2;
-         nf = 0;
-         for (int f = 0; f < GetNumFaces(); ++f)
+         Mesh::FaceInformation info = mesh->GetFaceInformation(f);
+         if ((type==FaceType::Interior &&
+              (info.location==Mesh::FaceLocation::Interior ||
+               info.location==Mesh::FaceLocation::Shared) ) ||
+             (type==FaceType::Boundary &&
+              info.location==Mesh::FaceLocation::Boundary) )
          {
-            GetFaceElements(f, &e1, &e2);
-            GetFaceInfos(f, &inf1, &inf2);
-            if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-                (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
-         }
-      }
-      else
-      {
-         int e1, e2;
-         int inf1, inf2;
-         int ncface;
-         nf = 0;
-         for (int f = 0; f < GetNumFaces(); ++f)
-         {
-            GetFaceElements(f, &e1, &e2);
-            GetFaceInfos(f, &inf1, &inf2, &ncface);
-            const bool int_face = e2>=0 || (e2<0 && inf2>=0 && ncface==-1);
-            const bool bdr_face = e2<0 && inf2<0 && ncface==-1;
-            if ( (type==FaceType::Interior && int_face) ||
-                 (type==FaceType::Boundary && bdr_face) )
-            {
-               nf++;
-            }
+            nf++;
          }
       }
    }
