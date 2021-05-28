@@ -82,7 +82,7 @@ public:
 
    /** @brief Fill the J and Data arrays of the SparseMatrix corresponding to
        the sparsity pattern given by this ParL2FaceRestriction, and the values of
-       ea_data.
+       fea_data.
 
        @param[in] fea_data The dense matrices representing the local operators
                            on each face. The format is:
@@ -95,7 +95,7 @@ public:
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
                                  default behavior is to disregard those rows. */
-   void FillJAndData(const Vector &ea_data,
+   void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
 };
