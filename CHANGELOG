@@ -141,6 +141,11 @@ Meshing improvements
 - Added support for 1D non-conforming meshes (which can be useful for parallel
   load balancing and derefinement).
 
+- Added sample meshes in the `data` subdirectory showing the reference elements
+  of the six currently supported element types; ref-segment.mesh,
+  ref-triangle.mesh, ref-square.mesh, ref-tetrahedron.mesh, ref-cube.mesh, and
+  ref-prism.mesh.
+
 High-performance computing
 --------------------------
 - Added initial support for GPU-accelerated versions of PETSc that works with
