@@ -487,12 +487,6 @@ protected:
    void GenerateFaces();
    void GenerateNCFaceInfo();
 
-   /** @brief Return the PointMatrix of NCFace index @a i. */
-   const DenseMatrix* GetNCFacesPtMat(int i)
-   {
-      return nc_faces_info[i].PointMatrix;
-   }
-
    /// Begin construction of a mesh
    void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
 
@@ -908,6 +902,12 @@ public:
        Similarly, if type==Interior, the "fake" boundary faces associated to
        visualization are counted as interior faces. */
    int GetNFbyType(FaceType type) const;
+
+   /** @brief Return the PointMatrix of NCFace index @a i. */
+   const DenseMatrix* GetNCFacesPtMat(int i)
+   {
+      return nc_faces_info[i].PointMatrix;
+   }
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
