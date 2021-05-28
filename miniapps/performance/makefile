@@ -99,7 +99,7 @@ MFEM_PERF_CXXFLAGS_xlc = -mcpu=native
 
 # - Clang extra options:
 ifneq ($(MFEM_MACHINE),arm64)
-  # -march=native is unavailable for ARM
+  # -march=native is unavailable on clang/ARM64 as of 05/2021: support could be added later.
   MFEM_PERF_CXXFLAGS_clang += -march=native
 endif
 MFEM_PERF_CXXFLAGS_clang += $(PEDANTIC_FLAG) -Wall
