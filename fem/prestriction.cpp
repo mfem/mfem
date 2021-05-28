@@ -635,7 +635,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                   for (int d = 0; d < dof; ++d)
                   {
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation, dof1d, d);
+                                                  orientation, dof1d, d);
                      const int face_dof = faceMap2[pd];
                      const int did = face_dof;
                      const int gid = elementMap[e2*elem_dofs + did];
@@ -651,7 +651,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                   for (int d = 0; d < dof; ++d)
                   {
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation, dof1d, d);
+                                                  orientation, dof1d, d);
                      const int face_dof = faceMap2[pd];
                      const int did = face_dof;
                      const int gid = sharedDofs[did];
@@ -663,6 +663,9 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
             }
             else // Non-conforming face
             {
+               MFEM_ASSERT(e_ordering == ElementDofOrdering::LEXICOGRAPHIC,
+                           "The following interpolation operator is "
+                           "lexicographic.");
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
                Key key(ptMat, face_id1 + 6*face_id2);
                auto itr = interp_map.find(key);

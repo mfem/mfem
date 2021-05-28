@@ -194,7 +194,7 @@ public:
                                                  Vector &ea_data) const;
 };
 
-/** @brief Operator that extracts face degrees of freedom for non-conforming 
+/** @brief Operator that extracts face degrees of freedom for non-conforming
     meshes.
 
     In order to support face restrictions on non-conforming meshes, this
@@ -214,7 +214,7 @@ protected:
 
 public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
-       NCL2FaceRestriction for .
+       L2FaceRestriction for non-conforming meshes.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific ordering

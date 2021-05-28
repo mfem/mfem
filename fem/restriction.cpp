@@ -1573,7 +1573,8 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             else // Non-conforming face
             {
                MFEM_ASSERT(e_ordering == ElementDofOrdering::LEXICOGRAPHIC,
-                  "The following interpolation operator is lexicographic.");
+                           "The following interpolation operator is "
+                           "lexicographic.");
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
                Key key(ptMat, face_id1 + 6*face_id2);
                auto itr = interp_map.find(key);
@@ -1654,7 +1655,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       if (info.location==Mesh::FaceLocation::Shared)
       {
          MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction. Use "
-         "ParNCL2FaceRestriction");
+                    "ParNCL2FaceRestriction");
       }
       if ((type==FaceType::Interior &&
            info.location==Mesh::FaceLocation::Interior) ||
