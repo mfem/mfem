@@ -22,18 +22,17 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                      Array<bool> &signs)
 {
    const int dim = fes.GetMesh()->SpaceDimension();
-   int e1, e2;
-   int inf1, inf2;
    int face_id;
-   int ncface;
    int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
-      face_id = inf1 / 64;
-      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
-           (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
+      Mesh::FaceInformation info = mesh->GetFaceInformation(f);
+      face_id = info.elem_1_local_face;
+      if ( (type==FaceType::Interior &&
+            (info.location==Mesh::FaceLocation::Interior ||
+             info.location==Mesh::FaceLocation::Shared) ) ||
+           (type==FaceType::Boundary &&
+            info.location==Mesh::FaceLocation::Boundary) )
       {
          if (dim==2)
          {
