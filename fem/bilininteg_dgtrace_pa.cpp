@@ -185,7 +185,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < fes.GetNF(); ++f)
       {
          Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ((type==FaceType::Interior &&
+         if ((info.conformity!=Mesh::FaceConformity::NonConformingMaster) &&
+             (type==FaceType::Interior &&
               (info.location==Mesh::FaceLocation::Interior ||
                info.location==Mesh::FaceLocation::Shared) ) ||
              (type==FaceType::Boundary &&
@@ -244,7 +245,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < fes.GetNF(); ++f)
       {
          Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ((type==FaceType::Interior &&
+         if ((info.conformity!=Mesh::FaceConformity::NonConformingMaster) &&
+             (type==FaceType::Interior &&
               (info.location==Mesh::FaceLocation::Interior ||
                info.location==Mesh::FaceLocation::Shared) ) ||
              (type==FaceType::Boundary &&
