@@ -117,7 +117,7 @@ EXAMPLE_SUBDIRS = amgx ginkgo hiop petsc pumi sundials superlu
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted
+MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted mtop
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys shifted)
@@ -401,7 +401,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/ceed
+DIRS = general linalg linalg/simd mesh fem fem/ceed fem/qinterp fem/tmop
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))

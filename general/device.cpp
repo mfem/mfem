@@ -463,12 +463,9 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 static void HipDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_HIP
-   int deviceId;
-   MFEM_GPU_CHECK(hipGetDevice(&deviceId));
-   hipDeviceProp_t props;
-   MFEM_GPU_CHECK(hipGetDeviceProperties(&props, deviceId));
-   MFEM_VERIFY(dev==deviceId,"");
-   ngpu = 1;
+   MFEM_GPU_CHECK(hipGetDeviceCount(&ngpu));
+   MFEM_VERIFY(ngpu > 0, "No HIP device found!");
+   MFEM_GPU_CHECK(hipSetDevice(dev));
 #else
    MFEM_CONTRACT_VAR(dev);
    MFEM_CONTRACT_VAR(ngpu);

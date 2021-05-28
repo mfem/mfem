@@ -35,8 +35,8 @@ private:
    void GetFlux(const DenseMatrix &state, DenseTensor &flux) const;
 
 public:
-   FE_Evolution(FiniteElementSpace &_vfes,
-                Operator &_A, SparseMatrix &_Aflux);
+   FE_Evolution(FiniteElementSpace &vfes_,
+                Operator &A_, SparseMatrix &Aflux_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -99,13 +99,13 @@ public:
 };
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace &_vfes,
-                           Operator &_A, SparseMatrix &_Aflux)
-   : TimeDependentOperator(_A.Height()),
-     dim(_vfes.GetFE(0)->GetDim()),
-     vfes(_vfes),
-     A(_A),
-     Aflux(_Aflux),
+FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_,
+                           Operator &A_, SparseMatrix &Aflux_)
+   : TimeDependentOperator(A_.Height()),
+     dim(vfes_.GetFE(0)->GetDim()),
+     vfes(vfes_),
+     A(A_),
+     Aflux(Aflux_),
      Me_inv(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
      state(num_equation),
      f(num_equation, dim),
