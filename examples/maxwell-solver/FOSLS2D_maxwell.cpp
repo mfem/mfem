@@ -10,7 +10,7 @@
 // |   |                          |                            |            |
 // | G |-ω (E,∇ × G)-ω (∇ × E,G)  | (∇ × H,∇ × G)+ ω^2(H,G)    | (J,∇ × G)  |
 
-// for E in H1 (scalar) we have ∇ × E = [0 1;-1 0] ∇
+// for E in H1 (scalar) we have ∇ × E = [0 1;-1 0] ∇ E
 
 #include "mfem.hpp"
 #include <fstream>
@@ -36,6 +36,7 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    // geometry file
+   const char *mesh_file = "../data/star.mesh";
    // finite element order of approximation
    int order = 1;
    // visualization flag
@@ -45,6 +46,8 @@ int main(int argc, char *argv[])
    double k = 0.6;
    // optional command line inputs
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -67,7 +70,8 @@ int main(int argc, char *argv[])
 
    omega = 2.0 * M_PI * k;
 
-   Mesh mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
+   // Mesh mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
+   Mesh mesh(mesh_file, 1, 1);
 
    dim = mesh.Dimension();
    if (dim == 3) {MFEM_ABORT("This is 2D Maxwell")};
