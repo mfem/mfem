@@ -1362,7 +1362,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
    });
 }
 
-void L2FaceRestriction::FillJAndData(const Vector &ea_data,
+void L2FaceRestriction::FillJAndData(const Vector &fea_data,
                                      SparseMatrix &mat,
                                      const bool keep_nbr_block) const
 {
@@ -1370,7 +1370,7 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
-   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
+   auto mat_fea = Reshape(fea_data.Read(), face_dofs, face_dofs, 2, nf);
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
    MFEM_FORALL(fdof, nf*face_dofs,
@@ -1393,7 +1393,7 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
+void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                          Vector &ea_data) const
 {
    const int face_dofs = dof;

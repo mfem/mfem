@@ -44,13 +44,25 @@ public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
        face E-Vector.
 
-       The format of y is:
-       if m==L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
-       if m==L2FacesValues::SingleValued (face_dofs x vdim x nf) */
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                     if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this ParL2FaceRestriction. */
+       given by this ParL2FaceRestriction.
+
+       @param[in,out] mat The sparse matrix for which we want to initialize the
+                          row offsets.
+       @param[in] keep_nbr_block When set to true the SparseMatrix will
+                                 include the rows (in addition to the columns)
+                                 corresponding to face-neighbor dofs. The
+                                 default behavior is to disregard those rows. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -68,6 +80,21 @@ public:
                      SparseMatrix &mat,
                      SparseMatrix &face_mat) const;
 
+   /** @brief Fill the J and Data arrays of the SparseMatrix corresponding to
+       the sparsity pattern given by this ParL2FaceRestriction, and the values of
+       ea_data.
+
+       @param[in] fea_data The dense matrices representing the local operators
+                           on each face. The format is:
+                           face_dofs x face_dofs x 2 x nf.
+                           On each face the first local matrix corresponds to
+                           the contribution of elem1 on elem2, and the second to
+                           the contribution of elem2 on elem1.
+       @param[in,out] mat The sparse matrix that is getting filled.
+       @param[in] keep_nbr_block When set to true the SparseMatrix will
+                                 include the rows (in addition to the columns)
+                                 corresponding to face-neighbor dofs. The
+                                 default behavior is to disregard those rows. */
    void FillJAndData(const Vector &ea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
@@ -94,13 +121,25 @@ public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
        face E-Vector.
 
-       The format of y is:
-       if m==L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
-       if m==L2FacesValues::SingleValued (face_dofs x vdim x nf) */
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                     if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
-   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this ParNCL2FaceRestriction. */
+   /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
+       pattern given by this ParNCL2FaceRestriction.
+
+       @param[in,out] mat The sparse matrix for which we want to initialize the
+                          row offsets.
+       @param[in] keep_nbr_block When set to true the SparseMatrix will
+                                 include the rows (in addition to the columns)
+                                 corresponding to face-neighbor dofs. The
+                                 default behavior is to disregard those rows. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -114,11 +153,26 @@ public:
        pattern given by this ParNCL2FaceRestriction, and the values of ea_data.
        @a mat contains the interior dofs contribution, the @a face_mat contains
        the shared dofs contribution.*/
-   void FillJAndData(const Vector &ea_data,
+   void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      SparseMatrix &face_mat) const;
 
-   void FillJAndData(const Vector &ea_data,
+   /** @brief Fill the J and Data arrays of the SparseMatrix corresponding to
+       the sparsity pattern given by this ParNCL2FaceRestriction, and the values
+       of ea_data.
+
+       @param[in] fea_data The dense matrices representing the local operators
+                           on each face. The format is:
+                           face_dofs x face_dofs x 2 x nf.
+                           On each face the first local matrix corresponds to
+                           the contribution of elem1 on elem2, and the second to
+                           the contribution of elem2 on elem1.
+       @param[in,out] mat The sparse matrix that is getting filled.
+       @param[in] keep_nbr_block When set to true the SparseMatrix will
+                                 include the rows (in addition to the columns)
+                                 corresponding to face-neighbor dofs. The
+                                 default behavior is to disregard those rows. */
+   void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
 };
