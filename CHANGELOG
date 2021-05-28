@@ -214,6 +214,11 @@ Version 4.2.1 (development)
   H(curl) and H(div) spaces is introduced to give spectral equivalence. This
   functionality is illustrated in the LOR solvers miniapp in miniapps/solvers.
 
+- Added sample meshes in the `data` subdirectory showing the reference elements
+  of the six currently supported element types; ref-segment.mesh,
+  ref-triangle.mesh, ref-square.mesh, ref-tetrahedron.mesh, ref-cube.mesh, and
+  ref-prism.mesh.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
