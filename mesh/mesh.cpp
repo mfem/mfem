@@ -4818,11 +4818,11 @@ int Mesh::GetNFbyType(FaceType type) const
       {
          FaceInformation info = GetFaceInformation(f);
          if ((info.conformity!=Mesh::FaceConformity::NonConformingMaster) &&
-             (type==FaceType::Interior &&
-              (info.location==Mesh::FaceLocation::Interior ||
-               info.location==Mesh::FaceLocation::Shared) ) ||
-             (type==FaceType::Boundary &&
-              info.location==Mesh::FaceLocation::Boundary) )
+             ((type==FaceType::Interior &&
+               (info.location==Mesh::FaceLocation::Interior ||
+                info.location==Mesh::FaceLocation::Shared) ) ||
+              (type==FaceType::Boundary &&
+               info.location==Mesh::FaceLocation::Boundary)) )
          {
             nf++;
          }
