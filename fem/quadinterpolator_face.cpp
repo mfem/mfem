@@ -21,12 +21,13 @@ namespace mfem
 static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                      Array<bool> &signs)
 {
-   const int dim = fes.GetMesh()->SpaceDimension();
+   const Mesh &mesh = *fes.GetMesh();
+   const int dim = mesh.SpaceDimension();
    int face_id;
    int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      Mesh::FaceInformation info = mesh->GetFaceInformation(f);
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       face_id = info.elem_1_local_face;
       if ( (type==FaceType::Interior &&
             (info.location==Mesh::FaceLocation::Interior ||
