@@ -184,21 +184,19 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       int f_ind = 0;
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         int e1, e2;
-         int inf1, inf2;
-         int ncface;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
+         Mesh::FaceInformation info = mesh->GetFaceInformation(f);
+         if ((type==FaceType::Interior &&
+              (info.location==Mesh::FaceLocation::Interior ||
+               info.location==Mesh::FaceLocation::Shared) ) ||
+             (type==FaceType::Boundary &&
+              info.location==Mesh::FaceLocation::Boundary) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               int iq = ToLexOrdering(dim, info.elem_1_local_face, quad1D, q);
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                u->Eval(Vq, *T.Elem1, eip1);
@@ -245,28 +243,26 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       int f_ind = 0;
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         int e1, e2;
-         int inf1, inf2;
-         int ncface;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
+         Mesh::FaceInformation info = mesh->GetFaceInformation(f);
+         if ((type==FaceType::Interior &&
+              (info.location==Mesh::FaceLocation::Interior ||
+               info.location==Mesh::FaceLocation::Shared) ) ||
+             (type==FaceType::Boundary &&
+              info.location==Mesh::FaceLocation::Boundary) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               int iq = ToLexOrdering(dim, info.elem_1_local_face, quad1D, q);
 
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                const IntegrationPoint &eip2 = T.GetElement2IntPoint();
                double r;
 
-               if (inf2 < 0)
+               if (info.location==Mesh::FaceLocation::Boundary)
                {
                   r = rho->Eval(*T.Elem1, eip1);
                }
