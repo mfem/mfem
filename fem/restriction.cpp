@@ -1941,8 +1941,9 @@ void NCL2FaceRestriction::FillJAndData(const Vector &ea_data,
    MFEM_ABORT("Not yet implemented.");
 }
 
-void NCL2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
-                                                           Vector &ea_data)
+void NCL2FaceRestriction::AddFaceMatricesToElementMatrices(
+   const Vector &fea_data,
+   Vector &ea_data)
 const
 {
    MFEM_ABORT("Not yet implemented.");
