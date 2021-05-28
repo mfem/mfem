@@ -426,7 +426,7 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
 
 /** @brief Compute the dof face index of elem2 corresponding to the given dof
     face index.
-    
+
     @param[in] dim The dimension of the element, 2 for quad, 3 for hex
     @param[in] face_id1 The local face identifiant of elem1
     @param[in] face_id2 The local face identifiant of elem2
