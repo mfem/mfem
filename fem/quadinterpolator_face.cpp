@@ -30,11 +30,11 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       face_id = info.elem_1_local_face;
       if ( (info.conformity!=Mesh::FaceConformity::NonConformingMaster) &&
-           (type==FaceType::Interior &&
-            (info.location==Mesh::FaceLocation::Interior ||
-             info.location==Mesh::FaceLocation::Shared) ) ||
-           (type==FaceType::Boundary &&
-            info.location==Mesh::FaceLocation::Boundary) )
+           ((type==FaceType::Interior &&
+             (info.location==Mesh::FaceLocation::Interior ||
+              info.location==Mesh::FaceLocation::Shared) ) ||
+            (type==FaceType::Boundary &&
+             info.location==Mesh::FaceLocation::Boundary)) )
       {
          if (dim==2)
          {
