@@ -12,6 +12,15 @@
 # In this CI section, we build different variants of mfem and run test on them.
 name: builds-and-tests
 
+# Github actions can use the default "GITHUB_TOKEN". By default, this token
+# is set to have permissive access. However, this is not a good practice
+# security-wise. Here we use an external action, so we restrict the
+# permission to the minimum required.
+# When the 'permissions' is set, all the scopes not mentioned are set to the
+# most restrictive setting. So the following is enough.
+permissions:
+  actions: write
+
 on:
   push:
     branches:
@@ -62,6 +71,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+    # This external action allows to interrupt a workflow already running on
+    # the same branch to save resource
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.9.0
+      with:
+        access_token: ${{ github.token }}
+
     # Checkout MFEM in "mfem" subdirectory. Final path:
     # /home/runner/work/mfem/mfem/mfem
     # Note: Done now to access "install-hypre" and "install-metis" actions.
