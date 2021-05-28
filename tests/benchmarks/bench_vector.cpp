@@ -9,19 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <ios>
-#include "config/config.hpp"
+#include "bench.hpp"
 
 #ifdef MFEM_USE_BENCHMARK
 
-#include "benchmark/benchmark.h"
-#include "unit_tests.hpp"
-#include "mfem.hpp"
 #include "general/forall.hpp"
 
 using namespace mfem;
-
-constexpr std::size_t KB = (1<<10);
 
 // Default macro to register vector tests
 #define MFEM_VECTOR_BENCHMARK(x) BENCHMARK(x)->RangeMultiplier(4)->Range(1,KB);
@@ -70,7 +64,7 @@ inline CLASS &CLASS::operator+=(const CLASS &v){\
    return *this;\
 }
 
-GENERATE_CLASS(Vector, );
+GENERATE_CLASS(Vector,);
 GENERATE_CLASS(Vector_Virtuals, virtual);
 GENERATE_CLASS(Vector_Virtuals_Inlined, virtual inline);
 
@@ -103,13 +97,13 @@ static void Vector_EQ_Virtuals(benchmark::State& state)
 }
 MFEM_VECTOR_BENCHMARK(Vector_EQ_Virtuals);
 
-static void Vector_EQ_Virtuals_Inlines(benchmark::State& state)
+static void Vector_EQ_Virtuals_Inlined(benchmark::State& state)
 {
    const size_t size = state.range(0);
    benchmark::Vector_Virtuals_Inlined x(size);
    for (auto _ : state) { x = M_PI; }
 }
-MFEM_VECTOR_BENCHMARK(Vector_EQ_Virtuals_Inlines);
+MFEM_VECTOR_BENCHMARK(Vector_EQ_Virtuals_Inlined);
 
 
 // Operator +=
@@ -151,14 +145,14 @@ static void Vector_PE_Virtuals(benchmark::State& state)
 }
 MFEM_VECTOR_BENCHMARK(Vector_PE_Virtuals);
 
-static void Vector_Virtuals_Inlines_PE(benchmark::State& state)
+static void Vector_Virtuals_Inlined_PE(benchmark::State& state)
 {
    const size_t size = state.range(0);
    benchmark::Vector_Virtuals_Inlined x(size); x = M_PI;
    benchmark::Vector_Virtuals_Inlined y(size); y = M_E;
    for (auto _ : state) { x += y; }
 }
-MFEM_VECTOR_BENCHMARK(Vector_Virtuals_Inlines_PE);
+MFEM_VECTOR_BENCHMARK(Vector_Virtuals_Inlined_PE);
 
 // Base class
 struct Base
@@ -217,53 +211,15 @@ static void Base_Virtuals_Derived_not_inlined(benchmark::State& state)
 }
 MFEM_VECTOR_BENCHMARK(Base_Virtuals_Derived_not_inlined);
 
-namespace mfem
+// --benchmark_filter=all
+// --benchmark_filter=Vector_PE_MFEM
+int main(int argc, char *argv[])
 {
-
-// Specific MFEM Reporter
-class Reporter : public benchmark::BenchmarkReporter
-{
-   const int width, precision;
-public:
-   explicit Reporter(int width = 48, int precision = 2) :
-      width(width), precision(precision) { }
-
-   // platform information
-   bool ReportContext(const Context& context)
-   { return PrintBasicContext(&mfem::err, context), true; }
-
-   void ReportRuns(const std::vector<Run>& reports)
-   {
-      for (const auto& run : reports)
-      {
-         MFEM_VERIFY(!run.error_occurred, run.error_message.c_str());
-         //const double real_time = run.GetAdjustedRealTime();
-         const double cpu_time = run.GetAdjustedCPUTime();
-         const char* timeLabel = GetTimeUnitString(run.time_unit);
-         mfem::out << std::left
-                   << std::fixed
-                   << std::setprecision(precision)
-                   << std::setw(width) << run.benchmark_name().c_str()
-                   //<< " " << real_time
-                   << " " << cpu_time
-                   << " " << timeLabel
-                   << std::endl;
-      }
-   }
-};
-
-} // namespace mfem
-
-TEST_CASE("Vector Benchmarks", "[Benchmarks], [Vector]")
-{
-   int argc = 2;
-   char const *argv[] = { "bench", "--benchmark_filter=all", nullptr };
-   //char const *argv[] = { "bench", "--benchmark_filter=Vector_PE_MFEM", nullptr };
-
-   benchmark::Initialize(&argc, const_cast<char**>(argv));
-   mfem::Reporter mreport;
-   benchmark::RunSpecifiedBenchmarks(&mreport);
-   REQUIRE(true);
+   mfem::Reporter mfem_reporter;
+   ::benchmark::Initialize(&argc, argv);
+   if (::benchmark::ReportUnrecognizedArguments(argc, argv)) { return 1; }
+   ::benchmark::RunSpecifiedBenchmarks(&mfem_reporter);
+   return 0;
 }
 
 #endif // MFEM_USE_BENCHMARK
