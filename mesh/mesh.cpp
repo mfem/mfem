@@ -4816,7 +4816,7 @@ int Mesh::GetNFbyType(FaceType type) const
       nf = 0;
       for (int f = 0; f < GetNumFaces(); ++f)
       {
-         Mesh::FaceInformation info = mesh->GetFaceInformation(f);
+         FaceInformation info = GetFaceInformation(f);
          if ((type==FaceType::Interior &&
               (info.location==Mesh::FaceLocation::Interior ||
                info.location==Mesh::FaceLocation::Shared) ) ||
