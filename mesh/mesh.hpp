@@ -244,11 +244,6 @@ protected:
    Array<Triple<int, int, int> > tmp_vertex_parents;
 
 public:
-   const DenseMatrix* GetNCFacesPtMat(int i)
-   {
-      return nc_faces_info[i].PointMatrix;
-   }
-
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
    typedef Geometry::Constants<Geometry::SQUARE>      quad_t;
@@ -491,6 +486,12 @@ protected:
 
    void GenerateFaces();
    void GenerateNCFaceInfo();
+
+   /** @brief Return the PointMatrix of NCFace index @a i. */
+   const DenseMatrix* GetNCFacesPtMat(int i)
+   {
+      return nc_faces_info[i].PointMatrix;
+   }
 
    /// Begin construction of a mesh
    void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
