@@ -1660,15 +1660,27 @@ int main(int argc, char *argv[])
    if (eqnCoefs(5).GetVectorCoefficient(
           CommonCoefs::MAGNETIC_FIELD_COEF) != NULL)
    {
+      if (mpi.Root())
+      {
+         cout << "Using B field from " << ec_file << endl;
+      }
       B3Coef = eqnCoefs(5).GetVectorCoefficient(
                   CommonCoefs::MAGNETIC_FIELD_COEF);
    }
    else if (eqdsk)
    {
+      if (mpi.Root())
+      {
+         cout << "Using B field from " << eqdsk_file << endl;
+      }
       B3Coef = new B3Coefficient(*nxGradPsiCoef);
    }
    else
    {
+      if (mpi.Root())
+      {
+         cout << "Using B field from TotBFunc" << endl;
+      }
       B3Coef = new VectorFunctionCoefficient(3, TotBFunc);
    }
 
