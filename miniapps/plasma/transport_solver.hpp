@@ -2461,8 +2461,6 @@ private:
 
    Array<int> &offsets_;
 
-   // HypreSmoother newton_op_prec_;
-   // Array<HypreSmoother*> newton_op_prec_blocks_;
    TransportPrec newton_op_prec_;
    GMRESSolver   newton_op_solver_;
    NewtonSolver  newton_solver_;
@@ -2500,9 +2498,6 @@ private:
       Array<StateVariableGridFunctionCoef*>  kCoefPtrs_;
       Array<StateVariableSumCoef*>          ykCoefPtrs_;
 
-      // mutable Vector shape_;
-      // mutable DenseMatrix dshape_;
-      // mutable DenseMatrix dshapedxt_;
       mutable Array<int> vdofs_;
       mutable Array<int> vdofs2_;
       mutable DenseMatrix elmat_;
@@ -2510,7 +2505,6 @@ private:
       mutable Vector elvec_;
       mutable Vector locvec_;
       mutable Vector locdvec_;
-      // mutable Vector vec_;
 
       // Domain integrators for time derivatives of field variables
       Array<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
@@ -2613,10 +2607,6 @@ private:
       ProductCoefficient neCoef_;
 
       StateVariableGridFunctionCoef &dTe0Coef_;
-
-      // StateVariableSumCoef Te1Coef_;
-
-      // ProductCoefficient      ne0Coef_;
 
       const AdvectionDiffusionBC & bcs_;
 
@@ -3283,13 +3273,6 @@ private:
 
    ParGridFunction * BxyGF_;
    ParGridFunction * BzGF_;
-   // ConstantCoefficient oneCoef_;
-
-   // DGAdvectionDiffusionTDO n_n_oper_; // Neutral Density
-   // DGAdvectionDiffusionTDO n_i_oper_; // Ion Density
-   // DGAdvectionDiffusionTDO v_i_oper_; // Ion Parallel Velocity
-   // DGAdvectionDiffusionTDO T_i_oper_; // Ion Temperature
-   // DGAdvectionDiffusionTDO T_e_oper_; // Electron Temperature
 
    mutable Vector x_;
    mutable Vector y_;
@@ -3339,48 +3322,7 @@ public:
    inline MatrixCoefficient * GetEtaCoefficient() { return op_.GetEtaCoef(); }
    inline MatrixCoefficient * GetnXiCoefficient() { return op_.GetnXiCoef(); }
    inline MatrixCoefficient * GetnXeCoefficient() { return op_.GetnXeCoef(); }
-   /*
-    void SetNnDiffusionCoefficient(Coefficient &dCoef);
-    void SetNnDiffusionCoefficient(MatrixCoefficient &DCoef);
-    void SetNnSourceCoefficient(Coefficient &SCoef);
 
-    void SetNnDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-    void SetNnNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
-
-    void SetNiAdvectionCoefficient(VectorCoefficient &VCoef);
-    void SetNiDiffusionCoefficient(Coefficient &dCoef);
-    void SetNiDiffusionCoefficient(MatrixCoefficient &DCoef);
-    void SetNiSourceCoefficient(Coefficient &SCoef);
-
-    void SetNiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-    void SetNiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
-   */
-   /*
-    void SetViAdvectionCoefficient(VectorCoefficient &VCoef);
-    void SetViDiffusionCoefficient(Coefficient &dCoef);
-    void SetViDiffusionCoefficient(MatrixCoefficient &DCoef);
-    void SetViSourceCoefficient(Coefficient &SCoef);
-
-    void SetViDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-    void SetViNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
-
-    void SetTiAdvectionCoefficient(VectorCoefficient &VCoef);
-    void SetTiDiffusionCoefficient(Coefficient &dCoef);
-    void SetTiDiffusionCoefficient(MatrixCoefficient &DCoef);
-    void SetTiSourceCoefficient(Coefficient &SCoef);
-
-    void SetTiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-    void SetTiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
-
-    void SetTeAdvectionCoefficient(VectorCoefficient &VCoef);
-    void SetTeDiffusionCoefficient(Coefficient &dCoef);
-    void SetTeDiffusionCoefficient(MatrixCoefficient &DCoef);
-    void SetTeSourceCoefficient(Coefficient &SCoef);
-
-    void SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-    void SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
-   */
-   // virtual void ExplicitMult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &y, Vector &k);
 
    void Update();
