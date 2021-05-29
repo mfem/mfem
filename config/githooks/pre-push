@@ -1,0 +1,62 @@
+#!/bin/bash
+
+cd $(git rev-parse --show-toplevel)
+
+# copyright check
+copyright=true
+if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt
+then
+  echo "Please update the following files to Copyright (c) 2010-2021:"
+  cat matches.txt
+  copyright=false
+fi
+
+# license check
+license=true
+if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
+then
+  echo "Please update the following files to the BSD-3 license:"
+  cat matches.txt
+  license=false
+fi
+
+# release check
+release=true
+if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
+then
+  echo "Please update the following files to LLNL-CODE-806117:"
+  cat matches.txt
+  release=false
+fi
+
+# wrap-up
+code=0
+if ! $copyright ; then
+  echo "copyright check failed, unroll log for details"
+  code=1
+fi
+if ! $license ; then
+  echo "license check failed, unroll log for details"
+  code=1
+fi
+if ! $release ; then
+  echo "release check failed, unroll log for details"
+  code=1
+fi
+
+## style check
+#if which astyle && [[ "$(astyle --version)" == "Artistic Style Version 2.05.1" ]]; then
+#  cd tests/scripts
+#  if ! ./runtest code-style; then code=1; fi
+#  cd -
+#else
+#  echo "Warning: astyle not found or version is not 2.05.1"
+#fi
+
+# branch-history
+git fetch origin master:master
+cd tests/scripts
+if ! ./runtest branch-history; then code=1; fi
+cd -
+
+exit $code
