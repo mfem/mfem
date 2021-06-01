@@ -1018,206 +1018,311 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
   }
 }
 
+
+// TW VERSION
 @kernel void MassApply2D_GPU(const int NE,
-                             @restrict const DofToQuad_t B,
-                             @restrict const QuadToDof_t Bt,
-                             @restrict const QLocal2D_t op,
-                             @restrict const DLocal2D_t X,
-                             @restrict DLocal2D_t Y) {
+                                  @restrict const double *B, 
+                                  @restrict const double *Bt,
+                                  @restrict const double *op,
+                                  @restrict const double *X,
+                                  @restrict double *Y) {
   // Iterate over elements
-  for (int eOff = 0; eOff < NE; eOff += M2_ELEMENT_BATCH; @outer) {
+  for (int eOff = 0; eOff < NE; eOff += E2D; @outer) {
+
     // Store dof <--> quad mappings
-    @shared double s_B[DQ1D] @dim(Q1D, D1D);
-    @shared double s_Bt[DQ1D] @dim(D1D, Q1D);
-
+    @shared double s_B[Q1D][D1D];
+    
     // Store xy planes in @shared memory
-    @shared double s_xy[DQ1D] @dim(D1D, Q1D);
-    @shared double s_xy2[Q2D] @dim(Q1D, Q1D);
+    @shared double s_wk0[E2D][M1D][M1D];
+    @shared double s_wk1[E2D][M1D][M1D];
 
-    @exclusive double r_x[M1D];
+    // element number for this thread
+    @exclusive int e;
+    
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
+	  {
+	    // load B(asis) and G(radient) matrices
+	    int dx = qx, dy = qy;
+	    if(dx<D1D && ez==0)
+	      {
+		int id = qy + Q1D*dx;
+		s_B[qy][dx] = B[id]; // check this
+	      }
+	    
+	    // find element for this thread
+	    e = ez + eOff;
 
-    for (int x = 0; x < M1D; ++x; @inner) {
-      for (int id = x; id < DQ1D; id += M1D) {
-        s_B[id]  = B[id];
-        s_Bt[id]  = Bt[id];
-      }
-    }
+	    if(e<NE){
+	      s_wk0[ez][dy][dx] = X[e*D2D+dy*D1D+dx];
+	    }
+	  }
+    
+    
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
+      for(int dy = 0; dy < M1D; ++dy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
+	  {
+	    double u = 0.0;
+	    
+	    if(qx<Q1D && dy<D1D){
+#pragma unroll D1D
+	      for(int dx = 0; dx < D1D; ++dx){
+		const double coords = s_wk0[ez][dy][dx];
+		u += s_B[qx][dx] * coords;
+	      }
+	      s_wk1[ez][dy][qx] = u;
+	    }
+	  }
 
-    for (int e = eOff; e < (eOff + M2_ELEMENT_BATCH); ++e) {
-      if (e < NE) {
-        for (int dx = 0; dx < M1D; ++dx; @inner) {
-          if (dx < D1D) {
-            for (int qy = 0; qy < Q1D; ++qy) {
-              s_xy(dx, qy) = 0;
-            }
-            for (int dy = 0; dy < D1D; ++dy) {
-              r_x[dy] = X(dx, dy, e);
-            }
-            for (int qy = 0; qy < Q1D; ++qy) {
-              double xy = 0;
-              for (int dy = 0; dy < D1D; ++dy) {
-                xy += r_x[dy] * s_B(qy, dy);
-              }
-              s_xy(dx, qy) = xy;
-            }
-          }
-        }
-        for (int qy = 0; qy < M1D; ++qy; @inner) {
-          if (qy < Q1D) {
-            for (int qx = 0; qx < Q1D; ++qx) {
-              double s = 0;
-              for (int dx = 0; dx < D1D; ++dx) {
-                s += s_xy(dx, qy) * s_B(qx, dx);
-              }
-              s_xy2(qx, qy) = s * op(qx, qy, e);
-            }
-          }
-        }
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))
+	for(int qx = 0; qx < M1D; ++qx; @inner(0))
+	  {
+	    if(qx<Q1D && qy<Q1D){
+	      // prefetch Jacobian values
+	      double JW = 0;
+	    
+	      if(e<NE){
+		int id = e*Q2D  + qy*Q1D + qx;
+		JW = op[id];
+	      }
+	    
+	      double gX = 0.0;
+#pragma unroll D1D
+	      for(int dy = 0; dy < D1D; ++dy){
+		gX += s_wk1[ez][dy][qx] * s_B[qy][dy];
+	      }
+	      s_wk0[ez][qy][qx] = JW*gX;
+	    }
+	  }
+  
 
-        for (int qx = 0; qx < M1D; ++qx; @inner) {
-          if (qx < Q1D) {
-            for (int dy = 0; dy < D1D; ++dy) {
-              s_xy(dy, qx) = 0;
-            }
-            for (int qy = 0; qy < Q1D; ++qy) {
-              r_x[qy] = s_xy2(qx, qy);
-            }
-            for (int dy = 0; dy < D1D; ++dy) {
-              double s = 0;
-              for (int qy = 0; qy < Q1D; ++qy) {
-                s += r_x[qy] * s_Bt(dy, qy);
-              }
-              s_xy(dy, qx) = s;
-            }
-          }
-        }
-        for (int dx = 0; dx < M1D; ++dx; @inner) {
-          if (dx < D1D) {
-            for (int dy = 0; dy < D1D; ++dy) {
-              double s = 0;
-              for (int qx = 0; qx < Q1D; ++qx) {
-                s += (s_xy(dy, qx) * s_Bt(dx, qx));
-              }
-              Y(dx, dy, e) += s;
-            }
-          }
-        }
-      }
-    }
+    
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))      
+      for(int qy = 0; qy < M1D; ++qy; @inner(1))	
+	for(int dx = 0; dx < M1D; ++dx; @inner(0))
+	  {
+	    if(dx<D1D && qy<Q1D){
+	      double u = 0.0;
+	      
+#pragma unroll Q1D
+	      for (int qx = 0; qx < Q1D; ++qx)
+		{
+		  u += s_B[qx][dx] * s_wk0[ez][qy][qx]; // TW
+		}
+	      
+	      s_wk1[ez][qy][dx] = u;
+	    }
+	  }
+    
+    for(int ez = 0; ez < E2D; ++ez; @inner(2))
+      for(int dy = 0; dy < M1D; ++dy; @inner(1))
+	for(int dx = 0; dx < M1D; ++dx; @inner(0))
+	  {
+	    if(dx<D1D && dy<D1D && e<NE){
+	      double u = 0;
+	      
+#pragma unroll Q1D
+	      for (int qy = 0; qy < Q1D; ++qy)
+		{
+		  u += s_wk1[ez][qy][dx] * s_B[qy][dy];
+		}
+	      // retrieve gather sign and index
+	      if(e<NE){
+		int id = e*D2D + dy*D1D + dx;
+		Y[id] += u;
+	      }
+	    }
+	  }
   }
 }
 
+
+
+
+// Tim Warburton version derived using techniques from:
+// Świrydowicz, Kasia, Noel Chalmers, Ali Karakus, and Tim Warburton. 
+// "Acceleration of tensor-product operations for high-order finite element methods."
+// The International Journal of High Performance Computing Applications 33, no. 4 (2019): 735-757.
+//
+// This version is designed to use a relatively small amount of shared memory ** and ** register space
 @kernel void MassApply3D_GPU(const int NE,
-                             @restrict const DofToQuad_t B,
-                             @restrict const QuadToDof_t Bt,
-                             @restrict const QLocal3D_t op,
-                             @restrict const DLocal3D_t X,
-                             @restrict DLocal3D_t Y) {
-  // Iterate over elements
-  for (int e = 0; e < NE; ++e; @outer) {
-    // Store dof <--> quad mappings
-    @shared double s_B[DQ1D] @dim(Q1D, D1D);
-    @shared double s_Bt[DQ1D] @dim(D1D, Q1D);
+				  @restrict const double *B, 
+                                  @restrict const double *Bt,
+                                  @restrict const double *op,
+                                  @restrict const double *X,
+                                  @restrict double *Y) {
 
-    // Store xy planes in @shared memory
-    @shared double s_xy[M2D] @dim(M1D, M1D);
+  for(int e=0;e<NE;++e;@outer(0)){
 
-    // Store z axis as registers
-    @exclusive double r_z[Q1D];
-    @exclusive double r_z2[D1D];
+    @shared double s_q[Q1D][Q1D][Q1D];
+    @shared double s_B[Q1D][D1D];
+    
+    @exclusive double r_wk[Q1D];
 
-    for (int y = 0; y < M1D; ++y; @inner) {
-      for (int x = 0; x < M1D; ++x; @inner) {
-        const int id = (y * M1D) + x;
-        // Fetch Q <--> D maps
-        if (id < DQ1D) {
-          s_B[id]  = B[id];
-          s_Bt[id]  = Bt[id];
-        }
-        // Initialize our Z axis
-        for (int qz = 0; qz < Q1D; ++qz) {
-          r_z[qz] = 0;
-        }
-        for (int dz = 0; dz < D1D; ++dz) {
-          r_z2[dz] = 0;
-        }
+    for(int b=0;b<M1D;++b;@inner(1)){
+      for(int a=0;a<M1D;++a;@inner(0)){
+
+	// load B basis matrix 
+	if(a<D1D && b<Q1D){
+	  s_B[b][a] = B[b+Q1D*a];
+	}
+
+	// clear register array
+	for(int k=0;k<Q1D;++k){
+	  r_wk[k] = 0;
+	}
+
+	// load X data
+	if(a<D1D && b<D1D){
+	  
+	  //#pragma unroll D1D
+	  for(int c=0;c<D1D;++c){
+	    // load
+	    s_q[c][b][a] = X[e*D3D+c*D1D*D1D + b*D1D + a];
+	  }
+	}
       }
     }
 
-    for (int dy = 0; dy < M1D; ++dy; @inner) {
-      for (int dx = 0; dx < M1D; ++dx; @inner) {
-        if ((dx < D1D) && (dy < D1D)) {
-          for (int dz = 0; dz < D1D; ++dz) {
-            const double s = X(dx, dy, dz, e);
-            // Calculate D -> Q in the Z axis
-            for (int qz = 0; qz < Q1D; ++qz) {
-              r_z[qz] += s * s_B(qz, dz);
-            }
-          }
-        }
+    // transform in 'r'
+    for(int c=0;c<M1D;++c;@inner(1)){
+      for(int b=0;b<M1D;++b;@inner(0)){
+	if(b<D1D && c<D1D){
+
+	  //#pragma unroll D1D
+	  for(int a=0;a<D1D;++a){
+	    double q_kba = s_q[c][b][a];
+	    //#pragma unroll Q1D
+	    for(int i=0;i<Q1D;++i){
+	      r_wk[i] += s_B[i][a]*q_kba;
+	    }
+	  }
+	
+	  for(int i=0;i<Q1D;++i){
+	    s_q[c][b][i] = r_wk[i];
+	  }
+	}
+	for(int j=0;j<Q1D;++j){
+	  r_wk[j] = 0;
+	}
       }
     }
-    // For each xy plane
-    for (int qz = 0; qz < Q1D; ++qz) {
-      // Fill xy plane at given z position
-      for (int dy = 0; dy < M1D; ++dy; @inner) {
-        for (int dx = 0; dx < M1D; ++dx; @inner) {
-          if ((dx < D1D) && (dy < D1D)) {
-            s_xy(dx, dy) = r_z[qz];
-          }
-        }
-      }
-      // Calculate Dxyz, xDyz, xyDz in plane
-      for (int qy = 0; qy < M1D; ++qy; @inner) {
-        for (int qx = 0; qx < M1D; ++qx; @inner) {
-          if ((qx < Q1D) && (qy < Q1D)) {
-            double s = 0;
-            for (int dy = 0; dy < D1D; ++dy) {
-              const double wy = s_B(qy, dy);
-              for (int dx = 0; dx < D1D; ++dx) {
-                const double wx = s_B(qx, dx);
-                s += wx * wy * s_xy(dx, dy);
-              }
-            }
 
-            s *= op(qx, qy, qz, e);
+    // transform in 's'
+    for(int c=0;c<M1D;++c;@inner(1)){
+      for(int i=0;i<M1D;++i;@inner(0)){
+	if(i<Q1D && c<D1D){
 
-            for (int dz = 0; dz < D1D; ++dz) {
-              const double wz  = s_Bt(dz, qz);
-              r_z2[dz] += wz * s;
-            }
-          }
-        }
+	  //#pragma unroll D1D
+	  for(int b=0;b<D1D;++b){
+	    double q_cbi = s_q[c][b][i];
+	    //#pragma unroll Q1D
+	    for(int j=0;j<Q1D;++j){
+	      r_wk[j] += s_B[j][b]*q_cbi;
+	    }
+	  }
+	
+	  for(int j=0;j<Q1D;++j){
+	    s_q[c][j][i] = r_wk[j];
+	  }
+	}
+	for(int k=0;k<Q1D;++k){
+	  r_wk[k] = 0;
+	}
       }
-      @barrier("s_xy_sync_1");
     }
-    // Iterate over xy planes to compute solution
-    for (int dz = 0; dz < D1D; ++dz) {
-      // Place xy plane in @shared memory
-      for (int qy = 0; qy < M1D; ++qy; @inner) {
-        for (int qx = 0; qx < M1D; ++qx; @inner) {
-          if ((qx < Q1D) && (qy < Q1D)) {
-            s_xy(qx, qy) = r_z2[dz];
-          }
-        }
+    
+    // transform, weight, and test in 't'
+    for(int j=0;j<M1D;++j;@inner(1)){
+      for(int i=0;i<M1D;++i;@inner(0)){
+
+	if(i<Q1D && j<Q1D){
+	  //#pragma unroll D1D
+	  for(int c=0;c<D1D;++c){
+	    double q_cji = s_q[c][j][i];
+	    //#pragma unroll Q1D
+	    for(int k=0;k<Q1D;++k){
+	      r_wk[k] += s_B[k][c]*q_cji;
+	    }
+	  }
+
+	  for(int k=0;k<Q1D;++k){
+	    // hard coded parameters
+	    const int gbase = e*Q3D + i + j*Q1D + k*Q1D*Q1D;  // this is not great for coalescing
+	    const double JW = op[gbase];
+	    
+	    r_wk[k] *= JW;
+	  }
+	
+	  for(int c=0;c<D1D;++c){
+	    double tmp = 0;
+	    //#pragma unroll Q1D
+	    for(int k=0;k<Q1D;++k){
+	      tmp += s_B[k][c]*r_wk[k]; // 3TF/s
+	    }
+	    s_q[c][j][i] = tmp;
+	  }
+	}
       }
-      // Finalize solution in xy plane
-      for (int dy = 0; dy < M1D; ++dy; @inner) {
-        for (int dx = 0; dx < M1D; ++dx; @inner) {
-          if ((dx < D1D) && (dy < D1D)) {
-            double solZ = 0;
-            for (int qy = 0; qy < Q1D; ++qy) {
-              const double wy = s_Bt(dy, qy);
-              for (int qx = 0; qx < Q1D; ++qx) {
-                const double wx = s_Bt(dx, qx);
-                solZ += wx * wy * s_xy(qx, qy);
-              }
-            }
-            Y(dx, dy, dz, e) += solZ;
-          }
-        }
+    }
+
+    // test in 's'
+    for(int c=0;c<M1D;++c;@inner(1)){
+      for(int i=0;i<M1D;++i;@inner(0)){
+	if(i<Q1D && c<D1D){
+	  for(int j=0;j<Q1D;++j){
+	    r_wk[j] = s_q[c][j][i];
+	  }
+	  
+	  //#pragma unroll D1D
+	  for(int b=0;b<D1D;++b){
+	    double tmp = 0;
+	    //#pragma unroll Q1D
+	    for(int j=0;j<Q1D;++j){
+	      tmp += s_B[j][b]*r_wk[j]; // 3TF/s
+	    }
+	    s_q[c][b][i] = tmp;
+	  }
+	}
       }
-      @barrier("s_xy_sync_2");
+    }
+
+    // test in 'r'
+    for(int c=0;c<M1D;++c;@inner(1)){
+      for(int b=0;b<M1D;++b;@inner(0)){
+	if(b<D1D && c<D1D){
+	  for(int i=0;i<Q1D;++i){
+	    r_wk[i] = s_q[c][b][i];
+	  }
+	  
+	  //#pragma unroll D1D
+	  for(int a=0;a<D1D;++a){
+	    double tmp = 0;
+	    //#pragma unroll Q1D
+	    for(int i=0;i<Q1D;++i){
+	      tmp += s_B[i][a]*r_wk[i]; // 3TF/s
+	    }
+	    s_q[c][b][a] = tmp;
+	  }
+	}
+      }
+    }
+
+    // store
+    for(int b=0;b<M1D;++b;@inner(1)){
+      for(int a=0;a<M1D;++a;@inner(0)){
+	if(a<D1D && b<D1D){
+	  //#pragma unroll D1D
+	  for(int c=0;c<D1D;++c){
+	    int id = e*D3D + c*D2D + b*D1D + a;
+	    Y[id] += s_q[c][b][a];
+	  }
+	}
+      }
     }
   }
 }
+
