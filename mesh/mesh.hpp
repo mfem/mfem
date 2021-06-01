@@ -1226,6 +1226,23 @@ public:
       int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
       int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
       int ncface;
+
+      /** @brief return true if the face is either an interior or
+          shared-interior face, and not a non-conforming master face. */
+      bool IsInterior() const
+      {
+         return conformity!=Mesh::FaceConformity::NonConformingMaster &&
+                (location==Mesh::FaceLocation::Interior ||
+                 location==Mesh::FaceLocation::Shared);
+      }
+
+      /** @brief return true if the face is a boundary face, and not a
+          non-conforming master face. */
+      bool IsBoundary() const
+      {
+         return conformity!=Mesh::FaceConformity::NonConformingMaster &&
+                location==Mesh::FaceLocation::Boundary;
+      }
    };
 
    /** This method aims to provide face information in a deciphered format, i.e.
