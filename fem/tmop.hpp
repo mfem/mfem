@@ -1020,15 +1020,15 @@ protected:
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-   FiniteElementSpace *tspec_fesv; //owned
-   FiniteElementSpace *c_tspec_fesv; //not owned, derefinement FESpace
-   GridFunction *tspec_gf; //owned, constructed using tspec and tspec_fes
-   Array<GridFunction *> tspec_gf_ptr; // pointer to all discrete adaptivity
-   // grid functions
+   FiniteElementSpace *tspec_fesv;         //owned
+   FiniteElementSpace *c_tspec_fesv;       //not owned, derefinement FESpace
+   GridFunction *tspec_gf;                 //owned, uses tspec and tspec_fes
+   Array<GridFunction *> tspec_gf_ptr;     // pointer to functions used for
+   // discrete adaptivity
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *ptspec_fesv; //owned, needed for derefinement to get
-   //update operator.
-   ParGridFunction *tspec_pgf; // similar to tspec_gf
+   ParFiniteElementSpace *ptspec_fesv;     //owned, needed for derefinement to
+   // get update operator.
+   ParGridFunction *tspec_pgf;             // similar to tspec_gf
    Array<ParGridFunction *> tspec_pgf_ptr; // similar to tspec_gf_ptr
 #endif
 
