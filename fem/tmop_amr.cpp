@@ -187,8 +187,8 @@ void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
 void TMOPRefinerEstimator::SetHexIntRules()
 {
    HexIntRule.SetSize(1+1);
-   // Reftype = 0 // original element
-   Mesh meshsplit(1, 1, 1, Element::HEXAHEDRON);
+   // Reftype = 0 -> original element
+   Mesh meshsplit = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    Mesh base_mesh_copy(meshsplit);
    HexIntRule[0] = SetIntRulesFromMesh(meshsplit);
    meshsplit.Clear();
@@ -212,8 +212,8 @@ void TMOPRefinerEstimator::SetQuadIntRules()
 {
    QuadIntRule.SetSize(3+1);
 
-   // Reftype = 0 // original element
-   Mesh meshsplit(1, 1, Element::QUADRILATERAL);
+   // Reftype = 0 -> original element
+   Mesh meshsplit = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
    Mesh base_mesh_copy(meshsplit);
    QuadIntRule[0] = SetIntRulesFromMesh(meshsplit);
    meshsplit.Clear();
