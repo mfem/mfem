@@ -29,6 +29,7 @@ private:
    Vector field0;
    const double dt_scale;
    const AssemblyLevel al;
+   MemoryType temp_mt = MemoryType::DEFAULT;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
@@ -42,6 +43,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
+
+   void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
 };
 
 #ifdef MFEM_USE_GSLIB
@@ -107,7 +110,8 @@ public:
        that Mult() moves the nodes of the mesh corresponding to @a pfes. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
                      ParFiniteElementSpace &pfes,
-                     AssemblyLevel al = AssemblyLevel::LEGACY);
+                     AssemblyLevel al = AssemblyLevel::LEGACY,
+                     MemoryType mt = MemoryType::DEFAULT);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -128,6 +132,8 @@ protected:
    // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
+
+   MemoryType temp_mt = MemoryType::DEFAULT;
 
    const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
    {
@@ -166,6 +172,8 @@ public:
    }
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
+
+   void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 

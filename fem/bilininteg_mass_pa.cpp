@@ -42,11 +42,12 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
+                                    GeometricFactors::JACOBIANS, temp_mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
+   pa_data.SetSize(ne*nq, temp_mt == MemoryType::DEFAULT ?
+                   Device::GetDeviceMemoryType() : temp_mt);
    Vector coeff;
    if (Q == nullptr)
    {

@@ -804,6 +804,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -1183,6 +1185,8 @@ protected:
 
    DiscreteAdaptTC *discr_tc;
 
+   MemoryType temp_mt = MemoryType::DEFAULT;
+
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
    double dx;
@@ -1358,6 +1362,9 @@ public:
    { PA.enabled = false; }
 
    ~TMOP_Integrator();
+
+   void ReleasePAMemory();
+   void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
