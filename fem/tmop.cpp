@@ -1232,83 +1232,84 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
 
    adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
                               *ptspec_fes->FEColl(), ncomp);
-   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
 
    delete tspec_fesv;
-   tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
-                                       tspec_fes->FEColl(), ncomp);
+   tspec_fesv = new FiniteElementSpace(ptspec_fes->GetMesh(),
+                                       ptspec_fes->FEColl(), ncomp);
 
    delete ptspec_fesv;
    ptspec_fesv = new ParFiniteElementSpace(ptspec_fes->GetParMesh(),
                                            ptspec_fes->FEColl(), ncomp);
 
-   delete pgfall;
-   pgfall = new ParGridFunction(ptspec_fesv, tspec);
-   gfall = pgfall;
+   delete tspec_pgf;
+   tspec_pgf = new ParGridFunction(ptspec_fesv, tspec);
+   tspec_gf = tspec_pgf;
 }
 
 void DiscreteAdaptTC::GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx)
 {
    if (idx < 0) { return; }
-   const int cnt = tspec_fes->GetNDofs(),
+   MFEM_VERIFY(tspec_.FESpace()->GetNDofs() == tspec.Size()/ncomp,
+               "Inconsistency in GetSerialDiscreteTargetSpec.");
+   const int ndof = tspec_.FESpace()->GetNDofs(),
              vdim = tspec_.FESpace()->GetVDim();
-   for (int i = 0; i < cnt*vdim; i++)
+   for (int i = 0; i < ndof*vdim; i++)
    {
-      tspec_(i) = tspec(i + idx*cnt);
+      tspec_(i) = tspec(i + idx*ndof);
    }
 }
 
 void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
 {
-   tspec_fes->Update();
-   tspec_fesv->Update();
    ptspec_fesv->Update();
-   pgfall->Update();
-   gfall = pgfall;
-   tspec.SetDataAndSize(pgfall->GetData(), pgfall->Size());
+   if (tspec_fesv) {
+       delete tspec_fesv;
+       tspec_fesv = new FiniteElementSpace(ptspec_fesv->GetMesh(),
+                                           ptspec_fesv->FEColl(), ncomp);
+   }
+   tspec_pgf->Update();
+   tspec_gf = tspec_pgf;
+   tspec.SetDataAndSize(tspec_pgf->GetData(), tspec_pgf->Size());
    tspec_sav = tspec;
 
-   for (int i = 0; i < pgfarr.Size(); i++)
+   for (int i = 0; i < tspec_pgf_ptr.Size(); i++)
    {
-      pgfarr[i]->FESpace()->Update();
-      pgfarr[i]->Update();
+      tspec_pgf_ptr[i]->FESpace()->Update();
+      tspec_pgf_ptr[i]->Update();
    }
 
-   if (sizeidx > -1 )
+   if (sizeidx > -1)
    {
-      GetParDiscreteTargetSpec(*pgfarr[sizeidx], sizeidx);
+      GetParDiscreteTargetSpec(*tspec_pgf_ptr[sizeidx], sizeidx);
    }
    if (skewidx > -1)
    {
-      GetParDiscreteTargetSpec(*pgfarr[skewidx], skewidx);
+      GetParDiscreteTargetSpec(*tspec_pgf_ptr[skewidx], skewidx);
    }
    if (aspectratioidx > -1)
    {
-      GetParDiscreteTargetSpec(*pgfarr[aspectratioidx], aspectratioidx);
+      GetParDiscreteTargetSpec(*tspec_pgf_ptr[aspectratioidx], aspectratioidx);
    }
    if (orientationidx > -1)
    {
-      GetParDiscreteTargetSpec(*pgfarr[orientationidx], orientationidx);
+      GetParDiscreteTargetSpec(*tspec_pgf_ptr[orientationidx], orientationidx);
    }
 
    adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
                               *ptspec_fesv->FEColl(), ncomp);
-   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetInitialField(*ptspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
-   if (tspec_fes) { delete tspec_fes; }
-   tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
-                                      tspec_.FESpace()->FEColl(), 1);
-
-   const int vdim     = tspec_.FESpace()->GetVDim(),
-             dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
+   const int vdim = tspec_.FESpace()->GetVDim(),
+             ndof = tspec_.FESpace()->GetNDofs();
+   for (int i = 0; i < ndof*vdim; i++)
    {
-      tspec(i+idx*dof_cnt) = tspec_(i);
+      tspec(i+idx*ndof) = tspec_(i);
    }
 
    FinalizeParDiscreteTargetSpec(tspec_);
@@ -1319,13 +1320,13 @@ void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
    if (sizeidx > -1)
    {
       SetTspecAtIndex(sizeidx, tspec_);
-      pgfarr[sizeidx] = const_cast<ParGridFunction *>(&tspec_);
+      tspec_pgf_ptr[sizeidx] = const_cast<ParGridFunction *>(&tspec_);
       return;
    }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
+   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
@@ -1333,13 +1334,13 @@ void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
    if (skewidx > -1)
    {
       SetTspecAtIndex(skewidx, tspec_);
-      pgfarr[skewidx] = const_cast<ParGridFunction *>(&tspec_);
+      tspec_pgf_ptr[skewidx] = const_cast<ParGridFunction *>(&tspec_);
       return;
    }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
+   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
@@ -1348,13 +1349,13 @@ void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
    if (aspectratioidx > -1)
    {
       SetTspecAtIndex(aspectratioidx, tspec_);
-      pgfarr[aspectratioidx] = const_cast<ParGridFunction *>(&tspec_);
+      tspec_pgf_ptr[aspectratioidx] = const_cast<ParGridFunction *>(&tspec_);
       return;
    }
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
+   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
@@ -1363,64 +1364,56 @@ void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
    if (orientationidx > -1)
    {
       SetTspecAtIndex(orientationidx, tspec_);
-      pgfarr[orientationidx] = const_cast<ParGridFunction *>(&tspec_);
+      tspec_pgf_ptr[orientationidx] = const_cast<ParGridFunction *>(&tspec_);
       return;
    }
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
+   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
 {
    SetParDiscreteTargetSize(tspec_);
-   FinalizeParDiscreteTargetSpec(tspec_);
 }
 #endif
 
 void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
-   const int vdim     = tspec_.FESpace()->GetVDim(),
-             dof_cnt  = tspec_.Size()/vdim;
+   const int vdim = tspec_.FESpace()->GetVDim(),
+             ndof = tspec_.FESpace()->GetNDofs();
 
    ncomp += vdim;
-
-   if (tspec_fes) { delete tspec_fes; }
-   tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
-                                      tspec_.FESpace()->FEColl(), 1);
 
    // need to append data to tspec
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
-   tspec.SetSize(ncomp*dof_cnt);
+   tspec.SetSize(ncomp*ndof);
 
    for (int i = 0; i < tspec_temp.Size(); i++)
    {
       tspec(i) = tspec_temp(i);
    }
 
-   for (int i = 0; i < dof_cnt*vdim; i++)
+   for (int i = 0; i < ndof*vdim; i++)
    {
-      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
+      tspec(i+(ncomp-vdim)*ndof) = tspec_(i);
    }
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
-   if (tspec_fes) { delete tspec_fes; }
-   tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
-                                      tspec_.FESpace()->FEColl(), 1);
-
-   const int vdim     = tspec_.FESpace()->GetVDim(),
-             dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
+   const int vdim = tspec_.FESpace()->GetVDim(),
+             ndof = tspec_.FESpace()->GetNDofs();
+   MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTargetSpec.");
+   for (int i = 0; i < ndof*vdim; i++)
    {
-      tspec(i+idx*dof_cnt) = tspec_(i);
+      tspec(i+idx*ndof) = tspec_(i);
    }
 
-   FinalizeSerialDiscreteTargetSpec();
+   FinalizeSerialDiscreteTargetSpec(tspec_);
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
@@ -1428,13 +1421,13 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
    if (sizeidx > -1)
    {
       SetTspecAtIndex(sizeidx, tspec_);
-      gfarr[sizeidx] = const_cast<GridFunction *>(&tspec_);
+      tspec_gf_ptr[sizeidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
-   FinalizeSerialDiscreteTargetSpec();
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
+   FinalizeSerialDiscreteTargetSpec(tspec_);
+   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
@@ -1442,13 +1435,13 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
    if (skewidx > -1)
    {
       SetTspecAtIndex(skewidx, tspec_);
-      gfarr[skewidx] = const_cast<GridFunction *>(&tspec_);
+      tspec_gf_ptr[skewidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
-   FinalizeSerialDiscreteTargetSpec();
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
+   FinalizeSerialDiscreteTargetSpec(tspec_);
+   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
@@ -1457,13 +1450,13 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
    if (aspectratioidx > -1)
    {
       SetTspecAtIndex(aspectratioidx, tspec_);
-      gfarr[aspectratioidx] = const_cast<GridFunction *>(&tspec_);
+      tspec_gf_ptr[aspectratioidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
-   FinalizeSerialDiscreteTargetSpec();
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
+   FinalizeSerialDiscreteTargetSpec(tspec_);
+   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
@@ -1472,20 +1465,22 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
    if (orientationidx > -1)
    {
       SetTspecAtIndex(orientationidx, tspec_);
-      gfarr[orientationidx] = const_cast<GridFunction *>(&tspec_);
+      tspec_gf_ptr[orientationidx] = const_cast<GridFunction *>(&tspec_);
       return;
    }
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
-   FinalizeSerialDiscreteTargetSpec();
-   gfarr.Append(const_cast<GridFunction *>(&tspec_));
+   FinalizeSerialDiscreteTargetSpec(tspec_);
+   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
-void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
+void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction
+                                                       &tspec_)
 {
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
+   const FiniteElementSpace *tspec_fes = tspec_.FESpace();
    adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
                                  *tspec_fes->FEColl(), ncomp);
    adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
@@ -1496,56 +1491,57 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
    tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
                                        tspec_fes->FEColl(), ncomp);
 
-   delete gfall;
-   gfall = new GridFunction(tspec_fesv, tspec);
+   delete tspec_gf;
+   tspec_gf = new GridFunction(tspec_fesv, tspec);
 }
 
 void DiscreteAdaptTC::GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx)
 {
    if (idx < 0) { return; }
-   const int cnt = tspec_fes->GetNDofs(),
+   MFEM_VERIFY(tspec_.FESpace()->GetNDofs() == tspec.Size()/ncomp,
+               "Inconsistency in GetSerialDiscreteTargetSpec.");
+   const int ndof = tspec_.FESpace()->GetNDofs(),
              vdim = tspec_.FESpace()->GetVDim();
-   for (int i = 0; i < cnt*vdim; i++)
+   for (int i = 0; i < ndof*vdim; i++)
    {
-      tspec_(i) = tspec(i + idx*cnt);
+      tspec_(i) = tspec(i + idx*ndof);
    }
 }
 
 void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
 {
-   tspec_fes->Update();
    tspec_fesv->Update();
-   gfall->Update();
-   tspec.SetDataAndSize(gfall->GetData(), gfall->Size());
+   tspec_gf->Update();
+   tspec.SetDataAndSize(tspec_gf->GetData(), tspec_gf->Size());
    tspec_sav = tspec;
 
-   for (int i = 0; i < gfarr.Size(); i++)
+   for (int i = 0; i < tspec_gf_ptr.Size(); i++)
    {
-      gfarr[i]->FESpace()->Update();
-      gfarr[i]->Update();
+      tspec_gf_ptr[i]->FESpace()->Update();
+      tspec_gf_ptr[i]->Update();
    }
 
-   if (sizeidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[sizeidx], sizeidx); }
-   if (skewidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[skewidx], skewidx); }
-   if (aspectratioidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[aspectratioidx], aspectratioidx); }
-   if (orientationidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[orientationidx], orientationidx); }
+   if (sizeidx > -1) {
+       GetSerialDiscreteTargetSpec(*tspec_gf_ptr[sizeidx], sizeidx);
+   }
+   if (skewidx > -1) {
+       GetSerialDiscreteTargetSpec(*tspec_gf_ptr[skewidx], skewidx);
+   }
+   if (aspectratioidx > -1) {
+       GetSerialDiscreteTargetSpec(*tspec_gf_ptr[aspectratioidx], aspectratioidx);
+   }
+   if (orientationidx > -1) {
+       GetSerialDiscreteTargetSpec(*tspec_gf_ptr[orientationidx], orientationidx);
+   }
 
-   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
-                                 *tspec_fes->FEColl(), ncomp);
-   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
-}
-
-void DiscreteAdaptTC::ResetDiscreteFields()
-{
-   tspec.SetSize(0);
-   ncomp = 0;
-   sizeidx = skewidx = aspectratioidx = orientationidx = -1;
+   adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(),
+                                 *tspec_fesv->FEColl(), ncomp);
+   adapt_eval->SetInitialField(*tspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 {
    SetSerialDiscreteTargetSize(tspec_);
-   FinalizeSerialDiscreteTargetSpec();
 }
 
 
@@ -1575,7 +1571,7 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
-   tspec_fes->GetElementDofs(T.ElementNo, dofs);
+   tspec_fesv->GetElementDofs(T.ElementNo, dofs);
    const int cnt = tspec.Size()/ncomp; // dofs per scalar-field
 
    for (int i = 0; i < ncomp; i++)
@@ -1590,7 +1586,7 @@ void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
-   tspec_fes->GetElementDofs(T.ElementNo, dofs);
+   tspec_fesv->GetElementDofs(T.ElementNo, dofs);
    const int cnt = tspec.Size()/ncomp;
    for (int i = 0; i < ncomp; i++)
    {
@@ -1607,7 +1603,7 @@ void DiscreteAdaptTC::SetTspecFromIntRule(const int e_id,
       case IDEAL_SHAPE_GIVEN_SIZE:
       case GIVEN_SHAPE_AND_SIZE:
       {
-         const int ndofs = tspec_fes->GetFE(e_id)->GetDof(),
+         const int ndofs = tspec_fesv->GetFE(e_id)->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
 
          Vector tspec_vals(ntspec_dofs);
@@ -1616,7 +1612,7 @@ void DiscreteAdaptTC::SetTspecFromIntRule(const int e_id,
          tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
          DenseMatrix tr;
-         gfall->GetVectorValues(e_id, intrule, tspec_refine, tr);
+         tspec_gf->GetVectorValues(e_id, intrule, tspec_refine, tr);
          tspec_refine.Transpose();
          break;
       }
@@ -1643,7 +1639,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
              nqp = ir.GetNPoints();
    Jtrcomp.SetSize(dim, dim, 4*nqp);
 
-   FiniteElementSpace *src_fes = tspec_fes;
+   FiniteElementSpace *src_fes = tspec_fesv;
 
    switch (target_type)
    {
@@ -1653,7 +1649,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          const DenseMatrix &Wideal =
             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
          const int dim = Wideal.Height(),
-                   ndofs = tspec_fes->GetFE(e_id)->GetDof(),
+                   ndofs = tspec_fesv->GetFE(e_id)->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
@@ -1910,7 +1906,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
                grad_phys.Mult(par_vals, grad_ptr_c1);
                Vector grad_q(dim);
-               tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+               tspec_fesv->GetFE(e_id)->CalcShape(ip, shape);
                grad_e_c1.MultTranspose(shape, grad_q);
 
                const double min_size = par_vals.Min();
@@ -1943,7 +1939,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
                   grad_phys.Mult(par_vals, grad_ptr_c1);
                   Vector grad_q(dim);
-                  tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                  tspec_fesv->GetFE(e_id)->CalcShape(ip, shape);
                   grad_e_c1.MultTranspose(shape, grad_q);
 
                   const double aspectratio = shape * par_vals;
@@ -1974,7 +1970,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   grad_phys.Mult(par_vals_c2, grad_ptr_c2);
                   grad_phys.Mult(par_vals_c3, grad_ptr_c3);
                   Vector grad_q1(dim), grad_q2(dim), grad_q3(dim);
-                  tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                  tspec_fesv->GetFE(e_id)->CalcShape(ip, shape);
                   grad_e_c1.MultTranspose(shape, grad_q1);
                   grad_e_c2.MultTranspose(shape, grad_q2);
                   grad_e_c3.MultTranspose(shape, grad_q3);
@@ -2013,7 +2009,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
                   grad_phys.Mult(par_vals, grad_ptr_c1);
                   Vector grad_q(dim);
-                  tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                  tspec_fesv->GetFE(e_id)->CalcShape(ip, shape);
                   grad_e_c1.MultTranspose(shape, grad_q);
 
                   const double skew = shape * par_vals;
@@ -2046,7 +2042,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   grad_phys.Mult(par_vals_c2, grad_ptr_c2);
                   grad_phys.Mult(par_vals_c3, grad_ptr_c3);
                   Vector grad_q1(dim), grad_q2(dim), grad_q3(dim);
-                  tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                  tspec_fesv->GetFE(e_id)->CalcShape(ip, shape);
                   grad_e_c1.MultTranspose(shape, grad_q1);
                   grad_e_c2.MultTranspose(shape, grad_q2);
                   grad_e_c3.MultTranspose(shape, grad_q3);
@@ -2093,7 +2089,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
                   grad_phys.Mult(par_vals, grad_ptr_c1);
                   Vector grad_q(dim);
-                  tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                  tspec_fesv->GetFE(e_id)->CalcShape(ip, shape);
                   grad_e_c1.MultTranspose(shape, grad_q);
 
                   const double theta = shape * par_vals;
@@ -2124,7 +2120,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                   grad_phys.Mult(par_vals_c2, grad_ptr_c2);
                   grad_phys.Mult(par_vals_c3, grad_ptr_c3);
                   Vector grad_q1(dim), grad_q2(dim), grad_q3(dim);
-                  tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                  tspec_fesv->GetFE(e_id)->CalcShape(ip, shape);
                   grad_e_c1.MultTranspose(shape, grad_q1);
                   grad_e_c2.MultTranspose(shape, grad_q2);
                   grad_e_c3.MultTranspose(shape, grad_q3);
@@ -2204,7 +2200,7 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
 {
    if (use_flag && good_tspec_grad) { return; }
 
-   const int dim = tspec_fes->GetFE(0)->GetDim(),
+   const int dim = tspec_fesv->GetFE(0)->GetDim(),
              cnt = x.Size()/dim;
 
    tspec_pert1h.SetSize(x.Size()*ncomp);
@@ -2230,7 +2226,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
 
    if (use_flag && good_tspec_hess) { return; }
 
-   const int dim    = tspec_fes->GetFE(0)->GetDim(),
+   const int dim    = tspec_fesv->GetFE(0)->GetDim(),
              cnt    = x.Size()/dim,
              totmix = 1+2*(dim-2);
 
@@ -2280,14 +2276,13 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
 
 DiscreteAdaptTC::~DiscreteAdaptTC()
 {
-   if (gfall) { delete gfall; }
+   if (tspec_gf) { delete tspec_gf; }
    if (adapt_eval) { delete adapt_eval; }
-   if (tspec_fes) { delete tspec_fes; }
    if (tspec_fesv) { delete tspec_fesv; }
-   gfarr.DeleteAll();
+   tspec_gf_ptr.DeleteAll();
 #ifdef MFEM_USE_MPI
    if (ptspec_fesv) {delete ptspec_fesv; }
-   pgfarr.DeleteAll();
+   tspec_pgf_ptr.DeleteAll();
 #endif
 }
 

@@ -256,7 +256,6 @@ void TMOPRefinerEstimator::SetTriIntRules()
    meshsplit.AddTriangle(tri_e[0], 1);
    meshsplit.FinalizeTriMesh(1, 1, true);
 
-   //Mesh meshsplit(1, 1, Element::TRIANGLE);
    Mesh base_mesh_copy(meshsplit);
    TriIntRule[0] = SetIntRulesFromMesh(meshsplit);
    meshsplit.Clear();
@@ -300,7 +299,6 @@ void TMOPRefinerEstimator::SetTetIntRules()
    meshsplit.AddTet(tet_e[0], 1);
    meshsplit.FinalizeTetMesh(1, 1, true);
 
-   //Mesh meshsplit(1, 1, 1, Element::TETRAHEDRON);
    Mesh base_mesh_copy(meshsplit);
    TetIntRule[0] = SetIntRulesFromMesh(meshsplit);
    meshsplit.Clear();
@@ -360,10 +358,6 @@ IntegrationRule* TMOPRefinerEstimator::SetIntRulesFromMesh(Mesh &meshsplit)
    }
    return irule;
 }
-
-
-
-
 
 bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
    TMOP_Integrator &tmopi,
