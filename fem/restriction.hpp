@@ -470,17 +470,11 @@ protected:
    /** @brief Returns the interpolation operator from a master (coarse) face to
        a slave (fine) face.
 
+       @param[in] info The face information of the current face.
        @param[in] ptMat The PointMatrix describing the position and orientation
                         of the fine face in the coarse face. This PointMatrix is
                         usually obtained from the mesh through the method
                         GetNCFacesPtMat.
-       @param[in] face_id1 The local face identifiant of elem1, usually obtained
-                           through the mesh with the method GetFaceInformation.
-       @param[in] face_id2 The local face identifiant of elem2, usually obtained
-                           through the mesh with the method GetFaceInformation.
-       @param[in] orientation The orientation of elem2 relative to elem1 on the
-                              face, usually obtained through the mesh with the
-                              method GetFaceInformation.
        @return The dense matrix corresponding to the interpolation of the face
                degrees of freedom of the master (coarse) face to the slave
                (fine) face. */

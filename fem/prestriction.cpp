@@ -478,7 +478,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                            "The following interpolation operator is "
                            "lexicographic.");
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
-               const int face_key = info.elem_1_local_face + 
+               const int face_key = info.elem_1_local_face +
                                     6*info.elem_2_local_face;
                Key key(ptMat, face_key);
                auto itr = interp_map.find(key);
