@@ -957,16 +957,16 @@ protected:
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-   FiniteElementSpace *tspec_fes; //owned
    FiniteElementSpace *tspec_fesv; //owned
    FiniteElementSpace *c_tspec_fesv; //not owned, derefinement FESpace
-   GridFunction *gfall; //owned, constructed using tspec & tspec_fes
-   Array<GridFunction *> gfarr; // pointer to all discrete adaptivity functions
+   GridFunction *tspec_gf; //owned, constructed using tspec and tspec_fes
+   Array<GridFunction *> tspec_gf_ptr; // pointer to all discrete adaptivity
+   // grid functions
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *ptspec_fesv; //owned, needed for derefinement to get
    //update operator.
-   ParGridFunction *pgfall;
-   Array<ParGridFunction *> pgfarr; // similar to gfarr
+   ParGridFunction *tspec_pgf; // similar to tspec_gf
+   Array<ParGridFunction *> tspec_pgf_ptr; // similar to tspec_gf_ptr
 #endif
 
    int amr_el;
@@ -982,14 +982,11 @@ protected:
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
-   void FinalizeSerialDiscreteTargetSpec();
+   void FinalizeSerialDiscreteTargetSpec(const GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
    void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
    void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
 #endif
-
-   // Reset tspec to prepare for discrete fields to be re-set.
-   virtual void ResetDiscreteFields();
 
 public:
    DiscreteAdaptTC(TargetType ttype)
@@ -998,9 +995,9 @@ public:
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
         tspec_refine(), tspec_derefine(),
-        tspec_fes(NULL), tspec_fesv(NULL), c_tspec_fesv(NULL), gfall(NULL),
+        tspec_fesv(NULL), c_tspec_fesv(NULL), tspec_gf(NULL),
 #ifdef MFEM_USE_MPI
-        ptspec_fesv(NULL), pgfall(NULL),
+        ptspec_fesv(NULL), tspec_pgf(NULL),
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
@@ -1042,7 +1039,7 @@ public:
    /// Get the FESpace associated with tspec.
    FiniteElementSpace *GetTSpecFESpace() { return tspec_fesv; }
    /// Get the entire tspec.
-   GridFunction *GetTSpecData() { return gfall; }
+   GridFunction *GetTSpecData() { return tspec_gf; }
    /// Update all discrete fields based on tspec and update for AMR
    void UpdateAfterMeshTopologyChange();
 
