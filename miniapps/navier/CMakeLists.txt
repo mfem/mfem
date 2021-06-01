@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -53,4 +53,22 @@ if (MFEM_USE_MPI)
     MAIN navier_3dfoc.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
+
+  if (MFEM_USE_GSLIB)
+    add_mfem_miniapp(navier_cht
+      MAIN navier_cht.cpp
+      ${NAVIER_COMMON_FILES}
+      LIBRARIES mfem)
+
+    LIST(APPEND NAVIER_MESH_FILES
+        fluid-cht.mesh
+        solid-cht.mesh)
+    foreach(MESH_FILE ${NAVIER_MESH_FILES})
+        add_custom_command(
+          TARGET navier_cht POST_BUILD #OUTPUT ${MESH_FILE}
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE} ${MESH_FILE}
+          COMMENT "copy: ${MESH_FILE}")
+    endforeach()
+  endif ()
 endif ()

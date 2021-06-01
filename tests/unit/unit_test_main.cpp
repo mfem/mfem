@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,10 +13,18 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+bool launch_all_non_regression_tests = false;
+
 int main(int argc, char *argv[])
 {
    // There must be exactly one instance.
    Catch::Session session;
+
+   // Build a new command line parser on top of Catch's
+   using namespace Catch::clara;
+   auto cli = session.cli() |
+              Opt(launch_all_non_regression_tests) ["--all"] ("all tests");
+   session.cli(cli);
 
    // For floating point comparisons, print 8 digits for single precision
    // values, and 16 digits for double precision values.
@@ -25,10 +33,7 @@ int main(int argc, char *argv[])
 
    // Apply provided command line arguments.
    int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
+   if (r != 0) { return r; }
 
 #ifdef MFEM_USE_MPI
    // Exclude tests marked as Parallel in a serial run, even when compiled with
@@ -37,6 +42,10 @@ int main(int argc, char *argv[])
    cfg.testsOrTags.push_back("~[Parallel]");
    session.useConfigData(cfg);
 #endif
+
+   // NOTE: tests marked with "[CUDA]" are still run using the default device.
+
+   std::cout << "INFO: Test filter: ~[Parallel]" << std::endl;
 
    int result = session.run();
 

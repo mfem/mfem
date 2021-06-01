@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -213,9 +213,9 @@ static void PAGradientApply2D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
                               const Array<double> &bt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               const int tr_d1d = 0,
                               const int te_d1d = 0,
                               const int q1d = 0)
@@ -229,9 +229,9 @@ static void PAGradientApply2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 2,2, NE);
-   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, 2, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
+   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, 2, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -326,15 +326,15 @@ static void PAGradientApplyTranspose2D(const int NE,
                                        const Array<double> &bt,
                                        const Array<double> &gt,
                                        const Array<double> &b,
-                                       const Vector &_op,
-                                       const Vector &_x,
-                                       Vector &_y,
+                                       const Vector &op_,
+                                       const Vector &x_,
+                                       Vector &y_,
                                        const int tr_d1d = 0,
                                        const int te_d1d = 0,
                                        const int q1d = 0)
 {
    // TODO
-   MFEM_ASSERT(false, "GradientPAApplyTranspose 3D not implemented.");
+   MFEM_ASSERT(false, "PAGradientApplyTranspose2D not implemented.");
 }
 
 // PA Gradient Apply 3D kernel
@@ -343,9 +343,9 @@ static void PAGradientApply3D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
                               const Array<double> &bt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               int tr_d1d = 0,
                               int te_d1d = 0,
                               int q1d = 0)
@@ -359,9 +359,9 @@ static void PAGradientApply3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 3,3, NE);
-   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, TR_D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
+   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 3, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -522,9 +522,9 @@ static void PAGradientApplyTranspose3D(const int NE,
                                        const Array<double> &bt,
                                        const Array<double> &gt,
                                        const Array<double> &b,
-                                       const Vector &_op,
-                                       const Vector &_x,
-                                       Vector &_y,
+                                       const Vector &op_,
+                                       const Vector &x_,
+                                       Vector &y_,
                                        int tr_d1d = 0,
                                        int te_d1d = 0,
                                        int q1d = 0)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,8 @@ public:
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
       Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
       ClosedGL        = 7,  ///< Closed GaussLegendre
-      NumBasisTypes   = 8   /**< Keep track of maximum types to prevent
+      IntegratedGLL   = 8,  ///< Integrated GLL indicator functions
+      NumBasisTypes   = 9   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -53,7 +54,7 @@ public:
        with an error; otherwise return the input. */
    static int CheckNodal(int b_type)
    {
-      MFEM_VERIFY(Check(b_type) != Positive,
+      MFEM_VERIFY(Check(b_type) != Positive && b_type != IntegratedGLL,
                   "invalid nodal BasisType: " << Name(b_type));
       return b_type;
    }
@@ -71,6 +72,7 @@ public:
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
          case Serendipity:     return Quadrature1D::GaussLobatto;
          case ClosedGL:        return Quadrature1D::ClosedGL;
+         case IntegratedGLL:   return Quadrature1D::GaussLegendre;
       }
       return Quadrature1D::Invalid;
    }
@@ -94,14 +96,17 @@ public:
       static const char *name[] =
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
-         "Open uniform", "Closed uniform", "Open half uniform"
+         "Open uniform", "Closed uniform", "Open half uniform",
+         "Seredipity", "Closed Gauss-Legendre",
+         "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
    }
    /// Check and convert a BasisType constant to a char basis identifier.
    static char GetChar(int b_type)
    {
-      static const char ident[] = { 'g', 'G', 'P', 'u', 'U', 'o' };
+      static const char ident[]
+         = { 'g', 'G', 'P', 'u', 'U', 'o', 'S', 'c', 'i' };
       return ident[Check(b_type)];
    }
    /// Convert char basis identifier to a BasisType constant.
@@ -111,11 +116,14 @@ public:
       {
          case 'g': return GaussLegendre;
          case 'G': return GaussLobatto;
+         case 's': return GaussLobatto;
          case 'P': return Positive;
          case 'u': return OpenUniform;
          case 'U': return ClosedUniform;
          case 'o': return OpenHalfUniform;
-         case 's': return GaussLobatto;
+         case 'S': return Serendipity;
+         case 'c': return ClosedGL;
+         case 'i': return IntegratedGLL;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
@@ -627,8 +635,8 @@ protected:
 
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
-      if (fe.GetRangeType() != SCALAR)
-      { mfem_error("'fe' must be a ScalarFiniteElement"); }
+      MFEM_VERIFY(fe.GetRangeType() == SCALAR,
+                  "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
 
@@ -698,6 +706,7 @@ public:
 class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
+   Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
                        ElementTransformation &Trans,
                        DenseMatrix &curl) const;
@@ -746,6 +755,29 @@ public:
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
+
+   /** @brief Get an Array<int> that maps lexicographically ordered indices to
+       the indices of the respective nodes/dofs/basis functions. Lexicographic
+       ordering of nodes is defined in terms of reference-space coordinates
+       (x,y,z). Lexicographically ordered nodes are listed first in order of
+       increasing x-coordinate, and then in order of increasing y-coordinate,
+       and finally in order of increasing z-coordinate.
+
+       For example, the six nodes of a quadratic triangle are lexicographically
+       ordered as follows:
+
+       5
+       |\
+       3 4
+       |  \
+       0-1-2
+
+       The resulting array may be empty if the DOFs are already ordered
+       lexicographically, or if the finite element does not support creating
+       this permutation. The array returned is the same as the array given by
+       TensorBasisElement::GetDofMap, but it is also available for non-tensor
+       elements. */
+   const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
 };
 
 /** @brief Class for finite elements utilizing the
@@ -807,6 +839,7 @@ private:
                            DenseMatrix &dshape) const;
 
 protected:
+   bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix J, Jinv;
    mutable DenseMatrix curlshape, curlshape_J;
@@ -819,11 +852,25 @@ protected:
    void CalcVShape_ND(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
+   /** @brief Project a vector coefficient onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Projects the vector of values given at FE nodes to RT space
+   /** Project vector values onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
@@ -833,6 +880,19 @@ protected:
       const double *nk, const Array<int> &d2n,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
@@ -852,11 +912,25 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
+   /** @brief Project a vector coefficient onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Projects the vector of values given at FE nodes to ND space
+   /** Project vector values onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
@@ -866,6 +940,19 @@ protected:
       const double *tk, const Array<int> &d2t,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
@@ -874,10 +961,18 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
+   void LocalL2Projection_RT(const VectorFiniteElement &cfe,
+                             ElementTransformation &Trans,
+                             DenseMatrix &I) const;
+
    void LocalInterpolation_RT(const VectorFiniteElement &cfe,
                               const double *nk, const Array<int> &d2n,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
+
+   void LocalL2Projection_ND(const VectorFiniteElement &cfe,
+                             ElementTransformation &Trans,
+                             DenseMatrix &I) const;
 
    void LocalInterpolation_ND(const VectorFiniteElement &cfe,
                               const double *tk, const Array<int> &d2t,
@@ -904,10 +999,10 @@ public:
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #else
       FiniteElement(D, G, Do, O, F), Jinv(D)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #endif
 };
 
@@ -1871,7 +1966,8 @@ public:
       ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
       Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
       Positive      = 2, // Fast evaluation of Bernstein polynomials
-      NumEvalTypes  = 3  // Keep count of the number of eval types
+      Integrated    = 3, // Integrated indicator functions (cf. Gerritsma)
+      NumEvalTypes  = 4  // Keep count of the number of eval types
    };
 
    class Basis
@@ -1880,6 +1976,10 @@ public:
       int etype;
       DenseMatrixInverse Ai;
       mutable Vector x, w;
+      // The following data members are used for "integrated basis type", which
+      // is defined in terms of nodal basis of one degree higher.
+      mutable Vector u_aux, d_aux, d2_aux;
+      Basis *auxiliary_basis; // Non-NULL only for etype == Integrated
 
    public:
       /// Create a nodal or positive (Bernstein) basis
@@ -1887,6 +1987,12 @@ public:
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
+      /// Evaluate the "integrated" basis, which is given by the negative
+      /// partial sum of the corresponding closed basis derivatives. The closed
+      /// basis derivatives are given by @a d, and the result is stored in @a i.
+      void EvalIntegrated(const Vector &d, Vector &i) const;
+      bool IsIntegratedType() const { return etype == Integrated; }
+      ~Basis();
    };
 
 private:
@@ -2086,6 +2192,20 @@ public:
       return (mode == DofToQuad::FULL) ?
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
+   }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   {
+      if (basis1d.IsIntegratedType())
+      {
+         CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this);
+      }
+      else
+      {
+         NodalFiniteElement::GetTransferMatrix(fe, Trans, I);
+      }
    }
 };
 
@@ -2697,6 +2817,7 @@ private:
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2nk;
+   const double *cp;
 
 public:
    /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
@@ -2724,7 +2845,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
@@ -2744,6 +2868,10 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc, ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -2757,6 +2885,7 @@ class RT_HexahedronElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2nk;
+   const double *cp;
 
 public:
    /** @brief Construct the RT_HexahedronElement of order @a p and closed and
@@ -2785,7 +2914,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
@@ -2799,6 +2931,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -2925,6 +3062,7 @@ class ND_HexahedronElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2tk;
+   const double *cp;
 
 public:
    /** @brief Construct the ND_HexahedronElement of order @a p and closed and
@@ -2960,7 +3098,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   }
 
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -2984,6 +3125,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -2997,6 +3143,7 @@ class ND_QuadrilateralElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2tk;
+   const double *cp;
 
 public:
    /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and
@@ -3024,7 +3171,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
@@ -3039,6 +3189,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 

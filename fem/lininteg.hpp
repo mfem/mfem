@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -406,9 +406,13 @@ private:
    Vector shape;
 
 public:
-   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
+   BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
+                          double a)
+   { f = &f_; u = &u_; alpha = a; beta = 0.5*a; }
+
+   BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           double a, double b)
-   { f = &_f; u = &_u; alpha = a; beta = b; }
+   { f = &f_; u = &u_; alpha = a; beta = b; }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

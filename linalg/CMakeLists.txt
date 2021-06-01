@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,10 +10,12 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SRCS
+  auxiliary.cpp
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
   complex_operator.cpp
+  constraints.cpp
   densemat.cpp
   symmat.cpp
   handle.cpp
@@ -27,11 +29,14 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  auxiliary.hpp
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
   complex_operator.hpp
+  constraints.hpp
   densemat.hpp
+  dinvariants.hpp
   symmat.hpp
   dtensor.hpp
   handle.hpp
