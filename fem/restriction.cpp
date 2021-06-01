@@ -1406,7 +1406,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    for (int d = 0; d < dof; ++d)
    {
       const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                    orientation, dof1d, d);
+                                   orientation, dof1d, d);
       const int did = face_map[pd];
       const int gid = elem_map[elem_index*elem_dofs + did];
       const int lid = dof*face_index + d;
@@ -1467,7 +1467,7 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    for (int d = 0; d < dof; ++d)
    {
       const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                    orientation, dof1d, d);
+                                   orientation, dof1d, d);
       const int face_dof = face_map[pd];
       const int did = face_dof;
       const int gid = sharedDofs[did];
@@ -1557,7 +1557,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    for (int d = 0; d < dof; ++d)
    {
       const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                    orientation, dof1d, d);
+                                   orientation, dof1d, d);
       const int did = face_map[pd];
       const int gid = elem_map[elem_index*elem_dofs + did];
       const int lid = dof*face_index + d;
@@ -1646,7 +1646,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                            "The following interpolation operator is "
                            "lexicographic.");
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
-               const int face_key = info.elem_1_local_face + 
+               const int face_key = info.elem_1_local_face +
                                     6*info.elem_2_local_face;
                Key key(ptMat, face_key);
                auto itr = interp_map.find(key);
