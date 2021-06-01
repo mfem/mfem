@@ -78,7 +78,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    else if (pfes)
    {
       pfess = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl(), 1);
-      oper  = new ParAdvectorCGOper(nodes0, u, *pfess, al);
+      oper  = new ParAdvectorCGOper(nodes0, u, *pfess, al, temp_mt);
    }
 #endif
    MFEM_VERIFY(oper != NULL,
@@ -231,18 +231,21 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
                                      GridFunction &vel,
                                      ParFiniteElementSpace &pfes,
-                                     AssemblyLevel al)
+                                     AssemblyLevel al,
+                                     MemoryType temp_mt)
    : TimeDependentOperator(pfes.GetVSize()),
      x0(x_start), x_now(*pfes.GetMesh()->GetNodes()),
      u(vel), u_coeff(&u), M(&pfes), K(&pfes), al(al)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
+   Kinteg->SetTempMemoryType(temp_mt);
    K.AddDomainIntegrator(Kinteg);
    K.SetAssemblyLevel(al);
    K.Assemble(0);
    K.Finalize(0);
 
    MassIntegrator *Minteg = new MassIntegrator;
+   Minteg->SetTempMemoryType(temp_mt);
    M.AddDomainIntegrator(Minteg);
    M.SetAssemblyLevel(al);
    M.Assemble(0);
@@ -374,7 +377,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
    // Get the local prolongation of the solution vector.
-   Vector x_out_loc(fes->GetVSize());
+   Vector x_out_loc(fes->GetVSize(),
+                    temp_mt == MemoryType::DEFAULT ? Device::GetDeviceMemoryType() : temp_mt);
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
