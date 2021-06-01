@@ -1087,7 +1087,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             }
             else if (type==FaceType::Boundary && info.IsBoundary())
             {
-               SetBoundaryDofsScatterIndices2(f_ind);
+               SetBoundaryDofsScatterIndices2(info,f_ind);
             }
          }
          f_ind++;
@@ -1344,6 +1344,8 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const Mesh::FaceInformation &info,
    const int face_index)
 {
+   MFEM_ASSERT(info.conformity!=Mesh::FaceConformity::NonConformingMaster,
+               "This method should not be used on non-conforming master faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = info.elem_1_local_face;
@@ -1365,6 +1367,9 @@ void L2FaceRestriction::SetFaceDofsScatterIndices2(
    const Mesh::FaceInformation &info,
    const int face_index)
 {
+   MFEM_ASSERT(info.location==Mesh::FaceLocation::Interior &&
+               info.conformity==Mesh::FaceConformity::NonConformingSlave,
+               "This method should only be used on non-conforming interior faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id2 = info.elem_2_local_face;
@@ -1386,6 +1391,9 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    const Mesh::FaceInformation &info,
    const int face_index)
 {
+   MFEM_ASSERT(info.location==Mesh::FaceLocation::Interior &&
+               info.conformity==Mesh::FaceConformity::Conforming,
+               "This method should only be used on interior conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = info.elem_2_index;
@@ -1412,6 +1420,9 @@ void L2FaceRestriction::SetSharedFaceDofsScatterIndices2(
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
+   MFEM_ASSERT(info.location==Mesh::FaceLocation::Shared &&
+               info.conformity==Mesh::FaceConformity::NonConformingSlave,
+               "This method should only be used on non-conforming shared faces.");
    const int face_id2 = info.elem_2_local_face;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
@@ -1439,6 +1450,9 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
+   MFEM_ASSERT(info.location==Mesh::FaceLocation::Shared &&
+               info.conformity==Mesh::FaceConformity::Conforming,
+               "This method should only be used on conforming shared faces.");
    const int elem_index = info.elem_2_index;
    const int face_id1 = info.elem_1_local_face;
    const int face_id2 = info.elem_2_local_face;
@@ -1464,8 +1478,12 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
 #endif
 }
 
-void L2FaceRestriction::SetBoundaryDofsScatterIndices2(const int face_index)
+void L2FaceRestriction::SetBoundaryDofsScatterIndices2(
+   const Mesh::FaceInformation &info,
+   const int face_index)
 {
+   MFEM_ASSERT(info.location==Mesh::FaceLocation::Boundary,
+               "This method should only be used on boundary faces.");
    for (int d = 0; d < dof; ++d)
    {
       const int lid = dof*face_index + d;
@@ -1477,6 +1495,8 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const Mesh::FaceInformation &info,
    const int face_index)
 {
+   MFEM_ASSERT(info.conformity!=Mesh::FaceConformity::NonConformingMaster,
+               "This method should not be used on non-conforming master faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = info.elem_1_local_face;
@@ -1498,6 +1518,9 @@ void L2FaceRestriction::SetFaceDofsGatherIndices2(
    const Mesh::FaceInformation &info,
    const int face_index)
 {
+   MFEM_ASSERT(info.location==Mesh::FaceLocation::Interior &&
+               info.conformity==Mesh::FaceConformity::NonConformingSlave,
+               "This method should only be used on interior non-conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id2 = info.elem_2_local_face;
@@ -1519,6 +1542,9 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    const Mesh::FaceInformation &info,
    const int face_index)
 {
+   MFEM_ASSERT(info.location==Mesh::FaceLocation::Interior &&
+               info.conformity==Mesh::FaceConformity::Conforming,
+               "This method should only be used on interior conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = info.elem_2_index;
@@ -1649,7 +1675,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          SetFaceDofsScatterIndices1(info,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
-            SetBoundaryDofsScatterIndices2(f_ind);
+            SetBoundaryDofsScatterIndices2(info,f_ind);
          }
          f_ind++;
       }

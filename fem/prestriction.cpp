@@ -95,7 +95,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          SetFaceDofsScatterIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued)
          {
-            SetBoundaryDofsScatterIndices2(f_ind);
+            SetBoundaryDofsScatterIndices2(info,f_ind);
          }
          f_ind++;
       }
@@ -511,7 +511,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
          SetFaceDofsScatterIndices1(info,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
-            SetBoundaryDofsScatterIndices2(f_ind);
+            SetBoundaryDofsScatterIndices2(info,f_ind);
          }
          f_ind++;
       }
