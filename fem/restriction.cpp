@@ -1011,14 +1011,15 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      dof(nf > 0 ?
          fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
          : 0),
-     elemDofs(fes.GetFE(0)->GetDof()),
+     elem_dofs(fes.GetFE(0)->GetDof()),
      type(type),
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
      scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
      offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
+     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof),
+     face_map(dof)
 {
 }
 
@@ -1060,182 +1061,68 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    }
    // End of verifications
    Mesh &mesh = *fes.GetMesh();
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
-   Array<int> faceMap1(dof), faceMap2(dof);
-   int e1, e2;
-   int face_id1 = -1, face_id2 = -1;
-   int orientation = -1;
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_dofs = fes.GetFE(0)->GetDof();
-   const int dim = fes.GetMesh()->SpaceDimension();
-   // Computation of scatter indices
-   int f_ind=0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      e1 = info.elem_1_index;
-      e2 = info.elem_2_index;
-      face_id1 = info.elem_1_local_face;
-      face_id2 = info.elem_2_local_face;
-      orientation = info.elem_2_orientation;
-      if (dof_reorder)
-      {
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for hex
-      }
-      else
-      {
-         MFEM_ABORT("FaceRestriction not yet implemented for this type of "
-                    "element.");
-         // TODO Something with GetFaceDofs?
-      }
-      if (info.location==Mesh::FaceLocation::Shared)
-      {
-         MFEM_ABORT("Unexpected shared face in L2FaceRestriction.");
-      }
-      if ((type==FaceType::Interior &&
-           info.location==Mesh::FaceLocation::Interior) ||
-          (type==FaceType::Boundary &&
-           info.location==Mesh::FaceLocation::Boundary))
-      {
-         for (int d = 0; d < dof; ++d)
-         {
-            const int face_dof = faceMap1[d];
-            const int did = face_dof;
-            const int gid = elementMap[e1*elem_dofs + did];
-            const int lid = dof*f_ind + d;
-            scatter_indices1[lid] = gid;
-         }
-         if (m==L2FaceValues::DoubleValued)
-         {
-            if (type==FaceType::Interior &&
-                info.location==Mesh::FaceLocation::Interior)
-            {
-               for (int d = 0; d < dof; ++d)
-               {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation, dof1d, d);
-                  const int face_dof = faceMap2[pd];
-                  const int did = face_dof;
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = gid;
-               }
-            }
-            else if (type==FaceType::Boundary &&
-                     info.location==Mesh::FaceLocation::Boundary)
-            {
-               for (int d = 0; d < dof; ++d)
-               {
-                  const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = -1;
-               }
-            }
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-   // Computation of gather_indices
+   // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
       offsets[i] = 0;
    }
-   f_ind = 0;
+   // Computation of scatter indices and offsets
+   int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      e1 = info.elem_1_index;
-      e2 = info.elem_2_index;
-      face_id1 = info.elem_1_local_face;
-      face_id2 = info.elem_2_local_face;
-      orientation = info.elem_2_orientation;
       if (info.location==Mesh::FaceLocation::Shared)
       {
-         MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction.");
+         MFEM_ABORT("Unexpected shared face in L2FaceRestriction.");
       }
-      if ((type==FaceType::Interior &&
-           info.location==Mesh::FaceLocation::Interior) ||
-          (type==FaceType::Boundary &&
-           info.location==Mesh::FaceLocation::Boundary))
+      if ((type==FaceType::Interior && info.IsInterior()) ||
+          (type==FaceType::Boundary && info.IsBoundary()))
       {
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
-         for (int d = 0; d < dof; ++d)
+         SetFaceDofsScatterIndices1(info,f_ind);
+         if (m==L2FaceValues::DoubleValued)
          {
-            const int did = faceMap1[d];
-            const int gid = elementMap[e1*elem_dofs + did];
-            ++offsets[gid + 1];
-         }
-         if (m==L2FaceValues::DoubleValued &&
-             type==FaceType::Interior &&
-             info.location==Mesh::FaceLocation::Interior)
-         {
-            for (int d = 0; d < dof; ++d)
+            if (type==FaceType::Interior && info.IsInterior())
             {
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                            orientation, dof1d, d);
-               const int did = faceMap2[pd];
-               const int gid = elementMap[e2*elem_dofs + did];
-               ++offsets[gid + 1];
+               PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
+            }
+            else if (type==FaceType::Boundary && info.IsBoundary())
+            {
+               SetBoundaryDofsScatterIndices2(f_ind);
             }
          }
          f_ind++;
       }
    }
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+   // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
       offsets[i] += offsets[i - 1];
    }
+   // Computation of gather_indices
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      e1 = info.elem_1_index;
-      e2 = info.elem_2_index;
-      face_id1 = info.elem_1_local_face;
-      face_id2 = info.elem_2_local_face;
-      orientation = info.elem_2_orientation;
       if (info.location==Mesh::FaceLocation::Shared)
       {
          MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction.");
       }
-      if ((type==FaceType::Interior &&
-           info.location==Mesh::FaceLocation::Interior) ||
-          (type==FaceType::Boundary &&
-           info.location==Mesh::FaceLocation::Boundary))
+      if ((type==FaceType::Interior && info.IsInterior()) ||
+          (type==FaceType::Boundary && info.IsBoundary()))
       {
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
-         for (int d = 0; d < dof; ++d)
-         {
-            const int did = faceMap1[d];
-            const int gid = elementMap[e1*elem_dofs + did];
-            const int lid = dof*f_ind + d;
-            // We don't shift lid to express that it's e1 of f
-            gather_indices[offsets[gid]++] = lid;
-         }
+         SetFaceDofsGatherIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued &&
              type==FaceType::Interior &&
              info.location==Mesh::FaceLocation::Interior)
          {
-            for (int d = 0; d < dof; ++d)
-            {
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                            orientation, dof1d, d);
-               const int did = faceMap2[pd];
-               const int gid = elementMap[e2*elem_dofs + did];
-               const int lid = dof*f_ind + d;
-               // We shift lid to express that it's e2 of f
-               gather_indices[offsets[gid]++] = nfdofs + lid;
-            }
+            PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
          }
          f_ind++;
       }
    }
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+   // Reset offsets to their correct value
    for (int i = ndofs; i > 0; --i)
    {
       offsets[i] = offsets[i - 1];
@@ -1397,7 +1284,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                          Vector &ea_data) const
 {
    const int face_dofs = dof;
-   const int elem_dofs = elemDofs;
+   const int elem_dofs = this->elem_dofs;
    const int NE = ne;
    if (m==L2FaceValues::DoubleValued)
    {
@@ -1453,6 +1340,206 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
    }
 }
 
+void L2FaceRestriction::SetFaceDofsScatterIndices1(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id1 = info.elem_1_local_face;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = info.elem_1_index;
+   GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
+   for (int d = 0; d < dof; ++d)
+   {
+      const int did = face_map[d];
+      const int gid = elem_map[elem_index*elem_dofs + did];
+      const int lid = dof*face_index + d;
+      scatter_indices1[lid] = gid;
+      ++offsets[gid + 1];
+   }
+}
+
+void L2FaceRestriction::SetFaceDofsScatterIndices2(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id2 = info.elem_2_local_face;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = info.elem_2_index;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   for (int d = 0; d < dof; ++d)
+   {
+      const int did = face_map[d];
+      const int gid = elem_map[elem_index*elem_dofs + did];
+      const int lid = dof*face_index + d;
+      scatter_indices2[lid] = gid;
+      ++offsets[gid + 1];
+   }
+}
+
+void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int elem_index = info.elem_2_index;
+   const int face_id1 = info.elem_1_local_face;
+   const int face_id2 = info.elem_2_local_face;
+   const int orientation = info.elem_2_orientation;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   for (int d = 0; d < dof; ++d)
+   {
+      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                    orientation, dof1d, d);
+      const int did = face_map[pd];
+      const int gid = elem_map[elem_index*elem_dofs + did];
+      const int lid = dof*face_index + d;
+      scatter_indices2[lid] = gid;
+      ++offsets[gid + 1];
+   }
+}
+
+void L2FaceRestriction::SetSharedFaceDofsScatterIndices2(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+#ifdef MFEM_USE_MPI
+   const int face_id2 = info.elem_2_local_face;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = info.elem_2_index;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   Array<int> sharedDofs;
+   const ParFiniteElementSpace &pfes =
+      static_cast<const ParFiniteElementSpace&>(this->fes);
+   pfes.GetFaceNbrElementVDofs(elem_index, sharedDofs);
+   for (int d = 0; d < dof; ++d)
+   {
+      const int face_dof = face_map[d];
+      const int did = face_dof;
+      const int gid = sharedDofs[did];
+      const int lid = dof*face_index + d;
+      // Trick to differentiate dof location inter/shared:
+      // we shift the gid by ndofs.
+      scatter_indices2[lid] = ndofs+gid;
+   }
+#endif
+}
+
+void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+#ifdef MFEM_USE_MPI
+   const int elem_index = info.elem_2_index;
+   const int face_id1 = info.elem_1_local_face;
+   const int face_id2 = info.elem_2_local_face;
+   const int orientation = info.elem_2_orientation;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   Array<int> sharedDofs;
+   const ParFiniteElementSpace &pfes =
+      static_cast<const ParFiniteElementSpace&>(this->fes);
+   pfes.GetFaceNbrElementVDofs(elem_index, sharedDofs);
+   for (int d = 0; d < dof; ++d)
+   {
+      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                    orientation, dof1d, d);
+      const int face_dof = face_map[pd];
+      const int did = face_dof;
+      const int gid = sharedDofs[did];
+      const int lid = dof*face_index + d;
+      // Trick to differentiate dof location inter/shared
+      scatter_indices2[lid] = ndofs+gid;
+   }
+#endif
+}
+
+void L2FaceRestriction::SetBoundaryDofsScatterIndices2(const int face_index)
+{
+   for (int d = 0; d < dof; ++d)
+   {
+      const int lid = dof*face_index + d;
+      scatter_indices2[lid] = -1;
+   }
+}
+
+void L2FaceRestriction::SetFaceDofsGatherIndices1(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id1 = info.elem_1_local_face;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = info.elem_1_index;
+   GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
+   for (int d = 0; d < dof; ++d)
+   {
+      const int did = face_map[d];
+      const int gid = elem_map[elem_index*elem_dofs + did];
+      const int lid = dof*face_index + d;
+      // We don't shift lid to express that it's elem1 of the face
+      gather_indices[offsets[gid]++] = lid;
+   }
+}
+
+void L2FaceRestriction::SetFaceDofsGatherIndices2(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id2 = info.elem_2_local_face;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = info.elem_2_index;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   for (int d = 0; d < dof; ++d)
+   {
+      const int did = face_map[d];
+      const int gid = elem_map[elem_index*elem_dofs + did];
+      const int lid = dof*face_index + d;
+      // We shift lid to express that it's elem2 of the face
+      gather_indices[offsets[gid]++] = nfdofs + lid;
+   }
+}
+
+void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
+   const Mesh::FaceInformation &info,
+   const int face_index)
+{
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int elem_index = info.elem_2_index;
+   const int face_id1 = info.elem_1_local_face;
+   const int face_id2 = info.elem_2_local_face;
+   const int orientation = info.elem_2_orientation;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   for (int d = 0; d < dof; ++d)
+   {
+      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                    orientation, dof1d, d);
+      const int did = face_map[pd];
+      const int gid = elem_map[elem_index*elem_dofs + did];
+      const int lid = dof*face_index + d;
+      // We shift lid to express that it's elem2 of the face
+      gather_indices[offsets[gid]++] = nfdofs + lid;
+   }
+}
+
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                                          const FaceType type,
                                          const L2FaceValues m)
@@ -1498,77 +1585,34 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    }
    // End of verifications
    Mesh &mesh = *fes.GetMesh();
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
-   Array<int> faceMap1(dof), faceMap2(dof);
-   int e1, e2;
-   int face_id1, face_id2;
-   int orientation;
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_dofs = fes.GetFE(0)->GetDof();
-   const int dim = fes.GetMesh()->SpaceDimension();
    int nc_cpt = 0;
    using Key = std::pair<const DenseMatrix*,int>;
    std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
-   // Computation of scatter and offsets indices
+   // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
       offsets[i] = 0;
    }
+   // Computation of scatter and offsets indices
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      e1 = info.elem_1_index;
-      e2 = info.elem_2_index;
-      face_id1 = info.elem_1_local_face;
-      face_id2 = info.elem_2_local_face;
-      orientation = info.elem_2_orientation;
-      if (dof_reorder)
-      {
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for quad and hex
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for quad and hex
-      }
-      else
-      {
-         MFEM_ABORT("FaceRestriction not yet implemented for this type of "
-                    "element.");
-         // TODO Something with GetFaceDofs?
-      }
       // We skip non-conforming master faces, as they will be treated by the
       // slave faces.
       if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
       {
          continue;
       }
-      if ( type==FaceType::Interior &&
-           info.location==Mesh::FaceLocation::Interior )
+      if ( type==FaceType::Interior && info.IsInterior() )
       {
-         // Extract scatter indices for elem1
-         for (int d = 0; d < dof; ++d)
-         {
-            const int face_dof = faceMap1[d];
-            const int gid = elementMap[e1*elem_dofs + face_dof];
-            const int lid = dof*f_ind + d;
-            scatter_indices1[lid] = gid;
-            ++offsets[gid + 1];
-         }
+         SetFaceDofsScatterIndices1(info,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
             if ( info.conformity==Mesh::FaceConformity::Conforming )
             {
                interp_config[f_ind] = conforming;
-               // Extract scatter indices for elem2
-               for (int d = 0; d < dof; ++d)
-               {
-                  int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                         orientation, dof1d, d);
-                  const int face_dof = faceMap2[pd];
-                  const int gid = elementMap[e2*elem_dofs + face_dof];
-                  const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = gid;
-                  ++offsets[gid + 1];
-               }
+               PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
             }
             else // Non-conforming face
             {
@@ -1576,13 +1620,14 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                            "The following interpolation operator is "
                            "lexicographic.");
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
-               Key key(ptMat, face_id1 + 6*face_id2);
+               const int face_key = info.elem_1_local_face + 
+                                    6*info.elem_2_local_face;
+               Key key(ptMat, face_key);
                auto itr = interp_map.find(key);
                if (itr == interp_map.end())
                {
                   const DenseMatrix* interpolator =
-                     ComputeCoarseToFineInterpolation(ptMat,face_id1,face_id2,
-                                                      orientation);
+                     ComputeCoarseToFineInterpolation(info,ptMat);
                   interp_map[key] = {nc_cpt, interpolator};
                   interp_config[f_ind] = nc_cpt;
                   nc_cpt++;
@@ -1591,42 +1636,20 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                {
                   interp_config[f_ind] = itr->second.first;
                }
-               // Extract scatter indices for elem2
                // Contrary to the conforming case, there is no need to call
                // PermuteFaceL2, the permutation is achieved by the
                // interpolation operator for simplicity.
-               for (int d = 0; d < dof; ++d)
-               {
-                  const int face_dof = faceMap2[d];
-                  const int gid = elementMap[e2*elem_dofs + face_dof];
-                  const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = gid;
-                  ++offsets[gid + 1];
-               }
+               SetFaceDofsScatterIndices2(info,f_ind);
             }
          }
          f_ind++;
       }
-      else if ( type==FaceType::Boundary &&
-                info.location==Mesh::FaceLocation::Boundary )
+      else if ( type==FaceType::Boundary && info.IsBoundary() )
       {
-         // Extract scatter indices for elem1
-         for (int d = 0; d < dof; ++d)
-         {
-            const int face_dof = faceMap1[d];
-            const int gid = elementMap[e1*elem_dofs + face_dof];
-            const int lid = dof*f_ind + d;
-            scatter_indices1[lid] = gid;
-            ++offsets[gid + 1];
-         }
+         SetFaceDofsScatterIndices1(info,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
-            // Extract scatter indices for elem2
-            for (int d = 0; d < dof; ++d)
-            {
-               const int lid = dof*f_ind + d;
-               scatter_indices2[lid] = -1;
-            }
+            SetBoundaryDofsScatterIndices2(f_ind);
          }
          f_ind++;
       }
@@ -1634,6 +1657,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
                (type==FaceType::Interior? "interior" : "boundary") <<
                " faces: " << f_ind << " vs " << nf );
+   // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
       offsets[i] += offsets[i - 1];
@@ -1643,11 +1667,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      e1 = info.elem_1_index;
-      e2 = info.elem_2_index;
-      face_id1 = info.elem_1_local_face;
-      face_id2 = info.elem_2_local_face;
-      orientation = info.elem_2_orientation;
       if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
       {
          continue;
@@ -1657,52 +1676,21 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction. Use "
                     "ParNCL2FaceRestriction");
       }
-      if ((type==FaceType::Interior &&
-           info.location==Mesh::FaceLocation::Interior) ||
-          (type==FaceType::Boundary &&
-           info.location==Mesh::FaceLocation::Boundary))
+      if ((type==FaceType::Interior && info.IsInterior()) ||
+          (type==FaceType::Boundary && info.IsBoundary()))
       {
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
-         // Extract gather indices for elem1
-         for (int d = 0; d < dof; ++d)
-         {
-            const int did = faceMap1[d];
-            const int gid = elementMap[e1*elem_dofs + did];
-            const int lid = dof*f_ind + d;
-            // We don't shift lid to express that it's e1 of f
-            gather_indices[offsets[gid]++] = lid;
-         }
+         SetFaceDofsGatherIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued &&
              type==FaceType::Interior &&
-             info.location==Mesh::FaceLocation::Interior)
+             info.IsInterior())
          {
             if (info.conformity==Mesh::FaceConformity::Conforming)
             {
-               // Extract gather indices for elem2
-               for (int d = 0; d < dof; ++d)
-               {
-                  int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                         orientation, dof1d, d);
-                  const int did = faceMap2[pd];
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  const int lid = dof*f_ind + d;
-                  // We shift lid to express that it's e2 of f
-                  gather_indices[offsets[gid]++] = nfdofs + lid;
-               }
+               PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
             }
             else
             {
-               // Extract gather indices for elem2
-               for (int d = 0; d < dof; ++d)
-               {
-                  // The permutation is handled by the interpolation operator.
-                  const int did = faceMap2[d];
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  const int lid = dof*f_ind + d;
-                  // We shift lid to express that it's e2 of f
-                  gather_indices[offsets[gid]++] = nfdofs + lid;
-               }
+               SetFaceDofsGatherIndices2(info,f_ind);
             }
          }
          f_ind++;
@@ -1967,11 +1955,12 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
 }
 
 const DenseMatrix* NCL2FaceRestriction::ComputeCoarseToFineInterpolation(
-   const DenseMatrix* ptMat,
-   const int face_id1,
-   const int face_id2,
-   const int orientation)
+   const Mesh::FaceInformation &info,
+   const DenseMatrix* ptMat)
 {
+   int face_id1 = info.elem_1_local_face;
+   int face_id2 = info.elem_2_local_face;
+   int orientation = info.elem_2_orientation;
    // Computation of the interpolation matrix from master
    // (coarse) face to slave (fine) face.
    // Assumes all trace elements are the same.

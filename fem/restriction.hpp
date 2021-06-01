@@ -169,7 +169,7 @@ protected:
    const bool byvdim;
    const int ndofs; // Total number of dofs
    const int dof; // Number of dofs on each face
-   const int elemDofs; // Number of dofs in each element
+   const int elem_dofs; // Number of dofs in each element
    const FaceType type;
    const L2FaceValues m;
    const int nfdofs; // Total number of dofs on the faces
@@ -267,6 +267,36 @@ public:
                               elements. */
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
+
+protected:
+   mutable Array<int> face_map;
+
+   void SetFaceDofsScatterIndices1(const Mesh::FaceInformation &info,
+                                   const int face_index);
+
+   void SetFaceDofsScatterIndices2(const Mesh::FaceInformation &info,
+                                   const int face_index);
+
+   void PermuteAndSetFaceDofsScatterIndices2(const Mesh::FaceInformation &info,
+                                             const int face_index);
+
+   void SetSharedFaceDofsScatterIndices2(const Mesh::FaceInformation &info,
+                                         const int face_index);
+
+   void PermuteAndSetSharedFaceDofsScatterIndices2(
+      const Mesh::FaceInformation &info,
+      const int face_index);
+
+   void SetBoundaryDofsScatterIndices2(const int face_index);
+
+   void SetFaceDofsGatherIndices1(const Mesh::FaceInformation &info,
+                                  const int face_index);
+
+   void SetFaceDofsGatherIndices2(const Mesh::FaceInformation &info,
+                                  const int face_index);
+
+   void PermuteAndSetFaceDofsGatherIndices2(const Mesh::FaceInformation &info,
+                                            const int face_index);
 };
 
 /** @brief Operator that extracts face degrees of freedom for L2 non-conforming
@@ -395,10 +425,9 @@ protected:
        @return The dense matrix corresponding to the interpolation of the face
                degrees of freedom of the master (coarse) face to the slave
                (fine) face. */
-   const DenseMatrix* ComputeCoarseToFineInterpolation(const DenseMatrix* ptMat,
-                                                       const int face_id1,
-                                                       const int face_id2,
-                                                       const int orientation);
+   const DenseMatrix* ComputeCoarseToFineInterpolation(
+      const Mesh::FaceInformation &info,
+      const DenseMatrix* ptMat);
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the

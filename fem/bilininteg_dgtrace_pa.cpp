@@ -185,12 +185,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < fes.GetNF(); ++f)
       {
          Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ((info.conformity!=Mesh::FaceConformity::NonConformingMaster) &&
-             ((type==FaceType::Interior &&
-               (info.location==Mesh::FaceLocation::Interior ||
-                info.location==Mesh::FaceLocation::Shared) ) ||
-              (type==FaceType::Boundary &&
-               info.location==Mesh::FaceLocation::Boundary)) )
+         if ( (type==FaceType::Interior && info.IsInterior()) ||
+              (type==FaceType::Boundary && info.IsBoundary()) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
@@ -245,12 +241,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < fes.GetNF(); ++f)
       {
          Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ((info.conformity!=Mesh::FaceConformity::NonConformingMaster) &&
-             ((type==FaceType::Interior &&
-               (info.location==Mesh::FaceLocation::Interior ||
-                info.location==Mesh::FaceLocation::Shared) ) ||
-              (type==FaceType::Boundary &&
-               info.location==Mesh::FaceLocation::Boundary)) )
+         if ( (type==FaceType::Interior && info.IsInterior()) ||
+              (type==FaceType::Boundary && info.IsBoundary()) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
