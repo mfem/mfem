@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -409,6 +409,15 @@ public:
        the local dofs. */
    virtual void Save(std::ostream &out) const;
 
+   /// Save the ParGridFunction to a single file (written using MPI rank 0). The
+   /// given @a precision will be used for ASCII output.
+   void SaveAsOne(const char *fname, int precision=16) const;
+
+   /// Save the ParGridFunction to files (one for each MPI rank). The files will
+   /// be given suffixes according to the MPI rank. The given @a precision will
+   /// be used for ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
 #ifdef MFEM_USE_ADIOS2
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
@@ -419,7 +428,7 @@ public:
 #endif
 
    /// Merge the local grid functions
-   void SaveAsOne(std::ostream &out = mfem::out);
+   void SaveAsOne(std::ostream &out = mfem::out) const;
 
    virtual ~ParGridFunction() { }
 };
