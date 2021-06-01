@@ -25,6 +25,9 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (temp_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : temp_mt;
+
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -42,12 +45,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS, temp_mt);
+                                    GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(ne*nq, temp_mt == MemoryType::DEFAULT ?
-                   Device::GetDeviceMemoryType() : temp_mt);
+   pa_data.SetSize(ne*nq, mt);
    Vector coeff;
    if (Q == nullptr)
    {
