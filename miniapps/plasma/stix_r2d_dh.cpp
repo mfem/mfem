@@ -354,8 +354,6 @@ int main(int argc, char *argv[])
    Vector kReVec;
    Vector kImVec;
 
-   double hz = -1.0;
-
    Vector numbers;
    Vector charges;
    Vector masses;
@@ -412,8 +410,6 @@ int main(int argc, char *argv[])
    //               "Number of ion species.");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
-   args.AddOption(&hz, "-mh", "--mesh-height",
-                  "Thickness of extruded mesh in meters.");
    args.AddOption((int*)&dpt, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -661,10 +657,6 @@ int main(int argc, char *argv[])
    {
       num_elements = 10;
    }
-   if (hz < 0.0)
-   {
-      hz = 0.1;
-   }
    double omega = 2.0 * M_PI * freq;
    if (kVec.Size() != 0)
    {
@@ -757,7 +749,7 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
    if ( mpi.Root() && logging > 0 )
    {
-      cout << "Building Extruded 2D Mesh ..." << endl;
+      cout << "Building 2D Mesh ..." << endl;
    }
 
    tic_toc.Clear();
@@ -1573,9 +1565,9 @@ SetupImpedanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
 
 void rod_current_source_r(const Vector &x, Vector &j)
 {
-   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
 
-   j.SetSize(x.Size());
+   j.SetSize(3);
    j = 0.0;
 
    bool cmplx = rod_params_.Size() == 9;
@@ -1599,9 +1591,9 @@ void rod_current_source_r(const Vector &x, Vector &j)
 
 void rod_current_source_i(const Vector &x, Vector &j)
 {
-   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   MFEM_ASSERT(x.Size() == 2, "current source requires 3D space.");
 
-   j.SetSize(x.Size());
+   j.SetSize(2);
    j = 0.0;
 
    bool cmplx = rod_params_.Size() == 9;
@@ -1628,9 +1620,9 @@ void rod_current_source_i(const Vector &x, Vector &j)
 
 void slab_current_source_r(const Vector &x, Vector &j)
 {
-   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
 
-   j.SetSize(x.Size());
+   j.SetSize(3);
    j = 0.0;
 
    bool cmplx = slab_params_.Size() == 10;
@@ -1655,9 +1647,9 @@ void slab_current_source_r(const Vector &x, Vector &j)
 
 void slab_current_source_i(const Vector &x, Vector &j)
 {
-   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
 
-   j.SetSize(x.Size());
+   j.SetSize(3);
    j = 0.0;
 
    bool cmplx = slab_params_.Size() == 10;
