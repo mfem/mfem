@@ -3446,13 +3446,13 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 
+   virtual void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                         ElementTransformation &Trans,
+                                         Vector &dofs) const;
+
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
-   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
 
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
@@ -3504,6 +3504,9 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                         ElementTransformation &Trans, Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
@@ -3604,6 +3607,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                         ElementTransformation &Trans,
+                                         Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
@@ -3753,6 +3760,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                         ElementTransformation &Trans,
+                                         Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;

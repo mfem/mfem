@@ -13301,6 +13301,31 @@ void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
 
 }
 
+void
+ND_R1D_SegmentElement::ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                                ElementTransformation &Trans,
+                                                Vector &dofs) const
+{
+   MFEM_ASSERT(mc.GetWidth() == 3, "");
+   MFEM_ASSERT(dofs.Size() == dof*mc.GetHeight(), "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      mc.Eval(MQ, Trans, Nodes.IntPoint(k));
+      // dof_k = vk^t J tk
+      Vector t(const_cast<double*>(&tk[dof2tk[k] * 3]), 3);
+
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         dofs(k + dof*r) = Trans.Jacobian()(0,0) * t(0) * MQ(r, 0) +
+                           t(1) * MQ(r, 1) + t(2) * MQ(r, 2);
+      }
+   }
+}
+
 void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
                                     ElementTransformation &Trans,
                                     DenseMatrix &I) const
@@ -13550,6 +13575,39 @@ void RT_R1D_SegmentElement::Project(VectorCoefficient &vc,
       dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk1, n1) +
                 Trans.Weight() * vk3(1) * n3(1) +
                 Trans.Weight() * vk3(2) * n3(2);
+   }
+}
+
+void
+RT_R1D_SegmentElement::ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                                ElementTransformation &Trans,
+                                                Vector &dofs) const
+{
+   MFEM_ASSERT(mc.GetWidth() == 3, "");
+   MFEM_ASSERT(dofs.Size() == dof*mc.GetHeight(), "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   double data[1];
+   Vector vk1(data, 1);
+
+   double * nk_ptr = const_cast<double*>(nk);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      mc.Eval(MQ, Trans, Nodes.IntPoint(k));
+      // dof_k = nk^t adj(J) vk
+      Vector n1(&nk_ptr[dof2nk[k] * 3], 1);
+      Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         vk1[0] = MQ(r, 0);
+         dofs(k + dof*r) = Trans.AdjugateJacobian().InnerProduct(vk1, n1) +
+                           Trans.Weight() * MQ(r, 1) * n3(1) +
+                           Trans.Weight() * MQ(r, 2) * n3(2);
+      }
    }
 }
 
@@ -14006,6 +14064,38 @@ void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
       dofs(k) = Trans.Jacobian().InnerProduct(t2, vk2) + t3(2) * vk3(2);
    }
 
+}
+
+void
+ND_R2D_FiniteElement::ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                               ElementTransformation &Trans,
+                                               Vector &dofs) const
+{
+   MFEM_ASSERT(mc.GetWidth() == 3, "");
+   MFEM_ASSERT(dofs.Size() == dof*mc.GetHeight(), "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   double data[2];
+   Vector vk2(data, 2);
+
+   double * tk_ptr = const_cast<double*>(tk);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      mc.Eval(MQ, Trans, Nodes.IntPoint(k));
+      // dof_k = vk^t J tk
+      Vector t2(&tk_ptr[dof2tk[k] * 3], 2);
+      Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         vk2[0] = MQ(r, 0); vk2[1] = MQ(r, 1);
+         dofs(k + dof*r) = Trans.Jacobian().InnerProduct(t2, vk2)
+                           + t3(2) * MQ(r, 2);
+      }
+   }
 }
 
 void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
@@ -14757,6 +14847,38 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
 
       dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk2, n2) +
                 Trans.Weight() * vk3(2) * n3(2);
+   }
+}
+
+void
+RT_R2D_FiniteElement::ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                               ElementTransformation &Trans,
+                                               Vector &dofs) const
+{
+   MFEM_ASSERT(mc.GetWidth() == 3, "");
+   MFEM_ASSERT(dofs.Size() == dof*mc.GetHeight(), "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   double data[2];
+   Vector vk2(data, 2);
+
+   double * nk_ptr = const_cast<double*>(nk);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      mc.Eval(MQ, Trans, Nodes.IntPoint(k));
+      // dof_k = nk^t adj(J) vk
+      Vector n2(&nk_ptr[dof2nk[k] * 3], 2);
+      Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         vk2[0] = MQ(r, 0); vk2[1] = MQ(r, 1);
+         dofs(k + dof*r) = Trans.AdjugateJacobian().InnerProduct(vk2, n2) +
+                           Trans.Weight() * MQ(r, 2) * n3(2);
+      }
    }
 }
 
