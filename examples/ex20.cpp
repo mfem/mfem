@@ -231,6 +231,7 @@ int main(int argc, char *argv[])
    // 9. Finalize the GLVis output
    if (visualization)
    {
+      mesh.FinalizeQuadMesh(1);
       H1_FECollection fec(order = 1, 2);
       FiniteElementSpace fespace(&mesh, &fec);
       GridFunction energy(&fespace);
