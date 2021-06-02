@@ -331,10 +331,10 @@ private:
    // the indices from HYPRE_Int to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
+   // TODO: change names to start with mem_ rather than hypre_?
    Memory<HYPRE_Int> hypre_mem_row, hypre_mem_col, hypre_mem_cmap;
-   Memory<HYPRE_Int> hypre_i_diag, hypre_j_diag, hypre_i_offd, hypre_j_offd,
-          hypre_cmap;
-   Memory<double> hypre_a_diag, hypre_a_offd;
+   Memory<HYPRE_Int> hypre_cmap;
+   MemoryIJData mem_diag, mem_offd;
 
 public:
    /// An empty matrix to be used as a reference to an existing matrix
@@ -350,14 +350,55 @@ public:
       ParCSROwner = owner;
       height = GetNumRows();
       width = GetNumCols();
+
+      // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
+      diagOwner = 3;
+      offdOwner = 3;
    }
 
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
-   explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
+   explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true,
+                           MemoryIJData *ijdata_diag=NULL, MemoryIJData *ijdata_offd=NULL)
    {
       Init();
       WrapHypreParCSRMatrix(a, owner);
+
+      if (ijdata_diag == NULL)
+      {
+         hypre_CSRMatrix *a_diag = hypre_ParCSRMatrixDiag(a);
+         HYPRE_Int num_rows = hypre_CSRMatrixNumRows(a_diag);
+         mem_diag.I.Wrap(hypre_CSRMatrixI(a_diag), num_rows + 1, GetHypreMemoryType(),
+                         true);
+
+         auto I_read = HostRead(mem_diag.I, num_rows + 1);
+         const HYPRE_Int diag_nnz = I_read[num_rows] - I_read[0];
+         mem_diag.data.Wrap(hypre_CSRMatrixData(a_diag), diag_nnz, GetHypreMemoryType(),
+                            true);
+         mem_diag.J.Wrap(hypre_CSRMatrixJ(a_diag), diag_nnz, GetHypreMemoryType(), true);
+      }
+      else
+      {
+         mem_diag = *ijdata_diag;
+      }
+
+      if (ijdata_offd == NULL)
+      {
+         hypre_CSRMatrix *a_offd = hypre_ParCSRMatrixOffd(a);
+         HYPRE_Int num_rows = hypre_CSRMatrixNumRows(a_offd);
+         mem_offd.I.Wrap(hypre_CSRMatrixI(a_offd), num_rows + 1, GetHypreMemoryType(),
+                         true);
+
+         auto I_read = HostRead(mem_offd.I, num_rows + 1);
+         const HYPRE_Int offd_nnz = I_read[num_rows] - I_read[0];
+         mem_offd.data.Wrap(hypre_CSRMatrixData(a_offd), offd_nnz, GetHypreMemoryType(),
+                            true);
+         mem_offd.J.Wrap(hypre_CSRMatrixJ(a_offd), offd_nnz, GetHypreMemoryType(), true);
+      }
+      else
+      {
+         mem_offd = *ijdata_offd;
+      }
    }
 
    /// Creates block-diagonal square parallel matrix.
@@ -516,6 +557,12 @@ public:
        integer overflow in the column indices. */
    void MergeDiagAndOffd(SparseMatrix &merged);
 
+   /// Return a reference to the Memory object used by the diagonal I array.
+   Memory<HYPRE_Int> &GetMemory_diagI() { return mem_diag.I; }
+
+   /// Return a reference to the Memory object used by the diagonal data array.
+   Memory<double> &GetMemory_diagData() { return mem_diag.data; }
+
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
    void GetBlocks(Array2D<HypreParMatrix*> &blocks,
@@ -592,7 +639,8 @@ public:
        the sparsity pattern of the matrix are treated as "true". */
    void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
+      internal::hypre_ParCSRMatrixBooleanMatvec(A, mem_diag, mem_offd, alpha,
+                                                const_cast<int*>(x),
                                                 beta, y);
    }
 
@@ -600,7 +648,8 @@ public:
        the sparsity pattern of the matrix are treated as "true". */
    void BooleanMultTranspose(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, const_cast<int*>(x),
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, mem_diag, mem_offd, alpha,
+                                                 const_cast<int*>(x),
                                                  beta, y);
    }
 

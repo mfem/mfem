@@ -88,6 +88,12 @@ namespace mfem
 // become part of HYPRE at some point. In the meantime the module can be
 // thought of as an extension of HYPRE.
 
+struct MemoryIJData
+{
+   Memory<HYPRE_Int> I, J;
+   Memory<double> data;
+};
+
 namespace internal
 {
 
@@ -104,6 +110,10 @@ void hypre_ParCSRMatrixEliminateAXB(hypre_ParCSRMatrix *A,
     matrix A. */
 void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
+                                    MemoryIJData & mem_diag,
+                                    MemoryIJData & mem_offd,
+                                    MemoryIJData & mem_e_diag,
+                                    MemoryIJData & mem_e_offd,
                                     HYPRE_Int num_rowscols_to_elim,
                                     HYPRE_Int *rowscols_to_elim,
                                     int ignore_rows = 0);
@@ -159,6 +169,7 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in the
     sparsity pattern of the CSR matrix A are treated as "true". */
 void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
+                                  MemoryIJData & mem,
                                   HYPRE_Bool alpha,
                                   HYPRE_Bool *x,
                                   HYPRE_Bool beta,
@@ -181,6 +192,8 @@ hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
 /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in the
     sparsity pattern of the ParCSR matrix A are treated as "true". */
 void hypre_ParCSRMatrixBooleanMatvec(hypre_ParCSRMatrix *A,
+                                     MemoryIJData & mem_diag,
+                                     MemoryIJData & mem_offd,
                                      HYPRE_Bool alpha,
                                      HYPRE_Bool *x,
                                      HYPRE_Bool beta,
@@ -189,6 +202,8 @@ void hypre_ParCSRMatrixBooleanMatvec(hypre_ParCSRMatrix *A,
 /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
     the sparsity pattern of the ParCSR matrix A are treated as "true". */
 void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
+                                      MemoryIJData & mem_diag,
+                                      MemoryIJData & mem_offd,
                                       HYPRE_Bool alpha,
                                       HYPRE_Bool *x,
                                       HYPRE_Bool beta,
@@ -229,7 +244,7 @@ hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
                                     HYPRE_Complex       value);
 
 HYPRE_Int
-tmp_hypre_CSRMatrixSetRownnz( hypre_CSRMatrix *matrix );
+tmp_hypre_CSRMatrixSetRownnz(hypre_CSRMatrix *matrix, MemoryIJData & mem);
 
 } // namespace mfem::internal
 
