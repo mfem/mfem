@@ -62,7 +62,7 @@ class ND_R2D_ParFESpace : public ParFiniteElementSpace
 {
 public:
    ND_R2D_ParFESpace(ParMesh *m, const int p, const int space_dim,
-                 int vdim = 1, int order = Ordering::byNODES);
+                     int vdim = 1, int order = Ordering::byNODES);
    ~ND_R2D_ParFESpace();
 private:
    const FiniteElementCollection *FEC_;
@@ -76,7 +76,7 @@ class ND_R1D_ParFESpace : public ParFiniteElementSpace
 {
 public:
    ND_R1D_ParFESpace(ParMesh *m, const int p, const int space_dim,
-                 int vdim = 1, int order = Ordering::byNODES);
+                     int vdim = 1, int order = Ordering::byNODES);
    ~ND_R1D_ParFESpace();
 private:
    const FiniteElementCollection *FEC_;
@@ -104,7 +104,7 @@ class RT_R2D_ParFESpace : public ParFiniteElementSpace
 {
 public:
    RT_R2D_ParFESpace(ParMesh *m, const int p, const int space_dim,
-                 int vdim = 1, int order = Ordering::byNODES);
+                     int vdim = 1, int order = Ordering::byNODES);
    ~RT_R2D_ParFESpace();
 private:
    const FiniteElementCollection *FEC_;
@@ -118,7 +118,7 @@ class RT_R1D_ParFESpace : public ParFiniteElementSpace
 {
 public:
    RT_R1D_ParFESpace(ParMesh *m, const int p, const int space_dim,
-                 int vdim = 1, int order = Ordering::byNODES);
+                     int vdim = 1, int order = Ordering::byNODES);
    ~RT_R1D_ParFESpace();
 private:
    const FiniteElementCollection *FEC_;
