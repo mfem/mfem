@@ -613,9 +613,23 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    // mesh. Here we use arbitrary order H1, Nedelec, and Raviart-Thomas finite
    // elements.
    H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
-   HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
-   HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
    L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
+
+   switch(pmesh_->Dimension())
+     {
+     case 1:
+       HCurlFESpace_ = new ND_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+       HDivFESpace_  = new RT_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+       break;
+     case 2:
+       HCurlFESpace_ = new ND_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+       HDivFESpace_  = new RT_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+       break;
+     case 3:
+       HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
+       HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+       break;
+     }
 
    if (BCoef_)
    {

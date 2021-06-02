@@ -458,10 +458,9 @@ private:
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VFESpace_;
-   // H1_ParFESpace * H1FESpace_;
-   ND_ParFESpace * HCurlFESpace_;
-   RT_ParFESpace * HDivFESpace_;
-   RT_ParFESpace * HDivFESpace2p_;
+   ParFiniteElementSpace * HCurlFESpace_;
+   ParFiniteElementSpace * HDivFESpace_;
+   ParFiniteElementSpace * HDivFESpace2p_;
 
    Array<HYPRE_Int> blockTrueOffsets_;
 
