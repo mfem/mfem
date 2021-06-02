@@ -46,6 +46,32 @@ ND_ParFESpace::~ND_ParFESpace()
    delete FEC_;
 }
 
+ND_R2D_ParFESpace::ND_R2D_ParFESpace(ParMesh *m, const int p,
+				     const int space_dim,
+				     int vdim, int order)
+   : ParFiniteElementSpace(m, new ND_R2D_FECollection(p,space_dim),vdim,order)
+{
+   FEC_ = this->FiniteElementSpace::fec;
+}
+
+ND_R2D_ParFESpace::~ND_R2D_ParFESpace()
+{
+   delete FEC_;
+}
+
+ND_R1D_ParFESpace::ND_R1D_ParFESpace(ParMesh *m, const int p,
+				     const int space_dim,
+				     int vdim, int order)
+   : ParFiniteElementSpace(m, new ND_R1D_FECollection(p,space_dim),vdim,order)
+{
+   FEC_ = this->FiniteElementSpace::fec;
+}
+
+ND_R1D_ParFESpace::~ND_R1D_ParFESpace()
+{
+   delete FEC_;
+}
+
 RT_ParFESpace::RT_ParFESpace(ParMesh *m, const int p, const int space_dim,
                              int vdim, int order)
    : ParFiniteElementSpace(m, new RT_FECollection(p-1,space_dim),vdim,order)
@@ -54,6 +80,32 @@ RT_ParFESpace::RT_ParFESpace(ParMesh *m, const int p, const int space_dim,
 }
 
 RT_ParFESpace::~RT_ParFESpace()
+{
+   delete FEC_;
+}
+
+RT_R2D_ParFESpace::RT_R2D_ParFESpace(ParMesh *m, const int p,
+				     const int space_dim,
+				     int vdim, int order)
+   : ParFiniteElementSpace(m, new RT_R2D_FECollection(p-1,space_dim),vdim,order)
+{
+   FEC_ = this->FiniteElementSpace::fec;
+}
+
+RT_R2D_ParFESpace::~RT_R2D_ParFESpace()
+{
+   delete FEC_;
+}
+
+RT_R1D_ParFESpace::RT_R1D_ParFESpace(ParMesh *m, const int p,
+				     const int space_dim,
+				     int vdim, int order)
+   : ParFiniteElementSpace(m, new RT_R1D_FECollection(p-1,space_dim),vdim,order)
+{
+   FEC_ = this->FiniteElementSpace::fec;
+}
+
+RT_R1D_ParFESpace::~RT_R1D_ParFESpace()
 {
    delete FEC_;
 }
