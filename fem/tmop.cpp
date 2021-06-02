@@ -2195,7 +2195,6 @@ void TMOP_Integrator::ReleasePAMemory()
       PA.H.GetMemory().DeleteDevice();
       PA.H0.GetMemory().DeleteDevice();
       PA.Jtr.GetMemory().DeleteDevice();
-      PA.Jtr_needs_update = true;
    }
 }
 
