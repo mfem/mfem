@@ -44,10 +44,10 @@ public:
 
 /// BilinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// A(u, w) = -<\nabla u.n, w>
-///           -<u + \nabla u.d + h.o.t, \nabla w.n>
-///           -<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
-/// where h.o.t include higher-order derivatives (\nabla^k u) due to Taylor
+/// A(u, w) = -<nabla u.n, w>
+///           -<u + nabla u.d + h.o.t, nabla w.n>
+///           -<alpha h^{-1} (u + nabla u.d + h.o.t), w + nabla w.d + h.o.t>
+/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
@@ -96,9 +96,9 @@ public:
 
 /// LinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// (u, w) = -<u_D, \nabla w.n >
-///          -<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
-/// where h.o.t include higher-order derivatives (\nabla^k u) due to Taylor
+/// (u, w) = -<u_D, nabla w.n >
+///          -<alpha h^{-1} u_D, w + nabla w.d + h.o.t>
+/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
