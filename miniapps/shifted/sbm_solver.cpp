@@ -47,7 +47,8 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    elmat.SetSize(ndoftotal);
    elmat = 0.0;
 
-   bool elem1f = true;
+   bool elem1f = true; // flag indicating whether Trans.Elem1No is part of the
+   // surrogate domain or not.
    int elem1 = Trans.Elem1No,
        elem2 = Trans.Elem2No,
        marker1 = (*elem_marker)[elem1];
@@ -134,7 +135,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
-   Array<DenseMatrix *> hess_ptr;
+   Array<DenseMatrix *> dkphi_dxk;
    DenseMatrix grad_phys;
    Vector Factorial;
    Array<DenseMatrix *> grad_phys_dir;
@@ -161,12 +162,12 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       DenseMatrix grad_phys_work = grad_phys;
       grad_phys_work.SetSize(ndof, ndof*dim);
 
-      hess_ptr.SetSize(nterms);
+      dkphi_dxk.SetSize(nterms);
 
       for (int i = 0; i < nterms; i++)
       {
          int sz1 = pow(dim, i+1);
-         hess_ptr[i] = new DenseMatrix(ndof, ndof*sz1*dim);
+         dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          int tot_col_per_dof = loc_col_per_dof*dim;
          for (int k = 0; k < dim; k++)
@@ -181,7 +182,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
             }
             else
             {
-               Mult(*grad_phys_dir[k], *hess_ptr[i-1], grad_work);
+               Mult(*grad_phys_dir[k], *dkphi_dxk[i-1], grad_work);
             }
             // Now we must place columns for each dof together so that they are
             // in order: d^2phi/dx^2, d^2phi/dxdy, d^2phi/dydx, d^2phi/dy2.
@@ -191,7 +192,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
                {
                   Vector col;
                   grad_work.GetColumn(j*loc_col_per_dof+d, col);
-                  hess_ptr[i]->SetCol(j*tot_col_per_dof+k*loc_col_per_dof+d, col);
+                  dkphi_dxk[i]->SetCol(j*tot_col_per_dof+k*loc_col_per_dof+d, col);
                }
             }
          }
@@ -280,7 +281,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
          int sz1 = pow(dim, i+1);
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
-         hess_ptr[i]->MultTranspose(shape, T1_wrk);
+         dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
 
          DenseMatrix T2;
          Vector T2_wrk;
@@ -316,9 +317,9 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       elmat.CopyMN(temp_elmat, offset, offset);
    } //p < ir->GetNPoints()
 
-   for (int i = 0; i < hess_ptr.Size(); i++)
+   for (int i = 0; i < dkphi_dxk.Size(); i++)
    {
-      delete hess_ptr[i];
+      delete dkphi_dxk[i];
    }
 }
 
@@ -444,7 +445,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
-   Array<DenseMatrix *> hess_ptr;
+   Array<DenseMatrix *> dkphi_dxk;
    DenseMatrix grad_phys;
    Vector Factorial;
    Array<DenseMatrix *> grad_phys_dir;
@@ -472,12 +473,12 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       DenseMatrix grad_phys_work = grad_phys;
       grad_phys_work.SetSize(ndof, ndof*dim);
 
-      hess_ptr.SetSize(nterms);
+      dkphi_dxk.SetSize(nterms);
 
       for (int i = 0; i < nterms; i++)
       {
          int sz1 = pow(dim, i+1);
-         hess_ptr[i] = new DenseMatrix(ndof, ndof*sz1*dim);
+         dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          for (int k = 0; k < dim; k++)
          {
@@ -491,7 +492,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
             }
             else
             {
-               Mult(*grad_phys_dir[k], *hess_ptr[i-1], grad_work);
+               Mult(*grad_phys_dir[k], *dkphi_dxk[i-1], grad_work);
             }
             // Now we must place columns for each dof together so that they are
             // in order: d^2phi/dx^2, d^2phi/dxdy, d^2phi/dydx, d^2phi/dy2.
@@ -502,7 +503,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
                   Vector col;
                   int tot_col_per_dof = loc_col_per_dof*dim;
                   grad_work.GetColumn(j*loc_col_per_dof+d, col);
-                  hess_ptr[i]->SetCol(j*tot_col_per_dof+k*loc_col_per_dof+d, col);
+                  dkphi_dxk[i]->SetCol(j*tot_col_per_dof+k*loc_col_per_dof+d, col);
                }
             }
          }
@@ -527,6 +528,8 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
 
    Vector D(vD->GetVDim());
    Vector wrk = shape;
+   // assemble: -< u_D, \nabla w.n >
+   //           -<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
 
@@ -575,7 +578,6 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
          CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
       }
 
-
       ni.Set(w, nor);
       adjJ.Mult(ni, nh);
 
@@ -603,7 +605,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
          int sz1 = pow(dim, i+1);
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
-         hess_ptr[i]->MultTranspose(shape, T1_wrk);
+         dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
 
          DenseMatrix T2;
          Vector T2_wrk;
@@ -633,9 +635,9 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       }
    }
 
-   for (int i = 0; i < hess_ptr.Size(); i++)
+   for (int i = 0; i < dkphi_dxk.Size(); i++)
    {
-      delete hess_ptr[i];
+      delete dkphi_dxk[i];
    }
 }
 
