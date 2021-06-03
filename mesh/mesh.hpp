@@ -135,12 +135,32 @@ protected:
        convention the orientation of Elem1 is always set to 0, serving as the
        reference orientation. The orientation of Elem2 relatively to Elem1 is
        therefore determined just by using the orientation of Elem2. An important
-       special case is the one of non-conforming slave faces, the orientation
-       is always set to 0 due to a different processing of orientations in
-       NCMesh, and should therefore be disregarded. For this reason, an extra
-       array contains the orientations of non-conforming slave faces:
-       nc_faces_orientation. The orientation in this specific case is accessed
-       using the FaceInfo::NCFace integer as an index into nc_faces_orientation.
+       special case is the one of interior non-conforming slave faces, the
+       orientation is always set to 0 due to a different processing of
+       orientations in NCMesh, and should therefore be disregarded.
+       For this reason, an extra array contains the orientations of
+       non-conforming slave faces: nc_faces_orientation. The orientation in this
+       specific case is accessed using the FaceInfo::NCFace integer as an index
+       into nc_faces_orientation.
+
+       TODO Add local_orientation to PointMatrix function?
+
+       Another special case is the case of shared non-conforming faces. These
+       use a completely different design based on so called "ghost" faces,
+       because why not.
+       Ghost faces, as their name suggest are very well hidden, therefore they
+       are undocumented and have no interface. To understand how they work and
+       are used, one should read the integrality of the mesh.cpp, pmesh.cpp,
+       ncmesh.cpp, and pncmesh.cpp files and reverse engineer the code.
+       What I found about them so far:
+       - Their number is faces_info.Size() - GetNumFaces()
+       - Most of them only countains -1 for all values (that seems to be
+         explained by pncmesh.cpp:1073-1074), the technical documentation below
+         wonders if these are master non-conforming faces, I think they're
+         probably just ghost ghost cells, unused allocated memory space.
+         However, I still tag them as MasterNonConforming in GetFaceInformation
+       - They seem to be used as a convenience layer only in NCMesh, why not
+         using them all the time?
        */
    struct FaceInfo
    {
