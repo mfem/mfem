@@ -427,7 +427,7 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@) -I/Users/mittal3/local/include/.
 
 all: examples miniapps $(TEST_DIRS)
 

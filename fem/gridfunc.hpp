@@ -16,6 +16,8 @@
 #include "fespace.hpp"
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
+#include "blitz/tinyvec2.h"
+#include "../../algoim/src/algoim_quad.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "../general/adios2stream.hpp"
 #endif
@@ -163,6 +165,98 @@ public:
    /** Return a scalar value from within the given element. */
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
+
+   template<int N, typename T>
+   T GetTValue(const int i, const blitz::TinyVector<T,N> &ipt)
+   {
+      MFEM_VERIFY(N <= 3 && N >1, "TinyVector size must be 1, 2, or 3.");
+      IntegrationPoint *ip = new IntegrationPoint();
+      if (N == 2)
+      {
+         ip->Set2(ipt(0), ipt(1));
+      }
+      else if (N == 3)
+      {
+         ip->Set3(ipt(0), ipt(1), ipt(2));
+      }
+      double value = GetValue(i, *ip);
+      return (T)value;
+   }
+
+   template<int N>
+   Algoim::Interval<N> GetTValue(const int i,
+                                 const blitz::TinyVector<Algoim::Interval<N>,N> &ip)
+   {
+      Array<int> dofs;
+      fes->GetElementDofs(i, dofs);
+      fes->DofsToVDofs(0, dofs);
+      Vector LocVec;
+      std::vector<Algoim::Interval<N>> DofValT(dofs.Size());
+      const H1_QuadrilateralElement *fe =
+         dynamic_cast<const H1_QuadrilateralElement *>(fes->GetFE(i));
+      if (fe && fe->GetMapType() == FiniteElement::VALUE)
+      {
+         fe->CalcTShape(ip, DofValT);
+      }
+      else
+      {
+         MFEM_ABORT(" Only Value type Map supported right now.");
+      }
+      GetSubVector(dofs, LocVec);
+      Algoim::Interval<N> dotp(0.0);
+      for (int i = 0; i < LocVec.Size(); i++)
+      {
+         dotp += LocVec(i)*DofValT[i];
+      }
+
+      return dotp;
+   }
+
+   template<int N, typename T>
+   void GetTGradient(const int i,
+                     const blitz::TinyVector<T,N> &ipt,
+                     blitz::TinyVector<T,N> dfx)
+   {
+      MFEM_VERIFY(N <= 3 && N >1, "TinyVector size must be 1, 2, or 3.");
+      IntegrationPoint *ip = new IntegrationPoint();
+      if (N == 2)
+      {
+         ip->Set2(ipt(0), ipt(1));
+      }
+      else if (N == 3)
+      {
+         ip->Set3(ipt(0), ipt(1), ipt(2));
+      }
+      Vector grad(N);
+      GetGradient(*fes->GetElementTransformation(i), *ip, grad);
+      for (int i = 0; i < N; i++) { dfx(i) = (T)grad(i); }
+   }
+
+   template<int N>
+   void GetTGradient(const int i,
+                     const blitz::TinyVector<Algoim::Interval<N>,N> &ip,
+                     blitz::TinyVector<Algoim::Interval<N>,N> dfx)
+   {
+      const H1_QuadrilateralElement *fe =
+         dynamic_cast<const H1_QuadrilateralElement *>(fes->GetFE(i));
+      MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
+      Vector lval;
+      Array<int> dofs;
+      fes->GetElementDofs(i, dofs);
+      GetSubVector(dofs, lval);
+
+      std::vector<Algoim::Interval<N>> dshape_x(dofs.Size()), dshape_y(dofs.Size());
+
+      fe->CalcTDShape(ip, dshape_x, dshape_y);
+      Algoim::Interval<N> u_x(0.0), u_y(0.0);
+      for (int i = 0; i < lval.Size(); i++)
+      {
+         u_x += lval(i)*dshape_x[i];
+         u_y += lval(i)*dshape_y[i];
+      }
+      dfx(0) = u_x;
+      dfx(1) = u_y;
+   }
 
    /** Return a vector value from within the given element. */
    virtual void GetVectorValue(int i, const IntegrationPoint &ip,
@@ -316,6 +410,9 @@ public:
 
    void GetGradients(ElementTransformation &tr, const IntegrationRule &ir,
                      DenseMatrix &grad) const;
+
+   void GetGradient(ElementTransformation &tr, const IntegrationPoint &ip,
+                    Vector &grad) const;
 
    void GetGradients(const int elem, const IntegrationRule &ir,
                      DenseMatrix &grad) const

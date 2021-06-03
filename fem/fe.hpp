@@ -17,6 +17,8 @@
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"
 #include "geom.hpp"
+#include "blitz/tinyvec2.h"
+#include "./../../algoim/src/algoim_interval.hpp"
 
 #include <map>
 
@@ -1965,6 +1967,70 @@ public:
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
+      template<int N>
+      void EvalT(const Algoim::Interval<N> &y,
+                 std::vector<Algoim::Interval<N>> &u) const
+      {
+         int i, k, p = x.Size() - 1;
+         for (i = 0; i <= p; i++)
+         {
+            u[i] = 0.0;
+         }
+         Algoim::Interval<N> lk(1.0);
+
+         for (i = 0; i <= p; i++)
+         {
+            lk = 1.0;
+            for (k = 0; k <= p; k++)
+            {
+               if (k == i) { continue; }
+               lk *= y - x(k);
+            }
+            u[i] = lk * w(i);
+         }
+      }
+
+      template<int N>
+      void EvalT(const Algoim::Interval<N> &y,
+                 std::vector<Algoim::Interval<N>> &u,
+                 std::vector<Algoim::Interval<N>> &d) const
+      {
+         int i, k, m, p = x.Size() - 1;
+         for (i = 0; i <= p; i++)
+         {
+            u[i] = 0.0;
+            d[i] = 0.0;
+         }
+         Algoim::Interval<N> lk(1.0);
+
+         for (i = 0; i <= p; i++)
+         {
+            lk = 1.0;
+            for (k = 0; k <= p; k++)
+            {
+               if (k == i) { continue; }
+               lk *= y - x(k);
+            }
+            u[i] = lk * w(i);
+         }
+
+         for (i = 0; i <= p; i++)
+         {
+            lk = 0.0;
+            for (k = 0; k <= p; k++)
+            {
+               if (k == i) { continue; }
+               Algoim::Interval<N> prod(1.0);
+               for (m = 0; m <= p; m++)
+               {
+                  if (k == m || m == i) { continue; }
+                  prod *= y - x(m);
+               }
+               lk += prod;
+            }
+            d[i] = lk * w(i);
+         }
+      }
    };
 
 private:
@@ -2248,6 +2314,50 @@ public:
    virtual void CalcHessian(const IntegrationPoint &ip,
                             DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   template<int N>
+   void CalcTShape(const blitz::TinyVector<Algoim::Interval<N>,N> &ip,
+                   std::vector<Algoim::Interval<N>> &shape) const
+   {
+      {
+         const int p = order;
+         std::vector<Algoim::Interval<N>> shape_xt(p+1), shape_yt(p+1);
+
+         basis1d.EvalT(ip(0), shape_xt);
+         basis1d.EvalT(ip(1), shape_yt);
+
+         for (int o = 0, j = 0; j <= p; j++)
+            for (int i = 0; i <= p; i++)
+            {
+               shape[dof_map[o++]] = shape_xt[i]*shape_yt[j];
+            }
+      }
+   }
+
+   template<int N>
+   void CalcTDShape(const blitz::TinyVector<Algoim::Interval<N>,N> &ip,
+                    std::vector<Algoim::Interval<N>> &dshape_x,
+                    std::vector<Algoim::Interval<N>> &dshape_y) const
+   {
+      {
+         const int p = order;
+         std::vector<Algoim::Interval<N>> shape_xt(p+1), shape_yt(p+1),
+             dshape_xt(p+1), dshape_yt(p+1);;
+
+         basis1d.EvalT(ip(0), shape_xt, dshape_xt);
+         basis1d.EvalT(ip(1), shape_yt, dshape_yt);
+
+         for (int o = 0, j = 0; j <= p; j++)
+         {
+            for (int i = 0; i <= p; i++)
+            {
+               dshape_x[dof_map[o]] = dshape_xt[i]* shape_yt[j];
+               dshape_y[dof_map[o]] =  shape_xt[i]*dshape_yt[j];
+               o++;
+            }
+         }
+      }
+   }
+
 };
 
 

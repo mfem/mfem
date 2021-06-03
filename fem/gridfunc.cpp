@@ -424,6 +424,18 @@ const
    return (DofVal * LocVec);
 }
 
+//template<int N>
+//Algoim::Interval<N> GridFunction::GetTValue(int i,
+//                                            blitz::TinyVector<Algoim::Interval<N>,N> &ip)
+//{
+//   return (Algoim::Interval<N>)(1.0);
+//}
+
+//double GridFunction::GetTValue(int i, blitz::TinyVector<double, 2> &ip)
+//{
+//   return (double)(1.0);
+//}
+
 void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
                                   Vector &val) const
 {
@@ -1658,6 +1670,27 @@ void GridFunction::GetGradients(ElementTransformation &tr,
       const DenseMatrix &Jinv = tr.InverseJacobian();
       Jinv.MultTranspose(gh, gcol);
    }
+}
+
+void GridFunction::GetGradient(ElementTransformation &tr,
+                               const IntegrationPoint &ip,
+                               Vector &grad) const
+{
+   int elNo = tr.ElementNo;
+   const FiniteElement *fe = fes->GetFE(elNo);
+   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
+   DenseMatrix dshape(fe->GetDof(), fe->GetDim());
+   Vector lval, gh(fe->GetDim()), gcol;
+   Array<int> dofs;
+   fes->GetElementDofs(elNo, dofs);
+   GetSubVector(dofs, lval);
+   grad.SetSize(fe->GetDim());
+
+   fe->CalcDShape(ip, dshape);
+   dshape.MultTranspose(lval, gh);
+   tr.SetIntPoint(&ip);
+   const DenseMatrix &Jinv = tr.InverseJacobian();
+   Jinv.MultTranspose(gh, grad);
 }
 
 void GridFunction::GetVectorGradient(
