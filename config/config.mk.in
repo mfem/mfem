@@ -57,6 +57,7 @@ MFEM_USE_UMPIRE        = @MFEM_USE_UMPIRE@
 MFEM_USE_SIMD          = @MFEM_USE_SIMD@
 MFEM_USE_ADIOS2        = @MFEM_USE_ADIOS2@
 MFEM_USE_MKL_CPARDISO  = @MFEM_USE_MKL_CPARDISO@
+MFEM_USE_PARELAG       = @MFEM_USE_PARELAG@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@

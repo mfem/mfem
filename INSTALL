@@ -515,6 +515,11 @@ MFEM_USE_CALIPER = YES/NO
    profiling at runtime with Caliper's configuration API. Alternatively, one
    can configure Caliper through environment variables or config files.
 
+MFEM_USE_PARELAG = YES/NO
+   Enables the miniapps that use the ParELAG library. MFEM does not currently
+   use ParELAG. In fact, ParELAG is dependent on MFEM. Therefore, this option
+   currently only concerns the miniapps.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -751,6 +756,10 @@ The specific libraries and their options are:
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
 
+- ParELAG, used when MFEM_USE_PARELAG = YES.
+  URL: https://github.com/LLNL/parelag
+  Options: PARELAG_DIR, PARELAG_OPT, PARELAG_LIB.
+
 Building with CMake
 ===================
 The MFEM build system consists of two steps: configuration and compilation.
@@ -882,6 +891,7 @@ MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
 MFEM_USE_CALIPER
+MFEM_USE_PARELAG
 
 The following options are CMake specific:
 
@@ -936,6 +946,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
  - CALIPER
+ - ParELAG
 
 The following built-in CMake packages are also used:
 
