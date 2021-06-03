@@ -1263,6 +1263,48 @@ public:
          return conformity!=Mesh::FaceConformity::NonConformingMaster &&
                 location==Mesh::FaceLocation::Boundary;
       }
+
+      friend std::ostream& operator<<(std::ostream& os, const FaceInformation& info)
+      {
+         os << "location=";
+         switch (info.location)
+         {
+         case Mesh::FaceLocation::Interior:
+            os << "Interior";
+            break;
+         case Mesh::FaceLocation::Shared:
+            os << "Shared";
+            break;
+         case Mesh::FaceLocation::Boundary:
+            os << "Boundary";
+            break;
+         }
+         os << std::endl;
+         os << "conformity=";
+         switch (info.conformity)
+         {
+         case Mesh::FaceConformity::Conforming:
+            os << "Conforming";
+            break;
+         case Mesh::FaceConformity::NonConformingMaster:
+            os << "NonConformingMaster";
+            break;
+         case Mesh::FaceConformity::NonConformingSlave:
+            os << "NonConformingSlave";
+            break;
+         default:
+            break;
+         }
+         os << std::endl;
+         os << "elem_1_index=" << info.elem_1_index << std::endl
+            << "elem_2_index=" << info.elem_2_index << std::endl
+            << "elem_1_local_face=" << info.elem_1_local_face << std::endl
+            << "elem_2_local_face=" << info.elem_2_local_face << std::endl
+            << "elem_1_orientation=" << info.elem_1_orientation << std::endl
+            << "elem_2_orientation=" << info.elem_2_orientation << std::endl
+            << "ncface=" << info.ncface << std::endl;
+         return os;
+      }
    };
 
    /** This method aims to provide face information in a deciphered format, i.e.
