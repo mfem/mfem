@@ -58,9 +58,9 @@ public:
                             Array<int> &sface_dof_list) const;
 
    /// List the dofs that will be inactive for the computation on the surrogate
-   /// domain. This include dofs for the elements located outside the
-   /// true domain (and optionally, for the elements cut by the true boundary,
-   /// if @a include_cut_cell = true) minus the dofs that are located on the
+   /// domain. This includes dofs for the elements located outside the true
+   /// domain (and optionally, for the elements cut by the true boundary, if
+   /// @a include_cut_cell = false) minus the dofs that are located on the
    /// surrogate boundary.
    void ListEssentialTDofs(const Array<int> &elem_marker,
                            const Array<int> &sface_dof_list,
