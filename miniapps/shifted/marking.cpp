@@ -155,8 +155,8 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          int te1 = elem_marker[ne1];
          int te2 = elem_marker[i+pmesh.GetNE()];
          const int faceno = pmesh.GetSharedFace(i);
-         // Add if the element on this proc is completely inside the domain
-         // and the the element on other proc is not
+         // Add if the element on this MPI rank is completely inside the domain
+         // and the element on other MPI rank is not.
          if (!include_cut_cell &&
              te2 == ShiftedFaceMarker::CUT && te1 == ShiftedFaceMarker::INSIDE)
          {
@@ -261,7 +261,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
       if (ess_vdofs_bdr[i] == -1) { ess_vdofs[i] = -1; }
    }
 
-   // Unmark dofs that are on SBM faces (but not on dirichlet boundaries)
+   // Unmark dofs that are on SBM faces (but not on Dirichlet boundaries)
    for (int i = 0; i < sface_dof_list.Size(); i++)
    {
       if (ess_vdofs_bdr[sface_dof_list[i]] != -1)
