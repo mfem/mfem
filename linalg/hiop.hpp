@@ -34,7 +34,7 @@ class HiopOptimizationProblem : public hiop::hiopInterfaceDenseConstraints
 private:
 
 #ifdef MFEM_USE_MPI
-   MPI_Comm comm_;
+   MPI_Comm comm;
 #endif
 
    // Problem info.
@@ -63,14 +63,14 @@ public:
    {
 #ifdef MFEM_USE_MPI
       // Used when HiOp with MPI support is called by a serial driver.
-      comm_ = MPI_COMM_WORLD;
+      comm = MPI_COMM_WORLD;
 #endif
    }
 
 #ifdef MFEM_USE_MPI
-   HiopOptimizationProblem(const MPI_Comm& _comm,
+   HiopOptimizationProblem(const MPI_Comm& comm_,
                            const OptimizationProblem &prob)
-      : comm_(_comm),
+      : comm(comm_),
         problem(prob),
         ntdofs_loc(prob.input_size), m_total(prob.GetNumConstraints()),
         ntdofs_glob(0),
@@ -79,7 +79,7 @@ public:
         constr_info_is_current(false)
    {
       MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_LONG_LONG_INT,
-                    MPI_SUM, comm_);
+                    MPI_SUM, comm);
    }
 #endif
 
@@ -163,7 +163,7 @@ public:
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm &comm_out)
    {
-      comm_out = comm_;
+      comm_out = comm;
       return true;
    }
 #endif
@@ -176,13 +176,13 @@ protected:
    HiopOptimizationProblem *hiop_problem;
 
 #ifdef MFEM_USE_MPI
-   MPI_Comm comm_;
+   MPI_Comm comm;
 #endif
 
 public:
    HiopNlpOptimizer();
 #ifdef MFEM_USE_MPI
-   HiopNlpOptimizer(MPI_Comm _comm);
+   HiopNlpOptimizer(MPI_Comm comm_);
 #endif
    virtual ~HiopNlpOptimizer();
 
