@@ -18,31 +18,76 @@
 using namespace mfem;
 using namespace std;
 
-double discrete_size_2d(const Vector &x)
+class DiscreteSize2D : public Coefficient
 {
-   int opt = 2;
-   const double small = 0.001, big = 0.01;
-   double val = 0.;
+protected:
+    const int ref_levels, type;
 
-   if (opt == 1) // sine wave.
+public:
+   DiscreteSize2D(int ref_levels_, int type_ = 2)
+       : ref_levels(ref_levels_), type(type_)  { }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
    {
-      const double X = x(0), Y = x(1);
-      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+       const double small = 0.016/pow(4., ref_levels), big = 0.16/pow(4., ref_levels);
+       double val = 0.;
+       Vector x(3);
+       T.Transform(ip, x);
+
+       if (type == 1) // sine wave.
+       {
+          const double X = x(0), Y = x(1);
+          val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+                std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+       }
+       else if (type == 2) // semi-circle
+       {
+          const double xc = x(0) - 0.0, yc = x(1) - 0.5;
+          const double r = sqrt(xc*xc + yc*yc);
+          double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+          val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+       }
+
+       val = std::max(0.,val);
+       val = std::min(1.,val);
+
+       return val * small + (1.0 - val) * big;
    }
-   else if (opt == 2) // semi-circle
+};
+
+class DiscreteSize3D : public Coefficient
+{
+protected:
+    const int ref_levels;
+
+public:
+   DiscreteSize3D(int ref_levels_)
+       : ref_levels(ref_levels_) { }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
    {
-      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+       Vector x(3);
+       T.Transform(ip, x);
+
+       double small = 0.0064/pow(8., ref_levels),
+              big   =   0.64/pow(8., ref_levels);
+
+       double val = 0.;
+
+       // semi-circle
+       const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
+       const double r = sqrt(xc*xc + yc*yc + zc*zc);
+       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+
+       val = std::max(0.,val);
+       val = std::min(1.,val);
+
+       return val * small + (1.0 - val) * big;
    }
-
-   val = std::max(0.,val);
-   val = std::min(1.,val);
-
-   return val * small + (1.0 - val) * big;
-}
+};
 
 double discrete_size_3d(const Vector &x)
 {

@@ -31,6 +31,17 @@
 //
 // Compile with: make mesh-optimizer
 //
+// GPU runs
+// Kershaw 2D
+// make mesh-optimizer;./mesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+// Kershaw 3D
+// make mesh-optimizer;./mesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+//
+// Stretch/Rotate 2D
+// make mesh-optimizer;./mesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
+// 3D
+// make mesh-optimizer;./mesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
+
 // Sample runs:
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
@@ -102,6 +113,127 @@
 using namespace mfem;
 using namespace std;
 
+// 1D transformation at the right boundary.
+double right(const double eps, const double x)
+{
+   return (x <= 0.5) ? (2-eps) * x : 1 + eps*(x-1);
+}
+
+// 1D transformation at the left boundary
+double left(const double eps, const double x)
+{
+   return 1-right(eps,1-x);
+}
+
+// Transition from a value of "a" for x=0, to a value of "b" for x=1.  Optionally
+// smooth -- see the commented versions at the end.
+double step(const double a, const double b, double x)
+{
+   if (x <= 0) return a;
+   if (x >= 1) return b;
+   return a + (b-a) * (x);
+   //return a + (b-a) * (x*x*(3-2*x));
+    //return a + (b-a) * (x*x*x*(x*(6*x-15)+10));
+}
+
+// 3D version of a generalized Kershaw mesh transformation, see D. Kershaw,
+// "Differencing of the diffusion equation in Lagrangian hydrodynamic codes",
+// JCP, 39:375–395, 1981.
+//
+// The input mesh should be Cartesian nx x ny x nz with nx divisible by 6 and
+// ny, nz divisible by 2.
+//
+// The eps parameters are in (0, 1]. Uniform mesh is recovered for epsy=epsz=1.
+void kershaw(const double epsy, const double epsz,
+             const double x, const double y, const double z,
+             double &X, double &Y, double &Z)
+{
+   X = x;
+
+   int layer = x*6.0;
+   double lambda = (x-layer/6.0)*6;
+
+   // The x-range is split in 6 layers going from left-to-left, left-to-right,
+   // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
+   switch (layer)
+   {
+   case 0:
+      Y = left(epsy, y);
+      Z = left(epsz, z);
+      break;
+   case 1:
+   case 4:
+      Y = step(left(epsy, y), right(epsy, y), lambda);
+      Z = step(left(epsz, z), right(epsz, z), lambda);
+      break;
+   case 2:
+      Y = step(right(epsy, y), left(epsy, y), lambda/2);
+      Z = step(right(epsz, z), left(epsz, z), lambda/2);
+      break;
+   case 3:
+      Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
+      Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
+      break;
+   default:
+      Y = right(epsy, y);
+      Z = right(epsz, z);
+      break;
+   }
+}
+
+void stretching2D(const double x, const double y,
+                  double &X, double &Y)
+{
+   double amp = 0.25;
+   double frq = 8.;
+
+   double dx1 = amp*cos(frq*M_PI*(y-0.5)*(-0.5)),
+          dxf = x*(1-x),
+          dx2 = amp*(1-2*y);
+   X = x + dx1*dxf + 0.0*dx2*dxf;
+
+   double dy1 = amp*cos(frq*M_PI*(x-0.5)*(-0.5)),
+          dyf = y*(1-y),
+          dy2 = amp*(1-2*x);
+   Y = y + dy1*dyf + 0.0*dy2*dyf;
+}
+
+void stretching3D(const double x, const double y, const double z,
+               double &X, double &Y, double &Z)
+{
+   double amp = 0.25;
+   double frq = 8.;
+
+   double dx1 = amp*cos(frq*M_PI*(y-0.5)*(z-0.5)),
+          dxf = x*(1-x),
+          dx2 = amp*(1-2*y);
+   X = x + dx1*dxf + 0.0*dx2*dxf;
+
+   double dy1 = amp*cos(frq*M_PI*(x-0.5)*(z-0.5)),
+          dyf = y*(1-y),
+          dy2 = amp*(1-2*z);
+   Y = y + dy1*dyf + 0.0*dy2*dyf;
+
+   double dz1 = amp*cos(frq*M_PI*(y-0.5)*(x-0.5)),
+          dzf = z*(1-z),
+          dz2 = amp*(1-2*x);
+   Z = z + dz1*dzf + 0.0*dz2*dzf;
+}
+
+void invert(const double x, const double y, const double z,
+            double &X, double &Y, double &Z)
+{
+   X = x;
+   double amp = 0.5;
+   double f1 = -x*(x-1);
+   double f2 = 0.5*(0.5-fabs(x-0.5));
+   double f3 = 0.25*sin(M_PI*x);
+
+   double dy1 = 2*amp*f2,
+          dyf = y == 0 ? 1 : 0;
+   Y = y + dy1*dyf;
+}
+
 int main(int argc, char *argv[])
 {
    // 0. Set the method's default parameters.
@@ -131,6 +263,8 @@ int main(int argc, char *argv[])
    bool exactaction      = false;
    const char *devopt    = "cpu";
    bool pa               = false;
+   bool benchmark       = false;
+   int  benchmarkid      = 1;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -241,6 +375,11 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&benchmark, "-bm", "--bm", "-no-bm",
+                  "--no-bm",
+                  "Apply benchmark modification.");
+   args.AddOption(&benchmarkid, "-bm_id", "--bm_id",
+                  "1 = kershaw, 2 is stretching.");
    args.Parse();
    if (!args.Good())
    {
@@ -287,6 +426,7 @@ int main(int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
+
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
@@ -348,6 +488,75 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
+
+   // Add benchmark transformation
+   if (benchmark)
+   {
+       for (int i = 0; i < fespace->GetNDofs(); i++)
+       {
+           Array<double> xc(dim), xn(dim);
+           for (int d = 0; d < dim; d++)
+           {
+               xc[d] = x(fespace->DofToVDof(i,d));
+           }
+           double epsy = 0.3,
+                  epsz = 0.3;
+
+           if (benchmarkid == 1) {
+               kershaw(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+           }
+           else if (benchmarkid == 2) {
+               if (dim == 2) {
+                   stretching2D(xc[0], xc[1], xn[0], xn[1]);
+               }
+               else if (dim == 3) {
+                   stretching3D(xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+               }
+           }
+
+           for (int d = 0; d < dim; d++)
+           {
+               x(fespace->DofToVDof(i,d)) = xn[d];
+           }
+       }
+       x.SetTrueVector();
+       x.SetFromTrueVector();
+       {
+          ofstream mesh_ofs("perturbed.mesh");
+          mesh->Print(mesh_ofs);
+       }
+   }
+
+
+   // Change boundary attribute for boundary element if tangential relaxation is allowed
+   if (move_bnd && benchmark) {
+       for (int e = 0; e < mesh->GetNBE(); e++) {
+           Array<int> dofs;
+           fespace->GetBdrElementDofs(e, dofs);
+           Array<bool> check(dim);
+           check = true;
+           Array<double> x_c(dim);
+           for (int j = 0; j < dofs.Size(); j++) {
+               if (j == 0) {
+                   for (int d = 0; d < dim; d++) {
+                       x_c[d] = x(fespace->DofToVDof(dofs[j], d));
+                   }
+               }
+               else {
+                   for (int d = 0; d < dim; d++) {
+                       check[d] = check[d] && (x_c[d] == x(fespace->DofToVDof(dofs[j],d)));
+                   }
+               }
+               Element *be = mesh->GetBdrElement(e);
+               be->SetAttribute(4);
+               for (int d = 0; d < dim; d++) {
+                   if (check[d]) { be->SetAttribute(d+1); }
+               }
+           }
+       }
+   }
+
+
    // 10. Store the starting (prior to the optimization) positions.
    GridFunction x0(fespace);
    x0 = x;
@@ -372,7 +581,7 @@ int main(int argc, char *argv[])
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
-      // case 211: metric = new TMOP_Metric_211; break;
+      case 211: metric = new TMOP_Metric_211; break;
       // case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
@@ -436,12 +645,13 @@ int main(int argc, char *argv[])
          }
          if (dim == 2)
          {
-            FunctionCoefficient ind_coeff(discrete_size_2d);
+            //FunctionCoefficient ind_coeff(discrete_size_2d);
+            DiscreteSize2D ind_coeff(rs_levels);
             size.ProjectCoefficient(ind_coeff);
          }
          else if (dim == 3)
          {
-            FunctionCoefficient ind_coeff(discrete_size_3d);
+            DiscreteSize3D ind_coeff(rs_levels);
             size.ProjectCoefficient(ind_coeff);
          }
          tc->SetSerialDiscreteTargetSize(size);
