@@ -32,7 +32,7 @@ double dist_value(const Vector &x, const int type)
          rv += dz*dz;
       }
       rv = rv > 0 ? pow(rv, 0.5) : 0;
-      return rv - ring_radius; // +ve is the domain
+      return rv - ring_radius; // positive is the domain
    }
    else if (type == 3)   // walls at y = 0.0
    {

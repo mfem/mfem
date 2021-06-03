@@ -557,7 +557,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
       if (include_cut_cell && nor_dot_d > 0) { nor *= -1; }
       // note here that if we are clipping outside the domain, we will have to
-      // flip the sign if nor_dot_d is +ve.
+      // flip the sign if nor_dot_d is positive.
 
       double hinvdx;
 
