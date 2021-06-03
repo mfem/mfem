@@ -233,7 +233,6 @@ void LinearForm::Assemble()
       }
    }
 
-
    if (iflfi.Size())
    {
       Mesh *mesh = fes->GetMesh();

@@ -59,7 +59,7 @@
 //
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
-#include "sbm-aux.hpp"
+#include "sbm_aux.hpp"
 #include "sbm_solver.hpp"
 #include "marking.hpp"
 #include "dist_solver.hpp"
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    // Make a list of inactive tdofs that will be eliminated from the system.
    // The inactive tdofs are the dofs for the elements located outside the
    // true domain (and optionally, for the elements cut by the true boundary,
-   // if include_cut_cell = true) minus the dofs that are located on the
+   // if include_cut_cell = false) minus the dofs that are located on the
    // surrogate boundary.
    Array<int> ess_tdof_list;
    Array<int> ess_shift_bdr;

@@ -12,7 +12,7 @@
 #ifndef MFEM_SBM_SOLVER_HPP
 #define MFEM_SBM_SOLVER_HPP
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 
 namespace mfem
 {
@@ -42,17 +42,29 @@ public:
                const Vector &D);
 };
 
+/// BilinearFormIntegrator for the high-order extension of shifted boundary
+/// method.
+/// A(u, w) = -<nabla u.n, w>
+///           -<u + nabla u.d + h.o.t, nabla w.n>
+///           -<alpha h^{-1} (u + nabla u.d + h.o.t), w + nabla w.d + h.o.t>
+/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
+/// expansion. Since this interior face integrator is applied to the surrogate
+/// boundary (see marking.hpp for notes on how the surrogate faces are
+/// determined and elements are marked), this integrator adds contribution to
+/// only the element that is adjacent to that face (Trans.Elem1 or Trans.Elem2)
+/// and is part of the surrogate domain.
 class SBM2DirichletIntegrator : public BilinearFormIntegrator
 {
 protected:
    double alpha;
-   VectorCoefficient *vD; // Distance function coefficient
-   Array<int> *elem_marker; //marker indicating wether element is inside,
+   VectorCoefficient *vD;     // Distance function coefficient
+   Array<int> *elem_marker;   // marker indicating whether element is inside,
    //cut, or outside the domain.
-   bool include_cut_cell;
-   int nterms; //1 = Hessian (3rd order)
-   int NEproc; //Number of elements on the current MPI rank
-   int par_shared_face_count;
+   bool include_cut_cell;     // include element cut by true boundary
+   int nterms;                // Number of terms in addition to the gradient
+   // term from Taylor expansion that should be included. (0 by default).
+   int NEproc;                //Number of elements on the current MPI rank
+   int par_shared_face_count; //
 
    // these are not thread-safe!
    Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
@@ -82,19 +94,34 @@ public:
    virtual ~SBM2DirichletIntegrator() { }
 };
 
+/// LinearFormIntegrator for the high-order extension of shifted boundary
+/// method.
+/// (u, w) = -<u_D, nabla w.n >
+///          -<alpha h^{-1} u_D, w + nabla w.d + h.o.t>
+/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
+/// expansion. Since this interior face integrator is applied to the surrogate
+/// boundary (see marking.hpp for notes on how the surrogate faces are
+/// determined and elements are marked), this integrator adds contribution to
+/// only the element that is adjacent to that face (Trans.Elem1 or Trans.Elem2)
+/// and is part of the surrogate domain.
+/// Note that u_D is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. u_D(x_true) = u_D(x_surrogate + D),
+/// where x_surrogate is the location of the integration point on the surrogate
+/// boundary and D is the distance vector from the surrogate boundary to the
+/// true boundary.
 class SBM2DirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    ShiftedFunctionCoefficient *uD;
-   double alpha; // Nitsche parameter
-   VectorCoefficient *vD; // Distance function coefficient
-   Array<int> *elem_marker; //marker indicating wether element is inside,
+   double alpha;              // Nitsche parameter
+   VectorCoefficient *vD;     // Distance function coefficient
+   Array<int> *elem_marker;   //marker indicating whether element is inside,
    //cut, or outside the domain.
-   bool include_cut_cell;
-   int nterms;  //Number of terms in addition to the gradient term from Taylor
-   //expansion that should be included. (0 by default).
-   int NEproc; //Number of elements on the current MPI rank
-   int par_shared_face_count;
+   bool include_cut_cell;     // include element cut by true boundary
+   int nterms;                // Number of terms in addition to the gradient
+   // term from Taylor expansion that should be included. (0 by default).
+   int NEproc;                //Number of elements on the current MPI rank
+   int par_shared_face_count; //
 
    // these are not thread-safe!
    Vector shape, dshape_dd, dshape_dn, nor, nh, ni;

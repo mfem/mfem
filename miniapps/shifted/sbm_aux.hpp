@@ -1,9 +1,13 @@
-﻿//                       MFEM
+﻿// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Compile with: make ex1p
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-// Sample runs:
-// mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 0 -vis -o 2
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../../mfem.hpp"
 #include <fstream>
@@ -12,8 +16,8 @@
 using namespace std;
 using namespace mfem;
 
-/// Analytic distance to the 0 level set. +ve value if the point is inside the
-/// domain, and -ve value if outside.
+/// Analytic distance to the 0 level set. Positive value if the point is inside
+/// the domain, and negative value if outside.
 double dist_value(const Vector &x, const int type)
 {
    double ring_radius = 0.2;
@@ -28,7 +32,7 @@ double dist_value(const Vector &x, const int type)
          rv += dz*dz;
       }
       rv = rv > 0 ? pow(rv, 0.5) : 0;
-      return rv - ring_radius; // +ve is the domain
+      return rv - ring_radius; // positive is the domain
    }
    else if (type == 3)   // walls at y = 0.0
    {
