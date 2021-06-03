@@ -3936,11 +3936,6 @@ class DGAnisoDiffIntegrator : public BilinearFormIntegrator,
    DGAnisoDiffBaseIntegrator
 {
 private:
-   MatrixCoefficient *MQ;
-   Coefficient *QPara;
-   Coefficient *QPerp;
-   double sigma, kappa;
-
 #ifndef MFEM_THREAD_SAFE
    Vector shape1, shape2, nQdshape1, nQdshape2;
    DenseMatrix dshape1, dshape2;
