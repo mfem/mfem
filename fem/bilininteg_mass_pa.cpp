@@ -492,6 +492,7 @@ static void OccaPAMassApply2D(const int D1D,
    const occa::memory o_D = OccaMemoryRead(D.GetMemory(), D.Size());
    const occa::memory o_X = OccaMemoryRead(X.GetMemory(), X.Size());
    occa::memory o_Y = OccaMemoryReadWrite(Y.GetMemory(), Y.Size());
+
    const occa_id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {

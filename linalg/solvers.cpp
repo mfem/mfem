@@ -20,6 +20,8 @@
 #include <cmath>
 #include <set>
 
+double getTod();
+
 namespace mfem
 {
 
@@ -377,7 +379,7 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
    helperVector.SetSize(x.Size());
 
    y.UseDevice(true);
-   y = 0.0;
+   //   y = 0.0;
 
    for (int k = 0; k < order; ++k)
    {
@@ -663,6 +665,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
    }
 
+   double tic = getTod();
+
    // start iteration
    converged = 0;
    final_iter = max_iter;
@@ -769,6 +773,11 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Average reduction factor = "
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
+
+   double toc = getTod();
+   printf("pcg.Mult: elapsed %g\n", toc-tic);
+
+
    final_norm = sqrt(betanom);
 
    Monitor(final_iter, final_norm, r, x, true);
@@ -802,7 +811,12 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
    pcg.SetAbsTol(sqrt(ATOLERANCE));
    pcg.SetOperator(A);
    pcg.SetPreconditioner(B);
+
+
+   double tic = getTod();
    pcg.Mult(b, x);
+   double toc = getTod();
+   printf("pcg.Mult: elapsed %g\n", toc-tic);
 }
 
 

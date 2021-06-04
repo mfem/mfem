@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-	(int)ceil(log(1000000./(order*order*mesh.GetNE()))/log(2.)/dim);
+	(int)floor(log(400000./(order*order*mesh.GetNE()))/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -147,7 +147,8 @@ int main(int argc, char *argv[])
    bool delete_fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+     //      fec = new H1_FECollection(order, dim);
+     fec = new DG_FECollection(order, dim);
       delete_fec = true;
    }
    else if (mesh.GetNodes())
@@ -196,7 +197,8 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   //   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -238,9 +240,12 @@ int main(int argc, char *argv[])
          else
          {
 
-            OperatorJacobiSmoother M(a, ess_tdof_list);
-
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+	   OperatorJacobiSmoother M(a, ess_tdof_list);
+	   Vector saveX(X);
+	   int Nwarm = 1000;
+	   
+	   for(int w=0;w<Nwarm;++w)
+	      PCG(*A, M, B, saveX, 1, 400, 1e-12, 0.0);
 	    
 	    double tic = getTod();
             PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);

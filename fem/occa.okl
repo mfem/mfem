@@ -1171,8 +1171,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	}
 
 	// clear register array
-	for(int k=0;k<Q1D;++k){
-	  r_wk[k] = 0;
+	for(int i=0;i<Q1D;++i){
+	  r_wk[i] = 0;
 	}
 
 	// load X data
@@ -1192,12 +1192,12 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
       for(int b=0;b<M1D;++b;@inner(0)){
 	if(b<D1D && c<D1D){
 
-	  //#pragma unroll D1D
+	  //	  #pragma unroll D1D
 	  for(int a=0;a<D1D;++a){
 	    double q_kba = s_q[c][b][a];
-	    //#pragma unroll Q1D
+	    //	    #pragma unroll Q1D
 	    for(int i=0;i<Q1D;++i){
-	      r_wk[i] += s_B[i][a]*q_kba;
+	      r_wk[i] += s_B[i][a]*q_kba; // 3 TF/s
 	    }
 	  }
 	
@@ -1221,7 +1221,7 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	    double q_cbi = s_q[c][b][i];
 	    //#pragma unroll Q1D
 	    for(int j=0;j<Q1D;++j){
-	      r_wk[j] += s_B[j][b]*q_cbi;
+	      r_wk[j] += s_B[j][b]*q_cbi; // 3 TF/s
 	    }
 	  }
 	
@@ -1245,10 +1245,11 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	    double q_cji = s_q[c][j][i];
 	    //#pragma unroll Q1D
 	    for(int k=0;k<Q1D;++k){
-	      r_wk[k] += s_B[k][c]*q_cji;
+	      r_wk[k] += s_B[k][c]*q_cji; // 3 TF/s
 	    }
 	  }
 
+	  //#pragma unroll Q1D
 	  for(int k=0;k<Q1D;++k){
 	    // hard coded parameters
 	    const int gbase = e*Q3D + i + j*Q1D + k*Q1D*Q1D;  // this is not great for coalescing
