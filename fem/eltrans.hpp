@@ -161,6 +161,11 @@ public:
        transformations. */
    virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
 
+   // ADDED //
+   virtual int TransformBack(const Vector &, IntegrationPoint &, 
+                             IntegrationPoint &) = 0;
+   // ADDED //
+
    virtual ~ElementTransformation() { }
 };
 
@@ -425,6 +430,11 @@ public:
       InverseElementTransformation inv_tr(this);
       return inv_tr.Transform(v, ip);
    }
+
+   // ADDED //
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
+                             IntegrationPoint &xip);
+   // ADDED //
 
    virtual ~IsoparametricTransformation() { }
 

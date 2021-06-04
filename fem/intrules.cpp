@@ -605,6 +605,31 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
    CalculateUniformWeights(ir, Quadrature1D::ClosedUniform);
 }
 
+
+// ADDED //
+
+
+void QuadratureFunctions1D::Trapezoidal(const int np, IntegrationRule* ir)
+{
+   int N = np-1;
+   ir->SetSize(N+1);
+
+   ir->IntPoint(0).x = 0.;
+   ir->IntPoint(0).weight = .5/ double(N);
+   for (int i = 1; i < N; ++i)
+   {
+      ir->IntPoint(i).x = double(i) / double(N);
+   
+      ir->IntPoint(i).weight = 1. / double(N);
+   }
+   ir->IntPoint(N).x = 1.;
+   ir->IntPoint(N).weight = .5/ double(N);
+}
+
+
+// ADDED //
+
+
 void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
@@ -1086,6 +1111,15 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
          quad_func.OpenHalfUniform(n, ir);
          break;
       }
+      // ADDED //
+      case Quadrature1D::Trapezoidal:
+      {
+         // Trapezoidal rule
+         n = Order;
+         quad_func.Trapezoidal(n, ir);
+         break;
+      }
+      // ADDED //
       default:
       {
          MFEM_ABORT("unknown Quadrature1D type: " << quad_type);

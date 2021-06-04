@@ -345,6 +345,20 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
+   // ADDED //
+   /// Resets to new Domain Integrator.
+   void ResetDomainIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Resets to new Boundary Integrator.
+   void ResetBoundaryIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Resets to new interior Face Integrator.
+   void ResetInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Resets to new boundary Face Integrator.
+   void ResetBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+   // ADDED
+
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
    {

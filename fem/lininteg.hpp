@@ -116,8 +116,81 @@ public:
                                          ElementTransformation &Trans,
                                          Vector &elvect);
 
+   // ADDED //
+   void ResetCoefficient(Coefficient &q) { Q = q;  }
+   // ADDED //
+
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
+
+// ADDED //
+    
+/// Class for domain integration L(v) := (f, v)
+class DomainLFIntegrator2 : public LinearFormIntegrator
+{
+   Vector shape;
+   Coefficient *Q;
+   int oa, ob;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+   DomainLFIntegrator2(Coefficient *QF, int a = 2, int b = 0)
+   // the old default was a = 1, b = 1
+   // for simple elliptic problems a = 2, b = -2 is ok
+      : Q(QF), oa(a), ob(b) { }
+
+   /// Constructs a domain integrator with a given Coefficient
+   DomainLFIntegrator2(Coefficient *QF, const IntegrationRule *ir)
+      : LinearFormIntegrator(ir), Q(QF), oa(1), ob(1) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+    
+   void ResetCoefficient(Coefficient *q) { Q = q;  }
+    
+};
+
+// ADDED //
+
+
+/// Class for domain integration L(v) := (f, v)
+class DomainGradLFIntegrator : public DeltaLFIntegrator
+{
+   DenseMatrix dshape;
+   Vector dshapeQ;
+   VectorCoefficient &Q;
+   int oa, ob;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+   DomainGradLFIntegrator(VectorCoefficient &QF, int a = 2, int b = 0)
+   // the old default was a = 1, b = 1
+   // for simple elliptic problems a = 2, b = -2 is OK
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
+
+   /// Constructs a domain integrator with a given Coefficient
+   DomainGradLFIntegrator(VectorCoefficient &QF, const IntegrationRule *ir)
+      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
+
+   void ResetCoefficient(VectorCoefficient &q) { Q = q;  }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 
 /// Class for boundary integration L(v) := (g, v)
 class BoundaryLFIntegrator : public LinearFormIntegrator
@@ -342,6 +415,11 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   // ADDED //
+   void ResetInflowCoefficient(Coefficient *inflow) { f = inflow;  }
+   // ADDED //
+
 };
 
 /** Boundary linear integrator for imposing non-zero Dirichlet boundary

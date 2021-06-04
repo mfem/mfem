@@ -152,6 +152,10 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
 
+// #if MFEM_HYPRE_VERSION >= 21600
+//    hypre_CSRMatrixBigJtoJ(csr_op);
+// #endif
+
    int m         = parcsr_op->global_num_rows;
    int n         = parcsr_op->global_num_cols;
    int fst_row   = parcsr_op->first_row_index;
@@ -162,7 +166,9 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    width  = m_loc;
 
    double * nzval  = csr_op->data;
-   int    * colind = csr_op->j;
+   // BenYee's bugfix, where j uninitialized.
+   //int    * colind = csr_op->j; 
+   int    * colind = csr_op->big_j;
    int    * rowptr = NULL;
 
    // The "i" array cannot be stolen from the hypre_CSRMatrix so we'll copy it

@@ -2531,6 +2531,12 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
    double un, a, b, w;
 
+// ADDED //
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2;
+#endif
+// ADDED //
+
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
    Vector vu(dim), nor(dim);

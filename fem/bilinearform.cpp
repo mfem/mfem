@@ -268,6 +268,32 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
    bfbfi_marker.Append(&bdr_marker);
 }
 
+// ADDED //
+void BilinearForm::ResetDomainIntegrator (BilinearFormIntegrator * bfi)
+{
+   dbfi.DeleteAll();
+   dbfi.Append (bfi);
+}
+
+void BilinearForm::ResetBoundaryIntegrator (BilinearFormIntegrator * bfi)
+{
+   bbfi.DeleteAll();
+   bbfi.Append (bfi);
+}
+
+void BilinearForm::ResetInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+{
+   fbfi.DeleteAll();
+   fbfi.Append (bfi);
+}
+
+void BilinearForm::ResetBdrFaceIntegrator (BilinearFormIntegrator * bfi)
+{
+   bfbfi.DeleteAll();
+   bfbfi.Append (bfi);
+}
+// ADDED //
+
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
 {
    if (element_matrices)

@@ -140,7 +140,8 @@ int main(int argc, char *argv[])
    args.AddOption(&bInt, "-b", "--basis-type",
                   "Basis Function Type (0-H1, 1-Nedelec, 2-Raviart-Thomas, "
                   "3-L2, 4-Fixed Order Cont.,\n\t5-Gaussian Discontinuous (2D),"
-                  " 6-Crouzeix-Raviart, 7-Serendipity)");
+                  " 6-Crouzeix-Raviart,7 RBF/RK)");
+                  " 6-Crouzeix-Raviart, 7-Serendipity, 8 RBF/RK)");
    args.AddOption(&bOrder, "-o", "--order", "Basis function order");
    args.AddOption(&vwl.nx, "-nx", "--num-win-x",
                   "Number of Viz windows in X");
@@ -193,6 +194,9 @@ int main(int argc, char *argv[])
          break;
       case 7:
          bType = 's';
+         break;
+      case 8:
+         bType = 'k';
          break;
       default:
          bType = 'h';
@@ -572,6 +576,10 @@ basisTypeStr(char bType)
          return "Gaussian Discontinuous";
       case 'c':
          return "Crouzeix-Raviart";
+         break;
+      case 'k':
+         return "RBF/RK";
+         break;
       default:
          return "INVALID";
    };
@@ -783,6 +791,15 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
             FEC = new GaussQuadraticDiscont2DFECollection();
          }
          break;
+      case 'k':
+      {
+         int numPoints = 10;
+         int distNorm = 2;
+         double h = 4.01;
+         FEC = new KernelFECollection(dim, numPoints, h,
+                                      RBFType::Gaussian,
+                                      distNorm, bOrder);
+      }
    }
    if ( FEC == NULL)
    {

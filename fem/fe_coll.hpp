@@ -1025,6 +1025,42 @@ public:
    virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-}
+/// Radial basis function collection
+class KernelFECollection : public FiniteElementCollection
+{
+private:
+   int maxDim;
+   char d_name[32];
+   ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
+   ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
+   int *SegDofOrd[2]; // for rotating segment dofs in 1D
+   int *OtherDofOrd; 
+   bool ValidGeomType(Geometry::Type GeomType) const;
+   
+public:
+   KernelFECollection(const int D,
+                      const int numPointsD,
+                      const double h,
+                      const int rbfType,
+                      const int distNorm,
+                      const int order = -1,
+                      const int intOrder = 2, // num integration points per 1d point
+                      const int mapType = FiniteElement::VALUE);
+   virtual ~KernelFECollection();
+   
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual const FiniteElement *
+   TraceFiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+
+   virtual const char * Name() const { return d_name; }
+};
+
+} // namespace mfem
 
 #endif

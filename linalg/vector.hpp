@@ -291,6 +291,10 @@ public:
        the -val in from this Vector. */
    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 
+   // ADDED //
+   void GetSubVector(int index_lo, int index_high, Vector &elemvect) const;
+   // ADDED //
+
    /// Set the entries listed in @a dofs to the given @a value.
    /** Negative dof values cause the -dof-1 position in this Vector to receive
        the -value. */
@@ -305,6 +309,10 @@ public:
        elem_data array. Negative dof values cause the -dof-1 position in this
        Vector to receive the -val from @a elem_data. */
    void SetSubVector(const Array<int> &dofs, double *elem_data);
+
+   // ADDED //
+   void SetSubVector(int index_low, int index_high, Vector &elemvect);
+   // ADDED //
 
    /** @brief Add elements of the @a elemvect Vector to the entries listed in @a
        dofs. Negative dof values cause the -dof-1 position in this Vector to add
@@ -321,6 +329,10 @@ public:
        Vector to add the -a*val from @a elemvect. */
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
+
+   // ADDED //
+   void AddElementVector(int index_low, int index_high, double c, Vector &elemvect);
+   // ADDED //
 
    /// Set all vector entries NOT in the @a dofs Array to the given @a val.
    void SetSubVectorComplement(const Array<int> &dofs, const double val);

@@ -104,12 +104,15 @@ protected:
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
 
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
-
    ElementTransformation* GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
+
+   // ADDED //
+   ElementTransformation* GetGhostFaceTransformation(FaceElementTransformations* FETr, 
+                                   IsoparametricTransformation &FaceTransformation,
+                                   Element::Type face_type, Geometry::Type face_geom);
+   // ADDED //
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -255,9 +258,49 @@ public:
    Table            send_face_nbr_elements;
    Table            send_face_nbr_vertices;
 
+   // ADDED //
+   Array<int> shared_face_to_global_face;
+   Array<int> shared_face_to_MPI_rank;
+   Array<int> vert_local_to_global;
+   int elem_local_to_global;
+   Table group_sface; // in 3D, union of group_stria and group_squad
+   // ADDED //
+
    ParNCMesh* pncmesh;
 
    int GetNGroups() const { return gtopo.NGroups(); }
+
+   // ADDED //
+
+   Table const *GetSharedFacesInGroups() 
+   { 
+
+       // determine whether faces are quads or triangles
+       // NOTE: this assumes all mesh elements have the same geometry type
+       Array<int> verts;
+       GetFaceVertices(0, verts);
+       int nv = verts.Size();
+
+       if (Dim == 3 && nv == 3) 
+       {
+           return &group_stria; 
+       } 
+       else if (Dim == 3 && nv == 4) 
+       {
+           return &group_squad; 
+       } 
+       else
+       {
+           return &group_sedge; 
+       }
+   }
+
+   // ADDED //
+
+   // ADDED (Moved from protected) //
+   void GetFaceNbrElementTransformation(
+      int i, IsoparametricTransformation *ElTr);
+   // ADDED //
 
    ///@{ @name These methods require group > 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
@@ -294,6 +337,14 @@ public:
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
+
+   // ADDED //
+   FaceElementTransformations * GetSharedFaceTransformations(int sf, 
+                                     FaceElementTransformations &FaceElemTr,
+                                     IsoparametricTransformation &Transformation, 
+                                     IsoparametricTransformation &Transformation2,
+                                     IsoparametricTransformation &FTr);
+   // ADDED //
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;

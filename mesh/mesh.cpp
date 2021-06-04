@@ -928,6 +928,82 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    return &FaceElemTr;
 }
 
+
+
+// ADDED //
+void Mesh::GetFaceElementTransformations(int FaceNo, 
+                                         FaceElementTransformations &FaceElemTr,
+                                         IsoparametricTransformation &Transformation, 
+                                         IsoparametricTransformation &Transformation2,
+                                         IsoparametricTransformation &FTr)
+{
+
+   int mask = 31;
+   FaceInfo &face_info = faces_info[FaceNo];
+
+   FaceElemTr.Elem1 = NULL;
+   FaceElemTr.Elem2 = NULL;
+
+   // setup the transformation for the first element
+   FaceElemTr.Elem1No = face_info.Elem1No;
+   if (mask & 1)
+   {
+      GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
+      FaceElemTr.Elem1 = &Transformation;
+   }
+
+   //  setup the transformation for the second element
+   //     return NULL in the Elem2 field if there's no second element, i.e.
+   //     the face is on the "boundary"
+   FaceElemTr.Elem2No = face_info.Elem2No;
+   if ((mask & 2) && FaceElemTr.Elem2No >= 0)
+   {
+#ifdef MFEM_DEBUG
+      if (NURBSext && (mask & 1)) { MFEM_ABORT("NURBS mesh not supported!"); }
+#endif
+      GetElementTransformation(FaceElemTr.Elem2No, &Transformation2);
+      FaceElemTr.Elem2 = &Transformation2;
+   }
+
+   // setup the face transformation
+   FaceElemTr.FaceGeom = GetFaceGeometryType(FaceNo);
+   GetFaceTransformation(FaceNo, &FTr);
+   FaceElemTr.Face = &FTr;
+
+   // setup Loc1 & Loc2
+   int face_type = GetFaceElementType(FaceNo);
+   if (mask & 4)
+   {
+      int elem_type = GetElementType(face_info.Elem1No);
+      GetLocalFaceTransformation(face_type, elem_type,
+                                 FaceElemTr.Loc1.Transf, face_info.Elem1Inf);
+   }
+   if ((mask & 8) && FaceElemTr.Elem2No >= 0)
+   {
+      int elem_type = GetElementType(face_info.Elem2No);
+      GetLocalFaceTransformation(face_type, elem_type,
+                                 FaceElemTr.Loc2.Transf, face_info.Elem2Inf);
+
+      // NC meshes: prepend slave edge/face transformation to Loc2
+      if (Nonconforming() && IsSlaveFace(face_info))
+      {
+         ApplyLocalSlaveTransformation(FaceElemTr.Loc2.Transf, face_info);
+
+         if (face_type == Element::SEGMENT)
+         {
+            // flip Loc2 to match Loc1 and Face
+            DenseMatrix &pm = FaceElemTr.Loc2.Transf.GetPointMat();
+            std::swap(pm(0,0), pm(0,1));
+            std::swap(pm(1,0), pm(1,1));
+         }
+      }
+   }
+
+}
+// ADDED //
+
+
+
 bool Mesh::IsSlaveFace(const FaceInfo &fi) const
 {
    return fi.NCFace >= 0 && nc_faces_info[fi.NCFace].Slave;
@@ -973,6 +1049,45 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    tr->ElementType = ElementTransformation::BDR_FACE;
    return tr;
 }
+
+
+// ADDED //
+bool Mesh::GetBdrFaceTransformations(int BdrElemNo,
+                                     FaceElementTransformations &tr,
+                                     IsoparametricTransformation &Transformation, 
+                                     IsoparametricTransformation &Transformation2,
+                                     IsoparametricTransformation &FTr)
+{
+   int fn;
+   bool is_not_null = true;
+   if (Dim == 3)
+   {
+      fn = be_to_face[BdrElemNo];
+   }
+   else if (Dim == 2)
+   {
+      fn = be_to_edge[BdrElemNo];
+   }
+   else
+   {
+      fn = boundary[BdrElemNo]->GetVertices()[0];
+   }
+   // Check if the face is interior, shared, or non-conforming.
+   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
+   {
+      is_not_null = false;
+      return is_not_null;
+   }
+   GetFaceElementTransformations(fn, tr, Transformation, 
+                                 Transformation2, FTr);
+   tr.Face->Attribute = boundary[BdrElemNo]->GetAttribute();
+
+   return is_not_null;
+
+}
+// ADDED //
+
+
 
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
 {
