@@ -61,6 +61,81 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+struct AIR_parameters
+{
+   int blocksize;
+   int distanceR;
+   std::string prerelax;
+   std::string postrelax;
+   int interp_type;
+   int relax_type;
+   int coarsen_type;
+   double strength_tolC;
+   double strength_tolR;
+   double filter_tolR;
+   double filterA_tol;
+};
+
+class AIR_prec : public Solver
+{
+private:
+   const HypreParMatrix *A;
+   HypreParMatrix A_s;
+
+   // Preconditioner/solvers for A
+   HypreBoomerAMG *AIR_solver;
+   const AIR_parameters &AIR;
+   int blocksize;
+
+public:
+
+   AIR_prec(const AIR_parameters &_AIR) :
+      AIR_solver(NULL), AIR(_AIR)
+   {
+      blocksize = AIR.blocksize;
+   }
+
+   void SetOperator(const Operator &op)
+   {
+      A = dynamic_cast<const HypreParMatrix *>(&op);
+      delete AIR_solver;
+
+      // Scale A by block-diagonal inverse
+#if MFEM_HYPRE_VERSION >= 21800
+      BlockInverseScale(A, &A_s, NULL, NULL, blocksize, 0);
+      AIR_solver = new HypreBoomerAMG(A_s);
+      AIR_solver->SetLAIROptions(AIR.distanceR, AIR.prerelax,
+                                 AIR.postrelax, AIR.strength_tolC,
+                                 AIR.strength_tolR, AIR.filter_tolR,
+                                 AIR.interp_type, AIR.relax_type,
+                                 AIR.filterA_tol, AIR.coarsen_type,
+                                 -1, 1);
+#else
+      MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");
+#endif
+      AIR_solver->SetPrintLevel(0);
+      AIR_solver->SetMaxLevels(50);
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      // scale the rhs by block inverse and solve system
+      HypreParVector z_s;
+#if MFEM_HYPRE_VERSION >= 21800
+      BlockInverseScale(A, NULL, &x, &z_s, blocksize, 2);
+#endif
+      AIR_solver->Mult(z_s, y);
+   }
+
+   ~AIR_prec()
+   {
+#if MFEM_HYPRE_VERSION >= 21800
+      BlockInverseScale(NULL, NULL, NULL, NULL, 0, -1);
+#endif
+      delete AIR_solver;
+   }
+};
+
 class DG_Solver : public Solver
 {
 private:
@@ -68,7 +143,7 @@ private:
    SparseMatrix M_diag;
    HypreParMatrix *A;
    GMRESSolver linear_solver;
-   BlockILU prec;
+   Solver *prec;
    double dt;
 public:
    DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes)
@@ -76,19 +151,39 @@ public:
         K(K_),
         A(NULL),
         linear_solver(M.GetComm()),
-        prec(fes.GetFE(0)->GetDof(),
-             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
    {
+      prec = new BlockILU(fes.GetFE(0)->GetDof(),
+                          BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
       linear_solver.iterative_mode = false;
       linear_solver.SetRelTol(1e-9);
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
       linear_solver.SetPrintLevel(0);
-      linear_solver.SetPreconditioner(prec);
+      linear_solver.SetPreconditioner(*prec);
 
       M.GetDiag(M_diag);
    }
+
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes,
+             const AIR_parameters &_AIR)
+      : M(M_),
+        K(K_),
+        A(NULL),
+        linear_solver(M.GetComm()),
+        dt(-1.0)
+   {
+      prec = new AIR_prec(_AIR);
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-9);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      linear_solver.SetPreconditioner(*prec);
+
+      M.GetDiag(M_diag);
+   }
+
 
    void SetTimeStep(double dt_)
    {
@@ -118,9 +213,11 @@ public:
 
    ~DG_Solver()
    {
+      delete prec;
       delete A;
    }
 };
+
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -139,6 +236,8 @@ private:
    mutable Vector z;
 
 public:
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+                const AIR_parameters &_AIR);
    FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -174,7 +273,10 @@ int main(int argc, char *argv[])
    bool adios2 = false;
    bool binary = false;
    int vis_steps = 5;
-
+   int solver_type = 1;
+   AIR_parameters AIR0 = {-1, 1, "", "FA", 100, 10, 10,
+                          0.1, 0.01, 0.0, 1e-4
+                         };
    int precision = 8;
    cout.precision(precision);
 
@@ -206,6 +308,8 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&solver_type, "-st", "--solver-type",
+                  "Solver for implicit solves. 0 for ILU, 1 for pAIR-AMG.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -309,6 +413,9 @@ int main(int argc, char *argv[])
    {
       cout << "Number of unknowns: " << global_vSize << endl;
    }
+
+   // Get DG blocksize for AIR
+   AIR0.blocksize = fes->GetFE(0)->GetDof();
 
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
@@ -464,11 +571,19 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B);
+   FE_Evolution *adv;
+   if (solver_type == 1)
+   {
+      adv = new FE_Evolution(*m, *k, *B, AIR0);
+   }
+   else
+   {
+      adv = new FE_Evolution(*m, *k, *B);
+   }
 
    double t = 0.0;
-   adv.SetTime(t);
-   ode_solver->Init(adv);
+   adv->SetTime(t);
+   ode_solver->Init(*adv);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -551,6 +666,7 @@ int main(int argc, char *argv[])
    }
 #endif
    delete dc;
+   delete adv;
 
    MPI_Finalize();
    return 0;
@@ -560,8 +676,7 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     b(_b),
+   : TimeDependentOperator(_M.Height()), b(_b),
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
@@ -605,6 +720,45 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetPrintLevel(0);
 }
 
+// Implementation of class FE_Evolution
+FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
+                           const Vector &_b, const AIR_parameters &_AIR)
+   : TimeDependentOperator(_M.Height()), b(_b),
+     M_solver(_M.ParFESpace()->GetComm()),
+     z(_M.Height())
+{
+   bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
+
+   if (pa)
+   {
+      MFEM_ABORT("AIR solver not available for partial assembly.\n");
+   }
+   else
+   {
+      M.Reset(_M.ParallelAssemble(), true);
+      K.Reset(_K.ParallelAssemble(), true);
+   }
+
+   HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+   HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
+   HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::GS);
+   M_prec = hypre_prec;
+
+   dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace(), _AIR);
+
+   M_solver.SetPreconditioner(*M_prec);
+   M_solver.SetOperator(*M);
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
+}
+
+// Solve the equation:
+//    u_t = M^{-1}(Ku + b),
+// by solving associated linear system
+//    (M - dt*K) d = K*u + b
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
    K->Mult(x, z);
