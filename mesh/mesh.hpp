@@ -971,13 +971,41 @@ public:
    FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
                                                              int mask = 31);
 
+   // ADDED //
+   void GetFaceElementTransformations(int FaceNo, 
+                                      FaceElementTransformations &FaceElemTr,
+                                      IsoparametricTransformation &Transformation, 
+                                      IsoparametricTransformation &Transformation2,
+                                      IsoparametricTransformation &FTr);
+   // ADDED //
+
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
       if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
       return GetFaceElementTransformations (FaceNo);
    }
 
+   // ADDED //
+   void GetInteriorFaceTransformations (int FaceNo, 
+                                        FaceElementTransformations &FaceElemTr,
+                                        IsoparametricTransformation &Transformation, 
+                                        IsoparametricTransformation &Transformation2,
+                                        IsoparametricTransformation &FTr)
+   {
+      GetFaceElementTransformations (FaceNo, FaceElemTr, 
+                                     Transformation, Transformation2, FTr);
+   }
+   // ADDED //
+
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
+
+   // ADDED //
+   bool GetBdrFaceTransformations(int BdrElemNo,
+                                  FaceElementTransformations &tr,
+                                  IsoparametricTransformation &Transformation, 
+                                  IsoparametricTransformation &Transformation2,
+                                  IsoparametricTransformation &FTr);
+   // ADDED //
 
    /// Return true if the given face is interior. @sa FaceIsTrueInterior().
    bool FaceIsInterior(int FaceNo) const

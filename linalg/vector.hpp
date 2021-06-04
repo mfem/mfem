@@ -281,16 +281,28 @@ public:
    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 
+   // ADDED //
+   void GetSubVector(int index_lo, int index_high, Vector &elemvect) const;
+   // ADDED //
+
    /// Set the entries listed in `dofs` to the given `value`.
    void SetSubVector(const Array<int> &dofs, const double value);
    void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
    void SetSubVector(const Array<int> &dofs, double *elem_data);
+
+   // ADDED //
+   void SetSubVector(int index_low, int index_high, Vector &elemvect);
+   // ADDED //
 
    /// Add (element) subvector to the vector.
    void AddElementVector(const Array<int> & dofs, const Vector & elemvect);
    void AddElementVector(const Array<int> & dofs, double *elem_data);
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
+
+   // ADDED //
+   void AddElementVector(int index_low, int index_high, double c, Vector &elemvect);
+   // ADDED //
 
    /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
    void SetSubVectorComplement(const Array<int> &dofs, const double val);

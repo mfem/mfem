@@ -232,23 +232,23 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (prec)
    {
       prec->Mult(r, z); // z = B r
-      nom0 = nom = Dot(z, r);
+      nom0 = nom = sqrt(Dot(z, z));
    }
    else
    {
-      nom0 = nom = Dot(r, r);
+      nom0 = nom = sqrt(Dot(r, r));
    }
 
    if (print_level == 1)
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  ||Br|| = "
                 << nom << '\n';
 
-   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   r0 = std::max(nom*rel_tol, abs_tol);
    if (nom <= r0)
    {
       converged = 1;
       final_iter = 0;
-      final_norm = sqrt(nom);
+      final_norm = nom;
       return;
    }
 
@@ -272,16 +272,16 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       if (prec)
       {
          prec->Mult(r, z); //  z = B r
-         nom = Dot(z, r);
+         nom = sqrt(Dot(z, z));
       }
       else
       {
-         nom = Dot(r, r);
+         nom = sqrt(Dot(r, r));
       }
 
-      cf = sqrt(nom/nomold);
+      cf = nom/nomold;
       if (print_level == 1)
-         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+         mfem::out << "   Iteration : " << setw(3) << i << "  ||Br|| = "
                    << nom << "\tConv. rate: " << cf << '\n';
       nomold = nom;
 
@@ -291,8 +291,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "Number of SLI iterations: " << i << '\n'
                       << "Conv. rate: " << cf << '\n';
          else if (print_level == 3)
-            mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                      << "(B r_N, r_N) = " << nom << '\n'
+            mfem::out << "||Br_0|| = " << nom0 << '\n'
+                      << "||Br_N|| = " << nom << '\n'
                       << "Number of SLI iterations: " << i << '\n';
          converged = 1;
          final_iter = i;
@@ -308,16 +308,16 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (print_level >= 0 && !converged)
    {
       mfem::err << "SLI: No convergence!" << '\n';
-      mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                << "(B r_N, r_N) = " << nom << '\n'
+      mfem::out << "||Br_0|| = " << nom0 << '\n'
+                << "||Br_N|| = " << nom << '\n'
                 << "Number of SLI iterations: " << final_iter << '\n';
    }
    if (print_level >= 1 || (print_level >= 0 && !converged))
    {
       mfem::out << "Average reduction factor = "
-                << pow (nom/nom0, 0.5/final_iter) << '\n';
+                << pow (nom/nom0, 1.0/final_iter) << '\n';
    }
-   final_norm = sqrt(nom);
+   final_norm = nom;
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,

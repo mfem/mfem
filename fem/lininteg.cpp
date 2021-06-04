@@ -64,6 +64,57 @@ void DomainLFIntegrator::AssembleDeltaElementVect(
 }
 
 
+void DomainLFGradIntegrator::AssembleRHSElementVect(
+    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+   
+   Vector Qvec(dim);
+   dshape.SetSize(dof, dim);
+   dshapeQ.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+   }
+   
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      Q.Eval(Qvec, Tr, ip);
+      el.CalcDShape(ip, dshape);
+      
+      dshape.Mult(Qvec, dshapeQ);
+      elvect.Add(ip.weight * Tr.Weight(), dshapeQ);
+   }
+}
+
+void DomainLFGradIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   
+   int dim = fe.GetDim();
+   int dof = fe.GetDof();
+   
+   Vector Qvec(dim);
+   elvect.SetSize(dof);
+   dshape.SetSize(dof, dim);
+   
+   fe.CalcPhysDShape(Trans, dshape);
+   vec_delta->EvalDelta(Qvec, Trans, Trans.GetIntPoint());
+   
+   dshape.Mult(Qvec, elvect);
+}
+
+
 void BoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {

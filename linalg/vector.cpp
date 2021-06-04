@@ -495,6 +495,22 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
    }
 }
 
+// ADDED //
+void Vector::GetSubVector(int index_low, int index_high, Vector &elemvect) const
+{
+    int i, j, n = index_high - index_low;
+    
+    elemvect.SetSize (n);
+    
+    int k = 0;
+    for (i = index_low; i < index_high; i++)
+    {
+        elemvect(k) = data[i];
+        k += 1;
+    }
+}
+// ADDED //
+
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
    const bool use_dev = dofs.UseDevice();
@@ -560,6 +576,36 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
       }
    }
 }
+
+
+
+// ADDED //
+void Vector::SetSubVector(int index_low, int index_high, Vector &elemvect)
+{
+    int i, j, n = index_high - index_low;
+    
+    int k = 0;
+    for (i = index_low; i < index_high; i++)
+    {
+        data[i] = elemvect(k);
+        k += 1;
+    }
+}
+
+
+void Vector::AddElementVector(int index_low, int index_high, double c, Vector &elemvect)
+{
+    int i, j;
+    
+    int k = 0;
+    for (i = index_low; i < index_high; i++)
+    {
+        data[i] += c * elemvect(k);
+        k += 1;
+    }
+}
+// ADDED //
+
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 {
