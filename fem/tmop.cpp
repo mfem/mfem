@@ -2188,7 +2188,7 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
 #endif
 }
 
-void TMOP_Integrator::ReleasePAMemory()
+void TMOP_Integrator::ReleasePADeviceMemory()
 {
    if (PA.enabled)
    {

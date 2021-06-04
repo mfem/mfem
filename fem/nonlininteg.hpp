@@ -32,7 +32,7 @@ protected:
    // CEED extension
    ceed::Operator* ceedOp;
 
-   MemoryType temp_mt = MemoryType::DEFAULT;
+   MemoryType pa_mt = MemoryType::DEFAULT;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
       : IntRule(ir), ceedOp(NULL) { }
@@ -45,7 +45,9 @@ public:
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
 
-   void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
+   /// Set the memory type used for GeometricFactors and other large
+   /// allocations in PA extensions.
+   void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
 
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }

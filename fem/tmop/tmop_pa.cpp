@@ -50,8 +50,8 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
 
 void TMOP_Integrator::AssemblePA_Limiting()
 {
-   const MemoryType mt = (temp_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : temp_mt;
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    // Return immediately if limiting is not enabled
    if (coeff0 == nullptr) { return; }
    MFEM_VERIFY(nodes0, "internal error");
@@ -177,8 +177,8 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   const MemoryType mt = (temp_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : temp_mt;
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    PA.enabled = true;
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
