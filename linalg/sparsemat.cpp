@@ -687,7 +687,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
 
-#if CUDA_VERSION > 10020 || CUDA_VERSION == 10020
+#if CUDA_VERSION > 11020 || CUDA_VERSION == 11020
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
