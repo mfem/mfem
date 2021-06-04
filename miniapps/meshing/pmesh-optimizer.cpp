@@ -186,7 +186,7 @@ void kershaw(const double epsy, const double epsz,
 void stretching2D(const double x, const double y,
                   double &X, double &Y)
 {
-   double amp = 0.25;
+   double amp = 0.3;
    double frq = 8.;
 
    double dx1 = amp*cos(frq*M_PI*(y-0.5)*(-0.5)),
@@ -203,7 +203,7 @@ void stretching2D(const double x, const double y,
 void stretching3D(const double x, const double y, const double z,
                double &X, double &Y, double &Z)
 {
-   double amp = 0.25;
+   double amp = 0.3;
    double frq = 8.;
 
    double dx1 = amp*cos(frq*M_PI*(y-0.5)*(z-0.5)),
