@@ -707,7 +707,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          CuMemAlloc(&dBuffer, bufferSize);
       }
 
-#if CUDA_VERSION > 10020 || CUDA_VERSION == 10020
+#if CUDA_VERSION > 11020 || CUDA_VERSION == 11020
       // Update input/output vectors
       cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
       cusparseDnVecSetValues(vecY_descr, d_y);
