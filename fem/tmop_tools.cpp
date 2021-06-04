@@ -78,7 +78,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    else if (pfes)
    {
       pfess = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl(), 1);
-      oper  = new ParAdvectorCGOper(nodes0, u, *pfess, al, temp_mt);
+      oper  = new ParAdvectorCGOper(nodes0, u, *pfess, al, opt_mt);
    }
 #endif
    MFEM_VERIFY(oper != NULL,
@@ -238,14 +238,20 @@ ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
      u(vel), u_coeff(&u), M(&pfes), K(&pfes), al(al)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
-   Kinteg->SetTempMemoryType(temp_mt);
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      Kinteg->SetPAMemoryType(temp_mt);
+   }
    K.AddDomainIntegrator(Kinteg);
    K.SetAssemblyLevel(al);
    K.Assemble(0);
    K.Finalize(0);
 
    MassIntegrator *Minteg = new MassIntegrator;
-   Minteg->SetTempMemoryType(temp_mt);
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      Minteg->SetPAMemoryType(temp_mt);
+   }
    M.AddDomainIntegrator(Minteg);
    M.SetAssemblyLevel(al);
    M.Assemble(0);

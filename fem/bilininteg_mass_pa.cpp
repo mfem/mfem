@@ -25,8 +25,8 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   const MemoryType mt = (temp_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : temp_mt;
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
 
    // Assuming the same element type
    fespace = &fes;

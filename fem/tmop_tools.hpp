@@ -29,7 +29,7 @@ private:
    Vector field0;
    const double dt_scale;
    const AssemblyLevel al;
-   MemoryType temp_mt = MemoryType::DEFAULT;
+   MemoryType opt_mt = MemoryType::DEFAULT;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
@@ -44,7 +44,10 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
 
-   void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
+   /// Set the memory type used for large memory allocations. This memory type
+   /// is used when constructing the AdvectorCGOper but currently only for the
+   /// parallel variant.
+   void SetMemoryType(MemoryType mt) { opt_mt = mt; }
 };
 
 #ifdef MFEM_USE_GSLIB
@@ -107,7 +110,8 @@ protected:
 
 public:
    /** Here @a pfes is the ParFESpace of the function that will be moved. Note
-       that Mult() moves the nodes of the mesh corresponding to @a pfes. */
+       that Mult() moves the nodes of the mesh corresponding to @a pfes.
+       @a mt is used to set the memory type of the integrators. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
                      ParFiniteElementSpace &pfes,
                      AssemblyLevel al = AssemblyLevel::LEGACY,
@@ -173,6 +177,7 @@ public:
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
 
+   // Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
