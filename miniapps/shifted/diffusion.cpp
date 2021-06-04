@@ -197,18 +197,18 @@ int main(int argc, char *argv[])
                              "Element Flags", 0, 0, s, s, "Rjmpc");
    }
 
-   // Get a list of dofs associated with shifted boundary faces.
-   Array<int> sbm_dofs; // Array of dofs on SBM faces
-   marker.ListShiftedFaceDofs(elem_marker, sbm_dofs);
+   // Get a list of dofs associated with shifted boundary (SB) faces.
+   Array<int> sb_dofs; // Array of dofs on SB faces
+   marker.ListShiftedFaceDofs(elem_marker, sb_dofs);
 
    // Visualize the shifted boundary face dofs.
    if (visualization)
    {
       ParGridFunction face_dofs(&pfespace);
       face_dofs = 0.0;
-      for (int i = 0; i < sbm_dofs.Size(); i++)
+      for (int i = 0; i < sb_dofs.Size(); i++)
       {
-         face_dofs(sbm_dofs[i]) = 1.0;
+         face_dofs(sb_dofs[i]) = 1.0;
       }
       char vishost[] = "localhost";
       int  visport   = 19916, s = 350;
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
    // boundary.
    Array<int> ess_tdof_list;
    Array<int> ess_shift_bdr;
-   marker.ListEssentialTDofs(elem_marker, sbm_dofs, ess_tdof_list,
+   marker.ListEssentialTDofs(elem_marker, sb_dofs, ess_tdof_list,
                              ess_shift_bdr);
 
    // Compute distance vector to the actual boundary.
@@ -340,6 +340,7 @@ int main(int argc, char *argv[])
    {
       MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
    }
+   // Add integrators corresponding to the shifted boundary method (SBM).
    b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
                                                              alpha, *dist_vec,
                                                              elem_marker,

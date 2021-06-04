@@ -466,6 +466,7 @@ public:
                                        Vector &elvect);
 };
 
+
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is
     given by
