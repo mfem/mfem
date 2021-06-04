@@ -11,20 +11,20 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-	dist_solver.cpp
-	sbm_solver.cpp 
-	marking.cpp)
+        dist_solver.cpp
+        sbm_solver.cpp
+        marking.cpp)
   list(APPEND DIST_COMMON_HEADERS
-	dist_solver.hpp
-	sbm_solver.hpp
+        dist_solver.hpp
+        sbm_solver.hpp
         marking.hpp)
 
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
 
 set(DIST_COMMON_FILES
-	EXTRA_SOURCES ${DIST_COMMON_SOURCES}
-	EXTRA_HEADERS ${DIST_COMMON_HEADERS})
+        EXTRA_SOURCES ${DIST_COMMON_SOURCES}
+        EXTRA_HEADERS ${DIST_COMMON_HEADERS})
 
 add_mfem_miniapp(distance
     MAIN distance.cpp

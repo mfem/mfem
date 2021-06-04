@@ -21,7 +21,7 @@ using namespace mfem;
 double dist_value(const Vector &x, const int type)
 {
    double ring_radius = 0.2;
-   if (type == 1 || type == 2)   // circle of radius 0.2 - centered at 0.5, 0.5
+   if (type == 1 || type == 2) // circle of radius 0.2 - centered at 0.5, 0.5
    {
       double dx = x(0) - 0.5,
              dy = x(1) - 0.5,
@@ -34,7 +34,7 @@ double dist_value(const Vector &x, const int type)
       rv = rv > 0 ? pow(rv, 0.5) : 0;
       return rv - ring_radius; // positive is the domain
    }
-   else if (type == 3)   // walls at y = 0.0
+   else if (type == 3) // walls at y = 0.0
    {
       return x(1);
    }

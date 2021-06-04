@@ -9,54 +9,54 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//      -----------------------------------------------------------------
-//      Shifted Boundary Miniapp: Finite element immersed boundary solver
-//      -----------------------------------------------------------------
+//  ---------------------------------------------------------------------------
+//  Shifted Boundary Diffusion Miniapp: Finite element immersed boundary solver
+//  ---------------------------------------------------------------------------
 //
 // This miniapp solves the Poisson problem with prescribed boundary conditions
 // on a surrogate domain using a high-order extension of the shifted boundary
-// method [1]. Using a level-set prescribed to represent the true boundary,
-// a distance function is computed for the immersed background mesh. A
-// surrogate domain is also computed to solve the Poisson problem, based on the
-// intersection of the zero level-set with the background mesh. The distance
-// function is used with a Taylor expansion to enforce Dirichlet boundary
-// conditions on the (non-aligned) mesh faces of the surrogate domain,
-// therefore "shifting" the location where boundary conditions are imposed.
+// method [1]. Using a level-set prescribed to represent the true boundary, a
+// distance function is computed for the immersed background mesh. A surrogate
+// domain is also computed to solve the Poisson problem, based on intersection
+// of the zero level-set with the background mesh. The distance function is used
+// with a Taylor expansion to enforce Dirichlet boundary conditions on the
+// (non-aligned) mesh faces of the surrogate domain, therefore "shifting" the
+// location where boundary conditions are imposed.
 //
-// [1] Atallah, Nabil M., Claudio Canuto, and Guglielmo Scovazzi. "The
+// [1] Atallah, Nabil M., Claudio Canuto and Guglielmo Scovazzi. "The
 // second-generation Shifted Boundary Method and its numerical analysis."
 // Computer Methods in Applied Mechanics and Engineering 372 (2020): 113341.
-//
 //
 // Compile with: make diffusion
 //
 // Sample runs:
+//
 //   Problem 1: Circular hole of radius 0.2 at the center of the domain.
-//              Solves -nabla^u = 1 with homogeneous boundary conditions.
-//   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 1
-//   mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
+//              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
+//     mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 1
+//     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
-//              Solves -nabla^u = f with inhomogeneous boundary conditions, and
+//              Solves -nabla^2 u = f with inhomogeneous boundary conditions, and
 //              f is setup such that u = x^p + y^p, where p = 2 by default.
 //              This is a 2D convergence test.
-//   mpirun -np 4 diffusion -rs 2 -o 2 -vis -lst 2
+//     mpirun -np 4 diffusion -rs 2 -o 2 -vis -lst 2
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
-//              Solves -nabla^u = f with inhomogeneous boundary conditions, and
-//              f is setup such that u = sin(pi*x*y).
-//              This is a 2D convergence test. Second-order can be demonstrated
-//              by changing the refinement level (-rs) for the sample run below.
-//              Higher-order convergence can be realized by also increasing the
-//              order (-o) of the finite element space and the number of
-//              high-order terms (-ho) to be included from the Taylor expansion
-//              used to enfore the boundary conditions.
-//   mpirun -np 4 diffusion -rs 2 -o 1 -vis -lst 3
+//              Solves -nabla^2 u = f with inhomogeneous boundary conditions,
+//              and f is setup such that u = sin(pi*x*y).  This is a 2D
+//              convergence test. Second-order can be demonstrated by changing
+//              refinement level (-rs) for the sample run below.  Higher-order
+//              convergence can be realized by also increasing the order (-o) of
+//              the finite element space and the number of high-order terms
+//              (-ho) to be included from the Taylor expansion used to enforce
+//              the boundary conditions.
+//     mpirun -np 4 diffusion -rs 2 -o 1 -vis -lst 3
 //
 //   Problem 4: Complex 2D shape:
-//              Solves -nabla^u = 1 with homogeneous boundary conditions.
-//   mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
-//
+//              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
+//     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "sbm_aux.hpp"
@@ -114,8 +114,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // Enable hardware devices such as GPUs, and programming models such as
-   // CUDA, OCCA, RAJA and OpenMP based on command line options.
+   // Enable hardware devices such as GPUs, and programming models such as CUDA,
+   // OCCA, RAJA and OpenMP based on command line options.
    Device device("cpu");
    device.Print();
 
@@ -128,9 +128,8 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // Define a finite element space on the mesh. Here we use continuous
-   // Lagrange finite elements of the specified order. If order < 1, we
-   // fix it to 1.
+   // Define a finite element space on the mesh. Here we use continuous Lagrange
+   // finite elements of the specified order. If order < 1, we fix it to 1.
    if (order < 1) { order = 1; }
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfespace(&pmesh, &fec);
@@ -173,10 +172,9 @@ int main(int argc, char *argv[])
    Dist_Level_Set_Coefficient dist_fun_level_coef(level_set_type);
    level_set_val.ProjectCoefficient(dist_fun_level_coef);
    // Exchange information for ghost elements i.e. elements that share a face
-   // with element on the current processor, but are located on another
-   // processor.
+   // with element on the current processor, but belong to another processor.
    level_set_val.ExchangeFaceNbrData();
-   // Setup the class to mark all elements based on wether they are located
+   // Setup the class to mark all elements based on whether they are located
    // inside or outside the true domain, or intersected by the true boundary.
    ShiftedFaceMarker marker(pmesh, level_set_val, pfespace, include_cut_cell);
    Array<int> elem_marker;
@@ -220,10 +218,10 @@ int main(int argc, char *argv[])
    }
 
    // Make a list of inactive tdofs that will be eliminated from the system.
-   // The inactive tdofs are the dofs for the elements located outside the
-   // true domain (and optionally, for the elements cut by the true boundary,
-   // if include_cut_cell = false) minus the dofs that are located on the
-   // surrogate boundary.
+   // The inactive tdofs are the dofs for the elements located outside the true
+   // domain (and optionally, for the elements cut by the true boundary, if
+   // include_cut_cell = false) minus the dofs that are located on the surrogate
+   // boundary.
    Array<int> ess_tdof_list;
    Array<int> ess_shift_bdr;
    marker.ListEssentialTDofs(elem_marker, sbm_dofs, ess_tdof_list,
@@ -354,9 +352,9 @@ int main(int argc, char *argv[])
                                                         ho_terms), ess_shift_bdr);
    b.Assemble();
 
-   // Set up the bilinear form a(.,.) on the finite element space
-   // corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   // domain integrator and SBM integrator.
+   // Set up the bilinear form a(.,.) on the finite element space corresponding
+   // to the Laplacian operator -Delta, by adding the Diffusion domain
+   // integrator and SBM integrator.
    ParBilinearForm a(&pfespace);
    ConstantCoefficient one(1.);
    a.AddDomainIntegrator(new DiffusionIntegrator(one), ess_elem);
@@ -425,7 +423,7 @@ int main(int argc, char *argv[])
                              "Solution", s, 0, s, s, "Rj");
    }
 
-   // Construct an error gridfunction if the exact solution is known.
+   // Construct an error grid function if the exact solution is known.
    if (level_set_type == 2 || level_set_type == 3)
    {
       ParGridFunction err(x);

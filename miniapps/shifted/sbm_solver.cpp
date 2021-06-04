@@ -77,7 +77,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       {
          elem1f = true;
       }
-      //1 is cut, 2 is inside
+      // 1 is cut, 2 is inside
       else if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
                marker2 == ShiftedFaceMarker::SBElementType::INSIDE)
       {
@@ -98,7 +98,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       {
          elem1f = true;
       }
-      //1 is outside, 2 is cut
+      // 1 is outside, 2 is cut
       else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
                marker2 == ShiftedFaceMarker::SBElementType::CUT)
       {
@@ -152,7 +152,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       }
 
       DenseMatrix grad_work;
-      grad_phys_dir.SetSize(dim); //NxN matrices for derivative in each direction
+      grad_phys_dir.SetSize(dim); // NxN matrices for derivative in each direction
       for (int i = 0; i < dim; i++)
       {
          grad_phys_dir[i] = new DenseMatrix(ndof, ndof);
@@ -216,7 +216,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    Vector q_hess_dot_d(ndof);
 
    Vector D(vD->GetVDim());
-   // assemble: -< \nabla u.n, w >
+   // Assemble: -< \nabla u.n, w >
    //           -< u + \nabla u.d + h.o.t, \nabla w.n>
    //           -<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -266,13 +266,13 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
 
       ni.Set(w, nor); // alpha_k*nor/det(J)
       adjJ.Mult(ni, nh);
-      dshape.Mult(nh, dshapedn); //dphi/dn * Jinv * alpha_k * nor
+      dshape.Mult(nh, dshapedn); // dphi/dn * Jinv * alpha_k * nor
 
       // <grad u.n, w> - Term 2
       AddMult_a_VWt(-1., shape, dshapedn, temp_elmat);
 
       if (elem1f) { el1.CalcPhysDShape(*(Trans.Elem1), dshapephys); }
-      else { el1.CalcPhysDShape(*(Trans.Elem2), dshapephys); } //dphi/dx
+      else { el1.CalcPhysDShape(*(Trans.Elem2), dshapephys); } // dphi/dx
       dshapephys.Mult(D, dshapephysdd); // dphi/dx.D);
 
       q_hess_dot_d = 0.;
@@ -315,7 +315,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
 
       int offset = elem1f ? 0 : ndof1;
       elmat.CopyMN(temp_elmat, offset, offset);
-   } //p < ir->GetNPoints()
+   } // p < ir->GetNPoints()
 
    for (int i = 0; i < dkphi_dxk.Size(); i++)
    {
@@ -410,7 +410,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
          elem1f = true;
          ndof = ndof1;
       }
-      //1 is outside, 2 is cut
+      // 1 is outside, 2 is cut
       else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
                marker2 == ShiftedFaceMarker::SBElementType::CUT)
       {
@@ -462,7 +462,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       }
 
       DenseMatrix grad_work;
-      grad_phys_dir.SetSize(dim); //NxN matrix for derivative in each direction
+      grad_phys_dir.SetSize(dim); // NxN matrix for derivative in each direction
       for (int i = 0; i < dim; i++)
       {
          grad_phys_dir[i] = new DenseMatrix(ndof, ndof);
@@ -528,7 +528,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
 
    Vector D(vD->GetVDim());
    Vector wrk = shape;
-   // assemble: -< u_D, \nabla w.n >
+   // Assemble: -< u_D, \nabla w.n >
    //           -<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
@@ -582,7 +582,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       adjJ.Mult(ni, nh);
 
       dshape.Mult(nh, dshape_dn);
-      temp_elvect.Add(-1., dshape_dn); //T2
+      temp_elvect.Add(-1., dshape_dn); // T2
 
       double jinv;
       if (elem1f)
@@ -624,9 +624,9 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       }
 
       wrk = shape;
-      wrk += dshape_dd; //\grad w .d
+      wrk += dshape_dd; // \grad w .d
       wrk += q_hess_dot_d;
-      temp_elvect.Add(w, wrk); //<u, gradw.d>
+      temp_elvect.Add(w, wrk); // <u, gradw.d>
 
       int offset = elem1f ? 0 : ndof1;
       for (int i = 0; i < temp_elvect.Size(); i++)
