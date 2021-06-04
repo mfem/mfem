@@ -210,6 +210,10 @@ Version 4.2.1 (development)
   H(curl) and H(div) spaces is introduced to give spectral equivalence. This
   functionality is illustrated in the LOR solvers miniapp in miniapps/solvers.
 
+- Added a high-order extension of the shifted boundary method to solve PDEs on
+  non body-fitted meshes. The new shifted boundary miniapp demonstrates use of
+  this method (see miniapps/shifted/diffusion.cpp).
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
@@ -417,9 +421,6 @@ New and updated examples and miniapps
   * A new test problem showing a mixed bilinear form for H1, H(curl), H(div) and
     L2, with partial assembly support in Example 24/24p.
   * Weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
-
-- Added a high-order extension of the shifted boundary method to solve PDEs on 
-  non body-fitted meshes.
 
 Data management and Visualization
 ---------------------------------
