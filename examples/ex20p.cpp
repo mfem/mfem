@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
    }
 
    // 6. Create a Mesh for visualization in phase space
-   int nverts = (visualization) ? (num_procs+1)*(nsteps+1) : 0;
+   int nverts = (visualization) ? 2*num_procs*(nsteps+1) : 0;
    int nelems = (visualization) ? (nsteps * num_procs) : 0;
    Mesh mesh(2, nverts, nelems, 0, 3);
 
@@ -190,9 +190,9 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            mesh.AddVertex(x0);
             for (int j = 0; j < num_procs; j++)
             {
+               mesh.AddVertex(x0);
                x1[0] = q(0);
                x1[1] = p(0);
                x1[2] = 0.0;
@@ -216,17 +216,17 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          x0[2] = t;
-         mesh.AddVertex(x0);
          for (int j = 0; j < num_procs; j++)
          {
+            mesh.AddVertex(x0);
             x1[0] = q(0);
             x1[1] = p(0);
             x1[2] = t;
             mesh.AddVertex(x1);
-            v[0] = (num_procs + 1) * i;
-            v[1] = (num_procs + 1) * (i + 1);
-            v[2] = (num_procs + 1) * (i + 1) + j + 1;
-            v[3] = (num_procs + 1) * i + j + 1;
+            v[0] = 2 * num_procs * i + 2 * j;
+            v[1] = 2 * num_procs * (i + 1) + 2 * j;
+            v[2] = 2 * num_procs * (i + 1) + 2 * j + 1;
+            v[3] = 2 * num_procs * i + 2 * j + 1;
             mesh.AddQuad(v);
             part[num_procs * i + j] = j;
          }
