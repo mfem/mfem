@@ -22,6 +22,11 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+void LinearFormIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, Vector &elvect)
+{
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+}
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
@@ -205,6 +210,40 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
       elvect.Add(ip.weight*(Qvec*nor), shape);
    }
 }
+
+void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+   Vector nor(dim), Qvec;
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetAllIntPoints(&ip);
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint(); 
+
+      CalcOrtho(Tr.Jacobian(), nor);
+      Q.Eval(Qvec, Tr, ip);
+
+      el.CalcShape(eip, shape);
+
+      elvect.Add(ip.weight*(Qvec*nor), shape);
+   }
+}
+
 
 void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)

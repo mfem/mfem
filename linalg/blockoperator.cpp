@@ -381,4 +381,207 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
    }
 }
 
+BlockUpperTriangularPreconditioner::BlockUpperTriangularPreconditioner(
+   const Array<int> & offsets_)
+   : Solver(offsets_.Last()),
+     owns_blocks(0),
+     nBlocks(offsets_.Size() - 1),
+     offsets(0),
+     op(nBlocks, nBlocks)
+{
+   op = static_cast<Operator *>(NULL);
+   offsets.MakeRef(offsets_);
+}
+
+void BlockUpperTriangularPreconditioner::SetDiagonalBlock(int iblock,
+                                                          Operator *op)
+{
+   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
+               offsets[iblock+1] - offsets[iblock] == op->Width(),
+               "incompatible Operator dimensions");
+
+   SetBlock(iblock, iblock, op);
+}
+
+void BlockUpperTriangularPreconditioner::SetBlock(int iRow, int iCol,
+                                                  Operator *opt)
+{
+   MFEM_VERIFY(iRow <= iCol,"cannot set block in lower triangle");
+   MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == opt->NumRows() &&
+               offsets[iCol+1] - offsets[iCol] == opt->NumCols(),
+               "incompatible Operator dimensions");
+
+   op(iRow, iCol) = opt;
+}
+
+// Operator application
+void BlockUpperTriangularPreconditioner::MultTranspose (const Vector & x,
+                                               Vector & y) const
+{
+   MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
+
+   yblock.Update(y.GetData(),offsets);
+   xblock.Update(x.GetData(),offsets);
+
+   y = 0.0;
+   for (int iRow=0; iRow < nBlocks; ++iRow)
+   {
+      tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
+      tmp2.SetSize(offsets[iRow+1] - offsets[iRow]);
+      tmp2 = 0.0;
+      tmp2 += xblock.GetBlock(iRow);
+      for (int jCol=0; jCol < iRow; ++jCol)
+      {
+         if (op(iRow,jCol))
+         {
+            op(iRow,jCol)->MultTranspose(yblock.GetBlock(jCol), tmp);
+            tmp2 -= tmp;
+         }
+      }
+      if (op(iRow,iRow))
+      {
+         op(iRow,iRow)->MultTranspose(tmp2, yblock.GetBlock(iRow));
+      }
+      else
+      {
+         yblock.GetBlock(iRow) = tmp2;
+      }
+   }
+}
+
+// Action of the transpose operator
+void BlockUpperTriangularPreconditioner::Mult(const Vector & x,
+                                                        Vector & y) const
+{
+   MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
+
+   yblock.Update(y.GetData(),offsets);
+   xblock.Update(x.GetData(),offsets);
+
+   y = 0.0;
+   for (int iRow=nBlocks-1; iRow >=0; --iRow)
+   {
+      tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
+      tmp2.SetSize(offsets[iRow+1] - offsets[iRow]);
+      tmp2 = 0.0;
+      tmp2 += xblock.GetBlock(iRow);
+      for (int jCol=iRow+1; jCol < nBlocks; ++jCol)
+      {
+         if (op(jCol,iRow))
+         {
+            op(jCol,iRow)->Mult(yblock.GetBlock(jCol), tmp);
+            tmp2 -= tmp;
+         }
+      }
+      if (op(iRow,iRow))
+      {
+         op(iRow,iRow)->Mult(tmp2, yblock.GetBlock(iRow));
+      }
+      else
+      {
+         yblock.GetBlock(iRow) = tmp2;
+      }
+   }
+}
+
+BlockUpperTriangularPreconditioner::~BlockUpperTriangularPreconditioner()
+{
+   if (owns_blocks)
+   {
+      for (int iRow=0; iRow < nBlocks; ++iRow)
+      {
+         for (int jCol=0; jCol < nBlocks; ++jCol)
+         {
+            delete op(jCol,iRow);
+         }
+      }
+   }
+}
+
+BlockLDUPreconditioner::BlockLDUPreconditioner(
+   const Array<int> & offsets_, int schur_index_)
+   : Solver(offsets_.Last()),
+     owns_blocks(0),
+     nBlocks(offsets_.Size() - 1),
+     offsets(0),
+     op(nBlocks, nBlocks),
+     schur_index(schur_index_)
+{
+   op = static_cast<Operator *>(NULL);
+   offsets.MakeRef(offsets_);
+}
+
+void BlockLDUPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
+{
+   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
+               offsets[iblock+1] - offsets[iblock] == op->Width(),
+               "incompatible Operator dimensions");
+   MFEM_VERIFY(iblock >=0 && iblock <= 1,
+               "Only valid for 2x2 block matrices");
+
+   SetBlock(iblock, iblock, op);
+}
+
+void BlockLDUPreconditioner::SetBlock(int iRow, int iCol, Operator *opt)
+{
+   MFEM_VERIFY(iRow >=0 && iRow <= 1, "Only valid for 2x2 block matrices");
+   MFEM_VERIFY(iCol >=0 && iCol <= 1, "Only valid for 2x2 block matrices");
+   MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == opt->NumRows() &&
+               offsets[iCol+1] - offsets[iCol] == opt->NumCols(),
+               "incompatible Operator dimensions");
+
+   op(iRow, iCol) = opt;
+}
+
+// Action of the transpose operator
+void BlockLDUPreconditioner::Mult(const Vector & x, Vector & y) const
+{
+   MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
+
+   yblock.Update(y.GetData(),offsets);
+   xblock.Update(x.GetData(),offsets);
+   y = 0.0;
+
+   // Schur-complement in the (1,1) block (i.e., (0,0) block w/ zero indexing)
+   // TODO
+
+   // Schur-complement in the (2,2) block (i.e., (1,1) block w/ zero indexing)
+   // A^{-1} = [I, -A11^{-1}A12; 0, I] * [I, 0; 0, S22^{-2}] * 
+   //          [I, 0; -A21, I] * [A11^{-1}, 0; 0, I]
+   op(0,0) -> Mult(xblock.GetBlock(0), yblock.GetBlock(0));
+   
+   tmp.SetSize(offsets[2] - offsets[1]);
+   op(1,0) -> Mult(yblock.GetBlock(0), tmp);
+   tmp *= -1;
+   tmp += xblock.GetBlock(1);
+
+   op(1,1) -> Mult(tmp, yblock.GetBlock(1));
+
+   // BUG IN THIS SECTION
+   tmp3.SetSize(offsets[1] - offsets[0]);
+   tmp2.SetSize(offsets[1] - offsets[0]);
+   tmp2 = 0.0;
+   op(0,1) -> Mult(yblock.GetBlock(1), tmp3);
+   op(0,0) -> Mult(tmp3, tmp2);
+   tmp = yblock.GetBlock(0);
+   yblock.GetBlock(0) = tmp - tmp2; // <--- this line
+}
+
+BlockLDUPreconditioner::~BlockLDUPreconditioner()
+{
+   if (owns_blocks)
+   {
+      for (int iRow=0; iRow < nBlocks; ++iRow)
+      {
+         for (int jCol=0; jCol < nBlocks; ++jCol)
+         {
+            delete op(jCol,iRow);
+         }
+      }
+   }
+}
+
 }

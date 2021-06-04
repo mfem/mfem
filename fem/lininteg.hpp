@@ -35,6 +35,10 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el1, 
+                                       const FiniteElement &el2, 
+                                       FaceElementTransformations &Tr, 
+                                       Vector &elvect); 
 
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
@@ -182,8 +186,9 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(const FiniteElement &el, 
+                                       FaceElementTransformations &Tr, 
+                                       Vector &elvec); 
 };
 
 /// Class for boundary integration \f$ L(v) = (g \cdot \tau, v) \f$ in 2D

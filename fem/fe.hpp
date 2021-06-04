@@ -2705,6 +2705,8 @@ public:
    { CalcVShape_RT(Trans, shape); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip, 
+                             DenseMatrix &gshape) const; 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }

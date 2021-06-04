@@ -43,6 +43,58 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
    pfes = pf;
 }
 
+void ParLinearForm::AssembleSharedFaces() 
+{
+	ParMesh *pmesh = pfes->GetParMesh();
+	FaceElementTransformations *T;
+	Array<int> vdofs1, vdofs2, vdofs_all;
+	Vector elvec;
+
+	int nfaces = pmesh->GetNSharedFaces();
+	for (int i = 0; i < nfaces; i++)
+	{
+	   T = pmesh->GetSharedFaceTransformations(i);
+	   int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
+	   pfes->GetElementVDofs(T->Elem1No, vdofs1);
+	   pfes->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs2);
+	   vdofs1.Copy(vdofs_all);
+	   int height = pfes->GetVSize(); 
+	   for (int j = 0; j < vdofs2.Size(); j++)
+	   {
+	      if (vdofs2[j] >= 0)
+	      {
+	         vdofs2[j] += height;
+	      }
+	      else
+	      {
+	         vdofs2[j] -= height;
+	      }
+	   }
+	   vdofs_all.Append(vdofs2);
+	   for (int k = 0; k < iflfi.Size(); k++)
+	   {
+	      iflfi[k]->AssembleRHSElementVect(*pfes->GetFE(T->Elem1No),
+	      	*pfes->GetFaceNbrFE(Elem2NbrNo),
+	      	*T, elvec); 
+	      Vector local; 
+	      local.MakeRef(elvec, 0, vdofs1.Size()); 
+	      AddElementVector(vdofs1, local); 
+	   }
+	}
+
+}
+
+void ParLinearForm::Assemble() 
+{
+	if (iflfi.Size()>0) {
+		pfes->ExchangeFaceNbrData(); 
+	}
+	LinearForm::Assemble(); 
+	if (iflfi.Size()>0) {
+		AssembleSharedFaces(); 
+	}
+}
+
 void ParLinearForm::ParallelAssemble(Vector &tv)
 {
    const Operator* prolong = pfes->GetProlongationMatrix();

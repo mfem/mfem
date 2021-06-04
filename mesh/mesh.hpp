@@ -40,6 +40,7 @@ class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
+class FaceElementTransformationsData; 
 
 /** An enum type to specify if interior or boundary faces are desired. */
 enum class FaceType : bool {Interior, Boundary};
@@ -1029,6 +1030,12 @@ public:
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
+   // --- added --- 
+   FaceElementTransformations* GetFaceElementTransformations(FaceElementTransformationsData &fetd, int FaceNo, int mask=31); 
+   FaceElementTransformations* GetInteriorFaceTransformations(FaceElementTransformationsData &fetd, int FaceNo); 
+   FaceElementTransformations* GetBdrFaceTransformations(FaceElementTransformationsData &fetd, int BdrElemNo); 
+   // --- added --- 
+
    /// Return true if the given face is interior. @sa FaceIsTrueInterior().
    bool FaceIsInterior(int FaceNo) const
    {
@@ -1519,6 +1526,13 @@ inline void ShiftRight(int &a, int &b, int &c)
    int t = a;
    a = c;  c = b;  b = t;
 }
+
+class FaceElementTransformationsData {
+public:
+	IsoparametricTransformation Elem1, Elem2; 
+	FaceElementTransformations face; 
+	FaceElementTransformations* operator&() { return &face; }
+}; 
 
 }
 

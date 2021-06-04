@@ -442,28 +442,164 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
    p_mat_e.Clear();
 }
 
+void ParMixedBilinearForm::pAllocMat() 
+{
+   int tr_nbr_size = trial_pfes->GetFaceNbrVSize(); 
+   int te_nbr_size = test_pfes->GetFaceNbrVSize(); 
+   if (keep_nbr_block)
+   {
+      mat = new SparseMatrix(height + te_nbr_size, width + tr_nbr_size);
+   }
+   else
+   {
+      mat = new SparseMatrix(height, width + tr_nbr_size);
+   }
+   return;
+}
+
+void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
+{
+   ParMesh *pmesh = trial_pfes->GetParMesh();
+   FaceElementTransformations *T;
+   Array<int> tr_vdofs1, tr_vdofs2, tr_vdofs_all;
+   Array<int> te_vdofs1, te_vdofs2, te_vdofs_all; 
+   DenseMatrix elemmat;
+
+   int nfaces = pmesh->GetNSharedFaces();
+   for (int i = 0; i < nfaces; i++)
+   {
+      T = pmesh->GetSharedFaceTransformations(i);
+      int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
+      trial_pfes->GetElementVDofs(T->Elem1No, tr_vdofs1);
+      trial_pfes->GetFaceNbrElementVDofs(Elem2NbrNo, tr_vdofs2);
+      test_pfes->GetElementVDofs(T->Elem1No, te_vdofs1); 
+      test_pfes->GetFaceNbrElementVDofs(Elem2NbrNo, te_vdofs2); 
+      tr_vdofs1.Copy(tr_vdofs_all);
+      te_vdofs1.Copy(te_vdofs_all); 
+      for (int j = 0; j < tr_vdofs2.Size(); j++)
+      {
+         if (tr_vdofs2[j] >= 0)
+         {
+            tr_vdofs2[j] += width;
+         }
+         else
+         {
+            tr_vdofs2[j] -= width;
+         }
+      }
+      tr_vdofs_all.Append(tr_vdofs2);
+
+      for (int j = 0; j < te_vdofs2.Size(); j++)
+      {
+         if (te_vdofs2[j] >= 0)
+         {
+            te_vdofs2[j] += height;
+         }
+         else
+         {
+            te_vdofs2[j] -= height;
+         }
+      }
+      te_vdofs_all.Append(te_vdofs2); 
+
+      for (int k = 0; k < fbfi.Size(); k++)
+      {
+         fbfi[k]->AssembleFaceMatrix(*trial_pfes->GetFE(T->Elem1No), 
+                                     *trial_pfes->GetFE(Elem2NbrNo), 
+                                     *test_pfes->GetFE(T->Elem1No), 
+                                     *test_pfes->GetFE(Elem2NbrNo),
+                                     *T, elemmat); 
+         if (keep_nbr_block)
+         {
+            mat->AddSubMatrix(te_vdofs_all, tr_vdofs_all, elemmat, skip_zeros);
+         }
+         else
+         {
+            mat->AddSubMatrix(te_vdofs1, tr_vdofs_all, elemmat, skip_zeros);
+         }
+      }
+   }
+}
+
+void ParMixedBilinearForm::Assemble(int skip_zeros) 
+{
+   if (mat == NULL && fbfi.Size() > 0)
+   {
+      trial_pfes->ExchangeFaceNbrData();
+      test_pfes->ExchangeFaceNbrData(); 
+      pAllocMat(); 
+   }
+
+   MixedBilinearForm::Assemble(skip_zeros);
+
+   if (!ext && fbfi.Size() > 0)
+   {
+      AssembleSharedFaces(skip_zeros);
+   }
+}
 
 HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
 {
    // construct the block-diagonal matrix A
-   HypreParMatrix *A =
-      new HypreParMatrix(trial_pfes->GetComm(),
-                         test_pfes->GlobalVSize(),
-                         trial_pfes->GlobalVSize(),
-                         test_pfes->GetDofOffsets(),
-                         trial_pfes->GetDofOffsets(),
-                         mat);
+   if (fbfi.Size()==0) 
+   {
+      HypreParMatrix *A =
+         new HypreParMatrix(trial_pfes->GetComm(),
+                            test_pfes->GlobalVSize(),
+                            trial_pfes->GlobalVSize(),
+                            test_pfes->GetDofOffsets(),
+                            trial_pfes->GetDofOffsets(),
+                            mat);
 
-   HypreParMatrix *rap = RAP(test_pfes->Dof_TrueDof_Matrix(), A,
-                             trial_pfes->Dof_TrueDof_Matrix());
+      HypreParMatrix *rap = RAP(test_pfes->Dof_TrueDof_Matrix(), A,
+                                trial_pfes->Dof_TrueDof_Matrix());
 
-   delete A;
+      delete A;
 
-   return rap;
+      return rap;      
+   } 
+
+   else 
+   {
+     // handle the case when 'a' contains off-diagonal
+     int tr_lvsize = trial_pfes->GetVSize();
+     int te_lvsize = test_pfes->GetVSize(); 
+     const HYPRE_Int *tr_face_nbr_glob_ldof = trial_pfes->GetFaceNbrGlobalDofMap();
+     HYPRE_Int tr_ldof_offset = trial_pfes->GetMyDofOffset();
+
+     Array<HYPRE_Int> glob_J(mat->NumNonZeroElems());
+     int *J = mat->GetJ();
+     for (int i = 0; i < glob_J.Size(); i++)
+     {
+        if (J[i] < tr_lvsize)
+        {
+           glob_J[i] = J[i] + tr_ldof_offset;
+        }
+        else
+        {
+           glob_J[i] = tr_face_nbr_glob_ldof[J[i] - tr_lvsize];
+        }
+     }
+
+     // TODO - construct dA directly in the A format
+     HypreParMatrix *A = 
+        new HypreParMatrix(trial_pfes->GetComm(), te_lvsize, test_pfes->GlobalVSize(),
+                           trial_pfes->GlobalVSize(), mat->GetI(), glob_J,
+                           mat->GetData(), test_pfes->GetDofOffsets(),
+                           trial_pfes->GetDofOffsets());
+
+      HypreParMatrix *rap = RAP(test_pfes->Dof_TrueDof_Matrix(), A, 
+         trial_pfes->Dof_TrueDof_Matrix()); 
+
+     glob_J.DeleteAll();
+     delete A; 
+     return rap; 
+   }
 }
 
 void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
 {
+   if (fbfi.Size() > 0) MFEM_ABORT("parallel assemble not implemented yet for fbfi"); 
    // construct the rectangular block-diagonal matrix dA
    OperatorHandle dA(A.Type());
    dA.MakeRectangularBlockDiag(trial_pfes->GetComm(),

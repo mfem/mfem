@@ -965,6 +965,94 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    return &FaceElemTr;
 }
 
+FaceElementTransformations* Mesh::GetFaceElementTransformations(FaceElementTransformationsData &fetd, int FaceNo, int mask) {
+   FaceInfo &face_info = faces_info[FaceNo];
+   FaceElementTransformations &face = fetd.face; 
+
+   int cmask = 0;
+   face.SetConfigurationMask(cmask);
+   face.Elem1 = NULL;
+   face.Elem2 = NULL;
+
+   // setup the transformation for the first element
+   face.Elem1No = face_info.Elem1No;
+   if (mask & FaceElementTransformations::HAVE_ELEM1)
+   {
+      GetElementTransformation(face.Elem1No, &fetd.Elem1);
+      face.Elem1 = &fetd.Elem1;
+      cmask |= 1;
+   }
+
+   //  setup the transformation for the second element
+   //     return NULL in the Elem2 field if there's no second element, i.e.
+   //     the face is on the "boundary"
+   face.Elem2No = face_info.Elem2No;
+   if ((mask & FaceElementTransformations::HAVE_ELEM2) &&
+       face.Elem2No >= 0)
+   {
+#ifdef MFEM_DEBUG
+      if (NURBSext && (mask & FaceElementTransformations::HAVE_ELEM1))
+      { MFEM_ABORT("NURBS mesh not supported!"); }
+#endif
+      GetElementTransformation(face.Elem2No, &fetd.Elem2);
+      face.Elem2 = &fetd.Elem2;
+      cmask |= 2;
+   }
+
+   // setup the face transformation
+   if (mask & FaceElementTransformations::HAVE_FACE)
+   {
+      GetFaceTransformation(FaceNo, &face);
+      cmask |= 16;
+   }
+   else
+   {
+      face.SetGeometryType(GetFaceGeometryType(FaceNo));
+   }
+
+   // setup Loc1 & Loc2
+   int face_type = GetFaceElementType(FaceNo);
+   if (mask & FaceElementTransformations::HAVE_LOC1)
+   {
+      int elem_type = GetElementType(face_info.Elem1No);
+      GetLocalFaceTransformation(face_type, elem_type,
+                                 face.Loc1.Transf, face_info.Elem1Inf);
+      cmask |= 4;
+   }
+   if ((mask & FaceElementTransformations::HAVE_LOC2) &&
+       face.Elem2No >= 0)
+   {
+      int elem_type = GetElementType(face_info.Elem2No);
+      GetLocalFaceTransformation(face_type, elem_type,
+                                 face.Loc2.Transf, face_info.Elem2Inf);
+
+      // NC meshes: prepend slave edge/face transformation to Loc2
+      if (Nonconforming() && IsSlaveFace(face_info))
+      {
+         ApplyLocalSlaveTransformation(face, face_info, false);
+      }
+      cmask |= 8;
+   }
+
+   face.SetConfigurationMask(cmask);
+
+   // This check can be useful for internal debugging, however it will fail on
+   // periodic boundary faces, so we keep it disabled in general.
+#if 0
+#ifdef MFEM_DEBUG
+   double dist = FaceElemTr.CheckConsistency();
+   if (dist >= 1e-12)
+   {
+      mfem::out << "\nInternal error: face id = " << FaceNo
+                << ", dist = " << dist << '\n';
+      FaceElemTr.CheckConsistency(1); // print coordinates
+      MFEM_ABORT("internal error");
+   }
+#endif
+#endif
+   return &fetd; 
+}
+
 bool Mesh::IsSlaveFace(const FaceInfo &fi) const
 {
    return fi.NCFace >= 0 && nc_faces_info[fi.NCFace].Slave;
@@ -1035,6 +1123,39 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    tr->ElementNo = BdrElemNo;
    tr->ElementType = ElementTransformation::BDR_FACE;
    return tr;
+}
+
+FaceElementTransformations* Mesh::GetInteriorFaceTransformations(FaceElementTransformationsData &fetd, int FaceNo) 
+{
+	if (faces_info[FaceNo].Elem2No < 0) return NULL; 
+	else return GetFaceElementTransformations(fetd, FaceNo); 
+}
+
+FaceElementTransformations* Mesh::GetBdrFaceTransformations(FaceElementTransformationsData &fetd, int BdrElemNo)
+{
+	int fn;
+	if (Dim == 3)
+	{
+	   fn = be_to_face[BdrElemNo];
+	}
+	else if (Dim == 2)
+	{
+	   fn = be_to_edge[BdrElemNo];
+	}
+	else
+	{
+	   fn = boundary[BdrElemNo]->GetVertices()[0];
+	}
+	// Check if the face is interior, shared, or non-conforming.
+	if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
+	{
+		return NULL; 
+	}
+	GetFaceElementTransformations(fetd, fn, 21);
+	fetd.face.Attribute = boundary[BdrElemNo]->GetAttribute();
+	fetd.face.ElementNo = BdrElemNo;
+	fetd.face.ElementType = ElementTransformation::BDR_FACE;
+	return &fetd;  
 }
 
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const

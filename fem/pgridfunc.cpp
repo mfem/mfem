@@ -471,6 +471,46 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 }
 
+void ParGridFunction::GetGradient(ElementTransformation &T, Vector &grad) const 
+{
+   Array<int> dofs;
+   Vector DofVal, LocVec;
+   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   if (nbr_el_no >= 0) 
+   {
+      switch (T.ElementType)
+      {
+         case ElementTransformation::ELEMENT:
+         {
+            pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+            const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
+            MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
+                        "invalid FE map type");
+            int spaceDim = pfes->GetMesh()->SpaceDimension();
+            int dim = fe->GetDim(), dof = fe->GetDof();
+            DenseMatrix dshape(dof, dim);
+            Vector lval, gh(dim);
+
+            grad.SetSize(spaceDim);
+            face_nbr_data.GetSubVector(dofs, LocVec);
+            fe->CalcDShape(T.GetIntPoint(), dshape);
+            dshape.MultTranspose(LocVec, gh);
+            T.InverseJacobian().MultTranspose(gh, grad);
+         }
+         break;
+         default:
+         {
+            MFEM_ABORT("GridFunction::GetGradient: Unsupported element type \""
+                       << T.ElementType << "\"");
+         }
+      }
+   }
+   else 
+   {
+      GridFunction::GetGradient(T, grad); 
+   }
+}
+
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);

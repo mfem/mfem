@@ -221,6 +221,8 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   virtual void GetGradient(ElementTransformation &T, Vector &grad) const; 
+
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 

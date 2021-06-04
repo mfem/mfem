@@ -155,6 +155,13 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1, 
+   								   const FiniteElement &trial_fe2, 
+   								   const FiniteElement &test_fe1, 
+   								   const FiniteElement &test_fe2, 
+   								   FaceElementTransformations &Trans, 
+   								   DenseMatrix &elmat); 
+
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
    /// efficient.
@@ -272,6 +279,9 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix(const FiniteElement &tr_fe1, const FiniteElement &tr_fe2, 
+                                   const FiniteElement &te_fe1, const FiniteElement &te_fe2, 
+                                   FaceElementTransformations &Trans, DenseMatrix &elmat); 
 
    using BilinearFormIntegrator::AssemblePA;
 

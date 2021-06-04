@@ -44,6 +44,9 @@ protected:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker; ///< Entries are not owned.
 
+   /// Set of interior Face Integrators to be applied. 
+   Array<LinearFormIntegrator*> iflfi; 
+
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
 
@@ -132,6 +135,8 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
+   void AddInteriorFaceIntegrator(LinearFormIntegrator *lfi); 
+
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
        coefficients. */
@@ -153,7 +158,7 @@ public:
    Array<Array<int>*> *GetFLFI_Marker() { return &flfi_marker; }
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
-   void Assemble();
+   virtual void Assemble();
 
    /// Assembles delta functions of the linear form
    void AssembleDelta();

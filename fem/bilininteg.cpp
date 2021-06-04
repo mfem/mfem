@@ -153,6 +153,15 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
               " Integrator class.");
 }
 
+void BilinearFormIntegrator::AssembleFaceMatrix(
+   const FiniteElement &trial_fe1, const FiniteElement &trial_fe2, 
+   const FiniteElement &test_fe1, const FiniteElement &test_fe2, 
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ABORT("AssembleFaceMatrix (mixed form) is not implemented for this"
+              " Integrator class.");
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -200,6 +209,15 @@ void TransposeIntegrator::AssembleFaceMatrix (
    bfi -> AssembleFaceMatrix (el1, el2, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
+}
+
+void TransposeIntegrator::AssembleFaceMatrix(
+   const FiniteElement &tr_fe1, const FiniteElement &tr_fe2, 
+   const FiniteElement &te_fe1, const FiniteElement &te_fe2, 
+   FaceElementTransformations &T, DenseMatrix &elmat) 
+{
+   bfi -> AssembleFaceMatrix(tr_fe1, tr_fe2, te_fe1, te_fe2, T, bfi_elmat); 
+   elmat.Transpose(bfi_elmat); 
 }
 
 void LumpedIntegrator::AssembleElementMatrix (
@@ -2602,6 +2620,12 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
    int dim, ndof1, ndof2;
 
    double un, a, b, w;
+
+// ADDED //
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2;
+#endif
+// ADDED //
 
    dim = el1.GetDim();
    ndof1 = el1.GetDof();

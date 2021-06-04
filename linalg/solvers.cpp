@@ -1225,7 +1225,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       final_norm = resid;
       final_iter = 0;
       converged = 1;
-      return;
+      // return;
+      goto finish; 
    }
 
    for (i = 1; i <= max_iter; i++)
@@ -1242,7 +1243,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = 0;
-         return;
+         // return;
+         goto finish; 
       }
       if (i == 1)
       {
@@ -1276,7 +1278,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = 1;
-         return;
+         // return;
+         goto finish; 
       }
       if (print_level >= 0)
          mfem::out << "   Iteration : " << setw(3) << i
@@ -1309,20 +1312,38 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = 1;
-         return;
+         // return;
+         goto finish; 
       }
       if (omega == 0)
       {
          final_norm = resid;
          final_iter = i;
          converged = 0;
-         return;
+         // return;
+         goto finish; 
       }
    }
 
    final_norm = resid;
    final_iter = max_iter;
    converged = 0;
+finish:
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Iteration : " << setw(3) << final_iter
+                << "  ||B r|| = " << final_norm << '\n';
+   }
+   else if (print_level == 2)
+   {
+      mfem::out << "BiCG: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_level >= 0 && !converged)
+   {
+      mfem::out << "BiCG: No convergence!\n";
+   }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,

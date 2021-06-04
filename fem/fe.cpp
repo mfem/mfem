@@ -10732,6 +10732,61 @@ void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
       }
 }
 
+void RT_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip, 
+                                         DenseMatrix &gshape) const 
+{
+   const int pp1 = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
+   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
+#endif
+   Vector dshape_ox(pp1), dshape_oy(pp1); 
+   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+   obasis1d.Eval(ip.x, shape_ox, dshape_ox);
+   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   obasis1d.Eval(ip.y, shape_oy, dshape_oy);
+   gshape = 0.0; 
+   int dof2 = GetDof()/2; 
+
+   int o = 0; 
+   for (int j = 0; j < pp1; j++) 
+   {
+      for (int i = 0; i <= pp1; i++)
+      {
+         int idx, s; 
+         if ((idx = dof_map[o++]) < 0) 
+         {
+            idx = -1 - idx; 
+            s = -1; 
+         }
+         else 
+         {
+            s = +1; 
+         }
+         gshape(idx,0) = s*dshape_cx(i)*shape_oy(j); 
+         gshape(idx,1) = s*shape_cx(i)*dshape_oy(j); 
+      }
+   }
+   for (int j = 0; j <= pp1; j++) 
+   {
+		for (int i = 0; i < pp1; i++) 
+		{
+			int idx, s; 
+			if ((idx = dof_map[o++]) < 0)
+			{
+				idx = -1 - idx, s = -1; 
+			}
+			else
+			{
+				s = +1; 
+			}
+			gshape(idx,2) = s*dshape_ox(i)*shape_cy(j); 
+			gshape(idx,3) = s*shape_ox(i)*dshape_cy(j); 
+		}
+   }
+}
+
 
 const double RT_HexahedronElement::nk[18] =
 { 0.,0.,-1.,  0.,-1.,0.,  1.,0.,0.,  0.,1.,0.,  -1.,0.,0.,  0.,0.,1. };

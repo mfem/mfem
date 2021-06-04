@@ -349,6 +349,20 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
+   // ADDED //
+   /// Resets to new Domain Integrator.
+   void ResetDomainIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Resets to new Boundary Integrator.
+   void ResetBoundaryIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Resets to new interior Face Integrator.
+   void ResetInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Resets to new boundary Face Integrator.
+   void ResetBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+   // ADDED
+
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
    {
@@ -642,6 +656,13 @@ protected:
    Array<BilinearFormIntegrator*> btfbfi;
    Array<Array<int>*>             btfbfi_marker;///< Entries are not owned.
 
+   // face integrators for vector DG spaces 
+   Array<BilinearFormIntegrator*> fbfi; 
+
+   // boundary face integrators for vector DG spaces
+   Array<BilinearFormIntegrator*> bfbfi; 
+   Array<Array<int>*> bfbfi_marker; 
+
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
 
@@ -732,6 +753,11 @@ public:
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
    void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
                                    Array<int> &bdr_marker);
+
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi); 
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi); 
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi, 
+                              Array<int> &bdr_marker); 
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }

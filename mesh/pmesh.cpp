@@ -318,12 +318,20 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
 
    vertices.SetSize(vert_counter);
 
+
+   // ADDED //
+   vert_local_to_global.SetSize(mesh.GetNV());
+   vert_local_to_global = -1;
+   // ADDED //
    for (int i = 0; i < vert_global_local.Size(); i++)
    {
       if (vert_global_local[i] >= 0)
       {
          vertices[vert_global_local[i]].SetCoords(mesh.SpaceDimension(),
                                                   mesh.GetVertex(i));
+         // ADDED //
+         vert_local_to_global[vert_global_local[i]] = i;
+         // ADDED //
       }
    }
 
@@ -2508,6 +2516,116 @@ GetSharedFaceTransformations(int sf, bool fill2)
 #endif
 
    return &FaceElemTr;
+}
+
+FaceElementTransformations* ParMesh::GetSharedFaceTransformations(FaceElementTransformationsData &fetd, int sf, bool fill2)
+{
+   int FaceNo = GetSharedFace(sf);
+
+   FaceInfo &face_info = faces_info[FaceNo];
+
+   bool is_slave = Nonconforming() && IsSlaveFace(face_info);
+   bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
+
+   FaceElementTransformations &face = fetd.face; 
+
+   int mask = 0;
+   face.SetConfigurationMask(0);
+   face.Elem1 = NULL;
+   face.Elem2 = NULL;
+
+   NCFaceInfo* nc_info = NULL;
+   if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
+
+   int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
+   Element::Type  face_type = GetFaceElementType(local_face);
+   Geometry::Type face_geom = GetFaceGeometryType(local_face);
+
+   // setup the transformation for the first element
+   face.Elem1No = face_info.Elem1No;
+   GetElementTransformation(face.Elem1No, &fetd.Elem1);
+   face.Elem1 = &fetd.Elem1;
+   mask |= FaceElementTransformations::HAVE_ELEM1;
+
+   // setup the transformation for the second (neighbor) element
+   int Elem2NbrNo;
+   if (fill2)
+   {
+      Elem2NbrNo = -1 - face_info.Elem2No;
+      // Store the "shifted index" for element 2 in FaceElemTr.Elem2No.
+      // `Elem2NbrNo` is the index of the face neighbor (starting from 0),
+      // and `FaceElemTr.Elem2No` will be offset by the number of (local)
+      // elements in the mesh.
+      face.Elem2No = NumOfElements + Elem2NbrNo;
+      GetFaceNbrElementTransformation(Elem2NbrNo, &fetd.Elem2);
+      face.Elem2 = &fetd.Elem2;
+      mask |= FaceElementTransformations::HAVE_ELEM2;
+   }
+   else
+   {
+      face.Elem2No = -1;
+   }
+
+   // setup the face transformation if the face is not a ghost
+   if (!is_ghost)
+   {
+      GetFaceTransformation(FaceNo, &face);
+      // NOTE: The above call overwrites FaceElemTr.Loc1
+      mask |= FaceElementTransformations::HAVE_FACE;
+   }
+   else
+   {
+      face.SetGeometryType(face_geom);
+   }
+
+   // setup Loc1 & Loc2
+   int elem_type = GetElementType(face_info.Elem1No);
+   GetLocalFaceTransformation(face_type, elem_type, face.Loc1.Transf,
+                              face_info.Elem1Inf);
+   mask |= FaceElementTransformations::HAVE_LOC1;
+
+   if (fill2)
+   {
+      elem_type = face_nbr_elements[Elem2NbrNo]->GetType();
+      GetLocalFaceTransformation(face_type, elem_type, face.Loc2.Transf,
+                                 face_info.Elem2Inf);
+      mask |= FaceElementTransformations::HAVE_LOC2;
+   }
+
+   // adjust Loc1 or Loc2 of the master face if this is a slave face
+   if (is_slave)
+   {
+      if (is_ghost || fill2)
+      {
+         // is_ghost -> modify side 1, otherwise -> modify side 2:
+         ApplyLocalSlaveTransformation(face, face_info, is_ghost);
+      }
+   }
+
+   // for ghost faces we need a special version of GetFaceTransformation
+   if (is_ghost)
+   {
+      GetGhostFaceTransformation(&face, face_type, face_geom);
+      mask |= FaceElementTransformations::HAVE_FACE;
+   }
+
+   face.SetConfigurationMask(mask);
+
+   // This check can be useful for internal debugging, however it will fail on
+   // periodic boundary faces, so we keep it disabled in general.
+#if 0
+#ifdef MFEM_DEBUG
+   double dist = FaceElemTr.CheckConsistency();
+   if (dist >= 1e-12)
+   {
+      mfem::out << "\nInternal error: face id = " << FaceNo
+                << ", dist = " << dist << ", rank = " << MyRank << '\n';
+      FaceElemTr.CheckConsistency(1); // print coordinates
+      MFEM_ABORT("internal error");
+   }
+#endif
+#endif
+   return &fetd; 
 }
 
 int ParMesh::GetNSharedFaces() const
