@@ -804,6 +804,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -1183,6 +1185,8 @@ protected:
 
    DiscreteAdaptTC *discr_tc;
 
+   MemoryType pa_mt = MemoryType::DEFAULT;
+
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
    double dx;
@@ -1358,6 +1362,13 @@ public:
    { PA.enabled = false; }
 
    ~TMOP_Integrator();
+
+   /// Set the memory type of large PA allocations.
+   void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
+
+   /// Release the device memory of large PA allocations. This will copy device
+   /// memory back to the host before releasing.
+   void ReleasePADeviceMemory();
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
