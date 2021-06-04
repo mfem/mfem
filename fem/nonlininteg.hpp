@@ -45,8 +45,8 @@ public:
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
 
-   /// Set the memory type used for GeometricFactors and other large
-   /// allocations in PA extensions.
+   /// Set the memory type used for GeometricFactors and other large allocations
+   /// in PA extensions.
    void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
 
    /// Get the integration rule of the integrator (possibly NULL).
