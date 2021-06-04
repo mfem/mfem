@@ -22,9 +22,9 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 ex17\
-  ex18 ex19 ex20 ex21
+  ex18 ex19 ex20 ex21 ex23
 PAR_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p ex12p\
- ex13p ex14p ex15p ex16p ex17p ex18p ex19p ex20p ex21p
+ ex13p ex14p ex15p ex16p ex17p ex18p ex19p ex20p ex21p MFEM_adv ex23TRp exETRp
 
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -117,7 +117,7 @@ clean-build:
 
 clean-exec:
 	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh
-	@rm -rf Example5* Example9* Example15* Example16*
+	@rm -rf Example5* Example9* Example15* Example16* Example23*
 	@rm -f sphere_refined.* sol.* sol_u.* sol_p.*
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_*
@@ -125,4 +125,9 @@ clean-exec:
 	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*
 	@rm -f deformation.* pressure.*
 	@rm -f ex20.dat ex20p_?????.dat gnuplot_ex20.inp gnuplot_ex20p.inp
+<<<<<<< HEAD
+	@rm -f ex22*.mesh ex22*.sol ex22p_*.*
+	@rm -f ex23.mesh ex23-mesh.* ex23-init.* ex23-final.*
+=======
 	@rm -f ex21*.mesh ex21*.sol ex21p_*.*
+>>>>>>> f8a3a379d13841c6e63b9d8fbc868aa325b8afc0

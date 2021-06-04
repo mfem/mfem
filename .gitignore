@@ -6,6 +6,8 @@
 # Also ignore OS-specific files like .DS_Store on Mac
 # ------------------------------------------------------------------------------
 
+*DS_Store
+
 # Object and library files
 *.o
 /libmfem.*
@@ -24,6 +26,7 @@ CMakeFiles/
 /deps.mk
 config/_config.hpp
 config/config.mk
+config/user.cmake
 config/sample-runs-build.log
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
