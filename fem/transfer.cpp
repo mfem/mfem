@@ -542,7 +542,9 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   // ML_inv contains the inverse lumped (row sum) mass matrix
+   // ML_inv contains the inverse lumped (row sum) mass matrix.  Note, the method
+   // will also work with a full (consistent) mass matrix, though this is not
+   // implemented here.
    // L refers to the low-order refined mesh
    Vector ML_inv(ndof_lor);
    ML_inv = 0.0;
