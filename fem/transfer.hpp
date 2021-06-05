@@ -181,10 +181,10 @@ protected:
       Table ho2lor;
 
       L2Projection(const FiniteElementSpace& fes_ho_,
-         const FiniteElementSpace& fes_lor_);
+                   const FiniteElementSpace& fes_lor_);
 
-      void BuildHo2Lor(int nel_ho, int nel_lor, 
-         const CoarseFineTransformations& cf_tr);
+      void BuildHo2Lor(int nel_ho, int nel_lor,
+                       const CoarseFineTransformations& cf_tr);
    };
 
    class L2ProjectionL2Space : public L2Projection
@@ -199,7 +199,7 @@ protected:
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
-         const FiniteElementSpace& fes_lor_);
+                          const FiniteElementSpace& fes_lor_);
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh with
       /// a higher order L2 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a refined mesh with a low order L2 finite element
@@ -245,7 +245,7 @@ protected:
 
    public:
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
-         const FiniteElementSpace& fes_lor_);
+                          const FiniteElementSpace& fes_lor_);
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh with
       /// a higher order H1 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a refined mesh with a low order H1 finite element

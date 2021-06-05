@@ -595,7 +595,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    // L refers to the low-order refined mesh (DOFs correspond to rows)
    // H refers to the higher-order mesh (DOFs correspond to columns)
    M_LH = SparseMatrix(R.GetI(), R.GetJ(), NULL,
-      R.Height(), R.Width(), false, true, true);
+                       R.Height(), R.Width(), false, true, true);
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
@@ -854,8 +854,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    dof_lor_dof_ho.SortRows();
    double* data = Memory<double>(dof_dofI[ndof_lor]);
 
-   R.Swap(SparseMatrix(dof_dofI, dof_dofJ, data, ndof_lor, ndof_ho,
-      true, true, true));
+   R = SparseMatrix(dof_dofI, dof_dofJ, data, ndof_lor, ndof_ho,
+                    true, true, true);
    R = 0.0;
 
    dof_lor_dof_ho.LoseData();
@@ -885,8 +885,8 @@ const Operator &L2ProjectionGridTransfer::BackwardOperator()
 
 void L2ProjectionGridTransfer::BuildF()
 {
-   if (!force_l2_space && 
-      dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
+   if (!force_l2_space &&
+       dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
    {
       F = new L2ProjectionH1Space(dom_fes, ran_fes);
    }
