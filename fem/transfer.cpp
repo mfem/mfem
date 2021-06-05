@@ -226,13 +226,6 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
    return *B.Ptr();
 }
 
-void L2ProjectionGridTransfer::L2Projection::SetTolerance(
-   double p_rtol_, double p_atol_)
-{
-   p_rtol = p_rtol_;
-   p_atol = p_atol_;
-}
-
 L2ProjectionGridTransfer::L2Projection::L2Projection(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
    : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
@@ -527,9 +520,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_)
    : L2Projection(fes_ho_, fes_lor_)
 {
-   // initial values for relative and absolute tolerance
-   SetTolerance(1e-13, 1e-13);
-
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
    int nel_ho = mesh_ho->GetNE();
@@ -673,8 +663,15 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       }
    }
 
-   // Compute RTxM_LH = (R^T * M_LH)
+   // Create PCG solver
    RTxM_LH = *TransposeMult(R, M_LH);
+   pcg.SetPrintLevel(0);
+   pcg.SetMaxIter(1000);
+   // initial values for relative and absolute tolerance
+   SetTolerance(1e-13, 1e-13);
+   Ds = DSmoother(RTxM_LH);
+   pcg.SetPreconditioner(Ds);
+   pcg.SetOperator(RTxM_LH);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
@@ -730,7 +727,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
    Vector x_dim(ndof_lor);
    Vector y_dim(ndof_ho);
    Vector xbar(ndof_ho);
-   DSmoother Ds(RTxM_LH);
 
    for (int d = 0; d < vdim; ++d)
    {
@@ -739,7 +735,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
       // Compute y = P x = (R^T M_LH)^(-1) M_LH^T x = (R^T M_LH)^(-1) xbar
       M_LH.MultTranspose(x_dim, xbar);
       y_dim = 0.0;
-      PCG(RTxM_LH, Ds, xbar, y_dim, 0, 1000, p_rtol * p_rtol, p_atol * p_atol);
+      pcg.Mult(xbar, y_dim);
       fes_ho.GetVDofs(d, dofs_ho);
       y.SetSubVector(dofs_ho, y_dim);
    }
@@ -764,11 +760,18 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
       x.GetSubVector(dofs_ho, x_dim);
       // Compute y = P^T x = M_LH (R^T M_LH)^(-1) x = M_LH xbar
       xbar = 0.0;
-      PCG(RTxM_LH, Ds, x_dim, xbar, 0, 1000, p_rtol * p_rtol, p_atol * p_atol);
+      pcg.Mult(x_dim, xbar);
       M_LH.Mult(xbar, y_dim);
       fes_lor.GetVDofs(d, dofs_lor);
       y.SetSubVector(dofs_lor, y_dim);
    }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetTolerance(
+   double p_rtol_, double p_atol_)
+{
+   pcg.SetRelTol(p_rtol_);
+   pcg.SetAbsTol(p_atol_);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
