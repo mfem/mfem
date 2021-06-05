@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
-   bool forceL2transfer = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -96,9 +95,6 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
-   args.AddOption(&forceL2transfer, "-fl2x", "--force-l2-transfer",
-                  "-no-fl2x", "--dont-force-l2-transfer",
-                  "Force L2 projection assuming L2 finite element space (even if H1).");
    args.Parse();
    if (!args.Good())
    {
@@ -125,13 +121,13 @@ int main(int argc, char *argv[])
          lorder = 1;
          cerr << "Switching the H1 LOR space order from 0 to 1\n";
       }
-      fec = new H1_FECollection(order-1, dim);
-      fec_lor = new L2_FECollection(lorder, dim);
+      fec = new H1_FECollection(order, dim);
+      fec_lor = new H1_FECollection(lorder, dim);
    }
    else
    {
       space = "L2";
-      fec = new L2_FECollection(order-1, dim);
+      fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
    }
 
@@ -168,10 +164,6 @@ int main(int argc, char *argv[])
    if (use_pointwise_transfer)
    {
       gt = new InterpolationGridTransfer(fespace, fespace_lor);
-   }
-   else if (useH1 && !forceL2transfer)
-   {
-      gt = new L2ProjectionH1GridTransfer(fespace, fespace_lor);
    }
    else
    {
