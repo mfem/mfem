@@ -754,7 +754,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    Vector x_dim(ndof_ho);
    Vector y_dim(ndof_lor);
    Vector xbar(ndof_ho);
-   DSmoother Ds(RTxM_LH);
 
    for (int d = 0; d < vdim; ++d)
    {
