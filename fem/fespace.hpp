@@ -647,6 +647,8 @@ public:
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
 
+   void GetVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
+
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
 
    void DofsToVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
