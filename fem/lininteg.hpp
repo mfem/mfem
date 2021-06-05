@@ -426,6 +426,7 @@ public:
                                        Vector &elvect);
 };
 
+
 /** Boundary linear integrator for imposing non-zero Dirichlet boundary
     conditions, to be used in conjunction with DGDiffusionIntegrator.
     Specifically, given the Dirichlet data u_D, the linear form assembles the
@@ -464,6 +465,7 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 };
+
 
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is

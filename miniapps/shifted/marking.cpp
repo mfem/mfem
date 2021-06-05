@@ -173,11 +173,10 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
    }
 }
 
-// Determine the list of true (i.e. conforming) essential boundary dofs.
-// To do this, we first make a list of all dofs that are on the real boundary
-// of the mesh, then add all the dofs of the elements that are completely
-// outside or intersect shifted boundary. Then we remove the dofs from
-// SBM faces
+// Determine the list of true (i.e. conforming) essential boundary dofs. To do
+// this, we first make a list of all dofs that are on the real boundary of the
+// mesh, then add all the dofs of the elements that are completely outside or
+// intersect shifted boundary. Then we remove the dofs from SBM faces
 void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
                                            const Array<int> &sface_dof_list,
                                            Array<int> &ess_tdof_list,
@@ -228,8 +227,8 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
    Array<int> ess_vdofs_bdr;
    pfes_sltn.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
 
-   // Get all dofs associated with elements outside the domain or intersected
-   // by the boundary.
+   // Get all dofs associated with elements outside the domain or intersected by
+   // the boundary.
    Array<int> ess_vdofs(ess_vdofs_bdr.Size()), dofs;
    ess_vdofs = 0;
    for (int e = 0; e < pmesh.GetNE(); e++)
