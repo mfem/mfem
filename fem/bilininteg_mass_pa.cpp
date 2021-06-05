@@ -585,6 +585,7 @@ static void PAMassApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
@@ -1162,6 +1163,7 @@ static void PAMassApply(const int dim,
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
+
       if (dim == 2)
       {
          return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);

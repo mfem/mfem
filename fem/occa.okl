@@ -565,13 +565,16 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
   }
 }
 
+// choose the v0 version for the moment
+#define DiffusionApply3D_GPU_v1 DiffusionApply3D_GPU
+
 // Tim Warburton version derived using techniques from:
 // Świrydowicz, Kasia, Noel Chalmers, Ali Karakus, and Tim Warburton. 
 // "Acceleration of tensor-product operations for high-order finite element methods."
 // The International Journal of High Performance Computing Applications 33, no. 4 (2019): 735-757.
 //
 // This version is designed to use a relatively small amount of shared memory ** and ** register space
-@kernel void DiffusionApply3D_GPU(const int NE,
+@kernel void DiffusionApply3D_GPU_v0(const int NE,
 				  @restrict const int *gatherMap,
 				  @restrict const double *B, 
                                   @restrict const double *GG,
@@ -841,6 +844,248 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
   }
 }
 
+
+// Kernel 9 - all partial results are stored in the shared memory
+#if M1D<=10
+@kernel void DiffusionApply3D_GPU_v1(const int NE,
+				     @restrict const int *gatherMap,
+				     @restrict const double *B, 
+				     @restrict const double *GG,
+				     @restrict const double *Bt,
+				     @restrict const double *Gt,
+				     @restrict const double *op,
+				     @restrict const double *X,
+				     @restrict double *Y) {
+
+  for(int e=0; e<NE; ++e; @outer(0)) {
+
+    @shared double s_X[Q1D][Q1D][Q1D];
+    @shared double s_X1[Q1D][Q1D][Q1D];
+    @shared double s_X2[Q1D][Q1D][Q1D];
+    @shared double s_X3[Q1D][Q1D][Q1D];
+
+    @shared double s_GG[Q1D][Q1D];
+    @shared double s_B[Q1D][D1D];
+
+    @exclusive int globalSign, globalId;
+    
+    for(int c=0; c<M1D; ++c; @inner(2)) {
+      for(int b=0; b<M1D; ++b; @inner(1)) {
+        for(int a=0; a<M1D; ++a; @inner(0)) {
+	  
+          if (c == 0 && a<D1D && b<Q1D) {
+            s_B[b][a] = B[b+Q1D*a];
+          }
+
+          if (a<Q1D && b<Q1D && c==0 ) {
+            s_GG[b][a] = GG[b*Q1D+a];
+          }
+
+	  if(c<D1D && b<D1D && a<D1D){
+	    // TW this needs to be fixed for multiple fields
+	    // find global index
+	    const int gid = gatherMap[e*D3D+c*D1D*D1D + b*D1D + a];
+	    // check if non-negative
+	    const bool plus = gid >= 0;
+	    // adjust look up based on if bc or not
+	    globalId = plus ? gid : -1-gid;
+	    // look up value
+	    double Xgid = X[globalId];
+	    globalSign = (plus) ? 1:-1;
+	    
+	    // load
+            s_X2[c][b][a] = globalSign*Xgid;
+	  }
+        }//for a
+      }// for b
+    }//for c
+
+  
+    //============== interpolate in 3 dir ========================
+    // r --> s --> t
+
+    for(int c=0; c<M1D; ++c; @inner(2)) {
+      for(int b=0; b<M1D; ++b; @inner(1)) {
+        for(int i=0; i<M1D; ++i; @inner(0)) {
+
+          if (c<D1D && b<D1D && i<Q1D){
+
+	    double res = 0;
+	    
+#pragma unroll D1D
+	    for(int n=0; n<D1D; ++n) {
+	      res += s_B[i][n]*s_X2[c][b][n];
+	    }
+	    
+	    s_X[c][b][i] = res;
+          }
+        }
+      }
+    }
+
+    for(int c=0; c<M1D; ++c; @inner(2)) {
+      for(int j=0; j<M1D; ++j; @inner(1)) {
+        for(int i=0; i<M1D; ++i; @inner(0)) {
+
+          if(c<D1D && j<Q1D && i<Q1D) {
+
+	    double res = 0;
+	    
+#pragma unroll D1D
+	    for(int n=0; n<D1D; ++n) {
+	      res += s_B[j][n]*s_X[c][n][i];
+	    }
+	    s_X2[c][j][i] = res;
+          }
+        }
+      }
+    }
+
+    // t direction
+    for(int k=0; k<M1D; ++k; @inner(2)) {
+      for(int j=0; j<M1D; ++j; @inner(1)) {
+        for(int i=0; i<M1D; ++i; @inner(0)) {
+
+          if(k<Q1D && j<Q1D && i<Q1D) {
+	    
+	    double res = 0;
+	    
+#pragma unroll D1D
+            for(int n=0; n<D1D; ++n) {
+              res += s_B[k][n]*s_X2[n][j][i];
+            }
+
+	    s_X[k][j][i] = res;
+	  }
+        }
+      }
+    }
+    
+  
+    for(int k=0; k<M1D; ++k; @inner(2)) {
+      for(int j=0; j<M1D; ++j; @inner(1)) {
+        for(int i=0; i<M1D; ++i; @inner(0)) {
+
+          if(k<Q1D && j<Q1D && i<Q1D) {
+	    
+	    const int gbase = e*6*Q3D + i + j*Q1D + k*Q1D*Q1D;
+	    const double G00 = op[gbase+0*Q3D];
+	    const double G01 = op[gbase+1*Q3D];
+	    const double G02 = op[gbase+2*Q3D];
+	    const double G11 = op[gbase+3*Q3D];
+	    const double G12 = op[gbase+4*Q3D];
+	    const double G22 = op[gbase+5*Q3D];
+	    
+	    double dr = 0.0f;
+	    double ds = 0.0f;
+	    double dt = 0.0f;
+	    
+#pragma unroll Q1D
+            for (int n = 0; n<Q1D; ++n) {
+              dr += s_GG[i][n] * s_X[k][j][n];
+              ds += s_GG[j][n] * s_X[k][n][i];
+              dt += s_GG[k][n] * s_X[n][j][i];
+            }
+	    
+	    double qr = G00*dr + G01*ds + G02*dt;
+	    double qs = G01*dr + G11*ds + G12*dt;
+	    double qt = G02*dr + G12*ds + G22*dt;
+	    
+	    s_X1[k][j][i] = qr;
+	    s_X2[k][j][i] = qs;
+	    s_X3[k][j][i] = qt;
+	  }
+	}
+      }
+    }
+    
+    for(int k=0; k<M1D; ++k; @inner(2)) {
+      for(int j=0; j<M1D; ++j; @inner(1)) {
+        for(int i=0; i<M1D; ++i; @inner(0)) {
+
+
+          if(k<Q1D && j<Q1D && i<Q1D) {
+	    
+	    double tmp = 0.f;
+	    
+#pragma unroll Q1D
+	    for(int m=0; m<Q1D; ++m) {
+	      tmp += s_GG[m][i]*s_X1[k][j][m];
+              tmp += s_GG[m][j]*s_X2[k][m][i];
+              tmp += s_GG[m][k]*s_X3[m][j][i];
+            }
+	    
+	    s_X[k][j][i] =  tmp;
+	  }
+	}
+      }
+    }
+  
+    // t first
+    for(int c=0; c<M1D; ++c; @inner(2)) {
+      for(int j=0; j<M1D; ++j; @inner(1)) {
+        for(int i=0; i<M1D; ++i; @inner(0)) {
+	  
+          double Iq = 0.0f;
+
+	  
+          if(c<D1D && j<Q1D && i<Q1D) {
+	    
+#pragma unroll Q1D
+              for(int m=0; m<Q1D; ++m) {
+                Iq += s_B[m][c]*s_X[m][j][i];
+              }
+          }
+	  
+          s_X2[c][j][i] = Iq;
+        }
+      }
+    }
+
+
+    // r direction
+    for(int c=0; c<M1D; ++c; @inner(2)) {
+      for(int b=0; b<M1D; ++b; @inner(1)) {
+        for(int i=0; i<M1D; ++i; @inner(0)) {
+
+          if(c<D1D && b<D1D && i<Q1D){
+
+            double Iq = 0.0f;
+
+#pragma unroll Q1D
+              for(int m=0; m<Q1D; ++m) {
+                Iq += s_B[m][b]*s_X2[c][m][i];
+              }
+
+            s_X[c][b][i] = Iq;
+          }
+        }
+      }
+    }
+  
+    for(int c=0; c<M1D; ++c; @inner(2)) {
+      for(int b=0; b<M1D; ++b; @inner(1)) {
+        for(int a=0; a<M1D; ++a; @inner(0)) {
+	  
+          if (c<D1D && b<D1D && a< D1D){
+	    
+            double Iq = 0.0f;
+	    
+#pragma unroll Q1D
+	    for(int m=0; m<Q1D; ++m) {
+	      Iq += s_B[m][a]*s_X[c][b][m];
+	    }
+
+	    Iq *= globalSign;
+	    
+	    atomicAdd(Y+globalId, Iq);
+          }
+        }
+      }
+    }
+  }
+} 
+#endif
 
 
 

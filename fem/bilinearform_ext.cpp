@@ -131,6 +131,7 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed() || !elem_restrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
+      
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
@@ -385,7 +386,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (DeviceCanUseCeed() || !elem_restrict)
+   if (DeviceCanUseCeed() || DeviceCanUseOcca() || !elem_restrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
@@ -396,9 +397,8 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-     
-     // TW: switched to using local2local to global2global
-#if 0
+     printf("RAP\n");
+     y.UseDevice(true); 
       elem_restrict->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -406,15 +406,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          integrators[i]->AddMultPA(localX, localY);	 
       }
       elem_restrict->MultTranspose(localY, y);
-#else
-      y = 0.0;
-      //      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-	integrators[i]->AddMultPA(x, y);
-      }
-#endif
-
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
