@@ -118,16 +118,10 @@ setup:
 # differentiates between the two tests.
 .baseline_script: &baseline_script |
   # locals
-  _glob_out=${BASELINE_TEST}.out
   _glob_err=${BASELINE_TEST}.err
   _base_diff=${BASELINE_TEST}-${SYS_TYPE}.diff
   _base_patch=${BASELINE_TEST}-${SYS_TYPE}.patch
   _base_out=${BASELINE_TEST}-${SYS_TYPE}.out
-
-  _out=${BASELINE_TEST}-${SYS_TYPE}.out
-  _ref=../${BASELINE_TEST}-${SYS_TYPE}.saved
-  _out_txt=${BASELINE_TEST}.txt
-  _diff=${BASELINE_TEST}-diff.txt
   # prepare
   cd ${BUILD_ROOT}
   ln -snf ${CI_PROJECT_DIR} mfem
@@ -144,7 +138,7 @@ setup:
     echo "ERROR during ${BASELINE_TEST} execution";
     echo "Here is the ${_glob_err} file content";
     cat ${_glob_err}
-    cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}.txt
+    cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}
     exit 1;
   elif [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
   then
@@ -154,11 +148,11 @@ setup:
   elif [[ -f ${_base_patch} ]]
   then
     echo "${BASELINE_TEST}: Differences found, patch generated"
-    cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}.txt
+    cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}
   elif [[ -f ${_base_out} ]]
   then
     echo "${BASELINE_TEST}: Differences found, replacement file generated"
-    cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}.txt
+    cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}
   fi
   # _base_diff won't even exist if there is no difference.
   if [[ -f ${_base_diff} ]]
@@ -166,6 +160,10 @@ setup:
     echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
     cat ${_base_diff}
     cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.txt
+    # We create a .err file, because that's how we signal that there was a diff.
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.err
+    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/autotest-email.html
   fi
   if [[ ! -s ${_base_diff} ]]
   then
@@ -217,19 +215,18 @@ setup:
     - export DIFF_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.diff
     - cd ${BUILD_ROOT}/tests
     - |
-      if [[ ! -f "${DIFF_FILE}.txt" ]]
+      if [[ ! -f "${DIFF_FILE}" ]]
       then
           echo "Nothing to be done: no relevant change in baseline"
           exit 0
-      elif [[ -f "${PATCH_FILE}.txt" ]]
+      elif [[ -f "${PATCH_FILE}" ]]
       then
-          mv ${PATCH_FILE}.txt ${PATCH_FILE}
           patch "./baseline-${SYS_TYPE}.saved" < "${PATCH_FILE}"
-      elif [[ -f "${FULL_FILE}.txt" ]]
+      elif [[ -f "${FULL_FILE}t" ]]
       then
-          cp "${FULL_FILE}.txt" "./baseline-${SYS_TYPE}.saved"
+          cp "${FULL_FILE}" "./baseline-${SYS_TYPE}.saved"
       else
-          echo "File missing: expected ${PATCH_FILE}.txt or ${FULL_FILE}.txt"
+          echo "File missing: expected ${PATCH_FILE} or ${FULL_FILE}"
           exit 1
       fi
     - git add baseline-${SYS_TYPE}.saved
