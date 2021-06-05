@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//  ---------------------------------------------------------------------------
-//  Shifted Boundary Diffusion Miniapp: Finite element immersed boundary solver
-//  ---------------------------------------------------------------------------
+//     ------------------------------------------------------------------
+//     Shifted Diffusion Miniapp: Finite element immersed boundary solver
+//     ------------------------------------------------------------------
 //
 // This miniapp solves the Poisson problem with prescribed boundary conditions
 // on a surrogate domain using a high-order extension of the shifted boundary
@@ -44,9 +44,9 @@
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
 //              Solves -nabla^2 u = f with inhomogeneous boundary conditions,
-//              and f is setup such that u = sin(pi*x*y).  This is a 2D
+//              and f is setup such that u = sin(pi*x*y). This is a 2D
 //              convergence test. Second-order can be demonstrated by changing
-//              refinement level (-rs) for the sample run below.  Higher-order
+//              refinement level (-rs) for the sample run below. Higher-order
 //              convergence can be realized by also increasing the order (-o) of
 //              the finite element space and the number of high-order terms
 //              (-ho) to be included from the Taylor expansion used to enforce
