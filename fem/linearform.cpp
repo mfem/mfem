@@ -48,6 +48,23 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
    {
       dlfi_delta.Append(maybe_delta);
    }
+   dlfi_marker.Append(NULL);
+}
+
+void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
+                                     Array<int> &elem_marker)
+{
+   DeltaLFIntegrator *maybe_delta =
+      dynamic_cast<DeltaLFIntegrator *>(lfi);
+   if (!maybe_delta || !maybe_delta->IsDelta())
+   {
+      dlfi.Append(lfi);
+   }
+   else
+   {
+      dlfi_delta.Append(maybe_delta);
+   }
+   dlfi_marker.Append(&elem_marker);
 }
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
@@ -76,6 +93,11 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
    flfi_marker.Append(&bdr_attr_marker);
 }
 
+void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
+{
+   iflfi.Append(lfi);
+}
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;
@@ -92,14 +114,30 @@ void LinearForm::Assemble()
 
    if (dlfi.Size())
    {
+      for (int k = 0; k < dlfi.Size(); k++)
+      {
+         if (dlfi_marker[k] != NULL)
+         {
+            MFEM_VERIFY(fes->GetMesh()->attributes.Size() ==
+                        dlfi_marker[k]->Size(),
+                        "invalid element marker for domain linear form "
+                        "integrator #" << k << ", counting from zero");
+         }
+      }
+
       for (i = 0; i < fes -> GetNE(); i++)
       {
-         fes -> GetElementVDofs (i, vdofs);
-         eltrans = fes -> GetElementTransformation (i);
-         for (int k=0; k < dlfi.Size(); k++)
+         int elem_attr = fes->GetMesh()->GetAttribute(i);
+         for (int k = 0; k < dlfi.Size(); k++)
          {
-            dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
-            AddElementVector (vdofs, elemvect);
+            if ( dlfi_marker[k] == NULL ||
+                 (*(dlfi_marker[k]))[elem_attr-1] == 1 )
+            {
+               fes -> GetElementVDofs (i, vdofs);
+               eltrans = fes -> GetElementTransformation (i);
+               dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
          }
       }
    }
@@ -194,6 +232,31 @@ void LinearForm::Assemble()
          }
       }
    }
+
+   if (iflfi.Size())
+   {
+      Mesh *mesh = fes->GetMesh();
+
+      for (int k = 0; k < iflfi.Size(); k++)
+      {
+         for (i = 0; i < mesh->GetNumFaces(); i++)
+         {
+            FaceElementTransformations *tr = NULL;
+            tr = mesh->GetInteriorFaceTransformations (i);
+            if (tr != NULL)
+            {
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               Array<int> vdofs2;
+               fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
+               vdofs.Append(vdofs2);
+               iflfi[k] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                   *fes->GetFE(tr -> Elem2No),
+                                                   *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+      }
+   }
 }
 
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
@@ -274,6 +337,7 @@ LinearForm::~LinearForm()
       for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
       for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
       for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
+      for (k=0; k < iflfi.Size(); k++) { delete iflfi[k]; }
    }
 }
 
