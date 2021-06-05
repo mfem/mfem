@@ -147,25 +147,33 @@ public:
 };
 
 
-/** @brief Transfer data in L2 finite element spaces between a coarse mesh and
-    an embedded refined mesh using L2 projection. */
+/** @brief Transfer data in L2 and H1 finite element spaces between a coarse
+    mesh and an embedded refined mesh using L2 projection. */
 /** The forward, coarse-to-fine, transfer uses L2 projection. The backward,
-    fine-to-coarse, transfer is defined locally (on a coarse element) as
-    B = (F^t M_f F)^{-1} F^t M_f, where F is the forward transfer matrix, and
-    M_f is the mass matrix on the union of all fine elements comprising the
-    coarse element. Note that the backward transfer operator, B, is a left
-    inverse of the forward transfer operator, F, i.e. B F = I. Both F and B are
-    defined in physical space and, generally, vary between different mesh
-    elements.
+    fine-to-coarse, transfer is defined as B = (F^t M_f F)^{-1} F^t M_f,
+    where F is the forward transfer matrix, and M_f is the mass matrix on the
+    coarse element.  For L2 spaces, M_f is the mass matrix on the union of
+    all fine elements comprising the coarse element.  For H1 spaces, M_f is a
+    diagonal (lumped) mass matrix computed through row-summation.  Note that
+    the backward transfer operator, B, is a left inverse of the forward
+    transfer operator, F, i.e. B F = I. Both F and B are defined in physical
+    space and, generally for L2 spaces, vary between different mesh elements.
+
+    This class supports H1 and L2 finite element spaces.  Fine meshes are a
+    uniform refinement of the coarse mesh, usually created through
+    Mesh::MakeRefined.  Generally, the coarse and fine FE spaces can have
+    different orders, however, in order for the backward
+    operator to be well-defined, the number of fine dofs (in a coarse element)
+    should not be smaller than the number of coarse dofs.
     */
 class L2ProjectionGridTransfer : public GridTransfer
 {
 protected:
-   /** Class representing projection operator between a high-order L2 finite
-       element space on a coarse mesh, and a low-order L2 finite element space
-       on a refined mesh (LOR). We assume that the low-order space, fes_lor,
-       lives on a mesh obtained by refining the mesh of the high-order space,
-       fes_ho. */
+   /** Abstract class representing projection operator between a high-order
+       finite element space on a coarse mesh, and a low-order finite element
+       space on a refined mesh (LOR). We assume that the low-order space,
+       fes_lor, lives on a mesh obtained by refining the mesh of the
+       high-order space, fes_ho. */
    class L2Projection : public Operator
    {
    public:
@@ -187,6 +195,9 @@ protected:
                        const CoarseFineTransformations& cf_tr);
    };
 
+   /** Class for projection operator between a L2 high-order finite element
+       space on a coarse mesh, and a L2 low-order finite element space on a
+       refined mesh (LOR). */
    class L2ProjectionL2Space : public L2Projection
    {
       // The restriction and prolongation operators are represented as dense
@@ -234,8 +245,14 @@ protected:
       virtual void SetTolerance(double p_rtol_, double p_atol_) {}
    };
 
+   /** Class for projection operator between a H1 high-order finite element
+       space on a coarse mesh, and a H1 low-order finite element space on a
+       refined mesh (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
+      // The restriction operator is represented as a SparseMatrix R. The
+      // prolongation operator is a dense matrix computed as the inverse of
+      // (R^T M_L R), and hence, is not stored.
       SparseMatrix R;
       // Used to compute P = (RTxM_LH)^(-1) M_LH^T
       SparseMatrix M_LH;
