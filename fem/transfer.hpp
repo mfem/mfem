@@ -173,12 +173,10 @@ protected:
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const = 0;
       /// Sets relative tolerance and absolute tolerance in preconditioned
       /// conjugate gradient solver.  Only used for H1 spaces.
-      void SetTolerance(double p_rtol_, double p_atol_);
+      virtual void SetTolerance(double p_rtol_, double p_atol_) = 0;
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
-      double p_rtol;
-      double p_atol;
 
       Table ho2lor;
 
@@ -233,6 +231,7 @@ protected:
       /// conservative left-inverse prolongation operation.  This functionality is
       /// also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+      virtual void SetTolerance(double p_rtol_, double p_atol_) {}
    };
 
    class L2ProjectionH1Space : public L2Projection
@@ -240,8 +239,9 @@ protected:
       SparseMatrix R;
       // Used to compute P = (RTxM_LH)^(-1) M_LH^T
       SparseMatrix M_LH;
-      // Used to compute P = (RTxM_LH)^(-1) M_LH^T
       SparseMatrix RTxM_LH;
+      CGSolver pcg;
+      DSmoother Ds;
 
    public:
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
@@ -277,6 +277,7 @@ protected:
       /// conservative left-inverse prolongation operation.  This functionality is
       /// also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+      virtual void SetTolerance(double p_rtol_, double p_atol_);
    private:
       /// Computes sparsity pattern and initializes R matrix.  Based on
       /// BilinearForm::AllocMat() except maps between HO elements and LOR
