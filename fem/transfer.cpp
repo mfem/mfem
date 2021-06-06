@@ -253,6 +253,33 @@ void L2ProjectionGridTransfer::L2Projection::BuildHo2Lor(
    ho2lor.ShiftUpI();
 }
 
+void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
+   Geometry::Type geom, const FiniteElement& fe_ho,
+   const FiniteElement& fe_lor, ElementTransformation* el_tr,
+   IntegrationPointTransformation& ip_tr,
+   DenseMatrix& M_mixed_el) const
+{
+   int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
+   const IntegrationRule* ir = &IntRules.Get(geom, order);
+   M_mixed_el = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint& ip_lor = ir->IntPoint(i);
+      IntegrationPoint ip_ho;
+      ip_tr.Transform(ip_lor, ip_ho);
+      Vector shape_lor(fe_lor.GetDof());
+      fe_lor.CalcShape(ip_lor, shape_lor);
+      Vector shape_ho(fe_ho.GetDof());
+      fe_ho.CalcShape(ip_ho, shape_ho);
+      el_tr->SetIntPoint(&ip_lor);
+      // For now we use the geometry information from the LOR space
+      // which means we won't be mass conservative if the mesh is curved
+      double w = el_tr->Weight() * ip_lor.weight;
+      shape_lor *= w;
+      AddMultVWt(shape_lor, shape_ho, M_mixed_el);
+   }
+}
+
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
    : L2Projection(fes_ho_, fes_lor_)
@@ -308,9 +335,6 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       int ndof_ho = fe_ho.GetDof();
       int ndof_lor = fe_lor.GetDof();
 
-      Vector shape_ho(ndof_ho);
-      Vector shape_lor(ndof_lor);
-
       emb_tr.SetIdentityTransformation(geom);
       const DenseTensor &pmats = cf_tr.point_matrices[geom];
 
@@ -353,23 +377,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
-         const IntegrationRule *ir = &IntRules.Get(geom, order);
-         M_mixed_el = 0.0;
-         for (int i = 0; i < ir->GetNPoints(); i++)
-         {
-            const IntegrationPoint &ip_lor = ir->IntPoint(i);
-            IntegrationPoint ip_ho;
-            ip_tr.Transform(ip_lor, ip_ho);
-            fe_lor.CalcShape(ip_lor, shape_lor);
-            fe_ho.CalcShape(ip_ho, shape_ho);
-            el_tr->SetIntPoint(&ip_lor);
-            // For now we use the geometry information from the LOR space
-            // which means we won't be mass conservative if the mesh is curved
-            double w = el_tr->Weight()*ip_lor.weight;
-            shape_lor *= w;
-            AddMultVWt(shape_lor, shape_ho, M_mixed_el);
-         }
+         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_mixed);
+
          M_mixed.CopyMN(M_mixed_el, iref*ndof_lor, 0);
       }
       mfem::Mult(Minv_lor, M_mixed, R_iho);
@@ -612,17 +621,12 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
       const FiniteElement& fe_ho = *fes_ho.GetFE(iho);
       const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
-      int nedof_ho = fe_ho.GetDof();
-      int nedof_lor = fe_lor.GetDof();
-
-      Vector shape_ho(nedof_ho);
-      Vector shape_lor(nedof_lor);
-      Array<int> dofs_ho(nedof_ho);
-      Array<int> dofs_lor(nedof_lor);
 
       emb_tr.SetIdentityTransformation(geom);
       const DenseTensor& pmats = cf_tr.point_matrices[geom];
 
+      int nedof_ho = fe_ho.GetDof();
+      int nedof_lor = fe_lor.GetDof();
       DenseMatrix M_LH_el(nedof_lor, nedof_ho);
       DenseMatrix R_el(nedof_lor, nedof_ho);
 
@@ -635,23 +639,9 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
-         const IntegrationRule* ir = &IntRules.Get(geom, order);
-         M_LH_el = 0.0;
-         for (int i = 0; i < ir->GetNPoints(); i++)
-         {
-            const IntegrationPoint& ip_lor = ir->IntPoint(i);
-            IntegrationPoint ip_ho;
-            ip_tr.Transform(ip_lor, ip_ho);
-            fe_lor.CalcShape(ip_lor, shape_lor);
-            fe_ho.CalcShape(ip_ho, shape_ho);
-            el_tr->SetIntPoint(&ip_lor);
-            // For now we use the geometry information from the LOR space
-            // which means we won't be mass conservative if the mesh is curved
-            double w = el_tr->Weight() * ip_lor.weight;
-            shape_lor *= w;
-            AddMultVWt(shape_lor, shape_ho, M_LH_el);
-         }
+         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_LH_el);
+
+         Array<int> dofs_lor(nedof_lor);
          fes_lor.GetElementDofs(ilor, dofs_lor);
          Vector R_row;
          for (int i = 0; i < nedof_lor; ++i)
@@ -659,6 +649,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
             M_LH_el.GetRow(i, R_row);
             R_el.SetRow(i, R_row.Set(ML_inv[dofs_lor[i]], R_row));
          }
+         Array<int> dofs_ho(nedof_ho);
          fes_ho.GetElementDofs(iho, dofs_ho);
          M_LH.AddSubMatrix(dofs_lor, dofs_ho, M_LH_el);
          R.AddSubMatrix(dofs_lor, dofs_ho, R_el);

@@ -193,6 +193,11 @@ protected:
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
+
+      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
+                         const FiniteElement& fe_lor, ElementTransformation* el_tr,
+                         IntegrationPointTransformation& ip_tr,
+                         DenseMatrix& M_mixed_el) const;
    };
 
    /** Class for projection operator between a L2 high-order finite element
