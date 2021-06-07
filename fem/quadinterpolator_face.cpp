@@ -384,22 +384,22 @@ void FaceQuadratureInterpolator::Mult(
          {
             // Q0
             case 101: eval_func = &Eval2D<1,1,1>; break;
-            case 104: eval_func = &Eval2D<1,1,4>; break;
+            case 102: eval_func = &Eval2D<1,1,2>; break;
             // Q1
-            case 404: eval_func = &Eval2D<1,4,4>; break;
-            case 409: eval_func = &Eval2D<1,4,9>; break;
+            case 202: eval_func = &Eval2D<1,2,2>; break;
+            case 203: eval_func = &Eval2D<1,2,3>; break;
             // Q2
-            case 909: eval_func = &Eval2D<1,9,9>; break;
-            case 916: eval_func = &Eval2D<1,9,16>; break;
+            case 303: eval_func = &Eval2D<1,3,3>; break;
+            case 304: eval_func = &Eval2D<1,3,4>; break;
             // Q3
-            case 1616: eval_func = &Eval2D<1,16,16>; break;
-            case 1625: eval_func = &Eval2D<1,16,25>; break;
-            case 1636: eval_func = &Eval2D<1,16,36>; break;
+            case 404: eval_func = &Eval2D<1,4,4>; break;
+            case 405: eval_func = &Eval2D<1,4,5>; break;
+            case 406: eval_func = &Eval2D<1,4,6>; break;
             // Q4
-            case 2525: eval_func = &Eval2D<1,25,25>; break;
-            case 2536: eval_func = &Eval2D<1,25,36>; break;
-            case 2549: eval_func = &Eval2D<1,25,49>; break;
-            case 2564: eval_func = &Eval2D<1,25,64>; break;
+            case 505: eval_func = &Eval2D<1,5,5>; break;
+            case 506: eval_func = &Eval2D<1,5,6>; break;
+            case 507: eval_func = &Eval2D<1,5,7>; break;
+            case 508: eval_func = &Eval2D<1,5,8>; break;
          }
          if (nq >= 100 || !eval_func)
          {
@@ -412,20 +412,20 @@ void FaceQuadratureInterpolator::Mult(
          {
             // Q0
             case 1001: eval_func = &Eval3D<1,1,1>; break;
-            case 1008: eval_func = &Eval3D<1,1,8>; break;
+            case 1002: eval_func = &Eval3D<1,1,2>; break;
             // Q1
-            case 8008: eval_func = &Eval3D<1,8,8>; break;
-            case 8027: eval_func = &Eval3D<1,8,27>; break;
+            case 2002: eval_func = &Eval3D<1,2,2>; break;
+            case 2003: eval_func = &Eval3D<1,2,3>; break;
             // Q2
-            case 27027: eval_func = &Eval3D<1,27,27>; break;
-            case 27064: eval_func = &Eval3D<1,27,64>; break;
+            case 3003: eval_func = &Eval3D<1,3,3>; break;
+            case 3004: eval_func = &Eval3D<1,3,4>; break;
             // Q3
-            case 64064: eval_func = &Eval3D<1,64,64>; break;
-            case 64125: eval_func = &Eval3D<1,64,125>; break;
-            case 64216: eval_func = &Eval3D<1,64,216>; break;
+            case 4004: eval_func = &Eval3D<1,4,4>; break;
+            case 4005: eval_func = &Eval3D<1,4,5>; break;
+            case 4006: eval_func = &Eval3D<1,4,6>; break;
             // Q4
-            case 125125: eval_func = &Eval3D<1,125,125>; break;
-            case 125216: eval_func = &Eval3D<1,125,216>; break;
+            case 5005: eval_func = &Eval3D<1,5,5>; break;
+            case 5006: eval_func = &Eval3D<1,5,6>; break;
          }
          if (nq >= 1000 || !eval_func)
          {
@@ -440,20 +440,20 @@ void FaceQuadratureInterpolator::Mult(
          switch (100*nd + nq)
          {
             // Q1
-            case 404: eval_func = &Eval2D<2,4,4>; break;
-            case 409: eval_func = &Eval2D<2,4,9>; break;
+            case 202: eval_func = &Eval2D<2,2,2>; break;
+            case 203: eval_func = &Eval2D<2,2,3>; break;
             // Q2
-            case 909: eval_func = &Eval2D<2,9,9>; break;
-            case 916: eval_func = &Eval2D<2,9,16>; break;
+            case 303: eval_func = &Eval2D<2,3,3>; break;
+            case 304: eval_func = &Eval2D<2,3,4>; break;
             // Q3
-            case 1616: eval_func = &Eval2D<2,16,16>; break;
-            case 1625: eval_func = &Eval2D<2,16,25>; break;
-            case 1636: eval_func = &Eval2D<2,16,36>; break;
+            case 404: eval_func = &Eval2D<2,4,4>; break;
+            case 405: eval_func = &Eval2D<2,4,5>; break;
+            case 406: eval_func = &Eval2D<2,4,6>; break;
             // Q4
-            case 2525: eval_func = &Eval2D<2,25,25>; break;
-            case 2536: eval_func = &Eval2D<2,25,36>; break;
-            case 2549: eval_func = &Eval2D<2,25,49>; break;
-            case 2564: eval_func = &Eval2D<2,25,64>; break;
+            case 505: eval_func = &Eval2D<2,5,5>; break;
+            case 506: eval_func = &Eval2D<2,5,6>; break;
+            case 507: eval_func = &Eval2D<2,5,7>; break;
+            case 508: eval_func = &Eval2D<2,5,8>; break;
          }
          if (nq >= 100 || !eval_func)
          {
@@ -465,18 +465,18 @@ void FaceQuadratureInterpolator::Mult(
          switch (1000*nd + nq)
          {
             // Q1
-            case 8008: eval_func = &Eval3D<3,8,8>; break;
-            case 8027: eval_func = &Eval3D<3,8,27>; break;
+            case 2002: eval_func = &Eval3D<3,2,2>; break;
+            case 2003: eval_func = &Eval3D<3,2,3>; break;
             // Q2
-            case 27027: eval_func = &Eval3D<3,27,27>; break;
-            case 27064: eval_func = &Eval3D<3,27,64>; break;
+            case 3003: eval_func = &Eval3D<3,3,3>; break;
+            case 3004: eval_func = &Eval3D<3,3,4>; break;
             // Q3
-            case 64064: eval_func = &Eval3D<3,64,64>; break;
-            case 64125: eval_func = &Eval3D<3,64,125>; break;
-            case 64216: eval_func = &Eval3D<3,64,216>; break;
+            case 4004: eval_func = &Eval3D<3,4,4>; break;
+            case 4005: eval_func = &Eval3D<3,4,5>; break;
+            case 4006: eval_func = &Eval3D<3,4,6>; break;
             // Q4
-            case 125125: eval_func = &Eval3D<3,125,125>; break;
-            case 125216: eval_func = &Eval3D<3,125,216>; break;
+            case 5005: eval_func = &Eval3D<3,5,5>; break;
+            case 5006: eval_func = &Eval3D<3,5,6>; break;
          }
          if (nq >= 1000 || !eval_func)
          {
