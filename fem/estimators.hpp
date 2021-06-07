@@ -422,7 +422,7 @@ public:
     1621-1656.
 
     It can be roughly described by:
-        ||∇(u-uₕ)||ₑ ≦ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
+        ||∇(u-uₕ)||ₑ ≅ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
     where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
     corresponding faces. u is the analytic solution and uₕ the discretized
     solution. hₖ and hₑ are factors dependent on the face and element geometry.
@@ -431,11 +431,14 @@ public:
     is also possible to estimate the error only on a subspace by feeding this
     class an attribute array describing the subspace.
 
-    @note This algorithm is a proper error esimator only for Poisson problems.
-    The current implementation does not reflect this, because the "C" factor is
-    not included.
-    It further assumes that the approximation error at the boundary is small
-    enough, as the implementation ignores boundary faces.
+    @note This algorithm is appropriate only for problems with scalar diffusion
+    coefficients (e.g. Poisson problems), because it measures only the flux of
+    the gradient of the discrete solution. The current implementation also does
+    not include the volume term present in Equation 75 of Kelly et al. Instead,
+    it includes only the flux term recommended in Equation 82.  The current
+    implementation also does not include the constant factor "C". It furthermore
+    assumes that the approximation error at the boundary is small enough, as the
+    implementation ignores boundary faces.
 */
 class KellyErrorEstimator final : public ErrorEstimator
 {
