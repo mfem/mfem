@@ -48,6 +48,40 @@ q_release_resources:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
 
+# Release
+q_report_success:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Can only run if all the quartz jobs passed"
+    - rundir="gitlab-ci/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest
+    - mkdir -p ${rundir}
+    - echo "The Quartz jobs were successful" > ${rundir}/gitlab-ci.out
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+  rules:
+    - when: on_success
+
+q_report_failure:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Runs if there was at least one failure on quartz"
+    - rundir="gitlab-ci/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest
+    - mkdir -p ${rundir}
+    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab-ci.err
+    - cp ${rundir}/gitlab-ci.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+  rules:
+    - when: on_failure
+
 # Spack helped builds
 # Generic quartz build job, extending build script
 .build_and_test_on_quartz:
@@ -105,9 +139,16 @@ update_autotest:
   needs: [baselinecheck_mfem_intel_quartz]
   stage: baseline_to_autotest
   script:
-    - rundir="$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - rundir="quartz-baseline/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - cd ${AUTOTEST_ROOT}/autotest
-    - cp -r ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/_baseline ${rundir}
+    - mkdir -p ${rundir}
+    - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
+    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
+    - |
+      if [[ -f ${rundir}/*.err ]]
+      then
+        cp ${rundir}/*.err ${rundir}/autotest-email.html
+      fi
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
 
