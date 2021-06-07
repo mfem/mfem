@@ -1236,6 +1236,40 @@ public:
 };
 
 /**
+ * An implementation of the preconditioner interface for the Ginkgo
+ * Algebraic Multigrid (AMG) solver.
+ *
+ *  @ingroup Ginkgo
+ */
+class AMGPreconditioner : public GinkgoPreconditioner
+{
+public:
+   enum SmootherType
+   {
+      JACOBI = 0,
+      BLOCK_JACOBI = 1,
+      IC = 2,
+      PARIC = 3,
+      CG = 4
+   };
+
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The GinkgoExecutor for this preconditioner.
+    * @param[in] smoother The type of smoother to use.
+    * @param[in] pre_sweeps Number of pre-smoothing sweeps.
+    * @param[in] post_sweeps Number of post-smoothing sweeps.
+    * @param[in] coarse_solver Type of solver to use on coarsest level.
+    * @param[in] coarse_solve_its Number of iterations to do on coarses level.
+    */
+   AMGPreconditioner(GinkgoExecutor &exec, SmootherType smoother,
+                     const int pre_sweeps, const int post_sweeps,
+                     SmootherType coarse_solver, const int coarse_solve_its);
+
+};
+
+/**
  * A wrapper that allows Ginkgo to use MFEM preconditioners.
  *
  * @ingroup Ginkgo

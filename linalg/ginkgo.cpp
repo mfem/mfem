@@ -1118,6 +1118,171 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
    }
 }
 
+/* ---------------------- AMGPreconditioner  ------------------------ */
+
+AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
+                                     SmootherType smoother,
+                                     const int pre_sweeps, const int post_sweeps,
+                                     SmootherType coarse_solver, const int coarse_solve_its)
+   : GinkgoPreconditioner(exec)
+{
+   std::shared_ptr<gko::LinOpFactory> smoother_gen;
+   std::shared_ptr<gko::LinOpFactory> coarse_solver_gen;
+
+   // TODO: set pre and post sweeps separately
+   switch (smoother)
+   {
+      case AMGPreconditioner::JACOBI :
+      {
+         auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
+                             .with_max_block_size(static_cast<unsigned int>(1u))
+                             .on(executor);
+         smoother_gen = gko::solver::Ir<double>::build()
+                        .with_criteria(
+                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
+                        .with_solver(gko::share(inner_solver))
+                        .with_relaxation_factor(0.9)
+                        .on(executor);
+      }
+      case AMGPreconditioner::BLOCK_JACOBI :
+      {
+         auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
+                             .on(executor);
+         smoother_gen = gko::solver::Ir<double>::build()
+                        .with_criteria(
+                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
+                        .with_solver(gko::share(inner_solver))
+                        .with_relaxation_factor(0.9)
+                        .on(executor);
+      }
+      case AMGPreconditioner::IC :
+      {
+         using ic_fact_type = gko::factorization::Ic<double, int>;
+         std::shared_ptr<ic_fact_type::Factory> fact_factory =
+            ic_fact_type::build()
+            .with_both_factors(false)
+            .on(executor);
+         auto inner_solver = gko::preconditioner::Ic<>::build()
+                             .with_factorization_factory(fact_factory)
+                             .on(executor);
+         smoother_gen = gko::solver::Ir<double>::build()
+                        .with_criteria(
+                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
+                        .with_solver(gko::share(inner_solver))
+                        .with_relaxation_factor(0.9)
+                        .on(executor);
+      }
+      case AMGPreconditioner::PARIC :
+      {
+
+         using ic_fact_type = gko::factorization::ParIc<double, int>;
+         std::shared_ptr<ic_fact_type::Factory> fact_factory =
+            ic_fact_type::build()
+            .with_both_factors(false)
+            .on(executor);
+         auto inner_solver = gko::preconditioner::Ic<>::build()
+                             .with_factorization_factory(fact_factory)
+                             .on(executor);
+         smoother_gen = gko::solver::Ir<double>::build()
+                        .with_criteria(
+                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
+                        .with_solver(gko::share(inner_solver))
+                        .with_relaxation_factor(0.9)
+                        .on(executor);
+      }
+      case AMGPreconditioner::CG :
+      {
+         smoother_gen = gko::solver::Cg<double>::build()
+                        .with_criteria(
+                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
+                        .on(executor);
+      }
+   }
+
+   switch (coarse_solver)
+   {
+      case AMGPreconditioner::JACOBI :
+      {
+         auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
+                             .with_max_block_size(static_cast<unsigned int>(1u))
+                             .on(executor);
+         coarse_solver_gen = gko::solver::Ir<double>::build()
+                             .with_criteria(
+                                gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
+                             .with_solver(gko::share(inner_solver))
+                             .with_relaxation_factor(0.9)
+                             .on(executor);
+      }
+      case AMGPreconditioner::BLOCK_JACOBI :
+      {
+         auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
+                             .on(executor);
+         coarse_solver_gen = gko::solver::Ir<double>::build()
+                             .with_criteria(
+                                gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
+                             .with_solver(gko::share(inner_solver))
+                             .with_relaxation_factor(0.9)
+                             .on(executor);
+      }
+      case AMGPreconditioner::IC :
+      {
+         using ic_fact_type = gko::factorization::Ic<double, int>;
+         std::shared_ptr<ic_fact_type::Factory> fact_factory =
+            ic_fact_type::build()
+            .with_both_factors(false)
+            .on(executor);
+         auto inner_solver = gko::preconditioner::Ic<>::build()
+                             .with_factorization_factory(fact_factory)
+                             .on(executor);
+         coarse_solver_gen = gko::solver::Ir<double>::build()
+                             .with_criteria(
+                                gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
+                             .with_solver(gko::share(inner_solver))
+                             .with_relaxation_factor(0.9)
+                             .on(executor);
+      }
+      case AMGPreconditioner::PARIC :
+      {
+
+         using ic_fact_type = gko::factorization::ParIc<double, int>;
+         std::shared_ptr<ic_fact_type::Factory> fact_factory =
+            ic_fact_type::build()
+            .with_both_factors(false)
+            .on(executor);
+         auto inner_solver = gko::preconditioner::Ic<>::build()
+                             .with_factorization_factory(fact_factory)
+                             .on(executor);
+         coarse_solver_gen = gko::solver::Ir<double>::build()
+                             .with_criteria(
+                                gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
+                             .with_solver(gko::share(inner_solver))
+                             .with_relaxation_factor(0.9)
+                             .on(executor);
+      }
+      case AMGPreconditioner::CG :
+      {
+         coarse_solver_gen = gko::solver::Cg<double>::build()
+                             .with_criteria(
+                                gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
+                             .on(executor);
+      }
+   }
+
+   using amgx_pgm = gko::multigrid::AmgxPgm<double, int>;
+   auto mg_level_gen = amgx_pgm::build().on(executor);
+
+   using mg = gko::solver::Multigrid<double>;
+   precond_gen = mg::build()
+                 .with_min_coarse_rows(50u)
+                 .with_pre_smoother(gko::share(coarse_solver_gen))
+                 .with_mg_level(gko::share(mg_level_gen))
+                 .with_coarsest_solver(gko::share(coarse_solver_gen))
+                 .with_criteria(
+                    gko::stop::Iteration::build().with_max_iters(1u).on(executor))
+                 .on(executor);
+
+}
+
 /* ---------------------- MFEMPreconditioner  ------------------------ */
 MFEMPreconditioner::MFEMPreconditioner(
    GinkgoExecutor &exec,
