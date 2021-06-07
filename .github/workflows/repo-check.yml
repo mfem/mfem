@@ -16,7 +16,6 @@ permissions:
 
 on:
   push:
-  pull_request:
 
 jobs:
   file-headers-check:
