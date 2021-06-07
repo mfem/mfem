@@ -21,7 +21,7 @@
 //
 //               Kelly estimator:
 //
-//               ex15 -est 1
+//               ex15 -est 1 -e 0.0001
 //               ex15 -est 1 -o 1 -y 0.4
 //               ex15 -est 1 -o 4 -y 0.1
 //               ex15 -est 1 -n 5
