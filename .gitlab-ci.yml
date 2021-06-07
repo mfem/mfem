@@ -131,8 +131,6 @@ setup:
   srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
-  # commit to autotest
-  cd .. && cp -r _${BASELINE_TEST} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR} ; cd -
   if [[ -s ${_glob_err} ]]
   then
     echo "ERROR during ${BASELINE_TEST} execution";
@@ -161,9 +159,7 @@ setup:
     cat ${_base_diff}
     cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.txt
     # We create a .err file, because that's how we signal that there was a diff.
-    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.err
-    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
-    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/autotest-email.html
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/gitlab-${BASELINE_TEST}-${SYS_TYPE}.err
   fi
   if [[ ! -s ${_base_diff} ]]
   then
