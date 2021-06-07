@@ -22,6 +22,9 @@
     # Don’t run autotest update if...
     - if: '$CI_JOB_NAME =~ /update_autotest/ && ( $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "next" && $AUTOTEST != "YES" )'
       when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /q_report/ && ( $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "next" && $AUTOTEST != "YES" )'
+      when: never
     # Always release resources
     - if: '$CI_JOB_NAME =~ /release_resources/'
       when: always
