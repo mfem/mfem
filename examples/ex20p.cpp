@@ -3,6 +3,10 @@
 // Compile with: make ex20p
 //
 // Sample runs:  mpirun -np 4 ex20p
+//               mpirun -np 4 ex20p -p 1 -o 1 -n 120 -dt 0.1
+//               mpirun -np 4 ex20p -p 1 -o 2 -n 60 -dt 0.2
+//               mpirun -np 4 ex20p -p 1 -o 3 -n 40 -dt 0.3
+//               mpirun -np 4 ex20p -p 1 -o 4 -n 30 -dt 0.4
 //
 // Description: This example demonstrates the use of the variable order,
 //              symplectic ODE integration algorithm.  Symplectic integration
