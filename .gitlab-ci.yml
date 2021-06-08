@@ -43,7 +43,7 @@ variables:
   BUILD_ROOT: ${CI_BUILDS_DIR}/MFEM/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
   AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM
   REBASELINE: "NO"
-  AUTOTEST: "YES"
+  AUTOTEST: "NO"
   ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
