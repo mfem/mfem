@@ -129,7 +129,8 @@ Version 4.2.1 (development)
 
 - Changed the interface for the error estimator.
 
-- Implemented the parallel Kelly error indicator for scalar-valued problems.
+- Implemented the Kelly error indicator for scalar-valued problems, supported
+  in serial and parallel builds.
 
 - Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
   efficient evaluation of symmetric matrix coefficients. This replaces the now
