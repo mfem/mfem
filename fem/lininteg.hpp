@@ -170,6 +170,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /// Class for boundary integration \f$ L(v) = (g \cdot n, v) \f$
@@ -424,6 +426,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 
@@ -464,6 +468,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 
@@ -507,6 +513,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /** Class for domain integration of L(v) := (f, v), where
