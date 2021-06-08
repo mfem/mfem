@@ -91,7 +91,7 @@ void FaceQuadratureInterpolator::Eval2D(
    const int vdim,
    const DofToQuad &maps,
    const Array<bool> &signs,
-   const Vector &f_vec,
+   const Vector &r_vec,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
@@ -111,11 +111,9 @@ void FaceQuadratureInterpolator::Eval2D(
    auto F = Reshape(f_vec.Read(), ND1D, VDIM, NF);
    auto sign = signs.Read();
    auto val = Reshape(q_val.Write(), NQ1D, VDIM, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF); // only tangential der
+   auto tangent = Reshape(q_der.Write(), NQ1D, VDIM, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NF);
    auto n   = Reshape(q_nor.Write(), NQ1D, VDIM, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
    // If Gauss-Lobatto
    MFEM_FORALL(f, NF,
    {
@@ -175,6 +173,11 @@ void FaceQuadratureInterpolator::Eval2D(
                   n(q,0,f) =  s*D[1]/norm;
                   n(q,1,f) = -s*D[0]/norm;
                }
+               if (eval_flags & DERIVATIVES)
+               {
+                  tangent(q,0,f) = D[0];
+                  tangent(q,1,f) = D[1];
+               }
             }
          }
       }
@@ -207,11 +210,9 @@ void FaceQuadratureInterpolator::Eval3D(
    auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
    auto sign = signs.Read();
    auto val = Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
+   auto J = Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, VDIM-1, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
    MFEM_FORALL(f, NF,
    {
       const int ND1D = T_ND1D ? T_ND1D : nd;
@@ -344,6 +345,17 @@ void FaceQuadratureInterpolator::Eval3D(
                      nor(q1,q2,0,f) = n[0]/norm;
                      nor(q1,q2,1,f) = n[1]/norm;
                      nor(q1,q2,2,f) = n[2]/norm;
+                  }
+
+                  if (eval_flags & DERIVATIVES)
+                  {
+                     J(q1,q2,0,0,f) = BGu[q2][q1][0];
+                     J(q1,q2,1,0,f) = BGu[q2][q1][1];
+                     J(q1,q2,2,0,f) = BGu[q2][q1][2];
+
+                     J(q1,q2,0,1,f) = GBu[q2][q1][0];
+                     J(q1,q2,1,1,f) = GBu[q2][q1][1];
+                     J(q1,q2,2,1,f) = GBu[q2][q1][2];
                   }
                }
             }
