@@ -64,7 +64,7 @@ inline int to_int(HYPRE_Int i)
 }
 #endif
 
-}
+} // namespace internal
 
 
 /// The MemoryClass used by Hypre objects.
@@ -188,6 +188,8 @@ public:
    /// Define '=' for hypre vectors.
    HypreParVector& operator= (const HypreParVector &y);
 
+   using Vector::Read;
+
    /// Sets the data of the Vector and the hypre_ParVector to @a data_.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
@@ -222,6 +224,8 @@ public:
       }
       return *this;
    }
+
+   using Vector::Write;
 
    /// TODO: documentation
    inline HypreParVector &Write(Vector &base)
