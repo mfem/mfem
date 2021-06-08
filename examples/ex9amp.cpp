@@ -136,20 +136,20 @@ private:
    Solver *prec;
    double dt;
    mutable int min_its, max_its, cum_its, num_mult;
-  
+
 public:
    DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_,
-	     const FiniteElementSpace &fes,
+             const FiniteElementSpace &fes,
              PrecType prec_type)
       : M(M_),
         K(K_),
         A(NULL),
         linear_solver(M.GetComm()),
         dt(-1.0),
-	min_its(100),
-	max_its(0),
-	cum_its(0),
-	num_mult(0)
+        min_its(100),
+        max_its(0),
+        cum_its(0),
+        num_mult(0)
    {
       int block_size = fes.GetFE(0)->GetDof();
       if (prec_type == PrecType::ILU)
@@ -176,7 +176,7 @@ public:
    }
 
    double GetMaximumTimeStep() const;
-  
+
    void SetTimeStep(double dt_)
    {
       if (dt_ != dt)
@@ -209,19 +209,19 @@ public:
       cum_its += num_its;
       num_mult++;
    }
-  
+
    ~DG_Solver()
    {
       delete prec;
       delete A;
    }
 
-  void PrintIterationStats() const
-  {
-    mfem::out << "Number of iterations (min, max, avg): "
-	      << min_its << ", " << max_its << ", " << cum_its / num_mult
-	      << endl;
-  }
+   void PrintIterationStats() const
+   {
+      mfem::out << "Number of iterations (min, max, avg): "
+                << min_its << ", " << max_its << ", " << cum_its / num_mult
+                << endl;
+   }
 };
 
 
@@ -250,295 +250,295 @@ public:
 
    virtual ~FE_Evolution();
 
-  void PrintSolverStats() const
-  {
-    if (dg_solver)
+   void PrintSolverStats() const
+   {
+      if (dg_solver)
       {
-	dg_solver->PrintIterationStats();
+         dg_solver->PrintIterationStats();
       }
-  }
+   }
 };
 
 class DGAdvDiffIntegrator : public BilinearFormIntegrator
 {
 protected:
-  //double alpha;
-  double s0_e, s1_e;
-  Coefficient *tau;
-  VectorCoefficient *beta;
+   //double alpha;
+   double s0_e, s1_e;
+   Coefficient *tau;
+   VectorCoefficient *beta;
 
-  Vector shape1, shape2, ndshape1, ndshape2;
-  DenseMatrix dshape1, dshape2;
-  
+   Vector shape1, shape2, ndshape1, ndshape2;
+   DenseMatrix dshape1, dshape2;
+
 public:
-  DGAdvDiffIntegrator(VectorCoefficient & b, Coefficient &t,
-		      double s0, double s1)
-    :
-    // alpha(a),
-    s0_e(s0),
-    s1_e(s1),
-    tau(&t),
-    beta(&b)
-  { }
+   DGAdvDiffIntegrator(VectorCoefficient & b, Coefficient &t,
+                       double s0, double s1)
+      :
+      // alpha(a),
+      s0_e(s0),
+      s1_e(s1),
+      tau(&t),
+      beta(&b)
+   { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat)
-  {
-   int dim, ndof1, ndof2;
-
-   double w, t1, t2, b1n, b2n, alpha1, alpha2;
-
-   dim = el1.GetDim();
-   Vector nor(dim);
-   Vector B1(dim), B2(dim);
-   
-   MFEM_VERIFY(Trans.Elem2No >= 0, "Designed for interior faces")
-
-   ndof1 = el1.GetDof();
-   ndof2 = el2.GetDof();
-
-   shape1.SetSize(ndof1);
-   shape2.SetSize(ndof2);
-   dshape1.SetSize(ndof1, dim);
-   dshape2.SetSize(ndof2, dim);
-   ndshape1.SetSize(ndof1);
-   ndshape2.SetSize(ndof2);
-   elmat.SetSize(ndof1 + ndof2);
-   elmat = 0.0;
-
-   Vector c1(dim), c2(dim), x(dim);
-   Vector v12(dim), c1x(dim), xc2(dim);
    {
-     IntegrationPoint cent;
-     cent.x = 0.5; cent.y = 0.5;
-     Trans.Elem1->SetIntPoint(&cent);
-     Trans.Elem2->SetIntPoint(&cent);
-     Trans.Elem1->Transform(cent, c1);
-     Trans.Elem2->Transform(cent, c2);
-     subtract(c2, c1, v12);
-   }
-   
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order;
-      // Assuming order(u)==order(mesh)
-      if (Trans.Elem2No >= 0)
-         order = (min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
-                  2*max(el1.GetOrder(), el2.GetOrder()));
-      else
+      int dim, ndof1, ndof2;
+
+      double w, t1, t2, b1n, b2n, alpha1, alpha2;
+
+      dim = el1.GetDim();
+      Vector nor(dim);
+      Vector B1(dim), B2(dim);
+
+      MFEM_VERIFY(Trans.Elem2No >= 0, "Designed for interior faces")
+
+      ndof1 = el1.GetDof();
+      ndof2 = el2.GetDof();
+
+      shape1.SetSize(ndof1);
+      shape2.SetSize(ndof2);
+      dshape1.SetSize(ndof1, dim);
+      dshape2.SetSize(ndof2, dim);
+      ndshape1.SetSize(ndof1);
+      ndshape2.SetSize(ndof2);
+      elmat.SetSize(ndof1 + ndof2);
+      elmat = 0.0;
+
+      Vector c1(dim), c2(dim), x(dim);
+      Vector v12(dim), c1x(dim), xc2(dim);
       {
-         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
-      }
-      if (el1.Space() == FunctionSpace::Pk)
-      {
-         order++;
-      }
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
-      if (Trans.Elem2No < 0 && false)
-	{
-	  mfem::out << "DGTrace order " << order
-		    << ", num pts = " << ir->GetNPoints() << std::endl; 
-	}
-   }
-
-   for (int p = 0; p < ir->GetNPoints(); p++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(p);
-
-      // Set the integration point in the face and the neighboring elements
-      Trans.SetAllIntPoints(&ip);
-
-      {
-	Trans.Transform(ip, x);
-      }
-      
-      // Access the neighboring elements' integration points
-      // Note: eip2 will only contain valid data if Elem2 exists
-      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
-
-      el1.CalcShape(eip1, shape1);
-      el2.CalcShape(eip2, shape2);
-
-      // el1.CalcDShape(eip1, dshape1);
-      // el2.CalcDShape(eip2, dshape2);
-      el1.CalcPhysDShape(*Trans.Elem1, dshape1);
-      el2.CalcPhysDShape(*Trans.Elem1, dshape2);
-
-      beta->Eval(B1, *Trans.Elem1, eip1);
-      beta->Eval(B2, *Trans.Elem2, eip2);
-
-      t1 = tau->Eval(*Trans.Elem1, eip1);
-      t2 = tau->Eval(*Trans.Elem2, eip2);
-      
-      if (dim == 1)
-      {
-         nor(0) = 2*eip1.x - 1.0;
-      }
-      else
-      {
-         CalcOrtho(Trans.Jacobian(), nor);
-	 // mfem::out << "|nor| " << nor.Norml2() << ", |J| " << Trans.Jacobian().Weight() << endl;
-	 subtract(c2, x, xc2);
-	 subtract(x, c1, c1x);
-	 if ( v12 * nor <= 0.0)
-	   {
-	 mfem::out << "c1 (" << c1[0] << "," << c1[1] << ")"
-		   << ", c2 (" << c2[0] << "," << c2[1] << ")"
-		   << ", x (" << x[0] << "," << x[1] << ")"
-		   << ", n (" << nor[0] << "," << nor[1] << ")"
-		   << ", " << v12 * nor << ", " << c1x * nor << ", " << xc2 * nor << endl;
-	   }
+         IntegrationPoint cent;
+         cent.x = 0.5; cent.y = 0.5;
+         Trans.Elem1->SetIntPoint(&cent);
+         Trans.Elem2->SetIntPoint(&cent);
+         Trans.Elem1->Transform(cent, c1);
+         Trans.Elem2->Transform(cent, c2);
+         subtract(c2, c1, v12);
       }
 
-      double detJ = nor.Norml2();
-      
-      b1n = B1 * nor;
-      b2n = B2 * nor;
-
-      alpha1 = 0.5 * (1.0 + copysign(t1, b1n));
-      alpha2 = 1.0 - alpha1;
-
-      dshape1.Mult(nor, ndshape1);
-      dshape2.Mult(nor, ndshape2);
-      
-      // un = vu * nor;
-      // a = 0.5 * alpha * un;
-      // b = beta * fabs(un);
-      // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
-      //       and therefore two blocks in the element matrix contribution
-      //       (from the current quadrature point) are 0
-      /*
-      if (Trans.Elem2No < 0 && false)
-	{
-	  mfem::out << "DGTrace v = (" << vu[0] << ", " << vu[1] << "), n "
-		    << nor[0] << ", " << nor[1] << ")" << std::endl;
-	  mfem::out << "DGTrace " << un << ", a = " << a << ", b = " << b << std::endl;
-	}
-      */
-      /*
-      if (rho)
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
       {
-         double rho_p;
-         if (un >= 0.0 && ndof2)
+         int order;
+         // Assuming order(u)==order(mesh)
+         if (Trans.Elem2No >= 0)
+            order = (min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
+                     2*max(el1.GetOrder(), el2.GetOrder()));
+         else
          {
-            rho_p = rho->Eval(*Trans.Elem2, eip2);
+            order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+         }
+         if (el1.Space() == FunctionSpace::Pk)
+         {
+            order++;
+         }
+         ir = &IntRules.Get(Trans.GetGeometryType(), order);
+         if (Trans.Elem2No < 0 && false)
+         {
+            mfem::out << "DGTrace order " << order
+                      << ", num pts = " << ir->GetNPoints() << std::endl;
+         }
+      }
+
+      for (int p = 0; p < ir->GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(p);
+
+         // Set the integration point in the face and the neighboring elements
+         Trans.SetAllIntPoints(&ip);
+
+         {
+            Trans.Transform(ip, x);
+         }
+
+         // Access the neighboring elements' integration points
+         // Note: eip2 will only contain valid data if Elem2 exists
+         const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+         const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+         el1.CalcShape(eip1, shape1);
+         el2.CalcShape(eip2, shape2);
+
+         // el1.CalcDShape(eip1, dshape1);
+         // el2.CalcDShape(eip2, dshape2);
+         el1.CalcPhysDShape(*Trans.Elem1, dshape1);
+         el2.CalcPhysDShape(*Trans.Elem1, dshape2);
+
+         beta->Eval(B1, *Trans.Elem1, eip1);
+         beta->Eval(B2, *Trans.Elem2, eip2);
+
+         t1 = tau->Eval(*Trans.Elem1, eip1);
+         t2 = tau->Eval(*Trans.Elem2, eip2);
+
+         if (dim == 1)
+         {
+            nor(0) = 2*eip1.x - 1.0;
          }
          else
          {
-            rho_p = rho->Eval(*Trans.Elem1, eip1);
-         }
-         a *= rho_p;
-         b *= rho_p;
-      }
-      */
-      w = (detJ * s0_e + (2.0 * alpha1 - 0.5) * b1n) * ip.weight;
-      if (w != 0.0)
-      {
-         for (int i = 0; i < ndof1; i++)
-            for (int j = 0; j < ndof1; j++)
+            CalcOrtho(Trans.Jacobian(), nor);
+            // mfem::out << "|nor| " << nor.Norml2() << ", |J| " << Trans.Jacobian().Weight() << endl;
+            subtract(c2, x, xc2);
+            subtract(x, c1, c1x);
+            if ( v12 * nor <= 0.0)
             {
-               elmat(i, j) += w * shape1(i) * shape1(j);
+               mfem::out << "c1 (" << c1[0] << "," << c1[1] << ")"
+                         << ", c2 (" << c2[0] << "," << c2[1] << ")"
+                         << ", x (" << x[0] << "," << x[1] << ")"
+                         << ", n (" << nor[0] << "," << nor[1] << ")"
+                         << ", " << v12 * nor << ", " << c1x * nor << ", " << xc2 * nor << endl;
             }
-      }
+         }
 
-      w = (detJ * s0_e + alpha1 * b1n - (alpha2 - 0.5) * b2n) * ip.weight;
-      if (w != 0.0)
-      {
-	for (int i = 0; i < ndof2; i++)
-	  for (int j = 0; j < ndof1; j++)
-	  {
-	    elmat(ndof1+i, j) -= w * shape2(i) * shape1(j);
-	  }
-      }
+         double detJ = nor.Norml2();
 
-      w = (detJ * s0_e + (alpha1 - 0.5) * b1n - alpha2 * b2n) * ip.weight;
-      if (w != 0.0)
-      {
-	for (int i = 0; i < ndof1; i++)
-	  for (int j = 0; j < ndof2; j++)
-	  {
-	    elmat(i, ndof1+j) -= w * shape1(i) * shape2(j);
-	  }
-      }
-      
-      w = (detJ * s0_e - (2.0 * alpha2 - 0.5) * b2n) * ip.weight;
-      if (w != 0.0)
-      {
-	for (int i = 0; i < ndof2; i++)
-	  for (int j = 0; j < ndof2; j++)
-	  {
-	    elmat(ndof1+i, ndof1+j) += w * shape2(i) * shape2(j);
-	  }
-      }
-      /*
-      if (s1_e != 0.0)
-      {
-	alpha1 = 0.5;
-	alpha2 = 0.5;
-	w = s1_e * ip.weight;
-	for (int i = 0; i < ndof1; i++)
-	  for (int j = 0; j < ndof1; j++)
-          {
-	    elmat(i, j) -= alpha1 * w * shape1(i) * ndshape1(j);
-	    elmat(i, j) -= alpha1 * w * ndshape1(i) * shape1(j);
-	  }
+         b1n = B1 * nor;
+         b2n = B2 * nor;
 
-	for (int i = 0; i < ndof2; i++)
-	  for (int j = 0; j < ndof1; j++)
-	  {
-	    elmat(ndof1+i, j) += alpha1 * w * shape2(i) * ndshape1(j);
-	    elmat(ndof1+i, j) -= alpha2 * w * ndshape2(i) * shape1(j);
-	  }
+         alpha1 = 0.5 * (1.0 + copysign(t1, b1n));
+         alpha2 = 1.0 - alpha1;
 
-	for (int i = 0; i < ndof1; i++)
-	  for (int j = 0; j < ndof2; j++)
-	  {
-	    elmat(i, ndof1+j) -= alpha2 * w * shape1(i) * ndshape2(j);
-	    elmat(i, ndof1+j) += alpha1 * w * ndshape1(i) * shape2(j);
-	  }
-      
-	for (int i = 0; i < ndof2; i++)
-	  for (int j = 0; j < ndof2; j++)
-	  {
-	    elmat(ndof1+i, ndof1+j) += alpha2 * w * shape2(i) * ndshape2(j);
-	    elmat(ndof1+i, ndof1+j) += alpha2 * w * ndshape2(i) * shape2(j);
-	  }
+         dshape1.Mult(nor, ndshape1);
+         dshape2.Mult(nor, ndshape2);
+
+         // un = vu * nor;
+         // a = 0.5 * alpha * un;
+         // b = beta * fabs(un);
+         // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
+         //       and therefore two blocks in the element matrix contribution
+         //       (from the current quadrature point) are 0
+         /*
+         if (Trans.Elem2No < 0 && false)
+         {
+           mfem::out << "DGTrace v = (" << vu[0] << ", " << vu[1] << "), n "
+               << nor[0] << ", " << nor[1] << ")" << std::endl;
+           mfem::out << "DGTrace " << un << ", a = " << a << ", b = " << b << std::endl;
+         }
+              */
+         /*
+         if (rho)
+         {
+            double rho_p;
+            if (un >= 0.0 && ndof2)
+            {
+               rho_p = rho->Eval(*Trans.Elem2, eip2);
+            }
+            else
+            {
+               rho_p = rho->Eval(*Trans.Elem1, eip1);
+            }
+            a *= rho_p;
+            b *= rho_p;
+         }
+         */
+         w = (detJ * s0_e + (2.0 * alpha1 - 0.5) * b1n) * ip.weight;
+         if (w != 0.0)
+         {
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < ndof1; j++)
+               {
+                  elmat(i, j) += w * shape1(i) * shape1(j);
+               }
+         }
+
+         w = (detJ * s0_e + alpha1 * b1n - (alpha2 - 0.5) * b2n) * ip.weight;
+         if (w != 0.0)
+         {
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof1; j++)
+               {
+                  elmat(ndof1+i, j) -= w * shape2(i) * shape1(j);
+               }
+         }
+
+         w = (detJ * s0_e + (alpha1 - 0.5) * b1n - alpha2 * b2n) * ip.weight;
+         if (w != 0.0)
+         {
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(i, ndof1+j) -= w * shape1(i) * shape2(j);
+               }
+         }
+
+         w = (detJ * s0_e - (2.0 * alpha2 - 0.5) * b2n) * ip.weight;
+         if (w != 0.0)
+         {
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(ndof1+i, ndof1+j) += w * shape2(i) * shape2(j);
+               }
+         }
+         /*
+         if (s1_e != 0.0)
+         {
+         alpha1 = 0.5;
+         alpha2 = 0.5;
+         w = s1_e * ip.weight;
+         for (int i = 0; i < ndof1; i++)
+           for (int j = 0; j < ndof1; j++)
+                  {
+             elmat(i, j) -= alpha1 * w * shape1(i) * ndshape1(j);
+             elmat(i, j) -= alpha1 * w * ndshape1(i) * shape1(j);
+           }
+
+         for (int i = 0; i < ndof2; i++)
+           for (int j = 0; j < ndof1; j++)
+           {
+             elmat(ndof1+i, j) += alpha1 * w * shape2(i) * ndshape1(j);
+             elmat(ndof1+i, j) -= alpha2 * w * ndshape2(i) * shape1(j);
+           }
+
+         for (int i = 0; i < ndof1; i++)
+           for (int j = 0; j < ndof2; j++)
+           {
+             elmat(i, ndof1+j) -= alpha2 * w * shape1(i) * ndshape2(j);
+             elmat(i, ndof1+j) += alpha1 * w * ndshape1(i) * shape2(j);
+           }
+
+         for (int i = 0; i < ndof2; i++)
+           for (int j = 0; j < ndof2; j++)
+           {
+             elmat(ndof1+i, ndof1+j) += alpha2 * w * shape2(i) * ndshape2(j);
+             elmat(ndof1+i, ndof1+j) += alpha2 * w * ndshape2(i) * shape2(j);
+           }
+              }
+              */
+         if (s1_e != 0.0)
+         {
+            w = s1_e * ip.weight / detJ;
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < ndof1; j++)
+               {
+                  elmat(i, j) += w * ndshape1(i) * ndshape1(j);
+               }
+
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof1; j++)
+               {
+                  elmat(ndof1+i, j) -= w * ndshape2(i) * ndshape1(j);
+               }
+
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(i, ndof1+j) -= w * ndshape1(i) * ndshape2(j);
+               }
+
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(ndof1+i, ndof1+j) += w * ndshape2(i) * ndshape2(j);
+               }
+         }
       }
-      */
-      if (s1_e != 0.0)
-      {
-	w = s1_e * ip.weight / detJ;
-	for (int i = 0; i < ndof1; i++)
-	  for (int j = 0; j < ndof1; j++)
-          {
-	    elmat(i, j) += w * ndshape1(i) * ndshape1(j);
-	  }
-
-	for (int i = 0; i < ndof2; i++)
-	  for (int j = 0; j < ndof1; j++)
-	  {
-	    elmat(ndof1+i, j) -= w * ndshape2(i) * ndshape1(j);
-	  }
-
-	for (int i = 0; i < ndof1; i++)
-	  for (int j = 0; j < ndof2; j++)
-	  {
-	    elmat(i, ndof1+j) -= w * ndshape1(i) * ndshape2(j);
-	  }
-      
-	for (int i = 0; i < ndof2; i++)
-	  for (int j = 0; j < ndof2; j++)
-	  {
-	    elmat(ndof1+i, ndof1+j) += w * ndshape2(i) * ndshape2(j);
-	  }
-      }
+      elmat *= -1.0;
    }
-   elmat *= -1.0;
-  }
 };
 
 int main(int argc, char *argv[])
@@ -753,7 +753,7 @@ int main(int argc, char *argv[])
    k->AddDomainIntegrator(new ConservativeConvectionIntegrator(velocity, -1.0));
    // k->AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velocity));
    k->AddInteriorFaceIntegrator(new DGAdvDiffIntegrator(velocity, tauCoef,
-							s0_e, s1_e));
+                                                        s0_e, s1_e));
    k->AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, 0.5));
 
    ParLinearForm *b = new ParLinearForm(fes);
@@ -782,12 +782,12 @@ int main(int argc, char *argv[])
    HypreParVector *U = u->GetTrueDofs();
    double nrm0 = u->ComputeL2Error(zero);
    {
-     double err = u->ComputeL2Error(u0);
-     mfem::out << "Initial error " << err / nrm0 << endl;
+      double err = u->ComputeL2Error(u0);
+      mfem::out << "Initial error " << err / nrm0 << endl;
    }
 
    double sum = (*lf)(*u);
-   mfem::out << "Initial integral " << sum << endl;   
+   mfem::out << "Initial integral " << sum << endl;
 
    {
       ostringstream mesh_name, sol_name;
@@ -895,7 +895,7 @@ int main(int argc, char *argv[])
 
    ofstream ofsIts("ex9amp_its.dat");
    ofstream ofsErr("ex9amp_err.dat");
-   
+
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
@@ -920,18 +920,18 @@ int main(int argc, char *argv[])
          //     element approximation U (the local solution on each processor).
          *u = *U;
 
-	 sum = (*lf)(*u);
+         sum = (*lf)(*u);
 
-	 u0.SetTime(t);
-	 double err = u->ComputeL2Error(u0);
+         u0.SetTime(t);
+         double err = u->ComputeL2Error(u0);
 
-	 if (mpi.Root())
+         if (mpi.Root())
          {
             cout << "time step: " << ti << ", time: " << t
-		 << ", integral " << sum
-		 << ", range " << U->Min() << " to " << U->Max()
-		 << ", error " << err / nrm0 << endl;
-	    ofsErr << t << '\t' << err / nrm0 << endl;
+                 << ", integral " << sum
+                 << ", range " << U->Min() << " to " << U->Max()
+                 << ", error " << err / nrm0 << endl;
+            ofsErr << t << '\t' << err / nrm0 << endl;
          }
 
          if (visualization)
@@ -967,17 +967,17 @@ int main(int argc, char *argv[])
       /*
       if (t > ceil(t) - dt || t < floor(t) + dt)
       {
-	u0.SetTime(t);
-	double err = u->ComputeL2Error(u0);
-	mfem::out << "Error at time " << t << " is " << err / nrm0 << endl;
-      }
-      */
+      u0.SetTime(t);
+      double err = u->ComputeL2Error(u0);
+      mfem::out << "Error at time " << t << " is " << err / nrm0 << endl;
+           }
+           */
    }
 
    ofsErr.close();
 
    adv.PrintSolverStats();
-   
+
    // 12. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
    {
@@ -1085,7 +1085,7 @@ FE_Evolution::~FE_Evolution()
 }
 
 double DG_Solver::GetMaximumTimeStep() const
-{  
+{
    HypreParVector * v0 = new HypreParVector(M);
    HypreParVector * v1 = new HypreParVector(M);
    HypreParVector * RHS = new HypreParVector(M);
@@ -1255,22 +1255,22 @@ double u0_function(const Vector &x, double t)
          const double f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
-   case 4:
-     {
-       int n = 1;
-       double a = 1e17;
-       double b = 1e16;
-       double phi = atan2(X[1], X[0]);
-       return a + b * sin((double)n * phi - 2.0 * M_PI * t);
-     }
-   case 5:
-     {
-       int n = 1;
-       double a = 1;
-       double b = 0.1;
-       double phi = atan2(X[1], X[0]);
-       return a + b * sin((double)n * phi - 2.0 * M_PI * t);
-     }
+      case 4:
+      {
+         int n = 1;
+         double a = 1e17;
+         double b = 1e16;
+         double phi = atan2(X[1], X[0]);
+         return a + b * sin((double)n * phi - 2.0 * M_PI * t);
+      }
+      case 5:
+      {
+         int n = 1;
+         double a = 1;
+         double b = 0.1;
+         double phi = atan2(X[1], X[0]);
+         return a + b * sin((double)n * phi - 2.0 * M_PI * t);
+      }
    }
    return 0.0;
 }
