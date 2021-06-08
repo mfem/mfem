@@ -59,10 +59,10 @@ q_report_success:
   stage: q_release_resources
   script:
     - echo "Can only run if all the quartz jobs passed"
-    - rundir="gitlab-ci/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - cd ${AUTOTEST_ROOT}/autotest
     - mkdir -p ${rundir}
-    - echo "The Quartz jobs were successful" > ${rundir}/gitlab-ci.out
+    - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
     - git push origin master
@@ -76,11 +76,11 @@ q_report_failure:
   stage: q_release_resources
   script:
     - echo "Runs if there was at least one failure on quartz"
-    - rundir="gitlab-ci/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - cd ${AUTOTEST_ROOT}/autotest
     - mkdir -p ${rundir}
-    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab-ci.err
-    - cp ${rundir}/gitlab-ci.err ${rundir}/autotest-email.html
+    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
     - git push origin master
@@ -144,7 +144,7 @@ update_autotest:
   needs: [baselinecheck_mfem_intel_quartz]
   stage: baseline_to_autotest
   script:
-    - rundir="quartz-baseline/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - rundir="quartz/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - cd ${AUTOTEST_ROOT}/autotest
     - mkdir -p ${rundir}
     - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
