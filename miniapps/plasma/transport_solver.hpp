@@ -2507,7 +2507,7 @@ private:
       mutable Vector locdvec_;
 
       // Domain integrators for time derivatives of field variables
-      Array<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
+      std::vector<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
       // Array<Array<StateVariableCoef*> >      dbfi_mc_; // Domain Integrators
 
       // Domain integrators for field variables at next time step

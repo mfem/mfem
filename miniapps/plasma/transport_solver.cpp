@@ -314,8 +314,11 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
    input >> buff;
    MFEM_VERIFY(buff == "transport_bcs", "invalid BC file");
 
-   Array<ios::streampos> pos(neqn_+1);
-   pos = -1;
+   vector<ios::streampos> pos(neqn_+1);
+   for (int i=0; i<=neqn_; i++)
+   {
+      pos[i] = -1;
+   }
    while (input >> buff)
    {
       pos[neqn_] = std::max(pos[neqn_], input.tellg());
@@ -378,8 +381,11 @@ void TransportICs::ReadICs(CoefFactory &cf, std::istream &input)
    input >> buff;
    MFEM_VERIFY(buff == "transport_ics", "invalid Initial Condition file");
 
-   Array<ios::streampos> pos(neqn_+1);
-   pos = -1;
+   vector<ios::streampos> pos(neqn_+1);
+   for (int i=0; i<=neqn_; i++)
+   {
+      pos[i] = -1;
+   }
    while (input >> buff)
    {
       pos[neqn_] = std::max(pos[neqn_], input.tellg());
@@ -443,8 +449,11 @@ void TransportExactSolutions::Read(CoefFactory &cf, std::istream &input)
    input >> buff;
    MFEM_VERIFY(buff == "transport_ess", "invalid Exact Solutions file");
 
-   Array<ios::streampos> pos(neqn_+1);
-   pos = -1;
+   vector<ios::streampos> pos(neqn_+1);
+   for (int i=0; i<=neqn_; i++)
+   {
+      pos[i] = -1;
+   }
    while (input >> buff)
    {
       pos[neqn_] = std::max(pos[neqn_], input.tellg());
@@ -508,8 +517,11 @@ void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
    input >> buff;
    MFEM_VERIFY(buff == "transport_coefs", "invalid Coefficient file");
 
-   Array<ios::streampos> pos(neqn_+2);
-   pos = -1;
+   vector<ios::streampos> pos(neqn_+2);
+   for (int i=0; i<=neqn_+1; i++)
+   {
+      pos[i] = -1;
+   }
    while (input >> buff)
    {
       pos[neqn_+1] = std::max(pos[neqn_+1], input.tellg());
@@ -574,13 +586,16 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
 
    skip_comment_lines(input, '#');
 
-   Array<ios::streampos> pos(nCoefs+1);
+   vector<ios::streampos> pos(nCoefs+1);
+   for (int i=0; i<=nCoefs; i++)
+   {
+      pos[i] = -1;
+   }
 
    enum CoefType {INVALID = -1, SCALAR, VECTOR, MATRIX};
    Array<CoefType> typ(nCoefs);
    typ = CoefType::INVALID;
 
-   pos = -1;
    while (input >> buff)
    {
       pos[nCoefs] = std::max(pos[nCoefs], input.tellg());
@@ -1973,7 +1988,7 @@ DGTransportTDO::NLOperator::~NLOperator()
       delete blf_[i];
    }
 
-   for (int i=0; i<dbfi_m_.Size(); i++)
+   for (int i=0; i<dbfi_m_.size(); i++)
    {
       for (int j=0; j<dbfi_m_[i].Size(); j++)
       {

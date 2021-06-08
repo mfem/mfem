@@ -2349,7 +2349,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
    refiner.SetTotalErrorNormP(p);
    refiner.SetLocalErrorGoal(tol);
 
-   Array<socketstream> sout(5);
+   vector<socketstream> sout(5);
    char vishost[] = "localhost";
    int  visport   = 19916;
 
