@@ -412,11 +412,11 @@ public:
 
     The Kelly error indicator is based on the following papers:
 
-    Kelly, D. W., et al. "A posteriori error analysis and adaptive processes in
-    the finite element method: Part I—Error analysis." International journal for
-    numerical methods in engineering 19.11 (1983): 1593-1619.
+    [1] Kelly, D. W., et al. "A posteriori error analysis and adaptive processes
+    in the finite element method: Part I—Error analysis." International journal
+    for numerical methods in engineering 19.11 (1983): 1593-1619.
 
-    De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
+    [2] De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
     processes in the finite element method: Part II—Adaptive mesh refinement."
     International journal for numerical methods in engineering 19.11 (1983):
     1621-1656.
@@ -434,11 +434,11 @@ public:
     @note This algorithm is appropriate only for problems with scalar diffusion
     coefficients (e.g. Poisson problems), because it measures only the flux of
     the gradient of the discrete solution. The current implementation also does
-    not include the volume term present in Equation 75 of Kelly et al. Instead,
-    it includes only the flux term recommended in Equation 82.  The current
-    implementation also does not include the constant factor "C". It furthermore
-    assumes that the approximation error at the boundary is small enough, as the
-    implementation ignores boundary faces.
+    not include the volume term present in Equation 75 of Kelly et al [1].
+    Instead, it includes only the flux term recommended in Equation 82. The
+    current implementation also does not include the constant factor "C". It
+    furthermore assumes that the approximation error at the boundary is small
+    enough, as the implementation ignores boundary faces.
 */
 class KellyErrorEstimator final : public ErrorEstimator
 {
