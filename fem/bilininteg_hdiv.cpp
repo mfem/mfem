@@ -12,7 +12,6 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/mass.hpp"
 
 using namespace std;
 
@@ -28,14 +27,14 @@ void PAHdivSetup2D(const int Q1D,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
-                   Vector &_coeff,
+                   Vector &coeff_,
                    Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -60,13 +59,13 @@ void PAHdivSetup3D(const int Q1D,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
-                   Vector &_coeff,
+                   Vector &coeff_,
                    Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
 
    MFEM_FORALL(e, NE,
@@ -100,25 +99,25 @@ void PAHdivSetup3D(const int Q1D,
 void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &_Bo,
-                       const Array<double> &_Bc,
-                       const Array<double> &_Bot,
-                       const Array<double> &_Bct,
-                       const Vector &_op,
-                       const Vector &_x,
-                       Vector &_y)
+                       const Array<double> &Bo_,
+                       const Array<double> &Bc_,
+                       const Array<double> &Bot_,
+                       const Array<double> &Bct_,
+                       const Vector &op_,
+                       const Vector &x_,
+                       Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -229,18 +228,18 @@ void PAHdivMassApply2D(const int D1D,
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
-                                  const Array<double> &_Bo,
-                                  const Array<double> &_Bc,
-                                  const Vector &_op,
-                                  Vector &_diag)
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Vector &op_,
+                                  Vector &diag_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -284,19 +283,19 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
-                                  const Array<double> &_Bo,
-                                  const Array<double> &_Bc,
-                                  const Vector &_op,
-                                  Vector &_diag)
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Vector &op_,
+                                  Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -351,25 +350,25 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &_Bo,
-                       const Array<double> &_Bc,
-                       const Array<double> &_Bot,
-                       const Array<double> &_Bct,
-                       const Vector &_op,
-                       const Vector &_x,
-                       Vector &_y)
+                       const Array<double> &Bo_,
+                       const Array<double> &Bc_,
+                       const Array<double> &Bot_,
+                       const Array<double> &Bct_,
+                       const Vector &op_,
+                       const Vector &x_,
+                       Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -544,13 +543,13 @@ static void PADivDivSetup2D(const int Q1D,
                             const int NE,
                             const Array<double> &w,
                             const Vector &j,
-                            Vector &_coeff,
+                            Vector &coeff_,
                             Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -570,13 +569,13 @@ static void PADivDivSetup3D(const int Q1D,
                             const int NE,
                             const Array<double> &w,
                             const Vector &j,
-                            Vector &_coeff,
+                            Vector &coeff_,
                             Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -603,31 +602,31 @@ static void PADivDivSetup3D(const int Q1D,
 static void PADivDivApply2D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Gc,
-                            const Array<double> &_Bot,
-                            const Array<double> &_Gct,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &Bot_,
+                            const Array<double> &Gct_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
       double div[MAX_Q1D][MAX_Q1D];
 
-      // div[qy][qx] will be computed as du_x/dx + du_y/dy
+      // div[qy][qx] will be computed as du_x/dx + duy_/dy
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -722,25 +721,25 @@ static void PADivDivApply2D(const int D1D,
 static void PADivDivApply3D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Gc,
-                            const Array<double> &_Bot,
-                            const Array<double> &_Gct,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &Bot_,
+                            const Array<double> &Gct_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -971,18 +970,18 @@ void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
 static void PADivDivAssembleDiagonal2D(const int D1D,
                                        const int Q1D,
                                        const int NE,
-                                       const Array<double> &_Bo,
-                                       const Array<double> &_Gc,
-                                       const Vector &_op,
-                                       Vector &_diag)
+                                       const Array<double> &Bo_,
+                                       const Array<double> &Gc_,
+                                       const Vector &op_,
+                                       Vector &diag_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1027,19 +1026,19 @@ static void PADivDivAssembleDiagonal2D(const int D1D,
 static void PADivDivAssembleDiagonal3D(const int D1D,
                                        const int Q1D,
                                        const int NE,
-                                       const Array<double> &_Bo,
-                                       const Array<double> &_Gc,
-                                       const Vector &_op,
-                                       Vector &_diag)
+                                       const Array<double> &Bo_,
+                                       const Array<double> &Gc_,
+                                       const Vector &op_,
+                                       Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1108,12 +1107,12 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 static void PADivL2Setup2D(const int Q1D,
                            const int NE,
                            const Array<double> &w,
-                           Vector &_coeff,
+                           Vector &coeff_,
                            Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
@@ -1127,12 +1126,12 @@ static void PADivL2Setup2D(const int Q1D,
 static void PADivL2Setup3D(const int Q1D,
                            const int NE,
                            const Array<double> &w,
-                           Vector &_coeff,
+                           Vector &coeff_,
                            Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
-   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
    MFEM_FORALL(e, NE,
@@ -1230,23 +1229,23 @@ static void PAHdivL2Apply3D(const int D1D,
                             const int Q1D,
                             const int L2D1D,
                             const int NE,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Gc,
-                            const Array<double> &_L2Bot,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &L2Bot_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto L2Bot = Reshape(_L2Bot.Read(), L2D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto L2Bot = Reshape(L2Bot_.Read(), L2D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1393,23 +1392,23 @@ static void PAHdivL2Apply2D(const int D1D,
                             const int Q1D,
                             const int L2D1D,
                             const int NE,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Gc,
-                            const Array<double> &_L2Bot,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &L2Bot_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto L2Bot = Reshape(_L2Bot.Read(), L2D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), L2D1D, L2D1D, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto L2Bot = Reshape(L2Bot_.Read(), L2D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), L2D1D, L2D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1499,23 +1498,23 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
                                      const int Q1D,
                                      const int L2D1D,
                                      const int NE,
-                                     const Array<double> &_L2Bo,
-                                     const Array<double> &_Gct,
-                                     const Array<double> &_Bot,
-                                     const Vector &_op,
-                                     const Vector &_x,
-                                     Vector &_y)
+                                     const Array<double> &L2Bo_,
+                                     const Array<double> &Gct_,
+                                     const Array<double> &Bot_,
+                                     const Vector &op_,
+                                     const Vector &x_,
+                                     Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), L2D1D, L2D1D, L2D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), L2D1D, L2D1D, L2D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1661,23 +1660,23 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
                                      const int Q1D,
                                      const int L2D1D,
                                      const int NE,
-                                     const Array<double> &_L2Bo,
-                                     const Array<double> &_Gct,
-                                     const Array<double> &_Bot,
-                                     const Vector &_op,
-                                     const Vector &_x,
-                                     Vector &_y)
+                                     const Array<double> &L2Bo_,
+                                     const Array<double> &Gct_,
+                                     const Array<double> &Bot_,
+                                     const Vector &op_,
+                                     const Vector &x_,
+                                     Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
-   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), L2D1D, L2D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), L2D1D, L2D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1796,23 +1795,23 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                                              const int Q1D,
                                              const int L2D1D,
                                              const int NE,
-                                             const Array<double> &_L2Bo,
-                                             const Array<double> &_Gct,
-                                             const Array<double> &_Bot,
-                                             const Vector &_op,
-                                             const Vector &_D,
-                                             Vector &_diag)
+                                             const Array<double> &L2Bo_,
+                                             const Array<double> &Gct_,
+                                             const Array<double> &Bot_,
+                                             const Vector &op_,
+                                             const Vector &D_,
+                                             Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto D = Reshape(_D.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-   auto diag = Reshape(_diag.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
+   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto D = Reshape(D_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1921,21 +1920,21 @@ static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                                              const int Q1D,
                                              const int L2D1D,
                                              const int NE,
-                                             const Array<double> &_L2Bo,
-                                             const Array<double> &_Gct,
-                                             const Array<double> &_Bot,
-                                             const Vector &_op,
-                                             const Vector &_D,
-                                             Vector &_diag)
+                                             const Array<double> &L2Bo_,
+                                             const Array<double> &Gct_,
+                                             const Array<double> &Bot_,
+                                             const Vector &op_,
+                                             const Vector &D_,
+                                             Vector &diag_)
 {
    constexpr static int VDIM = 2;
 
-   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
-   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto D = Reshape(_D.Read(), 2*(D1D-1)*D1D, NE);
-   auto diag = Reshape(_diag.ReadWrite(), L2D1D, L2D1D, NE);
+   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto D = Reshape(D_.Read(), 2*(D1D-1)*D1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, NE);
 
    MFEM_FORALL(e, NE,
    {

@@ -17,6 +17,7 @@ list(APPEND SRCS
   error.cpp
   gecko.cpp
   globals.cpp
+  hash.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp
@@ -33,6 +34,7 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  annotation.hpp
   array.hpp
   backends.hpp
   binaryio.hpp

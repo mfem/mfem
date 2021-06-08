@@ -14,6 +14,8 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
+#include "handle.hpp"
+#include <memory>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -90,7 +92,7 @@ public:
    IterativeSolver();
 
 #ifdef MFEM_USE_MPI
-   IterativeSolver(MPI_Comm _comm);
+   IterativeSolver(MPI_Comm comm_);
 #endif
 
    void SetRelTol(double rtol) { rel_tol = rtol; }
@@ -128,10 +130,20 @@ public:
 class OperatorJacobiSmoother : public Solver
 {
 public:
+   /** @brief Default constructor: the diagonal will be computed by subsequent
+       calls to SetOperator() using the Operator method AssembleDiagonal. */
+   /** In this case the array of essential tdofs will be empty. */
+   OperatorJacobiSmoother(const double damping=1.0);
+
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
        the identity on entries in ess_tdof_list, corresponding to (assembled)
-       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting. */
+       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting.
+
+       @note For objects created with this constructor, calling SetOperator()
+       will only set the internal Operator pointer to the given new Operator
+       without any other changes to the object. This is done to preserve the
+       original behavior of this class. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
@@ -139,25 +151,48 @@ public:
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
        corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
-       the matrix-free setting. */
+       the matrix-free setting.
+
+       @note For objects created with this constructor, calling SetOperator()
+       will only set the internal Operator pointer to the given new Operator
+       without any other changes to the object. This is done to preserve the
+       original behavior of this class. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
+
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   void SetOperator(const Operator &op) { oper = &op; }
-   void Setup(const Vector &diag);
+
+   /** @brief Recompute the diagonal using the method AssembleDiagonal of the
+       given new Operator, @a op. */
+   /** Note that (Par)BilinearForm operators are treated similar to the way they
+       are treated in the constructor that takes a BilinearForm parameter.
+       Specifically, this means that the OperatorJacobiSmoother will work with
+       true-dof vectors even though the size of the BilinearForm may be
+       different.
+
+       When the new Operator, @a op, is not a (Par)BilinearForm, any previously
+       set array of essential true-dofs will be thrown away because in this case
+       any essential b.c. will be handled by the AssembleDiagonal method. */
+   void SetOperator(const Operator &op);
 
 private:
-   const int N;
    Vector dinv;
    const double damping;
-   const Array<int> &ess_tdof_list;
+   const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
 
-   const Operator *oper;
+   const Operator *oper; // not owned
+
+   // To preserve the original behavior, some constructors set this flag to
+   // false to disallow updating the OperatorJacobiSmoother with SetOperator.
+   const bool allow_updates;
+
+public:
+   void Setup(const Vector &diag);
 };
 
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
@@ -187,12 +222,14 @@ public:
 #ifdef MFEM_USE_MPI
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, MPI_Comm comm = MPI_COMM_NULL, int power_iterations = 10,
+                             int order, MPI_Comm comm = MPI_COMM_NULL,
+                             int power_iterations = 10,
                              double power_tolerance = 1e-8);
 #else
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, int power_iterations = 10, double power_tolerance = 1e-8);
+                             int order, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
 #endif
 
    ~OperatorChebyshevSmoother() {}
@@ -234,7 +271,7 @@ public:
    SLISolver() { }
 
 #ifdef MFEM_USE_MPI
-   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   SLISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -266,7 +303,7 @@ public:
    CGSolver() { }
 
 #ifdef MFEM_USE_MPI
-   CGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   CGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -296,7 +333,7 @@ public:
    GMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   GMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    /// Set the number of iteration to perform between restarts, default is 50.
@@ -315,7 +352,7 @@ public:
    FGMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   FGMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   FGMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    void SetKDim(int dim) { m = dim; }
@@ -345,7 +382,7 @@ public:
    BiCGSTABSolver() { }
 
 #ifdef MFEM_USE_MPI
-   BiCGSTABSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   BiCGSTABSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -375,7 +412,7 @@ public:
    MINRESSolver() { }
 
 #ifdef MFEM_USE_MPI
-   MINRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   MINRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetPreconditioner(Solver &pr)
@@ -406,7 +443,7 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector xcur, r, c;
+   mutable Vector r, c;
    mutable Operator *grad;
 
    // Adaptive linear solver rtol variables
@@ -445,7 +482,7 @@ public:
    NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
    virtual void SetOperator(const Operator &op);
 
@@ -478,9 +515,6 @@ public:
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
 
-   const Vector &GetCurrentResidual() const { return r; }
-   const Vector &GetCurrentIterate() const { return xcur; }
-
    /// Enable adaptive linear solver relative tolerance algorithm.
    /** Compute a relative tolerance for the Krylov method after each nonlinear
     iteration, based on the algorithm presented in [1].
@@ -510,7 +544,7 @@ public:
    LBFGSSolver() : NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
    void SetHistorySize(int dim) { m = dim; }
@@ -594,7 +628,7 @@ protected:
 public:
    OptimizationSolver(): IterativeSolver(), problem(NULL) { }
 #ifdef MFEM_USE_MPI
-   OptimizationSolver(MPI_Comm _comm): IterativeSolver(_comm), problem(NULL) { }
+   OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
 #endif
    virtual ~OptimizationSolver() { }
 
@@ -652,7 +686,7 @@ public:
    SLBQPOptimizer() { }
 
 #ifdef MFEM_USE_MPI
-   SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) { }
+   SLBQPOptimizer(MPI_Comm comm_) : OptimizationSolver(comm_) { }
 #endif
 
    /** Setting an OptimizationProblem will overwrite the Vectors given by
@@ -660,8 +694,8 @@ public:
     *  unchanged. */
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
-   void SetBounds(const Vector &_lo, const Vector &_hi);
-   void SetLinearConstraint(const Vector &_w, double _a);
+   void SetBounds(const Vector &lo_, const Vector &hi_);
+   void SetLinearConstraint(const Vector &w_, double a_);
 
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
@@ -806,14 +840,14 @@ public:
    mutable double Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
-       _use_long_ints = true. */
-   UMFPackSolver(bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); }
+       use_long_ints_ = true. */
+   UMFPackSolver(bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); }
    /** @brief Factorize the given SparseMatrix using the defaults. For larger
-       matrices, if the solver fails, set the parameter @a _use_long_ints =
+       matrices, if the solver fails, set the parameter @a use_long_ints_ =
        true. */
-   UMFPackSolver(SparseMatrix &A, bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); SetOperator(A); }
+   UMFPackSolver(SparseMatrix &A, bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be a SparseMatrix.
 
@@ -861,6 +895,61 @@ public:
 };
 
 #endif // MFEM_USE_SUITESPARSE
+
+/// Block diagonal solver for A, each block is inverted by direct solver
+class DirectSubBlockSolver : public Solver
+{
+   SparseMatrix& block_dof;
+   mutable Array<int> local_dofs;
+   mutable Vector sub_rhs;
+   mutable Vector sub_sol;
+   std::unique_ptr<DenseMatrixInverse[]> block_solvers;
+public:
+   /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
+   /// i-th block, block_dof(i, j) = 0 otherwise.
+   DirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver S such that I - A * S = (I - A * S1) * (I - A * S0).
+/// That is, S = S0 + S1 - S1 * A * S0.
+class ProductSolver : public Solver
+{
+   OperatorPtr A;
+   OperatorPtr S0;
+   OperatorPtr S1;
+public:
+   ProductSolver(Operator* A_, Solver* S0_, Solver* S1_,
+                 bool ownA, bool ownS0, bool ownS1)
+      : Solver(A_->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+#ifdef MFEM_USE_MPI
+/** This smoother does relaxations on an auxiliary space (determined by a map
+    from the original space to the auxiliary space provided by the user).
+    The smoother on the auxiliary space is a HypreSmoother. Its options can be
+    modified through GetSmoother.
+    For example, the space can be the nullspace of div/curl, in which case the
+    smoother can be used to construct a Hiptmair smoother. */
+class AuxSpaceSmoother : public Solver
+{
+   OperatorPtr aux_map_;
+   OperatorPtr aux_system_;
+   OperatorPtr aux_smoother_;
+   void Mult(const Vector &x, Vector &y, bool transpose) const;
+public:
+   AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
+                    bool op_is_symmetric = true, bool own_aux_map = false);
+   virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
+   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
+   virtual void SetOperator(const Operator &op) { }
+   HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
+};
+#endif // MFEM_USE_MPI
 
 }
 

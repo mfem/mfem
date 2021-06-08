@@ -238,7 +238,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
@@ -433,7 +433,7 @@ protected:
    ParLinearForm * plfr;
    ParLinearForm * plfi;
 
-   HYPRE_Int * tdof_offsets;
+   HYPRE_BigInt * tdof_offsets;
 
 public:
 
@@ -576,7 +576,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT

@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/diffusion.hpp"
+#include "ceed/diffusion.hpp"
 
 using namespace std;
 
@@ -21,7 +21,6 @@ namespace mfem
 
 void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-#ifdef MFEM_USE_CEED
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -30,40 +29,40 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedMFDiffusionAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      MFEM_VERIFY(!VQ && !MQ,
+                  "Only scalar coefficient supported for DiffusionIntegrator"
+                  " with libCEED");
+      ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
+      return;
    }
-#endif
-   mfem_error("Error: DiffusionIntegrator::AssembleMF only implemented with libCEED");
+   MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with"
+              " libCEED");
 }
 
 void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
-#endif
    {
-      mfem_error("Error: DiffusionIntegrator::AssembleDiagonalMF only implemented with libCEED");
+      MFEM_ABORT("Error: DiffusionIntegrator::AssembleDiagonalMF only"
+                 " implemented with libCEED");
    }
 }
 
 void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
-#endif
    {
-      mfem_error("Error: DiffusionIntegrator::AddMultMF only implemented with libCEED");
+      MFEM_ABORT("Error: DiffusionIntegrator::AddMultMF only implemented with"
+                 " libCEED");
    }
 }
 

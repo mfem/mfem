@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/diffusion.hpp"
+#include "ceed/diffusion.hpp"
 
 using namespace std;
 
@@ -132,10 +132,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPADiffusionAssemble(fes, *ir, * ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      return;
    }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -325,9 +324,9 @@ void PAVectorDiffusionApply3D(const int NE,
                               const Array<double> &g,
                               const Array<double> &bt,
                               const Array<double> &gt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               int d1d = 0, int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -339,9 +338,9 @@ void PAVectorDiffusionApply3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -516,7 +515,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {
@@ -743,7 +742,7 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
    {

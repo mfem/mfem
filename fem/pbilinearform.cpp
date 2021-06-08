@@ -140,10 +140,10 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    {
       // handle the case when 'a' contains off-diagonal
       int lvsize = pfes->GetVSize();
-      const HYPRE_Int *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
-      HYPRE_Int ldof_offset = pfes->GetMyDofOffset();
+      const HYPRE_BigInt *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
+      HYPRE_BigInt ldof_offset = pfes->GetMyDofOffset();
 
-      Array<HYPRE_Int> glob_J(A_local->NumNonZeroElems());
+      Array<HYPRE_BigInt> glob_J(A_local->NumNonZeroElems());
       int *J = A_local->GetJ();
       for (int i = 0; i < glob_J.Size(); i++)
       {
@@ -233,7 +233,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (fbfi.Size() > 0)
+   if (fbfi.Size())
    {
       pfes->ExchangeFaceNbrData();
       if (!ext && mat == NULL)
@@ -247,6 +247,45 @@ void ParBilinearForm::Assemble(int skip_zeros)
    if (!ext && fbfi.Size() > 0)
    {
       AssembleSharedFaces(skip_zeros);
+   }
+}
+
+void ParBilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+               "Vector for holding diagonal has wrong size!");
+   const Operator *P = fes->GetProlongationMatrix();
+   if (!ext)
+   {
+      MFEM_ASSERT(p_mat.Ptr(), "the ParBilinearForm is not assembled!");
+      p_mat->AssembleDiagonal(diag); // TODO: add support for PETSc matrices
+      return;
+   }
+   // Here, we have extension, ext.
+   if (IsIdentityProlongation(P))
+   {
+      ext->AssembleDiagonal(diag);
+      return;
+   }
+   // Here, we have extension, ext, and parallel/conforming prolongation, P.
+   Vector local_diag(P->Height());
+   ext->AssembleDiagonal(local_diag);
+   if (fes->Conforming())
+   {
+      P->MultTranspose(local_diag, diag);
+      return;
+   }
+   // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_l,
+   // where |P^T| has the entry-wise absolute values of the conforming
+   // prolongation transpose operator.
+   const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+   if (HP)
+   {
+      HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
+   }
+   else
+   {
+      MFEM_ABORT("unsupported prolongation matrix type.");
    }
 }
 
@@ -339,13 +378,19 @@ void ParBilinearForm::FormLinearSystem(
    else
    {
       // Variational restriction with P
-      X.SetSize(pfes->TrueVSize());
+      X.SetSize(P.Width());
       B.SetSize(X.Size());
       P.MultTranspose(b, B);
       R.Mult(x, X);
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
    }
+}
+
+void ParBilinearForm::EliminateVDofsInRHS(
+   const Array<int> &vdofs, const Vector &x, Vector &b)
+{
+   p_mat.EliminateBC(p_mat_e, vdofs, x, b);
 }
 
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
