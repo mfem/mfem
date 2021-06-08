@@ -75,6 +75,12 @@ public:
             const char c = *fmt;
             if (c == 'p') { operator<<(arg); }
             if (c == 's' || c == 'd' || c == 'f') { operator<<(arg); }
+            if (c == 'x' || c == 'X')
+            {
+               std::cout << std::hex;
+               operator<<(arg);
+               std::cout << std::dec;
+            }
             if (c == '.')
             {
                fmt++;

@@ -119,12 +119,121 @@ int GetCurrentRuntimeVersion(bool increment = false);
 
 /// Root MPI process file creation, outputing the source of the kernel.
 template<typename... Args>
+inline bool CreateMappedSharedMemoryInputFile(const char *input,
+                                              const size_t h,
+                                              const char *src,
+                                              int &fd,
+                                              char *&pmap, Args... args)
+{
+   if (!Root()) { return true; }
+
+   dbg("input: (/dev/shm/) %s", input);
+
+   // Remove shared memory segment if it already exists.
+   ::shm_unlink(input);
+
+   // Attempt to create shared memory segment
+   const mode_t mode = S_IRUSR | S_IWUSR;
+   const int oflag = O_CREAT | O_RDWR | O_EXCL;
+   fd = ::shm_open(input, oflag, mode);
+   if (fd < 0) { return perror(strerror(errno)), false; }
+
+   // determine the necessary buffer size
+   const int size = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
+   dbg("size:%d", size);
+
+   // resize the shared memory segment to the right size
+   if (::ftruncate(fd, size) < 0)
+   {
+      ::shm_unlink(input); // ipcs -m
+      dbg("!ftruncate");
+      return false;
+   }
+
+   // Map the shared memory segment into the process address space
+   const int prot = PROT_READ | PROT_WRITE;
+   const int flags = MAP_SHARED;
+   pmap = (char*) mmap(nullptr, // Most of the time set to nullptr
+                       size,    // Size of memory mapping
+                       prot,    // Allows reading and writing operations
+                       flags,   // Segment visible by other processes
+                       fd,      // File descriptor
+                       0x00);   // Offset from beggining of file
+   if (pmap == MAP_FAILED) { return perror(strerror(errno)), false; }
+
+   if (std::snprintf(pmap, size, src, h, h, h, args...) < 0)
+   {
+      return perror("snprintf error occured"), false;
+   }
+
+   if (::close(fd) < 0) { return perror(strerror(errno)), false; }
+
+   return true;
+}
+
+/// Root MPI process file creation, outputing the source of the kernel.
+/// ipcrm -a
+/// ipcs -m
+inline bool CreateMappedSharedMemoryOutputFile(const char *output,
+                                               int &fd,
+                                               char *&pmap)
+{
+   if (!Root()) { return true; }
+
+   dbg("output: (/dev/shm/) %s",output);
+
+   constexpr int SHM_MAX_SIZE = 2*1024*1024;
+
+   // Remove shared memory segment if it already exists.
+   ::shm_unlink(output);
+
+   // Attempt to create shared  memory segment
+   const mode_t mode = S_IRUSR | S_IWUSR;
+   const int oflag = O_CREAT | O_RDWR | O_TRUNC;
+   fd = ::shm_open(output, oflag, mode);
+   if (fd < 0)
+   {
+      exit(EXIT_FAILURE|
+           printf("\033[31;1m[shmOpen] Shared memory failed: %s\033[m\n",
+                  strerror(errno)));
+      return false;
+   }
+
+   // resize shm to the right size
+   if (::ftruncate(fd, SHM_MAX_SIZE) < 0)
+   {
+      ::shm_unlink(output);
+      dbg("!ftruncate");
+      return false;
+   }
+
+   // Map the shared memory segment into the process address space
+   const int prot = PROT_READ | PROT_WRITE;
+   const int flags = MAP_SHARED;
+   pmap = (char*) mmap(nullptr,      // Most of the time set to nullptr
+                       SHM_MAX_SIZE, // Size of memory mapping
+                       prot,         // Allows reading and writing operations
+                       flags,        // Segment visible by other processes
+                       fd,           // File descriptor
+                       0x0);         // Offset from beggining of file
+   if (pmap == MAP_FAILED) { dbg("!pmap"); return false; }
+
+
+   dbg("ofd:%d",fd);
+   if (::close(fd) < 0) { dbg("!close"); return false; }
+
+   return true;
+}
+
+/// Root MPI process file creation, outputing the source of the kernel.
+template<typename... Args>
 inline bool CreateKernelSourceInMemory(const size_t hash,
                                        const char *src,
                                        char *&cc,
                                        Args... args)
 {
    if (!Root()) { return true; }
+   dbg();
    const int size = // determine the necessary buffer size
       1 + std::snprintf(nullptr, 0, src, hash, hash, hash, args...);
    cc = new char[size];
@@ -137,13 +246,13 @@ inline bool CreateKernelSourceInMemory(const size_t hash,
 
 /// Root MPI process file creation, outputing the source of the kernel.
 template<typename... Args>
-inline bool CreateKernelSourceInFile(const char *input,
+inline bool CreateKernelSourceInFile(const char *cc,
                                      const size_t hash,
                                      const char *src, Args... args)
 {
    if (!Root()) { return true; }
-
-   const int fd = ::open(input, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
+   dbg();
+   const int fd = ::open(cc, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
    if (fd < 0) { return false; }
    if (dprintf(fd, src, hash, hash, hash, args...) < 0) { return false; }
    if (::close(fd) < 0) { return false; }
@@ -151,10 +260,10 @@ inline bool CreateKernelSourceInFile(const char *input,
 }
 
 /// Compile the source file with PIC flags, updating the cache library
-bool Compile(const char *cc,    // kernel source in memory
-             char *&co,         // kernel object in memory
-             char input[21],
-             char output[21],
+bool Compile(const char *imem,  // kernel source in memory
+             char *&omem,       // kernel object in memory
+             char cc[21],
+             char co[21],
              const char *cxx,   // MFEM compiler
              const char *flags, // MFEM_CXXFLAGS
              const char *msrc,  // MFEM_SOURCE_DIR
@@ -171,65 +280,90 @@ inline bool CreateAndCompile(const size_t hash, // kernel hash
                              const char *mins,  // MFEM_INSTALL_DIR
                              Args... args)
 {
-   char *cc, *co = nullptr;
-   if (!CreateKernelSourceInMemory(hash, src, cc, args...) != 0)
+   dbg("H:0x%x",hash);
+   char *imem, *omem = nullptr;
+   if (!CreateKernelSourceInMemory(hash, src, imem, args...) != 0)
    {
       dbg("Error in CreateInput");
       return false;
    }
 
    // MFEM_JIT_SYMBOL_PREFIX + hex64 string + extension + '\0': 1 + 16 + 3 + 1
-   char input[21], output[21];
-   uint64str(hash, input, ".cc");
-   uint64str(hash, output, ".co");
+   char cc[21], co[21];
+   uint64str(hash, co, ".co");
 
 #if defined(MFEM_USE_MPI)
-   if (!CreateKernelSourceInFile(input, hash, src, args...) !=0 ) { return false; }
+   uint64str(hash, cc, ".cc");
+   if (!CreateKernelSourceInFile(cc, hash, src, args...) !=0 ) { return false; }
 #endif
-   return Compile(cc, co, input, output, cxx, flags, msrc, mins, check);
+   return Compile(imem, omem, cc, co, cxx, flags, msrc, mins, check);
 }
 
 /// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
 inline void *Lookup(const size_t hash, Args... args)
 {
+   dbg("H:0x%x",hash);
    char symbol[18]; // MFEM_JIT_SYMBOL_PREFIX + hex64 string + '\0' = 18
    uint64str(hash, symbol);
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
-   constexpr const char *so_name = MFEM_JIT_CACHE ".so";
+   constexpr const char *so_name = "./" MFEM_JIT_CACHE ".so";
+   dbg("so_name: %s",so_name);
 
    constexpr int PM = PATH_MAX;
    char so_version[PM];
    const int version = GetCurrentRuntimeVersion();
    if (snprintf(so_version,PM,"%s.so.%d",MFEM_JIT_CACHE,version)<0)
-   { return nullptr; }
+   { dbg("Error in so_version"); return nullptr; }
+   dbg("so_version: %d",version);
 
    void *handle = nullptr;
    const bool first_compilation = (version == 0);
    // We first try to open the shared cache library
-   handle = dlopen(first_compilation ? so_name : so_version, mode);
+   handle = ::dlopen(first_compilation ? so_name : so_version, mode);
    // If no handle was found, fold back looking for the archive
    if (!handle)
    {
       dbg("!handle-1");
       constexpr bool archive_check = true;
-      if (!CreateAndCompile(hash, archive_check, args...)) { return nullptr; }
-      handle = dlopen(first_compilation ? so_name : so_version, mode);
+      if (!CreateAndCompile(hash, archive_check, args...))
+      {
+         dbg("\033[31mCreateAndCompile-1 ERROR");
+         return nullptr;
+      }
+      handle = ::dlopen(first_compilation ? so_name : so_version, mode);
+      assert(handle);
    }
    else { dbg("Found MFEM JIT cache lib: %s", so_name); }
    if (!handle) { dbg("!handle-2"); return nullptr; }
+   dbg("Looking for symbol: %s",symbol);
    // Now look for the kernel symbol
-   if (!dlsym(handle, symbol))
+   if (!::dlsym(handle, symbol))
    {
+      dbg("Not found!");
       // If not found, avoid using the archive and update the shared objects
-      dlclose(handle);
-      constexpr bool archive_check = false;
-      if (!CreateAndCompile(hash, archive_check, args...)) { return nullptr; }
-      handle = dlopen(so_version, mode);
+      ::dlclose(handle);
+      constexpr bool no_archive_check = false;
+      if (!CreateAndCompile(hash, no_archive_check, args...))
+      {
+
+         dbg("\033[31mCreateAndCompile-2 ERROR");
+         return nullptr;
+      }
+      handle = ::dlopen(so_version, mode);
    }
-   if (!handle) { return nullptr; }
-   if (!dlsym(handle, symbol)) { return nullptr; }
+   if (!handle)
+   {
+      dbg("!handle-2");
+      return nullptr;
+   }
+   if (!::dlsym(handle, symbol))
+   {
+      dbg("!dlsym-1");
+      return nullptr;
+   }
    if (!getenv("MFEM_NUNLINK")) { shm_unlink(so_version); }
+   assert(handle);
    return handle;
 }
 
@@ -263,7 +397,7 @@ public:
           Args... args):
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
-      name((uint64str(hash, symbol),name)),
+      name((uint64str(hash, symbol), name)),
       handle(Lookup(hash, src, cxx, flags, msrc, mins, args...)),
       ker(Symbol<kernel_t>(hash, handle)),
       cxx(cxx), src(src), flags(flags), msrc(msrc), mins(mins)

@@ -115,12 +115,13 @@ static inline void FlushAndWait(const int fd)
 
 // In-memory compilation
 static int InMemCompile(const char *imem,
-                        char *&omem, size_t &nw,
+                        char *&omem,
+                        size_t &nw,
                         char *argv[])
 {
    const size_t nbytes = std::strlen(imem);
-   dbg("cc:%p, len:%d", (void*)imem, nbytes);
-   //dbg("kernel:\n%s", cc);
+   dbg("imem:%p, nbytes:%d", (void*)imem, nbytes);
+   //dbg("kernel:\n%s", imem);
 
    const int argc = argn(argv);
    if (argc < 1) { return EXIT_FAILURE; }
@@ -429,14 +430,17 @@ bool Compile(const char *imem,
              const char *mins,
              const bool check_for_ar)
 {
-   dbg("imem: %p, omem: %p", (void*)imem, (void*)omem);
+   dbg("imem: %p, omem: %p == nullptr", (void*)imem, (void*)omem);
    assert(omem == nullptr);
+   //dbg("%s",imem);
 #ifndef MFEM_USE_CUDA
 #define MFEM_JIT_DEVICE_CODE
 #define MFEM_JIT_COMPILER_OPTION
 #define MFEM_JIT_LINKER_OPTION "-Wl,"
 #else
-#define MFEM_JIT_DEVICE_CODE "-dc",
+   // Compile each input file into an object file
+   // that contains relocatable device code
+#define MFEM_JIT_DEVICE_CODE "--device-c"
 #define MFEM_JIT_LINKER_OPTION "-Xlinker="
 #define MFEM_JIT_COMPILER_OPTION "-Xcompiler="
 #endif
@@ -450,7 +454,7 @@ bool Compile(const char *imem,
 #endif
 
    constexpr int PM = PATH_MAX;
-   constexpr const char *fpic = MFEM_JIT_COMPILER_OPTION "-fPIC";
+   constexpr const char *fPIC = MFEM_JIT_COMPILER_OPTION "-fPIC";
    constexpr const char *shell = MFEM_JIT_SHELL_COMMAND;
    constexpr const char *libar = MFEM_JIT_CACHE ".a";
    constexpr const char *libso = MFEM_JIT_CACHE ".so";
@@ -497,17 +501,27 @@ bool Compile(const char *imem,
       uptr *t_copy = new uptr(strdup(a.data()), &std::free);
       argv.push_back(t_copy->get());
    }
-   argv.push_back("-Wno-unused-variable");
-   argv.push_back(fpic);
+
+   argv.push_back(MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable");
+   argv.push_back(fPIC);
    argv.push_back("-c");
-   argv.push_back("-pipe");
+   argv.push_back(MFEM_JIT_COMPILER_OPTION "-pipe");
+   // avoid redefinition, as with nvcc, the option -x cu is already present
+#ifndef MFEM_USE_CUDA
    argv.push_back("-x");
    argv.push_back("c++");
+#else
+   argv.push_back(MFEM_JIT_DEVICE_CODE);
+#endif // MFEM_USE_CUDA
    argv.push_back("-I.");
-   argv.push_back(Imsrc); // MFEM_JIT_DEVICE_CODE ?
+   argv.push_back(Imsrc);
    argv.push_back(Iminc);
    argv.push_back("-o");
+#ifdef __APPLE__
    argv.push_back("/dev/stdout");
+#else
+   argv.push_back(co);
+#endif // __APPLE__
    argv.push_back("-");
    argv.push_back(nullptr);
 
@@ -519,6 +533,7 @@ bool Compile(const char *imem,
    }
    delete imem;
 
+#ifdef __APPLE__
    // saving on disk the object that is still in memory
    dbg("nw:%d",nw);
    assert(omem != nullptr && nw > 0);
@@ -529,11 +544,18 @@ bool Compile(const char *imem,
    if (written != nw) { return perror("!write object"), false; }
    if (::close(co_fd) < 0) { return perror("!close object"), false; }
    free(omem); // done with realloc
+#endif
 
 #else
    // Compilation
    const char *argv_co[] =
-   { shell, cxx, flags, fpic, "-c", MFEM_JIT_DEVICE_CODE Imsrc, Iminc, "-o", co, cc, nullptr };
+   {
+      shell, cxx, flags, fPIC, "-c",
+#ifdef MFEM_USE_CUDA
+      MFEM_JIT_DEVICE_CODE,
+#endif
+      Imsrc, Iminc, "-o", co, cc, nullptr
+   };
    if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
    if (!getenv("MFEM_NUNLINK")) { ::unlink(cc); }
 #endif
