@@ -1377,6 +1377,12 @@ public:
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
 
+   void MakePeriodic(bool px, bool py);
+
+   void MakePeriodic(bool px, bool py, bool pz);
+   
+   void MakePeriodic(const Array<int> &v2v);
+
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
 
