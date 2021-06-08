@@ -58,7 +58,7 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
-- Conda-forge, https://conda-forge.org (pre-built binaries linked with OpenMPI/Mpich, Hypre, and METIS)
+- Conda-forge, https://conda-forge.org (pre-built binaries linked with OpenMPI/MPICH, hypre, and METIS)
 - Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
