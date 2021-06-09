@@ -4498,8 +4498,8 @@ void CoarseFineTransformations::GetCoarseToFineMap(
 
    if (get_coarse_to_fine_only) { return; }
    MFEM_VERIFY(fine_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
-               " GetCoarseToFineMap is only partially supported for derefinement"
-               " transformations.")
+               "GetCoarseToFineMap is not fully supported for derefined meshes."
+               " Set 'get_coarse_to_fine_only=true'.")
 
    using internal::RefType;
    using std::map;
