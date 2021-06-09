@@ -4455,7 +4455,8 @@ struct RefType
 void CoarseFineTransformations::GetCoarseToFineMap(
    const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
    Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
-   Array<mfem::Geometry::Type> &ref_type_to_geom) const
+   Array<mfem::Geometry::Type> &ref_type_to_geom,
+   bool get_coarse_to_fine_only) const
 {
    const int fine_ne = embeddings.Size();
    int coarse_ne = -1;
@@ -4495,10 +4496,10 @@ void CoarseFineTransformations::GetCoarseToFineMap(
       coarse_to_fine.GetJ()[i] = cf_j[i].two;
    }
 
-   if (fine_mesh.GetLastOperation() == Mesh::Operation::DEREFINE)
-   {
-      return;
-   }
+   if (get_coarse_to_fine_only) { return; }
+   MFEM_VERIFY(fine_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
+               " GetCoarseToFineMap is only partially supported for derefinement"
+               " transformations.")
 
    using internal::RefType;
    using std::map;
