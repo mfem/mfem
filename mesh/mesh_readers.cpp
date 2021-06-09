@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,14 +11,22 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
+#include "../general/tinyxml2.h"
 #include "gmsh.hpp"
 
 #include <iostream>
 #include <cstdio>
+#include <vector>
+#include <algorithm>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
+#endif
+
+#ifdef MFEM_USE_ZLIB
+#include <zlib.h>
 #endif
 
 using namespace std;
@@ -28,9 +36,12 @@ namespace mfem
 
 bool Mesh::remove_unused_vertices = true;
 
-void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
+void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 {
-   // Read MFEM mesh v1.0 format
+   // Read MFEM mesh v1.0 or v1.2 format
+   MFEM_VERIFY(version == 10 || version == 12,
+               "unknown MFEM mesh version");
+
    string ident;
 
    // read lines beginning with '#' (comments)
@@ -63,24 +74,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
    }
 
    skip_comment_lines(input, '#');
-   input >> ident;
-
-   if (mfem_v11 && ident == "vertex_parents")
-   {
-      ncmesh = new NCMesh(this, &input);
-      // NOTE: the constructor above will call LoadVertexParents
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-
-      if (ident == "coarse_elements")
-      {
-         ncmesh->LoadCoarseElements(input);
-
-         skip_comment_lines(input, '#');
-         input >> ident;
-      }
-   }
+   input >> ident; // 'vertices'
 
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
    input >> NumOfVertices;
@@ -98,9 +92,6 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
             input >> vertices[j](i);
          }
       }
-
-      // initialize vertex positions in NCMesh
-      if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
    }
    else
    {
@@ -373,6 +364,755 @@ const int Mesh::vtk_quadratic_hex[27] =
    24, 22, 21, 23, 20, 25, 26
 };
 
+void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
+                         const Array<int> &cell_offsets,
+                         const Array<int> &cell_types,
+                         const Array<int> &cell_attributes,
+                         int &curved, int &read_gf, bool &finalize_topo)
+{
+   int np = points.Size()/3;
+   Dim = -1;
+   NumOfElements = cell_types.Size();
+   elements.SetSize(NumOfElements);
+
+   int order = -1;
+   bool legacy_elem = false, lagrange_elem = false;
+
+   int j = 0;
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      int ct = cell_types[i];
+      Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
+      elements[i] = NewElement(geom);
+      if (cell_attributes.Size() > 0)
+      {
+         elements[i]->SetAttribute(cell_attributes[i]);
+      }
+      // VTK ordering of vertices is the same as MFEM ordering of vertices
+      // for all element types *except* prisms, which require a permutation
+      if (geom == Geometry::PRISM && ct != VTKGeometry::LAGRANGE_PRISM)
+      {
+         int prism_vertices[6];
+         for (int k=0; k<6; ++k)
+         {
+            prism_vertices[k] = cell_data[j+VTKGeometry::PrismMap[k]];
+         }
+         elements[i]->SetVertices(prism_vertices);
+      }
+      else
+      {
+         elements[i]->SetVertices(&cell_data[j]);
+      }
+
+      int elem_dim = Geometry::Dimension[geom];
+      int elem_order = VTKGeometry::GetOrder(ct, cell_offsets[i] - j);
+
+      if (VTKGeometry::IsLagrange(ct)) { lagrange_elem = true; }
+      else { legacy_elem = true; }
+
+      MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
+                  "Elements with different dimensions are not supported");
+      MFEM_VERIFY(order == -1 || order == elem_order,
+                  "Elements with different orders are not supported");
+      MFEM_VERIFY(legacy_elem != lagrange_elem,
+                  "Mixing of legacy and Lagrange cell types is not supported");
+      Dim = elem_dim;
+      order = elem_order;
+      j = cell_offsets[i];
+   }
+
+   if (order == 1 && !lagrange_elem)
+   {
+      NumOfVertices = np;
+      vertices.SetSize(np);
+      for (int i = 0; i < np; i++)
+      {
+         vertices[i](0) = points(3*i+0);
+         vertices[i](1) = points(3*i+1);
+         vertices[i](2) = points(3*i+2);
+      }
+      // No boundary is defined in a VTK mesh
+      NumOfBdrElements = 0;
+      FinalizeTopology();
+      CheckElementOrientation(true);
+   }
+   else
+   {
+      // The following section of code is shared for legacy quadratic and the
+      // Lagrange high order elements
+      curved = 1;
+
+      // generate new enumeration for the vertices
+      Array<int> pts_dof(np);
+      pts_dof = -1;
+      // mark vertex points
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         int *v = elements[i]->GetVertices();
+         int nv = elements[i]->GetNVertices();
+         for (int j = 0; j < nv; j++)
+         {
+            if (pts_dof[v[j]] == -1) { pts_dof[v[j]] = 0; }
+         }
+      }
+
+      // The following loop reorders pts_dofs so vertices are visited in
+      // canonical order
+
+      // Keep the original ordering of the vertices
+      int i, n;
+      for (n = i = 0; i < np; i++)
+      {
+         if (pts_dof[i] != -1)
+         {
+            pts_dof[i] = n++;
+         }
+      }
+      // update the element vertices
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         int *v = elements[i]->GetVertices();
+         int nv = elements[i]->GetNVertices();
+         for (int j = 0; j < nv; j++)
+         {
+            v[j] = pts_dof[v[j]];
+         }
+      }
+      // Define the 'vertices' from the 'points' through the 'pts_dof' map
+      NumOfVertices = n;
+      vertices.SetSize(n);
+      for (int i = 0; i < np; i++)
+      {
+         int j = pts_dof[i];
+         if (j != -1)
+         {
+            vertices[j](0) = points(3*i+0);
+            vertices[j](1) = points(3*i+1);
+            vertices[j](2) = points(3*i+2);
+         }
+      }
+
+      // No boundary is defined in a VTK mesh
+      NumOfBdrElements = 0;
+
+      // determine spaceDim based on min/max differences detected each dimension
+      if (vertices.Size() > 0)
+      {
+         double min_value, max_value;
+         for (int d=0; d<3; ++d)
+         {
+            min_value = max_value = vertices[0](d);
+            for (int i = 1; i < vertices.Size(); i++)
+            {
+               min_value = std::min(min_value,vertices[i](d));
+               max_value = std::max(max_value,vertices[i](d));
+               if (min_value != max_value)
+               {
+                  spaceDim++;
+                  break;
+               }
+            }
+         }
+      }
+      // Generate faces and edges so that we can define
+      // FE space on the mesh
+      FinalizeTopology();
+
+      FiniteElementCollection *fec;
+      FiniteElementSpace *fes;
+      if (legacy_elem)
+      {
+         // Define quadratic FE space
+         fec = new QuadraticFECollection;
+         fes = new FiniteElementSpace(this, fec, spaceDim);
+         Nodes = new GridFunction(fes);
+         Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+         own_nodes = 1;
+
+         // Map vtk points to edge/face/element dofs
+         Array<int> dofs;
+         for (int i = 0; i < NumOfElements; i++)
+         {
+            fes->GetElementDofs(i, dofs);
+            const int *vtk_mfem;
+            switch (elements[i]->GetGeometryType())
+            {
+               case Geometry::TRIANGLE:
+               case Geometry::SQUARE:
+                  vtk_mfem = vtk_quadratic_hex; break; // identity map
+               case Geometry::TETRAHEDRON:
+                  vtk_mfem = vtk_quadratic_tet; break;
+               case Geometry::CUBE:
+                  vtk_mfem = vtk_quadratic_hex; break;
+               case Geometry::PRISM:
+                  vtk_mfem = vtk_quadratic_wedge; break;
+               default:
+                  vtk_mfem = NULL; // suppress a warning
+                  break;
+            }
+
+            int offset = (i == 0) ? 0 : cell_offsets[i-1];
+            for (int j = 0; j < dofs.Size(); j++)
+            {
+               if (pts_dof[cell_data[offset+j]] == -1)
+               {
+                  pts_dof[cell_data[offset+j]] = dofs[vtk_mfem[j]];
+               }
+               else
+               {
+                  if (pts_dof[cell_data[offset+j]] != dofs[vtk_mfem[j]])
+                  {
+                     MFEM_ABORT("VTK mesh: inconsistent quadratic mesh!");
+                  }
+               }
+            }
+         }
+      }
+      else
+      {
+         // Define H1 FE space
+         fec = new H1_FECollection(order,Dim,BasisType::ClosedUniform);
+         fes = new FiniteElementSpace(this, fec, spaceDim);
+         Nodes = new GridFunction(fes);
+         Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+         own_nodes = 1;
+         Array<int> dofs;
+
+         std::map<Geometry::Type,Array<int>> vtk_inv_maps;
+         std::map<Geometry::Type,const Array<int>*> lex_orderings;
+
+         int i, n;
+         for (n = i = 0; i < NumOfElements; i++)
+         {
+            Geometry::Type geom = GetElementBaseGeometry(i);
+            fes->GetElementDofs(i, dofs);
+
+            Array<int> &vtk_inv_map = vtk_inv_maps[geom];
+            if (vtk_inv_map.Size() == 0)
+            {
+               Array<int> vtk_map;
+               CreateVTKElementConnectivity(vtk_map, geom, order);
+               vtk_inv_map.SetSize(vtk_map.Size());
+               for (int j=0; j<vtk_map.Size(); ++j)
+               {
+                  vtk_inv_map[vtk_map[j]] = j;
+               }
+            }
+            const Array<int> *&lex_ordering = lex_orderings[geom];
+            if (!lex_ordering)
+            {
+               const FiniteElement *fe = fes->GetFE(i);
+               const NodalFiniteElement *nodal_fe =
+                  dynamic_cast<const NodalFiniteElement*>(fe);
+               MFEM_ASSERT(nodal_fe != NULL, "Unsupported element type");
+               lex_ordering = &nodal_fe->GetLexicographicOrdering();
+            }
+
+            for (int lex_idx = 0; lex_idx < dofs.Size(); lex_idx++)
+            {
+               int mfem_idx = (*lex_ordering)[lex_idx];
+               int vtk_idx = vtk_inv_map[lex_idx];
+               int pt_idx = cell_data[n + vtk_idx];
+               if (pts_dof[pt_idx] == -1)
+               {
+                  pts_dof[pt_idx] = dofs[mfem_idx];
+               }
+               else
+               {
+                  if (pts_dof[pt_idx] != dofs[mfem_idx])
+                  {
+                     MFEM_ABORT("VTK mesh: inconsistent Lagrange mesh!");
+                  }
+               }
+            }
+            n += dofs.Size();
+         }
+      }
+      // Define the 'Nodes' from the 'points' through the 'pts_dof' map
+      Array<int> dofs;
+      for (int i = 0; i < np; i++)
+      {
+         dofs.SetSize(1);
+         if (pts_dof[i] != -1)
+         {
+            dofs[0] = pts_dof[i];
+            fes->DofsToVDofs(dofs);
+            for (int d = 0; d < dofs.Size(); d++)
+            {
+               (*Nodes)(dofs[d]) = points(3*i+d);
+            }
+         }
+      }
+      read_gf = 0;
+   }
+}
+
+namespace vtk_xml
+{
+
+using namespace tinyxml2;
+
+/// Return false if either string is NULL or if the strings differ, return true
+/// if the strings are the same.
+bool StringCompare(const char *s1, const char *s2)
+{
+   if (s1 == NULL || s2 == NULL) { return false; }
+   return strcmp(s1, s2) == 0;
+}
+
+/// Abstract base class for reading continguous arrays of (potentially
+/// compressed, potentially base-64 encoded) binary data from a buffer into a
+/// destination array. The types of the source and destination arrays may be
+/// different (e.g. read data of type uint8_t into destination array of
+/// uint32_t), which is handled by the templated derived class @a BufferReader.
+struct BufferReaderBase
+{
+   enum HeaderType { UINT32_HEADER, UINT64_HEADER };
+   virtual void ReadBinary(const char *buf, void *dest, int n) const = 0;
+   virtual void ReadBase64(const char *txt, void *dest, int n) const = 0;
+   virtual ~BufferReaderBase() { }
+};
+
+/// Read an array of source data stored as (potentially compressed, potentially
+/// base-64 encoded) into a destination array. The types of the elements in the
+/// source array are given by template parameter @a F ("from") and the types of
+/// the elements of the destination array are given by @a T ("to"). The binary
+/// data has a header, which is one integer if the data is uncompressed, and is
+/// four integers if the data is compressed. The integers may either by uint32_t
+/// or uint64_t, according to the @a header_type. If the data is compressed and
+/// base-64 encoded, then the header is encoded separately from the data. If the
+/// data is uncompressed and base-64 encoded, then the header and data are
+/// encoded together.
+template <typename T, typename F>
+struct BufferReader : BufferReaderBase
+{
+   bool compressed;
+   HeaderType header_type;
+   BufferReader(bool compressed_, HeaderType header_type_)
+      : compressed(compressed_), header_type(header_type_) { }
+
+   /// Return the number of bytes in the header. The header consists of one
+   /// integer if the data is uncompressed, and four integers if the data is
+   /// compressed. The integers are either 32 or 64 bytes depending on the value
+   /// of @a header_type.
+   int NumHeaderBytes() const
+   {
+      int num_entries = compressed ? 4 : 1;
+      int entry_size = (header_type == UINT64_HEADER)
+                       ? sizeof(uint64_t) : sizeof(uint32_t);
+      return num_entries*entry_size;
+   }
+
+   /// Read @a n elements of type @a F from the source buffer @a buf into the
+   /// (pre-allocated) destination array of elements of type @a T stored in
+   /// the buffer @a dest_void. The header is stored @b separately from the
+   /// rest of the data, in the buffer @a header_buf. The data buffer @a buf
+   /// does @b not contain a header.
+   void ReadBinaryWithHeader(const char *header_buf, const char *buf,
+                             void *dest_void, int n) const
+   {
+      std::vector<unsigned char> uncompressed_data;
+      T *dest = static_cast<T*>(dest_void);
+
+      if (compressed)
+      {
+#ifdef MFEM_USE_ZLIB
+         uint64_t header[4];
+         if (header_type == UINT32_HEADER)
+         {
+            uint32_t *header_32 = (uint32_t *)header_buf;
+            for (int i=0; i<4; ++i) { header[i] = header_32[i]; }
+         }
+         else
+         {
+            uint64_t *header_64 = (uint64_t *)header_buf;
+            for (int i=0; i<4; ++i) { header[i] = header_64[i]; }
+         }
+
+         MFEM_VERIFY(header[0] == 1, "Multiple compressed blocks not supported");
+         uLongf dest_len = header[1];
+         uncompressed_data.resize(dest_len);
+         int res = uncompress(uncompressed_data.data(), &dest_len,
+                              (const Bytef *)buf, header[3]);
+         MFEM_VERIFY(res == Z_OK, "Error uncompressing");
+         MFEM_VERIFY(sizeof(F)*n == dest_len, "AppendedData: wrong data size");
+         buf = (const char *)uncompressed_data.data();
+#else
+         MFEM_ABORT("MFEM must be compiled with zlib enabled to uncompress.")
+#endif
+      }
+      else
+      {
+         // Each "data block" is preceded by a header that is either UInt32 or
+         // UInt64. The rest of the data follows.
+         uint64_t data_size;
+         if (header_type == UINT32_HEADER)
+         {
+            uint32_t *data_size_32 = (uint32_t *)header_buf;
+            data_size = *data_size_32;
+         }
+         else
+         {
+            uint64_t *data_size_64 = (uint64_t *)header_buf;
+            data_size = *data_size_64;
+         }
+         MFEM_VERIFY(sizeof(F)*n == data_size, "AppendedData: wrong data size");
+      }
+
+      if (std::is_same<T, F>::value)
+      {
+         // Special case: no type conversions necessary, so can just memcpy
+         memcpy(dest, buf, sizeof(T)*n);
+      }
+      else
+      {
+         for (int i=0; i<n; ++i)
+         {
+            // Read binary data as type F, place in array as type T
+            dest[i] = bin_io::read<F>(buf + i*sizeof(F));
+         }
+      }
+   }
+
+   /// Read @a n elements of type @a F from source buffer @a buf into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The input buffer contains both the header and the data.
+   void ReadBinary(const char *buf, void *dest, int n) const override
+   {
+      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(), dest, n);
+   }
+
+   /// Read @a n elements of type @a F from base-64 encoded source buffer into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The base-64-encoded data is given by the null-terminated
+   /// string @a txt, which contains both the header and the data.
+   void ReadBase64(const char *txt, void *dest, int n) const override
+   {
+      // Skip whitespace
+      while (*txt)
+      {
+         if (*txt != ' ' && *txt != '\n') { break; }
+         ++txt;
+      }
+      if (compressed)
+      {
+         std::vector<unsigned char> data, header;
+         // Compute number of characters needed to encode header in base 64,
+         // then round to nearest multiple of 4 to take padding into account.
+         int b64_header = ((4*NumHeaderBytes()/3) + 3) & ~3;
+         // If data is compressed, header is encoded separately
+         bin_io::DecodeBase64(txt, b64_header, header);
+         bin_io::DecodeBase64(txt + b64_header, strlen(txt)-b64_header, data);
+         ReadBinaryWithHeader((const char *)header.data(),
+                              (const char *)data.data(), dest, n);
+      }
+      else
+      {
+         std::vector<unsigned char> data;
+         bin_io::DecodeBase64(txt, strlen(txt), data);
+         ReadBinary((const char *)data.data(), dest, n);
+      }
+   }
+};
+
+/// Class to read data from VTK's @a DataArary elements. Each @a DataArray can
+/// contain inline ASCII data, inline base-64-encoded data (potentially
+/// compressed), or reference "appended data", which may be raw or base-64, and
+/// may be compressed or uncompressed.
+struct XMLDataReader
+{
+   const char *appended_data, *byte_order, *compressor;
+   enum AppendedDataEncoding { RAW, BASE64 };
+   map<string,BufferReaderBase*> type_map;
+   AppendedDataEncoding encoding;
+
+   /// Create the data reader, where @a vtk is the @a VTKFile XML element, and
+   /// @a vtu is the child @a UnstructuredGrid XML element. This will determine
+   /// the header type (32 or 64 bit integers) and whether compression is
+   /// enabled or not. The appended data will be loaded.
+   XMLDataReader(const XMLElement *vtk, const XMLElement *vtu)
+   {
+      // Determine whether binary data header is 32 or 64 bit integer
+      BufferReaderBase::HeaderType htype;
+      if (StringCompare(vtk->Attribute("header_type"), "UInt64"))
+      {
+         htype = BufferReaderBase::UINT64_HEADER;
+      }
+      else
+      {
+         htype = BufferReaderBase::UINT32_HEADER;
+      }
+
+      // Get the byte order of the file (will check if we encounter binary data)
+      byte_order = vtk->Attribute("byte_order");
+
+      // Get the compressor. We will check that MFEM can handle the compression
+      // if we encounter binary data.
+      compressor = vtk->Attribute("compressor");
+      bool compressed = (compressor != NULL);
+
+      // Find the appended data.
+      appended_data = NULL;
+      for (const XMLElement *xml_elem = vtu->NextSiblingElement();
+           xml_elem != NULL;
+           xml_elem = xml_elem->NextSiblingElement())
+      {
+         if (StringCompare(xml_elem->Name(), "AppendedData"))
+         {
+            const char *encoding_str = xml_elem->Attribute("encoding");
+            if (StringCompare(encoding_str, "raw"))
+            {
+               appended_data = xml_elem->GetAppendedData();
+               encoding = RAW;
+            }
+            else if (StringCompare(encoding_str, "base64"))
+            {
+               appended_data = xml_elem->GetText();
+               encoding = BASE64;
+            }
+            MFEM_VERIFY(appended_data != NULL, "Invalid AppendedData");
+            // Appended data follows first underscore
+            bool found_leading_underscore = false;
+            while (*appended_data)
+            {
+               ++appended_data;
+               if (*appended_data == '_')
+               {
+                  found_leading_underscore = true;
+                  ++appended_data;
+                  break;
+               }
+            }
+            MFEM_VERIFY(found_leading_underscore, "Invalid AppendedData");
+            break;
+         }
+      }
+
+      type_map["Int8"] = new BufferReader<int, int8_t>(compressed, htype);
+      type_map["Int16"] = new BufferReader<int, int16_t>(compressed, htype);
+      type_map["Int32"] = new BufferReader<int, int32_t>(compressed, htype);
+      type_map["Int64"] = new BufferReader<int, int64_t>(compressed, htype);
+      type_map["UInt8"] = new BufferReader<int, uint8_t>(compressed, htype);
+      type_map["UInt16"] = new BufferReader<int, uint16_t>(compressed, htype);
+      type_map["UInt32"] = new BufferReader<int, uint32_t>(compressed, htype);
+      type_map["UInt64"] = new BufferReader<int, uint64_t>(compressed, htype);
+      type_map["Float32"] = new BufferReader<double, float>(compressed, htype);
+      type_map["Float64"] = new BufferReader<double, double>(compressed, htype);
+   }
+
+   /// Read the @a DataArray XML element given by @a xml_elem into
+   /// (pre-allocated) destination array @a dest, where @a dest stores @a n
+   /// elements of type @a T.
+   template <typename T>
+   void Read(const XMLElement *xml_elem, T *dest, int n)
+   {
+      static const char *erstr = "Error reading XML DataArray";
+      MFEM_VERIFY(StringCompare(xml_elem->Name(), "DataArray"), erstr);
+      const char *format = xml_elem->Attribute("format");
+      if (StringCompare(format, "ascii"))
+      {
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         std::istringstream data_stream(txt);
+         for (int i=0; i<n; ++i) { data_stream >> dest[i]; }
+      }
+      else if (StringCompare(format, "appended"))
+      {
+         VerifyBinaryOptions();
+         int offset = xml_elem->IntAttribute("offset");
+         const char *type = xml_elem->Attribute("type");
+         MFEM_VERIFY(type != NULL, erstr);
+         BufferReaderBase *reader = type_map[type];
+         MFEM_VERIFY(reader != NULL, erstr);
+         MFEM_VERIFY(appended_data != NULL, "No AppendedData found");
+         if (encoding == RAW)
+         {
+            reader->ReadBinary(appended_data + offset, dest, n);
+         }
+         else
+         {
+            reader->ReadBase64(appended_data + offset, dest, n);
+         }
+      }
+      else if (StringCompare(format, "binary"))
+      {
+         VerifyBinaryOptions();
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         const char *type = xml_elem->Attribute("type");
+         if (type == NULL) { MFEM_ABORT(erstr); }
+         BufferReaderBase *reader = type_map[type];
+         if (reader == NULL) { MFEM_ABORT(erstr); }
+         reader->ReadBase64(txt, dest, n);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid XML VTK DataArray format");
+      }
+   }
+
+   /// Check that the byte order of the file is the same as the native byte
+   /// order that we're running with. We don't currently support converting
+   /// between byte orders. The byte order is only verified if we encounter
+   /// binary data.
+   void VerifyByteOrder() const
+   {
+      // Can't handle reading big endian from little endian or vice versa
+      if (byte_order && !StringCompare(byte_order, VTKByteOrder()))
+      {
+         MFEM_ABORT("Converting between different byte orders is unsupported.");
+      }
+   }
+
+   /// Check that the compressor is compatible (MFEM currently only supports
+   /// zlib compression). If MFEM is not compiled with zlib, then we cannot
+   /// read binary data with compression.
+   void VerifyCompressor() const
+   {
+      if (compressor && !StringCompare(compressor, "vtkZLibDataCompressor"))
+      {
+         MFEM_ABORT("Unsupported compressor. Only zlib is supported.")
+      }
+#ifndef MFEM_USE_ZLIB
+      MFEM_VERIFY(compressor == NULL, "MFEM must be compiled with zlib enabled "
+                  "to support reading compressed data.");
+#endif
+   }
+
+   /// Verify that the binary data is stored with compatible options (i.e.
+   /// native byte order and compatible compression).
+   void VerifyBinaryOptions() const
+   {
+      VerifyByteOrder();
+      VerifyCompressor();
+   }
+
+   ~XMLDataReader()
+   {
+      for (auto &x : type_map) { delete x.second; }
+   }
+};
+
+} // namespace vtk_xml
+
+void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
+                           bool &finalize_topo, const std::string &xml_prefix)
+{
+   using namespace vtk_xml;
+
+   static const char *erstr = "XML parsing error";
+
+   // Create buffer beginning with xml_prefix, then read the rest of the stream
+   std::vector<char> buf(xml_prefix.begin(), xml_prefix.end());
+   std::istreambuf_iterator<char> eos;
+   buf.insert(buf.end(), std::istreambuf_iterator<char>(input), eos);
+   buf.push_back('\0'); // null-terminate buffer
+
+   XMLDocument xml;
+   xml.Parse(buf.data(), buf.size());
+   if (xml.ErrorID() != XML_SUCCESS)
+   {
+      MFEM_ABORT("Error parsing XML VTK file.\n" << xml.ErrorStr());
+   }
+
+   const XMLElement *vtkfile = xml.FirstChildElement();
+   MFEM_VERIFY(vtkfile, erstr);
+   MFEM_VERIFY(StringCompare(vtkfile->Name(), "VTKFile"), erstr);
+   const XMLElement *vtu = vtkfile->FirstChildElement();
+   MFEM_VERIFY(vtu, erstr);
+   MFEM_VERIFY(StringCompare(vtu->Name(), "UnstructuredGrid"), erstr);
+
+   XMLDataReader data_reader(vtkfile, vtu);
+
+   // Count the number of points and cells
+   const XMLElement *piece = vtu->FirstChildElement();
+   MFEM_VERIFY(StringCompare(piece->Name(), "Piece"), erstr);
+   MFEM_VERIFY(piece->NextSiblingElement() == NULL,
+               "XML VTK meshes with more than one Piece are not supported");
+   int npts = piece->IntAttribute("NumberOfPoints");
+   int ncells = piece->IntAttribute("NumberOfCells");
+
+   // Read the points
+   Vector points(3*npts);
+   const XMLElement *pts_xml;
+   for (pts_xml = piece->FirstChildElement();
+        pts_xml != NULL;
+        pts_xml = pts_xml->NextSiblingElement())
+   {
+      if (StringCompare(pts_xml->Name(), "Points"))
+      {
+         const XMLElement *pts_data = pts_xml->FirstChildElement();
+         MFEM_VERIFY(pts_data->IntAttribute("NumberOfComponents") == 3,
+                     "XML VTK Points DataArray must have 3 components");
+         data_reader.Read(pts_data, points.GetData(), points.Size());
+         break;
+      }
+   }
+   if (pts_xml == NULL) { MFEM_ABORT(erstr); }
+
+   // Read the cells
+   Array<int> cell_data, cell_offsets(ncells), cell_types(ncells);
+   const XMLElement *cells_xml;
+   for (cells_xml = piece->FirstChildElement();
+        cells_xml != NULL;
+        cells_xml = cells_xml->NextSiblingElement())
+   {
+      if (StringCompare(cells_xml->Name(), "Cells"))
+      {
+         const XMLElement *cell_data_xml = NULL;
+         for (const XMLElement *data_xml = cells_xml->FirstChildElement();
+              data_xml != NULL;
+              data_xml = data_xml->NextSiblingElement())
+         {
+            const char *data_name = data_xml->Attribute("Name");
+            if (StringCompare(data_name, "offsets"))
+            {
+               data_reader.Read(data_xml, cell_offsets.GetData(), ncells);
+            }
+            else if (StringCompare(data_name, "types"))
+            {
+               data_reader.Read(data_xml, cell_types.GetData(), ncells);
+            }
+            else if (StringCompare(data_name, "connectivity"))
+            {
+               // Have to read the connectivity after the offsets, because we
+               // don't know how many points to read until we have the offsets
+               // (size of connectivity array is equal to the last offset), so
+               // store the XML element pointer and read this data later.
+               cell_data_xml = data_xml;
+            }
+         }
+         MFEM_VERIFY(cell_data_xml != NULL, erstr);
+         int cell_data_size = cell_offsets.Last();
+         cell_data.SetSize(cell_data_size);
+         data_reader.Read(cell_data_xml, cell_data.GetData(), cell_data_size);
+         break;
+      }
+   }
+   if (cells_xml == NULL) { MFEM_ABORT(erstr); }
+
+   // Read the element attributes, which are stored as CellData named "material"
+   Array<int> cell_attributes;
+   for (const XMLElement *cell_data_xml = piece->FirstChildElement();
+        cell_data_xml != NULL;
+        cell_data_xml = cell_data_xml->NextSiblingElement())
+   {
+      if (StringCompare(cell_data_xml->Name(), "CellData")
+          && StringCompare(cell_data_xml->Attribute("Scalars"), "material"))
+      {
+         const XMLElement *data_xml = cell_data_xml->FirstChildElement();
+         if (data_xml != NULL && StringCompare(data_xml->Name(), "DataArray"))
+         {
+            cell_attributes.SetSize(ncells);
+            data_reader.Read(data_xml, cell_attributes.GetData(), ncells);
+         }
+      }
+   }
+
+   CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
+                 curved, read_gf, finalize_topo);
+}
+
 void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                        bool &finalize_topo)
 {
@@ -381,8 +1121,6 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    //   * https://www.vtk.org/doc/nightly/html/classvtkCell.html
    //   * https://lorensen.github.io/VTKExamples/site/VTKFileFormats
    //   * https://www.kitware.com/products/books/VTKUsersGuide.pdf
-
-   int i, j, n, attr;
 
    string buff;
    getline(input, buff); // comment line
@@ -393,13 +1131,13 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       MFEM_ABORT("VTK mesh is not in ASCII format!");
       return;
    }
-   getline(input, buff);
-   filter_dos(buff);
-   if (buff != "DATASET UNSTRUCTURED_GRID")
+   do
    {
-      MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!");
-      return;
+      getline(input, buff);
+      filter_dos(buff);
+      if (!input.good()) { MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!"); }
    }
+   while (buff != "DATASET UNSTRUCTURED_GRID");
 
    // Read the points, skipping optional sections such as the FIELD data from
    // VisIt's VTK export (or from Mesh::PrintVTK with field_data==1).
@@ -412,284 +1150,99 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       }
    }
    while (buff != "POINTS");
-   int np = 0;
+
    Vector points;
+   int np;
+   input >> np >> ws;
+   getline(input, buff); // "double"
+   points.Load(input, 3*np);
+
+   //skip metadata
+   // Looks like:
+   // METADATA
+   //INFORMATION 2
+   //NAME L2_NORM_RANGE LOCATION vtkDataArray
+   //DATA 2 0 5.19615
+   //NAME L2_NORM_FINITE_RANGE LOCATION vtkDataArray
+   //DATA 2 0 5.19615
+   do
    {
-      input >> np >> ws;
-      points.SetSize(3*np);
-      getline(input, buff); // "double"
-      for (i = 0; i < points.Size(); i++)
+      input >> buff;
+      if (!input.good())
       {
-         input >> points(i);
+         MFEM_ABORT("VTK mesh does not have CELLS data!");
       }
    }
+   while (buff != "CELLS");
 
    // Read the cells
-   NumOfElements = n = 0;
-   Array<int> cells_data;
-   input >> ws >> buff;
+   Array<int> cell_data, cell_offsets;
    if (buff == "CELLS")
    {
-      input >> NumOfElements >> n >> ws;
-      cells_data.SetSize(n);
-      for (i = 0; i < n; i++)
+      int ncells, n;
+      input >> ncells >> n >> ws;
+      cell_offsets.SetSize(ncells);
+      cell_data.SetSize(n - ncells);
+      int offset = 0;
+      for (int i=0; i<ncells; ++i)
       {
-         input >> cells_data[i];
+         int nv;
+         input >> nv;
+         cell_offsets[i] = offset + nv;
+         for (int j=0; j<nv; ++j)
+         {
+            input >> cell_data[offset + j];
+         }
+         offset += nv;
       }
    }
 
    // Read the cell types
-   Dim = -1;
-   int order = -1;
    input >> ws >> buff;
-   if (buff == "CELL_TYPES")
-   {
-      input >> NumOfElements;
-      elements.SetSize(NumOfElements);
-      for (j = i = 0; i < NumOfElements; i++)
-      {
-         int ct, elem_dim, elem_order = 1;
-         input >> ct;
-         switch (ct)
-         {
-            case 5:   // triangle
-               elem_dim = 2;
-               elements[i] = new Triangle(&cells_data[j+1]);
-               break;
-            case 9:   // quadrilateral
-               elem_dim = 2;
-               elements[i] = new Quadrilateral(&cells_data[j+1]);
-               break;
-            case 10:  // tetrahedron
-               elem_dim = 3;
-#ifdef MFEM_USE_MEMALLOC
-               elements[i] = TetMemory.Alloc();
-               elements[i]->SetVertices(&cells_data[j+1]);
-#else
-               elements[i] = new Tetrahedron(&cells_data[j+1]);
-#endif
-               break;
-            case 12:  // hexahedron
-               elem_dim = 3;
-               elements[i] = new Hexahedron(&cells_data[j+1]);
-               break;
-            case 13:  // wedge
-               elem_dim = 3;
-               // switch between vtk vertex ordering and mfem vertex ordering:
-               // swap vertices (1,2) and (4,5)
-               elements[i] =
-                  new Wedge(cells_data[j+1], cells_data[j+3], cells_data[j+2],
-                            cells_data[j+4], cells_data[j+6], cells_data[j+5]);
-               break;
+   Array<int> cell_types;
+   int ncells;
+   MFEM_VERIFY(buff == "CELL_TYPES", "CELL_TYPES not provided in VTK mesh.")
+   input >> ncells;
+   cell_types.Load(ncells, input);
 
-            case 22:  // quadratic triangle
-               elem_dim = 2;
-               elem_order = 2;
-               elements[i] = new Triangle(&cells_data[j+1]);
-               break;
-            case 28:  // biquadratic quadrilateral
-               elem_dim = 2;
-               elem_order = 2;
-               elements[i] = new Quadrilateral(&cells_data[j+1]);
-               break;
-            case 24:  // quadratic tetrahedron
-               elem_dim = 3;
-               elem_order = 2;
-#ifdef MFEM_USE_MEMALLOC
-               elements[i] = TetMemory.Alloc();
-               elements[i]->SetVertices(&cells_data[j+1]);
-#else
-               elements[i] = new Tetrahedron(&cells_data[j+1]);
-#endif
-               break;
-            case 32: // biquadratic-quadratic wedge
-               elem_dim = 3;
-               elem_order = 2;
-               // switch between vtk vertex ordering and mfem vertex ordering:
-               // swap vertices (1,2) and (4,5)
-               elements[i] =
-                  new Wedge(cells_data[j+1], cells_data[j+3], cells_data[j+2],
-                            cells_data[j+4], cells_data[j+6], cells_data[j+5]);
-               break;
-            case 29:  // triquadratic hexahedron
-               elem_dim = 3;
-               elem_order = 2;
-               elements[i] = new Hexahedron(&cells_data[j+1]);
-               break;
-            default:
-               MFEM_ABORT("VTK mesh : cell type " << ct << " is not supported!");
-               return;
-         }
-         MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
-                     "elements with different dimensions are not supported");
-         MFEM_VERIFY(order == -1 || order == elem_order,
-                     "elements with different orders are not supported");
-         Dim = elem_dim;
-         order = elem_order;
-         j += cells_data[j] + 1;
-      }
+   while ((input.good()) && (buff != "CELL_DATA"))
+   {
+      input >> buff;
    }
+   getline(input, buff); // finish the line
 
-   // Read attributes
-   streampos sp = input.tellg();
-   input >> ws >> buff;
-   if (buff == "CELL_DATA")
+   // Read the cell materials
+   // bool found_material = false;
+   Array<int> cell_attributes;
+   while ((input.good()))
    {
-      input >> n >> ws;
       getline(input, buff);
-      filter_dos(buff);
-      // "SCALARS material dataType numComp"
-      if (!strncmp(buff.c_str(), "SCALARS material", 16))
+      if (buff.rfind("POINT_DATA") == 0)
       {
-         getline(input, buff); // "LOOKUP_TABLE default"
-         for (i = 0; i < NumOfElements; i++)
-         {
-            input >> attr;
-            elements[i]->SetAttribute(attr);
-         }
+         break; // We have entered the POINT_DATA block. Quit.
       }
-      else
+      else if (buff.rfind("SCALARS material") == 0)
       {
-         input.seekg(sp);
+         getline(input, buff); // LOOKUP_TABLE default
+         if (buff.rfind("LOOKUP_TABLE default") != 0)
+         {
+            MFEM_ABORT("Invalid LOOKUP_TABLE for material array in VTK file.");
+         }
+         cell_attributes.Load(ncells, input);
+         // found_material = true;
+         break;
       }
    }
-   else
-   {
-      input.seekg(sp);
-   }
 
-   if (order == 1)
-   {
-      cells_data.DeleteAll();
-      NumOfVertices = np;
-      vertices.SetSize(np);
-      for (i = 0; i < np; i++)
-      {
-         vertices[i](0) = points(3*i+0);
-         vertices[i](1) = points(3*i+1);
-         vertices[i](2) = points(3*i+2);
-      }
-      points.Destroy();
+   // if (!found_material)
+   // {
+   //    MFEM_WARNING("Material array not found in VTK file. "
+   //                 "Assuming uniform material composition.");
+   // }
 
-      // No boundary is defined in a VTK mesh
-      NumOfBdrElements = 0;
-   }
-   else if (order == 2)
-   {
-      curved = 1;
-
-      // generate new enumeration for the vertices
-      Array<int> pts_dof(np);
-      pts_dof = -1;
-      for (n = i = 0; i < NumOfElements; i++)
-      {
-         int *v = elements[i]->GetVertices();
-         int nv = elements[i]->GetNVertices();
-         for (j = 0; j < nv; j++)
-            if (pts_dof[v[j]] == -1)
-            {
-               pts_dof[v[j]] = n++;
-            }
-      }
-      // keep the original ordering of the vertices
-      for (n = i = 0; i < np; i++)
-         if (pts_dof[i] != -1)
-         {
-            pts_dof[i] = n++;
-         }
-      // update the element vertices
-      for (i = 0; i < NumOfElements; i++)
-      {
-         int *v = elements[i]->GetVertices();
-         int nv = elements[i]->GetNVertices();
-         for (j = 0; j < nv; j++)
-         {
-            v[j] = pts_dof[v[j]];
-         }
-      }
-      // Define the 'vertices' from the 'points' through the 'pts_dof' map
-      NumOfVertices = n;
-      vertices.SetSize(n);
-      for (i = 0; i < np; i++)
-      {
-         if ((j = pts_dof[i]) != -1)
-         {
-            vertices[j](0) = points(3*i+0);
-            vertices[j](1) = points(3*i+1);
-            vertices[j](2) = points(3*i+2);
-         }
-      }
-
-      // No boundary is defined in a VTK mesh
-      NumOfBdrElements = 0;
-
-      // Generate faces and edges so that we can define quadratic
-      // FE space on the mesh
-      FinalizeTopology();
-      finalize_topo = false;
-
-      // Define quadratic FE space
-      FiniteElementCollection *fec = new QuadraticFECollection;
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim);
-      Nodes = new GridFunction(fes);
-      Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
-      own_nodes = 1;
-
-      // Map vtk points to edge/face/element dofs
-      Array<int> dofs;
-      for (n = i = 0; i < NumOfElements; i++)
-      {
-         fes->GetElementDofs(i, dofs);
-         const int *vtk_mfem;
-         switch (elements[i]->GetGeometryType())
-         {
-            case Geometry::TRIANGLE:
-            case Geometry::SQUARE:
-               vtk_mfem = vtk_quadratic_hex; break; // identity map
-            case Geometry::TETRAHEDRON:
-               vtk_mfem = vtk_quadratic_tet; break;
-            case Geometry::CUBE:
-               vtk_mfem = vtk_quadratic_hex; break;
-            case Geometry::PRISM:
-               vtk_mfem = vtk_quadratic_wedge; break;
-            default:
-               vtk_mfem = NULL; // suppress a warning
-               break;
-         }
-
-         for (n++, j = 0; j < dofs.Size(); j++, n++)
-         {
-            if (pts_dof[cells_data[n]] == -1)
-            {
-               pts_dof[cells_data[n]] = dofs[vtk_mfem[j]];
-            }
-            else
-            {
-               if (pts_dof[cells_data[n]] != dofs[vtk_mfem[j]])
-               {
-                  MFEM_ABORT("VTK mesh : inconsistent quadratic mesh!");
-               }
-            }
-         }
-      }
-
-      // Define the 'Nodes' from the 'points' through the 'pts_dof' map
-      for (i = 0; i < np; i++)
-      {
-         dofs.SetSize(1);
-         if ((dofs[0] = pts_dof[i]) != -1)
-         {
-            fes->DofsToVDofs(dofs);
-            for (j = 0; j < dofs.Size(); j++)
-            {
-               (*Nodes)(dofs[j]) = points(3*i+j);
-            }
-         }
-      }
-
-      read_gf = 0;
-   }
-}
+   CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
+                 curved, read_gf, finalize_topo);
+} // end ReadVTKMesh
 
 void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
 {
@@ -715,8 +1268,8 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
       NURBSext->SetCoordsFromPatches(*Nodes);
       own_nodes = 1;
       read_gf = 0;
-      int vd = Nodes->VectorDim();
-      for (int i = 0; i < vd; i++)
+      spaceDim = Nodes->VectorDim();
+      for (int i = 0; i < spaceDim; i++)
       {
          Vector vert_val;
          Nodes->GetNodalValues(vert_val, i+1);
@@ -1356,7 +1909,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   // non-positive attributes are not allowed in MFEM
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                                "By default Gmsh sets element tags (attributes)"
+                                " to '0' but MFEM requires that they be"
+                                " positive integers.\n"
+                                "Use \"Physical Curve\", \"Physical Surface\","
+                                " or \"Physical Volume\" to set tags/attributes"
+                                " for all curves, surfaces, or volumes in your"
+                                " Gmsh geometry to values which are >= 1.");
                   }
 
                   // initialize the mesh element
@@ -1576,7 +2136,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // non-positive attributes are not allowed in MFEM
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                             "By default Gmsh sets element tags (attributes)"
+                             " to '0' but MFEM requires that they be"
+                             " positive integers.\n"
+                             "Use \"Physical Curve\", \"Physical Surface\","
+                             " or \"Physical Volume\" to set tags/attributes"
+                             " for all curves, surfaces, or volumes in your"
+                             " Gmsh geometry to values which are >= 1.");
                }
 
                // initialize the mesh element
@@ -1846,6 +2413,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             curved = 1;
             read_gf = 0;
 
+            // initialize mesh_geoms so we can create Nodes FE space below
+            this->SetMeshGen();
+
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
@@ -2019,9 +2589,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          for (int i = 0; i < num_per_ent; i++)
          {
             getline(input, buff); // Read and ignore entity dimension and tags
-            getline(input, buff); // Read and ignore affine mapping
-            // Read master/slave vertex pairs
-            input >> num_nodes;
+            getline(input, buff); // If affine mapping exist, read and ignore
+            if (!strncmp(buff.c_str(), "Affine", 6))
+            {
+               input >> num_nodes;
+            }
+            else
+            {
+               num_nodes = atoi(buff.c_str());
+            }
             for (int j=0; j<num_nodes; j++)
             {
                input >> slave >> master;
@@ -2030,9 +2606,38 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             getline(input, buff); // Read end-of-line
          }
 
+         // Follow existing long chains of slave->master in v2v array.
+         // Upon completion of this loop, each v2v[slave] will point to a true
+         // master vertex. This algorithm is useful for periodicity defined in
+         // multiple directions.
+         for (int slave = 0; slave < v2v.Size(); slave++)
+         {
+            int master = v2v[slave];
+            if (master != slave)
+            {
+               // This loop will end if it finds a circular dependency.
+               while (v2v[master] != master && master != slave)
+               {
+                  master = v2v[master];
+               }
+               if (master == slave)
+               {
+                  // if master and slave are the same vertex, circular dependency
+                  // exists. We need to fix the problem, we choose slave.
+                  v2v[slave] = slave;
+               }
+               else
+               {
+                  // the long chain has ended on the true master vertex.
+                  v2v[slave] = master;
+               }
+            }
+         }
+
          // Convert nodes to discontinuous GridFunction (if they aren't already)
          if (mesh_order == 1)
          {
+            this->SetMeshGen();
             this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
          }
 

@@ -14937,15 +14937,17 @@ std::string fpToString( T value, int precision ) {
 
     ReusableStringStream rss;
     rss << std::setprecision( precision )
-        << std::fixed
+        /* << std::fixed */
         << value;
     std::string d = rss.str();
+#if 0
     std::size_t i = d.find_last_not_of( '0' );
     if( i != std::string::npos && i != d.size()-1 ) {
         if( d[i] == '.' )
             i++;
         d = d.substr( 0, i+1 );
     }
+#endif
     return d;
 }
 

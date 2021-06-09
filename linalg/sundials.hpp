@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,9 +69,9 @@ public:
    SundialsNVector();
 
    /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   SundialsNVector(double *_data, int _size);
+   SundialsNVector(double *data_, int size_);
 
    /// Creates a SundialsNVector out of a SUNDIALS N_Vector object.
    /** The N_Vector @a nv must be destroyed outside. */
@@ -85,9 +85,9 @@ public:
    SundialsNVector(MPI_Comm comm, int loc_size, long glob_size);
 
    /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   SundialsNVector(MPI_Comm comm, double *_data, int loc_size, long glob_size);
+   SundialsNVector(MPI_Comm comm, double *data_, int loc_size, long glob_size);
 
    /// Creates a SundialsNVector from a HypreParVector.
    /** Ownership of the data will not change. */
@@ -100,8 +100,8 @@ public:
    /// Returns the N_Vector_ID for the internal N_Vector.
    inline N_Vector_ID GetNVectorID() const { return N_VGetVectorID(x); }
 
-   /// Returns the N_Vector_ID for the N_Vector @a _x.
-   inline N_Vector_ID GetNVectorID(N_Vector _x) const { return N_VGetVectorID(_x); }
+   /// Returns the N_Vector_ID for the N_Vector @a x_.
+   inline N_Vector_ID GetNVectorID(N_Vector x_) const { return N_VGetVectorID(x_); }
 
 #ifdef MFEM_USE_MPI
    /// Returns the MPI communicator for the internal N_Vector x.
