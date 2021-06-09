@@ -95,7 +95,7 @@ make style
    Format the MFEM C++ source files using Artistic Style (astyle).
 make tags
    Generate a vi or Emacs compatible TAGS file in ${MFEM_DIR}/TAGS. Requires functional
-   "etags" and "egrep" in the users ${PATH}.
+   "etags" and "egrep" in the user ${PATH}.
 endef
 
 # Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
