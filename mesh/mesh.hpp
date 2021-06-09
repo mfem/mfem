@@ -1163,6 +1163,9 @@ public:
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
+   /// Return the local face index for the given boundary face.
+   int GetBdrFace(int BdrElemNo) const;
+
    /// Return true if the given face is interior. @sa FaceIsTrueInterior().
    bool FaceIsInterior(int FaceNo) const
    {
@@ -1203,6 +1206,9 @@ public:
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
+
+   /// Set the attribute of boundary element i.
+   void SetBdrAttribute(int i, int attr) { boundary[i]->SetAttribute(attr); }
 
    const Table &ElementToElementTable();
 

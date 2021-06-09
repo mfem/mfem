@@ -86,6 +86,10 @@ Linear and nonlinear solvers
   --enable-mixedint option. Note that this option is currently tested only in
   ex1p and may not work in more general settings.
 
+- Improved the interface for using the Ginkgo library, including: support for
+  matrix-free operators in Ginkgo solvers, new wrappers for Ginkgo
+  preconditioners, HIP support, and reduction of unnecessary data copies.
+
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
 
@@ -193,6 +197,10 @@ New and updated examples and miniapps
 
 - Added a new miniapp for computing (signed) distance functions to a point
   source or zero level set. See miniapps/shifted/distance.cpp.
+
+- Added a high-order extension of the shifted boundary method to solve PDEs on
+  non body-fitted meshes. This is illustrated in the new Shifted Diffusion
+  miniapp, see miniapps/shifted/diffusion.cpp.
 
 - Added new miniapp directory mtop/ with optimization-oriented block parametric
   non-linear form and abstract integrators. Two new miniapps, ParHeat and
