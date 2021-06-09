@@ -233,7 +233,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (fbfi.Size() > 0)
+   if (fbfi.Size())
    {
       pfes->ExchangeFaceNbrData();
       if (!ext && mat == NULL)
