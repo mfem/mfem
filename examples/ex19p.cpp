@@ -285,8 +285,8 @@ int main(int argc, char *argv[])
    spaces[0] = &R_space;
    spaces[1] = &W_space;
 
-   HYPRE_Int glob_R_size = R_space.GlobalTrueVSize();
-   HYPRE_Int glob_W_size = W_space.GlobalTrueVSize();
+   HYPRE_BigInt glob_R_size = R_space.GlobalTrueVSize();
+   HYPRE_BigInt glob_W_size = W_space.GlobalTrueVSize();
 
    // 8. Define the Dirichlet conditions (set to boundary attribute 1 and 2)
    Array<Array<int> *> ess_bdr(2);

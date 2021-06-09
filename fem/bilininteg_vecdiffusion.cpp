@@ -324,9 +324,9 @@ void PAVectorDiffusionApply3D(const int NE,
                               const Array<double> &g,
                               const Array<double> &bt,
                               const Array<double> &gt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               int d1d = 0, int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -338,9 +338,9 @@ void PAVectorDiffusionApply3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
