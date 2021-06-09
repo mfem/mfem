@@ -235,6 +235,14 @@ void BilinearForm::Finalize (int skip_zeros)
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
 {
    dbfi.Append(bfi);
+   dbfi_marker.Append(NULL); // NULL marker means apply everywhere
+}
+
+void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                                       Array<int> &elem_marker)
+{
+   dbfi.Append(bfi);
+   dbfi_marker.Append(&elem_marker);
 }
 
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
@@ -250,7 +258,7 @@ void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
    bbfi_marker.Append(&bdr_marker);
 }
 
-void BilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+void BilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi)
 {
    fbfi.Append (bfi);
 }
@@ -401,8 +409,19 @@ void BilinearForm::Assemble(int skip_zeros)
 
    if (dbfi.Size())
    {
+      for (int k = 0; k < dbfi.Size(); k++)
+      {
+         if (dbfi_marker[k] != NULL)
+         {
+            MFEM_VERIFY(mesh->attributes.Size() == dbfi_marker[k]->Size(),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+
       for (int i = 0; i < fes -> GetNE(); i++)
       {
+         int elem_attr = fes->GetMesh()->GetAttribute(i);
          fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
@@ -410,15 +429,33 @@ void BilinearForm::Assemble(int skip_zeros)
          }
          else
          {
-            const FiniteElement &fe = *fes->GetFE(i);
-            eltrans = fes->GetElementTransformation(i);
-            dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
-            for (int k = 1; k < dbfi.Size(); k++)
+            elmat.SetSize(0);
+            for (int k = 0; k < dbfi.Size(); k++)
             {
-               dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-               elmat += elemmat;
+               if ( dbfi_marker[k] == NULL ||
+                    (*(dbfi_marker[k]))[elem_attr-1] == 1)
+               {
+                  const FiniteElement &fe = *fes->GetFE(i);
+                  eltrans = fes->GetElementTransformation(i);
+                  dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+                  if (elmat.Size() == 0)
+                  {
+                     elmat = elemmat;
+                  }
+                  else
+                  {
+                     elmat += elemmat;
+                  }
+               }
             }
-            elmat_p = &elmat;
+            if (elmat.Size() == 0)
+            {
+               continue;
+            }
+            else
+            {
+               elmat_p = &elmat;
+            }
          }
          if (static_cond)
          {
@@ -621,53 +658,31 @@ void BilinearForm::ConformingAssemble()
 
 void BilinearForm::AssembleDiagonal(Vector &diag) const
 {
-   if (ext)
+   MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+               "Vector for holding diagonal has wrong size!");
+   const SparseMatrix *cP = fes->GetConformingProlongation();
+   if (!ext)
    {
-      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
-                  "Vector for holding diagonal has wrong size!");
-      const Operator *P = fes->GetProlongationMatrix();
-      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
-      // where |P^T| has the entry-wise absolute values of the conforming
-      // prolongation transpose operator.
-      if (P && !fes->Conforming())
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleDiagonal(local_diag);
-         const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
-#ifdef MFEM_USE_MPI
-         const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
-#endif
-         if (SP)
-         {
-            SP->AbsMultTranspose(local_diag, diag);
-         }
-#ifdef MFEM_USE_MPI
-         else if (HP)
-         {
-            HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
-         }
-#endif
-         else
-         {
-            MFEM_ABORT("Prolongation matrix has unexpected type.");
-         }
-         return;
-      }
-      if (!IsIdentityProlongation(P))
-      {
-         Vector local_diag(P->Height());
-         ext->AssembleDiagonal(local_diag);
-         P->MultTranspose(local_diag, diag);
-      }
-      else
-      {
-         ext->AssembleDiagonal(diag);
-      }
-   }
-   else
-   {
+      MFEM_ASSERT(mat, "the BilinearForm is not assembled!");
+      MFEM_ASSERT(cP == nullptr || mat->Height() == cP->Width(),
+                  "BilinearForm::ConformingAssemble() is not called!");
       mat->GetDiag(diag);
+      return;
    }
+   // Here, we have extension, ext.
+   if (!cP)
+   {
+      ext->AssembleDiagonal(diag);
+      return;
+   }
+   // Here, we have extension, ext, and conforming prolongation, cP.
+
+   // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_l,
+   // where |P^T| has the entry-wise absolute values of the conforming
+   // prolongation transpose operator.
+   Vector local_diag(cP->Height());
+   ext->AssembleDiagonal(local_diag);
+   cP->AbsMultTranspose(local_diag, diag);
 }
 
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,

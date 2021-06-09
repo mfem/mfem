@@ -35,6 +35,11 @@ protected:
 
 public:
 
+   /// Construct an empty finite element space hierarchy. This is useful if the
+   /// hierarchy is constructed by coarsening a fine space, rather than refining
+   /// a coarse space.
+   FiniteElementSpaceHierarchy() { }
+
    /// @brief Constructs a space hierarchy with the given mesh and space on the
    /// coarsest level.
    /** The ownership of the mesh and space may be transferred to the
