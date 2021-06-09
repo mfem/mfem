@@ -498,6 +498,7 @@ void PetscParVector::UseDevice(bool dev) const
    MFEM_VERIFY(x,"Missing Vec");
 #if defined(PETSC_HAVE_DEVICE)
    ierr = VecBindToCPU(x,!dev ? PETSC_TRUE : PETSC_FALSE); PCHKERRQ(x,ierr);
+   SetFlagsFromMask_();
 #endif
 }
 
@@ -524,22 +525,22 @@ void PetscParVector::SetBlockSize(PetscInt bs)
 PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
                                bool copy) : Vector()
 {
+   PetscBool isdevice;
+
    int n = x_.Size();
    ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
    ierr = VecSetSizes(x,n,PETSC_DECIDE); PCHKERRQ(x,ierr);
    SetVecType_();
    SetDataAndSize_();
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
+                                    ""); PCHKERRQ(x,ierr);
    if (copy)
    {
-
       /* we use PETSc accessors to flag valid memory location to PETSc */
       PetscErrorCode (*rest)(Vec,PetscScalar**);
       PetscScalar *array;
 #if defined(PETSC_HAVE_DEVICE)
-      PetscBool isdevice;
-      ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
-                                       VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
-                                       ""); PCHKERRQ(x,ierr);
       if (isdevice && x_.UseDevice())
       {
          UseDevice(true);
@@ -556,6 +557,17 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
       pdata.CopyFrom(x_.GetMemory(), n);
       ierr = (*rest)(x,&array); PCHKERRQ(x,ierr);
       SetFlagsFromMask_();
+   }
+   else // don't copy, just set the device flag
+   {
+      if (isdevice && x_.UseDevice())
+      {
+         UseDevice(true);
+      }
+      else
+      {
+         UseDevice(false);
+      }
    }
 }
 
