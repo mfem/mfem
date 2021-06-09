@@ -437,11 +437,13 @@ double* PetscParVector::HostReadWrite()
    return ReadWrite(false);
 }
 
+// What to do if MFEM device is not supported in PETSc?
 void PetscParVector::UseDevice(bool dev) const
 {
    MFEM_VERIFY(x,"Missing Vec");
 #if defined(PETSC_HAVE_DEVICE)
    ierr = VecBindToCPU(x,!dev ? PETSC_TRUE : PETSC_FALSE); PCHKERRQ(x,ierr);
+   SetFlagsFromMask_();
 #endif
 }
 
@@ -463,21 +465,21 @@ PetscInt PetscParVector::GlobalSize() const
 PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
                                bool copy) : Vector()
 {
+   PetscBool iscuda;
+
    int n = x_.Size();
    ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
    ierr = VecSetSizes(x,n,PETSC_DECIDE); PCHKERRQ(x,ierr);
    SetVecType_();
    SetDataAndSize_();
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (copy)
    {
-
+#if defined(PETSC_HAVE_DEVICE)
       /* we use PETSc accessors to flag valid memory location to PETSc */
       PetscErrorCode (*rest)(Vec,PetscScalar**);
       PetscScalar *array;
-#if defined(PETSC_HAVE_DEVICE)
-      PetscBool iscuda;
-      ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
-                                       ""); PCHKERRQ(x,ierr);
       if (iscuda && x_.UseDevice())
       {
          UseDevice(true);
@@ -494,6 +496,17 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
       pdata.CopyFrom(x_.GetMemory(), n);
       ierr = (*rest)(x,&array); PCHKERRQ(x,ierr);
       SetFlagsFromMask_();
+   }
+   else // don't copy, just set the device flag
+   {
+      if (iscuda && x_.UseDevice())
+      {
+         UseDevice(true);
+      }
+      else
+      {
+         UseDevice(false);
+      }
    }
 }
 
