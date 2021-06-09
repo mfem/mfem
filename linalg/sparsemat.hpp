@@ -94,7 +94,7 @@ protected:
    static size_t bufferSize;
    static void *dBuffer;
    mutable bool initBuffers{false};
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 10010
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
