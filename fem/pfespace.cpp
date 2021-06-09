@@ -1773,7 +1773,7 @@ static void FindVarDof(const Table &var_dofs, const Array<char> &var_orders,
                        int dof, int &index, int &order, int &edof)
 {
    const int *I = var_dofs.GetI(), *J = var_dofs.GetJ();
-   const int sizeI = var_dofs.Size(), sizeJ = I[sizeI];
+   const int sizeI = var_dofs.Size(), sizeJ = I[sizeI+1];
 
    const int *jpos = std::lower_bound(J, J+sizeJ, dof);
    MFEM_VERIFY(jpos < J+sizeJ, "DOF not found");
