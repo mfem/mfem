@@ -91,7 +91,7 @@ void FaceQuadratureInterpolator::Eval2D(
    const int vdim,
    const DofToQuad &maps,
    const Array<bool> &signs,
-   const Vector &r_vec,
+   const Vector &f_vec,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
