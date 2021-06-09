@@ -56,7 +56,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
 }
 
 #ifdef MFEM_USE_MPI
-FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
+FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
@@ -64,7 +64,7 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
 {
    gsl_comm = new comm;
    cr      = new crystal;
-   comm_init(gsl_comm, _comm);
+   comm_init(gsl_comm, comm_);
 }
 #endif
 

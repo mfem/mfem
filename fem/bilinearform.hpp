@@ -90,6 +90,11 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
@@ -175,6 +180,8 @@ public:
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
+
+   Hybridization *GetHybridization() const { return hybridization; }
 
    /** @brief Enable the use of static condensation. For details see the
        description for class StaticCondensation in fem/staticcond.hpp This method
@@ -330,6 +337,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -369,7 +380,7 @@ public:
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
-       When the AssemblyLevel is not LEGACYFULL, and the mesh has hanging nodes,
+       When the AssemblyLevel is not LEGACY, and the mesh has hanging nodes,
        this method returns |P^T| d_l, where d_l is the diagonal of the form
        before applying conforming assembly, P^T is the transpose of the
        conforming prolongation, and |.| denotes the entry-wise absolute value.

@@ -74,9 +74,9 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
                d_mt == MemoryType::DEVICE_DEBUG ||
                d_mt == MemoryType::DEFAULT,
                "d_mt = " << MemoryTypeName[(int)d_mt]);
-   // If d_mt == MemoryType::DEVICE_DEBUG, then h_mt == MemoryType::HOST_DEBUG
+   // If d_mt == MemoryType::DEVICE_DEBUG, then h_mt != MemoryType::MANAGED
    MFEM_VERIFY(d_mt != MemoryType::DEVICE_DEBUG ||
-               h_mt == MemoryType::HOST_DEBUG,
+               h_mt != MemoryType::MANAGED,
                "h_mt = " << MemoryTypeName[(int)h_mt]);
 #if 0
    const bool sync =
@@ -326,16 +326,18 @@ inline void MmuDealloc(void *ptr, const size_t bytes)
 /// MMU protection, through ::mprotect with no read/write accesses
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
+   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
-   mfem_error("MMU protection (NONE) error");
+   if (mmu_protect_error) { mfem_error("MMU protection (NONE) error"); }
 }
 
 /// MMU un-protection, through ::mprotect with read/write accesses
 inline void MmuAllow(const void *ptr, const size_t bytes)
 {
    const int RW = PROT_READ | PROT_WRITE;
+   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
-   mfem_error("MMU protection (R/W) error");
+   if (mmu_protect_error) { mfem_error("MMU protection (R/W) error"); }
 }
 #else
 inline void MmuInit() { }
@@ -1393,7 +1395,7 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    void *alias_d_ptr = static_cast<char*>(mem.d_ptr) + offset;
    MFEM_ASSERT(alias_h_ptr == alias_ptr, "internal error");
    MFEM_ASSERT(bytes <= alias.bytes, "internal error");
-   mem.d_rw = false;
+   mem.d_rw = mem.h_rw = false;
    ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
    if (copy) { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
@@ -1486,6 +1488,14 @@ void MemoryManager::Configure(const MemoryType host_mt,
 {
    MemoryManager::UpdateDualMemoryType(host_mt, device_mt);
    MemoryManager::UpdateDualMemoryType(device_mt, host_mt);
+   if (device_mt == MemoryType::DEVICE_DEBUG)
+   {
+      for (int mt = (int)MemoryType::HOST; mt < (int)MemoryType::MANAGED; mt++)
+      {
+         MemoryManager::UpdateDualMemoryType(
+            (MemoryType)mt, MemoryType::DEVICE_DEBUG);
+      }
+   }
    Init();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
