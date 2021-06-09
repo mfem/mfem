@@ -353,7 +353,6 @@ public:
 
    /// Return the number of root elements.
    int GetNumRootElements() { return root_state.Size(); }
-   virtual int GetNumGhostElements() const { return 0; }
 
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
