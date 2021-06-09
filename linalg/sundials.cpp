@@ -425,6 +425,26 @@ static SUNMatrix_ID MatGetID(SUNMatrix)
    return (SUNMATRIX_CUSTOM);
 }
 
+//BEGIN WORKAROUND CODE
+static SUNMatrix MatClone(SUNMatrix A)
+{
+   SUNMatrix B = SUNMatNewEmpty();
+   MFEM_VERIFY(B, "error in MatClone()");
+
+   B->content = A->content;
+
+   int flag = SUNMatCopyOps(A, B);
+   MFEM_VERIFY(flag == SUNMAT_SUCCESS, "error in MatClone()");
+
+   return B;
+}
+
+static int MatCopy(SUNMatrix, SUNMatrix)
+{
+   return 0;
+}
+// END WORKAROUN CODE
+
 static void MatDestroy(SUNMatrix A)
 {
    if (A->content) { A->content = NULL; }
@@ -1493,7 +1513,12 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
-   M->ops->getid   = SUNMatGetID;
+// BEGIN WORKAROUND CODE
+   // M->ops->getid   = SUNMatGetID;
+   M->ops->getid = MatGetID;
+   M->ops->clone = MatClone;
+   M->ops->copy = MatCopy;
+// END WORKAROUND CODE
    M->ops->matvec  = ARKStepSolver::MassMult1;
    M->ops->destroy = MatDestroy;
 
@@ -1535,6 +1560,12 @@ void ARKStepSolver::SetSStolerances(double reltol, double abstol)
 {
    flag = ARKStepSStolerances(sundials_mem, reltol, abstol);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSStolerances()");
+}
+
+void ARKStepSolver::SetMaxIter(int iterations)
+{
+  flag = ARKStepSetMaxNonlinIters(sundials_mem, iterations);
+  MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMaxNonlinIters()");
 }
 
 void ARKStepSolver::SetMaxStep(double dt_max)

@@ -666,6 +666,9 @@ public:
    /// Set the scalar relative and scalar absolute tolerances.
    void SetSStolerances(double reltol, double abstol);
 
+   /// Set the maximum number of nonlinear iterations per RK stage
+   void SetMaxIter(int iterations);
+
    /// Set the maximum time step.
    void SetMaxStep(double dt_max);
 
