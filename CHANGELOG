@@ -205,7 +205,7 @@ Version 4.2.1 (development)
 
 - Improved interface for using the Ginkgo library, including: support for matrix-
   free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
-  support, and reduction of unnecessary data copies. 
+  support, and reduction of unnecessary data copies.
 
 - Added initial support for hypre's mixed integer (mixedint) capability, which
   uses different data types for local and global indices in order to save memory
@@ -217,6 +217,15 @@ Version 4.2.1 (development)
   solvers, see the LORDiscretization and LORSolver classes. A new basis type for
   H(curl) and H(div) spaces is introduced to give spectral equivalence. This
   functionality is illustrated in the LOR solvers miniapp in miniapps/solvers.
+
+- Added sample meshes in the `data` subdirectory showing the reference elements
+  of the six currently supported element types; ref-segment.mesh,
+  ref-triangle.mesh, ref-square.mesh, ref-tetrahedron.mesh, ref-cube.mesh, and
+  ref-prism.mesh.
+
+- Added a high-order extension of the shifted boundary method to solve PDEs on
+  non body-fitted meshes. This is illustrated in the new Shifted Diffusion
+  miniapp, see miniapps/shifted/diffusion.cpp.
 
 libCEED integration improvements
 --------------------------------

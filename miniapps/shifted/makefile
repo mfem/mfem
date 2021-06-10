@@ -25,10 +25,10 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SHIFTED_COMMON_SRC = dist_solver.cpp
+SHIFTED_COMMON_SRC = dist_solver.cpp sbm_solver.cpp marking.cpp
 SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance
+PAR_MINIAPPS = distance diffusion
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -83,8 +83,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance
+	rm -f *.o *~ distance diffusion
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf ParaViewDistance
+	rm -f diffusion.mesh diffusion.gf
+	rm -rf ParaViewDistance
