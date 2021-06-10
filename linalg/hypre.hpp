@@ -331,7 +331,11 @@ private:
 
    // Copy (shallow/deep, based on HYPRE_BIGINT) the I and J arrays from csr to
    // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
-   static char CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr);
+   // The CSR arrays are wrapped in the mem_csr struct which is used to move
+   // these arrays to device, if necessary.
+   static char CopyCSR(SparseMatrix *csr,
+                       MemoryIJData &mem_csr,
+                       hypre_CSRMatrix *hypre_csr);
    // Copy (shallow or deep, based on HYPRE_BIGINT) the I and J arrays from
    // bool_csr to hypre_csr. Allocate the data array and set it to all ones.
    // Return the appropriate ownership flag.
@@ -341,9 +345,6 @@ private:
    // the indices from HYPRE_Int/HYPRE_BigInt to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
-   // TODO: change names to start with mem_ rather than hypre_?
-   Memory<HYPRE_Int> hypre_mem_row, hypre_mem_col, hypre_mem_cmap;
-   Memory<HYPRE_Int> hypre_cmap;
    MemoryIJData mem_diag, mem_offd;
 
 public:
@@ -360,10 +361,6 @@ public:
       ParCSROwner = owner;
       height = GetNumRows();
       width = GetNumCols();
-
-      // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
-      diagOwner = 3;
-      offdOwner = 3;
    }
 
    /// Converts hypre's format to HypreParMatrix

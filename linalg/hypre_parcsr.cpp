@@ -1249,7 +1249,7 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
    HYPRE_Bool       *x_data = x;
    HYPRE_Bool       *y_data = y;
 
-   HYPRE_Bool        temp, tempx;
+   HYPRE_Bool        /* temp, */ tempx;
 
    HYPRE_Int         i, jj;
 
@@ -2055,7 +2055,7 @@ tmp_hypre_CSRMatrixSetRownnz(hypre_CSRMatrix *matrix, MemoryIJData & mem)
 {
    HYPRE_Int  ierr = 0;
    HYPRE_Int  num_rows = hypre_CSRMatrixNumRows(matrix);
-   HYPRE_Int  *A_i = hypre_CSRMatrixI(matrix);
+   // HYPRE_Int  *A_i = hypre_CSRMatrixI(matrix);
    HYPRE_Int  *Arownnz;
 
    HYPRE_Int i, adiag;

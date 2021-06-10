@@ -90,6 +90,9 @@ inline bool IsDeviceMemory(MemoryType mt)
 /// Return a suitable MemoryType for a given MemoryClass.
 MemoryType GetMemoryType(MemoryClass mc);
 
+/// Return true iff the MemoryType @a mt is contained in the MemoryClass @a mc.
+bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
+
 /// Return a suitable MemoryClass from a pair of MemoryClass%es.
 /** Note: this operation is commutative, i.e. a*b = b*a, associative, i.e.
     (a*b)*c = a*(b*c), and has an identity element: MemoryClass::HOST.
@@ -462,6 +465,13 @@ public:
        the device pointers are currently valid, then the device memory type is
        returned. */
    inline MemoryType GetMemoryType() const;
+
+   /// Return the host MemoryType of the Memory object.
+   inline MemoryType GetHostMemoryType() const { return h_mt; }
+
+   /** @brief Return the device MemoryType of the Memory object. If the device
+       MemoryType is not set, return MemoryType::DEFAULT. */
+   inline MemoryType GetDeviceMemoryType() const;
 
    /** @brief Return true if host pointer is valid */
    inline bool HostIsValid() const;
@@ -1069,6 +1079,13 @@ template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & VALID_DEVICE)) { return h_mt; }
+   return MemoryManager::GetDeviceMemoryType_(h_ptr);
+}
+
+template <typename T>
+inline MemoryType Memory<T>::GetDeviceMemoryType() const
+{
+   if (!(flags & REGISTERED)) { return MemoryType::DEFAULT; }
    return MemoryManager::GetDeviceMemoryType_(h_ptr);
 }
 
