@@ -63,6 +63,26 @@ MemoryType GetMemoryType(MemoryClass mc)
 }
 
 
+bool MemoryClassContainsType(MemoryClass mc, MemoryType mt)
+{
+   switch (mc)
+   {
+      case MemoryClass::HOST: return IsHostMemory(mt);
+      case MemoryClass::HOST_32:
+         return (mt == MemoryType::HOST_32 ||
+                 mt == MemoryType::HOST_64 ||
+                 mt == MemoryType::HOST_DEBUG);
+      case MemoryClass::HOST_64:
+         return (mt == MemoryType::HOST_64 ||
+                 mt == MemoryType::HOST_DEBUG);
+      case MemoryClass::DEVICE: return IsDeviceMemory(mt);
+      case MemoryClass::MANAGED:
+         return (mt == MemoryType::MANAGED);
+   }
+   MFEM_ABORT("invalid MemoryClass");
+}
+
+
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_VERIFY(IsHostMemory(h_mt), "h_mt = " << (int)h_mt);

@@ -19,6 +19,7 @@
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
+#include "../general/mem_manager.hpp"
 #include "_hypre_parcsr_mv.h"
 
 // Older hypre versions do not define HYPRE_BigInt and HYPRE_MPI_BIG_INT, so we
