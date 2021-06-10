@@ -32,8 +32,8 @@ Discretization improvements
 - Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
   linear interpolators and GridFunction "GetValue" methods.
 
-- Changed the interface for the error estimator and implemented the parallel
-  Kelly error indicator for scalar-valued problems.
+- Changed the interface for the error estimator and implemented the Kelly error
+  indicator for scalar-valued problems, supported in serial and parallel builds.
 
 - Added support for the "BR2" discontinuous Galerkin discretization for
   diffusion via DGDiffusionBR2Integrator (see Example 14/14p).
@@ -239,6 +239,8 @@ Miscellaneous
   *all* non-regression tests.
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
+
+- Added makefile rule to generate TAGS table for vi or Emacs users.
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 

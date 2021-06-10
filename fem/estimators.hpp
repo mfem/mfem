@@ -407,23 +407,22 @@ public:
 };
 
 
-#ifdef MFEM_USE_MPI
 /** @brief The KellyErrorEstimator class provides a fast error indication
     strategy for smooth scalar parallel problems.
 
     The Kelly error indicator is based on the following papers:
 
-    Kelly, D. W., et al. "A posteriori error analysis and adaptive processes in
-    the finite element method: Part I—Error analysis." International journal for
-    numerical methods in engineering 19.11 (1983): 1593-1619.
+    [1] Kelly, D. W., et al. "A posteriori error analysis and adaptive processes
+    in the finite element method: Part I—Error analysis." International journal
+    for numerical methods in engineering 19.11 (1983): 1593-1619.
 
-    De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
+    [2] De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
     processes in the finite element method: Part II—Adaptive mesh refinement."
     International journal for numerical methods in engineering 19.11 (1983):
     1621-1656.
 
     It can be roughly described by:
-        ||∇(u-uₕ)||ₑ ≦ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
+        ||∇(u-uₕ)||ₑ ≅ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
     where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
     corresponding faces. u is the analytic solution and uₕ the discretized
     solution. hₖ and hₑ are factors dependent on the face and element geometry.
@@ -432,10 +431,13 @@ public:
     is also possible to estimate the error only on a subspace by feeding this
     class an attribute array describing the subspace.
 
-    @note This algorithm is only for Poisson problems a proper error estimator.
-    The current implementation does not reflect this, because the "C" factor is
-    not included.
-    It further assumes that the approximation error at the boundary is small
+    @note This algorithm is appropriate only for problems with scalar diffusion
+    coefficients (e.g. Poisson problems), because it measures only the flux of
+    the gradient of the discrete solution. The current implementation also does
+    not include the volume term present in Equation 75 of Kelly et al [1].
+    Instead, it includes only the flux term recommended in Equation 82. The
+    current implementation also does not include the constant factor "C". It
+    furthermore assumes that the approximation error at the boundary is small
     enough, as the implementation ignores boundary faces.
 */
 class KellyErrorEstimator final : public ErrorEstimator
@@ -443,11 +445,11 @@ class KellyErrorEstimator final : public ErrorEstimator
 public:
    /// Function type to compute the local coefficient hₑ of an element.
    using ElementCoefficientFunction =
-      std::function<double(ParMesh*, const int)>;
+      std::function<double(Mesh*, const int)>;
    /** @brief Function type to compute the local coefficient hₖ of a face. The
        third argument is true for shared faces and false for local faces. */
    using FaceCoefficientFunction =
-      std::function<double(ParMesh*, const int, const bool)>;
+      std::function<double(Mesh*, const int, const bool)>;
 
 private:
    int current_sequence = -1;
@@ -478,11 +480,15 @@ private:
    FaceCoefficientFunction compute_face_coefficient;
 
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
-   ParGridFunction* solution;               ///< Not owned.
+   GridFunction* solution;               ///< Not owned.
 
-   ParFiniteElementSpace*
+   FiniteElementSpace*
    flux_space; /**< @brief Ownership based on own_flux_fes. */
    bool own_flux_fespace; ///< Ownership flag for flux_space.
+
+#ifdef MFEM_USE_MPI
+   const bool isParallel;
+#endif
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -512,8 +518,8 @@ public:
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
    */
-   KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
-                       ParFiniteElementSpace& flux_fes_,
+   KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
+                       FiniteElementSpace& flux_fes_,
                        const Array<int> &attributes_ = Array<int>());
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
@@ -524,8 +530,8 @@ public:
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
    */
-   KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
-                       ParFiniteElementSpace* flux_fes_,
+   KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
+                       FiniteElementSpace* flux_fes_,
                        const Array<int> &attributes_ = Array<int>());
 
    ~KellyErrorEstimator();
@@ -571,8 +577,6 @@ public:
    /// Change the coefficients back to default as described above.
    void ResetCoefficientFunctions();
 };
-
-#endif // MFEM_USE_MPI
 
 } // namespace mfem
 
