@@ -316,7 +316,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
 
 TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
 {
-   DenseTensor t1(2,2,2);
+   DenseTensor t1(2,3,4);
    for (int i=0; i<t1.TotalSize(); ++i)
    {
       t1.Data()[i] = i;
