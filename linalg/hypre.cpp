@@ -1568,7 +1568,8 @@ void HypreParMatrix::Threshold(double threshold)
 
 void HypreParMatrix::DropSmallEntries(double tol)
 {
-   HYPRE_Int err = 0;
+   HYPRE_Int err = 0, old_err = hypre_error_flag;
+   hypre_error_flag = 0;
 
 #if MFEM_HYPRE_VERSION < 21400
 
@@ -1607,6 +1608,8 @@ void HypreParMatrix::DropSmallEntries(double tol)
 #endif
 
    MFEM_VERIFY(!err, "error encountered: error code = " << err);
+
+   hypre_error_flag = old_err;
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
@@ -2685,6 +2688,8 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (type >= 1 && type <= 4)
    {
       hypre_ParCSRComputeL1Norms(*A, type, NULL, &l1_norms);
+      // The above call will set the hypre_error_flag when it encounters zero
+      // rows in A.
    }
    else if (type == 5)
    {
@@ -3064,6 +3069,11 @@ void HyprePCG::SetOperator(const Operator &op)
 void HyprePCG::SetTol(double tol)
 {
    HYPRE_PCGSetTol(pcg_solver, tol);
+}
+
+void HyprePCG::SetAbsTol(double atol)
+{
+   HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
 }
 
 void HyprePCG::SetMaxIter(int max_iter)

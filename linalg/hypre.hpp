@@ -1043,6 +1043,7 @@ public:
    virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
+   void SetAbsTol(double atol);
    void SetMaxIter(int max_iter);
    void SetLogging(int logging);
    void SetPrintLevel(int print_lvl);
