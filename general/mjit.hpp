@@ -282,11 +282,6 @@ inline bool CreateAndCompile(const size_t hash, // kernel hash
 {
    dbg("H:0x%x",hash);
    char *imem, *omem = nullptr;
-   if (!CreateKernelSourceInMemory(hash, src, imem, args...) != 0)
-   {
-      dbg("Error in CreateInput");
-      return false;
-   }
 
    // MFEM_JIT_SYMBOL_PREFIX + hex64 string + extension + '\0': 1 + 16 + 3 + 1
    char cc[21], co[21];
@@ -295,6 +290,8 @@ inline bool CreateAndCompile(const size_t hash, // kernel hash
 #if defined(MFEM_USE_MPI)
    uint64str(hash, cc, ".cc");
    if (!CreateKernelSourceInFile(cc, hash, src, args...) !=0 ) { return false; }
+#else
+   if (!CreateKernelSourceInMemory(hash, src, imem, args...) != 0) { return false; }
 #endif
    return Compile(imem, omem, cc, co, cxx, flags, msrc, mins, check);
 }
@@ -418,6 +415,9 @@ public:
 } // namespace mfem
 
 #ifdef MJIT_FORALL
+
+const int MAX_D1D = 1;
+const int MAX_Q1D = 1;
 
 #include <iostream>
 
@@ -561,8 +561,7 @@ void CuWrap3D(const int N, DBODY &&d_body,
 #endif // MFEM_USE_CUDA
 
 // Include dtensor, but skip the backends headers we just short-circuited
-#define MFEM_CUDA_HPP
-#define MFEM_HIP_HPP
+#define MFEM_BACKENDS_HPP
 #include "../linalg/dtensor.hpp"
 
 #endif // MJIT_FORALL

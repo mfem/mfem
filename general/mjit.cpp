@@ -315,7 +315,10 @@ int System(char *argv[])
    return status;
 }
 
-#undef MFEM_JIT_SHOW_MAIN_CODE
+#if 0
+#warning MFEM_JIT_SHOW_MAIN_CODE
+#define MFEM_JIT_SHOW_MAIN_CODE
+#endif
 #if defined(MFEM_JIT_MAIN) || defined(MFEM_JIT_SHOW_MAIN_CODE)
 
 constexpr int THREAD_TIMEOUT = 4000;
@@ -1127,11 +1130,10 @@ void jitPrefix(context_t &pp)
    pp.out << "#include <cstring>\n";
    pp.out << "#include <stdbool.h>\n";
    pp.out << "#define MJIT_FORALL\n";
-   pp.out << "#define MAX_D1D 1\n";
-   pp.out << "#define MAX_Q1D 1\n";
    pp.out << "#include \""
           << pp.ker.mfem_install_dir
-          << "/include/mfem/linalg/dtensor.hpp\"\n"; // Reshape
+          << "/include/mfem/general/mjit.hpp\"\n"; // CUDA + Reshapes
+
    if (not pp.ker.embed.empty())
    {
       // push to suppress 'declared but never referenced' warnings

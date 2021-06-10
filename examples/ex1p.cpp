@@ -63,7 +63,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   MPI_Session mpi;
+   MPI_Session mpi(argc, argv, true);
    int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
 

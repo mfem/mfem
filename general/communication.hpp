@@ -22,6 +22,9 @@
 #include "globals.hpp"
 #include <mpi.h>
 
+#ifdef MFEM_USE_JIT
+#include <thread>
+#endif
 
 namespace mfem
 {
@@ -33,12 +36,19 @@ class MPI_Session
 {
 protected:
    int world_rank, world_size;
+#ifdef MFEM_USE_JIT
+   int *state;
+   pid_t child_pid;
+#endif
    void GetRankAndSize();
 public:
    MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
+#ifdef MFEM_USE_JIT
+   MPI_Session(int &argc, char **&argv, bool);
+#endif
    MPI_Session(int &argc, char **&argv)
    { MPI_Init(&argc, &argv); GetRankAndSize(); }
-   ~MPI_Session() { MPI_Finalize(); }
+   ~MPI_Session();
    /// Return MPI_COMM_WORLD's rank.
    int WorldRank() const { return world_rank; }
    /// Return MPI_COMM_WORLD's size.
