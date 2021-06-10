@@ -173,6 +173,7 @@ int main(int argc, char *argv[])
    const char *mg_smoother = "mfem:cheb";
    bool mg_pa = false;
    const char *amgx_file = "amgx.json";
+   bool use_mixed_amg = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -230,6 +231,10 @@ int main(int argc, char *argv[])
                   "Enable Partial Assembly for non-coarse grids in GMG.");
    args.AddOption(&amgx_file, "-amgx-config", "--amgx-configuration-file",
                   "Configuration file for AMGX.");
+   args.AddOption(&use_mixed_amg, "-mixed-amg", "--mixed-precision-amg",
+                  "-dbl-amg",
+                  "--double-precision-amg",
+                  "Enable mixed precision AMG from Ginkgo.");
    args.Parse();
    if (!args.Good())
    {
@@ -654,8 +659,9 @@ int main(int argc, char *argv[])
          tic_toc.Clear();
          tic_toc.Start();
 
+         // All double
          Ginkgo::AMGPreconditioner M(exec, Ginkgo::AMGPreconditioner::JACOBI,
-                                     1, 1, Ginkgo::AMGPreconditioner::JACOBI, 4);
+                                     1, 1, Ginkgo::AMGPreconditioner::JACOBI, 4, use_mixed_amg);
          M.SetOperator(*A_pc_mat);
 
          tic_toc.Stop();

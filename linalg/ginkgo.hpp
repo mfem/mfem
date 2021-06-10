@@ -1262,10 +1262,13 @@ public:
     * @param[in] post_sweeps Number of post-smoothing sweeps.
     * @param[in] coarse_solver Type of solver to use on coarsest level.
     * @param[in] coarse_solve_its Number of iterations to do on coarses level.
+    * @param[in] use_mixed_prec Whether or not to do inner level computations in
+    *                            single precision.
     */
    AMGPreconditioner(GinkgoExecutor &exec, SmootherType smoother,
                      const int pre_sweeps, const int post_sweeps,
-                     SmootherType coarse_solver, const int coarse_solve_its);
+                     SmootherType coarse_solver, const int coarse_solve_its,
+                     bool use_mixed_prec);
 
 };
 
