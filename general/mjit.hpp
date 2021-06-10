@@ -433,9 +433,6 @@ public:
 
 #include "../config/config.hpp"
 
-#define MAX_D1D 1
-#define MAX_Q1D 1
-
 #ifdef MFEM_USE_CUDA
 
 #define MFEM_CUDA_BLOCKS 256

@@ -513,9 +513,9 @@ bool Compile(const char *imem,
 #else
    argv.push_back(MFEM_JIT_DEVICE_CODE);
 #endif // MFEM_USE_CUDA
-   argv.push_back("-I.");
-   argv.push_back(Imsrc);
-   argv.push_back(Iminc);
+   //argv.push_back("-I.");
+   //argv.push_back(Imsrc);
+   //argv.push_back(Iminc);
    argv.push_back("-o");
 #ifdef __APPLE__
    argv.push_back("/dev/stdout");
@@ -1127,7 +1127,11 @@ void jitPrefix(context_t &pp)
    pp.out << "#include <cstring>\n";
    pp.out << "#include <stdbool.h>\n";
    pp.out << "#define MJIT_FORALL\n";
-   pp.out << "#include \"/Users/camier1/home/sawmill/okina-jit/mfem/include/mfem/general/mjit.hpp\"\n";
+   pp.out << "#define MAX_D1D 1\n";
+   pp.out << "#define MAX_Q1D 1\n";
+   pp.out << "#include \""
+          << pp.ker.mfem_install_dir
+          << "/include/mfem/linalg/dtensor.hpp\"\n"; // Reshape
    if (not pp.ker.embed.empty())
    {
       // push to suppress 'declared but never referenced' warnings
