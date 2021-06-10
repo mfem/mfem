@@ -707,9 +707,9 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       {
          // Variational restriction with P
          const SparseMatrix *R = fes->GetConformingRestriction();
-         B.SetSize(P->Width());
+         B.SetSize(P->Width(), GetHypreMemoryType());
          P->MultTranspose(b, B);
-         X.SetSize(R->Height());
+         X.SetSize(R->Height(), GetHypreMemoryType());
          R->Mult(x, X);
          EliminateVDofsInRHS(ess_tdof_list, X, B);
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
