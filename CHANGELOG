@@ -223,6 +223,8 @@ Version 4.2.1 (development)
   non body-fitted meshes. This is illustrated in the new Shifted Diffusion
   miniapp, see miniapps/shifted/diffusion.cpp.
 
+- Added makefile rule to generate TAGS table for vi or Emacs users.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
