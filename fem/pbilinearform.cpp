@@ -378,8 +378,8 @@ void ParBilinearForm::FormLinearSystem(
    else
    {
       // Variational restriction with P
-      X.SetSize(P.Width());
-      B.SetSize(X.Size());
+      X.SetSize(pfes->TrueVSize(), GetHypreMemoryType());
+      B.SetSize(X.Size(), GetHypreMemoryType());
       P.MultTranspose(b, B);
       R.Mult(x, X);
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
@@ -471,7 +471,7 @@ void ParBilinearForm::RecoverFEMSolution(
    else
    {
       // Apply conforming prolongation
-      x.SetSize(P.Height());
+      x.SetSize(P.Height(), GetHypreMemoryType());
       P.Mult(X, x);
    }
 }
