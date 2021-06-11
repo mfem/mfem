@@ -43,6 +43,7 @@ using namespace std;
 namespace mfem
 {
 
+#ifdef MFEM_USE_JIT
 MPI_Session::MPI_Session(int &argc, char **&argv, bool)
 {
    const long ms = 100L;
@@ -92,6 +93,7 @@ MPI_Session::MPI_Session(int &argc, char **&argv, bool)
       exit(0);
    }
 }
+#endif
 
 void MPI_Session::GetRankAndSize()
 {
