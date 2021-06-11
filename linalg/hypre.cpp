@@ -1276,7 +1276,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
       }
       if (b != 0.0)
       {
-        auxY.CopyFrom(y.GetMemory(), auxY.Capacity());  // Deep copy
+         auxY.CopyFrom(y.GetMemory(), auxY.Capacity());  // Deep copy
       }
 
       Y->SetMemoryAndSize(auxY, y.Size());
