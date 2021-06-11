@@ -171,7 +171,7 @@ public:
    /// Typecasting to hypre's HYPRE_ParVector, a.k.a. void *
    operator HYPRE_ParVector() const { return (HYPRE_ParVector) x; }
 #endif
-   /// Changes the ownership of the the vector
+   /// Changes the ownership of the vector
    hypre_ParVector *StealParVector() { own_ParVector = 0; return x; }
 
    /// Sets ownership of the internal hypre_ParVector
@@ -516,7 +516,7 @@ public:
    /// Typecasting to hypre's HYPRE_ParCSRMatrix, a.k.a. void *
    operator HYPRE_ParCSRMatrix() { return (HYPRE_ParCSRMatrix) A; }
 #endif
-   /// Changes the ownership of the the matrix
+   /// Changes the ownership of the matrix
    hypre_ParCSRMatrix* StealData();
 
    /// Explicitly set the three ownership flags, see docs for diagOwner etc.
