@@ -811,11 +811,6 @@ public:
    MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
-   /// A version of the above constructor for non-uniform refinement.
-   /** The input array @a ref_factors contains one refinement factor per element
-       of the input mesh. */
-   Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type);
-
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
