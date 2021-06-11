@@ -240,18 +240,6 @@ Vector &Vector::operator+=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator*=(const Vector &v)
-{
-   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
-
-   const bool use_dev = UseDevice() || v.UseDevice();
-   const int N = size;
-   auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= x[i];);
-   return *this;
-}
-
 Vector &Vector::Add(const double a, const Vector &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
