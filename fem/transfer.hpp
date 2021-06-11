@@ -181,7 +181,8 @@ protected:
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const = 0;
       /// Sets relative tolerance and absolute tolerance in preconditioned
       /// conjugate gradient solver.  Only used for H1 spaces.
-      virtual void SetTolerance(double p_rtol_, double p_atol_) = 0;
+      virtual void SetRelTol(double p_rtol_) = 0;
+      virtual void SetAbsTol(double p_atol_) = 0;
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
@@ -247,7 +248,8 @@ protected:
       /// conservative left-inverse prolongation operation.  This functionality is
       /// also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
-      virtual void SetTolerance(double p_rtol_, double p_atol_) {}
+      virtual void SetRelTol(double p_rtol_) {}
+      virtual void SetAbsTol(double p_atol_) {}
    };
 
    /** Class for projection operator between a H1 high-order finite element
@@ -268,6 +270,7 @@ protected:
    public:
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_);
+      virtual ~L2ProjectionH1Space();
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh with
       /// a higher order H1 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a refined mesh with a low order H1 finite element
@@ -299,7 +302,8 @@ protected:
       /// conservative left-inverse prolongation operation.  This functionality is
       /// also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
-      virtual void SetTolerance(double p_rtol_, double p_atol_);
+      virtual void SetRelTol(double p_rtol_);
+      virtual void SetAbsTol(double p_atol_);
    private:
       /// Computes sparsity pattern and initializes R matrix.  Based on
       /// BilinearForm::AllocMat() except maps between HO elements and LOR

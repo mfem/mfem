@@ -647,6 +647,11 @@ public:
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
 
+   /** @brief Returns the indices of all of the VDofs for the specified
+       dimension 'vd'. */
+   /** The 'ndofs' parameter defines the number of Dofs in the
+       FiniteElementSpace.  If 'ndofs' is -1 (the default value), then the
+       number of Dofs is determined by the FiniteElementSpace. */
    void GetVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
 
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
