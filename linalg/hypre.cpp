@@ -432,8 +432,12 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
 
    /* Make sure that the first entry in each row is the diagonal one. */
    // TODO:
+#ifdef HYPRE_USING_CUDA
    hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(A));
-   //hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#else
+   hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#endif
+
 #ifdef HYPRE_BIGINT
    CopyCSR_J(A->diag, diag->GetJ());
 #endif
@@ -1115,8 +1119,11 @@ HypreParMatrix * HypreParMatrix::Transpose() const
       /* If the matrix is square, make sure that the first entry in each
          row is the diagonal one. */
       // TODO
+#ifdef HYPRE_USING_CUDA
       hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(At));
-      //hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
+#else
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
+#endif
    }
 
    return new HypreParMatrix(At);
