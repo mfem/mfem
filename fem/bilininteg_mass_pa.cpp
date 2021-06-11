@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
+#include "../general/occa.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/mass.hpp"
@@ -1151,30 +1152,18 @@ static void SmemPAMassApply3D(const int NE,
 }
 
 static void PAMassApply(const int dim,
-                        const int D1D,
-                        const int Q1D,
                         const int NE,
-                        const Array<double> &B,
-                        const Array<double> &Bt,
+                        const DofToQuad& maps,
                         const Vector &D,
                         const Vector &X,
                         Vector &Y)
 {
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-
-      if (dim == 2)
-      {
-         return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);
-      }
-      if (dim == 3)
-      {
-         return OccaPAMassApply3D(D1D,Q1D,NE,B,Bt,D,X,Y);
-      }
-      MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
+   MFEM_VERIFY(maps.mode==DofToQuad::Mode::TENSOR, "Partial assembly kernels"
+      " for Mass only implemented for tensor elements.");
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const Array<double> &B = maps.B;
+   const Array<double> &Bt = maps.Bt;
    const int id = (D1D << 4) | Q1D;
    if (dim == 2)
    {
@@ -1225,15 +1214,51 @@ static void PAMassApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
+static void OccaPAMassApply(const int dim,
+                            const int NE,
+                            const DofToQuad& maps,
+                            const Vector &D,
+                            const Vector &X,
+                            Vector &Y)
+{
+#ifdef MFEM_USE_OCCA
+   MFEM_VERIFY(maps.mode==DofToQuad::Mode::TENSOR, "Partial assembly kernels"
+      " for Mass only implemented for tensor elements.");
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const Array<double> &B = maps.B;
+   const Array<double> &Bt = maps.Bt;
+   if (DeviceCanUseOcca())
+   {
+
+      if (dim == 2)
+      {
+         return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);
+      }
+      if (dim == 3)
+      {
+         return OccaPAMassApply3D(D1D,Q1D,NE,B,Bt,D,X,Y);
+      }
+      MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+   }
+#else
+   MFEM_ABORT("MFEM must be compiled with OCCA support.");
+#endif // MFEM_USE_OCCA
+}
+
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
    }
+   else if (DeviceCanUseOcca())
+   {
+      OccaPAMassApply(dim, ne, *maps, pa_data, x, y);
+   }
    else
    {
-      PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+      PAMassApply(dim, ne, *maps, pa_data, x, y);
    }
 }
 
