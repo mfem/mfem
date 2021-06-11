@@ -20,10 +20,10 @@
     - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"'
       when: never
     # Don’t run autotest update if...
-    - if: '$CI_JOB_NAME =~ /update_autotest/ && ( $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "next" && $AUTOTEST != "YES" )'
+    - if: '$CI_JOB_NAME =~ /update_autotest/ && $AUTOTEST != "YES"'
       when: never
     # Don’t run autotest update if...
-    - if: '$CI_JOB_NAME =~ /q_report/ && ( $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "next" && $AUTOTEST != "YES" )'
+    - if: '$CI_JOB_NAME =~ /q_report/ && $AUTOTEST != "YES"'
       when: never
     # Always release resources
     - if: '$CI_JOB_NAME =~ /release_resources/'
