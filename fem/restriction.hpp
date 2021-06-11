@@ -110,9 +110,11 @@ protected:
    int width;
 public:
 
-   FaceRestriction(): height(0), width(0) {}
+   FaceRestriction(): height(0), width(0) { }
 
-   FaceRestriction(int h, int w): height(h), width(w) {}
+   FaceRestriction(int h, int w): height(h), width(w) { }
+
+   virtual ~FaceRestriction() { }
 
    /** Extract the face degrees of freedom from @a x. */
    virtual void Mult(const Vector &x, Vector &y) const = 0;
