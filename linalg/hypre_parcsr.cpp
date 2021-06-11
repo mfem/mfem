@@ -654,8 +654,11 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
       }
 
       // TODO:
+#ifdef HYPRE_USING_CUDA
       hypre_CSRMatrixMoveDiagFirstDevice(Ae_diag);
-      //hypre_CSRMatrixReorder(Ae_diag);
+#else
+      hypre_CSRMatrixReorder(Ae_diag);
+#endif
 
       /* finish the communication */
       hypre_ParCSRCommHandleDestroy(comm_handle);

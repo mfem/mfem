@@ -308,7 +308,7 @@ void CopyMemory(Memory<T> &src, MemoryClass dst_mc, Memory<T> &dst)
 }
 
 /** @brief Deep copy and convert @a src to @a dst with the goal to make the
-    array @a src accessible trhough @a dst with the MemoryClass @a dst_mc and
+    array @a src accessible through @a dst with the MemoryClass @a dst_mc and
     convert it from type SrcT to type DstT. */
 /** When @a dst is no longer needed, dst.Delete() must be called to ensure all
     associated memory allocations are freed.
@@ -446,8 +446,12 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
 
    /* Make sure that the first entry in each row is the diagonal one. */
    // TODO:
+#ifdef HYPRE_USING_CUDA
    hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(A));
-   //hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#else
+   hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#endif
+
 #ifdef HYPRE_BIGINT
    CopyCSR_J(A->diag, diag->GetJ());
 #endif
@@ -1130,8 +1134,11 @@ HypreParMatrix * HypreParMatrix::Transpose() const
       /* If the matrix is square, make sure that the first entry in each
          row is the diagonal one. */
       // TODO
+#ifdef HYPRE_USING_CUDA
       hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(At));
-      //hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
+#else
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
+#endif
    }
 
    return new HypreParMatrix(At);
@@ -2428,7 +2435,8 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
 
    HYPRE_Int nnz = I_read[A_rows] - I_read[0];
 
-   // TODO: this is currently being done on host. We should be able to do it on device with MFEM_FORALL.
+   // TODO: this is currently being done on host. We should be able to do it on
+   // device with MFEM_FORALL.
    auto data_read = HostRead(A.GetMemory_diagData(), nnz);
 
    const double *X_read = X.HostRead();
