@@ -57,10 +57,7 @@ static TargetT *DuplicateAs(const SourceT *array, int size,
 inline void HypreParVector::_SetDataAndSize_()
 {
    SetDataAndSize(hypre_VectorData(hypre_ParVectorLocalVector(x)),
-                  internal::to_int(
-                     hypre_VectorSize(hypre_ParVectorLocalVector(x))));
-
-   UseDevice(true);
+                  internal::to_int(hypre_VectorSize(hypre_ParVectorLocalVector(x))));
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
@@ -90,7 +87,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParVectorInitialize(x);
    // Set the internal data array to the one passed in
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
-   _SetDataAndSize_();
+   if (data_) { _SetDataAndSize_(); }
    own_ParVector = 1;
 }
 
@@ -179,10 +176,34 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
    return *this;
 }
 
+template <typename T>
+bool CanShallowCopy(const Memory<T> &src, MemoryClass dst_mc)
+{
+   MemoryType src_h_mt = src.GetHostMemoryType();
+   MemoryType src_d_mt = src.GetDeviceMemoryType();
+   if (src_d_mt == MemoryType::DEFAULT)
+   {
+      src_d_mt = MemoryManager::GetDualMemoryType(src_h_mt);
+   }
+   return (MemoryClassContainsType(dst_mc, src_h_mt) ||
+           MemoryClassContainsType(dst_mc, src_d_mt));
+}
+
 void HypreParVector::SetData(double *data_)
 {
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
    Vector::SetData(data_);
+}
+
+void HypreParVector::SetMemoryAndSize(Memory<double> & mem, const int s)
+{
+   size = s;
+   MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
+   MFEM_ASSERT(mem.Capacity() >= this->Size(), "");
+   hypre_VectorData(hypre_ParVectorLocalVector(x)) = mem.ReadWrite(
+                                                        GetHypreMemoryClass(), this->Size());
+   data.Delete();
+   data.MakeAlias(mem, 0, s);
 }
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
@@ -256,7 +277,6 @@ double ParNormlp(const Vector &vec, double p, MPI_Comm comm)
    return norm;
 }
 
-
 /** @brief Shallow or deep copy @a src to @a dst with the goal to make the
     array @a src accessible through @a dst with the MemoryClass @a dst_mc. If
     one of the host/device MemoryType%s of @a src is contained in @a dst_mc,
@@ -268,21 +288,15 @@ double ParNormlp(const Vector &vec, double p, MPI_Comm comm)
     freed.
 
     The input contents of @a dst, if any, is not used and it is overwritten by
-    this function. In particular, @a dst should be empty of deleted before
+    this function. In particular, @a dst should be empty or deleted before
     calling this function. */
 template <typename T>
 void CopyMemory(Memory<T> &src, MemoryClass dst_mc, Memory<T> &dst)
 {
-   MemoryType src_h_mt = src.GetHostMemoryType();
-   MemoryType src_d_mt = src.GetDeviceMemoryType();
-   if (src_d_mt == MemoryType::DEFAULT)
-   {
-      src_d_mt = MemoryManager::GetDualMemoryType(src_h_mt);
-   }
-   if (MemoryClassContainsType(dst_mc, src_h_mt) ||
-       MemoryClassContainsType(dst_mc, src_d_mt))
+   if (CanShallowCopy(src, dst_mc))
    {
       // shallow copy
+      src.Read(dst_mc, src.Capacity());  // Registers src if on host only
       dst.MakeAlias(src, 0, src.Capacity());
    }
    else
@@ -300,7 +314,7 @@ void CopyMemory(Memory<T> &src, MemoryClass dst_mc, Memory<T> &dst)
     associated memory allocations are freed.
 
     The input contents of @a dst, if any, is not used and it is overwritten by
-    this function. In particular, @a dst should be empty of deleted before
+    this function. In particular, @a dst should be empty or deleted before
     calling this function. */
 template <typename SrcT, typename DstT>
 void CopyConvertMemory(Memory<SrcT> &src, MemoryClass dst_mc, Memory<DstT> &dst)
@@ -681,6 +695,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       mem_diag.data.New(diag_nnz);  // on host
       mem_diag.data.UseDevice(true);
       mem_offd.data.New(offd_nnz);  // on host
+      mem_offd.data.UseDevice(true);
 
       A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], row, col,
                                    cmap_size, diag_nnz, offd_nnz);
@@ -1181,13 +1196,10 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
-   // This is called by ex1p
-
    x.UseDevice(true);
    y.UseDevice(true);
 
-
-   // This works but seems wrong for `-d cuda` with hypre using cuda and no uvm?
+   // TODO: this works but should not be necessary for `-d cuda` with hypre using cuda and no uvm?
    auto x_data = x.HostRead();
    auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
 
@@ -1208,22 +1220,58 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
-                             const_cast<double*>(x_data),
+                             nullptr,
                              GetColStarts());
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
-                             y_data,
+                             nullptr,
                              GetRowStarts());
+   }
+
+   const bool xshallow = CanShallowCopy(x.GetMemory(), GetHypreMemoryClass());
+   const bool yshallow = CanShallowCopy(y.GetMemory(), GetHypreMemoryClass());
+
+   MFEM_ASSERT(x.Size() == NumRows(), "");
+   MFEM_ASSERT(y.Size() == NumCols(), "");
+
+   if (xshallow)
+   {
+      //B->SetData(const_cast<Memory<double> &>(b.GetMemory()));
+      X->SetMemoryAndSize(const_cast<Memory<double> &>(x.GetMemory()), x.Size());
    }
    else
    {
-      X->SetData(const_cast<double*>(x_data));
-      Y->SetData(y_data);
+      if (auxX.Empty())
+      {
+         auxX.New(NumRows(), GetHypreMemoryType());
+      }
+
+      auxX.CopyFrom(x.GetMemory(), auxX.Capacity());  // Deep copy
+
+      X->SetMemoryAndSize(auxX, x.Size());
+   }
+
+   if (yshallow)
+   {
+      //X->SetData(x.GetMemory());
+      Y->SetMemoryAndSize(y.GetMemory(), y.Size());
+   }
+   else
+   {
+      if (auxY.Empty())
+      {
+         auxY.New(NumCols(), GetHypreMemoryType());
+      }
+
+      Y->SetMemoryAndSize(auxY, y.Size());
    }
 
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
 
-   y.Read();
+   if (!yshallow)
+   {
+      y = *Y;  // Deep copy
+   }
 }
 
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
@@ -2900,6 +2948,8 @@ HypreSolver::HypreSolver()
    A = NULL;
    setup_called = 0;
    B = X = NULL;
+   auxB.Reset();
+   auxX.Reset();
    error_mode = ABORT_HYPRE_ERRORS;
 }
 
@@ -2909,6 +2959,8 @@ HypreSolver::HypreSolver(const HypreParMatrix *A_)
    A = A_;
    setup_called = 0;
    B = X = NULL;
+   auxB.Reset();
+   auxX.Reset();
    error_mode = ABORT_HYPRE_ERRORS;
 }
 
@@ -2926,8 +2978,8 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       x = 0.0;
    }
 
-   b.HostRead();
-   x.HostReadWrite();
+   //b.HostRead();
+   //x.HostReadWrite();
    if (!setup_called)
    {
       err = SetupFcn()(*this, *A, b, x);
@@ -2943,6 +2995,9 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       setup_called = 1;
    }
 
+   //b.Read();
+   //x.ReadWrite();
+
    err = SolveFcn()(*this, *A, b, x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
@@ -2957,44 +3012,74 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
-   x.UseDevice(true);
-   b.UseDevice(true);
-
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
-   auto b_data = b.Read();
-   auto x_data = iterative_mode ? x.ReadWrite() : x.Write();
+
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             const_cast<double*>(b_data),
+                             nullptr,
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             x_data,
+                             nullptr,
                              A -> GetColStarts());
+   }
+
+   const bool bshallow = CanShallowCopy(b.GetMemory(), GetHypreMemoryClass());
+   const bool xshallow = CanShallowCopy(x.GetMemory(), GetHypreMemoryClass());
+
+   MFEM_ASSERT(b.Size() == NumCols(), "");
+   MFEM_ASSERT(x.Size() == NumRows(), "");
+
+   if (bshallow)
+   {
+      B->SetMemoryAndSize(const_cast<Memory<double> &>(b.GetMemory()), b.Size());
    }
    else
    {
-      B -> SetData(const_cast<double*>(b_data));
-      X -> SetData(x_data);
+      if (auxB.Empty())
+      {
+         auxB.New(NumCols(), GetHypreMemoryType());
+      }
+
+      auxB.CopyFrom(b.GetMemory(), auxB.Capacity());  // Deep copy
+
+      B->SetMemoryAndSize(auxB, b.Size());
    }
-   // TODO: is this the best way to set a HypreParVector to use device?
-   B->UseDevice(true);
-   X->UseDevice(true);
+
+   if (xshallow)
+   {
+      X->SetMemoryAndSize(x.GetMemory(), x.Size());
+   }
+   else
+   {
+      if (auxX.Empty())
+      {
+         auxX.New(NumRows(), GetHypreMemoryType());
+      }
+
+      X->SetMemoryAndSize(auxX, x.Size());
+   }
 
    Mult(*B, *X);
-   //X->WriteCopy(x);
+
+   if (!xshallow)
+   {
+      x = *X;  // Deep copy
+   }
 }
 
 HypreSolver::~HypreSolver()
 {
    if (B) { delete B; }
    if (X) { delete X; }
+   auxB.Delete();
+   auxX.Delete();
 }
 
 

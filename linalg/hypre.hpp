@@ -196,6 +196,8 @@ public:
        HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
    void SetData(double *data_);
 
+   void SetMemoryAndSize(Memory<double> & mem, const int s);
+
    /// TODO: documentation
    inline const HypreParVector &Read(const Vector &base)
    {
@@ -347,6 +349,8 @@ private:
 
    MemoryIJData mem_diag, mem_offd;
 
+   mutable Memory<double> auxX, auxY;
+
 public:
    /// An empty matrix to be used as a reference to an existing matrix
    HypreParMatrix();
@@ -398,14 +402,20 @@ public:
 
          auto I_read = HostRead(mem_offd.I, num_rows + 1);
          const HYPRE_Int offd_nnz = I_read[num_rows] - I_read[0];
-         mem_offd.data.Wrap(hypre_CSRMatrixData(a_offd), offd_nnz, GetHypreMemoryType(),
-                            true);
-         mem_offd.J.Wrap(hypre_CSRMatrixJ(a_offd), offd_nnz, GetHypreMemoryType(), true);
+         if (offd_nnz > 0)
+         {
+            mem_offd.data.Wrap(hypre_CSRMatrixData(a_offd), offd_nnz, GetHypreMemoryType(),
+                               true);
+            mem_offd.J.Wrap(hypre_CSRMatrixJ(a_offd), offd_nnz, GetHypreMemoryType(), true);
+         }
       }
       else
       {
          mem_offd = *ijdata_offd;
       }
+
+      diagOwner = 3; // TODO: can this be avoided?
+      offdOwner = 3;
    }
 
    /// Creates block-diagonal square parallel matrix.
@@ -956,6 +966,8 @@ protected:
 
    /// Right-hand side and solution vector
    mutable HypreParVector *B, *X;
+
+   mutable Memory<double> auxB, auxX;
 
    /// Was hypre's Setup function called already?
    mutable int setup_called;
