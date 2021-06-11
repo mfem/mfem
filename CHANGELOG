@@ -139,7 +139,8 @@ Version 4.2.1 (development)
 
 - Changed the interface for the error estimator.
 
-- Implemented the parallel Kelly error indicator for scalar-valued problems.
+- Implemented the Kelly error indicator for scalar-valued problems, supported
+  in serial and parallel builds.
 
 - Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
   efficient evaluation of symmetric matrix coefficients. This replaces the now
@@ -222,6 +223,8 @@ Version 4.2.1 (development)
 - Added a high-order extension of the shifted boundary method to solve PDEs on
   non body-fitted meshes. This is illustrated in the new Shifted Diffusion
   miniapp, see miniapps/shifted/diffusion.cpp.
+
+- Added makefile rule to generate TAGS table for vi or Emacs users.
 
 libCEED integration improvements
 --------------------------------
