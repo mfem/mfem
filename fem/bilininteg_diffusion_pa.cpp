@@ -16,8 +16,6 @@
 #include "../general/occa.hpp"
 #include "fespace.hpp"
 
-#include "glD.hpp"
-
 using namespace std;
 
 namespace mfem
@@ -538,16 +536,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
 
       printf("OCCA BUILD END\n");
-
-      // hackity-hackity-hackity
-      // hard code a 7x7 GL differentiation matrix here ftm
-      double *GG = NULL;
-      int NGG = loadGLD(quad1D, &GG);
-      twGG.SetSize(NGG);
-      for (int n = 0; n < NGG; ++n)
-      {
-         twGG[n] = 2. * GG[n]; // switch from biunit to unit interval
-      }
    }
 #endif
 }
@@ -1990,12 +1978,10 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       ceedOp->AddMult(x, y);
    }
-#ifdef MFEM_USE_OCCA
    else if (DeviceCanUseOcca())
    {
       OccaPADiffusionApply(dim,ne,symmetric,*maps,twGatherMap,pa_data, x, y);
    }
-#endif
    else
    {
       PADiffusionApply(dim,ne,symmetric,*maps,pa_data, x, y);
