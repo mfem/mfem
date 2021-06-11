@@ -595,11 +595,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
-   
    if (iterative_mode)
    {
       oper->Mult(x, r);
-      
       subtract(b, r, r); // r = b - A x
    }
    else
@@ -617,9 +615,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
-
-   /* TW: END */
-   
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_level == 1 || print_level == 3)
@@ -649,8 +644,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       final_norm = sqrt(nom);
       return;
    }
-
-
 
    oper->Mult(d, z);  // z = A d
    den = Dot(z, d);
@@ -817,13 +810,8 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
    pcg.SetMaxIter(max_num_iter);
    pcg.SetRelTol(sqrt(RTOLERANCE));
    pcg.SetAbsTol(sqrt(ATOLERANCE));
-
-   /* TW: START */
-   
    pcg.SetOperator(A);
-
    pcg.SetPreconditioner(B);
-
    double tic = getTod();
    pcg.Mult(b, x);
    double toc = getTod();

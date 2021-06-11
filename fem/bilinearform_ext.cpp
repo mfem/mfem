@@ -400,13 +400,11 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-     printf("RAP\n");
-     y.UseDevice(true); 
       elem_restrict->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AddMultPA(localX, localY);	 
+         integrators[i]->AddMultPA(localX, localY);
       }
       elem_restrict->MultTranspose(localY, y);
    }

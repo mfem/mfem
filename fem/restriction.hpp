@@ -46,8 +46,8 @@ protected:
    Array<int> offsets;
    Array<int> indices;
    Array<int> gatherMap;
+
 public:
-  
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;

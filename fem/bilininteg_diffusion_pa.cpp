@@ -52,7 +52,7 @@ static void OccaPADiffusionSetup2D(const int D1D,
                                      "DiffusionSetup2D", props);
       OccaDiffSetup2D_ker.emplace(id, DiffusionSetup2D);
    }
-   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);    
+   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
 }
 
 static void OccaPADiffusionSetup3D(const int D1D,
@@ -361,7 +361,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -495,9 +494,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
                    Device::GetDeviceMemoryType());
-
-   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne,
-                    ir->GetWeights(),
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 
 #ifdef MFEM_USE_OCCA
@@ -997,7 +994,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 static void OccaPADiffusionApply2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-				   const Array<int> &gatherMap,
+                                   const Array<int> &gatherMap,
                                    const Array<double> &B,
                                    const Array<double> &G,
                                    const Array<double> &Bt,
@@ -1050,7 +1047,7 @@ static void OccaPADiffusionApply2D(const int D1D,
 static void OccaPADiffusionApply3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-				   const Array<int> &gatherMap,
+                                   const Array<int> &gatherMap,
                                    const Array<double> &B,
                                    const Array<double> &G,
                                    const Array<double> &Bt,

@@ -493,7 +493,6 @@ static void OccaPAMassApply2D(const int D1D,
    const occa::memory o_D = OccaMemoryRead(D.GetMemory(), D.Size());
    const occa::memory o_X = OccaMemoryRead(X.GetMemory(), X.Size());
    occa::memory o_Y = OccaMemoryReadWrite(Y.GetMemory(), Y.Size());
-
    const occa_id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
@@ -586,7 +585,6 @@ static void PAMassApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
