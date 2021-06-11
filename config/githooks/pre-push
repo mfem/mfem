@@ -44,6 +44,13 @@ if ! $release ; then
   code=1
 fi
 
+# `code-style` is not just a check, it will actually reformat the code if
+# necessary. This means that if one pushes while the repo is in dirty state
+# (changes not staged), those changes may be mixed with format changes, which
+# can be annoying.
+# To activate this, you will need to hard-copy this hook script in the hook
+# directory and uncomment only then. (See README.md)
+#
 ## style check
 #if which astyle && [[ "$(astyle --version)" == "Artistic Style Version 2.05.1" ]]; then
 #  cd tests/scripts
