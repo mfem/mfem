@@ -217,7 +217,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto J = Reshape(j.Read(), NQ, SDIM, DIM, ne);
       auto D = Reshape(d.Write(), NQ, SDIM, ne);
 
-      auto C = Reshape(coeff.HostWrite(), NQ, ne);
+      const bool const_c = coeff.Size() == 1;
+      const auto C = const_c ? Reshape(coeff.Read(), 1,1) :
+                     Reshape(coeff.Read(), NQ,ne);
 
       MFEM_FORALL(e, ne,
       {
@@ -234,7 +236,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double G = J12*J12 + J22*J22 + J32*J32;
             const double F = J11*J12 + J21*J22 + J31*J32;
             const double iw = 1.0 / sqrt(E*G - F*F);
-            const double alpha = wq * C(q, e) * iw;
+            const double C1 = const_c ? C(0,0) : C(q,e);
+            const double alpha = wq * C1 * iw;
             D(q,0,e) =  alpha * G; // 1,1
             D(q,1,e) = -alpha * F; // 1,2
             D(q,2,e) =  alpha * E; // 2,2
