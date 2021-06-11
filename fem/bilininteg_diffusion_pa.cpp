@@ -13,6 +13,8 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/diffusion.hpp"
+#include "../general/occa.hpp"
+#include "fespace.hpp"
 
 #include "glD.hpp"
 
@@ -329,7 +331,7 @@ static void PADiffusionSetup(const int dim,
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-	OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, C, D);
+         OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, C, D);
          return;
       }
 #else
@@ -510,7 +512,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
      MFEM_VERIFY(tfe, "invalid FE");
      const mfem::Array<int>& dof_map = tfe->GetDofMap();
      
-     CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
+     int compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
      const mfem::Table &el_dof = fes.GetElementToDofTable();
      twGatherMap.SetSize(el_dof.Size_of_connections());
      const int dof = fe->GetDof();
@@ -1895,35 +1897,22 @@ static void SmemPADiffusionApply3D(const int NE,
 }
 
 static void PADiffusionApply(const int dim,
-                             const int D1D,
-                             const int Q1D,
                              const int NE,
-			     const Array<int> &gatherMap,
                              const bool symm,
-                             const Array<double> &B,
-                             const Array<double> &G,
-                             const Array<double> &Bt,
-                             const Array<double> &Gt,
+                             const DofToQuad& maps,
                              const Vector &D,
                              const Vector &X,
                              Vector &Y)
 {
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      if (dim == 2)
-      {
-	OccaPADiffusionApply2D(D1D,Q1D,NE,gatherMap, B,G,Bt,Gt,D,X,Y);
-	return;
-      }
-      if (dim == 3)
-	{
-	  OccaPADiffusionApply3D(D1D,Q1D,NE,gatherMap,B,G,Bt,Gt,D,X,Y);
-	  return;
-	}
-      MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
+   MFEM_VERIFY(maps.mode==DofToQuad::Mode::TENSOR, "Partial assembly kernels"
+      " for Diffusion only implemented for tensor elements.");
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const Array<double> &B = maps.B;
+   const Array<double> &G = maps.G;
+   const Array<double> &Bt = maps.Bt;
+   const Array<double> &Gt = maps.Gt;
+
    const int ID = (D1D << 4) | Q1D;
 
    if (dim == 2)
@@ -1961,6 +1950,44 @@ static void PADiffusionApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
+static void OccaPADiffusionApply(const int dim,
+                                 const int NE,
+                                 const bool symm,
+                                 const DofToQuad& maps,
+                                 const Array<int> &gatherMap,
+                                 const Vector &D,
+                                 const Vector &X,
+                                 Vector &Y)
+{
+#ifdef MFEM_USE_OCCA
+   MFEM_VERIFY(maps.mode==DofToQuad::Mode::TENSOR, "Partial assembly kernels"
+      " for Diffusion only implemented for tensor elements.");
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const Array<double> &B = maps.B;
+   const Array<double> &G = maps.G;
+   const Array<double> &Bt = maps.Bt;
+   const Array<double> &Gt = maps.Gt;
+   const Array<double> &C = maps.C;
+   if (DeviceCanUseOcca())
+   {
+      if (dim == 2)
+      {
+         OccaPADiffusionApply2D(D1D,Q1D,NE,gatherMap, B,G,Bt,Gt,D,X,Y);
+         return;
+      }
+      else if (dim == 3)
+      {
+         OccaPADiffusionApply3D(D1D,Q1D,NE,gatherMap,B,C,Bt,Gt,D,X,Y);
+         return;
+      }
+      MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+   }
+#else
+   MFEM_ABORT("MFEM must be compiled with OCCA support.");
+#endif // MFEM_USE_OCCA
+}
+
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
@@ -1968,18 +1995,15 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       ceedOp->AddMult(x, y);
    }
-   else     
+#ifdef MFEM_USE_OCCA
+   else if (DeviceCanUseOcca())
    {
-     // hackity, hackity (because 3D uses quadrature differentation matrix)
-     if(dim==2)
-       PADiffusionApply(dim, dofs1D, quad1D, ne, twGatherMap, symmetric,
-			maps->B, maps->G, maps->Bt, maps->Gt,
-			pa_data, x, y);
-     else
-       PADiffusionApply(dim, dofs1D, quad1D, ne, twGatherMap, symmetric,
-			maps->B, twGG, maps->Bt, maps->Gt, // hackity, hackity
-			pa_data, x, y);
-       
+      OccaPADiffusionApply(dim,ne,symmetric,*maps,twGatherMap,pa_data, x, y);
+   }
+#endif
+   else
+   {
+      PADiffusionApply(dim,ne,symmetric,*maps,pa_data, x, y);
    }
 }
 

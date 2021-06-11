@@ -45,7 +45,7 @@ protected:
    const int nedofs;
    Array<int> offsets;
    Array<int> indices;
-  Array<int> gatherMap;
+   Array<int> gatherMap;
 public:
   
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);

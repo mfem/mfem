@@ -17,6 +17,7 @@
 #include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
 #include "ceed/util.hpp"
+#include "../general/occa.hpp"
 
 namespace mfem
 {
@@ -386,7 +387,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (DeviceCanUseCeed() || DeviceCanUseOcca() || !elem_restrict)
+   const bool has_global_to_global_backend =
+      DeviceCanUseCeed() || DeviceCanUseOcca();
+   if ( has_global_to_global_backend || !elem_restrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
