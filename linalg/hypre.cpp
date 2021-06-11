@@ -294,7 +294,7 @@ void CopyMemory(Memory<T> &src, MemoryClass dst_mc, Memory<T> &dst)
 }
 
 /** @brief Deep copy and convert @a src to @a dst with the goal to make the
-    array @a src accessible trhough @a dst with the MemoryClass @a dst_mc and
+    array @a src accessible through @a dst with the MemoryClass @a dst_mc and
     convert it from type SrcT to type DstT. */
 /** When @a dst is no longer needed, dst.Delete() must be called to ensure all
     associated memory allocations are freed.
@@ -2380,7 +2380,8 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
 
    HYPRE_Int nnz = I_read[A_rows] - I_read[0];
 
-   // TODO: this is currently being done on host. We should be able to do it on device with MFEM_FORALL.
+   // TODO: this is currently being done on host. We should be able to do it on
+   // device with MFEM_FORALL.
    auto data_read = HostRead(A.GetMemory_diagData(), nnz);
 
    const double *X_read = X.HostRead();
