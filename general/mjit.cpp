@@ -261,7 +261,12 @@ bool Root()
    return world_rank == 0;
 }
 
-int System(char *argv[])
+// launch the std::system through:
+//   - MPI_Comm_spawn => mjit (executable) (using the -c command line option)
+//   - mjit => ProcessFork: MPI_Spawned and THREAD_Worker
+//   - MPI_Spawned drives the working thread, provides the arguments and wait
+//   - THREAD_Worker waits for commands and does the std::system call
+int System_MPISpawn(char *argv[])
 {
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
@@ -313,6 +318,42 @@ int System(char *argv[])
    MPI_Barrier(comm);
    MPI_Comm_free(&intercomm);
    return status;
+}
+
+// launch the std::system through:
+//   - child (jit_compiler_pid) of MPI_JIT_Session in communication.hpp
+int System_MPI_JIT_Session(char *argv[])
+{
+   dbg();
+   MPI_Comm comm = MPI_COMM_WORLD;
+   MPI_Barrier(comm);
+
+   const int argc = argn(argv);
+   if (argc < 2) { return EXIT_FAILURE; }
+
+   //if (!MPI_Inited() || MPI_Size()==1)
+   if (Root())
+   {
+      string command(argv[1]);
+      for (int k = 2; k < argc && argv[k]; k++)
+      {
+         command.append(" ");
+         command.append(argv[k]);
+      }
+      const char *command_c_str = command.c_str();
+      dbg(command_c_str);
+      std::system(command_c_str);
+   }
+
+   MPI_Barrier(comm);
+   return EXIT_SUCCESS;
+}
+
+// Entry point toward System_MPISpawn or System_MPI_JIT_Session
+int System(char *argv[])
+{
+   //return System_MPISpawn(argv);
+   return System_MPI_JIT_Session(argv);
 }
 
 #if 0
@@ -423,19 +464,14 @@ int GetCurrentRuntimeVersion(bool increment)
 
 // *****************************************************************************
 /// Compile the source file with PIC flags, updating the cache library.
-bool Compile(const char *imem,
-             char *&omem,
-             char cc[21],
-             char co[21],
-             const char *cxx,
-             const char *flags,
-             const char *msrc,
-             const char *mins,
+bool Compile(const char *imem, char *&omem,
+             char cc[21], char co[21], const char *cxx,
+             const char *flags, const char *msrc, const char *mins,
              const bool check_for_ar)
 {
-   dbg("imem: %p, omem: %p == nullptr", (void*)imem, (void*)omem);
+   if (Root()) { dbg("imem:%p, omem:%p", (void*)imem, (void*)omem); }
    assert(omem == nullptr);
-   //dbg("%s",imem);
+   //if (Root()) { dbg("%s",imem); }
 #ifndef MFEM_USE_CUDA
 #define MFEM_JIT_DEVICE_CODE
 #define MFEM_JIT_COMPILER_OPTION
@@ -465,7 +501,7 @@ bool Compile(const char *imem,
    // If there is already a JIT archive, use it and create the lib_so
    if (check_for_ar && GetCurrentRuntimeVersion() == 0 && std::fstream(libar))
    {
-      dbg("Using JIT archive!");
+      if (Root()) { dbg("Using JIT archive!"); }
       const char *argv_so[] =
       {
          shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load,
@@ -563,17 +599,17 @@ bool Compile(const char *imem,
    if (!getenv("MFEM_NUNLINK")) { ::unlink(cc); }
 #endif
 
-   dbg("Update archive");
+   if (Root()) { dbg("Update archive"); }
    const char *argv_ar[] = { shell, "ar", "-rv", libar, co, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
    if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
 
-   dbg("Create shared library");
+   if (Root()) { dbg("Create shared library"); }
    const char *argv_so[] =
    {shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load, nullptr};
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
 
-   dbg("Install shared library");
+   if (Root()) { dbg("Install shared library"); }
    const char *install[] =
 #ifdef __APPLE__
    { shell, "install", libso, libso_v, nullptr };

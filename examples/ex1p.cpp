@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_JIT
    MPI_Session mpi;
 #else
-   MPI_Session mpi(argc, argv, true);
+   MPI_JIT_Session mpi;
 #endif
    int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();

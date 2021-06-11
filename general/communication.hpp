@@ -22,10 +22,6 @@
 #include "globals.hpp"
 #include <mpi.h>
 
-#ifdef MFEM_USE_JIT
-#include <thread>
-#endif
-
 namespace mfem
 {
 
@@ -36,16 +32,9 @@ class MPI_Session
 {
 protected:
    int world_rank, world_size;
-#ifdef MFEM_USE_JIT
-   int *state;
-   pid_t child_pid;
-#endif
    void GetRankAndSize();
 public:
    MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
-#ifdef MFEM_USE_JIT
-   MPI_Session(int &argc, char **&argv, bool);
-#endif
    MPI_Session(int &argc, char **&argv)
    { MPI_Init(&argc, &argv); GetRankAndSize(); }
    ~MPI_Session();
@@ -57,6 +46,29 @@ public:
    bool Root() const { return world_rank == 0; }
 };
 
+#ifdef MFEM_USE_JIT
+/** @brief A class that forks before calls MPI_Init() */
+class MPI_JIT_Session
+{
+protected:
+   int *state;
+   pid_t jit_compiler_pid;
+   void GetRankAndSize();
+   int world_rank, world_size;
+   constexpr static int NOP = ~0;
+public:
+   MPI_JIT_Session();
+   ~MPI_JIT_Session();
+   /// Return MPI_COMM_WORLD's rank.
+   int WorldRank() const { return world_rank; }
+   /// Return MPI_COMM_WORLD's size.
+   int WorldSize() const { return world_size; }
+   /// Return true if WorldRank() == 0.
+   bool Root() const { return world_rank == 0; }
+private:
+   template <typename> bool Acknowledge(const int check = NOP);
+};
+#endif
 
 /** The shared entities (e.g. vertices, faces and edges) are split into groups,
     each group determined by the set of participating processors. They are

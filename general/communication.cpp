@@ -30,70 +30,22 @@
 #include <map>
 #include <thread>
 
-#include <sys/mman.h>
+#ifdef MFEM_USE_JIT
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#endif
 
 #define MFEM_DEBUG_COLOR 206
 #include "debug.hpp"
+
+#include <functional>
 
 using namespace std;
 
 namespace mfem
 {
-
-#ifdef MFEM_USE_JIT
-MPI_Session::MPI_Session(int &argc, char **&argv, bool)
-{
-   const long ms = 100L;
-   const struct timespec rqtp = {0, ms*1000000L};
-
-   constexpr int prot = PROT_READ | PROT_WRITE;
-   constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
-   // One integer in memory to exchange the status of the command
-   state = (int*) mmap(NULL, sizeof(int), prot, flags, -1, 0);
-   MFEM_VERIFY(state, "");
-
-   *state = ~0; // flush
-
-   if ((child_pid = fork()) != 0 ) // parent
-   {
-      MPI_Init(&argc, &argv);
-      GetRankAndSize();
-      *state = world_rank; // 0, ...
-      dbg("parent %d", world_rank);
-      while (*state != ~0) { nanosleep(&rqtp, nullptr); }
-      dbg("parent %d checked with child!", world_rank);
-   }
-   else // child
-   {
-      MFEM_VERIFY(*state == ~0, "Child init error!");
-      while (*state == ~0) { nanosleep(&rqtp, nullptr); }
-      // get world_rank
-      const int world_rank = *state;
-      *state = ~0; // flush
-      dbg("\033[33m[child] on rank %d\033[m", world_rank);
-
-      auto work = [](int *state, const struct timespec *rqtp)
-      {
-         while (*state == ~0) { nanosleep(rqtp, nullptr); };
-         dbg("\033[33mdone\033[m");
-         *state = ~0;
-      };
-
-      // ony one rank keeps awake
-      if (world_rank == 0)
-      {
-         dbg("\033[33m[child] on rank %d WORKS\033[m", world_rank);
-         std::thread thread(work, state, &rqtp);
-         thread.join();
-      }
-      dbg("\033[33m[%d] exit\033[m",world_rank);
-      exit(0);
-   }
-}
-#endif
 
 void MPI_Session::GetRankAndSize()
 {
@@ -101,20 +53,85 @@ void MPI_Session::GetRankAndSize()
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 }
 
-MPI_Session::~MPI_Session()
-{
 #ifdef MFEM_USE_JIT
+
+template <typename Op = std::not_equal_to<int>>
+bool MPI_JIT_Session::Acknowledge(const int check)
+{
    const long ms = 100L;
    const struct timespec rqtp = {0, ms*1000000L};
+   while (Op()(*state, check)) { ::nanosleep(&rqtp, nullptr); }
+   return true;
+}
+
+MPI_JIT_Session::MPI_JIT_Session()
+{
+   constexpr int prot = PROT_READ | PROT_WRITE;
+   constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
+
+   // One integer in memory to exchange the status
+   state = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
+   MFEM_VERIFY(state, "");
+
+   *state = NOP;
+
+   if ((jit_compiler_pid = fork()) != 0) // parent
+   {
+      MPI_Init(nullptr, nullptr);//&argc, &argv);
+      GetRankAndSize();
+      *state = world_rank; // set world_rank
+      Acknowledge(); // wait for the jit_compiler to acknowledge
+   }
+   else // JIT compiler child
+   {
+      MFEM_VERIFY(*state == NOP, "Child init error!");
+      Acknowledge<std::equal_to<int>>();// get world_rank
+      const int world_rank = *state;
+      *state = NOP;
+      dbg("\033[33m[child] rank %d\033[m", world_rank);
+
+      auto work = [&]()
+      {
+         dbg("\033[33mwait...\033[m");
+         Acknowledge<std::equal_to<int>>();
+         dbg("\033[33mdone\033[m");
+         *state = NOP;
+      };
+
+      // only rank 0 is kept for compilation
+      if (world_rank == 0)
+      {
+         dbg("\033[33m[child] WORK %d\033[m", world_rank);
+         std::thread thread(work);
+         thread.join();
+      }
+      dbg("\033[33m[child] exit %d\033[m", world_rank);
+      exit(0);
+   }
+}
+
+void MPI_JIT_Session::GetRankAndSize()
+{
+   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+}
+
+#endif // MFEM_USE_JIT
+
+MPI_JIT_Session::~MPI_JIT_Session()
+{
+#ifdef MFEM_USE_JIT
    MFEM_VERIFY(*state == ~0, "Parent finalize error!");
    if (world_rank == 0)
    {
+      int status;
       *state = 0;
-      while (*state != ~0) { nanosleep(&rqtp, nullptr); }
-      int child_status;
-      ::waitpid(child_pid, &child_status, WUNTRACED | WCONTINUED);
+      Acknowledge();
+      ::waitpid(jit_compiler_pid, &status, WUNTRACED | WCONTINUED);
+      dbg("status: %d", status);
+      MFEM_VERIFY(status == 0, "Error waiting for JIT compiler!")
    }
-   if (munmap(state, sizeof(int)) != 0) { MFEM_ABORT("munmap error!"); }
+   if (::munmap(state, sizeof(int)) != 0) { MFEM_ABORT("munmap error!"); }
 #endif
    MPI_Finalize();
 }
