@@ -538,6 +538,27 @@ const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
          }
       }
    }
+   if (mode == DofToQuad::Mode::TENSOR)
+   {
+      d2q->C.SetSize(nqpt*nqpt);
+      d2q->Ct.SetSize(nqpt*nqpt);
+      Vector nodes(nqpt);
+      for (int i = 0; i < nqpt; i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         nodes(i) = ip.x;
+      }
+      Poly_1D::Basis basis1d(nqpt-1,nodes);
+      Vector u, d;
+      for (int i = 0; i < nqpt; i++)
+      {
+         basis1d.Eval(nodes(i), u, d);
+         for (int j = 0; j < nqpt; j++)
+         {
+            d2q->C[i+nqpt*j] = d2q->Ct[j+nqpt*i] = d[j];
+         }
+      }
+   }
    dof2quad_array.Append(d2q);
    return *d2q;
 }
