@@ -1,10 +1,14 @@
 // Compile with: make drl_shock_wave
 //
 // drl_shock_wave -o 2 -m ../data/inline-quad.mesh
+// for multi agent local, set the mesh to use 20x20 grid because that is what 
+// was used for training.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include "drl_shock_wave.hpp"
+#include "multi_agent_local_refiner.hpp"
 
 #define MFEM_USE_RLLIB
 #ifdef MFEM_USE_RLLIB
@@ -154,14 +158,15 @@ int main(int argc, char *argv[])
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
 
-#if 1
+#if 0
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.10);
 #else
-   DRLRefiner refiner(x);
+   MAL_DRLRefiner refiner(x);
+   //DRLRefiner refiner(x);
 #endif
   
-#if 0 
+#if 1
    x.ProjectCoefficient(exact);
    refiner.Apply(mesh);
    fespace.Update();
