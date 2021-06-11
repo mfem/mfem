@@ -21,10 +21,6 @@ namespace mfem
 class FiniteElementSpace;
 enum class ElementDofOrdering;
 
-/** An enum type to specify if only e1 value is requested (SingleValued) or both
-    e1 and e2 (DoubleValued). */
-enum class L2FaceValues : bool {SingleValued, DoubleValued};
-
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
@@ -104,10 +100,35 @@ public:
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
+/// Base class for operators that extracts Face degrees of freedom.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
+class FaceRestriction
+{
+protected:
+   int height;
+   int width;
+public:
+
+   FaceRestriction(): height(0), width(0) {}
+
+   FaceRestriction(int h, int w): height(h), width(w) {}
+
+   /** Extract the face degrees of freedom from @a x. */
+   virtual void Mult(const Vector &x, Vector &y) const = 0;
+
+   /** Add face degrees of freedom @a x to the element degrees of freedom @a y.*/
+   virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
+
+   int Height() const { return height; }
+
+   int Width() const { return width; }
+};
+
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class H1FaceRestriction : public Operator
+class H1FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -124,14 +145,20 @@ protected:
 public:
    H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
                      const FaceType);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   /** Extract the face degrees of freedom from @a x. */
+   void Mult(const Vector &x, Vector &y) const override;
+   /** Add face degrees of freedom @a x to the element degrees of freedom @a y.*/
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
 };
+
+/** An enum type to specify if only e1 value is requested (SingleValued) or both
+    e1 and e2 (DoubleValued). */
+enum class L2FaceValues : bool {SingleValued, DoubleValued};
 
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class L2FaceRestriction : public Operator
+class L2FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -157,8 +184,8 @@ public:
    L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
    virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
