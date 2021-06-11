@@ -226,6 +226,7 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
    return *B.Ptr();
 }
 
+
 L2ProjectionGridTransfer::L2Projection::L2Projection(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
    : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
@@ -377,7 +378,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_mixed);
+         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_mixed_el);
 
          M_mixed.CopyMN(M_mixed_el, iref*ndof_lor, 0);
       }
@@ -661,10 +662,16 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    pcg.SetPrintLevel(0);
    pcg.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   SetTolerance(1e-13, 1e-13);
+   SetRelTol(1e-13);
+   SetAbsTol(1e-13);
    Ds = DSmoother(RTxM_LH);
    pcg.SetPreconditioner(Ds);
    pcg.SetOperator(RTxM_LH);
+}
+
+L2ProjectionGridTransfer::L2ProjectionH1Space::~L2ProjectionH1Space()
+{
+   delete& RTxM_LH;
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
@@ -759,10 +766,13 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    }
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::SetTolerance(
-   double p_rtol_, double p_atol_)
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(double p_rtol_)
 {
    pcg.SetRelTol(p_rtol_);
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(double p_atol_)
+{
    pcg.SetAbsTol(p_atol_);
 }
 
