@@ -14,13 +14,27 @@
 
 #include "../config/config.hpp"
 
-#ifdef MFEM_USE_OCCA
 #include "mem_manager.hpp"
 #include "device.hpp"
+#ifdef MFEM_USE_OCCA
 #include <occa.hpp>
+#endif // MFEM_USE_OCCA
 
 namespace mfem
 {
+
+/** @brief Function that determines if an OCCA kernel should be used, based on
+    the current mfem::Device configuration. */
+inline bool DeviceCanUseOcca()
+{
+   return Device::Allows(Backend::OCCA_CUDA) ||
+          (Device::Allows(Backend::OCCA_OMP) &&
+           !Device::Allows(Backend::DEVICE_MASK)) ||
+          (Device::Allows(Backend::OCCA_CPU) &&
+           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
+}
+
+#ifdef MFEM_USE_OCCA
 
 /// Return the default occa::device used by MFEM.
 occa::device &OccaDev();
@@ -63,23 +77,11 @@ occa::memory OccaMemoryReadWrite(Memory<T> &mem, size_t size)
                          size*sizeof(T));
 }
 
-
-/** @brief Function that determines if an OCCA kernel should be used, based on
-    the current mfem::Device configuration. */
-inline bool DeviceCanUseOcca()
-{
-   return Device::Allows(Backend::OCCA_CUDA) ||
-          (Device::Allows(Backend::OCCA_OMP) &&
-           !Device::Allows(Backend::DEVICE_MASK)) ||
-          (Device::Allows(Backend::OCCA_CPU) &&
-           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
-}
-
 typedef std::pair<int,int> occa_id_t;
 typedef std::map<occa_id_t, occa::kernel> occa_kernel_t;
 
-} // namespace mfem
-
 #endif // MFEM_USE_OCCA
+
+} // namespace mfem
 
 #endif // MFEM_OCCA_HPP
