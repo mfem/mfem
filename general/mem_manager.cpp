@@ -80,6 +80,7 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt)
          return (mt == MemoryType::MANAGED);
    }
    MFEM_ABORT("invalid MemoryClass");
+   return false;
 }
 
 

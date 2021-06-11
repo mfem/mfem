@@ -54,6 +54,24 @@ static TargetT *DuplicateAs(const SourceT *array, int size,
    }
 }
 
+
+/// Return true if the @a src Memory can be used with the MemoryClass @a mc.
+/** If this function returns true then src.{Read,Write,ReadWrite} can be called
+    safely with the MemoryClass @a mc. */
+template <typename T>
+bool CanShallowCopy(const Memory<T> &src, MemoryClass mc)
+{
+   MemoryType src_h_mt = src.GetHostMemoryType();
+   MemoryType src_d_mt = src.GetDeviceMemoryType();
+   if (src_d_mt == MemoryType::DEFAULT)
+   {
+      src_d_mt = MemoryManager::GetDualMemoryType(src_h_mt);
+   }
+   return (MemoryClassContainsType(mc, src_h_mt) ||
+           MemoryClassContainsType(mc, src_d_mt));
+}
+
+
 inline void HypreParVector::_SetDataAndSize_()
 {
    SetDataAndSize(hypre_VectorData(hypre_ParVectorLocalVector(x)),
@@ -174,19 +192,6 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
    Vector::operator=(y);
    return *this;
-}
-
-template <typename T>
-bool CanShallowCopy(const Memory<T> &src, MemoryClass dst_mc)
-{
-   MemoryType src_h_mt = src.GetHostMemoryType();
-   MemoryType src_d_mt = src.GetDeviceMemoryType();
-   if (src_d_mt == MemoryType::DEFAULT)
-   {
-      src_d_mt = MemoryManager::GetDualMemoryType(src_h_mt);
-   }
-   return (MemoryClassContainsType(dst_mc, src_h_mt) ||
-           MemoryClassContainsType(dst_mc, src_d_mt));
 }
 
 void HypreParVector::SetData(double *data_)
@@ -1207,8 +1212,8 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    y.UseDevice(true);
 
    // TODO: this works but should not be necessary for `-d cuda` with hypre using cuda and no uvm?
-   auto x_data = x.HostRead();
-   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
+   // auto x_data = x.HostRead();
+   // auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
 
    /*
    auto x_data = x.Read();
@@ -1238,8 +1243,8 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    const bool xshallow = CanShallowCopy(x.GetMemory(), GetHypreMemoryClass());
    const bool yshallow = CanShallowCopy(y.GetMemory(), GetHypreMemoryClass());
 
-   MFEM_ASSERT(x.Size() == NumRows(), "");
-   MFEM_ASSERT(y.Size() == NumCols(), "");
+   MFEM_ASSERT(x.Size() == NumCols(), "");
+   MFEM_ASSERT(y.Size() == NumRows(), "");
 
    if (xshallow)
    {
@@ -1250,7 +1255,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    {
       if (auxX.Empty())
       {
-         auxX.New(NumRows(), GetHypreMemoryType());
+         auxX.New(NumCols(), GetHypreMemoryType());
       }
 
       auxX.CopyFrom(x.GetMemory(), auxX.Capacity());  // Deep copy
@@ -1267,7 +1272,11 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    {
       if (auxY.Empty())
       {
-         auxY.New(NumCols(), GetHypreMemoryType());
+         auxY.New(NumRows(), GetHypreMemoryType());
+      }
+      if (b != 0.0)
+      {
+        auxY.CopyFrom(y.GetMemory(), auxY.Capacity());  // Deep copy
       }
 
       Y->SetMemoryAndSize(auxY, y.Size());
