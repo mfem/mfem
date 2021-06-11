@@ -1,32 +1,65 @@
 #!/bin/bash
 
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+option=${1:-""}
+
+if [[ "${option}" == "--help" ]]; then
+  echo " This script runs checks on the repository."
+  echo " It has 2 modes: with and without option"
+  echo ""
+  echo " - options are use in GitHub Actions and can be:"
+  echo "   --copyright"
+  echo "   --license"
+  echo "   --release"
+  echo "   --style"
+  echo "   --history"
+  echo ""
+  echo " - as a githook, the script is used without options"
+  echo "   In that case, it will run all the checks except style."
+  echo ""
+  echo " - of course, --help is also option and prints this help."
+fi
+
 cd $(git rev-parse --show-toplevel)
 
 # copyright check
-copyright=true
-if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt
-then
-  echo "Please update the following files to Copyright (c) 2010-2021:"
-  cat matches.txt
-  copyright=false
+if [[ "${option}" == "--copyright" || "${option}" == "" ]]; then
+  copyright=true
+  if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt; then
+    echo "Please update the following files to Copyright (c) 2010-2021:"
+    cat matches.txt
+    copyright=false
+  fi
 fi
 
 # license check
 license=true
-if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
-then
-  echo "Please update the following files to the BSD-3 license:"
-  cat matches.txt
-  license=false
+if [[ "${option}" == "--license" || "${option}" == "" ]]; then
+  if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt; then
+    echo "Please update the following files to the BSD-3 license:"
+    cat matches.txt
+    license=false
 fi
 
 # release check
 release=true
-if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
-then
-  echo "Please update the following files to LLNL-CODE-806117:"
-  cat matches.txt
-  release=false
+if [[ "${option}" == "--release" || "${option}" == "" ]]; then
+  if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
+  then
+    echo "Please update the following files to LLNL-CODE-806117:"
+    cat matches.txt
+    release=false
+  fi
 fi
 
 # wrap-up
@@ -52,18 +85,23 @@ fi
 # directory and uncomment only then. (See README.md)
 #
 ## style check
-#if which astyle && [[ "$(astyle --version)" == "Artistic Style Version 2.05.1" ]]; then
-#  cd tests/scripts
-#  if ! ./runtest code-style; then code=1; fi
-#  cd -
-#else
-#  echo "Warning: astyle not found or version is not 2.05.1"
-#fi
+#if [[ "${option}" == "--style" || "${option}" == "" ]]; then
+if [[ "${option}" == "--style" ]]; then
+  if which astyle && [[ "$(astyle --version)" == "Artistic Style Version 2.05.1" ]]; then
+    cd tests/scripts
+    if ! ./runtest code-style; then code=1; fi
+    cd -
+  else
+    echo "Warning: astyle not found or version is not 2.05.1"
+  fi
+fi
 
 # branch-history
-git fetch origin master:master
-cd tests/scripts
-if ! ./runtest branch-history; then code=1; fi
-cd -
+if [[ "${option}" == "--history" || "${option}" == "" ]]; then
+  git fetch origin master:master
+  cd tests/scripts
+  if ! ./runtest branch-history; then code=1; fi
+  cd -
+fi
 
 exit $code
