@@ -55,7 +55,7 @@ void MPI_Session::GetRankAndSize()
 
 #ifdef MFEM_USE_JIT
 
-template <typename Op = std::not_equal_to<int>>
+template <typename Op>
 bool MPI_JIT_Session::Acknowledge(const int check)
 {
    const long ms = 100L;
@@ -63,6 +63,17 @@ bool MPI_JIT_Session::Acknowledge(const int check)
    while (Op()(*state, check)) { ::nanosleep(&rqtp, nullptr); }
    return true;
 }
+
+bool MPI_JIT_Session::AcknowledgeEQ(const int check)
+{
+   return Acknowledge<std::equal_to<int>>(check);
+}
+
+bool MPI_JIT_Session::AcknowledgeNE(const int check)
+{
+   return Acknowledge<std::not_equal_to<int>>(check);
+}
+
 
 MPI_JIT_Session::MPI_JIT_Session()
 {
@@ -80,12 +91,12 @@ MPI_JIT_Session::MPI_JIT_Session()
       MPI_Init(nullptr, nullptr);//&argc, &argv);
       GetRankAndSize();
       *state = world_rank; // set world_rank
-      Acknowledge(); // wait for the jit_compiler to acknowledge
+      AcknowledgeNE(); // wait for the jit_compiler to acknowledge
    }
    else // JIT compiler child
    {
       MFEM_VERIFY(*state == NOP, "Child init error!");
-      Acknowledge<std::equal_to<int>>();// get world_rank
+      AcknowledgeEQ();// get world_rank
       const int world_rank = *state;
       *state = NOP;
       dbg("\033[33m[child] rank %d\033[m", world_rank);
@@ -93,7 +104,7 @@ MPI_JIT_Session::MPI_JIT_Session()
       auto work = [&]()
       {
          dbg("\033[33mwait...\033[m");
-         Acknowledge<std::equal_to<int>>();
+         AcknowledgeEQ();
          dbg("\033[33mdone\033[m");
          *state = NOP;
       };
@@ -116,8 +127,6 @@ void MPI_JIT_Session::GetRankAndSize()
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 }
 
-#endif // MFEM_USE_JIT
-
 MPI_JIT_Session::~MPI_JIT_Session()
 {
 #ifdef MFEM_USE_JIT
@@ -126,7 +135,7 @@ MPI_JIT_Session::~MPI_JIT_Session()
    {
       int status;
       *state = 0;
-      Acknowledge();
+      AcknowledgeNE();
       ::waitpid(jit_compiler_pid, &status, WUNTRACED | WCONTINUED);
       dbg("status: %d", status);
       MFEM_VERIFY(status == 0, "Error waiting for JIT compiler!")
@@ -135,6 +144,8 @@ MPI_JIT_Session::~MPI_JIT_Session()
 #endif
    MPI_Finalize();
 }
+
+#endif // MFEM_USE_JIT
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),

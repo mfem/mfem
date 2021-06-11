@@ -320,6 +320,34 @@ int System_MPISpawn(char *argv[])
    return status;
 }
 
+// Just launch the std::system
+int System_Std(char *argv[])
+{
+   dbg();
+   MPI_Comm comm = MPI_COMM_WORLD;
+   MPI_Barrier(comm);
+
+   const int argc = argn(argv);
+   if (argc < 2) { return EXIT_FAILURE; }
+
+   // https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
+   if (Root())
+   {
+      string command(argv[1]);
+      for (int k = 2; k < argc && argv[k]; k++)
+      {
+         command.append(" ");
+         command.append(argv[k]);
+      }
+      const char *command_c_str = command.c_str();
+      dbg(command_c_str);
+      std::system(command_c_str);
+   }
+
+   MPI_Barrier(comm);
+   return EXIT_SUCCESS;
+}
+
 // launch the std::system through:
 //   - child (jit_compiler_pid) of MPI_JIT_Session in communication.hpp
 int System_MPI_JIT_Session(char *argv[])
@@ -331,7 +359,7 @@ int System_MPI_JIT_Session(char *argv[])
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
 
-   //if (!MPI_Inited() || MPI_Size()==1)
+   // https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
    if (Root())
    {
       string command(argv[1]);
@@ -353,7 +381,8 @@ int System_MPI_JIT_Session(char *argv[])
 int System(char *argv[])
 {
    //return System_MPISpawn(argv);
-   return System_MPI_JIT_Session(argv);
+   return System_Std(argv);
+   //return System_MPI_JIT_Session(argv);
 }
 
 #if 0

@@ -37,7 +37,7 @@ public:
    MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
    MPI_Session(int &argc, char **&argv)
    { MPI_Init(&argc, &argv); GetRankAndSize(); }
-   ~MPI_Session();
+   ~MPI_Session() { MPI_Finalize(); }
    /// Return MPI_COMM_WORLD's rank.
    int WorldRank() const { return world_rank; }
    /// Return MPI_COMM_WORLD's size.
@@ -67,6 +67,8 @@ public:
    bool Root() const { return world_rank == 0; }
 private:
    template <typename> bool Acknowledge(const int check = NOP);
+   bool AcknowledgeEQ(const int check = NOP);
+   bool AcknowledgeNE(const int check = NOP);
 };
 #endif
 
