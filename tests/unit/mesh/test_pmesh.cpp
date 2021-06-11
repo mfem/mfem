@@ -105,7 +105,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                const HYPRE_Int localMin = gi.Min();
                const HYPRE_Int localMax = gi.Max();
 
-               HYPRE_Int globalMin, globalMax;
+               HYPRE_BigInt globalMin, globalMax;
                MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_INT, MPI_MIN, MPI_COMM_WORLD);
                MPI_Allreduce(&localMax, &globalMax, 1, HYPRE_MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 

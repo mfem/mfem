@@ -94,7 +94,7 @@ protected:
    static size_t bufferSize;
    static void *dBuffer;
    mutable bool initBuffers{false};
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 10010
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
@@ -152,7 +152,7 @@ public:
    SparseMatrix(const Vector & v);
 
    // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
-   void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
+   void UseCuSparse(bool useCuSparse_ = true) { useCuSparse = useCuSparse_;}
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);

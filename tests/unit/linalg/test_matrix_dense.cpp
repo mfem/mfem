@@ -578,3 +578,30 @@ TEST_CASE("EigenSystem methods",
 }
 
 #endif // if MFEM_USE_LAPACK
+TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
+{
+   DenseTensor t1(2,3,4);
+   for (int i=0; i<t1.TotalSize(); ++i)
+   {
+      t1.Data()[i] = i;
+   }
+   DenseTensor t2(t1);
+   DenseTensor t3;
+   t3 = t1;
+   REQUIRE(t2.SizeI() == t1.SizeI());
+   REQUIRE(t2.SizeJ() == t1.SizeJ());
+   REQUIRE(t2.SizeK() == t1.SizeK());
+
+   REQUIRE(t3.SizeI() == t1.SizeI());
+   REQUIRE(t3.SizeJ() == t1.SizeJ());
+   REQUIRE(t3.SizeK() == t1.SizeK());
+
+   REQUIRE(t2.Data() != t1.Data());
+   REQUIRE(t3.Data() != t1.Data());
+
+   for (int i=0; i<t1.TotalSize(); ++i)
+   {
+      REQUIRE(t2.Data()[i] == t1.Data()[i]);
+      REQUIRE(t3.Data()[i] == t1.Data()[i]);
+   }
+}

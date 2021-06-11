@@ -95,6 +95,21 @@ Version 4.2.1 (development)
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
+- The TMOP mesh optimization algorithms were extended to GPU:
+   - QualityMetric #1, #2, #7 and #77 are available in 2D, #302, #303, #315
+     and #321 in 3D
+   - Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
+   - Kernels for normalization and limiting have been added
+   - The AdvectorCG now also supports AssemblyLevel::PARTIAL
+
+- Added a new command line boolean option (`--all`) to the unit tests to launch
+  *all* non-regression tests.
+
+- Added support for different modes of QuadratureInterpolator on GPU.
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
+  be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  Determinants methods.
+
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
@@ -117,9 +132,15 @@ Version 4.2.1 (development)
 - Added convective and skew-symmetric integrators for the nonlinear term in the
   Navier-Stokes equations.
 
+- Added new miniapp directory mtop/ with optimization-oriented block parametric
+  non-linear form and abstract integrators. Two new miniapps, ParHeat and
+  SeqHeat, demonstrate parallel and sequential implementation of gradients
+  evaluation for linear diffusion with discrete density.
+
 - Changed the interface for the error estimator.
 
-- Implemented the parallel Kelly error indicator for scalar-valued problems.
+- Implemented the Kelly error indicator for scalar-valued problems, supported
+  in serial and parallel builds.
 
 - Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
   efficient evaluation of symmetric matrix coefficients. This replaces the now
@@ -170,10 +191,40 @@ Version 4.2.1 (development)
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
 
+- Added support for creating periodic meshes with Mesh::MakePeriodic. The
+  requisite periodic vertex mappings can be created with
+  Mesh::CreatePeriodicVertexMapping.
+
 - Added support for transferring dual fields between high-order and low-order
   refined finite element spaces using the transposed versions of the
   L2ProjectionGridTransfer operators. This functionality is illustrated in the
   lor-transfer miniapp.
+
+- Improved interface for using the Ginkgo library, including: support for matrix-
+  free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
+  support, and reduction of unnecessary data copies.
+
+- Added initial support for hypre's mixed integer (mixedint) capability, which
+  uses different data types for local and global indices in order to save memory
+  in large problems. This capability requires that hypre was configured with the
+  --enable-mixedint option. Note that this option is currently tested only in
+  ex1p and may not work in more general settings.
+
+- Added new functionality for constructing low-order refined discretizations and
+  solvers, see the LORDiscretization and LORSolver classes. A new basis type for
+  H(curl) and H(div) spaces is introduced to give spectral equivalence. This
+  functionality is illustrated in the LOR solvers miniapp in miniapps/solvers.
+
+- Added sample meshes in the `data` subdirectory showing the reference elements
+  of the six currently supported element types; ref-segment.mesh,
+  ref-triangle.mesh, ref-square.mesh, ref-tetrahedron.mesh, ref-cube.mesh, and
+  ref-prism.mesh.
+
+- Added a high-order extension of the shifted boundary method to solve PDEs on
+  non body-fitted meshes. This is illustrated in the new Shifted Diffusion
+  miniapp, see miniapps/shifted/diffusion.cpp.
+
+- Added makefile rule to generate TAGS table for vi or Emacs users.
 
 libCEED integration improvements
 --------------------------------

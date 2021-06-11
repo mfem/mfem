@@ -77,10 +77,10 @@ public:
    explicit Vector(int s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(double *_data, int _size)
-   { data.Wrap(_data, _size, false); size = _size; }
+   Vector(double *data_, int size_)
+   { data.Wrap(data_, size_, false); size = size_; }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
@@ -204,6 +204,18 @@ public:
        in addition to the overloaded operator()(int). */
    inline operator const double *() const { return data; }
 
+   /// STL-like begin.
+   inline double *begin() { return data; }
+
+   /// STL-like end.
+   inline double *end() { return data + size; }
+
+   /// STL-like begin (const version).
+   inline const double *begin() const { return data; }
+
+   /// STL-like end (const version).
+   inline const double *end() const { return data + size; }
+
    /// Return a reference to the Memory object used by the Vector.
    Memory<double> &GetMemory() { return data; }
 
@@ -261,7 +273,13 @@ public:
 
    Vector &operator*=(double c);
 
+   /// Component-wise scaling: (*this)(i) *= v(i)
+   Vector &operator*=(const Vector &v);
+
    Vector &operator/=(double c);
+
+   /// Component-wise division: (*this)(i) /= v(i)
+   Vector &operator/=(const Vector &v);
 
    Vector &operator-=(double c);
 
@@ -367,6 +385,12 @@ public:
 
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
+
+   /// Print the Vector size and hash of its data.
+   /** This is a compact text representation of the Vector contents that can be
+       used to compare vectors from different runs without the need to save the
+       whole vector. */
+   void PrintHash(std::ostream &out) const;
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
