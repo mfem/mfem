@@ -20,459 +20,13 @@ using namespace std;
 namespace mfem
 {
 
-// PA Mass Integrator
+//////////////////////////////////////////////
+// Mass Integrator Partial Assembly kernels //
+//////////////////////////////////////////////
 
-// PA Mass Assemble kernel
-
-void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   // Assuming the same element type
-   fespace = &fes;
-   Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
-   if (DeviceCanUseCeed())
-   {
-      delete ceedOp;
-      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
-      return;
-   }
-   dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
-   nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
-   pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
-   Vector coeff;
-   if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* cQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == nq * ne,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
-   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-   if (dim==2)
-   {
-      const int NE = ne;
-      const int Q1D = quad1D;
-      const bool const_c = coeff.Size() == 1;
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
-      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,2,2,NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
-                     Reshape(coeff.Read(), Q1D,Q1D,NE);
-      auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               const double J11 = J(qx,qy,0,0,e);
-               const double J12 = J(qx,qy,1,0,e);
-               const double J21 = J(qx,qy,0,1,e);
-               const double J22 = J(qx,qy,1,1,e);
-               const double detJ = (J11*J22)-(J21*J12);
-               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * detJ;
-            }
-         }
-      });
-   }
-   if (dim==3)
-   {
-      const int NE = ne;
-      const int Q1D = quad1D;
-      const bool const_c = coeff.Size() == 1;
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
-      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
-                     Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
-      auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
-      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qz,z,Q1D)
-               {
-                  const double J11 = J(qx,qy,qz,0,0,e);
-                  const double J21 = J(qx,qy,qz,1,0,e);
-                  const double J31 = J(qx,qy,qz,2,0,e);
-                  const double J12 = J(qx,qy,qz,0,1,e);
-                  const double J22 = J(qx,qy,qz,1,1,e);
-                  const double J32 = J(qx,qy,qz,2,1,e);
-                  const double J13 = J(qx,qy,qz,0,2,e);
-                  const double J23 = J(qx,qy,qz,1,2,e);
-                  const double J33 = J(qx,qy,qz,2,2,e);
-                  const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                  /* */               J21 * (J12 * J33 - J32 * J13) +
-                  /* */               J31 * (J12 * J23 - J22 * J13);
-                  const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
-                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * detJ;
-               }
-            }
-         }
-      });
-   }
-}
-
-template<int T_D1D = 0, int T_Q1D = 0>
-static void PAMassAssembleDiagonal2D(const int NE,
-                                     const Array<double> &b,
-                                     const Vector &d,
-                                     Vector &y,
-                                     const int d1d = 0,
-                                     const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto D = Reshape(d.Read(), Q1D, Q1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double QD[MQ1][MD1];
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            QD[qx][dy] = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               QD[qx][dy] += B(qy, dy) * B(qy, dy) * D(qx, qy, e);
-            }
-         }
-      }
-      for (int dy = 0; dy < D1D; ++dy)
-      {
-         for (int dx = 0; dx < D1D; ++dx)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD[qx][dy];
-            }
-         }
-      }
-   });
-}
-
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPAMassAssembleDiagonal2D(const int NE,
-                                         const Array<double> &b_,
-                                         const Vector &d_,
-                                         Vector &y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double QDZ[NBZ][MQ1][MD1];
-      double (*QD)[MD1] = (double (*)[MD1])(QDZ + tidz);
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            QD[qx][dy] = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               QD[qx][dy] += B[qy][dy] * B[qy][dy] * D(qx, qy, e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               // might need absolute values on next line
-               Y(dx,dy,e) += B[qx][dx] * B[qx][dx] * QD[qx][dy];
-            }
-         }
-      }
-   });
-}
-
-template<int T_D1D = 0, int T_Q1D = 0>
-static void PAMassAssembleDiagonal3D(const int NE,
-                                     const Array<double> &b,
-                                     const Vector &d,
-                                     Vector &y,
-                                     const int d1d = 0,
-                                     const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double QQD[MQ1][MQ1][MD1];
-      double QDD[MQ1][MD1][MD1];
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-               QQD[qx][qy][dz] = 0.0;
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  QQD[qx][qy][dz] += B(qz, dz) * B(qz, dz) * D(qx, qy, qz, e);
-               }
-            }
-         }
-      }
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               QDD[qx][dy][dz] = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  QDD[qx][dy][dz] += B(qy, dy) * B(qy, dy) * QQD[qx][qy][dz];
-               }
-            }
-         }
-      }
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               double t = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  t += B(qx, dx) * B(qx, dx) * QDD[qx][dy][dz];
-               }
-               Y(dx, dy, dz, e) += t;
-            }
-         }
-      }
-   });
-}
-
-template<int T_D1D = 0, int T_Q1D = 0>
-static void SmemPAMassAssembleDiagonal3D(const int NE,
-                                         const Array<double> &b_,
-                                         const Vector &d_,
-                                         Vector &y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double QQD[MQ1][MQ1][MD1];
-      MFEM_SHARED double QDD[MQ1][MD1][MD1];
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(dz,z,D1D)
-            {
-               QQD[qx][qy][dz] = 0.0;
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  QQD[qx][qy][dz] += B[qz][dz] * B[qz][dz] * D(qx, qy, qz, e);
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               QDD[qx][dy][dz] = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  QDD[qx][dy][dz] += B[qy][dy] * B[qy][dy] * QQD[qx][qy][dz];
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double t = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  t += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
-               }
-               Y(dx, dy, dz, e) += t;
-            }
-         }
-      }
-   });
-}
-
-static void PAMassAssembleDiagonal(const int dim, const int D1D,
-                                   const int Q1D, const int NE,
-                                   const Array<double> &B,
-                                   const Vector &D,
-                                   Vector &Y)
-{
-   if (dim == 2)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPAMassAssembleDiagonal2D<2,2,16>(NE,B,D,Y);
-         case 0x33: return SmemPAMassAssembleDiagonal2D<3,3,16>(NE,B,D,Y);
-         case 0x44: return SmemPAMassAssembleDiagonal2D<4,4,8>(NE,B,D,Y);
-         case 0x55: return SmemPAMassAssembleDiagonal2D<5,5,8>(NE,B,D,Y);
-         case 0x66: return SmemPAMassAssembleDiagonal2D<6,6,4>(NE,B,D,Y);
-         case 0x77: return SmemPAMassAssembleDiagonal2D<7,7,4>(NE,B,D,Y);
-         case 0x88: return SmemPAMassAssembleDiagonal2D<8,8,2>(NE,B,D,Y);
-         case 0x99: return SmemPAMassAssembleDiagonal2D<9,9,2>(NE,B,D,Y);
-         default:   return PAMassAssembleDiagonal2D(NE,B,D,Y,D1D,Q1D);
-      }
-   }
-   else if (dim == 3)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x23: return SmemPAMassAssembleDiagonal3D<2,3>(NE,B,D,Y);
-         case 0x24: return SmemPAMassAssembleDiagonal3D<2,4>(NE,B,D,Y);
-         case 0x26: return SmemPAMassAssembleDiagonal3D<2,6>(NE,B,D,Y);
-         case 0x34: return SmemPAMassAssembleDiagonal3D<3,4>(NE,B,D,Y);
-         case 0x35: return SmemPAMassAssembleDiagonal3D<3,5>(NE,B,D,Y);
-         case 0x45: return SmemPAMassAssembleDiagonal3D<4,5>(NE,B,D,Y);
-         case 0x48: return SmemPAMassAssembleDiagonal3D<4,8>(NE,B,D,Y);
-         case 0x56: return SmemPAMassAssembleDiagonal3D<5,6>(NE,B,D,Y);
-         case 0x67: return SmemPAMassAssembleDiagonal3D<6,7>(NE,B,D,Y);
-         case 0x78: return SmemPAMassAssembleDiagonal3D<7,8>(NE,B,D,Y);
-         case 0x89: return SmemPAMassAssembleDiagonal3D<8,9>(NE,B,D,Y);
-         default:   return PAMassAssembleDiagonal3D(NE,B,D,Y,D1D,Q1D);
-      }
-   }
-   MFEM_ABORT("Unknown kernel.");
-}
-
-void MassIntegrator::AssembleDiagonalPA(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
-   }
-}
-
+//////////////////
+// OCCA Kernels //
+//////////////////
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA Mass Apply 2D kernel
@@ -565,6 +119,45 @@ static void OccaPAMassApply3D(const int D1D,
    }
 }
 #endif // MFEM_USE_OCCA
+
+static void OccaPAMassApply(const int dim,
+                            const int NE,
+                            const DofToQuad& maps,
+                            const Vector &D,
+                            const Vector &X,
+                            Vector &Y)
+{
+#ifdef MFEM_USE_OCCA
+   MFEM_VERIFY(maps.mode==DofToQuad::Mode::TENSOR, "Partial assembly kernels"
+      " for Mass only implemented for tensor elements.");
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const Array<double> &B = maps.B;
+   const Array<double> &Bt = maps.Bt;
+   if (DeviceCanUseOcca())
+   {
+
+      if (dim == 2)
+      {
+         return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);
+      }
+      if (dim == 3)
+      {
+         return OccaPAMassApply3D(D1D,Q1D,NE,B,Bt,D,X,Y);
+      }
+      MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+   }
+#else
+   MFEM_ABORT("MFEM must be compiled with OCCA support.");
+#endif // MFEM_USE_OCCA
+}
+
+//////////////////
+// MFEM kernels //
+//////////////////
+
+////////////////
+// Apply kernels
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply2D(const int NE,
@@ -1212,36 +805,448 @@ static void PAMassApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-static void OccaPAMassApply(const int dim,
-                            const int NE,
-                            const DofToQuad& maps,
-                            const Vector &D,
-                            const Vector &X,
-                            Vector &Y)
-{
-#ifdef MFEM_USE_OCCA
-   MFEM_VERIFY(maps.mode==DofToQuad::Mode::TENSOR, "Partial assembly kernels"
-      " for Mass only implemented for tensor elements.");
-   const int D1D = maps.ndof;
-   const int Q1D = maps.nqpt;
-   const Array<double> &B = maps.B;
-   const Array<double> &Bt = maps.Bt;
-   if (DeviceCanUseOcca())
-   {
+///////////////////
+// Diagonal kernels
 
-      if (dim == 2)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAMassAssembleDiagonal2D(const int NE,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto D = Reshape(d.Read(), Q1D, Q1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      double QD[MQ1][MD1];
+      for (int qx = 0; qx < Q1D; ++qx)
       {
-         return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            QD[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               QD[qx][dy] += B(qy, dy) * B(qy, dy) * D(qx, qy, e);
+            }
+         }
       }
-      if (dim == 3)
+      for (int dy = 0; dy < D1D; ++dy)
       {
-         return OccaPAMassApply3D(D1D,Q1D,NE,B,Bt,D,X,Y);
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD[qx][dy];
+            }
+         }
       }
-      MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void SmemPAMassAssembleDiagonal2D(const int NE,
+                                         const Array<double> &b_,
+                                         const Vector &d_,
+                                         Vector &y_,
+                                         const int d1d = 0,
+                                         const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double QDZ[NBZ][MQ1][MD1];
+      double (*QD)[MD1] = (double (*)[MD1])(QDZ + tidz);
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            QD[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               QD[qx][dy] += B[qy][dy] * B[qy][dy] * D(qx, qy, e);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               // might need absolute values on next line
+               Y(dx,dy,e) += B[qx][dx] * B[qx][dx] * QD[qx][dy];
+            }
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAMassAssembleDiagonal3D(const int NE,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      double QQD[MQ1][MQ1][MD1];
+      double QDD[MQ1][MD1][MD1];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               QQD[qx][qy][dz] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  QQD[qx][qy][dz] += B(qz, dz) * B(qz, dz) * D(qx, qy, qz, e);
+               }
+            }
+         }
+      }
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               QDD[qx][dy][dz] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  QDD[qx][dy][dz] += B(qy, dy) * B(qy, dy) * QQD[qx][qy][dz];
+               }
+            }
+         }
+      }
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               double t = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  t += B(qx, dx) * B(qx, dx) * QDD[qx][dy][dz];
+               }
+               Y(dx, dy, dz, e) += t;
+            }
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+static void SmemPAMassAssembleDiagonal3D(const int NE,
+                                         const Array<double> &b_,
+                                         const Vector &d_,
+                                         Vector &y_,
+                                         const int d1d = 0,
+                                         const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double QQD[MQ1][MQ1][MD1];
+      MFEM_SHARED double QDD[MQ1][MD1][MD1];
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dz,z,D1D)
+            {
+               QQD[qx][qy][dz] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  QQD[qx][qy][dz] += B[qz][dz] * B[qz][dz] * D(qx, qy, qz, e);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               QDD[qx][dy][dz] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  QDD[qx][dy][dz] += B[qy][dy] * B[qy][dy] * QQD[qx][qy][dz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double t = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  t += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
+               }
+               Y(dx, dy, dz, e) += t;
+            }
+         }
+      }
+   });
+}
+
+static void PAMassAssembleDiagonal(const int dim, const int D1D,
+                                   const int Q1D, const int NE,
+                                   const Array<double> &B,
+                                   const Vector &D,
+                                   Vector &Y)
+{
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: return SmemPAMassAssembleDiagonal2D<2,2,16>(NE,B,D,Y);
+         case 0x33: return SmemPAMassAssembleDiagonal2D<3,3,16>(NE,B,D,Y);
+         case 0x44: return SmemPAMassAssembleDiagonal2D<4,4,8>(NE,B,D,Y);
+         case 0x55: return SmemPAMassAssembleDiagonal2D<5,5,8>(NE,B,D,Y);
+         case 0x66: return SmemPAMassAssembleDiagonal2D<6,6,4>(NE,B,D,Y);
+         case 0x77: return SmemPAMassAssembleDiagonal2D<7,7,4>(NE,B,D,Y);
+         case 0x88: return SmemPAMassAssembleDiagonal2D<8,8,2>(NE,B,D,Y);
+         case 0x99: return SmemPAMassAssembleDiagonal2D<9,9,2>(NE,B,D,Y);
+         default:   return PAMassAssembleDiagonal2D(NE,B,D,Y,D1D,Q1D);
+      }
    }
-#else
-   MFEM_ABORT("MFEM must be compiled with OCCA support.");
-#endif // MFEM_USE_OCCA
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23: return SmemPAMassAssembleDiagonal3D<2,3>(NE,B,D,Y);
+         case 0x24: return SmemPAMassAssembleDiagonal3D<2,4>(NE,B,D,Y);
+         case 0x26: return SmemPAMassAssembleDiagonal3D<2,6>(NE,B,D,Y);
+         case 0x34: return SmemPAMassAssembleDiagonal3D<3,4>(NE,B,D,Y);
+         case 0x35: return SmemPAMassAssembleDiagonal3D<3,5>(NE,B,D,Y);
+         case 0x45: return SmemPAMassAssembleDiagonal3D<4,5>(NE,B,D,Y);
+         case 0x48: return SmemPAMassAssembleDiagonal3D<4,8>(NE,B,D,Y);
+         case 0x56: return SmemPAMassAssembleDiagonal3D<5,6>(NE,B,D,Y);
+         case 0x67: return SmemPAMassAssembleDiagonal3D<6,7>(NE,B,D,Y);
+         case 0x78: return SmemPAMassAssembleDiagonal3D<7,8>(NE,B,D,Y);
+         case 0x89: return SmemPAMassAssembleDiagonal3D<8,9>(NE,B,D,Y);
+         default:   return PAMassAssembleDiagonal3D(NE,B,D,Y,D1D,Q1D);
+      }
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+//////////////////////////////
+// MassIntegrator interface //
+//////////////////////////////
+
+void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   // Assuming the same element type
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation *T = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
+      return;
+   }
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   nq = ir->GetNPoints();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
+                                    GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
+   Vector coeff;
+   if (Q == nullptr)
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+   }
+   else
+   {
+      coeff.SetSize(nq * ne);
+      auto C = Reshape(coeff.HostWrite(), nq, ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            C(q,e) = Q->Eval(T, ir->IntPoint(q));
+         }
+      }
+   }
+   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
+   if (dim==2)
+   {
+      const int NE = ne;
+      const int Q1D = quad1D;
+      const bool const_c = coeff.Size() == 1;
+      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
+      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,2,2,NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
+                     Reshape(coeff.Read(), Q1D,Q1D,NE);
+      auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
+      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               const double J11 = J(qx,qy,0,0,e);
+               const double J12 = J(qx,qy,1,0,e);
+               const double J21 = J(qx,qy,0,1,e);
+               const double J22 = J(qx,qy,1,1,e);
+               const double detJ = (J11*J22)-(J21*J12);
+               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+               v(qx,qy,e) =  W(qx,qy) * coeff * detJ;
+            }
+         }
+      });
+   }
+   if (dim==3)
+   {
+      const int NE = ne;
+      const int Q1D = quad1D;
+      const bool const_c = coeff.Size() == 1;
+      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
+      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
+                     Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
+      auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
+      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qz,z,Q1D)
+               {
+                  const double J11 = J(qx,qy,qz,0,0,e);
+                  const double J21 = J(qx,qy,qz,1,0,e);
+                  const double J31 = J(qx,qy,qz,2,0,e);
+                  const double J12 = J(qx,qy,qz,0,1,e);
+                  const double J22 = J(qx,qy,qz,1,1,e);
+                  const double J32 = J(qx,qy,qz,2,1,e);
+                  const double J13 = J(qx,qy,qz,0,2,e);
+                  const double J23 = J(qx,qy,qz,1,2,e);
+                  const double J33 = J(qx,qy,qz,2,2,e);
+                  const double detJ = J11 * (J22 * J33 - J32 * J23) -
+                  /* */               J21 * (J12 * J33 - J32 * J13) +
+                  /* */               J31 * (J12 * J23 - J22 * J13);
+                  const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
+                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * detJ;
+               }
+            }
+         }
+      });
+   }
 }
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -1264,6 +1269,18 @@ void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    // Mass integrator is symmetric
    AddMultPA(x, y);
+}
+
+void MassIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+   }
 }
 
 } // namespace mfem
