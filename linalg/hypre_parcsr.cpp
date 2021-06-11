@@ -393,8 +393,8 @@ void hypre_CSRMatrixElimCreate(hypre_CSRMatrix *A,
    hypre_CSRMatrixData(Ae) = mfem_hypre_TAlloc(HYPRE_Real, nnz);
    hypre_CSRMatrixNumNonzeros(Ae) = nnz;
 
-   mem_Ae.J.Wrap(hypre_CSRMatrixJ(Ae), nnz, GetHypreMemoryType(), true);
-   mem_Ae.data.Wrap(hypre_CSRMatrixData(Ae), nnz, GetHypreMemoryType(), true);
+   if (nnz > 0) { mem_Ae.J.Wrap(hypre_CSRMatrixJ(Ae), nnz, GetHypreMemoryType(), true); }
+   if (nnz > 0) { mem_Ae.data.Wrap(hypre_CSRMatrixData(Ae), nnz, GetHypreMemoryType(), true); }
 }
 
 /*
@@ -465,9 +465,9 @@ void hypre_CSRMatrixEliminateRowsCols(hypre_CSRMatrix *A,
       }
    }
 
-   mem_Ae.J.Read(GetHypreMemoryClass(), e_nnz_size);
-   mem_Ae.data.Read(GetHypreMemoryClass(), e_nnz_size);
-   mem_A.data.Read(GetHypreMemoryClass(), nnz_size);
+   if (e_nnz_size > 0) { mem_Ae.J.Read(GetHypreMemoryClass(), e_nnz_size); }
+   if (e_nnz_size > 0) { mem_Ae.data.Read(GetHypreMemoryClass(), e_nnz_size); }
+   if (nnz_size > 0) { mem_A.data.Read(GetHypreMemoryClass(), nnz_size); }
 }
 
 /*
@@ -559,20 +559,17 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
       HYPRE_Int num_sends, *int_buf_data;
       HYPRE_Int index, start;
 
+      // TODO: delete these arrays
       HYPRE_Int *eliminate_diag_col = mfem_hypre_CTAlloc(HYPRE_Int, A_diag_ncols);
       HYPRE_Int *eliminate_offd_col = mfem_hypre_CTAlloc(HYPRE_Int, A_offd_ncols);
 
       Memory<HYPRE_Int> eliminate_diag_col_wrap(eliminate_diag_col, A_diag_ncols,
                                                 GetHypreMemoryType(), false);
-      Memory<HYPRE_Int> eliminate_offd_col_wrap(eliminate_offd_col, A_offd_ncols,
-                                                GetHypreMemoryType(), false);
+      Memory<HYPRE_Int> eliminate_offd_col_wrap;
 
       // TODO: better names
       HYPRE_Int *write_eliminate_diag_col = eliminate_diag_col_wrap.ReadWrite(
                                                Device::GetHostMemoryClass(), A_diag_ncols);
-      HYPRE_Int *write_eliminate_offd_col = eliminate_offd_col_wrap.ReadWrite(
-                                               Device::GetHostMemoryClass(), A_offd_ncols);
-
       /* make sure A has a communication package */
       comm_pkg = hypre_ParCSRMatrixCommPkg(A);
       if (!comm_pkg)
@@ -597,10 +594,21 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
       const HYPRE_Int buf_size = hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends);
       int_buf_data = mfem_hypre_CTAlloc(HYPRE_Int, buf_size);
 
+      /*
       Memory<HYPRE_Int> int_buf_data_wrap(int_buf_data, buf_size,
                                           GetHypreMemoryType(), false);
       HYPRE_Int *int_buf_data_write = int_buf_data_wrap.Write(
                                          Device::GetHostMemoryClass(), buf_size);
+      */
+
+      Memory<HYPRE_Int> int_buf_data_wrap;
+      HYPRE_Int *int_buf_data_write = NULL;
+      if (buf_size > 0)
+      {
+         int_buf_data_wrap.Wrap(int_buf_data, buf_size, GetHypreMemoryType(), false);
+         int_buf_data_write = int_buf_data_wrap.Write(Device::GetHostMemoryClass(),
+                                                      buf_size);
+      }
 
       index = 0;
       for (i = 0; i < num_sends; i++)
@@ -612,7 +620,8 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
             int_buf_data_write[index++] = write_eliminate_diag_col[k];
          }
       }
-      int_buf_data_wrap.Read(GetHypreMemoryClass(), buf_size);
+      MFEM_VERIFY(index <= buf_size, "");
+      if (buf_size > 0) { int_buf_data_wrap.Read(GetHypreMemoryClass(), buf_size); }
       comm_handle = hypre_ParCSRCommHandleCreate(11, comm_pkg,
                                                  int_buf_data, eliminate_offd_col);
 
@@ -653,20 +662,34 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
 
       /* received eliminate_col[], count offd columns to eliminate */
       num_offd_cols_to_elim = 0;
-      for (i = 0; i < A_offd_ncols; i++)
+
+      if (A_offd_ncols > 0)
       {
-         if (write_eliminate_offd_col[i]) { num_offd_cols_to_elim++; }
+         eliminate_offd_col_wrap.Wrap(eliminate_offd_col, A_offd_ncols,
+                                      GetHypreMemoryType(), false);
+         const HYPRE_Int *read_eliminate_offd_col = eliminate_offd_col_wrap.Read(
+                                                       Device::GetHostMemoryClass(), A_offd_ncols);
+
+         for (i = 0; i < A_offd_ncols; i++)
+         {
+            if (read_eliminate_offd_col[i]) { num_offd_cols_to_elim++; }
+         }
       }
 
       offd_cols_to_elim = mfem_hypre_CTAlloc(HYPRE_Int, num_offd_cols_to_elim);
 
       /* get a list of offd column indices and coefs */
       num_offd_cols_to_elim = 0;
-      for (i = 0; i < A_offd_ncols; i++)
+      if (A_offd_ncols > 0)
       {
-         if (write_eliminate_offd_col[i])
+         const HYPRE_Int *read_eliminate_offd_col = eliminate_offd_col_wrap.Read(
+                                                       Device::GetHostMemoryClass(), A_offd_ncols);
+         for (i = 0; i < A_offd_ncols; i++)
          {
-            offd_cols_to_elim[num_offd_cols_to_elim++] = i;
+            if (read_eliminate_offd_col[i])
+            {
+               offd_cols_to_elim[num_offd_cols_to_elim++] = i;
+            }
          }
       }
    }
@@ -693,7 +716,7 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                        num_offd_cols_to_elim, offd_cols_to_elim,
                                        0, col_remap);
    }
-   else
+   else // if (A_offd_ncols > 0)
    {
       hypre_CSRMatrixElimCreate(A_offd, Ae_offd, mem_offd, mem_e_offd,
                                 num_rowscols_to_elim, rowscols_to_elim,
