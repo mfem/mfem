@@ -898,6 +898,7 @@ void L2ProjectionGridTransfer::BuildF()
    }
 }
 
+
 TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
@@ -933,6 +934,7 @@ void TransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    opr->MultTranspose(x, y);
 }
+
 
 PRefinementTransferOperator::PRefinementTransferOperator(
    const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
@@ -1049,6 +1051,7 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
       }
    }
 }
+
 
 TensorProductPRefinementTransferOperator::
 TensorProductPRefinementTransferOperator(
@@ -1341,6 +1344,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
    });
 }
 } // namespace TransferKernels
+
 
 TensorProductPRefinementTransferOperator::
 ~TensorProductPRefinementTransferOperator()
