@@ -62,7 +62,7 @@ FiniteElementSpace::FiniteElementSpace()
      elem_dof(NULL), bdr_elem_dof(NULL), face_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cR_hp(NULL), cP_is_set(false),
-     Th(Operator::ANY_TYPE),
+     Th(Operator::ANY_TYPE), L2E_nat(nullptr), L2E_lex(nullptr),
      sequence(0), mesh_sequence(0), orders_changed(false), relaxed_hp(false)
 { }
 
@@ -1135,37 +1135,37 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
-const Operator *FiniteElementSpace::GetElementRestriction(
+const ElementRestriction *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
    // Check if we have a discontinuous space using the FE collection:
    if (IsDGSpace())
    {
       // TODO: when VDIM is 1, we can return IdentityOperator.
-      if (L2E_nat.Ptr() == NULL)
+      if (L2E_nat == NULL)
       {
          // The input L-vector layout is:
          // * ND x NE x VDIM, for Ordering::byNODES, or
          // * VDIM x ND x NE, for Ordering::byVDIM.
          // The output E-vector layout is: ND x VDIM x NE.
-         L2E_nat.Reset(new L2ElementRestriction(*this));
+         L2E_nat = new L2ElementRestriction(*this);
       }
-      return L2E_nat.Ptr();
+      return L2E_nat;
    }
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
-      if (L2E_lex.Ptr() == NULL)
+      if (L2E_lex == NULL)
       {
-         L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
+         L2E_lex = new CElementRestriction(*this, e_ordering);
       }
-      return L2E_lex.Ptr();
+      return L2E_lex;
    }
    // e_ordering == ElementDofOrdering::NATIVE
-   if (L2E_nat.Ptr() == NULL)
+   if (L2E_nat == NULL)
    {
-      L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
+      L2E_nat = new CElementRestriction(*this, e_ordering);
    }
-   return L2E_nat.Ptr();
+   return L2E_nat;
 }
 
 const Operator *FiniteElementSpace::GetFaceRestriction(
@@ -1758,7 +1758,8 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
 
    elem_dof = NULL;
    face_dof = NULL;
-
+   L2E_nat = nullptr;
+   L2E_lex = nullptr;
    sequence = 0;
    orders_changed = false;
    relaxed_hp = false;
@@ -2715,8 +2716,8 @@ void FiniteElementSpace::Destroy()
    delete cR_hp;
    delete cP;
    Th.Clear();
-   L2E_nat.Clear();
-   L2E_lex.Clear();
+   delete L2E_nat;
+   delete L2E_lex;
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       delete E2Q_array[i];

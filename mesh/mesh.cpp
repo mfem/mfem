@@ -11280,7 +11280,7 @@ void GeometricFactors::Compute(const GridFunction &nodes,
    const ElementDofOrdering e_ordering = use_tensor_products ?
                                          ElementDofOrdering::LEXICOGRAPHIC :
                                          ElementDofOrdering::NATIVE;
-   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
+   const ElementRestriction *elem_restr = fespace->GetElementRestriction(e_ordering);
 
    if (elem_restr) // Always true as of 2021-04-27
    {

@@ -97,10 +97,10 @@ static bool testQuadratureInterpolator(const int dim,
 
    const ElementDofOrdering nat_ordering = ElementDofOrdering::NATIVE;
    const ElementDofOrdering lex_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *SRN(sfes.GetElementRestriction(nat_ordering));
-   const Operator *SRL(sfes.GetElementRestriction(lex_ordering));
-   const Operator *VRN(vfes.GetElementRestriction(nat_ordering));
-   const Operator *VRL(vfes.GetElementRestriction(lex_ordering));
+   const ElementRestriction *SRN(sfes.GetElementRestriction(nat_ordering));
+   const ElementRestriction *SRL(sfes.GetElementRestriction(lex_ordering));
+   const ElementRestriction *VRN(vfes.GetElementRestriction(nat_ordering));
+   const ElementRestriction *VRL(vfes.GetElementRestriction(lex_ordering));
    MFEM_VERIFY(SRN, "No element sn-restriction operator found!");
    MFEM_VERIFY(SRL, "No element sl-restriction operator found!");
    MFEM_VERIFY(VRN, "No element vn-restriction operator found!");

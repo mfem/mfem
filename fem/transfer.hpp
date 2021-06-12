@@ -317,8 +317,8 @@ private:
    int Q1D;
    Array<double> B;
    Array<double> Bt;
-   const Operator* elem_restrict_lex_l;
-   const Operator* elem_restrict_lex_h;
+   const ElementRestriction* elem_restrict_lex_l;
+   const ElementRestriction* elem_restrict_lex_h;
    Vector mask;
    mutable Vector localL;
    mutable Vector localH;

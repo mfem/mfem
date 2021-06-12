@@ -71,7 +71,7 @@ protected:
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
-   const Operator *elem_restrict; // Not owned
+   const ElementRestriction *elem_restrict; // Not owned
    const Operator *int_face_restrict_lex; // Not owned
    const Operator *bdr_face_restrict_lex; // Not owned
 
@@ -142,7 +142,7 @@ protected:
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
-   const Operator *elem_restrict; // Not owned
+   const ElementRestriction *elem_restrict; // Not owned
    const Operator *int_face_restrict_lex; // Not owned
    const Operator *bdr_face_restrict_lex; // Not owned
 
@@ -214,13 +214,13 @@ class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localTrial, localTest, tempY;
-   const Operator *elem_restrict_trial; // Not owned
-   const Operator *elem_restrict_test;  // Not owned
+   const ElementRestriction *elem_restrict_trial; // Not owned
+   const ElementRestriction *elem_restrict_test;  // Not owned
 
    /// Helper function to set up inputs/outputs for Mult or MultTranspose
-   void SetupMultInputs(const Operator *elem_restrict_x,
+   void SetupMultInputs(const ElementRestriction *elem_restrict_x,
                         const Vector &x, Vector &localX,
-                        const Operator *elem_restrict_y,
+                        const ElementRestriction *elem_restrict_y,
                         Vector &y, Vector &localY, const double c) const;
 
 public:

@@ -25,10 +25,33 @@ enum class ElementDofOrdering;
     e1 and e2 (DoubleValued). */
 enum class L2FaceValues : bool {SingleValued, DoubleValued};
 
+class ElementRestriction : public Operator
+{
+public:
+   virtual ~ElementRestriction() { }
+
+   /// Compute Mult without applying signs based on DOF orientations.
+   virtual void MultUnsigned(const Vector &x, Vector &y) const = 0;
+
+   /// Compute MultTranspose without applying signs based on DOF orientations.
+   virtual void MultTransposeUnsigned(const Vector &x, Vector &y) const = 0;
+
+   /// Compute MultTranspose by setting (rather than adding) element
+   /// contributions; this is a left inverse of the Mult() operation
+   virtual void MultLeftInverse(const Vector &x, Vector &y) const = 0;
+
+   /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
+   /// each entry of the L-vector is uniquely represented in `y`.
+   virtual void BooleanMask(Vector& y) const = 0;
+
+   /// Return the mapping from E-vector to L-vector.
+   virtual const Array<int> &GetEToLMap() const = 0;
+};
+
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
-class ElementRestriction : public Operator
+class CElementRestriction : public ElementRestriction
 {
 private:
    /** This number defines the maximum number of elements any dof can belong to
@@ -48,18 +71,18 @@ protected:
    Array<int> gatherMap;
 
 public:
-   ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   CElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
-   void MultUnsigned(const Vector &x, Vector &y) const;
+   void MultUnsigned(const Vector &x, Vector &y) const override;
    /// Compute MultTranspose without applying signs based on DOF orientations.
-   void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+   void MultTransposeUnsigned(const Vector &x, Vector &y) const override;
 
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation
-   void MultLeftInverse(const Vector &x, Vector &y) const;
+   void MultLeftInverse(const Vector &x, Vector &y) const override;
 
    /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
    /// each entry of the L-vector is uniquely represented in `y`.
@@ -67,7 +90,13 @@ public:
        corresponding L-vector filled with ones. The boolean mask is required to
        emulate SetSubVector and its transpose on GPUs. This method is running on
        the host, since the `processed` array requires a large shared memory. */
-   void BooleanMask(Vector& y) const;
+   void BooleanMask(Vector& y) const override;
+
+   /// Return the mapping from E-vector to L-vector.
+   const Array<int> &GetEToLMap() const override
+   {
+      return gatherMap;
+   }
 
    /// Fill a Sparse Matrix with Element Matrices.
    void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
@@ -85,17 +114,49 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
     corresponding to grid functions in L2 finite element spaces differ from
     E-vectors only in the ordering of the degrees of freedom. */
-class L2ElementRestriction : public Operator
+class L2ElementRestriction : public ElementRestriction
 {
+   const FiniteElementSpace& fes;
    const int ne;
    const int vdim;
    const bool byvdim;
    const int ndof;
    const int ndofs;
+   mutable Array<int> gatherMap;
 public:
    L2ElementRestriction(const FiniteElementSpace&);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /// Compute Mult without applying signs based on DOF orientations.
+   void MultUnsigned(const Vector &x, Vector &y) const override
+   {
+      Mult(x, y);
+   }
+
+   /// Compute MultTranspose without applying signs based on DOF orientations.
+   void MultTransposeUnsigned(const Vector &x, Vector &y) const override
+   {
+      MultTranspose(x, y);
+   }
+
+   /// Compute MultTranspose by setting (rather than adding) element
+   /// contributions; this is a left inverse of the Mult() operation
+   void MultLeftInverse(const Vector &x, Vector &y) const override
+   {
+      MultTranspose(x, y);
+   }
+
+   /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
+   /// each entry of the L-vector is uniquely represented in `y`.
+   void BooleanMask(Vector& y) const override
+   {
+      y = 1.0;
+   }
+
+   /// Return the mapping from E-vector to L-vector.
+   const Array<int> &GetEToLMap() const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;

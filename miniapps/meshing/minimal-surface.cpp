@@ -1180,7 +1180,7 @@ static double qf(const int order, const int ker, Mesh &m,
    Vector Eu(ND*NE), grad_u(DIM*NQ*NE), sum(NE*NQ), one(NE*NQ);
    qi->SetOutputLayout(QVectorLayout::byVDIM);
    const ElementDofOrdering e_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *G(fes.GetElementRestriction(e_ordering));
+   const ElementRestriction *G(fes.GetElementRestriction(e_ordering));
    G->Mult(u, Eu);
    qi->Derivatives(Eu, grad_u);
 

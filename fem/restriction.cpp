@@ -17,8 +17,8 @@
 namespace mfem
 {
 
-ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
-                                       ElementDofOrdering e_ordering)
+CElementRestriction::CElementRestriction(const FiniteElementSpace &f,
+                                         ElementDofOrdering e_ordering)
    : fes(f),
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
@@ -97,7 +97,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    offsets[0] = 0;
 }
 
-void ElementRestriction::Mult(const Vector& x, Vector& y) const
+void CElementRestriction::Mult(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -106,7 +106,8 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gatherMap = gatherMap.Read();
-   MFEM_FORALL(i, dof*ne,
+   for (size_t i = 0; i < dof*ne; i++)
+   // MFEM_FORALL(i, dof*ne,
    {
       const int gid = d_gatherMap[i];
       const bool plus = gid >= 0;
@@ -116,10 +117,10 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
          const double dofValue = d_x(t?c:j, t?j:c);
          d_y(i % nd, c, i / nd) = plus ? dofValue : -dofValue;
       }
-   });
+   }//);
 }
 
-void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
+void CElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -140,7 +141,7 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
+void CElementRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -168,7 +169,7 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
+void CElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -195,7 +196,7 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
+void CElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -220,7 +221,7 @@ void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::BooleanMask(Vector& y) const
+void CElementRestriction::BooleanMask(Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -257,8 +258,8 @@ void ElementRestriction::BooleanMask(Vector& y) const
    }
 }
 
-void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
-                                          SparseMatrix &mat) const
+void CElementRestriction::FillSparseMatrix(const Vector &mat_ea,
+                                           SparseMatrix &mat) const
 {
    mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
    const int nnz = FillI(mat);
@@ -306,7 +307,7 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
    return ind;
 }
 
-int ElementRestriction::FillI(SparseMatrix &mat) const
+int CElementRestriction::FillI(SparseMatrix &mat) const
 {
    static constexpr int Max = MaxNbNbr;
    const int all_dofs = ndofs;
@@ -379,8 +380,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    return h_I[nTdofs];
 }
 
-void ElementRestriction::FillJAndData(const Vector &ea_data,
-                                      SparseMatrix &mat) const
+void CElementRestriction::FillJAndData(const Vector &ea_data,
+                                       SparseMatrix &mat) const
 {
    static constexpr int Max = MaxNbNbr;
    const int all_dofs = ndofs;
@@ -472,7 +473,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
 }
 
 L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
-   : ne(fes.GetNE()),
+   : fes(fes),
+     ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
@@ -518,6 +520,29 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
          d_y(t?c:idx,t?idx:c) = d_x(dof, c, e);
       }
    });
+}
+
+const Array<int> &L2ElementRestriction::GetEToLMap() const
+{
+   // The gatherMap is computed lazily
+   if (gatherMap.Size() == 0)
+   {
+      int compstride = fes.GetOrdering()==Ordering::byVDIM ?
+                        1 : fes.GetNDofs();
+      const mfem::Table &el_dof = fes.GetElementToDofTable();
+      gatherMap.SetSize(el_dof.Size_of_connections());
+      const int dof = fes.GetFE(0)->GetDof();
+      const int stride = compstride == 1 ? fes.GetVDim() : 1;
+      for (int i = 0; i < fes.GetMesh()->GetNE(); i++)
+      {
+         const int el_offset = dof * i;
+         for (int j = 0; j < dof; j++)
+         {
+            gatherMap[j+el_offset] = stride*el_dof.GetJ()[j+el_offset];
+         }
+      }
+   }
+   return gatherMap;
 }
 
 void L2ElementRestriction::FillI(SparseMatrix &mat) const

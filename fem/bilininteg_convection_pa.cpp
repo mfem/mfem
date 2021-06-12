@@ -807,7 +807,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const ElementDofOrdering ordering = use_tensor_products ?
                                           ElementDofOrdering::LEXICOGRAPHIC :
                                           ElementDofOrdering::NATIVE;
-      const Operator *R = gf_fes.GetElementRestriction(ordering);
+      const ElementRestriction *R = gf_fes.GetElementRestriction(ordering);
 
       Vector xe(R->Height(), Device::GetMemoryType());
       xe.UseDevice(true);

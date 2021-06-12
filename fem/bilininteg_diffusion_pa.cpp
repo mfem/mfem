@@ -1986,7 +1986,10 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else if (DeviceCanUseOcca())
    {
-      OccaPADiffusionApply(dim,ne,symmetric,*maps,twGatherMap,pa_data, x, y);
+      const Array<int> &gather_map = fespace->GetElementRestriction(
+                                        ElementDofOrdering::LEXICOGRAPHIC)
+                                        ->GetEToLMap();
+      OccaPADiffusionApply(dim,ne,symmetric,*maps,gather_map,pa_data, x, y);
    }
    else
    {

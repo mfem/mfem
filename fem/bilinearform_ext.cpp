@@ -885,8 +885,8 @@ void FABilinearFormExtension::Assemble()
       }
       else
       {
-         const ElementRestriction &rest =
-            static_cast<const ElementRestriction&>(*elem_restrict);
+         const CElementRestriction &rest =
+            static_cast<const CElementRestriction&>(*elem_restrict);
          rest.FillJAndData(ea_data, *mat);
       }
    }
@@ -933,8 +933,8 @@ void FABilinearFormExtension::Assemble()
       }
       else // continuous Galerkin case
       {
-         const ElementRestriction &rest =
-            static_cast<const ElementRestriction&>(*elem_restrict);
+         const CElementRestriction &rest =
+            static_cast<const CElementRestriction&>(*elem_restrict);
          rest.FillSparseMatrix(ea_data, *mat);
       }
       a->mat = mat;
@@ -1167,10 +1167,10 @@ void PAMixedBilinearFormExtension::FormRectangularLinearSystem(
 }
 
 void PAMixedBilinearFormExtension::SetupMultInputs(
-   const Operator *elem_restrict_x,
+   const ElementRestriction *elem_restrict_x,
    const Vector &x,
    Vector &localX,
-   const Operator *elem_restrict_y,
+   const ElementRestriction *elem_restrict_y,
    Vector &y,
    Vector &localY,
    const double c) const

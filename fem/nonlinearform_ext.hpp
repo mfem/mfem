@@ -92,7 +92,7 @@ protected:
    mutable Vector xe, ye;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
-   const Operator *elemR; // not owned
+   const ElementRestriction *elemR; // not owned
    mutable Gradient Grad;
 
 public:
@@ -131,7 +131,7 @@ class MFNonlinearFormExtension : public NonlinearFormExtension
 protected:
    const FiniteElementSpace &fes; // Not owned
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   const ElementRestriction *elem_restrict_lex; // Not owned
 
 public:
    MFNonlinearFormExtension(const NonlinearForm*);

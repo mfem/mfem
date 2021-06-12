@@ -881,7 +881,7 @@ private:
    const int dim, nzones;
    const QuadratureData &quad_data;
    const ParFiniteElementSpace &h1fes, &l2fes;
-   const Operator *h1restrict, *l2restrict;
+   const ElementRestriction *h1restrict, *l2restrict;
    const IntegrationRule &integ_rule, &ir1D;
    const int D1D, Q1D;
    const int L1D, H1D;
@@ -1167,7 +1167,7 @@ private:
    TimingData *timer;
    const IntegrationRule &ir;
    ParFiniteElementSpace &H1, &L2;
-   const Operator *H1ER;
+   const ElementRestriction *H1ER;
    const int vdim;
    Vector d_dt_est;
    Vector d_l2_e_quads_data;

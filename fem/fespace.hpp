@@ -150,7 +150,7 @@ protected:
    OperatorHandle Th;
 
    /// The element restriction operators, see GetElementRestriction().
-   mutable OperatorHandle L2E_nat, L2E_lex;
+   mutable ElementRestriction *L2E_nat, *L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
    using key_face = std::tuple<bool, ElementDofOrdering, FaceType, L2FaceValues>;
    struct key_hash
@@ -476,7 +476,8 @@ public:
        L2ElementRestriction class.
 
        The returned Operator is owned by the FiniteElementSpace. */
-   const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
+   const ElementRestriction *GetElementRestriction(
+      ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const Operator *GetFaceRestriction(
