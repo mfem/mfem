@@ -658,20 +658,20 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    }
 
    // Create PCG solver
-   RTxM_LH = *TransposeMult(R, M_LH);
+   RTxM_LH = TransposeMult(R, M_LH);
    pcg.SetPrintLevel(0);
    pcg.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
    SetRelTol(1e-13);
    SetAbsTol(1e-13);
-   Ds = DSmoother(RTxM_LH);
+   Ds = DSmoother(*RTxM_LH);
    pcg.SetPreconditioner(Ds);
-   pcg.SetOperator(RTxM_LH);
+   pcg.SetOperator(*RTxM_LH);
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::~L2ProjectionH1Space()
 {
-   delete& RTxM_LH;
+   delete RTxM_LH;
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(

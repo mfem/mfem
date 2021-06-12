@@ -263,7 +263,7 @@ protected:
       SparseMatrix R;
       // Used to compute P = (RTxM_LH)^(-1) M_LH^T
       SparseMatrix M_LH;
-      SparseMatrix RTxM_LH;
+      SparseMatrix* RTxM_LH;
       CGSolver pcg;
       DSmoother Ds;
 
