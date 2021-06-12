@@ -106,8 +106,7 @@ void CElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gatherMap = gatherMap.Read();
-   for (size_t i = 0; i < dof*ne; i++)
-   // MFEM_FORALL(i, dof*ne,
+   MFEM_FORALL(i, dof*ne,
    {
       const int gid = d_gatherMap[i];
       const bool plus = gid >= 0;
@@ -117,7 +116,7 @@ void CElementRestriction::Mult(const Vector& x, Vector& y) const
          const double dofValue = d_x(t?c:j, t?j:c);
          d_y(i % nd, c, i / nd) = plus ? dofValue : -dofValue;
       }
-   }//);
+   });
 }
 
 void CElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
