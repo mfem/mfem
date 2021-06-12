@@ -1931,50 +1931,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                    Device::GetDeviceMemoryType());
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
-
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      // rebuild gatherMap from fespace
-      // TW: derived from fem/ceed/util.cpp:InitTensorRestriction
-      printf("OCCA BUILD START\n");
-      const mfem::FiniteElement *fe = fes.GetFE(0);
-      const mfem::TensorBasisElement *tfe =
-          dynamic_cast<const mfem::TensorBasisElement *>(fe);
-      MFEM_VERIFY(tfe, "invalid FE");
-      const mfem::Array<int> &dof_map = tfe->GetDofMap();
-
-      int compstride = fes.GetOrdering() == Ordering::byVDIM ? 1 : fes.GetNDofs();
-      const mfem::Table &el_dof = fes.GetElementToDofTable();
-      twGatherMap.SetSize(el_dof.Size_of_connections());
-      const int dof = fe->GetDof();
-      const int stride = compstride == 1 ? fes.GetVDim() : 1;
-      if (dof_map.Size() > 0)
-      {
-         for (int i = 0; i < mesh->GetNE(); i++)
-         {
-            const int el_offset = dof * i;
-            for (int j = 0; j < dof; j++)
-            {
-               twGatherMap[j + el_offset] = stride * el_dof.GetJ()[dof_map[j] + el_offset];
-            }
-         }
-      }
-      else // dof_map.Size == 0, means dof_map[j]==j;
-      {
-         for (int i = 0; i < mesh->GetNE(); i++)
-         {
-            const int el_offset = dof * i;
-            for (int j = 0; j < dof; j++)
-            {
-               twGatherMap[j + el_offset] = stride * el_dof.GetJ()[j + el_offset];
-            }
-         }
-      }
-
-      printf("OCCA BUILD END\n");
-   }
-#endif
 }
 
 // PA Diffusion Apply kernel
