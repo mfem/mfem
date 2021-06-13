@@ -207,7 +207,7 @@ Version 4.2.1 (development)
 
 - Added support for transferring fields (primary and dual) between high-order
   and low-order refined H1 finite element spaces using the
-  L2ProjectionH1GridTransfer operators.  This functionality is demonstrated
+  L2ProjectionH1GridTransfer operators. This functionality is demonstrated
   through the lor-transfer miniapp when run with the -h1 option.
 
 - Added new functionality for constructing low-order refined discretizations and
