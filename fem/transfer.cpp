@@ -273,8 +273,8 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
       Vector shape_ho(fe_ho.GetDof());
       fe_ho.CalcShape(ip_ho, shape_ho);
       el_tr->SetIntPoint(&ip_lor);
-      // For now we use the geometry information from the LOR space
-      // which means we won't be mass conservative if the mesh is curved
+      // For now we use the geometry information from the LOR space, which means
+      // we won't be mass conservative if the mesh is curved
       double w = el_tr->Weight() * ip_lor.weight;
       shape_lor *= w;
       AddMultVWt(shape_lor, shape_ho, M_mixed_el);
@@ -315,8 +315,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       const FiniteElement &fe_lor = *fes_lor.GetFE(ho2lor.GetRow(iho)[0]);
       offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
    }
-   // R will contain the restriction (L^2 projection operator) defined on
-   // each coarse HO element (and corresponding patch of LOR elements)
+   // R will contain the restriction (L^2 projection operator) defined on each
+   // coarse HO element (and corresponding patch of LOR elements)
    R.SetSize(offsets[nel_ho]);
    // P will contain the corresponding prolongation operator
    P.SetSize(offsets[nel_ho]);
@@ -552,10 +552,9 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   // ML_inv contains the inverse lumped (row sum) mass matrix.  Note, the method
-   // will also work with a full (consistent) mass matrix, though this is not
-   // implemented here.
-   // L refers to the low-order refined mesh
+   // ML_inv contains the inverse lumped (row sum) mass matrix. Note that the
+   // method will also work with a full (consistent) mass matrix, though this is
+   // not implemented here. L refers to the low-order refined mesh
    Vector ML_inv(ndof_lor);
    ML_inv = 0.0;
 
