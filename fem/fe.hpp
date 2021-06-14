@@ -208,25 +208,11 @@ public:
    Array<double> Gt;
 
    /** @brief 1D Collocated gradients of basis functions evaluated at quadrature
-       points. */
-   /** The storage layout is column-major with dimensions:
-       - #nqpt x dim x #nqpt, for scalar elements, or
-       - #nqpt x #nqpt, for H(div) vector elements (TODO), or
-       - #nqpt x cdim x #nqpt, for H(curl) vector elements (TODO),
-
-       where
-
-       - dim = dimension of the finite element reference space when #mode is
-         FULL, and 1 when #mode is TENSOR,
-       - cdim = 1/1/3 in 1D/2D/3D, respectively, when #mode is FULL, and cdim =
-         1 when #mode is TENSOR. */
+       points. Currently only implemented for ScalarFiniteElement. */
+   /** The storage layout is column-major with dimensions: #nqpt x #nqpt. */
    Array<double> C;
 
-   /// Transpose of #Ct.
-   /** The storage layout is column-major with dimensions:
-       - #nqpt x #nqpt x dim, for scalar elements, or
-       - #nqpt x #nqpt, for H(div) vector elements (TODO), or
-       - #nqpt x #nqpt x cdim, for H(curl) vector elements (TODO). */
+   /// Transpose of #C.
    Array<double> Ct;
 };
 
