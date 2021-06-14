@@ -69,6 +69,34 @@ double AvgElementSize(ParMesh &pmesh)
    return dx;
 }
 
+ParMesh *MakeLORMesh(ParMesh &mesh_ho, int order, bool simplex)
+{
+   return new ParMesh(&mesh_ho, order, BasisType::GaussLobatto);
+}
+
+LOR::LOR(ParMesh &mesh_ho, int order, Coefficient &coeff, Array<int> &ess_dofs,
+         bool simplex)
+   : mesh(MakeLORMesh(mesh_ho, order, simplex)),
+     fec(1, mesh->Dimension()),
+     fes(mesh.get(), &fec),
+     a(&fes),
+     irs(0, Quadrature1D::GaussLobatto)
+{
+   DiffusionIntegrator *integ = new DiffusionIntegrator(coeff);
+
+   // LOR system uses collocated (2-point Gauss-Lobatto) quadrature
+   int dim = mesh->Dimension();
+   Geometry::Type geom = mesh->GetElementBaseGeometry(0);
+   const IntegrationRule &ir = irs.Get(geom, 1);
+   if (geom == Geometry::SQUARE || geom == Geometry::CUBE)
+   { MFEM_VERIFY(ir.Size() == pow(2,dim), "Wrong quadrature rule"); }
+   integ->SetIntegrationRule(ir);
+
+   a.AddDomainIntegrator(integ);
+   a.Assemble();
+   a.FormSystemMatrix(ess_dofs, A);
+}
+
 void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
                                         ParGridFunction &dist_v)
 {
@@ -345,6 +373,15 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    }
 }
 
+void HeatDistanceSolver::ConfigComputeScalarDistance(Coefficient
+                                                     &zero_level_set,
+                                                     ParGridFunction &distance)
+{
+   std::cout<<"ConfigComputeScalarDistance"<<std::endl;
+   std::cout<<"Exit early "<<std::endl;
+   exit(-1);
+
+}
 
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
                                                ParGridFunction &fdist)

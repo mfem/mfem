@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool algebraic_ceed = false;
    bool visualization = true;
+   SolverConfig solverConfig(SolverConfig::FA_AMGX);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -270,7 +271,8 @@ int main(int argc, char *argv[])
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
-      auto ds = new HeatDistanceSolver(t_param * dx * dx, pa, algebraic_ceed);
+      //auto ds = new HeatDistanceSolver(t_param * dx * dx, pa, algebraic_ceed);
+      auto ds = new HeatDistanceSolver(t_param * dx * dx, solverConfig);
       if (problem == 0)
       {
          ds->transform = false;
@@ -309,20 +311,22 @@ int main(int argc, char *argv[])
    //Compute scalar distance for s
    std::cout<<"\n Compute scalar distance for s \n "<<std::endl;
    {
-     auto start = std::chrono::steady_clock::now();
-     dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
-     auto end = std::chrono::steady_clock::now();
-     std::chrono::duration<double> elapsed_seconds = end-start;
-     std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
+      auto start = std::chrono::steady_clock::now();
+      //dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+      static_cast<HeatDistanceSolver *>(dist_solver)->ConfigComputeScalarDistance(
+         ls_filt_coeff, distance_s); //configurable solver
+      auto end = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds = end-start;
+      std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
    }
    //Compute scalar distance for v
    std::cout<<"\n Compute scalar distance for v \n "<<std::endl;
    {
-     auto start = std::chrono::steady_clock::now();
-     dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
-     auto end = std::chrono::steady_clock::now();
-     std::chrono::duration<double> elapsed_seconds = end-start;
-     std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
+      auto start = std::chrono::steady_clock::now();
+      dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
+      auto end = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds = end-start;
+      std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
    }
 
    // Send the solution by socket to a GLVis server.
