@@ -55,7 +55,7 @@ public:
 class HeatDistanceSolver : public DistanceSolver
 {
 public:
-   HeatDistanceSolver(double diff_coeff, bool use_pa_, bool use_ceed_)
+   HeatDistanceSolver(double diff_coeff, bool use_pa_=false, bool use_ceed_=false)
       : DistanceSolver(), use_pa(use_pa_), use_ceed(use_ceed_),
         parameter_t(diff_coeff),
         smooth_steps(0), diffuse_iter(1), transform(true), vis_glvis(false) { }
