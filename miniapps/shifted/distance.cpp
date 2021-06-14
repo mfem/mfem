@@ -80,6 +80,7 @@
 #include <fstream>
 #include <iostream>
 #include "dist_solver.hpp"
+#include <chrono>
 #include "../common/mfem-common.hpp"
 
 using namespace std;
@@ -305,8 +306,24 @@ int main(int argc, char *argv[])
    delete ls_coeff;
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
-   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
-   dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
+   //Compute scalar distance for s
+   std::cout<<"\n Compute scalar distance for s \n "<<std::endl;
+   {
+     auto start = std::chrono::steady_clock::now();
+     dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+     auto end = std::chrono::steady_clock::now();
+     std::chrono::duration<double> elapsed_seconds = end-start;
+     std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
+   }
+   //Compute scalar distance for v
+   std::cout<<"\n Compute scalar distance for v \n "<<std::endl;
+   {
+     auto start = std::chrono::steady_clock::now();
+     dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
+     auto end = std::chrono::steady_clock::now();
+     std::chrono::duration<double> elapsed_seconds = end-start;
+     std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
+   }
 
    // Send the solution by socket to a GLVis server.
    if (visualization)

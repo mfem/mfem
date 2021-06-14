@@ -272,18 +272,11 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    {
       OperatorPtr A;
       Vector B, X;
-
-      //printf("\n \n Performing step 2 \n \n");
-      std::cout<<"\n \n Perfoming step 2"<<"\n"<<std::endl;
       // RHS - normalized gradient.
       ParLinearForm b2(&pfes);
       NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
       b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
-      //printf("\n \n Performing step 2 - 1 \n \n");
-      std::cout<<"\n \n Perfoming step 2 - 1"<<"\n"<<std::endl;
       b2.Assemble();
-      std::cout<<"\n \n Perfoming step 2 - 2"<<"\n"<<std::endl;
-      //printf("\n \n Performing step 2 - 2 \n \n");
 
       // LHS - diffusion.
       ParBilinearForm a2(&pfes);
