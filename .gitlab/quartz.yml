@@ -25,6 +25,12 @@
     # Don’t run autotest update if...
     - if: '$CI_JOB_NAME =~ /q_report/ && $AUTOTEST != "YES"'
       when: never
+    # Report success on success status
+    - if: '$CI_JOB_NAME =~ /q_report_success/ && $AUTOTEST == "YES"'
+      when: on_success
+    # Report failure on failure status
+    - if: '$CI_JOB_NAME =~ /q_report_failure/ && $AUTOTEST == "YES"'
+      when: on_failure
     # Always release resources
     - if: '$CI_JOB_NAME =~ /release_resources/'
       when: always
@@ -66,8 +72,6 @@ q_report_success:
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
     - git push origin master
-  rules:
-    - when: on_success
 
 q_report_failure:
   variables:
@@ -84,8 +88,6 @@ q_report_failure:
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
     - git push origin master
-  rules:
-    - when: on_failure
 
 # Spack helped builds
 # Generic quartz build job, extending build script
