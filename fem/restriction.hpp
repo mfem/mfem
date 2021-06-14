@@ -184,7 +184,7 @@ protected:
 
 public:
    /** @brief Constructor for a H1FaceRestriction.
-       
+
        @param[in] fes The FiniteElementSpace on which this H1FaceRestriction
                       operates.
        @param[in] ordering The requested output ordering of the
