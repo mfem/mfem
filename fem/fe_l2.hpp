@@ -57,7 +57,7 @@ public:
    { ProjectCurl_2D(fe, Trans, curl); }
 };
 
-  
+
 /// Arbitrary order L2 elements in 3D on a cube
 class L2_HexahedronElement : public NodalTensorFiniteElement
 {

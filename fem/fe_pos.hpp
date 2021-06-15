@@ -113,7 +113,7 @@ public:
 };
 
 
- /// Arbitrary order H1 elements in 1D utilizing the Bernstein basis
+/// Arbitrary order H1 elements in 1D utilizing the Bernstein basis
 class H1Pos_SegmentElement : public PositiveTensorFiniteElement
 {
 private:
@@ -230,7 +230,7 @@ public:
                            DenseMatrix &dshape) const;
 };
 
-  
+
 /// Arbitrary order H1 elements in 3D utilizing the Bernstein basis on a wedge
 class H1Pos_WedgeElement : public PositiveFiniteElement
 {
