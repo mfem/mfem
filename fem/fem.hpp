@@ -45,6 +45,7 @@
 #include "multigrid.hpp"
 #include "ceed/algebraic.hpp"
 #include "lor.hpp"
+#include "distributive_relaxation.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
