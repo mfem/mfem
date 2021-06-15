@@ -1168,19 +1168,19 @@ int main(int argc, char *argv[])
    {
       if (peca.Size() > 0)
       {
-	stixBCs.AddDirichletBC(peca, zeroCoef, zeroCoef);
+         stixBCs.AddDirichletBC(peca, zeroCoef, zeroCoef);
       }
       if (dbca1.Size() > 0)
       {
-	stixBCs.AddDirichletBC(dbca1, dbc1ReCoef, dbc1ImCoef);
+         stixBCs.AddDirichletBC(dbca1, dbc1ReCoef, dbc1ImCoef);
       }
       if (dbca2.Size() > 0)
       {
-	stixBCs.AddDirichletBC(dbca2, dbc2ReCoef, dbc2ImCoef);
+         stixBCs.AddDirichletBC(dbca2, dbc2ReCoef, dbc2ImCoef);
       }
       if (dbcaw.Size() > 0)
       {
-	stixBCs.AddDirichletBC(dbcaw, HReCoef, HImCoef);
+         stixBCs.AddDirichletBC(dbcaw, HReCoef, HImCoef);
       }
    }
 
@@ -1235,22 +1235,22 @@ int main(int argc, char *argv[])
    {
       if (nbca1.Size() > 0)
       {
-	 stixBCs.AddNeumannBC(nbca1, nbc1ReCoef, nbc1ImCoef);
+         stixBCs.AddNeumannBC(nbca1, nbc1ReCoef, nbc1ImCoef);
       }
       if (nbca2.Size() > 0)
       {
-	stixBCs.AddNeumannBC(nbca2, nbc2ReCoef, nbc2ImCoef);
+         stixBCs.AddNeumannBC(nbca2, nbc2ReCoef, nbc2ImCoef);
       }
       if (nbcaw.Size() > 0)
       {
-	 stixBCs.AddNeumannBC(nbcaw, EReCoef, EImCoef);
+         stixBCs.AddNeumannBC(nbcaw, EReCoef, EImCoef);
       }
    }
 
    // Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-     stixBCs.AddSheathBC(sbca, z_r, z_i);
+      stixBCs.AddSheathBC(sbca, z_r, z_i);
    }
 
    if (mpi.Root())
@@ -1268,9 +1268,9 @@ int main(int argc, char *argv[])
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
                    abcs,
-		   stixBCs,
-		   // dbcs, nbcs, sbcs,
-		   // e_bc_r, e_bc_i,
+                   stixBCs,
+                   // dbcs, nbcs, sbcs,
+                   // e_bc_r, e_bc_i,
                    // EReCoef, EImCoef,
                    (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
                    j_src_r : NULL,

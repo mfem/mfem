@@ -460,10 +460,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          VectorCoefficient * kReCoef,
                          VectorCoefficient * kImCoef,
                          Array<int> & abcs,
-			 StixBCs & stixBCs,
-			 // Array<ComplexVectorCoefficientByAttr*> & dbcs,
-			 // Array<ComplexVectorCoefficientByAttr*> & nbcs,
-			 // Array<ComplexCoefficientByAttr*> & sbcs,
+                         StixBCs & stixBCs,
+                         // Array<ComplexVectorCoefficientByAttr*> & dbcs,
+                         // Array<ComplexVectorCoefficientByAttr*> & nbcs,
+                         // Array<ComplexCoefficientByAttr*> & sbcs,
                          void (*j_r_src)(const Vector&, Vector&),
                          void (*j_i_src)(const Vector&, Vector&),
                          bool vis_u, bool pa)
@@ -615,21 +615,21 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
 
-   switch(pmesh_->Dimension())
-     {
-     case 1:
-       HCurlFESpace_ = new ND_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       HDivFESpace_  = new RT_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       break;
-     case 2:
-       HCurlFESpace_ = new ND_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       HDivFESpace_  = new RT_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       break;
-     case 3:
-       HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       break;
-     }
+   switch (pmesh_->Dimension())
+   {
+      case 1:
+         HCurlFESpace_ = new ND_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         HDivFESpace_  = new RT_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         break;
+      case 2:
+         HCurlFESpace_ = new ND_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         HDivFESpace_  = new RT_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         break;
+      case 3:
+         HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         break;
+   }
 
    if (BCoef_)
    {
@@ -796,11 +796,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    if (nbcs_.Size() > 0)
    {
-     // nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
-     nkbcs_.SetSize(nbcs_.Size());
-     for (int i=0; i<nbcs_.Size(); i++)
+      // nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
+      nkbcs_.SetSize(nbcs_.Size());
+      for (int i=0; i<nbcs_.Size(); i++)
       {
-	 nkbcs_[i] = new ComplexVectorCoefficientByAttr;
+         nkbcs_[i] = new ComplexVectorCoefficientByAttr;
          nkbcs_[i]->attr = nbcs_[i]->attr;
          nkbcs_[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
          nkbcs_[i]->attr_marker = 0;
@@ -931,7 +931,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
       for (int i=0; i<sbcs_.Size(); i++)
       {
- 	 ComplexCoefficientByAttr & sbc = *sbcs_[i];
+         ComplexCoefficientByAttr & sbc = *sbcs_[i];
          /*
               m0_->AddBoundaryIntegrator(new MassIntegrator, sbc.attr_marker);
 
@@ -1006,7 +1006,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
       for (int i=0; i<sbcs_.Size(); i++)
       {
- 	 ComplexCoefficientByAttr & sbc = *sbcs_[i];
+         ComplexCoefficientByAttr & sbc = *sbcs_[i];
          SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc.real);
          SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc.imag);
 

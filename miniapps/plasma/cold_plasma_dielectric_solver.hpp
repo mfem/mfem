@@ -90,21 +90,21 @@ public:
    ~StixBCs();
 
    static const char * GetBCTypeName(BCType bctype);
-  
+
    // Enforce u = val on boundaries with attributes in bdr
    void AddDirichletBC(const Array<int> & bdr,
-		       VectorCoefficient &real_val,
-		       VectorCoefficient &imag_val);
+                       VectorCoefficient &real_val,
+                       VectorCoefficient &imag_val);
 
    // Enforce du/dn = val on boundaries with attributes in bdr
    void AddNeumannBC(const Array<int> & bdr,
-		     VectorCoefficient &real_val,
-		     VectorCoefficient &imag_val);
+                     VectorCoefficient &real_val,
+                     VectorCoefficient &imag_val);
 
    // Model a non-linear plasma sheath on boundaries with attributes in bdr
    void AddSheathBC(const Array<int> & bdr,
-		    Coefficient &real_imped,
-		    Coefficient &imag_imped);
+                    Coefficient &real_imped,
+                    Coefficient &imag_imped);
 
    const Array<ComplexVectorCoefficientByAttr*> & GetDirichletBCs() const
    { return dbc; }

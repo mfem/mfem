@@ -28,18 +28,18 @@ double prodFunc(double a, double b) { return a * b; }
 
 StixBCs::~StixBCs()
 {
-  for (int i=0; i<dbc.Size(); i++)
-  {
-    delete dbc[i];
-  }
-  for (int i=0; i<nbc.Size(); i++)
-  {
-    delete nbc[i];
-  }
-  for (int i=0; i<sbc.Size(); i++)
-  {
-    delete sbc[i];
-  }
+   for (int i=0; i<dbc.Size(); i++)
+   {
+      delete dbc[i];
+   }
+   for (int i=0; i<nbc.Size(); i++)
+   {
+      delete nbc[i];
+   }
+   for (int i=0; i<sbc.Size(); i++)
+   {
+      delete sbc[i];
+   }
 }
 
 const char * StixBCs::GetBCTypeName(BCType bctype)
@@ -54,8 +54,8 @@ const char * StixBCs::GetBCTypeName(BCType bctype)
 }
 
 void StixBCs::AddDirichletBC(const Array<int> & bdr,
-			     VectorCoefficient &real_val,
-			     VectorCoefficient &imag_val)
+                             VectorCoefficient &real_val,
+                             VectorCoefficient &imag_val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -69,19 +69,19 @@ void StixBCs::AddDirichletBC(const Array<int> & bdr,
                     << " which already has a boundary condition defined.");
       }
    }
-  ComplexVectorCoefficientByAttr *bc = new ComplexVectorCoefficientByAttr;
-  bc->attr = bdr;
-  bc->real = &real_val;
-  bc->imag = &imag_val;
+   ComplexVectorCoefficientByAttr *bc = new ComplexVectorCoefficientByAttr;
+   bc->attr = bdr;
+   bc->real = &real_val;
+   bc->imag = &imag_val;
 
-  AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
-  
-  dbc.Append(bc);
+   AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
+
+   dbc.Append(bc);
 }
 
 void StixBCs::AddNeumannBC(const Array<int> & bdr,
-			   VectorCoefficient &real_val,
-			   VectorCoefficient &imag_val)
+                           VectorCoefficient &real_val,
+                           VectorCoefficient &imag_val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -95,19 +95,19 @@ void StixBCs::AddNeumannBC(const Array<int> & bdr,
                     << " which already has a boundary condition defined.");
       }
    }
-  ComplexVectorCoefficientByAttr *bc = new ComplexVectorCoefficientByAttr;
-  bc->attr = bdr;
-  bc->real = &real_val;
-  bc->imag = &imag_val;
+   ComplexVectorCoefficientByAttr *bc = new ComplexVectorCoefficientByAttr;
+   bc->attr = bdr;
+   bc->real = &real_val;
+   bc->imag = &imag_val;
 
-  AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
-  
-  nbc.Append(bc);
+   AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
+
+   nbc.Append(bc);
 }
 
 void StixBCs::AddSheathBC(const Array<int> & bdr,
-			  Coefficient &real_val,
-			  Coefficient &imag_val)
+                          Coefficient &real_val,
+                          Coefficient &imag_val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -121,14 +121,14 @@ void StixBCs::AddSheathBC(const Array<int> & bdr,
                     << " which already has a boundary condition defined.");
       }
    }
-  ComplexCoefficientByAttr *bc = new ComplexCoefficientByAttr;
-  bc->attr = bdr;
-  bc->real = &real_val;
-  bc->imag = &imag_val;
+   ComplexCoefficientByAttr *bc = new ComplexCoefficientByAttr;
+   bc->attr = bdr;
+   bc->real = &real_val;
+   bc->imag = &imag_val;
 
-  AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
-  
-  sbc.Append(bc);
+   AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
+
+   sbc.Append(bc);
 }
 
 ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(VectorCoefficient &Er,
@@ -465,22 +465,22 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // Define compatible parallel finite element spaces on the parallel
    // mesh. Here we use arbitrary order H1, Nedelec, and Raviart-Thomas finite
    // elements.
-   switch(pmesh_->Dimension())
-     {
-     case 1:
-       HCurlFESpace_ = new ND_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       HDivFESpace_  = new RT_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       break;
-     case 2:
-       HCurlFESpace_ = new ND_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       HDivFESpace_  = new RT_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       break;
-     case 3:
-       HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
-       break;
-     }
-   
+   switch (pmesh_->Dimension())
+   {
+      case 1:
+         HCurlFESpace_ = new ND_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         HDivFESpace_  = new RT_R1D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         break;
+      case 2:
+         HCurlFESpace_ = new ND_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         HDivFESpace_  = new RT_R2D_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         break;
+      case 3:
+         HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+         break;
+   }
+
    if (BCoef_)
    {
       if (L2FESpace_ == NULL)
