@@ -21,7 +21,7 @@ namespace mfem
 
 class DRSmootherG;
 class LORInfo;
-   
+
 /// Data type for distributive relaxation smoother of sparse matrix
 class DRSmoother : public Solver
 {
@@ -30,12 +30,12 @@ protected:
    bool l1;
    double scale;
    bool composite;
-   
+
    const DRSmootherG *G;
    const SparseMatrix *A;
-   
+
    Vector diagonal_scaling;
-   
+
    const Operator *oper;
 
    mutable Vector tmp, tmp2;
@@ -47,15 +47,16 @@ protected:
 
    // Constructor helpers
    void FormG(const DisjointSets *clustering);
-   
+
 public:
-   
+
    /// Create distributive relaxation smoother.
-   DRSmoother(DisjointSets *clustering, const SparseMatrix *A, bool composite=true, double sc=2.0/3.0, bool l1=false, const Operator *op=NULL);
-   
+   DRSmoother(DisjointSets *clustering, const SparseMatrix *A, bool composite=true,
+              double sc=2.0/3.0, bool l1=false, const Operator *op=NULL);
+
    /// Destroy distributive relaxation smoother.
    ~DRSmoother();
-   
+
    /// Matrix vector multiplication with distributive relaxation smoother.
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -65,13 +66,14 @@ public:
    const SparseMatrix *GetGtAG() const;
 
    // Get diagonal blocks
-   static std::vector<DenseMatrix> *DiagonalBlocks(const SparseMatrix *oper, const DisjointSets *clustering);
-   
+   static std::vector<DenseMatrix> *DiagonalBlocks(const SparseMatrix *oper,
+                                                   const DisjointSets *clustering);
+
    // For testing
    static void DiagonalDominance(const SparseMatrix *A, double &dd1,  double &dd2);
 
 };
-   
+
 class DRSmootherG : public Operator
 {
 protected:
@@ -83,12 +85,19 @@ protected:
 public:
    ~DRSmootherG();
 
-   DRSmootherG(const SparseMatrix *g, const DisjointSets *clusters=NULL) { G = g; clustering = clusters; coeffs = NULL; matrix_free = false;
-      width = G->Width(); height = G->Height(); }
-   DRSmootherG(const DisjointSets *clusters, const Array<double> *coeff_data) { G = NULL; clustering = clusters; coeffs = coeff_data; matrix_free = true;
-      width = clustering->Size(); height = clustering->Size(); }
+   DRSmootherG(const SparseMatrix *g, const DisjointSets *clusters=NULL)
+   {
+      G = g; clustering = clusters; coeffs = NULL; matrix_free = false;
+      width = G->Width(); height = G->Height();
+   }
+   DRSmootherG(const DisjointSets *clusters, const Array<double> *coeff_data)
+   {
+      G = NULL; clustering = clusters; coeffs = coeff_data; matrix_free = true;
+      width = clustering->Size(); height = clustering->Size();
+   }
 
-   void GtAG(SparseMatrix *&GtAG_mat, Vector &GtAG_diagonal, const SparseMatrix &A, const std::vector<DenseMatrix> *diag_blocks) const;
+   void GtAG(SparseMatrix *&GtAG_mat, Vector &GtAG_diagonal, const SparseMatrix &A,
+             const std::vector<DenseMatrix> *diag_blocks) const;
 
    void AddMultTranspose(const Vector &x, Vector &y, double scale=1.0) const;
    void AddMult(const Vector &x, Vector &y, double scale=1.0) const;
@@ -98,7 +107,7 @@ public:
    const DisjointSets *GetClustering() const { return clustering; }
    const SparseMatrix *GetMatrix() const { return G; }
    bool MatrixFree() const { return matrix_free; }
-   
+
 };
 
 class LORInfo
@@ -121,7 +130,7 @@ public:
    LORInfo(const Mesh &lor_mesh, Mesh &ho_mesh, int order);
 
    ~LORInfo() { delete dofs; }
-   
+
    int Order() const { return order; }
    int Dim() const { return dim; }
    int NumDofs() const { return num_dofs; }
@@ -131,9 +140,10 @@ public:
 };
 
 void PrintClusteringStats(std::ostream &out, const DisjointSets *clustering);
-void PrintClusteringForVis(std::ostream &out, const DisjointSets *clustering, const Mesh *mesh);
+void PrintClusteringForVis(std::ostream &out, const DisjointSets *clustering,
+                           const Mesh *mesh);
 
-   
+
 }
 
 #endif // MFEM_DISTRIBUTIVE_RELAXATION

@@ -152,9 +152,9 @@ void DisjointSets::Union(int i, int j)
    int i_root = Find(i);
    int j_root = Find(j);
 
-   if (i_root == j_root) return;
+   if (i_root == j_root) { return; }
 
-   if (size[i_root] < size[j_root]) std::swap(i_root, j_root);
+   if (size[i_root] < size[j_root]) { std::swap(i_root, j_root); }
 
    parent[j_root] = i_root;
    size[i_root] += size[j_root];
@@ -162,7 +162,7 @@ void DisjointSets::Union(int i, int j)
 
 int DisjointSets::Find(int i) const
 {
-   if (parent[i] != i) parent[i] = Find(parent[i]);
+   if (parent[i] != i) { parent[i] = Find(parent[i]); }
    return parent[i];
 }
 
@@ -178,7 +178,7 @@ void DisjointSets::MakeSingle(const Array<int> &to_make_single)
 
       if (!reps_to_sets.count(rep))
       {
-	 reps_to_sets[rep] = std::unordered_set<int>();
+         reps_to_sets[rep] = std::unordered_set<int>();
       }
       reps_to_sets[rep].insert(i);
    }
@@ -190,39 +190,39 @@ void DisjointSets::MakeSingle(const Array<int> &to_make_single)
 
       while (size[rep] != 1)
       {
-	 if (rep != i)
-	 {
-	    parent[i] = i;
-	    size[i] = 1;
-	    size[rep] -= 1;
-	    reps_to_sets[rep].erase(i);
-	    i = rep;
-	 }
-	 else if (size[i] != 1)
-	 {
-	    reps_to_sets[i].erase(i);
-	    int new_rep = *(reps_to_sets[i].begin());
-	    size[new_rep] = size[i] - 1;
-	    for (int j : reps_to_sets[i])
-	    {
-	       parent[j] = new_rep;
-	    }
-	    parent[i] = i;
-	    size[i] = 1;
-	    reps_to_sets[new_rep] = reps_to_sets[i];
-	    reps_to_sets[i] = std::unordered_set<int>();
-	    reps_to_sets[i].insert(i);
+         if (rep != i)
+         {
+            parent[i] = i;
+            size[i] = 1;
+            size[rep] -= 1;
+            reps_to_sets[rep].erase(i);
+            i = rep;
+         }
+         else if (size[i] != 1)
+         {
+            reps_to_sets[i].erase(i);
+            int new_rep = *(reps_to_sets[i].begin());
+            size[new_rep] = size[i] - 1;
+            for (int j : reps_to_sets[i])
+            {
+               parent[j] = new_rep;
+            }
+            parent[i] = i;
+            size[i] = 1;
+            reps_to_sets[new_rep] = reps_to_sets[i];
+            reps_to_sets[i] = std::unordered_set<int>();
+            reps_to_sets[i].insert(i);
 
-	    i = new_rep;
-	    rep = Find(new_rep);
-	 }
+            i = new_rep;
+            rep = Find(new_rep);
+         }
       }
    }
 }
 
 void DisjointSets::Finalize()
 {
-   if (finalized) return;
+   if (finalized) { return; }
    finalized = true;
 
    bounds = Array<int>();
@@ -239,7 +239,7 @@ void DisjointSets::Finalize()
 
       // Assign groups a unique id starting at 0
       int rep = Find(i);
-      if (reps_to_groups.count(rep)) continue;
+      if (reps_to_groups.count(rep)) { continue; }
 
       reps_to_groups[rep] = smallest_unused;
       bounds.Append(bounds.Last() + size[rep]);
@@ -252,11 +252,11 @@ void DisjointSets::Finalize()
       int group = reps_to_groups[Find(i)];
       for (int j = bounds[group]; j < bounds[group+1]; ++j)
       {
-	 if (elems[j] == -1)
-	 {
-	    elems[j] = i;
-	    break;
-	 }
+         if (elems[j] == -1)
+         {
+            elems[j] = i;
+            break;
+         }
       }
    }
 
@@ -265,7 +265,7 @@ void DisjointSets::Finalize()
    {
       for (int i = bounds[group]; i < bounds[group+1]; ++i)
       {
-	 elem_to_group[elems[i]] = group;
+         elem_to_group[elems[i]] = group;
       }
    }
 }
@@ -290,15 +290,15 @@ void DisjointSets::Print(std::ostream& out) const
    for (int group = 0; group < bounds.Size()-1; ++group)
    {
       int size = bounds[group+1] - bounds[group];
-      if (size == 1) continue;
+      if (size == 1) { continue; }
 
       bool first_elem = true;
       out << "{";
       for (int k = bounds[group]; k < bounds[group] + size; ++k)
       {
-	 int i = elems[k];
-	 out << (first_elem ? "" : ", ") << i;
-	 first_elem = false;
+         int i = elems[k];
+         out << (first_elem ? "" : ", ") << i;
+         first_elem = false;
       }
       out << "}" << std::endl;
       first_set = false;
@@ -314,7 +314,7 @@ void DisjointSets::RemoveLargerThan(int max)
    for (int i = 0; i < parent.Size(); ++i)
    {
       int j = Find(i);
-      if (size[j] > max) to_make_single.Append(i);
+      if (size[j] > max) { to_make_single.Append(i); }
    }
    MakeSingle(to_make_single);
 }
@@ -327,7 +327,7 @@ void DisjointSets::RemoveSmallerThan(int min)
    for (int i = 0; i < parent.Size(); ++i)
    {
       int j = Find(i);
-      if (size[j] < min) to_make_single.Append(i);
+      if (size[j] < min) { to_make_single.Append(i); }
    }
    MakeSingle(to_make_single);
 }
@@ -345,8 +345,8 @@ void DisjointSets::BreakLargerThan(int max)
       const int size  = bounds[group+1] - lower;
       for (int l = 0; l < size; ++l)
       {
-	 const int i = lower+l;
-	 if (l % max != 0) Union(elems[i], elems[i-l%max]);
+         const int i = lower+l;
+         if (l % max != 0) { Union(elems[i], elems[i-l%max]); }
       }
    }
 }
