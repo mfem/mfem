@@ -2166,9 +2166,6 @@ Poly_1D::~Poly_1D()
    }
 }
 
-Array2D<int> Poly_1D::binom;
-Poly_1D poly1d;
-
 
 TensorBasisElement::TensorBasisElement(const int dims, const int p,
                                        const int btype, const DofMapType dmtype)
