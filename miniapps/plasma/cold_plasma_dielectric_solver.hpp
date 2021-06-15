@@ -115,7 +115,39 @@ public:
    const Array<int> & GetHomogeneousNeumannBDR() const;
    const Array<int> & GetDirichletBDR() const { return dbc_attr; }
 };
-  
+
+/// Coefficient which returns func(kr*x)*exp(-ki*x) where kr and ki are vectors
+class ComplexPhaseCoefficient : public Coefficient
+{
+private:
+   double(*func_)(double);
+   VectorCoefficient * kr_;
+   VectorCoefficient * ki_;
+   mutable Vector krVec_;
+   mutable Vector kiVec_;
+
+public:
+   ComplexPhaseCoefficient(Vector & kr, Vector & ki, double(&func)(double))
+      : func_(&func), kr_(NULL), ki_(NULL), krVec_(kr), kiVec_(ki) {}
+
+   ComplexPhaseCoefficient(VectorCoefficient & kr, VectorCoefficient & ki,
+                           double(&func)(double))
+      : func_(&func), kr_(&kr), ki_(&ki),
+        krVec_(kr.GetVDim()), kiVec_(ki.GetVDim()) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      double x[3];
+      Vector transip(x, 3); transip = 0.0;
+      T.Transform(ip, transip);
+      if (kr_) { kr_->Eval(krVec_, T, ip); }
+      if (ki_) { ki_->Eval(kiVec_, T, ip); }
+      transip.SetSize(krVec_.Size());
+      return (*func_)(krVec_ * transip)*exp(-(kiVec_ * transip));
+   }
+};
+
 class ElectricEnergyDensityCoef : public Coefficient
 {
 public:
