@@ -178,6 +178,26 @@ int FiniteElementSpace::GetElementOrderImpl(int i) const
    return elem_order.Size() ? elem_order[i] : fec->GetOrder();
 }
 
+void FiniteElementSpace::GetVDofs(int vd, Array<int>& dofs, int ndofs) const
+{
+   if (ndofs < 0) { ndofs = this->ndofs; }
+
+   if (ordering == Ordering::byNODES)
+   {
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         dofs[i] = Ordering::Map<Ordering::byNODES>(ndofs, vdim, i, vd);
+      }
+   }
+   else
+   {
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         dofs[i] = Ordering::Map<Ordering::byVDIM>(ndofs, vdim, i, vd);
+      }
+   }
+}
+
 void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs) const
 {
    if (vdim == 1) { return; }
