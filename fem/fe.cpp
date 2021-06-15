@@ -21,8 +21,12 @@ namespace mfem
 
 using namespace std;
 
-
 // Global object definitions
+
+// Static member data declared in fe_base.hpp
+// Defined here to ensure it is constructed before WedgeFE
+Array2D<int> Poly_1D::binom;
+Poly_1D poly1d;
 
 // Object declared in mesh/triangle.hpp.
 // Defined here to ensure it is constructed before 'Geometries'.
