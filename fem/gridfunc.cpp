@@ -350,7 +350,7 @@ int GridFunction::CurlDim() const
    {
       return 2 * fes->GetMesh()->SpaceDimension() - 3;
    }
-   return fes->GetVDim()*fe->GetCDim();
+   return fes->GetVDim()*fe->GetCurlDim();
 }
 
 void GridFunction::GetTrueDofs(Vector &tv) const
@@ -1526,7 +1526,7 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
             fes->GetElementDofs(elNo, dofs);
             Vector loc_data;
             GetSubVector(dofs, loc_data);
-            DenseMatrix curl_shape(fe->GetDof(), fe->GetCDim());
+            DenseMatrix curl_shape(fe->GetDof(), fe->GetCurlDim());
             fe->CalcPhysCurlShape(T, curl_shape);
             curl_shape.MultTranspose(loc_data, curl);
          }

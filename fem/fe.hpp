@@ -324,7 +324,7 @@ public:
    int GetVDim() const { return vdim; }
 
    /// Returns the dimension of the curl for vector-valued finite elements
-   int GetCDim() const { return cdim; }
+   int GetCurlDim() const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element
    Geometry::Type GetGeomType() const { return geom_type; }
