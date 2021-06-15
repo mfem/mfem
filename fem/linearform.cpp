@@ -137,7 +137,7 @@ void LinearForm::Assemble()
                doftrans = fes -> GetElementVDofs (i, vdofs);
                eltrans = fes -> GetElementTransformation (i);
                dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans,
-					       elemvect);
+                                               elemvect);
                if (doftrans)
                {
                   elemvect_t.SetSize(elemvect.Size());
@@ -147,8 +147,8 @@ void LinearForm::Assemble()
                else
                {
                   AddElementVector (vdofs, elemvect);
-	       }
-	    }
+               }
+            }
          }
       }
    }
