@@ -226,6 +226,8 @@ Version 4.2.1 (development)
 
 - Added makefile rule to generate TAGS table for vi or Emacs users.
 
+API changes
+-----------
 - Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
   and `L2FaceRestriction`.
   In order to conform with the semantic of `MultTranspose` in `mfem::Operator`,
