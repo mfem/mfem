@@ -3946,12 +3946,21 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
       ierr = SNESLineSearchSetType(ls, SNESLINESEARCHBT); PCHKERRQ(snes,ierr);
    }
 
+   // If we do not pass matrices in, the default matrix type for DMShell is MATDENSE
+   // in 3.15, which may cause issues.
+   Mat dummy;
+   ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)snes),op.Height(),
+                                op.Height(),&dummy);
+
    __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
    snes_ctx->op = (Operator*)&op;
    ierr = SNESSetFunction(snes, NULL, __mfem_snes_function, (void *)snes_ctx);
    PCHKERRQ(snes, ierr);
-   ierr = SNESSetJacobian(snes, NULL, NULL, __mfem_snes_jacobian,
+   ierr = SNESSetJacobian(snes, dummy, dummy, __mfem_snes_jacobian,
                           (void *)snes_ctx);
+   PCHKERRQ(snes, ierr);
+
+   ierr = MatDestroy(&dummy);
    PCHKERRQ(snes, ierr);
 
    // Update PetscSolver

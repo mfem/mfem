@@ -90,6 +90,11 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
@@ -332,6 +337,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
