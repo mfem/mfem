@@ -1877,7 +1877,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
   DenseMatrix &elmat )
 {
    int nd = el.GetDof();
-   int dimc = el.GetCDim();
+   int dimc = el.GetCurlDim();
    double w;
 
 #ifdef MFEM_THREAD_SAFE
