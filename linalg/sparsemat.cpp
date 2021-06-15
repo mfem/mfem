@@ -57,7 +57,7 @@ void SparseMatrix::ClearCuSparse()
 #ifdef MFEM_USE_CUDA
    if (initBuffers)
    {
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 10010
       cusparseDestroySpMat(matA_descr);
       cusparseDestroyDnVec(vecX_descr);
       cusparseDestroyDnVec(vecY_descr);
@@ -664,7 +664,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Setup descriptors
       if (!initBuffers)
       {
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 10010
          // Setup matrix descriptor
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
                            const_cast<int *>(d_I),
@@ -687,7 +687,12 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
 
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 11020
+      cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
+                              matA_descr,
+                              vecX_descr, &beta, vecY_descr, CUDA_R_64F,
+                              CUSPARSE_SPMV_CSR_ALG1, &newBufferSize);
+#elif CUDA_VERSION >= 10010
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
@@ -702,7 +707,15 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          CuMemAlloc(&dBuffer, bufferSize);
       }
 
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 11020
+      // Update input/output vectors
+      cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
+      cusparseDnVecSetValues(vecY_descr, d_y);
+
+      // Y = alpha A * X + beta * Y
+      cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
+                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_SPMV_CSR_ALG1, dBuffer);
+#elif CUDA_VERSION >= 10010
       // Update input/output vectors
       cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
       cusparseDnVecSetValues(vecY_descr, d_y);

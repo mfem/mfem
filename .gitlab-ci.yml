@@ -40,11 +40,14 @@
 # Directory used to place artifacts.
 
 variables:
-  BUILD_ROOT: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  BUILD_ROOT: ${CI_BUILDS_DIR}/MFEM/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM
   REBASELINE: "NO"
+  AUTOTEST: "NO"
   ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
+  AUTOTEST_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git
   ARTIFACTS_DIR: artifacts
 
 # The pipeline is divided into stages. Usually, these are also synchronization
@@ -64,6 +67,7 @@ stages:
   - c_build_and_test
   - setup
   - baseline_check
+  - baseline_to_autotest
   - baseline_publish
 
 # The setup job in setup stage don't rely on MFEM git repo. It prepares a
@@ -85,6 +89,9 @@ setup:
     - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
     - cd tests && git pull && cd ..
+    - cd ${AUTOTEST_ROOT}
+    - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
+    - cd autotest && git pull && cd ..
   needs: []
 
 .build_toss_3_x86_64_ib_script:
@@ -111,16 +118,10 @@ setup:
 # differentiates between the two tests.
 .baseline_script: &baseline_script |
   # locals
-  _glob_out=${BASELINE_TEST}.out
   _glob_err=${BASELINE_TEST}.err
   _base_diff=${BASELINE_TEST}-${SYS_TYPE}.diff
   _base_patch=${BASELINE_TEST}-${SYS_TYPE}.patch
   _base_out=${BASELINE_TEST}-${SYS_TYPE}.out
-
-  _out=${BASELINE_TEST}-${SYS_TYPE}.out
-  _ref=../${BASELINE_TEST}-${SYS_TYPE}.saved
-  _out_txt=${BASELINE_TEST}.txt
-  _diff=${BASELINE_TEST}-diff.txt
   # prepare
   cd ${BUILD_ROOT}
   ln -snf ${CI_PROJECT_DIR} mfem
@@ -135,7 +136,7 @@ setup:
     echo "ERROR during ${BASELINE_TEST} execution";
     echo "Here is the ${_glob_err} file content";
     cat ${_glob_err}
-    cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}.txt
+    cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}
     exit 1;
   elif [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
   then
@@ -145,18 +146,20 @@ setup:
   elif [[ -f ${_base_patch} ]]
   then
     echo "${BASELINE_TEST}: Differences found, patch generated"
-    cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}.txt
+    cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}
   elif [[ -f ${_base_out} ]]
   then
     echo "${BASELINE_TEST}: Differences found, replacement file generated"
-    cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}.txt
+    cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}
   fi
   # _base_diff won't even exist if there is no difference.
   if [[ -f ${_base_diff} ]]
   then
     echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
     cat ${_base_diff}
-    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.txt
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}
+    # We create a .err file, because that's how we signal that there was a diff.
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/gitlab-${BASELINE_TEST}-${SYS_TYPE}.err
   fi
   if [[ ! -s ${_base_diff} ]]
   then
@@ -195,7 +198,7 @@ setup:
       - ${ARTIFACTS_DIR}
   allow_failure: true
 
-# This job can only be manually triggers on a pipeline for master branch, or if
+# This job can only be manually triggered on a pipeline for master branch, or if
 # the pipeline was triggered with REBASELINE="YES"
 .rebaseline_mfem:
   stage: baseline_publish
@@ -208,19 +211,18 @@ setup:
     - export DIFF_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.diff
     - cd ${BUILD_ROOT}/tests
     - |
-      if [[ ! -f "${DIFF_FILE}.txt" ]]
+      if [[ ! -f "${DIFF_FILE}" ]]
       then
           echo "Nothing to be done: no relevant change in baseline"
           exit 0
-      elif [[ -f "${PATCH_FILE}.txt" ]]
+      elif [[ -f "${PATCH_FILE}" ]]
       then
-          mv ${PATCH_FILE}.txt ${PATCH_FILE}
           patch "./baseline-${SYS_TYPE}.saved" < "${PATCH_FILE}"
-      elif [[ -f "${FULL_FILE}.txt" ]]
+      elif [[ -f "${FULL_FILE}t" ]]
       then
-          cp "${FULL_FILE}.txt" "./baseline-${SYS_TYPE}.saved"
+          cp "${FULL_FILE}" "./baseline-${SYS_TYPE}.saved"
       else
-          echo "File missing: expected ${PATCH_FILE}.txt or ${FULL_FILE}.txt"
+          echo "File missing: expected ${PATCH_FILE} or ${FULL_FILE}"
           exit 1
       fi
     - git add baseline-${SYS_TYPE}.saved
