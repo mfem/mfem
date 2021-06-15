@@ -326,6 +326,8 @@ public:
    LumpedIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
+   virtual void SetIntRule(const IntegrationRule *ir);
+
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -344,6 +346,8 @@ public:
    InverseIntegrator(BilinearFormIntegrator *integ, int own_integ = 1)
    { integrator = integ; own_integrator = own_integ; }
 
+   virtual void SetIntRule(const IntegrationRule *ir);
+
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -361,6 +365,8 @@ private:
 
 public:
    SumIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   virtual void SetIntRule(const IntegrationRule *ir);
 
    void AddIntegrator(BilinearFormIntegrator *integ)
    { integrators.Append(integ); }
