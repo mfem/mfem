@@ -252,6 +252,9 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/diffusion
+miniapps/shifted/diffusion.mesh
+miniapps/shifted/diffusion.gf
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
@@ -293,6 +296,8 @@ tests/unit/unit_tests
 tests/unit/punit_tests
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
+tests/unit/tmop_pa_tests_*
+tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 
 # Test script output
