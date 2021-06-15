@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 #include "array.hpp"
 #include "table.hpp"
+#include <unordered_set>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -85,6 +87,53 @@ public:
    void AsTable(Table &t);
 
    ~ListOfIntegerSets();
+};
+
+class DisjointSets
+{
+protected:
+   mutable Array<int> parent;
+   Array<int> size;
+
+   bool finalized;
+   Array<int> bounds;
+   Array<int> elems;
+   Array<int> elem_to_group;
+
+public:
+   /// Merges the sets containing @a i and @a j
+   void Union(int i, int j);
+   /// Find one representative of the set containing @a i
+   int Find(int i) const;
+
+   /// Make all elements in @a to_make_single into singletons
+   void MakeSingle(const Array<int> &to_make_single);
+
+   /// Make all sets larger than @a max into singeltons
+   void RemoveLargerThan(int max);
+
+   /// Make all sets smaller than @a min into singeltons
+   void RemoveSmallerThan(int min);
+
+   /// Break all sets larger than @a max into pieces of size at most @a max
+   void BreakLargerThan(int max);
+
+   /// Finalize the sets
+   void Finalize();
+
+   /// Get total number of elements
+   inline int Size() const { return parent.Size(); }
+
+   /// Getters for finalized data
+   const Array<int> &GetBounds() const;
+   const Array<int> &GetElems() const;
+   inline int Group(int elem) const { MFEM_ASSERT(finalized, "Must be finalized."); return elem_to_group[elem]; }
+
+   /// Creates @a n disjoint singleton sets
+   DisjointSets(int n);
+
+   /// Output sets
+   void Print(std::ostream &out) const;
 };
 
 }

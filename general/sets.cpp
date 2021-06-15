@@ -134,4 +134,221 @@ ListOfIntegerSets::~ListOfIntegerSets()
    }
 }
 
+DisjointSets::DisjointSets(int n)
+   : parent(n), size(n)
+{
+   finalized = false;
+   for (int i = 0; i < n; ++i)
+   {
+      parent[i] = i;
+      size[i] = 1;
+   }
+}
+
+void DisjointSets::Union(int i, int j)
+{
+   finalized = false;
+
+   int i_root = Find(i);
+   int j_root = Find(j);
+
+   if (i_root == j_root) return;
+
+   if (size[i_root] < size[j_root]) std::swap(i_root, j_root);
+
+   parent[j_root] = i_root;
+   size[i_root] += size[j_root];
+}
+
+int DisjointSets::Find(int i) const
+{
+   if (parent[i] != i) parent[i] = Find(parent[i]);
+   return parent[i];
+}
+
+void DisjointSets::MakeSingle(const Array<int> &to_make_single)
+{
+   finalized = false;
+
+   std::unordered_map<int, std::unordered_set<int>> reps_to_sets;
+
+   for (int i = 0; i < parent.Size(); ++i)
+   {
+      int rep = Find(i);
+
+      if (!reps_to_sets.count(rep))
+      {
+	 reps_to_sets[rep] = std::unordered_set<int>();
+      }
+      reps_to_sets[rep].insert(i);
+   }
+
+   for (int j = 0; j < to_make_single.Size(); ++j)
+   {
+      int i = to_make_single[j];
+      int rep = Find(i);
+
+      while (size[rep] != 1)
+      {
+	 if (rep != i)
+	 {
+	    parent[i] = i;
+	    size[i] = 1;
+	    size[rep] -= 1;
+	    reps_to_sets[rep].erase(i);
+	    i = rep;
+	 }
+	 else if (size[i] != 1)
+	 {
+	    reps_to_sets[i].erase(i);
+	    int new_rep = *(reps_to_sets[i].begin());
+	    size[new_rep] = size[i] - 1;
+	    for (int j : reps_to_sets[i])
+	    {
+	       parent[j] = new_rep;
+	    }
+	    parent[i] = i;
+	    size[i] = 1;
+	    reps_to_sets[new_rep] = reps_to_sets[i];
+	    reps_to_sets[i] = std::unordered_set<int>();
+	    reps_to_sets[i].insert(i);
+
+	    i = new_rep;
+	    rep = Find(new_rep);
+	 }
+      }
+   }
+}
+
+void DisjointSets::Finalize()
+{
+   if (finalized) return;
+   finalized = true;
+
+   bounds = Array<int>();
+   elems = Array<int>();
+
+   std::unordered_map<int, int> reps_to_groups;
+   int smallest_unused = 0;
+   elems.SetSize(parent.Size());
+
+   bounds.Append(0);
+   for (int i = 0; i < parent.Size(); ++i)
+   {
+      elems[i] = -1;
+
+      // Assign groups a unique id starting at 0
+      int rep = Find(i);
+      if (reps_to_groups.count(rep)) continue;
+
+      reps_to_groups[rep] = smallest_unused;
+      bounds.Append(bounds.Last() + size[rep]);
+      smallest_unused++;
+   }
+
+   // Assemble the elems array
+   for (int i = 0; i < parent.Size(); ++i)
+   {
+      int group = reps_to_groups[Find(i)];
+      for (int j = bounds[group]; j < bounds[group+1]; ++j)
+      {
+	 if (elems[j] == -1)
+	 {
+	    elems[j] = i;
+	    break;
+	 }
+      }
+   }
+
+   elem_to_group = Array<int>(elems.Size());
+   for (int group = 0; group < bounds.Size()-1; ++group)
+   {
+      for (int i = bounds[group]; i < bounds[group+1]; ++i)
+      {
+	 elem_to_group[elems[i]] = group;
+      }
+   }
+}
+
+const Array<int> &DisjointSets::GetBounds() const
+{
+   MFEM_VERIFY(finalized, "DisjointSets must be finalized");
+   return bounds;
+}
+
+const Array<int> &DisjointSets::GetElems() const
+{
+   MFEM_VERIFY(finalized, "DisjointSets must be finalized");
+   return elems;
+}
+
+void DisjointSets::Print(std::ostream& out) const
+{
+   MFEM_VERIFY(finalized, "DisjointSets must be finalized");
+
+   bool first_set = true;
+   for (int group = 0; group < bounds.Size()-1; ++group)
+   {
+      int size = bounds[group+1] - bounds[group];
+      if (size == 1) continue;
+
+      bool first_elem = true;
+      out << "{";
+      for (int k = bounds[group]; k < bounds[group] + size; ++k)
+      {
+	 int i = elems[k];
+	 out << (first_elem ? "" : ", ") << i;
+	 first_elem = false;
+      }
+      out << "}" << std::endl;
+      first_set = false;
+   }
+   out << std::endl;
+}
+
+void DisjointSets::RemoveLargerThan(int max)
+{
+   finalized = false;
+
+   Array<int> to_make_single;
+   for (int i = 0; i < parent.Size(); ++i)
+   {
+      int j = Find(i);
+      if (size[j] > max) to_make_single.Append(i);
+   }
+   MakeSingle(to_make_single);
+}
+
+void DisjointSets::RemoveSmallerThan(int min)
+{
+   finalized = false;
+
+   Array<int> to_make_single;
+   for (int i = 0; i < parent.Size(); ++i)
+   {
+      int j = Find(i);
+      if (size[j] < min) to_make_single.Append(i);
+   }
+   MakeSingle(to_make_single);
+}
+
+void DisjointSets::BreakLargerThan(int max)
+{
+   Finalize();
+   finalized = false;
+
+   RemoveLargerThan(max);
+
+   for (int group = 0; group < bounds.Size()-1; ++group)
+   {
+      const int lower = bounds[group];
+      const int size  = bounds[group+1] - lower;
+      for (int l = 0; l < size; ++l)
+      {
+	 const int i = lower+l;
+	 if (l % max != 0) Union(elems[i], elems[i-l%max]);
+      }
+   }
+}
+
 }
