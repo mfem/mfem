@@ -13800,9 +13800,9 @@ void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
-   MFEM_ASSERT(JI.Width() == 1 && JI.Height() == 1,
+   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 1,
                "ND_R2D_SegmentElement cannot be embedded in "
-               "2 or 3 dimensional spaces");
+               "1 or 3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
       shape(i, 0) *= JI(0,0);
