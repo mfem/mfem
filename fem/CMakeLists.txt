@@ -42,6 +42,15 @@ set(SRCS
   eltrans.cpp
   estimators.cpp
   fe.cpp
+  fe_base.cpp
+  fe_fixed_order.cpp
+  fe_h1.cpp
+  fe_l2.cpp
+  fe_nd.cpp
+  fe_nurbs.cpp
+  fe_pos.cpp
+  fe_rt.cpp
+  fe_ser.cpp
   fe_coll.cpp
   fespace.cpp
   geom.cpp
@@ -121,6 +130,15 @@ set(HDRS
   eltrans.hpp
   estimators.hpp
   fe.hpp
+  fe_base.hpp
+  fe_fixed_order.hpp
+  fe_h1.hpp
+  fe_l2.hpp
+  fe_nd.hpp
+  fe_nurbs.hpp
+  fe_pos.hpp
+  fe_rt.hpp
+  fe_ser.hpp
   fe_coll.hpp
   fem.hpp
   fespace.hpp
