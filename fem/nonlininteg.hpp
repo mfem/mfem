@@ -38,10 +38,10 @@ protected:
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
        let the integrator choose (when @a ir == NULL). */
-   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    /// Prescribe a fixed IntegrationRule to use.
-   void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
+   void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }

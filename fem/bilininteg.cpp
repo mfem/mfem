@@ -175,6 +175,11 @@ void BilinearFormIntegrator::AssembleFaceVector(
    elmat.Mult(elfun, elvect);
 }
 
+void TransposeIntegrator::SetIntRule(const IntegrationRule *ir)
+{
+   IntRule = ir;
+   bfi->SetIntRule(ir);
+}
 
 void TransposeIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
