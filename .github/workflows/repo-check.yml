@@ -1,0 +1,137 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+name: repo-check
+
+permissions:
+  actions: write
+
+on:
+  push:
+
+jobs:
+  file-headers-check:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.9.0
+      with:
+        access_token: ${{ github.token }}
+    - name: checkout mfem
+      uses: actions/checkout@v2
+      with:
+        path: mfem
+
+    - name: copyright check
+      id: copyright
+      run: |
+        cd mfem
+        if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt
+        then
+          echo "Please update the following files to Copyright (c) 2010-2021:"
+          cat matches.txt
+          exit 1
+        else
+          echo "No outdated copyright found."
+        fi
+      continue-on-error: true
+
+    - name: license check
+      id: license
+      run: |
+        cd mfem
+        if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
+        then
+          echo "Please update the following files to the BSD-3 license:"
+          cat matches.txt
+          exit 1
+        else
+          echo "No GNU GPL license found."
+        fi
+      continue-on-error: true
+
+    - name: release check
+      id: release
+      run: |
+        cd mfem
+        if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
+        then
+          echo "Please update the following files to LLNL-CODE-806117:"
+          cat matches.txt
+          exit 1
+        else
+          echo "No outdated release number found."
+        fi
+      continue-on-error: true
+
+    - name: wrap-up
+      if: steps.copyright.outcome != 'success' || steps.license.outcome != 'success' || steps.release.outcome != 'success'
+      run: |
+        if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
+          echo "copyright check failed, unroll log for details"
+        fi
+        if [[ "${{ steps.license.outcome }}" != "success" ]]; then
+          echo "license check failed, unroll log for details"
+        fi
+        if [[ "${{ steps.release.outcome }}" != "success" ]]; then
+          echo "release check failed, unroll log for details"
+        fi
+        exit 1
+
+  code-style:
+    runs-on: ubuntu-16.04 # needed for astyle 2.05.1
+
+    steps:
+    - name: checkout mfem
+      uses: actions/checkout@v2
+
+    - name: get astyle
+      run: |
+        sudo apt-get install astyle=2.05.1-0ubuntu1
+
+    - name: style check
+      run: |
+        cd tests/scripts
+        ./runtest code-style
+
+  documentation:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: checkout mfem
+      uses: actions/checkout@v2
+
+    - name: get doxygen and graphviz
+      run: |
+        sudo apt-get install doxygen graphviz
+
+    - name: build documentation
+      run: |
+        cd tests/scripts
+        ./runtest documentation
+
+  branch-history:
+    if: github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: checkout mfem
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: branch-history
+      run: |
+        git fetch origin master:master
+        git checkout -b gh-actions-branch-history
+        cd tests/scripts
+        ./runtest branch-history

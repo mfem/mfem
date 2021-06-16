@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -15,131 +15,151 @@
   tags:
     - shell
     - quartz
-  variables:
-    PLAT: quartz
-    MPIEXEC: srun
-    MPIEXEC_NP: "-n"
-    MAKE_PAR: 6
-    BASELINE_PAR: 18
+  rules:
+    # Don’t run quartz jobs if...
+    - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"'
+      when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /update_autotest/ && $AUTOTEST != "YES"'
+      when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /q_report/ && $AUTOTEST != "YES"'
+      when: never
+    # Report success on success status
+    - if: '$CI_JOB_NAME =~ /q_report_success/ && $AUTOTEST == "YES"'
+      when: on_success
+    # Report failure on failure status
+    - if: '$CI_JOB_NAME =~ /q_report_failure/ && $AUTOTEST == "YES"'
+      when: on_failure
+    # Always release resources
+    - if: '$CI_JOB_NAME =~ /release_resources/'
+      when: always
+    # Default is to run if previous stage succeeded
+    - when: on_success
 
 # Allocate
-allocate_quartz:
+q_allocate_resources:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: allocate
+  stage: q_allocate_resources
   script:
-    - |
-      if [[ "${MPIEXEC}" == "srun" ]]
-      then
-      salloc --nodes=1 --extra-node-info=2:18:1 --partition=pdebug --time=30 --no-shell --job-name=${MFEM_ALLOC_NAME}
-      fi
+    - salloc --exclusive --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
 
 # Release
-deallocate_quartz:
+q_release_resources:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: deallocate
+  stage: q_release_resources
   script:
-    - |
-      if [[ "${MPIEXEC}" == "srun" ]]
-      then
-      export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-      ([[ -n "${JOB_ID}" ]] && scancel ${JOB_ID})
-      fi
-  when: always
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
 
-# Build external libraries (tpls)
-build_hypre_gcc_6_1_0_quartz:
-  extends: [.build_hypre, .with_gcc_6_1_0, .on_quartz]
-
-build_parmetis_gcc_6_1_0_quartz:
-  extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
+# Release
+q_report_success:
   variables:
-    METIS: parmetis
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Can only run if all the quartz jobs passed"
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - mkdir -p ${rundir}
+    - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
 
-build_metis4_gcc_6_1_0_quartz:
-  extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
+q_report_failure:
   variables:
-    METIS: metis4
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Runs if there was at least one failure on quartz"
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - mkdir -p ${rundir}
+    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
 
-build_metis5_gcc_6_1_0_quartz:
-  extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
-  variables:
-    METIS: metis5
-  allow_failure: true
+# Spack helped builds
+# Generic quartz build job, extending build script
+.build_and_test_on_quartz:
+  extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
+  stage: q_build_and_test
 
 # Build MFEM
-build_mfem_debug_ser_gcc_4_9_3_quartz:
-  extends: [.build_mfem, .with_gcc_4_9_3, .on_quartz]
+debug_ser_gcc_4_9_3:
   variables:
-    MFEM_DEBUG: "YES"
-    MFEM_USE_MPI: "NO"
+    SPEC: "%gcc@4.9.3 +debug~mpi"
+  extends: .build_and_test_on_quartz
 
-build_mfem_debug_ser_gcc_6_1_0_quartz:
-  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+debug_ser_gcc_6_1_0:
   variables:
-    MFEM_DEBUG: "YES"
-    MFEM_USE_MPI: "NO"
+    SPEC: "%gcc@6.1.0 +debug~mpi"
+  extends: .build_and_test_on_quartz
 
-build_mfem_debug_par_gcc_6_1_0_quartz:
-  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+debug_par_gcc_6_1_0:
   variables:
-    MFEM_DEBUG: "YES"
-    MFEM_USE_MPI: "YES"
-  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz]
+    SPEC: "%gcc@6.1.0 +debug+mpi"
+  extends: .build_and_test_on_quartz
 
-build_mfem_opt_ser_gcc_6_1_0_quartz:
-  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+opt_ser_gcc_6_1_0:
   variables:
-    MFEM_DEBUG: "NO"
-    MFEM_USE_MPI: "NO"
+    SPEC: "%gcc@6.1.0 ~mpi"
+  extends: .build_and_test_on_quartz
 
-build_mfem_opt_par_gcc_6_1_0_quartz:
-  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+opt_par_gcc_6_1_0:
   variables:
-    MFEM_DEBUG: "NO"
-    MFEM_USE_MPI: "YES"
-  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz]
+    SPEC: "%gcc@6.1.0"
+  extends: .build_and_test_on_quartz
 
-### Tests
-
-# Sanity check
-sanitycheck_mfem_debug_ser_gcc_4_9_3_quartz:
-  extends: [.sanitycheck_mfem, .with_gcc_4_9_3, .on_quartz]
+opt_par_gcc_6_1_0_sundials:
   variables:
-    MFEM_DEBUG: "YES"
-    MFEM_USE_MPI: "NO"
-  needs: [build_mfem_debug_ser_gcc_4_9_3_quartz, allocate_quartz]
+    SPEC: "%gcc@6.1.0 +sundials"
+  extends: .build_and_test_on_quartz
 
-sanitycheck_mfem_debug_ser_gcc_6_1_0_quartz:
-  extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
+opt_par_gcc_6_1_0_petsc:
   variables:
-    MFEM_DEBUG: "YES"
-    MFEM_USE_MPI: "NO"
-  needs: [build_mfem_debug_ser_gcc_6_1_0_quartz, allocate_quartz]
+    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps"
+  extends: .build_and_test_on_quartz
 
-sanitycheck_opt_ser_mfem_gcc_6_1_0_quartz:
-  extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
+opt_par_gcc_6_1_0_pumi:
   variables:
-    MFEM_DEBUG: "NO"
-    MFEM_USE_MPI: "NO"
-  needs: [build_mfem_opt_ser_gcc_6_1_0_quartz, allocate_quartz]
-
-sanitycheck_opt_par_mfem_gcc_6_1_0_quartz:
-  extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
-  variables:
-    MFEM_DEBUG: "NO"
-    MFEM_USE_MPI: "YES"
-  needs: [build_mfem_opt_par_gcc_6_1_0_quartz, allocate_quartz]
+    SPEC: "%gcc@6.1.0 +pumi"
+  extends: .build_and_test_on_quartz
 
 # Baseline
 baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
-  needs: [allocate_quartz]
+  needs: [setup]
+
+update_autotest:
+  extends: [.on_quartz]
+  needs: [baselinecheck_mfem_intel_quartz]
+  stage: baseline_to_autotest
+  script:
+    - rundir="quartz/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - mkdir -p ${rundir}
+    - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
+    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
+    - |
+      if [[ -f ${rundir}/*.err ]]
+      then
+        cp ${rundir}/*.err ${rundir}/autotest-email.html
+      fi
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
 
 baselinepublish_mfem_quartz:
-  extends: [.rebaseline_mfem, .on_quartz]
+  extends: [.on_quartz, .rebaseline_mfem]
   needs: [baselinecheck_mfem_intel_quartz]

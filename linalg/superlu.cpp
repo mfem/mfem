@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,9 +24,9 @@
 #error "SuperLUDist has been built with 64bit integers. This is not supported"
 #endif
 
-// For now, it is assumed that HYPRE_Int is int.
-#ifdef HYPRE_BIGINT
-#error "SuperLUDist support requires HYPRE_Int == int, for now."
+// For now, it is assumed that HYPRE_BigInt is int.
+#if defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT)
+#error "SuperLUDist support requires HYPRE_BigInt == int, for now."
 #endif
 
 #if SUPERLU_DIST_MAJOR_VERSION > 6 ||                                   \
@@ -152,7 +152,7 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
-   // For now, this method assumes that HYPRE_Int is int. Also, csr_op->num_cols
+   // For now, this method assumes that HYPRE_BigInt is int. Also, csr_op->num_cols
    // is of type HYPRE_Int, so if we want to check for big indices in
    // csr_op->big_j, we'll have to check all entries and that check will only be
    // necessary in HYPRE_MIXEDINT mode which is not supported at the moment.
@@ -523,9 +523,10 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    // SuperLU overwrites x with y, so copy x to y and pass that to the solve
    // routine.
 
-   y = x;
+   const double *xPtr = x.HostRead();
+   y = xPtr;
+   double * yPtr = y.HostReadWrite();
 
-   double*  yPtr = (double*)y;
    int      info = -1, locSize = y.Size();
 
    // Solve the system

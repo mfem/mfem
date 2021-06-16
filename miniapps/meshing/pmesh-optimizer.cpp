@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,10 @@
 //
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//   Adapted discrete size 3D with PA:
+//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
+//   Adapted discrete size 3D with PA on device (requires CUDA).
+//   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
@@ -61,15 +65,15 @@
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //   Blade shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 200 -bnd -qt 1 -qo 8 -fd
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 200 -bnd -qt 1 -qo 8 -lc 5000
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -qo 5
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
 //   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
@@ -121,6 +125,7 @@ int main (int argc, char *argv[])
    int solver_type       = 0;
    int solver_iter       = 20;
    double solver_rtol    = 1e-10;
+   int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -131,6 +136,8 @@ int main (int argc, char *argv[])
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
+   const char *devopt    = "cpu";
+   bool pa               = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -201,12 +208,17 @@ int main (int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
+   args.AddOption(&solver_art_type, "-art", "--adaptive-rel-tol",
+                  "Type of adaptive relative linear solver tolerance:\n\t"
+                  "0: None (default)\n\t"
+                  "1: Eisenstat-Walker type 1\n\t"
+                  "2: Eisenstat-Walker type 2");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver:\n\t"
                   "0: l1-Jacobi\n\t"
                   "1: CG\n\t"
                   "2: MINRES\n\t"
-                  "3: MINRES + Jacobi preconditioner"
+                  "3: MINRES + Jacobi preconditioner\n\t"
                   "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
@@ -214,7 +226,7 @@ int main (int argc, char *argv[])
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
    args.AddOption(&combomet, "-cmb", "--combo-type",
-                  "Combination of metrics options:"
+                  "Combination of metrics options:\n\t"
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
@@ -234,6 +246,10 @@ int main (int argc, char *argv[])
                   "Set the verbosity level - 0, 1, or 2.");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
+   args.AddOption(&devopt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -241,6 +257,9 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   Device device(devopt);
+   if (myid == 0) { device.Print();}
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -326,6 +345,7 @@ int main (int argc, char *argv[])
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
+   rdm.HostReadWrite();
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < pfespace->GetNDofs(); i++)
    {
@@ -411,6 +431,9 @@ int main (int argc, char *argv[])
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    ParGridFunction aspr3d(&ind_fesv);
 
+   const AssemblyLevel al =
+      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
+
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -425,13 +448,13 @@ int main (int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 5:
+      case 5: // Discrete size 2D or 3D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -441,8 +464,16 @@ int main (int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         FunctionCoefficient ind_coeff(discrete_size_2d);
-         size.ProjectCoefficient(ind_coeff);
+         if (dim == 2)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_2d);
+            size.ProjectCoefficient(ind_coeff);
+         }
+         else if (dim == 3)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_3d);
+            size.ProjectCoefficient(ind_coeff);
+         }
          tc->SetParDiscreteTargetSize(size);
          target_c = tc;
          break;
@@ -457,7 +488,7 @@ int main (int argc, char *argv[])
          disc.ProjectCoefficient(ind_coeff);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -548,13 +579,13 @@ int main (int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 7: // aspect-ratio 3D
+      case 7: // Discrete aspect ratio 3D
       {
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -576,7 +607,7 @@ int main (int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -619,7 +650,14 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
-   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
+
+   // Finite differences for computations of derivatives.
+   if (fdscheme)
+   {
+      MFEM_VERIFY(pa == false, "PA for finite differences is not implemented.");
+
+      he_nlf_integ->EnableFiniteDifferences(x);
+   }
    he_nlf_integ->SetExactActionFlag(exactaction);
 
    // Setup the quadrature rules for the TMOP integrator.
@@ -655,7 +693,8 @@ int main (int argc, char *argv[])
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   ParGridFunction dist(pfespace);
+   ParFiniteElementSpace dist_pfespace(pmesh, fec); // scalar space
+   ParGridFunction dist(&dist_pfespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
@@ -668,10 +707,12 @@ int main (int argc, char *argv[])
    AdaptivityEvaluator *adapt_evaluator = NULL;
    if (adapt_lim_const > 0.0)
    {
+      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
+
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta_0.ProjectCoefficient(alim_coeff);
 
-      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
+      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG(al); }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
@@ -698,6 +739,7 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
@@ -736,6 +778,8 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(combo);
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
+
+   if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
@@ -870,10 +914,18 @@ int main (int argc, char *argv[])
       else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
       if (lin_solver == 3 || lin_solver == 4)
       {
-         HypreSmoother *hs = new HypreSmoother;
-         hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                     : HypreSmoother::l1Jacobi, 1);
-         S_prec = hs;
+         if (pa)
+         {
+            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
+            S_prec = new OperatorJacobiSmoother;
+         }
+         else
+         {
+            HypreSmoother *hs = new HypreSmoother;
+            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                        : HypreSmoother::l1Jacobi, 1);
+            S_prec = hs;
+         }
          minres->SetPreconditioner(*S_prec);
       }
       S = minres;
@@ -895,6 +947,10 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
+   if (solver_art_type > 0)
+   {
+      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+   }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
    solver.Mult(b, x.GetTrueVector());
@@ -973,8 +1029,8 @@ int main (int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   delete S_prec;
    delete S;
+   delete S_prec;
    delete target_c2;
    delete metric2;
    delete coeff1;

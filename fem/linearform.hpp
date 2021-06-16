@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,11 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> dlfi;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>           dlfi_marker;
 
    /// Separate array for integrators with delta function coefficients.
    Array<DeltaLFIntegrator*> dlfi_delta;
@@ -43,6 +48,9 @@ protected:
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker; ///< Entries are not owned.
+
+   /// Set of Internal Face Integrators to be applied.
+   Array<LinearFormIntegrator*> iflfi;
 
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
@@ -109,6 +117,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a lfi.
    void AddDomainIntegrator(LinearFormIntegrator *lfi);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a lfi.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi);
@@ -131,6 +143,9 @@ public:
        internally as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
+
+   /// Adds new Interior Face Integrator. Assumes ownership of @a lfi.
+   void AddInteriorFaceIntegrator(LinearFormIntegrator *lfi);
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
