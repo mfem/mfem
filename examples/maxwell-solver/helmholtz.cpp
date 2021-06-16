@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 2;
+   int nrlayers = 7;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -232,25 +232,25 @@ int main(int argc, char *argv[])
    cout << "Size of fine grid system: "
          << A->Height() << " x " << A->Width() << endl;
 
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
-   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
-   chrono.Stop();
-   cout << "Construction time: " << chrono.RealTime() << endl; 
+   // StopWatch chrono;
+   // chrono.Clear();
+   // chrono.Start();
+   // DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+   // chrono.Stop();
+   // cout << "Construction time: " << chrono.RealTime() << endl; 
 
 
-   chrono.Clear();
-   chrono.Start();
-   X = 0.0;
-	GMRESSolver gmres;
-	// gmres.iterative_mode = true;
-   gmres.SetPreconditioner(S);
-	gmres.SetOperator(*AZ);
-	gmres.SetRelTol(1e-6);
-	gmres.SetMaxIter(20);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
+   // chrono.Clear();
+   // chrono.Start();
+   // X = 0.0;
+	// GMRESSolver gmres;
+	// // gmres.iterative_mode = true;
+   // gmres.SetPreconditioner(S);
+	// gmres.SetOperator(*AZ);
+	// gmres.SetRelTol(1e-6);
+	// gmres.SetMaxIter(20);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
 
 
    // DST2D S2D(&a,lengths, omega, &ws, nrlayers);
@@ -258,8 +258,8 @@ int main(int argc, char *argv[])
 	// gmres.SetPreconditioner(S2D);
 	// gmres.Mult(B, X);
 
-   chrono.Stop();
-   cout << "GMRES time: " << chrono.RealTime() << endl; 
+   // chrono.Stop();
+   // cout << "GMRES time: " << chrono.RealTime() << endl; 
 
    // X = 0.0;
    // SLISolver sli;
@@ -319,21 +319,22 @@ int main(int argc, char *argv[])
    // chrono.Stop();
    // cout << "Solver time: " << chrono.RealTime() << endl; 
 
-   a.RecoverFEMSolution(X,B,p_gf);
+   // a.RecoverFEMSolution(X,B,p_gf);
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
    ComplexUMFPackSolver csolver;
    csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    csolver.SetOperator(*AZ);
    Vector X1(X.Size());
-   csolver.Mult(B,X1);
-   chrono.Stop();
-   cout << "UMFPack time: " << chrono.RealTime() << endl; 
+   csolver.Mult(B,X);
+   // chrono.Stop();
+   // cout << "UMFPack time: " << chrono.RealTime() << endl; 
    // X1-= X;
 
    // ComplexGridFunction error_gf(fespace);
 
+   a.RecoverFEMSolution(X,B,p_gf);
    // a.RecoverFEMSolution(X1,B,error_gf);
 
 
@@ -381,10 +382,10 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.25;
+   x0 = 0.1;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.25;
+   x1 = 0.35;
    x2 = 0.25;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
@@ -402,16 +403,16 @@ double f_exact_Re(const Vector &x)
    // x0 = 0.85;
    // x1 = 0.15;
    // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   // if (dim == 3) { beta += pow(x2-x(2),2); }
+   // // if (dim == 3) { beta += pow(x2-x(2),2); }
    // alpha = -pow(n,2) * beta;
    // f_re += coeff*exp(alpha);
 
    x0 = 0.8;
-   x1 = 0.4;
+   x1 = 0.7;
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
-   // f_re += coeff*exp(alpha);
+   f_re += coeff*exp(alpha);
 
    bool in_pml = false;
    for (int i = 0; i<dim; i++)
@@ -483,26 +484,26 @@ double wavespeed(const Vector &x)
    //    // ws = 0.5;
    // }
 
-   // if (x(0) <= x(1) && x(1) >= 1.0-x(0))
-   // {
-   //    ws = 1.0;
-   // }
-   // else if (x(0) > x(1) && x(1) >= 1.0-x(0))
-   // {
-   //    ws = 3.0;
-   // }
-   // else if (x(0) <= x(1) && x(1) < 1.0-x(0))
-   // {
-   //    ws = 2.0;
-   // }
-   // else
-   // {
-   //    ws = 4.0;
-   // }
+   if (x(0) <= x(1) && x(1) >= 1.0-x(0))
+   {
+      ws = 1.0;
+   }
+   else if (x(0) > x(1) && x(1) >= 1.0-x(0))
+   {
+      ws = 3.0;
+   }
+   else if (x(0) <= x(1) && x(1) < 1.0-x(0))
+   {
+      ws = 2.0;
+   }
+   else
+   {
+      ws = 4.0;
+   }
    
 
 
-   ws = 1.0;
+   // ws = 1.0;
    return ws;
 }
 

@@ -189,14 +189,14 @@ int main(int argc, char *argv[])
 
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 3;
+   int nrlayers = 14;
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
    // lengths[1][1] = 0.0;
    // lengths[1][0] = 0.0;
-   // lengths[0][0] = 0.0;
+   lengths[0][0] = 0.0;
    // CartesianPML pml(mesh,lengths);
    CartesianPML pml(pmesh,lengths);
    pml.SetOmega(omega);
@@ -405,7 +405,44 @@ int main(int argc, char *argv[])
          sol_sock_im.precision(8);
          sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
                      << "solution\n" << *pmesh << p_gf.imag() << keys 
-                     << "window_title 'Numerical Pressure: Imag Part' " << flush;                     
+                     << "window_title 'Numerical Pressure: Imag Part' " << flush;     
+
+      int num_frames = 16;
+      int i = 0;
+      GridFunction x_t(fespace);
+      x_t = p_gf.real();
+      ParaViewDataCollection * pd = new ParaViewDataCollection("helmholtz_var_ws16", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("solution", &x_t);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+
+
+      // while (sol_sock)
+      // {
+      for (int i = 1; i<num_frames; i++)
+      {   
+         cout << i << endl;
+         double t = (double)(i % num_frames) / num_frames;
+         // ostringstream oss;
+         // oss << "Harmonic Solution (t = " << t << " T)";
+
+         add(cos(2.0 * M_PI * t), p_gf.real(),
+             sin(2.0 * M_PI * t), p_gf.imag(), x_t);
+         // sol_sock << "solution\n"
+         //          << *mesh << x_t
+         //          << "window_title '" << oss.str() << "'" << flush;
+         // i++;
+
+         pd->SetCycle(i);
+         pd->SetTime((double)i);
+         pd->Save();
+      }               
+
       }
    }
 
@@ -463,7 +500,8 @@ double f_exact_Re(const Vector &x)
    Vector x0(nrsources);
    Vector y0(nrsources);
    Vector z0(nrsources);
-   x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
+   // x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
+   x0(0) = 0.5; y0(0) = 0.45; z0(0) = 0.25;
    // x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
    // x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
    // x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
@@ -513,6 +551,72 @@ double wavespeed(const Vector &x)
 {
    double ws;
    ws = 1.0;
+   // if (x(0) <= 0.25)
+   // {
+   //    ws = 1.0;
+   // }
+   // else if(x(0)<=0.5)
+   // {
+   //    ws = 1.0;
+   // }
+   // else if(x(0)<=0.75)
+   // {
+   //    ws = 0.75;
+   //    // ws = 0.5;
+   // }
+   // else 
+   // {
+   //    ws = 0.75;
+   //    // ws = 1.0;
+   // }
+
+   if (x(0) <= 0.33)
+   {
+      ws = 1.0;
+   }
+   else if(x(0)<=0.66)
+   {
+      ws = -0.65 + 5.0*x(0);
+   }
+   else 
+   {
+      ws = 2.65;
+      // ws = 0.5;
+   }
+
+
+   if (x(0) <= x(1) && x(1) >= 1.0-x(0))
+   {
+      ws = 5.0;
+   }
+   else if (x(0) > x(1) && x(1) >= 1.0-x(0))
+   {
+      ws = 3.0;
+   }
+   else if (x(0) <= x(1) && x(1) < 1.0-x(0))
+   {
+      ws = 2.0;
+   }
+   else
+   {
+      ws = 4.0;
+   }
+
+   // if (x(1) <= 1.0/3.0)
+   // {
+   //    ws = 2.0;
+   // }
+   // else if(x(1)<=2.0/3.0)
+   // {
+   //    ws = 1.0;
+   // }
+   // else 
+   // {
+   //    // ws = 0.75;
+   //    ws = 0.25;
+   // }
+
+
    return ws;
 }
 

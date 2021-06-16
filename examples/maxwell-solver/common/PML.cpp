@@ -383,8 +383,8 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
          double r_y = y / r;
 
          J(0,0) = 1.0 + zi * coeff * abs(f_r*r_x);
-         J(0,1) = zi * f_r * r_y;
-         J(1,0) = zi * f_r * r_x;
+         // J(0,1) = zi * f_r * r_y;
+         // J(1,0) = zi * f_r * r_x;
          J(1,1) = 1.0 + zi * coeff * abs(f_r*r_y);
       }
    }

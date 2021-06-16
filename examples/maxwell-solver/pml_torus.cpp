@@ -43,30 +43,30 @@ public:
    }
 };
 
-class PMLMatrixCoefficient : public MatrixCoefficient
-{
-private:
-   ToroidPML * pml = nullptr;
-   void (*Function)(const Vector &, ToroidPML * , DenseMatrix &);
-public:
-   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, ToroidPML *,
-                                              DenseMatrix &),
-                            ToroidPML * pml_)
-      : MatrixCoefficient(dim), pml(pml_), Function(F)
-   {}
+// class PMLMatrixCoefficient : public MatrixCoefficient
+// {
+// private:
+//    ToroidPML * pml = nullptr;
+//    void (*Function)(const Vector &, ToroidPML * , DenseMatrix &);
+// public:
+//    PMLMatrixCoefficient(int dim, void(*F)(const Vector &, ToroidPML *,
+//                                               DenseMatrix &),
+//                             ToroidPML * pml_)
+//       : MatrixCoefficient(dim), pml(pml_), Function(F)
+//    {}
 
-   using MatrixCoefficient::Eval;
+//    using MatrixCoefficient::Eval;
 
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      double x[3];
-      Vector transip(x, 3);
-      T.Transform(ip, transip);
-      M.SetSize(height,width);
-      (*Function)(transip, pml, M);
-   }
-};
+//    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+//                      const IntegrationPoint &ip)
+//    {
+//       double x[3];
+//       Vector transip(x, 3);
+//       T.Transform(ip, transip);
+//       M.SetSize(height,width);
+//       (*Function)(transip, pml, M);
+//    }
+// };
 
 
 void E_bdr_data_Re(const Vector &x, Vector &E);
@@ -88,10 +88,10 @@ void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, Vector &D);
 void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, Vector &D);
 
 
-void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
-void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
-void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
-void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+// void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+// void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+// void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+// void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
 
 
 
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
       break;// degrees 
       case 3: 
       {
-         rpml_thickness[1] = 0.3; 
+         rpml_thickness[1] = 0.5; 
          rstretch = true;
       }
       break;
@@ -381,18 +381,37 @@ int main(int argc, char *argv[])
            << " Press space (in the GLVis window) to resume it.\n";
       int num_frames = 16;
       int i = 0;
-      while (sol_sock)
-      {
+
+      ParaViewDataCollection * pd = new ParaViewDataCollection("PML_circle16", mesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("solution", &x_t);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+
+
+      // while (sol_sock)
+      // {
+      for (int i = 1; i<num_frames; i++)
+      {   
+         cout << i << endl;
          double t = (double)(i % num_frames) / num_frames;
-         ostringstream oss;
-         oss << "Harmonic Solution (t = " << t << " T)";
+         // ostringstream oss;
+         // oss << "Harmonic Solution (t = " << t << " T)";
 
          add(cos(2.0 * M_PI * t), x.real(),
              sin(2.0 * M_PI * t), x.imag(), x_t);
-         sol_sock << "solution\n"
-                  << *mesh << x_t
-                  << "window_title '" << oss.str() << "'" << flush;
-         i++;
+         // sol_sock << "solution\n"
+         //          << *mesh << x_t
+         //          << "window_title '" << oss.str() << "'" << flush;
+         // i++;
+
+         pd->SetCycle(i);
+         pd->SetTime((double)i);
+         pd->Save();
       }
    }
 
@@ -759,62 +778,62 @@ void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, Vector &D)
 
 //-----------------------------------------------------------------
 
-void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   ComplexDenseMatrix JtJ(dim);
-   MultAtB(J,J,JtJ);
-   ComplexDenseMatrixInverse InvJtJ(JtJ);
-   InvJtJ *=det;
-   InvJtJ.GetReal(M);
-}
+// void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
+// {
+//    ComplexDenseMatrix J(dim);
+//    pml->StretchFunction(x,J,omega);
+//    complex<double> det = J.Det();
+//    ComplexDenseMatrix JtJ(dim);
+//    MultAtB(J,J,JtJ);
+//    ComplexDenseMatrixInverse InvJtJ(JtJ);
+//    InvJtJ *=det;
+//    InvJtJ.GetReal(M);
+// }
 
-void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   ComplexDenseMatrix JtJ(dim);
-   MultAtB(J,J,JtJ);
-   ComplexDenseMatrixInverse InvJtJ(JtJ);
-   InvJtJ *=det;
-   InvJtJ.GetImag(M);
-}
+// void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
+// {
+//    ComplexDenseMatrix J(dim);
+//    pml->StretchFunction(x,J,omega);
+//    complex<double> det = J.Det();
+//    ComplexDenseMatrix JtJ(dim);
+//    MultAtB(J,J,JtJ);
+//    ComplexDenseMatrixInverse InvJtJ(JtJ);
+//    InvJtJ *=det;
+//    InvJtJ.GetImag(M);
+// }
 
-void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   if (dim == 2)
-   {
-      M = (1.0 / det).real();
-   }
-   else
-   {
-      ComplexDenseMatrix JtJ(dim);
-      MultAtB(J,J,JtJ);
-      JtJ *= 1.0/det;
-      JtJ.GetReal(M);
-   }
-}
+// void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
+// {
+//    ComplexDenseMatrix J(dim);
+//    pml->StretchFunction(x,J,omega);
+//    complex<double> det = J.Det();
+//    if (dim == 2)
+//    {
+//       M = (1.0 / det).real();
+//    }
+//    else
+//    {
+//       ComplexDenseMatrix JtJ(dim);
+//       MultAtB(J,J,JtJ);
+//       JtJ *= 1.0/det;
+//       JtJ.GetReal(M);
+//    }
+// }
 
-void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   if (dim == 2)
-   {
-      M = (1.0 / det).imag();
-   }
-   else
-   {
-      ComplexDenseMatrix JtJ(dim);
-      MultAtB(J,J,JtJ);
-      JtJ *= 1.0/det;
-      JtJ.GetImag(M);
-   }
-}
+// void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
+// {
+//    ComplexDenseMatrix J(dim);
+//    pml->StretchFunction(x,J,omega);
+//    complex<double> det = J.Det();
+//    if (dim == 2)
+//    {
+//       M = (1.0 / det).imag();
+//    }
+//    else
+//    {
+//       ComplexDenseMatrix JtJ(dim);
+//       MultAtB(J,J,JtJ);
+//       JtJ *= 1.0/det;
+//       JtJ.GetImag(M);
+//    }
+// }

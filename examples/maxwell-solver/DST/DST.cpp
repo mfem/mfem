@@ -105,7 +105,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
 void DST::Mult(const Vector &r, Vector &z) const
 {
-
+   char vishost[] = "localhost";
+   int visport = 19916;
+   socketstream sol_sock(vishost, visport);
    for (int ip=0; ip<nrpatch; ip++)
    {
       *f_orig[ip] = 0.0;
@@ -170,6 +172,8 @@ void DST::Mult(const Vector &r, Vector &z) const
             TransferSources(l,ip, sol_local);
             z.AddElementVector(*Dof2GlobalDof, sol_local);
          }
+         PlotSolution(z,sol_sock,0,false);
+         cin.get();
       }
    }
 }
