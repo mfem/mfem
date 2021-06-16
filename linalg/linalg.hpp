@@ -31,6 +31,7 @@
 #include "invariants.hpp"
 #include "constraints.hpp"
 #include "auxiliary.hpp"
+#include "simple_amg.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"

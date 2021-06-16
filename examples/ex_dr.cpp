@@ -109,15 +109,11 @@ int main(int argc, char *argv[])
    int bounds[2];
    if (solver == "boomer-amg")
    {
-#if 0
       A_par = SimpleAMG::ToHypreParMatrix(A.As<SparseMatrix>(), MPI_COMM_WORLD,
                                           bounds);
       auto hamg = new HypreBoomerAMG(*A_par);
       hamg->SetPrintLevel(0);
       prec = hamg;
-#else
-      MFEM_ABORT("SimpleAMG not yet ported");
-#endif
    }
    else if (solver == "direct")
    {
@@ -131,8 +127,8 @@ int main(int argc, char *argv[])
       cg->SetRelTol(1e-20);
       cg->SetMaxIter(2000);
       cg->SetPrintLevel(0);
-      A_par = new HypreParMatrix(MPI_COMM_WORLD, ((SparseMatrix *)A)->Height(),
-                                 bounds, ((SparseMatrix *)A));
+      A_par = SimpleAMG::ToHypreParMatrix((SparseMatrix *) &(*A), MPI_COMM_WORLD,
+                                          bounds);
       prec2 = new HypreBoomerAMG(*A_par);
       cg->SetPreconditioner(*prec2);
       cg->SetOperator(*A_par);
@@ -191,7 +187,6 @@ int main(int argc, char *argv[])
       {
          MFEM_ABORT("Smoother '" << smoother_str << "' not recognized");
       }
-#if 0
       if (solver == "two-level")
       {
          prec = new SimpleAMG(A.As<SparseMatrix>(), smoother, MPI_COMM_WORLD);
@@ -200,16 +195,14 @@ int main(int argc, char *argv[])
       {
          prec = new SimpleAMG(A.As<SparseMatrix>(), smoother, MPI_COMM_WORLD, false);
       }
+      else if (solver == "smoother")
+      {
+         prec = smoother;
+      }
       else
-#endif
-         if (solver == "smoother")
-         {
-            prec = smoother;
-         }
-         else
-         {
-            MFEM_ABORT("Solver type '" << solver << "' not recognized");
-         }
+      {
+         MFEM_ABORT("Solver type '" << solver << "' not recognized");
+      }
    }
    chrono.Stop();
    cout << "Setup time = " << chrono.RealTime() << endl;
@@ -222,6 +215,9 @@ int main(int argc, char *argv[])
    BilinearForm *ho_a = NULL;
    if (pa)
    {
+#if 1
+
+#else
       // Solve using the high-order operator
       ho_fec = new H1_FECollection(order, dim);
       ho_fes = new FiniteElementSpace(ho_mesh, ho_fec);
@@ -232,6 +228,7 @@ int main(int argc, char *argv[])
       ho_a->Assemble();
 
       ho_a->FormSystemMatrix(ess_tdof_list, op);
+#endif
    }
    else
    {
@@ -241,7 +238,7 @@ int main(int argc, char *argv[])
    B.Randomize(1234);
    X = 0.0;
    chrono.Start();
-   PCG(*A, *prec, B, X, 1, 2000, 1e-16, 0.0);
+   PCG(*op, *prec, B, X, 1, 2000, 1e-16, 0.0);
    chrono.Stop();
    cout << "Solve time = " << chrono.RealTime() << endl;
 
