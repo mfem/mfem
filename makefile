@@ -235,7 +235,7 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 
 MFEM_CXX += $(shell /usr/bin/python3-config --includes)
-ALL_LIBS += $(shell /usr/bin/python3-config --ldflags)
+#ALL_LIBS += $(shell /usr/bin/python3-config --ldflags)
 
 # HIP configuration
 ifeq ($(MFEM_USE_HIP),YES)
@@ -313,6 +313,8 @@ endef
 $(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
 $(foreach dep,$(MFEM_LEGACY_DEPENDENCIES),$(eval $(call \
    mfem_add_legacy_dependency,$(dep))))
+
+ALL_LIBS += $(shell /usr/bin/python3-config --ldflags)
 
 # Timer option
 ifeq ($(MFEM_TIMER_TYPE),2)

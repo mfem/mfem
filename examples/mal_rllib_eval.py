@@ -25,9 +25,45 @@ from amr.models.cnn import CNNSmall
 # and observation spaces as used in training. The rest of it can be
 # "fake" if you provide your own observation data some other way.
 
-# USER INPUT
-checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_5b99d_00000_0_2021-06-07_12-12-52/"
+# USER INPUT - solution, 20x20 mesh, sine,tanh,steps,steps2, norm-diff reward with random threshold
+#866764
+#checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_5b99d_00000_0_2021-06-07_12-12-52/"
+#checkpoint_number = 900
+
+# USER INPUT - solution, 20x20 mesh, sine,tanh,steps,steps2, binary reward with random threshold
+#866762
+# checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_8d234_00000_0_2021-06-07_12-07-06/"
+# checkpoint_number = 900
+
+# solution, 20x20, steps2,sine,tanh,bumps,  binary with random
+# 880258 - fixed threshold 1.e-5
+checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_cc8cb_00000_0_2021-06-16_13-38-25"
+checkpoint_number = 1400
+
+# 880259 - random threshold [1.e-2, 1.e-6]
+checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_e1561_00000_0_2021-06-16_13-31-50"
 checkpoint_number = 900
+# with 1.e-3 - the second and third refinements are really good. still more than needed in first
+# with 1.e-2 - picks the right amount of elements.
+
+#880328 - fixed threshold 1.e-2
+#checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_3a8a0_00000_0_2021-06-16_16-18-58"
+#checkpoint_number = 300
+#refines 15 elements at first iteration.. not good with 300.
+
+# solution, 10x10, steps2,sine,tanh,bumps,  binary with random [1.e-2, 1.e-6]
+# slurm-880260.out
+#checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_cc8cb_00000_0_2021-06-16_13-38-25/"
+#checkpoint_number = 1500
+#1.e-3 -> right region but first iteration has too many
+#1.e-2 is almost perfect
+
+
+
+
+#this has the policy without error threshold
+#checkpoint_folder = "/p/lustre1/mittal3/local_deref/PPO/PPO_LocalAMR-v0_c6ca5_00000_0_2021-05-24_16-07-13/"
+
 # END OF USER INPUT
 
 # Read info from json file used for training.
@@ -46,8 +82,10 @@ reward_params = env_trainer_config['env_config']['reward_function_params']
 #set some default params
 observe_error = False
 observe_values = True
+observe_grads = False
 
 #get observing quantities
+observe_values = env_trainer_config['env_config']['observe_values']
 observe_depth = env_trainer_config['env_config']['observe_depth']
 observe_jacobian = env_trainer_config['env_config']['observe_jacobian']
 observe_ar = env_trainer_config['env_config']['observe_ar']
@@ -77,6 +115,7 @@ class DummyEnv(gym.Env):
         n_channels = observe_values + observe_depth + observe_grads
 
         low = -np.inf
+        
         high = np.inf
         self.observation_space = spaces.Dict({
                 "scalar_info": spaces.Box(low=low, high=high, shape=(1 + observe_jacobian + observe_error, ), dtype=np.float32),
@@ -119,11 +158,14 @@ class Evaluator():
         self.env = DummyEnv({})
 
     def eval(self,obso,scalar):
-        obso -= np.mean(obso)
+        if observe_values and normalization:
+            obso -= np.mean(obso)
+        
         obs = {
             "obs_data" : obso,
             "scalar_info" : scalar
-            }   
+            }
+
         pick = self.agent.compute_action(obs, explore=False)
         return pick
 
@@ -138,3 +180,9 @@ class Evaluator():
 
     def get_observe_jacobian(self):
         return observe_jacobian
+
+    def get_observe_values(self):
+        return observe_values
+
+    def get_observe_gradient(self):
+        return observe_grads

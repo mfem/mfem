@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   int jobid = 0;
 
 #ifdef MFEM_USE_RLLIB
    Py_Initialize();
@@ -50,6 +51,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&jobid, "-j", "--jobid",
+                  "slurb_jobid.");
    args.Parse();
    if (!args.Good())
    {
@@ -69,6 +72,8 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
+
+   mesh.SetCurvature(2);
 
    // 4. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
@@ -166,7 +171,7 @@ int main(int argc, char *argv[])
    //DRLRefiner refiner(x);
 #endif
   
-#if 1
+#if 0
    x.ProjectCoefficient(exact);
    refiner.Apply(mesh);
    fespace.Update();
@@ -191,8 +196,8 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 2000;
-   for (int it = 0; ; it++)
+   const int max_dofs = 20000;
+   for (int it = 0; it < 4; it++)
    {
       int cdofs = fespace.GetTrueVSize();
       cout << "\nAMR iteration " << it << endl;
@@ -272,7 +277,6 @@ int main(int argc, char *argv[])
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
 
-      std::cout << " apply refiner\n";
       refiner.Apply(mesh);
       if (refiner.Stop())
       {
@@ -291,6 +295,19 @@ int main(int argc, char *argv[])
       x.Update();
       err.Update();
 
+      {
+         string solname = to_string(jobid) + "_amrsol" + to_string(it) + ".gf";
+         ofstream sol_ofs(solname);
+         x.Save(sol_ofs);
+      }
+
+      {
+         string meshname = to_string(jobid) + "_amr" + to_string(it) + ".mesh";
+         ofstream mesh_ofs(meshname);
+         mesh_ofs.precision(14);
+         mesh.Print(mesh_ofs);
+      }
+
       // 22. Inform also the bilinear and linear forms that the space has
       //     changed.
       a.Update();
@@ -299,7 +316,7 @@ int main(int argc, char *argv[])
 
 
    {
-      ofstream sol_ofs("sol.gf");
+      ofstream sol_ofs("amrsol.gf");
       x.Save(sol_ofs);
    }
 

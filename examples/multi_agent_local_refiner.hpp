@@ -18,6 +18,8 @@ protected:
    int local_context;
    bool observe_jacobian;
    bool observe_error;
+   bool observe_values;
+   bool observe_gradient;
 
    int nc_limit;
 
@@ -26,6 +28,10 @@ protected:
    PyObject* get_local_context_method;
    PyObject* get_observe_error_method;
    PyObject* get_observe_jacobian_method;
+   PyObject* get_observe_values_method;
+   PyObject* get_observe_gradient_method;
+
+   FindPointsGSLIB *gslib;
 
    /** @brief Apply the operator to the mesh.
        @return STOP if a stopping criterion is satisfied or no elements were
@@ -99,6 +105,8 @@ MAL_DRLRefiner::MAL_DRLRefiner(GridFunction& u_) : u(u_)
    get_local_context_method = PyObject_GetAttrString(eval_obj, "get_local_context");
    get_observe_error_method = PyObject_GetAttrString(eval_obj, "get_observe_error");
    get_observe_jacobian_method = PyObject_GetAttrString(eval_obj, "get_observe_jacobian");
+   get_observe_values_method = PyObject_GetAttrString(eval_obj, "get_observe_values");
+   get_observe_gradient_method = PyObject_GetAttrString(eval_obj, "get_observe_gradient");
 
    PyObject* local_sample_p = PyObject_CallFunctionObjArgs(
                               get_local_sample_method, nullptr);
@@ -108,21 +116,65 @@ MAL_DRLRefiner::MAL_DRLRefiner(GridFunction& u_) : u(u_)
                               get_observe_jacobian_method, nullptr);
    PyObject* observe_error_p = PyObject_CallFunctionObjArgs(
                               get_observe_error_method, nullptr);
-                              
+   PyObject* observe_values_p = PyObject_CallFunctionObjArgs(
+                                get_observe_values_method, nullptr);
+   PyObject* observe_gradient_p = PyObject_CallFunctionObjArgs(
+                                  get_observe_gradient_method, nullptr);
+
    PyArg_Parse(local_sample_p, "i", &local_sample);
    PyArg_Parse(local_context_p, "i", &local_context);
-   int observe_jacobian_i, observe_error_i;
+   int observe_jacobian_i, observe_error_i, observe_values_i, observe_gradient_i;
    PyArg_Parse(observe_jacobian_p, "i", &observe_jacobian_i);
    PyArg_Parse(observe_error_p, "i", &observe_error_i);
+   PyArg_Parse(observe_values_p, "i", &observe_values_i);
+   PyArg_Parse(observe_gradient_p, "i", &observe_gradient_i);
+
    observe_jacobian = bool(observe_jacobian_i);
    observe_error = bool(observe_error_i);
+   observe_values = bool(observe_values_i);
+   observe_gradient = bool(observe_gradient_i);
+
+#ifdef MFEM_USE_GSLIB
+   // setup gslib
+   gslib = new FindPointsGSLIB();
+   std::cout << " initialize findpts\n";
+#endif
 }
 
 int MAL_DRLRefiner::ApplyImpl(Mesh &mesh)
 {
+#ifdef MFEM_USE_GSLIB
+   // setup gslib
+   gslib->FreeData();
+   gslib->Setup(mesh);
+#endif
+   double u_min = u.Min();
+   double u_max = u.Max();
+   // u -= u_min;
+   // u /= (u_max-u_min); 
 
    marked_elements.SetSize(0);
    imgsz = local_sample + 2 * local_context;
+
+   GridFunction ugrad(u.FESpace());
+   GridFunction ugradmag(u.FESpace());
+
+   if (observe_gradient) {
+      const int s = ugrad.Size();
+
+      for (int d = 0; d < 2; d++)
+      {
+         u.GetDerivative(1, d, ugrad);
+         for (int i = 0; i < s; i++)
+         {
+            ugradmag(i) += pow(ugrad(i), 2.0);
+         }
+      }
+      for (int i = 0; i < s; i++)
+      {
+         ugradmag(i) = sqrt(ugradmag(i) + 1e-12);
+      }
+   }
       
    for (int k = 0; k < mesh.GetNE(); k++) {
 
@@ -146,7 +198,7 @@ int MAL_DRLRefiner::ApplyImpl(Mesh &mesh)
       }
 
 
-      double error_threshold = 1.0e-5;
+      double error_threshold = 1.0e-2;
       if (observe_jacobian && observe_error) {
          scalar_obs1[1] = mesh.GetElementVolume(k);
          scalar_obs1[2] = error_threshold;
@@ -185,12 +237,22 @@ int MAL_DRLRefiner::ApplyImpl(Mesh &mesh)
       // phys_space -> elements, ips
       Array<int> elems(imgsz*imgsz);
       Array<IntegrationPoint> ips(imgsz*imgsz);
-      int n = mesh.FindPoints(m, elems, ips, false);
+      int n;
+      bool complete;
+      Vector ui;
+      double* obs1 = new double[imgsz*imgsz];
+#ifdef MFEM_USE_GSLIB
+      DenseMatrix mt(imgsz*imgsz, 2);
+      mt.Transpose(m);
+      Vector xyz(mt.GetData(), imgsz*imgsz*2);
+      ui.SetDataAndSize(obs1, imgsz*imgsz);
+      gslib->Interpolate(xyz, u, ui);
+#else
+      n = mesh.FindPoints(m, elems, ips, false);
 
       // Build observation from GridFunction using elements, ips
-      double* obs1 = new double[imgsz*imgsz];
       n = 0;
-      bool complete = true;
+      complete = true;
       for (int j = 0; j < imgsz; ++j) {
          for (int i = 0; i < imgsz; ++i) {
             int el = elems[n];
@@ -200,11 +262,19 @@ int MAL_DRLRefiner::ApplyImpl(Mesh &mesh)
             }
             else {
                IntegrationPoint& ip = ips[n];
-               obs1[i*imgsz+j] = u.GetValue(el, ip);
+               if (observe_gradient) {
+                  //std::cout << i << " " << j << " k10getgradmag\n";
+                  obs1[i*imgsz+j] = ugradmag.GetValue(el, ip);
+                  obs1[i*imgsz+j] = u.GetValue(el, ip);
+               }
+               else {
+                  obs1[i*imgsz+j] = u.GetValue(el, ip);
+               }
             }
             n++;
          }
       }
+#endif
 
       // TODO: More efficient way to do the below mirroring
       // invert i
@@ -296,11 +366,11 @@ int MAL_DRLRefiner::ApplyImpl(Mesh &mesh)
          PyObject* action1 = PyObject_CallFunctionObjArgs(
                      eval_method, pArray1, sArray1, nullptr);
          PyObject* action2 = PyObject_CallFunctionObjArgs(
-            eval_method, pArray2, sArray1, nullptr);
+                     eval_method, pArray2, sArray1, nullptr);
          PyObject* action3 = PyObject_CallFunctionObjArgs(
-            eval_method, pArray3, sArray1, nullptr);
+                     eval_method, pArray3, sArray1, nullptr);
          PyObject* action4 = PyObject_CallFunctionObjArgs(
-            eval_method, pArray4, sArray1, nullptr);
+                     eval_method, pArray4, sArray1, nullptr);
 
          if (action1 == 0 || action2 == 0) {
             PyErr_Print();
@@ -322,6 +392,12 @@ int MAL_DRLRefiner::ApplyImpl(Mesh &mesh)
             bool(action3_val) ||
             bool(action4_val);
       }
+
+      delete scalar_obs1;
+      delete obs1;
+      delete obs2;
+      delete obs3;
+      delete obs4;
 
       if (refine) {
          marked_elements.Append(Refinement(k));
