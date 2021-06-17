@@ -378,8 +378,8 @@ void ParBilinearForm::FormLinearSystem(
    else
    {
       // Variational restriction with P
-      X.SetSize(pfes->TrueVSize(), GetHypreMemoryType());
-      B.SetSize(X.Size(), GetHypreMemoryType());
+      X.SetSize(P.Width());
+      B.SetSize(X.Size());
       P.MultTranspose(b, B);
       R.Mult(x, X);
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);

@@ -586,9 +586,9 @@ void CGSolver::UpdateVectors()
 {
    MemoryType mt = GetMemoryType(oper->GetMemoryClass());
 
-   r.SetSize(width, mt);
-   d.SetSize(width, mt);
-   z.SetSize(width, mt);
+   r.SetSize(width, mt); r.UseDevice(true);
+   d.SetSize(width, mt); d.UseDevice(true);
+   z.SetSize(width, mt); z.UseDevice(true);
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
@@ -596,6 +596,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
+   x.UseDevice(true);
    if (iterative_mode)
    {
       oper->Mult(x, r);

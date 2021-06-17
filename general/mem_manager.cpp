@@ -819,7 +819,8 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    }
    else // DEVICE TYPES
    {
-      MFEM_VERIFY(ptr, "cannot register NULL device pointer");
+      MFEM_VERIFY(ptr || bytes == 0,
+                  "cannot register NULL device pointer with bytes = " << bytes);
       if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
       else { h_ptr = h_tmp; }
       mm.InsertDevice(ptr, h_ptr, bytes, h_mt, d_mt);
@@ -847,6 +848,8 @@ void MemoryManager::Register_(void *h_ptr, void *d_ptr, size_t bytes,
 
    flags |= Mem::REGISTERED | Mem::OWNS_INTERNAL;
 
+   MFEM_VERIFY(d_ptr || bytes == 0,
+               "cannot register NULL device pointer with bytes = " << bytes);
    mm.InsertDevice(d_ptr, h_ptr, bytes, h_mt, d_mt);
    flags = (own ? flags | (Mem::OWNS_HOST | Mem::OWNS_DEVICE) :
             flags & ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE)) |
@@ -899,7 +902,8 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
    const bool owns_host = flags & Mem::OWNS_HOST;
    const bool owns_device = flags & Mem::OWNS_DEVICE;
    const bool owns_internal = flags & Mem::OWNS_INTERNAL;
-   MFEM_ASSERT(registered || IsHostMemory(mt),"");
+   MFEM_ASSERT(registered || IsHostMemory(mt),
+               "registered = " << registered << ", mt = " << (int)mt);
    MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
    if (!mm.exists || !registered) { return mt; }
    if (alias)
@@ -1158,7 +1162,7 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
       {
          if (dst_h_ptr != src_d_ptr && bytes != 0)
          {
-            internal::Memory &src_d_base = maps->memories.at(src_d_ptr);
+            internal::Memory &src_d_base = maps->memories.at(src_h_ptr);
             MemoryType src_d_mt = src_d_base.d_mt;
             ctrl->Device(src_d_mt)->DtoH(dst_h_ptr, src_d_ptr, bytes);
          }
@@ -1288,7 +1292,7 @@ void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
    MFEM_ASSERT(h_ptr != NULL, "internal error");
    Insert(h_ptr, bytes, h_mt, d_mt);
    internal::Memory &mem = maps->memories.at(h_ptr);
-   if (d_ptr == NULL) { ctrl->Device(d_mt)->Alloc(mem); }
+   if (d_ptr == NULL && bytes != 0) { ctrl->Device(d_mt)->Alloc(mem); }
    else { mem.d_ptr = d_ptr; }
 }
 
@@ -1376,14 +1380,14 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    if (!mem.d_ptr)
    {
       if (d_mt == MemoryType::DEFAULT) { d_mt = GetDualMemoryType(h_mt); }
-      ctrl->Device(d_mt)->Alloc(mem);
+      if (mem.bytes) { ctrl->Device(d_mt)->Alloc(mem); }
    }
    // Aliases might have done some protections
-   ctrl->Device(d_mt)->Unprotect(mem);
+   if (mem.d_ptr) { ctrl->Device(d_mt)->Unprotect(mem); }
    if (copy_data)
    {
       MFEM_ASSERT(bytes <= mem.bytes, "invalid copy size");
-      ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes);
+      if (bytes) { ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes); }
    }
    ctrl->Host(h_mt)->Protect(mem, bytes);
    return mem.d_ptr;
@@ -1409,16 +1413,17 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    if (!mem.d_ptr)
    {
       if (d_mt == MemoryType::DEFAULT) { d_mt = GetDualMemoryType(h_mt); }
-      ctrl->Device(d_mt)->Alloc(mem);
+      if (mem.bytes) { ctrl->Device(d_mt)->Alloc(mem); }
    }
    void *alias_h_ptr = static_cast<char*>(mem.h_ptr) + offset;
    void *alias_d_ptr = static_cast<char*>(mem.d_ptr) + offset;
    MFEM_ASSERT(alias_h_ptr == alias_ptr, "internal error");
    MFEM_ASSERT(bytes <= alias.bytes, "internal error");
    mem.d_rw = mem.h_rw = false;
-   ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
+   if (mem.d_ptr) { ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes); }
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
-   if (copy) { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
+   if (copy && mem.d_ptr)
+   { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
    ctrl->Host(h_mt)->AliasProtect(alias_ptr, bytes);
    return alias_d_ptr;
 }
@@ -1590,7 +1595,13 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
                  mm.GetAliasDevicePtr(h_ptr, size, false) :
                  mm.GetDevicePtr(h_ptr, size, false);
    char *h_buf = new char[size];
+#ifdef MFEM_USE_CUDA
    CuMemcpyDtoH(h_buf, d_ptr, size);
+#elif MFE_USE_HIP
+   HipMemcpyDtoH(h_buf, d_ptr, size);
+#else
+   std::memcpy(h_buf, d_ptr, size);
+#endif
    int res = std::memcmp(h_ptr, h_buf, size);
    delete [] h_buf;
    return res;

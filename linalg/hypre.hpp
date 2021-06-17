@@ -105,8 +105,6 @@ private:
    // Set Vector::data and Vector::size from *x
    inline void _SetDataAndSize_();
 
-   Vector hypre_mem_base;
-
 public:
 
    /// Default constructor, no underlying @a hypre_ParVector is created.
@@ -196,78 +194,23 @@ public:
        HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
    void SetData(double *data_);
 
-   void SetMemoryAndSize(Memory<double> & mem, const int s);
+   /// FIXME: documentation
+   void HypreRead() const;
 
-   /// TODO: documentation
-   inline const HypreParVector &Read(const Vector &base)
-   {
-      // TODO: we may need to copy the data if the MemoryTypes of base are not
-      // suitable for GetHypreMemoryClass()
-      if (GetHypreMemoryClass() != MemoryClass::HOST &&
-          base.GetMemory().GetMemoryType() == MemoryType::HOST)
-      {
-         if (hypre_mem_base.Size() == 0)
-         {
-            hypre_mem_base.SetSize(base.Size(), GetHypreMemoryType());
-         }
-         else
-         {
-            MFEM_VERIFY(hypre_mem_base.Size() == base.Size(), "");
-         }
-         hypre_mem_base.GetMemory().CopyFromHost(base.HostRead(), base.Size());
-         hypre_VectorData(hypre_ParVectorLocalVector(x)) = hypre_mem_base.GetMemory();
-      }
-      else
-      {
-         MakeRef(const_cast<Vector&>(base), 0);
-         UseDevice(true);
-         hypre_VectorData(hypre_ParVectorLocalVector(x)) =
-            const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
-      }
-      return *this;
-   }
+   /// FIXME: documentation
+   void HypreReadWrite();
 
-   using Vector::Write;
+   /// FIXME: documentation
+   void HypreWrite();
 
-   /// TODO: documentation
-   inline HypreParVector &Write(Vector &base)
-   {
-      // TODO: we may need to allocate memory if the MemoryTypes of base are not
-      // suitable for GetHypreMemoryClass(). Then the data will need to be
-      // copied back to base with a separate call to a new method.
-      if (GetHypreMemoryClass() == MemoryClass::HOST)
-      {
-         MakeRef(base, 0);
-         UseDevice(true);
-         hypre_VectorData(hypre_ParVectorLocalVector(x)) =
-            data.Write(GetHypreMemoryClass(), size);
-      }
-      else
-      {
-         if (hypre_mem_base.Size() == 0)
-         {
-            hypre_mem_base.SetSize(base.Size(), GetHypreMemoryType());
-         }
-         else
-         {
-            MFEM_VERIFY(hypre_mem_base.Size() == base.Size(), "");
-         }
-         MakeRef(const_cast<Vector&>(hypre_mem_base), 0);
-         //hypre_VectorData(hypre_ParVectorLocalVector(x)) = data;
-         hypre_VectorData(hypre_ParVectorLocalVector(x)) = data.ReadWrite(
-                                                              GetHypreMemoryClass(), base.Size());
-      }
-      return *this;
-   }
+   /// FIXME: documentation
+   void WrapMemoryRead(const Memory<double> &mem);
 
-   inline void WriteCopy(Vector &base)
-   {
-      if (GetHypreMemoryClass() != MemoryClass::HOST)
-      {
-         MFEM_VERIFY(hypre_mem_base.Size() == base.Size(), "");
-         base.GetMemory().CopyFrom(hypre_mem_base.GetMemory(), base.Size());
-      }
-   }
+   /// FIXME: documentation
+   void WrapMemoryReadWrite(Memory<double> &mem);
+
+   /// FIXME: documentation
+   void WrapMemoryWrite(Memory<double> &mem);
 
    /// Set random values
    HYPRE_Int Randomize(HYPRE_Int seed);
@@ -305,6 +248,10 @@ private:
 
    /// Auxiliary vectors for typecasting
    mutable HypreParVector *X, *Y;
+   /** @brief Auxiliary buffers for the case when the input or output arrays in
+       methods like Mult(double, const Vector &, double, Vector &) needs to be
+       deep copied in order to be used by hypre. */
+   mutable Memory<double> auxX, auxY;
 
    // Flags indicating ownership of A->diag->{i,j,data}, A->offd->{i,j,data},
    // and A->col_map_offd.
@@ -331,25 +278,75 @@ private:
    // Delete all owned data. Does not perform re-initialization with defaults.
    void Destroy();
 
+   void Read(MemoryClass mc) const;
+   void ReadWrite(MemoryClass mc);
+   void Write(MemoryClass mc);
+
+   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
+   /** After this call #A's diagonal and off-diagonal should not be modified
+       until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
+   void HostRead() const { Read(Device::GetHostMemoryClass()); }
+
+   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
+   /** After this call #A's diagonal and off-diagonal can be modified on host
+       and subsequent calls to Hypre{Read,Write,ReadWrite} will require a deep
+       copy of the data if hypre is built with device support. */
+   void HostReadWrite() { ReadWrite(Device::GetHostMemoryClass()); }
+
+   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
+   /** Similar to HostReadWrite(), except that the data will never be copied
+       from device to host to ensure host contains the correct current data. */
+   void HostWrite() { Write(Device::GetHostMemoryClass()); }
+
+   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
+       memory space. */
+   /** After this call #A's diagonal and off-diagonal should not be modified
+       until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
+   void HypreRead() const { Read(GetHypreMemoryClass()); }
+
+   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
+       memory space. */
+   /** After this call #A's diagonal and off-diagonal can be modified in hypre
+       memory space and subsequent calls to Host{Read,Write,ReadWrite} will
+       require a deep copy of the data if hypre is built with device support. */
+   void HypreReadWrite() { ReadWrite(GetHypreMemoryClass()); }
+
+   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
+       memory space. */
+   /** Similar to HostReadWrite(), except that the data will never be copied
+       from host to hypre memory space to ensure the latter contains the correct
+       current data. */
+   void HypreWrite() { Write(GetHypreMemoryClass()); }
+
    // Copy (shallow/deep, based on HYPRE_BIGINT) the I and J arrays from csr to
    // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
    // The CSR arrays are wrapped in the mem_csr struct which is used to move
    // these arrays to device, if necessary.
-   static char CopyCSR(SparseMatrix *csr,
-                       MemoryIJData &mem_csr,
-                       hypre_CSRMatrix *hypre_csr);
+   static signed char CopyCSR(SparseMatrix *csr,
+                              MemoryIJData &mem_csr,
+                              hypre_CSRMatrix *hypre_csr,
+                              bool mem_owner);
    // Copy (shallow or deep, based on HYPRE_BIGINT) the I and J arrays from
    // bool_csr to hypre_csr. Allocate the data array and set it to all ones.
-   // Return the appropriate ownership flag.
-   static char CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr);
+   // Return the appropriate ownership flag. The CSR arrays are wrapped in the
+   // mem_csr struct which is used to move these arrays to device, if necessary.
+   static signed char CopyBoolCSR(Table *bool_csr,
+                                  MemoryIJData &mem_csr,
+                                  hypre_CSRMatrix *hypre_csr);
 
    // Copy the j array of a hypre_CSRMatrix to the given J array, converting
    // the indices from HYPRE_Int/HYPRE_BigInt to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
-   MemoryIJData mem_diag, mem_offd;
+   // Wrap the data from h_mat into mem with the given ownership flags.
+   // If the new Memory arrays in mem are not suitable to be accessed via
+   // GetHypreMemoryClass(), then mem will be re-allocated using the memory type
+   // returned by GetHypreMemoryType(), the data will be deep copied, and h_mat
+   // will be updated with the new pointers.
+   static signed char HypreCsrToMem(hypre_CSRMatrix *h_mat, MemoryType h_mat_mt,
+                                    bool own_ija, MemoryIJData &mem);
 
-   mutable Memory<double> auxX, auxY;
+   MemoryIJData mem_diag, mem_offd;
 
 public:
    /// An empty matrix to be used as a reference to an existing matrix
@@ -365,57 +362,26 @@ public:
       ParCSROwner = owner;
       height = GetNumRows();
       width = GetNumCols();
+#if MFEM_HYPRE_VERSION >= 21400
+      MemoryType diag_mt = (A->diag->memory_location == HYPRE_MEMORY_HOST
+                            ? MemoryType::HOST : GetHypreMemoryType());
+      MemoryType offd_mt = (A->offd->memory_location == HYPRE_MEMORY_HOST
+                            ? MemoryType::HOST : GetHypreMemoryType());
+#else
+      const MemoryType diag_mt = MemoryType::HOST;
+      const MemoryType offd_mt = MemoryType::HOST;
+#endif
+      diagOwner = HypreCsrToMem(A->diag, diag_mt, false, mem_diag);
+      offdOwner = HypreCsrToMem(A->offd, offd_mt, false, mem_offd);
+      HypreReadWrite();
    }
 
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
-   explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true,
-                           MemoryIJData *ijdata_diag=NULL, MemoryIJData *ijdata_offd=NULL)
+   explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       Init();
       WrapHypreParCSRMatrix(a, owner);
-
-      if (ijdata_diag == NULL)
-      {
-         hypre_CSRMatrix *a_diag = hypre_ParCSRMatrixDiag(a);
-         HYPRE_Int num_rows = hypre_CSRMatrixNumRows(a_diag);
-         mem_diag.I.Wrap(hypre_CSRMatrixI(a_diag), num_rows + 1, GetHypreMemoryType(),
-                         true);
-
-         auto I_read = HostRead(mem_diag.I, num_rows + 1);
-         const HYPRE_Int diag_nnz = I_read[num_rows] - I_read[0];
-         mem_diag.data.Wrap(hypre_CSRMatrixData(a_diag), diag_nnz, GetHypreMemoryType(),
-                            true);
-         mem_diag.J.Wrap(hypre_CSRMatrixJ(a_diag), diag_nnz, GetHypreMemoryType(), true);
-      }
-      else
-      {
-         mem_diag = *ijdata_diag;
-      }
-
-      if (ijdata_offd == NULL)
-      {
-         hypre_CSRMatrix *a_offd = hypre_ParCSRMatrixOffd(a);
-         HYPRE_Int num_rows = hypre_CSRMatrixNumRows(a_offd);
-         mem_offd.I.Wrap(hypre_CSRMatrixI(a_offd), num_rows + 1, GetHypreMemoryType(),
-                         true);
-
-         auto I_read = HostRead(mem_offd.I, num_rows + 1);
-         const HYPRE_Int offd_nnz = I_read[num_rows] - I_read[0];
-         if (offd_nnz > 0)
-         {
-            mem_offd.data.Wrap(hypre_CSRMatrixData(a_offd), offd_nnz, GetHypreMemoryType(),
-                               true);
-            mem_offd.J.Wrap(hypre_CSRMatrixJ(a_offd), offd_nnz, GetHypreMemoryType(), true);
-         }
-      }
-      else
-      {
-         mem_offd = *ijdata_offd;
-      }
-
-      diagOwner = 3; // TODO: can this be avoided?
-      offdOwner = 3;
    }
 
    /// Creates block-diagonal square parallel matrix.
@@ -427,7 +393,8 @@ public:
        @warning The ordering of the columns in each row in @a *diag may be
        changed by this constructor to ensure that the first entry in each row is
        the diagonal one. This is expected by most hypre functions. */
-   HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size, HYPRE_BigInt *row_starts,
+   HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
+                  HYPRE_BigInt *row_starts,
                   SparseMatrix *diag); // constructor with 4 arguments, v1
 
    /// Creates block-diagonal rectangular parallel matrix.
@@ -442,12 +409,17 @@ public:
 
    /// Creates general (rectangular) parallel matrix.
    /** The new HypreParMatrix does not take ownership of any of the input
-       arrays. See @ref hypre_partitioning_descr "here" for a description of the
+       arrays, if @a own_diag_offd is false (default). If @a own_diag_offd is
+       true, ownership of @a diag and @a offd is transferred to the
+       HypreParMatrix.
+
+       See @ref hypre_partitioning_descr "here" for a description of the
        partitioning arrays @a row_starts and @a col_starts. */
    HypreParMatrix(MPI_Comm comm, HYPRE_BigInt global_num_rows,
                   HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts,
-                  HYPRE_BigInt *col_starts, SparseMatrix *diag, SparseMatrix *offd,
-                  HYPRE_BigInt *cmap); // constructor with 8 arguments
+                  HYPRE_BigInt *col_starts, SparseMatrix *diag,
+                  SparseMatrix *offd, HYPRE_BigInt *cmap,
+                  bool own_diag_offd = false); // constructor with 8+1 arguments
 
    /// Creates general (rectangular) parallel matrix.
    /** The new HypreParMatrix takes ownership of all input arrays, except
@@ -633,6 +605,8 @@ public:
        partitioning array. */
    HYPRE_BigInt *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
 
+   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
+
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
                   double alpha = 1.0, double beta = 0.0) const;
@@ -651,28 +625,32 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { MultTranspose(1.0, x, 0.0, y); }
 
-   /// Computes y = a * |A| * x + b * y, using entry-wise absolute values of matrix A
+   /** @brief Computes y = a * |A| * x + b * y, using entry-wise absolute values
+       of the matrix A. */
    void AbsMult(double a, const Vector &x, double b, Vector &y) const;
 
-   /// Computes y = a * |At| * x + b * y, using entry-wise absolute values of the transpose of matrix A
+   /** @brief Computes y = a * |At| * x + b * y, using entry-wise absolute
+       values of the transpose of the matrix A. */
    void AbsMultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
-   /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
-       the sparsity pattern of the matrix are treated as "true". */
+   /** @brief The "Boolean" analog of y = alpha * A * x + beta * y, where
+       elements in the sparsity pattern of the matrix are treated as "true". */
    void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvec(A, mem_diag, mem_offd, alpha,
-                                                const_cast<int*>(x),
+      HostRead();
+      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
                                                 beta, y);
+      HypreRead();
    }
 
-   /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
-       the sparsity pattern of the matrix are treated as "true". */
+   /** @brief The "Boolean" analog of y = alpha * A^T * x + beta * y, where
+       elements in the sparsity pattern of the matrix are treated as "true". */
    void BooleanMultTranspose(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvecT(A, mem_diag, mem_offd, alpha,
-                                                 const_cast<int*>(x),
+      HostRead();
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, const_cast<int*>(x),
                                                  beta, y);
+      HypreRead();
    }
 
    /// Initialize all entries with value.
@@ -746,6 +724,13 @@ public:
    /// Eliminate rows from the diagonal and off-diagonal blocks of the matrix.
    void EliminateRows(const Array<int> &rows);
 
+   /** @brief Eliminate essential BC specified by @a ess_dof_list from the
+       solution @a X to the r.h.s. @a B. */
+   /** This matrix is the matrix with eliminated BC, while @a Ae is such that
+       (A+Ae) is the original (Neumann) matrix before elimination. */
+   void EliminateBC(const HypreParMatrix &Ae, const Array<int> &ess_dof_list,
+                    const Vector &X, Vector &B) const;
+
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
@@ -767,8 +752,6 @@ public:
    virtual ~HypreParMatrix() { Destroy(); }
 
    Type GetType() const { return Hypre_ParCSR; }
-
-   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 };
 
 #if MFEM_HYPRE_VERSION >= 21800
@@ -820,10 +803,11 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                                           Array2D<double> *blockCoeff=NULL);
 
-/** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
-    the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that
-    (A+Ae) is the original (Neumann) matrix before elimination. */
-void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
+/** @brief Eliminate essential BC specified by @a ess_dof_list from the solution
+    @a X to the r.h.s. @a B. */
+/** Here @a A is a matrix with eliminated BC, while @a Ae is such that (A+Ae) is
+    the original (Neumann) matrix before elimination. */
+void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
                  const Array<int> &ess_dof_list, const Vector &X, Vector &B);
 
 
@@ -990,6 +974,8 @@ public:
 
    virtual void SetOperator(const Operator &op)
    { mfem_error("HypreSolvers do not support SetOperator!"); }
+
+   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
