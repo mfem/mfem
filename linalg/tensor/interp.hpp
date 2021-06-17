@@ -30,8 +30,8 @@ auto operator*(const Basis<Dim,false,D,Q> &basis, const Dofs &u)
    // TODO declare some __shared__/MFEM_SHARED memory for the basis?
    // Change GetB interface, Device struct don't work
    constexpr int basis_size = get_basis_capacity<Basis<Dim,false,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto B = basis.GetB(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto B = basis.GetB(s_B);
    return B * u;
 }
 
@@ -40,8 +40,8 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const Basis<1,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<Basis<1,true,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto B = basis.GetB(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto B = basis.GetB(s_B);
    return ContractX(B,u);
 }
 
@@ -50,8 +50,8 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<Basis<2,true,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto B = basis.GetB(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto B = basis.GetB(s_B);
    auto Bu = ContractX(B,u);
    return ContractY(B,Bu);
 }
@@ -61,8 +61,8 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<Basis<3,true,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto B = basis.GetB(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto B = basis.GetB(s_B);
    auto Bu = ContractX(B,u);
    auto BBu = ContractY(B,Bu);
    return ContractZ(B,BBu);
@@ -73,8 +73,8 @@ template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<Dim,false,D,Q> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<BasisTranspose<Dim,false,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto Bt = basis.GetBt(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto Bt = basis.GetBt(s_B);
    return Bt * u;
 }
 
@@ -83,8 +83,8 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<1,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<BasisTranspose<1,true,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto Bt = basis.GetBt(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto Bt = basis.GetBt(s_B);
    return ContractX(Bt,u);
 }
 
@@ -93,8 +93,8 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<BasisTranspose<2,true,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto Bt = basis.GetBt(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto Bt = basis.GetBt(s_B);
    auto Bu = ContractY(Bt,u);
    return ContractX(Bt,Bu);
 }
@@ -104,8 +104,8 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<BasisTranspose<3,true,D,Q>>;
-   MFEM_SHARED double shared_mem[basis_size];
-   auto Bt = basis.GetBt(shared_mem);
+   MFEM_SHARED double s_B[basis_size];
+   auto Bt = basis.GetBt(s_B);
    auto Bu = ContractZ(Bt,u);
    auto BBu = ContractY(Bt,Bu);
    return ContractX(Bt,BBu);

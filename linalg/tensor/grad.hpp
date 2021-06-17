@@ -27,7 +27,9 @@ namespace mfem
 template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradient<Dim,false,D,Q> &basis, const Dofs &u)
 {
-   auto G = basis.GetG();
+   constexpr int basis_size = get_basis_capacity<BasisGradient<Dim,false,D,Q>>;
+   MFEM_SHARED double s_G[basis_size];
+   auto G = basis.GetG(s_G);
    return G * u;
 }
 
@@ -35,7 +37,9 @@ auto operator*(const BasisGradient<Dim,false,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradient<1,true,D,Q> &basis, const Dofs &u)
 {
-   auto G = basis.GetG();
+   constexpr int basis_size = get_basis_capacity<BasisGradient<1,true,D,Q>>;
+   MFEM_SHARED double s_G[basis_size];
+   auto G = basis.GetG(s_G);
    return ContractX(G,u);
 }
 
@@ -43,8 +47,11 @@ auto operator*(const BasisGradient<1,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradient<2,true,D,Q> &basis, const Dofs &u)
 {
-   auto B = basis.GetB();
-   auto G = basis.GetG();
+   constexpr int basis_size = get_basis_capacity<BasisGradient<2,true,D,Q>>;
+   MFEM_SHARED double s_B[basis_size];
+   auto B = basis.GetB(s_B);
+   MFEM_SHARED double s_G[basis_size];
+   auto G = basis.GetG(s_G);
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto GBu = ContractY(G,Bu);
@@ -56,8 +63,11 @@ auto operator*(const BasisGradient<2,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradient<3,true,D,Q> &basis, const Dofs &u)
 {
-   auto B = basis.GetB();
-   auto G = basis.GetG();
+   constexpr int basis_size = get_basis_capacity<BasisGradient<3,true,D,Q>>;
+   MFEM_SHARED double s_B[basis_size];
+   auto B = basis.GetB(s_B);
+   MFEM_SHARED double s_G[basis_size];
+   auto G = basis.GetG(s_G);
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto BBu = ContractY(B,Bu);
@@ -73,7 +83,9 @@ auto operator*(const BasisGradient<3,true,D,Q> &basis, const Dofs &u)
 template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradientTranspose<Dim,false,D,Q> &basis, const Dofs &u)
 {
-   auto Gt = basis.GetGt();
+   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<Dim,false,D,Q>>;
+   MFEM_SHARED double s_G[basis_size];
+   auto Gt = basis.GetGt(s_G);
    return Gt * u;
 }
 
@@ -81,7 +93,9 @@ auto operator*(const BasisGradientTranspose<Dim,false,D,Q> &basis, const Dofs &u
 template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradientTranspose<1,true,D,Q> &basis, const Dofs &u)
 {
-   auto Gt = basis.GetGt();
+   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<1,true,D,Q>>;
+   MFEM_SHARED double s_G[basis_size];
+   auto Gt = basis.GetGt(s_G);
    return ContractX(Gt,u);
 }
 
@@ -90,8 +104,11 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
-   auto Bt = basis.GetBt();
-   auto Gt = basis.GetGt();
+   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<2,true,D,Q>>;
+   MFEM_SHARED double s_B[basis_size];
+   auto Bt = basis.GetBt(s_B);
+   MFEM_SHARED double s_G[basis_size];
+   auto Gt = basis.GetGt(s_G);
    auto ux = u.template Get<Rank-1>(0);
    auto Gux = ContractX(Gt,ux);
    auto v = ContractY(Bt,Gux);
@@ -106,8 +123,11 @@ template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
 auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
-   auto Bt = basis.GetBt();
-   auto Gt = basis.GetGt();
+   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<3,true,D,Q>>;
+   MFEM_SHARED double s_B[basis_size];
+   auto Bt = basis.GetBt(s_B);
+   MFEM_SHARED double s_G[basis_size];
+   auto Gt = basis.GetGt(s_G);
    auto ux = u.template Get<Rank-1>(0);
    auto Gux = ContractX(Gt,ux);
    auto BGux = ContractY(Bt,Gux);
