@@ -27,15 +27,23 @@ class BasisTensor : public TensorType
 public:
    MFEM_HOST_DEVICE
    BasisTensor(int quads, int dofs): TensorType(quads,dofs) { }
+
+   MFEM_HOST_DEVICE
+   BasisTensor(double *shared_mem, int quads, int dofs)
+      : TensorType(shared_mem,quads,dofs) { }
 };
 
 /// Represent the rank 2 tensor containing B1d or G1d with dynamic sizes
 template <int Dim>
 using DynamicBasisTensor = BasisTensor<Dim,true,DynamicDTensor<2>>;
+template <int Dim>
+using DynamicSharedBasisTensor = BasisTensor<Dim,true,DeviceDTensor<2>>;
 
 /// Represent the rank 2 tensor containing B1d or G1d with static sizes
 template <int Dim, int Q, int D>
 using StaticBasisTensor = BasisTensor<Dim,true,StaticDTensor<Q,D>>;
+template <int Dim, int Q, int D>
+using StaticSharedBasisTensor = BasisTensor<Dim,true,StaticPointerDTensor<Q,D>>;
 
 /// Represent the rank 2 tensor containing B or G with dynamic sizes
 template <int Dim>
@@ -129,6 +137,62 @@ struct Basis<Dim,true,Dynamic,Dynamic>
       }
       return s_Gt;
    }
+
+   MFEM_HOST_DEVICE inline
+   auto GetB(double* shared_mem) const
+   {
+      DynamicSharedBasisTensor<Dim> s_B(shared_mem,quads1D,dofs1D);
+      MFEM_FOREACH_THREAD(d,y,dofs1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,quads1D)
+         {
+            s_B(q,d) = B[q+quads1D*d];
+         }
+      }
+      return s_B;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetBt(double* shared_mem) const
+   {
+      DynamicSharedBasisTensor<Dim> s_Bt(shared_mem,dofs1D,quads1D);
+      MFEM_FOREACH_THREAD(q,y,quads1D)
+      {
+         MFEM_FOREACH_THREAD(d,x,dofs1D)
+         {
+            s_Bt(d,q) = Bt[d+dofs1D*q];
+         }
+      }
+      return s_Bt;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetG(double* shared_mem) const
+   {
+      DynamicSharedBasisTensor<Dim> s_G(shared_mem,quads1D,dofs1D);
+      MFEM_FOREACH_THREAD(d,y,dofs1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,quads1D)
+         {
+            s_G(q,d) = G[q+quads1D*d];
+         }
+      }
+      return s_G;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetGt(double* shared_mem) const
+   {
+      DynamicSharedBasisTensor<Dim> s_Gt(shared_mem,dofs1D,quads1D);
+      MFEM_FOREACH_THREAD(q,y,quads1D)
+      {
+         MFEM_FOREACH_THREAD(d,x,dofs1D)
+         {
+            s_Gt(d,q) = Gt[d+dofs1D*q];
+         }
+      }
+      return s_Gt;
+   }
 };
 
 template <int Dim, int Dofs1D, int Quads1D>
@@ -202,6 +266,62 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
       {
          for (int d = 0; d < dofs1D; d++)
          // MFEM_FOREACH_THREAD(d,x,dofs1D)
+         {
+            s_Gt(d,q) = Gt[d+dofs1D*q];
+         }
+      }
+      return s_Gt;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetB(double* shared_mem) const
+   {
+      StaticSharedBasisTensor<dim,quads1D,dofs1D> s_B(shared_mem,quads1D,dofs1D);
+      MFEM_FOREACH_THREAD(d,y,dofs1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,quads1D)
+         {
+            s_B(q,d) = B[q+quads1D*d];
+         }
+      }
+      return s_B;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetBt(double* shared_mem) const
+   {
+      StaticSharedBasisTensor<dim,dofs1D,quads1D> s_Bt(shared_mem,dofs1D,quads1D);
+      MFEM_FOREACH_THREAD(q,y,quads1D)
+      {
+         MFEM_FOREACH_THREAD(d,x,dofs1D)
+         {
+            s_Bt(d,q) = Bt[d+dofs1D*q];
+         }
+      }
+      return s_Bt;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetG(double* shared_mem) const
+   {
+      StaticSharedBasisTensor<dim,quads1D,dofs1D> s_G(shared_mem,quads1D,dofs1D);
+      MFEM_FOREACH_THREAD(d,y,dofs1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,quads1D)
+         {
+            s_G(q,d) = G[q+quads1D*d];
+         }
+      }
+      return s_G;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetGt(double* shared_mem) const
+   {
+      StaticSharedBasisTensor<dim,dofs1D,quads1D> s_Gt(shared_mem,dofs1D,quads1D);
+      MFEM_FOREACH_THREAD(q,y,quads1D)
+      {
+         MFEM_FOREACH_THREAD(d,x,dofs1D)
          {
             s_Gt(d,q) = Gt[d+dofs1D*q];
          }
@@ -540,6 +660,23 @@ struct get_basis_dofs_v<BasisTensor<Dim, IsTensor, TensorType>>
 
 template <typename Basis>
 constexpr int get_basis_dofs = get_basis_dofs_v<Basis>::value;
+
+// get_basis_capacity
+template <typename Basis>
+struct get_basis_capacity_v
+{
+   static constexpr int value = 16*16; // TODO
+};
+
+// template <int Dim, bool IsTensor, typename TensorType>
+// struct get_basis_capacity_v<BasisTensor<Dim, IsTensor, TensorType>>
+// {
+//    static constexpr int value = 16*16; // TODO
+// };
+
+template <typename Basis>
+constexpr int get_basis_capacity = get_basis_capacity_v<Basis>::value;
+
 
 } // mfem namespace
 

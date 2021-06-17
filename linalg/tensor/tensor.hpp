@@ -269,6 +269,13 @@ using MyDeviceTensor = Tensor<DeviceContainer<T>,
 template <int Rank>
 using DeviceDTensor = MyDeviceTensor<Rank,double>;
 
+template <typename T, int... Sizes>
+using StaticPointerTensor = Tensor<DeviceContainer<T>,
+                                  StaticLayout<Sizes...> >;
+
+template <int... Sizes>
+using StaticPointerDTensor = StaticPointerTensor<double,Sizes...>;
+
 /// A tensor using a read only const pointer and a dynamic data layout.
 template <int Rank, typename T>
 using ReadTensor = Tensor<ReadContainer<T>,
