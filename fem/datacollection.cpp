@@ -847,12 +847,36 @@ void ParaViewDataCollection::Save()
    {
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
-      pvd_stream.open(pvdname.c_str(),std::ios::out);
-      // initialize the file
-      pvd_stream << "<?xml version=\"1.0\"?>\n";
-      pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
-      pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
-      pvd_stream << "<Collection>" << std::endl;
+
+      std::ifstream fileTest(pvdname);
+
+      if (fileTest.good())
+      {
+         // pvd file exists, open and update output pos so we retain any previously existing timesteps
+         pvd_stream.open(pvdname.c_str(),std::ios::in|std::ios::out);
+
+         std::string line;
+         std::fstream::pos_type pos = pvd_stream.tellp();
+         while (getline(pvd_stream,line))
+         {
+            if (line.find("<DataSet timestep=") != std::string::npos)
+            {
+               pos = pvd_stream.tellg();
+            }
+         }
+         pvd_stream.clear();
+         pvd_stream.seekp(pos);
+      }
+      else
+      {
+         // file does not exist - initialize new pvd file
+         pvd_stream.open(pvdname.c_str(),std::ios::out);
+         // initialize the file
+         pvd_stream << "<?xml version=\"1.0\"?>\n";
+         pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
+         pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
+         pvd_stream << "<Collection>" << std::endl;
+      }
    }
 
    // define the vtu file
