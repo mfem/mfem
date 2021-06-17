@@ -2169,6 +2169,15 @@ void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
 }
 #endif
 
+void AdaptivityEvaluator::ClearGeometricFactors()
+{
+#ifdef MFEM_USE_MPI
+   if (pmesh) { pmesh->DeleteGeometricFactors(); }
+#else
+   if (mesh) { mesh->DeleteGeometricFactors(); }
+#endif
+}
+
 AdaptivityEvaluator::~AdaptivityEvaluator()
 {
    delete fes;
@@ -2177,6 +2186,16 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
    delete pfes;
    delete pmesh;
 #endif
+}
+
+void TMOP_Integrator::ReleasePADeviceMemory()
+{
+   if (PA.enabled)
+   {
+      PA.H.GetMemory().DeleteDevice();
+      PA.H0.GetMemory().DeleteDevice();
+      PA.Jtr.GetMemory().DeleteDevice();
+   }
 }
 
 TMOP_Integrator::~TMOP_Integrator()
