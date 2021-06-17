@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.3, released on May XX, 2021
-=====================================
+Version 4.3, released on June XX, 2021
+======================================
 
 Discretization improvements
 ---------------------------
@@ -21,10 +21,9 @@ Discretization improvements
   hp-refinement in both 2D and 3D, on uniform or mixed NC meshes. Support for
   parallel variable-order spaces will follow shortly.
 
-- Added support for transferring dual fields between high-order and low-order
-  refined finite element spaces using the transposed versions of the
-  L2ProjectionGridTransfer operators. This functionality is illustrated in the
-  lor-transfer miniapp.
+- Extended the support for field transfer between high-order and low-order
+  refined finite element spaces to include: dual fields and H1 fields (both
+  primary and dual). These are illustrated in the lor-transfer miniapp.
 
 - Improved libCEED integration, including support for VectorCoefficient,
   ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
@@ -225,8 +224,6 @@ New and updated examples and miniapps
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
-Miscellaneous
--------------
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
   help identify elements with poor mesh quality.
 
