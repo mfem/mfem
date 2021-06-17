@@ -890,7 +890,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    else
    {
       h_mt = MemoryManager::GetDualMemoryType(mt);
-      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
+      h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
    }
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
