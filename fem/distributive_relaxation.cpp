@@ -252,6 +252,7 @@ LORInfo::LORInfo(const Mesh &lor_mesh, Mesh &ho_mesh, int p)
 
 void DRSmoother::FormG(const DisjointSets *clustering)
 {
+   return FormGDevice(clustering);
    const Array<int> &bounds = clustering->GetBounds();
    const Array<int> &elems  = clustering->GetElems();
    SparseMatrix *g = NULL;
@@ -384,6 +385,142 @@ void DRSmoother::FormG(const DisjointSets *clustering)
    }
    if (diag_blocks) { delete diag_blocks; }
    if (GtAG) { delete GtAG; }
+}
+
+#if defined(__NVCC__)
+template <int LDA>
+__global__ static void computeCoeffsKernel(int size, const int *I, const int *J, const double *data, double *coeffs, const int *bounds, const int *elems)
+{
+  const int tx = threadIdx.x, bx = blockIdx.x, bdx = blockDim.x;
+
+  for (int group = (bx*bdx)+tx; group < size; group += (bx*bdx)) {
+    const int size = bounds[group+1]-bounds[group];
+    if (size > 1) {
+      double denseMat[LDA*LDA];
+
+      #pragma unroll
+      for (int i = 0; i < LDA*LDA; ++i) denseMat[i] = 0.;
+
+
+#if 0
+      // Get eigenvalues and eigenvectors of subblock
+      DenseMatrix &submat = (*diag_blocks)[group];
+      DenseMatrix eigenvectors(size, size);
+      Vector eigenvalues(size);
+      submat.Eigenvalues(eigenvalues, eigenvectors);
+
+      Array<int> indices(size);
+      elems.GetSubArray(bounds[group], size, indices);
+
+      // Get the smallest eigenvector
+      int min_idx = 0;
+      double min_eigenvalue = eigenvalues.Min();
+      for (; min_idx < eigenvalues.Size(); ++min_idx) {
+	if (eigenvalues[min_idx] == min_eigenvalue) break;
+      }
+      const int i = indices[min_idx];
+      // Compute normalization for eigenvector
+      double two_norm = 0.0;
+      for (int l = 0; l < size; ++l) {
+	const double val = eigenvectors(l, min_idx);
+	two_norm += val*val;
+      }
+      two_norm = sqrt(two_norm);
+
+      const double diag_val = eigenvectors(0, min_idx) / two_norm;
+      coeffs->Append(diag_val);
+
+      for (int l = 1; l < size; ++l) {
+	const double val = eigenvectors(l, min_idx) / two_norm;
+	coeffs->Append(val);
+      }
+#endif
+    }
+  }
+  return;
+}
+#endif
+
+void DRSmoother::FormGDevice(const DisjointSets *clustering)
+{
+  const_cast<DisjointSets*>(clustering)->Finalize();
+  clustering->Print(std::cout);
+  const Array<int> &bounds = clustering->GetBounds();
+  const Array<int> &elems  = clustering->GetElems();
+  Array<double> *coeffs = new Array<double>();
+
+  MFEM_ASSERT(A != NULL, "'A' matrix be defined");
+  std::vector<DenseMatrix> *diag_blocks = DiagonalBlocks(A, clustering);
+
+#if defined(__NVCC__)
+  Memory<double> coeffMem(bounds.Size(),MemoryType::HOST,MemoryType::DEVICE);
+  auto devCoeffArray = coeffMem.Write(MemoryClass::DEVICE,coeffMem.Capacity());
+  auto devBounds = bounds.Read(), devElems = elems.Read();
+  auto devData = A->ReadData();
+  auto devI    = A->ReadI(), devJ = A->ReadJ();
+  const dim3 dimGrid(1),dimBlock(1);
+
+  computeCoeffsKernel<3><<<dimGrid,dimBlock>>>(bounds.Size()-1,devI,devJ,devData,devCoeffArray,devBounds,devElems);
+  MFEM_GPU_CHECK(cudaDeviceSynchronize());
+#endif
+
+  int i = 0;
+  for (auto &mat : *diag_blocks) {
+    std::cout<<"MATRIX "<<i++<<" size("<<mat.Height()<<"x"<<mat.Width()<<")"<<std::endl;
+  }
+
+  for (int group = 0; group < bounds.Size()-1; ++group)
+    {
+      const int size = bounds[group+1] - bounds[group];
+
+      if (size > 1)
+	{
+	  // Get eigenvalues and eigenvectors of subblock
+	  DenseMatrix &submat = (*diag_blocks)[group];
+	  DenseMatrix eigenvectors(size, size);
+	  Vector eigenvalues(size);
+	  submat.Eigenvalues(eigenvalues, eigenvectors);
+
+	  Array<int> indices(size);
+	  elems.GetSubArray(bounds[group], size, indices);
+
+	  // Get the smallest eigenvector
+	  int min_idx = 0;
+	  double min_eigenvalue = eigenvalues.Min();
+	  for (; min_idx < eigenvalues.Size(); ++min_idx)
+	    {
+	      if (eigenvalues[min_idx] == min_eigenvalue) { break; }
+	    }
+
+	  const int i = indices[min_idx];
+	  // Compute normalization for eigenvector
+	  double two_norm = 0.0;
+	  for (int l = 0; l < size; ++l)
+	    {
+	      const double val = eigenvectors(l, min_idx);
+	      two_norm += val*val;
+	    }
+	  two_norm = sqrt(two_norm);
+
+	  const double diag_val = eigenvectors(0, min_idx) / two_norm;
+	  coeffs->Append(diag_val);
+
+	  for (int l = 1; l < size; ++l)
+	    {
+	      const double val = eigenvectors(l, min_idx) / two_norm;
+	      coeffs->Append(val);
+	    }
+	}
+    }
+
+  G = new DRSmootherG(clustering, coeffs);
+
+  SparseMatrix *GtAG = NULL;
+  diagonal_scaling.SetSize(0);
+  G->GtAG(GtAG, diagonal_scaling, *A, diag_blocks);
+
+  if (diag_blocks) { delete diag_blocks; }
+  if (GtAG) { delete GtAG; }
 }
 
 std::vector<DenseMatrix> *DRSmoother::DiagonalBlocks(const SparseMatrix *A,

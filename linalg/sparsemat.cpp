@@ -40,6 +40,8 @@ void * SparseMatrix::dBuffer = nullptr;
 #  endif // CUSPARSE_VERSION >= 11400
 #endif // MFEM_USE_CUDA
 
+//#define CUSPARSE_SPMV_CSR_ALG1 CUSPARSE_CSRMV_ALG1
+
 void SparseMatrix::InitCuSparse()
 {
    // Initialize cuSPARSE library

@@ -47,6 +47,7 @@ protected:
 
    // Constructor helpers
    void FormG(const DisjointSets *clustering);
+   void MFEM_DEPRECATED(FormGDevice(const DisjointSets *clustering));
 
 public:
 
