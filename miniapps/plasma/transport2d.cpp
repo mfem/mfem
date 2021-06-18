@@ -2332,6 +2332,7 @@ int main(int argc, char *argv[])
    */
    if (mpi.Root()) { ofs_controller.close(); }
    // Free the used memory.
+   delete eqdsk;
    delete ode_solver;
    delete dc;
    if (eqnCoefs(5).GetVectorCoefficient(
