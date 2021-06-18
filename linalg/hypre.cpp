@@ -1758,10 +1758,12 @@ void HypreParMatrix::ScaleRows(const Vector &diag)
       mfem_error("Note the Vector diag is not of compatible dimensions with A\n");
    }
 
+   HostReadWrite();
+   diag.HostRead();
+
    int size = Height();
    double     *Adiag_data   = hypre_CSRMatrixData(A->diag);
    HYPRE_Int  *Adiag_i      = hypre_CSRMatrixI(A->diag);
-
 
    double     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
    HYPRE_Int  *Aoffd_i      = hypre_CSRMatrixI(A->offd);
@@ -1779,6 +1781,8 @@ void HypreParMatrix::ScaleRows(const Vector &diag)
          Aoffd_data[jj] *= val;
       }
    }
+
+   HypreRead();
 }
 
 void HypreParMatrix::InvScaleRows(const Vector &diag)
@@ -1792,6 +1796,9 @@ void HypreParMatrix::InvScaleRows(const Vector &diag)
    {
       mfem_error("Note the Vector diag is not of compatible dimensions with A\n");
    }
+
+   HostReadWrite();
+   diag.HostRead();
 
    int size = Height();
    double     *Adiag_data   = hypre_CSRMatrixData(A->diag);
@@ -1820,6 +1827,8 @@ void HypreParMatrix::InvScaleRows(const Vector &diag)
          Aoffd_data[jj] *= val;
       }
    }
+
+   HypreRead();
 }
 
 void HypreParMatrix::operator*=(double s)
@@ -1828,6 +1837,8 @@ void HypreParMatrix::operator*=(double s)
    {
       mfem_error("Row does not match");
    }
+
+   HostReadWrite();
 
    HYPRE_Int size=hypre_CSRMatrixNumRows(A->diag);
    HYPRE_Int jj;
@@ -1845,6 +1856,8 @@ void HypreParMatrix::operator*=(double s)
    {
       Aoffd_data[jj] *= s;
    }
+
+   HypreRead();
 }
 
 static void get_sorted_rows_cols(const Array<int> &rows_cols,
