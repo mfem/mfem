@@ -388,6 +388,13 @@ void PolBFunc(const Vector &x, Vector &B)
          B[1] =  x[0] / a;
       }
       break;
+      case 5:
+      {
+         double r = sqrt(x * x);
+         B[0] = -x[1] / r;
+         B[1] = x[0] / r;
+      }
+      break;
       default:
          B = 0.0;
    }
@@ -402,7 +409,7 @@ void TotBFunc(const Vector &x, Vector &B)
 
    PolBFunc(x, polB);
 
-   B[2] = sqrt(Tot_B_max_ * Tot_B_max_ - (polB * polB));
+   B[2] = sqrt(std::max(Tot_B_max_ * Tot_B_max_ - (polB * polB), 0.0));
 }
 
 class B3Coefficient : public VectorCoefficient
