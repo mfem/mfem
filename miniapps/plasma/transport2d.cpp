@@ -929,7 +929,7 @@ int main(int argc, char *argv[])
    SolverParams ttol;
    ttol.lin_abs_tol = 0.0;
    ttol.lin_rel_tol = 1e-12;
-   ttol.lin_max_iter = 300;
+   ttol.lin_max_iter = 1000;
    ttol.lin_log_lvl = 3;
 
    ttol.newt_abs_tol = 1e-6;
