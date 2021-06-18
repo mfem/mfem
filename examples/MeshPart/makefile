@@ -55,10 +55,6 @@ $(MFEM_LIB_FILE):
 
 clean:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
-	rm -f DST/*.o
-	rm -f ParDST/*.o
-	rm -f common/*.o
-	rm -f DST2D/*.o
 	rm -rf *.dSYM *.TVD.*breakpoints
 	rm output/*
 

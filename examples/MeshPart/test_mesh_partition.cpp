@@ -33,10 +33,17 @@ int main(int argc, char *argv[])
    // mesh.EnsureNodes();
 
    // Array<int> elems0({0,4,8,12,16});
+   // Array<int> elems0({0,4,8,12,16});
+   Array<int> elems0({8,9});
    // Array<int> elems0({7,6,17,20,21,22});
-   Array<int> elems0({0,1,2,3,4});
+   // Array<int> elems0({0,1,2,3,4});
+   // Array<int> elems0({104,103,86,109});
    elems0.Print(cout, elems0.Size());
-   SubMesh submesh0(mesh, elems0);
+   Subdomain subdomain0(mesh);
+   Mesh * submesh0 = subdomain0.GetSubMesh(elems0);
+
+   Array<int> bdrelems0({0,1});
+   Mesh * bdrmesh0 = subdomain0.GetBdrSurfaceMesh(bdrelems0);
 
    // Array<int> elems1({0,16,19,76,77,20,1,2,3});
    // elems1.Print(cout, elems1.Size());
@@ -44,18 +51,18 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      if (submesh0.mesh)
+      if (submesh0)
       {
          socketstream mesh0_sock(vishost, visport);
          mesh0_sock.precision(8);
-         mesh0_sock << "mesh\n" << *submesh0.mesh << "keys n \n" << flush;
+         mesh0_sock << "mesh\n" << *submesh0 << "keys n \n" << flush;
       }
-      // if (submesh1.mesh)
-      // {
-      //    socketstream mesh1_sock(vishost, visport);
-      //    mesh1_sock.precision(8);
-      //    mesh1_sock << "mesh\n" << *submesh1.mesh << "keys n \n" << flush;
-      // }
+      if (bdrmesh0)
+      {
+         socketstream mesh1_sock(vishost, visport);
+         mesh1_sock.precision(8);
+         mesh1_sock << "mesh\n" << *bdrmesh0 << "keys n \n" << flush;
+      }
    }
 
    // 3. Define a finite element space on the mesh. Here we use H1 continuous
