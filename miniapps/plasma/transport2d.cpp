@@ -2658,6 +2658,123 @@ public:
    }
 };
 
+class Radius : public Coefficient
+{
+private:
+   double a_;
+
+   mutable Vector x_;
+
+public:
+   Radius(double a) : a_(a), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sqrt(x_ * x_);
+   }
+};
+
+class RadiusSqr : public Coefficient
+{
+private:
+   double a_;
+
+   mutable Vector x_;
+
+public:
+   RadiusSqr(double a) : a_(a), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * (x_ * x_);
+   }
+};
+
+class AnnularTestSol : public Coefficient
+{
+private:
+   double ra_;
+   double rb_;
+   double w_;
+   double d_para_;
+   double d_perp_;
+   double a_;
+   double a_para_;
+   double a_perp_;
+   int n_;
+
+   mutable Vector x_;
+
+public:
+   AnnularTestSol(double ra, double rb, double w, double d_para, double d_perp,
+                  double a, double a_para, double a_perp, int n)
+      : ra_(ra), rb_(rb), w_(w), d_para_(d_para), d_perp_(d_perp),
+        a_(a), a_para_(a_para), a_perp_(a_perp), n_(n), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double r2 = x_ * x_;
+      double r = sqrt(r2);
+
+      double tau_perp = d_perp_ * M_PI * M_PI / pow(rb_ - ra_, 2);
+      double ut_perp = 1.0 - exp(-tau_perp * time);
+
+      double k_perp = M_PI * (r - ra_) / (rb_ - ra_);
+      double ur_perp = sqrt(0.5 * (ra_ + rb_) / r) * sin(k_perp);
+
+      double u_perp = a_perp_ * ur_perp * ut_perp;
+
+      double tau_para = d_para_ * double(n_ * n_);
+      double ut_para = exp(-tau_para * time);
+
+      double del_para = double(n_) * atan2(x_[1], x_[0]) - w_ * time;
+      double ur_para = log(r2 / (ra_ * rb_)) / log(rb_ / ra_);
+
+      double u_para = a_para_ * cos(del_para) * ur_para * ut_para;
+
+      return a_ + u_perp + u_para;
+   }
+};
+
+class AnnularTestSrc : public Coefficient
+{
+private:
+   double ra_;
+   double rb_;
+   double d_perp_;
+   double a_perp_;
+
+   mutable Vector x_;
+
+public:
+   AnnularTestSrc(double ra, double rb, double d_perp, double a_perp)
+      : ra_(ra), rb_(rb), d_perp_(d_perp), a_perp_(a_perp), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double r2 = x_ * x_;
+      double r = sqrt(r2);
+
+      double tau_perp = d_perp_ * M_PI * M_PI / pow(rb_ - ra_, 2);
+      double ft_perp = 1.0 - exp(-tau_perp * time);
+
+      double k_perp = M_PI * (r - ra_) / (rb_ - ra_);
+      double fr_perp = a_perp_ * d_perp_ * sin(k_perp) *
+                       sqrt(0.03125 * (ra_ + rb_) / pow(r, 5));
+
+      double f_perp = fr_perp *
+                      (4.0 * M_PI * M_PI * r2 / pow(rb_ - ra_, 2) - ft_perp);
+
+      return f_perp;
+   }
+};
+
 class CirculationVector : public VectorCoefficient
 {
 private:
@@ -2715,6 +2832,32 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       int n;
       input >> a >> b >> n;
       coef_idx = sCoefs.Append(new SinPhi(a, b, n));
+   }
+   else if (name == "AnnularTestSol")
+   {
+      double ra, rb, w, d_para, d_perp, a, a_para, a_perp;
+      int n;
+      input >> ra >> rb >> w >> d_para >> d_perp >> a >> a_para >> a_perp >> n;
+      coef_idx = sCoefs.Append(new AnnularTestSol(ra, rb, w, d_para, d_perp,
+                                                  a, a_para, a_perp, n));
+   }
+   else if (name == "Radius")
+   {
+      double a;
+      input >> a;
+      coef_idx = sCoefs.Append(new Radius(a));
+   }
+   else if (name == "RadiusSqr")
+   {
+      double a;
+      input >> a;
+      coef_idx = sCoefs.Append(new RadiusSqr(a));
+   }
+   else if (name == "AnnularTestSrc")
+   {
+      double ra, rb, d_perp, a_perp;
+      input >> ra >> rb >> d_perp >> a_perp;
+      coef_idx = sCoefs.Append(new AnnularTestSrc(ra, rb, d_perp, a_perp));
    }
    else
    {
