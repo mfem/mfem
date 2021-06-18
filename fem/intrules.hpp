@@ -222,7 +222,6 @@ public:
       {
          (*this)[i].Init(i);
       }
-      SetPointIndices();
    }
 
    /// Sets the indices of each quadrature point on initialization.

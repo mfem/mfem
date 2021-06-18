@@ -374,6 +374,7 @@ public:
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    switch (np)
    {
