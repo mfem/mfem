@@ -4221,6 +4221,28 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    // Time derivative term: d(m_i n_i v_i)/dt
    SetTimeDerivativeTerm(momCoef_);
 
+   if (this->CheckTermFlag(DIFFUSION_TERM) &&
+       this->CheckTermFlag(ADVECTION_TERM))
+   {
+      // Advection-Diffusion term: -Div(Eta_i Grad v_i - v_i m_i n_i v_i)
+      SetAdvectionDiffusionTerm(EtaCoef_, miniViCoef_,
+                                EtaParaCoefPtr_, EtaPerpCoefPtr_);
+   }
+   else
+   {
+      if (this->CheckTermFlag(DIFFUSION_TERM))
+      {
+         // Diffusion term: -Div(Eta_i Grad v_i)
+         SetAnisotropicDiffusionTerm(EtaCoef_, EtaParaCoefPtr_, EtaPerpCoefPtr_);
+      }
+
+      if (this->CheckTermFlag(ADVECTION_TERM))
+      {
+         // Advection term: Div(m_i n_i v_i v_i)
+         SetAdvectionTerm(miniViCoef_, true);
+      }
+   }
+   /*
    if (this->CheckTermFlag(DIFFUSION_TERM))
    {
       // Diffusion term: -Div(eta Grad v_i)
