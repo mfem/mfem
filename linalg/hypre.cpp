@@ -791,6 +791,9 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixJ(A->diag) = diag_j;
    hypre_CSRMatrixData(A->diag) = diag_data;
    hypre_CSRMatrixNumNonzeros(A->diag) = diag_i[local_num_rows];
+#ifdef HYPRE_USING_CUDA
+   hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
+#endif
    hypre_CSRMatrixSetRownnz(A->diag);
    // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
    diagOwner = 3;
@@ -800,6 +803,9 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixJ(A->offd) = offd_j;
    hypre_CSRMatrixData(A->offd) = offd_data;
    hypre_CSRMatrixNumNonzeros(A->offd) = offd_i[local_num_rows];
+#ifdef HYPRE_USING_CUDA
+   hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
+#endif
    hypre_CSRMatrixSetRownnz(A->offd);
    // Prevent hypre from destroying A->offd->{i,j,data}, own A->offd->{i,j,data}
    offdOwner = 3;
@@ -972,7 +978,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixI(A->diag)    = i_diag;
    hypre_CSRMatrixJ(A->diag)    = j_diag;
    hypre_CSRMatrixData(A->diag) = mem_diag.data;
-#if MFEM_HYPRE_VERSION >= 21400
+#ifdef HYPRE_USING_CUDA
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->diag);
@@ -983,7 +989,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixI(A->offd)    = i_offd;
    hypre_CSRMatrixJ(A->offd)    = j_offd;
    hypre_CSRMatrixData(A->offd) = mem_offd.data;
-#if MFEM_HYPRE_VERSION >= 21400
+#ifdef HYPRE_USING_CUDA
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->offd);
@@ -1337,8 +1343,8 @@ static void MakeWrapper(const hypre_CSRMatrix *mat,
    const HYPRE_Int *J = mfem::HostRead(mem.J, nnz);
    const double *data = mfem::HostRead(mem.data, nnz);
    MakeSparseMatrixWrapper(nrows, ncols,
-                           const_cast<int*>(I),
-                           const_cast<int*>(J),
+                           const_cast<HYPRE_Int*>(I),
+                           const_cast<HYPRE_Int*>(J),
                            const_cast<double*>(data),
                            wrapper);
 }

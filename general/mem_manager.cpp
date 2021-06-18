@@ -171,6 +171,8 @@ struct Alias
    Memory *const mem;
    const size_t offset, bytes;
    size_t counter;
+   // 'h_mt' is already stored in 'mem', however, we use this field for type
+   // checking and the alias may be dangling, i.e. 'mem' may be invalid.
    const MemoryType h_mt;
 };
 
@@ -780,7 +782,7 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType h_mt,
    // mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt); // non-lazy dev alloc
 
    // MFEM_VERIFY_TYPES(h_mt, mt); // done by mm.Insert() above
-   CheckHostMemoryType_(h_mt, h_ptr);
+   CheckHostMemoryType_(h_mt, h_ptr, false);
 
    return h_ptr;
 }
@@ -827,7 +829,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       flags = own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE;
       flags |= (Mem::OWNS_HOST | Mem::VALID_DEVICE);
    }
-   CheckHostMemoryType_(h_mt, h_ptr);
+   CheckHostMemoryType_(h_mt, h_ptr, alias);
    return h_ptr;
 }
 
@@ -855,7 +857,7 @@ void MemoryManager::Register_(void *h_ptr, void *d_ptr, size_t bytes,
             flags & ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE)) |
            Mem::VALID_HOST;
 
-   CheckHostMemoryType_(h_mt, h_ptr);
+   CheckHostMemoryType_(h_mt, h_ptr, alias);
 }
 
 void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
@@ -910,10 +912,12 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
    {
       if (owns_internal)
       {
+#ifdef MFEM_DEBUG
          const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;
          MFEM_ASSERT(mt == h_mt,"");
+#endif
          mm.EraseAlias(h_ptr);
-         return h_mt;
+         return mt;
       }
    }
    else // Known
@@ -994,8 +998,11 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
 void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
-   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   if (bytes > 0)
+   {
+      MFEM_VERIFY(flags & Mem::REGISTERED,"");
+      CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS);
+   }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
@@ -1018,8 +1025,11 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
-   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   if (bytes > 0)
+   {
+      MFEM_VERIFY(flags & Mem::REGISTERED,"");
+      CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS);
+   }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
@@ -1042,8 +1052,11 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
-   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   if (bytes > 0)
+   {
+      MFEM_VERIFY(flags & Mem::REGISTERED,"");
+      CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS);
+   }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
@@ -1623,13 +1636,22 @@ void MemoryPrintFlags(unsigned flags)
          << std::endl;
 }
 
-void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
+void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
+                                         bool alias)
 {
    if (!mm.exists) {return;}
-   const bool known = mm.IsKnown(h_ptr);
-   const bool alias = mm.IsAlias(h_ptr);
-   if (known) { MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,""); }
-   if (alias) { MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,""); }
+   if (!alias)
+   {
+      MFEM_VERIFY(mm.IsKnown(h_ptr), "host pointer is not registered");
+      MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,
+                  "host pointer MemoryType mismatch");
+   }
+   else
+   {
+      MFEM_VERIFY(mm.IsAlias(h_ptr), "alias pointer is not registered");
+      MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).h_mt,
+                  "alias pointer MemoryType mismatch");
+   }
 }
 
 MemoryManager mm;

@@ -194,22 +194,49 @@ public:
        HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
    void SetData(double *data_);
 
-   /// FIXME: documentation
+   /** @brief Prepare the HypreParVector for read access in hypre's device
+       memory space, HYPRE_MEMORY_DEVICE. */
    void HypreRead() const;
 
-   /// FIXME: documentation
+   /** @brief Prepare the HypreParVector for read and write access in hypre's
+       device memory space, HYPRE_MEMORY_DEVICE. */
    void HypreReadWrite();
 
-   /// FIXME: documentation
+   /** @brief Prepare the HypreParVector for write access in hypre's device
+       memory space, HYPRE_MEMORY_DEVICE. */
    void HypreWrite();
 
-   /// FIXME: documentation
+   /** @brief Replace the HypreParVector's data with the given Memory, @a mem,
+       and prepare the vector for read access in hypre's device memory space,
+       HYPRE_MEMORY_DEVICE. */
+   /** This method must be used with HypreParVector%s that do not own the data,
+       e.g. created with the constructor:
+       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+
+       The Memory @a mem must be accessible with the hypre MemoryClass defined
+       by GetHypreMemoryClass(). */
    void WrapMemoryRead(const Memory<double> &mem);
 
-   /// FIXME: documentation
+   /** @brief Replace the HypreParVector's data with the given Memory, @a mem,
+       and prepare the vector for read and write access in hypre's device memory
+       space, HYPRE_MEMORY_DEVICE. */
+   /** This method must be used with HypreParVector%s that do not own the data,
+       e.g. created with the constructor:
+       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+
+       The Memory @a mem must be accessible with the hypre MemoryClass defined
+       by GetHypreMemoryClass(). */
    void WrapMemoryReadWrite(Memory<double> &mem);
 
-   /// FIXME: documentation
+   /** @brief Replace the HypreParVector's data with the given Memory, @a mem,
+       and prepare the vector for write access in hypre's device memory space,
+       HYPRE_MEMORY_DEVICE. */
+   /** This method must be used with HypreParVector%s that do not own the data,
+       e.g. created with the constructor:
+       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+
+       The Memory @a mem must be accessible with the hypre MemoryClass defined
+       by GetHypreMemoryClass(). */
    void WrapMemoryWrite(Memory<double> &mem);
 
    /// Set random values
