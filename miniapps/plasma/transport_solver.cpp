@@ -96,6 +96,34 @@ AdvectionDiffusionBC::~AdvectionDiffusionBC()
    }
 }
 
+void AdvectionDiffusionBC::SetTime(double t) const
+{
+   for (int i=0; i<dbc.Size(); i++)
+   {
+      if (dbc[i]->coef)
+      {
+         dbc[i]->coef->SetTime(t);;
+      }
+   }
+   for (int i=0; i<nbc.Size(); i++)
+   {
+      if (nbc[i]->coef)
+      {
+         nbc[i]->coef->SetTime(t);
+      }
+   }
+   for (int i=0; i<rbc.Size(); i++)
+   {
+      for (int j=0; j<rbc[i]->coefs.Size(); j++)
+      {
+         if (rbc[i]->coefs[j])
+         {
+            rbc[i]->coefs[j]->SetTime(t);
+         }
+      }
+   }
+}
+
 const char * AdvectionDiffusionBC::GetBCTypeName(BCType bctype)
 {
    switch (bctype)
@@ -964,6 +992,82 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 */
+/*
+ElementSkewGridFunction::ElementSkewGridFunction(ParMesh &_pmesh)
+   : ParGridFunction(),
+     pmesh(_pmesh),
+     fes(&_pmesh, 0, pmesh.SpaceDimension())
+{
+   computeSkew();
+}
+
+void ElementSkewGridFunction::Update()
+{
+   fes.Update(false);
+   ParGridFunction::Update();
+   computeSkew();
+}
+
+void ElementSkewGridFunction::computeSkew()
+{
+   const int dim = pmesh.Dimension();
+   // DenseMatrix Jac(dim);
+
+   Array<int> vdofs;
+   ElementTransformation *T = NULL;
+   // Vector el_x;
+   // DenseMatrix PMatI;
+   // DenseMatrix DSh;
+   // DenseMatrix Jpr(dim);
+
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      // const FiniteElement *fe = fes.GetFE(i);
+      //const int dof = fe->GetDof();
+      // fes.GetElementVDofs(i, vdofs);
+      T = fes.GetElementTransformation(i);
+      // x.GetSubVector(vdofs, el_x);
+      // PMatI.UseExternalData(el_x.GetData(), dof, dim);
+      // DSh.SetSize(dof, dim);
+
+      const IntegrationRule &ir = IntRules.Get(pmesh.GetElementBaseGeometry(i),
+                                               T->OrderJ());
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+
+         T->SetIntPoint(&ip);
+         const DenseMatrix Jpr = T->Jacobian();
+         // fe->CalcDShape(ip, DSh);
+         // MultAtB(PMatI, DSh, Jpr);
+
+         Vector col1, col2, col3;
+         Jpr.GetColumn(0, col1);
+         Jpr.GetColumn(1, col2);
+         Jpr.GetColumn(2, col3);
+         double norm_c1 = col1.Norml2(),
+                norm_c2 = col2.Norml2(),
+                norm_c3 = dim == 3 ? col3.Norml2() : 0.;
+
+         double cos_Jpr_12 = (col1 * col2) / (norm_c1 * norm_c2),
+                cos_Jpr_13 = dim == 3 ?  (col1 * col3) / (norm_c1 * norm_c3) : 0,
+                cos_Jpr_23 = dim == 3 ?  (col2 * col3) / (norm_c2 * norm_c3) : 0.;
+
+         double th12 = acos(cos_Jpr_12),
+                th13 = dim == 3 ? acos(cos_Jpr_13) : 0.,
+                th23 = dim == 3 ? acos(cos_Jpr_23) : 0.;
+
+         double max_angle = std::max(1.0, fabs(cot(th12)));
+         if (dim == 3)
+         {
+            max_angle = std::max(max_angle, fabs(cot(th13)));
+            max_angle = std::max(max_angle, fabs(cot(th23)));
+         }
+         (*this)(i) = max_angle;
+      }
+   }
+}
+*/
 DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(const DGParams & dg,
                                                  ParFiniteElementSpace &fes,
                                                  ParGridFunctionArray &pgf,
@@ -1728,6 +1832,9 @@ void DGTransportTDO::SetTime(const double _t)
    {
       cout << "Entering DGTransportTDO::SetTime with t = " << _t << endl;
    }
+
+   op_.SetTime(_t);
+
    this->TimeDependentOperator::SetTime(_t);
 
    if ( mpi_.Root() && logging_ > 1)
@@ -2489,6 +2596,54 @@ DGTransportTDO::TransportOp::~TransportOp()
    {
       delete sout_[i];
    }
+}
+
+void DGTransportTDO::TransportOp::SetTime(double t)
+{
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Setting time: " << t << " in TransportOp"
+           << endl;
+   }
+
+   // NLOperator::SetTime(t);
+
+   bcs_.SetTime(t);
+
+   for (int i=0; i<coefs_.Size(); i++)
+   {
+      coefs_[i]->SetTime(t);
+   }
+   for (int i=0; i<dtSCoefs_.Size(); i++)
+   {
+      dtSCoefs_[i]->SetTime(t);
+   }
+   for (int i=0; i<negdtSCoefs_.Size(); i++)
+   {
+      negdtSCoefs_[i]->SetTime(t);
+   }
+   for (int i=0; i<dtVCoefs_.Size(); i++)
+   {
+      dtVCoefs_[i]->SetTime(t);
+   }
+   for (int i=0; i<dtMCoefs_.Size(); i++)
+   {
+      dtMCoefs_[i]->SetTime(t);
+   }
+   for (int i=0; i<sCoefs_.Size(); i++)
+   {
+      sCoefs_[i]->SetTime(t);
+   }
+   for (int i=0; i<mCoefs_.Size(); i++)
+   {
+      mCoefs_[i]->SetTime(t);
+   }
+
+   if (massCoef_) { massCoef_->SetTime(t); }
+   if (diffusionCoef_) { diffusionCoef_->SetTime(t); }
+   if (diffusionMatrixCoef_) { diffusionMatrixCoef_->SetTime(t); }
+   if (advectionCoef_) { advectionCoef_->SetTime(t); }
+   if (sourceCoef_) { sourceCoef_->SetTime(t); }
 }
 
 void DGTransportTDO::TransportOp::SetTimeStep(double dt)
@@ -3350,6 +3505,18 @@ void DGTransportTDO::CombinedOp::updateOffsets()
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::CombinedOp::updateOffsets" << endl;
+   }
+}
+
+void DGTransportTDO::CombinedOp::SetTime(double t)
+{
+   if ( mpi_.Root() && logging_ > 0)
+   {
+      cout << "Setting time: " << t << " in CombinedOp" << endl;
+   }
+   for (int i=0; i<neq_; i++)
+   {
+      op_[i]->SetTime(t);
    }
 }
 

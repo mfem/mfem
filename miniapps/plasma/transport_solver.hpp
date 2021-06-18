@@ -269,6 +269,8 @@ public:
 
    ~AdvectionDiffusionBC();
 
+   void SetTime(double t) const;
+
    static const char * GetBCTypeName(BCType bctype);
 
    void LoadBCs(common::CoefFactory &cf, std::istream &input)
@@ -2235,7 +2237,28 @@ public:
       return eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 };
+/*
+class ElementSkewGridFunction : public ParGridFunction
+{
+private:
+   ParMesh &pmesh;
+   common::L2_FESpace fes;
 
+   inline double cot(double th)
+   {
+      double s = sin(th);
+      if (fabs(s) < 1e-14) { return 1e14; }
+      return cos(th) / s;
+   }
+
+   void computeSkew();
+
+public:
+   ElementSkewGridFunction(ParMesh &_pmesh);
+
+   virtual void Update();
+};
+*/
 #if MFEM_HYPRE_VERSION >= 21800
 // Algebraic multigrid preconditioner for advective problems based on
 // approximate ideal restriction (AIR). Most effective when matrix is
@@ -2703,6 +2726,7 @@ private:
    public:
       virtual ~TransportOp();
 
+      virtual void SetTime(double t);
       virtual void SetTimeStep(double dt);
 
       virtual void InitializeGLVis();
@@ -2959,6 +2983,8 @@ private:
       IonMomentumParaCoef            momCoef_;
       IonMomentumParaDiffusionCoef   EtaParaCoef_;
       IonMomentumPerpDiffusionCoef   EtaPerpCoef_;
+      Coefficient *                  EtaParaCoefPtr_;
+      Coefficient *                  EtaPerpCoefPtr_;
       Aniso2DDiffusionCoef           EtaCoef_;
 
       IonMomentumAdvectionCoef miniViCoef_;
@@ -3234,6 +3260,7 @@ private:
 
       ~CombinedOp();
 
+      void SetTime(double t);
       void SetTimeStep(double dt);
       void SetLogging(int logging);
 
@@ -3655,6 +3682,7 @@ public:
     * sigma = -1, kappa >= kappa0: symm. interior penalty (IP or SIPG) method,
     * sigma = +1, kappa > 0: non-symmetric interior penalty (NIPG) method,
     * sigma = +1, kappa = 0: the method of Baumann and Oden. */
+/*
 class DGAnisoDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3679,6 +3707,7 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 };
+*/
 
 class DGAdvDiffBaseIntegrator
 {
