@@ -4254,7 +4254,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       // Advection term: Div(m_i n_i v_i v_i)
       SetAdvectionTerm(miniViCoef_, true);
    }
-
+   */
    if (this->CheckTermFlag(GRADP_SOURCE_TERM))
    {
       // Source term: b . Grad(p_i + p_e)
@@ -5376,7 +5376,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
       }
    }
 }
-
+/*
 void DGAnisoDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
@@ -5593,7 +5593,7 @@ void DGAnisoDiffusionIntegrator::AssembleFaceMatrix(
       }
    }
 }
-
+*/
 double DGAdvDiffIntegrator::ComputeUpwindingParam(double epsilon,
                                                   double betaMag)
 {
