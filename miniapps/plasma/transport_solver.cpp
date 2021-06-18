@@ -4179,14 +4179,16 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      momCoef_(m_i_, niCoef_, viCoef_),
      EtaParaCoef_(z_i_, m_i_, TiCoef_),
      EtaPerpCoef_(DPerpConst_, m_i_, niCoef_),
-     EtaCoef_((eqncoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
-              ? const_cast<Coefficient*>
-              (eqncoefs_(IMCoefs::PARA_DIFFUSION_COEF))
-              : &EtaParaCoef_,
-              (eqncoefs_(IMCoefs::PERP_DIFFUSION_COEF) != NULL)
-              ? const_cast<Coefficient*>
-              (eqncoefs_(IMCoefs::PERP_DIFFUSION_COEF))
-              : &EtaPerpCoef_, *B3Coef_),
+     EtaParaCoefPtr_((eqncoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
+                     ? const_cast<Coefficient*>
+                     (eqncoefs_(IMCoefs::PARA_DIFFUSION_COEF))
+                     : &EtaParaCoef_),
+     EtaPerpCoefPtr_((eqncoefs_(IMCoefs::PERP_DIFFUSION_COEF) != NULL)
+                     ? const_cast<Coefficient*>
+                     (eqncoefs_(IMCoefs::PERP_DIFFUSION_COEF))
+                     : &EtaPerpCoef_),
+     EtaCoef_(EtaParaCoefPtr_,
+              EtaPerpCoefPtr_, *B3Coef_),
      miniViCoef_(niCoef_, viCoef_, m_i_, DPerpCoef_, B3Coef),
      gradPCoef_(yGF, kGF, z_i_, B3Coef),
      izCoef_(TeCoef_),
@@ -4330,28 +4332,24 @@ IonMomentumOp::PrepareDataFields()
 {
    if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
    {
-      if (eqncoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
+      if (EtaParaCoefPtr_ != NULL)
       {
-         EtaParaGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
-          (*eqncoefs_(IMCoefs::PARA_DIFFUSION_COEF)));
+         EtaParaGF_->ProjectCoefficient(*EtaParaCoefPtr_);
       }
       else
       {
-         EtaParaGF_->ProjectCoefficient(EtaParaCoef_);
+         *EtaParaGF_ = 0.0;
       }
    }
    if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
    {
-      if (eqncoefs_(IMCoefs::PERP_DIFFUSION_COEF) != NULL)
+      if (EtaPerpCoefPtr_ != NULL)
       {
-         EtaPerpGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
-          (*eqncoefs_(IMCoefs::PERP_DIFFUSION_COEF)));
+         EtaPerpGF_->ProjectCoefficient(*EtaPerpCoefPtr_);
       }
       else
       {
-         EtaPerpGF_->ProjectCoefficient(EtaPerpCoef_);
+         *EtaPerpGF_ = 0.0;
       }
    }
    if (this->CheckVisFlag(ADVECTION_COEF))
