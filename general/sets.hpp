@@ -99,6 +99,7 @@ protected:
    Array<int> bounds;
    Array<int> elems;
    Array<int> elem_to_group;
+   Array<int> sizeCounters;
 
 public:
    /// Merges the sets containing @a i and @a j
@@ -127,6 +128,7 @@ public:
    /// Getters for finalized data
    const Array<int> &GetBounds() const;
    const Array<int> &GetElems() const;
+   const Array<int> &GetSizeCounter() const;
    inline int Group(int elem) const { MFEM_ASSERT(finalized, "Must be finalized."); return elem_to_group[elem]; }
 
    /// Creates @a n disjoint singleton sets

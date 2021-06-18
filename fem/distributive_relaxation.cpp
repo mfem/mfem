@@ -389,18 +389,39 @@ void DRSmoother::FormG(const DisjointSets *clustering)
 
 #if defined(__NVCC__)
 template <int LDA>
-__global__ static void computeCoeffsKernel(int size, const int *I, const int *J, const double *data, double *coeffs, const int *bounds, const int *elems)
+__device__ __forceinline__ void loadSubmat(double &subMat[LDA*LDA], const int *I, const int *J, const double *data, const int *clusters)
+{
+#pragma unroll
+  for (int i = 0; i < LDA; ++i) {
+    const int dof_i = clusters[i];
+#pragma unroll
+    for (int j = I[dof_i]; j < I[dof_i+1]; ++j) {
+      const int dof_j = J[j];
+#pragma unroll
+      for (int k = 0; k < LDA; ++k) {
+	if (dof_j == clusters[k]) {
+	  denseMat[i+LDA*k] = data[j];
+	  break;
+	}
+      }
+    }
+  }
+  return;
+}
+
+template <int LDA>
+__global__ static void computeCoeffsKernel(int size, const int *I, const int *J, const double *data, const int *clusters, double *coeffs)
 {
   const int tx = threadIdx.x, bx = blockIdx.x, bdx = blockDim.x;
 
+  #pragma unroll
   for (int group = (bx*bdx)+tx; group < size; group += (bx*bdx)) {
-    const int size = bounds[group+1]-bounds[group];
-    if (size > 1) {
-      double denseMat[LDA*LDA];
+    double denseMat[LDA*LDA];
 
-      #pragma unroll
-      for (int i = 0; i < LDA*LDA; ++i) denseMat[i] = 0.;
-
+    loadSubmat<LDA>(denseMat,I,J,data,clusters+LDA*group);
+  }
+  return;
+}
 
 #if 0
       // Get eigenvalues and eigenvectors of subblock
@@ -434,20 +455,45 @@ __global__ static void computeCoeffsKernel(int size, const int *I, const int *J,
 	const double val = eigenvectors(l, min_idx) / two_norm;
 	coeffs->Append(val);
       }
-#endif
     }
   }
   return;
 }
 #endif
+#endif
 
 void DRSmoother::FormGDevice(const DisjointSets *clustering)
 {
-  const_cast<DisjointSets*>(clustering)->Finalize();
   clustering->Print(std::cout);
   const Array<int> &bounds = clustering->GetBounds();
+  bounds.Print();
   const Array<int> &elems  = clustering->GetElems();
+  elems.Print();
   Array<double> *coeffs = new Array<double>();
+
+  const Array<int> &sizeCounter = clustering->GetSizeCounter();
+
+  Array<int> clusterSize2(2*sizeCounter[2]), clusterSize3(3*sizeCounter[3]);
+
+  int i2 = 0, i3 = 0;
+  for (int i = 0; i < clustering->Size(); ++i) {
+    switch (bounds[i+1]-bounds[i]) {
+    case 2:
+      clusterSize2[i2]   = elems[bounds[i]];
+      clusterSize2[i2+1] = elems[bounds[i]+1];
+      i2 += 2;
+      break;
+    case 3:
+      clusterSize3[i3]   = elems[bounds[i]];
+      clusterSize3[i3+1] = elems[bounds[i]+1];
+      clusterSize3[i3+2] = elems[bounds[i]+2];
+      i3 += 3;
+      break;
+    }
+  }
+  // {{i1,i2,i3}, {j1,j2}, {k1,k2,k3}}
+  // => [i1,i2,i3,k1,k2,k3], [j1,j2]
+  // kernel for 3-clusters, threadIdx idx
 
   MFEM_ASSERT(A != NULL, "'A' matrix be defined");
   std::vector<DenseMatrix> *diag_blocks = DiagonalBlocks(A, clustering);
@@ -455,12 +501,18 @@ void DRSmoother::FormGDevice(const DisjointSets *clustering)
 #if defined(__NVCC__)
   Memory<double> coeffMem(bounds.Size(),MemoryType::HOST,MemoryType::DEVICE);
   auto devCoeffArray = coeffMem.Write(MemoryClass::DEVICE,coeffMem.Capacity());
-  auto devBounds = bounds.Read(), devElems = elems.Read();
   auto devData = A->ReadData();
   auto devI    = A->ReadI(), devJ = A->ReadJ();
   const dim3 dimGrid(1),dimBlock(1);
 
-  computeCoeffsKernel<3><<<dimGrid,dimBlock>>>(bounds.Size()-1,devI,devJ,devData,devCoeffArray,devBounds,devElems);
+  if (!clusterSize2.Empty()) {
+    auto devCluster = clusterSize2.Read();
+    computeCoeffsKernel<2><<<dimGrid,dimBlock>>>(bounds.Size()-1,devI,devJ,devData,devCoeffArray,devCluster);
+  }
+  if (!clusterSize3.Empty()) {
+    auto devCluster = clusterSize2.Read();
+    computeCoeffsKernel<3><<<dimGrid,dimBlock>>>(bounds.Size()-1,devI,devJ,devData,devCoeffArray,devCluster);
+  }
   MFEM_GPU_CHECK(cudaDeviceSynchronize());
 #endif
 
@@ -584,7 +636,6 @@ void PrintClusteringStats(std::ostream &out, const DisjointSets *clustering)
    for (int i = 0; i < bounds.Size()-1; ++i)
    {
       const int size = bounds[i+1] - bounds[i];
-      if (size == 1) { continue; }
 
       int j = 0;
       for (; j < unique_group_sizes.Size(); ++j)

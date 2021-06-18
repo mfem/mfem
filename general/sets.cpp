@@ -135,7 +135,7 @@ ListOfIntegerSets::~ListOfIntegerSets()
 }
 
 DisjointSets::DisjointSets(int n)
-   : parent(n), size(n)
+  : parent(n), size(n), sizeCounters(0)
 {
    finalized = false;
    for (int i = 0; i < n; ++i)
@@ -227,6 +227,8 @@ void DisjointSets::Finalize()
 
    bounds = Array<int>();
    elems = Array<int>();
+   // preallocate to 3, could be more but not usually
+   sizeCounters = Array<int>(3);
 
    std::unordered_map<int, int> reps_to_groups;
    int smallest_unused = 0;
@@ -242,7 +244,11 @@ void DisjointSets::Finalize()
       if (reps_to_groups.count(rep)) { continue; }
 
       reps_to_groups[rep] = smallest_unused;
-      bounds.Append(bounds.Last() + size[rep]);
+
+      const int clusterSize = bounds.Last()+size[rep];
+
+      ++sizeCounters[clusterSize];
+      bounds.Append(clusterSize);
       smallest_unused++;
    }
 
@@ -282,6 +288,12 @@ const Array<int> &DisjointSets::GetElems() const
    return elems;
 }
 
+const Array<int> &DisjointSets::GetSizeCounter() const
+{
+  MFEM_VERIFY(finalized, "DisjointSets must be finalized");
+  return sizeCounters;
+}
+
 void DisjointSets::Print(std::ostream& out) const
 {
    MFEM_VERIFY(finalized, "DisjointSets must be finalized");
@@ -290,7 +302,6 @@ void DisjointSets::Print(std::ostream& out) const
    for (int group = 0; group < bounds.Size()-1; ++group)
    {
       int size = bounds[group+1] - bounds[group];
-      if (size == 1) { continue; }
 
       bool first_elem = true;
       out << "{";
