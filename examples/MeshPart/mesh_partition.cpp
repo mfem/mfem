@@ -11,10 +11,11 @@ Subdomain::Subdomain(const Mesh & mesh0_)
    }
 }
 
-void Subdomain::BuildSubMesh(const Array<int> & elems)
+void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype)
 {
    // if mesh nodes are defined we use them for the vertices
    // otherwise we use the vertices them selfs
+   cout << etype << endl;
    int nv = mesh0->GetNV();
    int subelems = elems.Size();
    Array<int> vmarker(nv); vmarker = 0;
@@ -23,7 +24,15 @@ void Subdomain::BuildSubMesh(const Array<int> & elems)
    {
       int el = elems[ie];
       Array<int> vertices;
-      mesh0->GetElementVertices(el,vertices);
+      switch (etype)
+      {
+      case 0: mesh0->GetElementVertices(el,vertices); break;
+      case 1: mesh0->GetBdrElementVertices(el,vertices); break;
+      case 2: mesh0->GetFaceVertices(el,vertices); break;
+      default:
+         MFEM_ABORT("Wrong entity type choice");
+         break;
+      }
       for (int iv=0; iv<vertices.Size(); iv++)
       {
          int v = vertices[iv];
@@ -35,138 +44,86 @@ void Subdomain::BuildSubMesh(const Array<int> & elems)
    cout << "Num of new vertices: " << numvertices << endl;
 
    // Construct new mesh
-   mesh = new Mesh(dim,numvertices, subelems, 0, sdim);
+   Mesh * meshptr = nullptr;
+   switch (etype)
+   {
+   case 0: 
+      mesh = new Mesh(dim,numvertices, subelems, 0, sdim); 
+      element_map = elems;
+      meshptr = mesh;
+      break;
+   case 1: 
+      bdr_mesh = new Mesh(dim-1,numvertices, subelems, 0, sdim);
+      bdr_element_map = elems;
+      meshptr = bdr_mesh;
+      break;   
+   case 2: 
+      surface_mesh = new Mesh(dim-1,numvertices, subelems, 0, sdim);
+      face_element_map = elems;
+      meshptr = surface_mesh;
+      break;
+      default:
+         MFEM_ABORT("Wrong entity type choice");
+         break;
+   }
 
    const GridFunction * nodes0 = mesh0->GetNodes();
    int vk = 0;
-   if (nodes0)
-   {
-      vmarker = 0;
-      for (int ie = 0; ie<subelems; ie++)
-      {
-         int el = elems[ie];
-         Array<int> vertices;
-         mesh0->GetElementVertices(el,vertices);
-         DenseMatrix val(sdim,vertices.Size());
-         for (int d=0; d<sdim; d++)
-         {
-            Array<double> values;
-            nodes0->GetNodalValues(el,values,d+1);
-            val.SetRow(d,values.GetData());
-         }
-
-         for (int iv=0; iv<vertices.Size(); iv++)
-         {
-            int v = vertices[iv];
-            if (vmarker[v]) continue;
-            double * coords = val.GetColumn(iv);
-            mesh->AddVertex(coords);
-            vmarker[v] = ++vk;
-         }
-      }
-   }
-   else
-   {
-      for (int iv = 0; iv<mesh0->GetNV(); ++iv)
-      {
-         if (!vmarker[iv]) continue;
-         mesh->AddVertex(mesh0->GetVertex(iv));
-         vmarker[iv] = ++vk;
-      }
-   }
-
-   // Add elements
-   for (int ie = 0; ie<subelems; ie++)
-   {
-      const Element * el = mesh0->GetElement(elems[ie]);
-      Element * nel = mesh->NewElement(el->GetGeometryType());
-      int nv0 = el->GetNVertices();
-      const int * v0 = el->GetVertices();
-      int v1[nv0];
-      for (int i=0; i<nv0; i++)
-      {
-         v1[i] = vmarker[v0[i]]-1;
-      }   
-      nel->SetVertices(v1);
-      mesh->AddElement(nel);
-   }
-   mesh->FinalizeTopology();
-   element_map = elems;
-
-   if (nodes0)
-   {
-      // Extract Nodes GridFunction and determine its type
-      const FiniteElementSpace * fes0 = nodes0->FESpace();
-
-      Ordering::Type ordering = fes0->GetOrdering();
-      int order = fes0->FEColl()->GetOrder();
-      bool discont =
-         dynamic_cast<const L2_FECollection*>(fes0->FEColl()) != NULL;
-
-      // Set curvature of the same type as original mesh
-      mesh->SetCurvature(order, discont, sdim, ordering);
-
-      const FiniteElementSpace * fes = mesh->GetNodalFESpace();
-      GridFunction * nodes = mesh->GetNodes();
-
-      Array<int> vdofs0;
-      Array<int> vdofs;
-      Vector loc_vec;
-      // Copy nodes to submesh
-      for (int e = 0; e < element_map.Size(); e++)
-      {
-         fes0->GetElementVDofs(element_map[e], vdofs0);
-         nodes0->GetSubVector(vdofs0, loc_vec);
-         fes->GetElementVDofs(e, vdofs);
-         nodes->SetSubVector(vdofs, loc_vec);
-      }
-   }
-}
-
-
-void Subdomain::BuildBdrSurfaceMesh(const Array<int> & bdr_elems)
-{
-   int nv = mesh0->GetNV();
-   int subelems = bdr_elems.Size();
-   Array<int> vmarker(nv); vmarker = 0;
-   int numvertices = 0;
-   for (int ie = 0; ie<subelems; ie++)
-   {
-      int el = bdr_elems[ie];
-      Array<int> vertices;
-      mesh0->GetBdrElementVertices(ie,vertices);
-      for (int iv=0; iv<vertices.Size(); iv++)
-      {
-         int v = vertices[iv];
-         if (vmarker[v]) continue;
-         vmarker[v] = 1;
-         numvertices++;
-      }
-   }
-   cout << "Num of new vertices: " << numvertices << endl;
-
-   bdr_mesh = new Mesh(dim-1,numvertices, subelems);
-
-   const GridFunction * nodes0 = mesh0->GetNodes();
-   int vk = 0;
-   // if (nodes0)
+   // if (nodes0) // TODO 
    // {
+   //    vmarker = 0;
+   //    for (int ie = 0; ie<subelems; ie++)
+   //    {
+   //       int el = elems[ie];
+   //       Array<int> vertices;
+   //       switch (etype)
+   //       {
+   //       case 0: mesh0->GetElementVertices(el,vertices); break;
+   //       case 1: mesh0->GetBdrElementVertices(el,vertices); break;
+   //       case 2: mesh0->GetFaceVertices(el,vertices); break;
+   //       default:
+   //          MFEM_ABORT("Wrong entity type choice");
+   //          break;
+   //       }
+   //       DenseMatrix val(sdim,vertices.Size());
+   //       for (int d=0; d<sdim; d++)
+   //       {
+   //          Array<double> values;
+   //          nodes0->GetNodalValues(el,values,d+1);
+   //          val.SetRow(d,values.GetData());
+   //       }
 
+   //       for (int iv=0; iv<vertices.Size(); iv++)
+   //       {
+   //          int v = vertices[iv];
+   //          if (vmarker[v]) continue;
+   //          double * coords = val.GetColumn(iv);
+   //          mesh->AddVertex(coords);
+   //          vmarker[v] = ++vk;
+   //       }
+   //    }
    // }
    // else
    {
       for (int iv = 0; iv<mesh0->GetNV(); ++iv)
       {
          if (!vmarker[iv]) continue;
-         bdr_mesh->AddVertex(mesh0->GetVertex(iv));
+         meshptr->AddVertex(mesh0->GetVertex(iv));
          vmarker[iv] = ++vk;
       }
    }
-
+   // Add elements
    for (int ie = 0; ie<subelems; ie++)
    {
-      const Element * el = mesh0->GetBdrElement(bdr_elems[ie]);
-      Element * nel = bdr_mesh->NewElement(el->GetGeometryType());
+      const Element * el = nullptr;
+      switch (etype)
+      {
+         case 0: el = mesh0->GetElement(elems[ie]); break;
+         case 1: el = mesh0->GetBdrElement(elems[ie]); break;
+         case 2: el = mesh0->GetFace(elems[ie]); break;
+         default: MFEM_ABORT("Wrong entity type choice"); break;
+      }
+      Element * nel = meshptr->NewElement(el->GetGeometryType());
       int nv0 = el->GetNVertices();
       const int * v0 = el->GetVertices();
       int v1[nv0];
@@ -175,12 +132,9 @@ void Subdomain::BuildBdrSurfaceMesh(const Array<int> & bdr_elems)
          v1[i] = vmarker[v0[i]]-1;
       }   
       nel->SetVertices(v1);
-      bdr_mesh->AddElement(nel);
+      meshptr->AddElement(nel);
    }
-
-   bdr_mesh->FinalizeTopology();
-   element_map = bdr_elems;
-
+   meshptr->FinalizeTopology();
 
    if (nodes0)
    {
@@ -193,22 +147,161 @@ void Subdomain::BuildBdrSurfaceMesh(const Array<int> & bdr_elems)
          dynamic_cast<const L2_FECollection*>(fes0->FEColl()) != NULL;
 
       // Set curvature of the same type as original mesh
-      bdr_mesh->SetCurvature(order, discont, sdim, ordering);
+      meshptr->SetCurvature(order, discont, sdim, ordering);
 
-      const FiniteElementSpace * fes = bdr_mesh->GetNodalFESpace();
-      GridFunction * nodes = bdr_mesh->GetNodes();
+      const FiniteElementSpace * fes1 = meshptr->GetNodalFESpace();
+      GridFunction * nodes = meshptr->GetNodes();
 
       Array<int> vdofs0;
       Array<int> vdofs;
       Vector loc_vec;
       // Copy nodes to submesh
-      for (int e = 0; e < element_map.Size(); e++)
+      for (int e = 0; e < elems.Size(); e++)
       {
-         fes0->GetBdrElementVDofs(element_map[e], vdofs0);
+         switch (etype)
+         {
+         case 0: fes0->GetElementVDofs(elems[e], vdofs0); break;
+         case 1: fes0->GetBdrElementVDofs(elems[e], vdofs0); break;
+         case 2: fes0->GetFaceVDofs(elems[e], vdofs0); break;
+         default:
+            MFEM_ABORT("Wrong entity type choice");
+            break;
+         }
          nodes0->GetSubVector(vdofs0, loc_vec);
-         fes->GetElementVDofs(e, vdofs);
+         fes1->GetElementVDofs(e, vdofs);
          nodes->SetSubVector(vdofs, loc_vec);
       }
    }
+}
 
+void Subdomain::BuildDofMap(const entity_type & etype)
+{
+   Array<int> elems;
+   FiniteElementSpace * fesptr = nullptr;
+   const FiniteElementCollection *fec = fes0->FEColl();
+   switch(etype)
+   {
+   case 0: 
+      fesptr = new FiniteElementSpace(mesh,fec);
+      elems = element_map;
+      break;
+   case 1: 
+      fesptr = new FiniteElementSpace(bdr_mesh,fec);
+      elems = bdr_element_map;
+      break;
+   case 2: 
+      fesptr = new FiniteElementSpace(surface_mesh,fec);
+      elems = face_element_map;
+      break;
+   default:
+      MFEM_ABORT("Wrong entity type choice");
+      break;
+   }
+   
+   Array<int> dofs(fesptr->GetTrueVSize());
+   for (int iel = 0; iel<elems.Size(); ++iel)
+   {
+      // index in the global mesh
+      int iel_idx = elems[iel];
+      // get the dofs of this element
+      Array<int> ldofs;
+      Array<int> gdofs;
+      switch(etype)
+      {
+         case 0: fes0->GetElementVDofs(iel_idx,gdofs); break;
+         case 1: fes0->GetBdrElementVDofs(iel_idx,gdofs); break;
+         case 2: fes0->GetFaceVDofs(iel_idx,gdofs); break;
+         default:  MFEM_ABORT("Wrong entity type");  break;
+      }
+      fesptr->GetElementDofs(iel,ldofs);
+         // the sizes have to match
+      MFEM_VERIFY(gdofs.Size() == ldofs.Size(),
+                  "Size inconsistency");
+     // loop through the dofs and take into account the signs;
+      int ndof = ldofs.Size();
+      for (int i = 0; i<ndof; ++i)
+      {
+         int ldof_ = ldofs[i];
+         int gdof_ = gdofs[i];
+         int ldof = (ldof_ >= 0) ? ldof_ : abs(ldof_) - 1;
+         int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
+         dofs[ldof] = gdof;
+      }
+   }
+   switch(etype)
+   {
+   case 0: 
+      dof_map = dofs; 
+      fes = fesptr;
+      break;
+   case 1: 
+      bdr_dof_map = dofs; 
+      bdr_fes = fesptr;
+      break;
+   case 2: 
+      face_dof_map = dofs; 
+      surface_fes = fesptr;
+      break;
+   default:  
+      MFEM_ABORT("Wrong entity type");  break;
+   }
+}
+
+void Subdomain::BuildProlongationMatrix(const entity_type & etype)
+{
+   Array<int> dofs;
+   SparseMatrix * Ptr = nullptr;
+   switch (etype)
+   {
+   case 0: 
+      if (!dof_map.Size()) BuildDofMap(etype);
+      dofs = dof_map; 
+      Ptr = P;
+      break;
+   case 1: 
+      if (!bdr_dof_map.Size()) BuildDofMap(etype);
+      dofs = bdr_dof_map; 
+      Ptr = Pb;
+      break;
+   case 2: 
+      if (!face_dof_map.Size()) BuildDofMap(etype);
+      dofs = face_dof_map; 
+      Ptr = Pf;
+      break;
+   default: 
+      MFEM_ABORT("Wrong entity type"); 
+      break;
+   }
+
+   int height = fes0->GetTrueVSize();
+   int width = dofs.Size();
+   Ptr = new SparseMatrix(height,width);
+   for (int i = 0; i< dofs.Size(); i++)
+   {
+      int j = dofs[i];
+      Ptr->Set(j,i,1.);
+   }
+   Ptr->Finalize();
+
+   switch (etype)
+   {
+      case 0: P = Ptr; break;
+      case 1: Pb = Ptr; break;
+      case 2: Pf = Ptr; break;
+      default: MFEM_ABORT("Wrong entity type"); break;
+   }
+
+}
+
+Subdomain::~Subdomain()
+{
+   delete mesh;
+   delete bdr_mesh;
+   delete surface_mesh;
+   delete fes; 
+   delete bdr_fes; 
+   delete surface_fes;
+   delete P; 
+   delete Pb; 
+   delete Pf; 
 }
