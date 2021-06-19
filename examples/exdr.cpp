@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
    const SparseMatrix  &ALor = lor.GetAssembledMatrix();
    LORInfo              lorInfo(*lor.GetFESpace().GetMesh(),ctx->mesh,ctx->order);
    DisjointSets        *cluster = lorInfo.Cluster();
+   PrintClusteringStats(std::cout,cluster);
    LORSolver<SimpleAMG> lorSol(lor,&ALor,new DRSmoother(cluster,&ALor,dim == 3),
                                MPI_COMM_WORLD);
 

@@ -227,14 +227,16 @@ void DisjointSets::Finalize()
 
    bounds = Array<int>();
    elems = Array<int>();
-   // preallocate to 3, could be more but not usually
-   sizeCounters = Array<int>(3);
+   // preallocate to 4, could be more but not usually
+   sizeCounters = Array<int>(4);
+   for (int i = 0; i < sizeCounters.Size(); ++i) sizeCounters[i] = 0;
 
    std::unordered_map<int, int> reps_to_groups;
    int smallest_unused = 0;
    elems.SetSize(parent.Size());
 
    bounds.Append(0);
+   int largestGroup = 0;
    for (int i = 0; i < parent.Size(); ++i)
    {
       elems[i] = -1;
@@ -244,13 +246,19 @@ void DisjointSets::Finalize()
       if (reps_to_groups.count(rep)) { continue; }
 
       reps_to_groups[rep] = smallest_unused;
-
-      const int clusterSize = bounds.Last()+size[rep];
-
-      ++sizeCounters[clusterSize];
-      bounds.Append(clusterSize);
+      bounds.Append(bounds.Last()+size[rep]);
+      if (size[rep] >= largestGroup) {
+	sizeCounters.SetSize(size[rep]+1,1);
+	largestGroup = size[rep]+1;
+      } else {
+	++sizeCounters[size[rep]];
+      }
       smallest_unused++;
    }
+   // since bounds is an "interior" array we need to add 1 more of each to get the true size
+   for (int i = 1; i < largestGroup; ++i) sizeCounters[i] += i;
+   // in case it was smaller than initial
+   sizeCounters.SetSize(largestGroup);
 
    // Assemble the elems array
    for (int i = 0; i < parent.Size(); ++i)

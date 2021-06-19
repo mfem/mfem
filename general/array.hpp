@@ -319,6 +319,30 @@ public:
    /// Shortcut for mfem::ReadWrite(a.GetMemory(), a.Size(), false).
    T *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
+
+  inline void Permute(Array<int> &perm)
+  {
+    using std::swap;
+    for (int i = 0; i < perm.Size(); ++i) {
+      int curIdx = i;
+      while (i != perm[curIdx]) {
+	int nextIdx = perm[curIdx];
+	swap((*this)[curIdx],(*this)[nextIdx]);
+	perm[curIdx] = curIdx;
+	curIdx = nextIdx;
+      }
+      perm[curIdx] = curIdx;
+    }
+    return;
+  }
+
+  inline Array<int> Permute(const Array<int> &perm) const
+  {
+    Array<int> ret(Size());
+
+    for (int i = 0; i < perm.Size(); ++i) ret[i] = (*this)[perm[i]];
+    return ret;
+  }
 };
 
 template <class T>
