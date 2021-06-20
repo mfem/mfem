@@ -869,7 +869,7 @@ void ParaViewDataCollection::Save()
          {
             if(regex_search(line,match,regexp))
             {
-               MFEM_ASSERT(match.size == 2,
+               MFEM_ASSERT(match.size() == 2,
 			   "Unable to ascertain time value from existing pvd file: " << pvdname);
                double tvalue = std::stod(match[1]);
                if (tvalue < GetTime())
