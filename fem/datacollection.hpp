@@ -488,6 +488,7 @@ private:
    std::fstream pvd_stream;
    VTKFormat pv_data_format;
    bool high_order_output;
+   bool restart_mode;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -544,6 +545,10 @@ public:
    /// Sets whether or not to output the data as high-order elements (false
    /// by default). Reading high-order data requires ParaView 5.5 or later.
    void SetHighOrderOutput(bool high_order_output_);
+
+   /// Enable or disable restart mode. If restart is enabled, new writes will
+   /// preserve timestep metadata for any solutions prior to the currently defined time.
+   void SetRestartMode(bool restart_mode_);
 
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;

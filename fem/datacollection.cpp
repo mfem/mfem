@@ -17,6 +17,7 @@
 
 #include <cerrno>      // errno
 #include <sstream>
+#include <regex>
 
 #ifndef _WIN32
 #include <sys/stat.h>  // mkdir
@@ -764,7 +765,8 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
    : DataCollection(collection_name, mesh_),
      levels_of_detail(1),
      pv_data_format(VTKFormat::BINARY),
-     high_order_output(false)
+     high_order_output(false),
+     restart_mode(false)
 {
 #ifdef MFEM_USE_ZLIB
    compression = -1; // default zlib compression level, equivalent to 6
@@ -842,7 +844,10 @@ void ParaViewDataCollection::Save()
    }
    // the directory is created
 
-   // create pvd file if needed
+   // create pvd file if needed. If we are not in restart mode, a new pvd file
+   // is always created. In restart mode, we keep any previously defined
+   // timestep values as long as they are less than the currently defined time.
+
    if (myid == 0 && !pvd_stream.is_open())
    {
       std::string dpath=GenerateCollectionPath();
@@ -850,26 +855,35 @@ void ParaViewDataCollection::Save()
 
       std::ifstream fileTest(pvdname);
 
-      if (fileTest.good())
+      if (fileTest.good() && restart_mode)
       {
-         // pvd file exists, open and update output pos so we retain any previously existing timesteps
+         // pvd file exists, open and update output pos so we retain any older timesteps
          pvd_stream.open(pvdname.c_str(),std::ios::in|std::ios::out);
 
          std::string line;
          std::fstream::pos_type pos = pvd_stream.tellp();
+
+         std::regex regexp("timestep=\"([^[:space:]]+)\"");
+         std::smatch match;
          while (getline(pvd_stream,line))
          {
-            if (line.find("<DataSet timestep=") != std::string::npos)
+            if(regex_search(line,match,regexp))
             {
-               pos = pvd_stream.tellg();
-            }
+               MFEM_ASSERT(match.size == 2,
+			   "Unable to ascertain time value from existing pvd file: " << pvdname);
+               double tvalue = std::stod(match[1]);
+               if (tvalue < GetTime())
+               {
+                  pos = pvd_stream.tellg();
+               }
+             }
          }
          pvd_stream.clear();
          pvd_stream.seekp(pos);
       }
       else
       {
-         // file does not exist - initialize new pvd file
+         // initialize new pvd file
          pvd_stream.open(pvdname.c_str(),std::ios::out);
          // initialize the file
          pvd_stream << "<?xml version=\"1.0\"?>\n";
@@ -1113,6 +1127,11 @@ void ParaViewDataCollection::SetCompression(bool compression_)
    {
       SetCompressionLevel(-1);
    }
+}
+
+void ParaViewDataCollection::SetRestartMode(bool restart_mode_)
+{
+   restart_mode = restart_mode_;
 }
 
 const char *ParaViewDataCollection::GetDataFormatString() const
