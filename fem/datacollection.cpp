@@ -867,16 +867,16 @@ void ParaViewDataCollection::Save()
          std::smatch match;
          while (getline(pvd_stream,line))
          {
-            if(regex_search(line,match,regexp))
+            if (regex_search(line,match,regexp))
             {
                MFEM_ASSERT(match.size() == 2,
-			   "Unable to ascertain time value from existing pvd file: " << pvdname);
+                           "Unable to ascertain time value from existing pvd file: " << pvdname);
                double tvalue = std::stod(match[1]);
                if (tvalue < GetTime())
                {
                   pos = pvd_stream.tellg();
                }
-             }
+            }
          }
          pvd_stream.clear();
          pvd_stream.seekp(pos);
