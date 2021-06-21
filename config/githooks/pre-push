@@ -15,9 +15,9 @@ option=${1:-""}
 
 if [[ "${option}" == "--help" ]]; then
   echo " This script runs checks on the repository."
-  echo " It has 2 modes: with and without option"
+  echo " It has 2 modes: with and without an option"
   echo ""
-  echo " - options are use in GitHub Actions and can be:"
+  echo " - options are used in GitHub Actions and can be:"
   echo "   --copyright"
   echo "   --license"
   echo "   --release"
