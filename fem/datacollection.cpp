@@ -892,8 +892,10 @@ void ParaViewDataCollection::Save()
             // remove timesteps newer than current time
             pvd_stream.close();
             int status = truncate(pvdname.c_str(), pos);
-            MFEM_ASSERT(status == 0,
-                        "Unable to truncate newer time values from pvd file: " << pvdname);
+            if (status != 0)
+            {
+               MFEM_ABORT("Unable to truncate newer time values from pvd file:: " << pvdname);
+            }
             pvd_stream.open(pvdname.c_str(),std::ios::in|std::ios::out);
          }
 #endif
