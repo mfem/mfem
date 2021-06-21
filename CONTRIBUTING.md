@@ -381,6 +381,10 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   checks in Travis and Github Actions enforce MFEM-specific rules which are
   explained in the error messages and the `tests/scripts` directory.
 
+- Also note that `branch-history`, and the `repos-checks` found in Github
+  Actions can be triggered automatically before eack push using githooks. See
+  the [git hooks README](config/githooks/README.md) for a detailed explanation.
+
 - If triggered, track the status of the LLNL GitLab tests. If failing, ask
   one of the _LLNL developers_ for details.
 
