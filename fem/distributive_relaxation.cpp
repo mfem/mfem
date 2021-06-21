@@ -390,28 +390,33 @@ void DRSmoother::FormG(const DisjointSets *clustering)
 }
 
 #if defined(__NVCC__)
+namespace kernels {
+#define MFEM_MAT_IDX(_mat,_lda,_i,_j) _mat[((_lda)*(_i))+(_j)]
+
+// Load a dense submatrix from global memory into local memory using efficient RO data
+// cache loads
 template <int LDA>
-MFEM_DEVICE __forceinline__ void loadSubmat(double subMat[LDA*LDA],
-                                            const int *__restrict__ I, const int *__restrict__ J,
-                                            const double *__restrict__ data, const int *__restrict__ clusters)
+MFEM_DEVICE __forceinline__ void loadSubmatLDG(double subMat[LDA*LDA],
+					       const int *__restrict__ I, const int *__restrict__ J,
+					       const double *__restrict__ data, const int *__restrict__ clusters)
 {
    MFEM_UNROLL(LDA)
    for (int i = 0; i < LDA; ++i)
    {
-      const int dof_i = clusters[i];
+      const int dof_i = __ldg(clusters+i);
       // shouldn't unroll here, we don't know trip count and nvcc is kinda terrible at
       // guessing it
-      for (int j = I[dof_i]; j < I[dof_i+1]; ++j)
+      for (int j = __ldg(I+dof_i); j < __ldg(I+dof_i+1); ++j)
       {
-         const int dof_j = J[j];
+	 const int dof_j = __ldg(J+j);
 
          MFEM_UNROLL(LDA)
          for (int k = 0; k < LDA; ++k)
          {
-            if (dof_j == clusters[k])
+	   if (dof_j == __ldg(clusters+k))
             {
-               subMat[(LDA*i)+k] = data[j];
-               break;
+	      MFEM_MAT_IDX(subMat,LDA,i,k) = __ldg(data+k);
+	      break;
             }
          }
       }
@@ -419,115 +424,167 @@ MFEM_DEVICE __forceinline__ void loadSubmat(double subMat[LDA*LDA],
    return;
 }
 
+// compute diag(g^T x A x g) for set sizes
+template <int LDA>
+MFEM_DEVICE __forceinline__ void GTAGDiag(const double G[LDA], const double A[LDA*LDA], double result[LDA]);
+
+template <>
+MFEM_DEVICE __forceinline__ void GTAGDiag<1>(const double G[1], const double A[1], double result[1])
+{
+  const double a00 = MFEM_MAT_IDX(A,1,0,0), g0 = G[0];
+
+  result[0] = g0*a00*g0;
+  return;
+}
+
+template <>
+MFEM_DEVICE __forceinline__ void GTAGDiag<2>(const double G[2], const double A[4], double result[2])
+{
+  const double a00 = MFEM_MAT_IDX(A,2,0,0), a01 = MFEM_MAT_IDX(A,2,0,1);
+  const double a10 = MFEM_MAT_IDX(A,2,1,0), a11 = MFEM_MAT_IDX(A,2,1,1);
+  const double g0  = G[0], g1 = G[1];
+
+  result[0] = (a00*g1*g1)+(a01*g0*g1)+(a10*g0*g1)+(a11*g1*g1);
+  result[1] = a11;
+  return;
+}
+
+template <>
+MFEM_DEVICE __forceinline__ void GTAGDiag<3>(const double G[3], const double A[9], double result[3])
+{
+  const double a00 = MFEM_MAT_IDX(A,3,0,0),a01 = MFEM_MAT_IDX(A,3,0,1),a02 = MFEM_MAT_IDX(A,3,0,2);
+  const double a10 = MFEM_MAT_IDX(A,3,1,0),a11 = MFEM_MAT_IDX(A,3,1,1),a12 = MFEM_MAT_IDX(A,3,1,2);
+  const double a20 = MFEM_MAT_IDX(A,3,2,0),a21 = MFEM_MAT_IDX(A,3,2,1),a22 = MFEM_MAT_IDX(A,3,2,2);
+  const double g0  = G[0], g1 = G[1], g2 = G[2];
+
+  result[0] = (g0*((a00*g0)+(a10*g1)+(a20*g2)))+(g1*((a01*g0)+(a11*g1)+(a21*g2)))+(g2*((a02*g0)+(a12*g1)+(a22*g2)));
+  result[1] = a11;
+  result[2] = a22;
+  return;
+}
+#undef MFEM_MAT_IDX
+} // namespace kernels
+
+// main driver kernel for computing the coefficient array + inner product. Only inner
+// product is returned
 template <int LDA>
 __global__ static void computeCoeffsKernel(int size, const int *__restrict__ I,
                                            const int *__restrict__ J, const double *__restrict__ data,
-                                           const int *__restrict__ clusters, double *__restrict__ coeffs)
+                                           const int *__restrict__ clusters, double *__restrict__ ret)
 {
-   const int tx = threadIdx.x, bx = blockIdx.x, bdx = blockDim.x;
+  const int tx = threadIdx.x, bx = blockIdx.x, bdx = blockDim.x, gdx = gridDim.x;
 
-   for (int group = (bx*bdx)+tx; group < size; group += (bx*bdx))
+   for (int group = (bx*bdx)+tx; group < size; group += (gdx*bdx))
    {
-      __syncthreads();
-      printf("thread [%d,%d,%d](%d,%d,%d) working on group %d\n",blockIdx.x,
-             blockIdx.y,blockIdx.z,threadIdx.x,threadIdx.y,threadIdx.z,group);
-      __syncthreads();
-      double denseMat[LDA*LDA],eigVal[LDA],eigVec[LDA*LDA];
-      int     smallEigIdx = 0;
+      double subMat[LDA*LDA],eigVal[LDA],eigVec[LDA*LDA];
+      int    smallEigIdx = 0;
 
-      loadSubmat<LDA>(denseMat,I,J,data,clusters+LDA*group);
-      kernels::CalcEigenvalues<LDA>(denseMat,eigVal,eigVec);
+      kernels::loadSubmatLDG<LDA>(subMat,I,J,data,clusters+LDA*group);
+      kernels::CalcEigenvalues<LDA>(subMat,eigVal,eigVec);
       {
+	// search the eigenvalues for the smallest eigenvalue, note the "index" here is
+	// just multiples of LDA to make indexing easier
          double smallestEigVal = eigVal[0];
          MFEM_UNROLL(LDA)
          for (int i = 1; i < LDA; ++i)
          {
-            smallestEigVal = smallestEigVal < eigVal[i] ? smallestEigVal : smallEigIdx+=LDA,
-                                                                                        eigVal[i];
+	   // note the bundling of index increment and setting smallestEigVal
+	   smallestEigVal = smallestEigVal < eigVal[i] ? smallestEigVal : smallEigIdx+=LDA,eigVal[i];
          }
       }
       {
          double mod = 0.0;
-         MFEM_UNROLL(LDA)
-         for (int i = 0; i < LDA; ++i) { mod += eigVec[smallEigIdx+i]*eigVal[smallEigIdx+i]; }
-         const double invSqrtMod = 1.0/sqrt(mod);
-         // stream result back down to global mem, this will be fully alligned
-         MFEM_UNROLL(LDA)
-         for (int i = 0; i < LDA; ++i) { coeffs[LDA*group+i] = eigVec[smallEigIdx+i]*invSqrtMod; }
+	 MFEM_UNROLL(LDA)
+         for (int i = 0; i < LDA; ++i) mod += eigVec[smallEigIdx+i]*eigVec[smallEigIdx+i];
+	 const double invSqrtMod = 1.0/sqrt(mod);
+
+	 // modify in-place to save precious registers
+	 MFEM_UNROLL(LDA)
+	 for (int i = 0; i < LDA; ++i) eigVec[smallEigIdx+i] *= invSqrtMod;
       }
+
+      // compute g^T A g, reusing eigVal in place of results
+      kernels::GTAGDiag<LDA>(eigVec+smallEigIdx,subMat,eigVal);
+
+      // stream to global memory
+      MFEM_UNROLL(LDA)
+      for (int i = 0; i < LDA; ++i) ret[LDA*group+i] = eigVal[i];
    }
    return;
 }
 #endif
 
+// compare doubles
 inline bool isCloseAtTol(double a, double b,
                          double tol = std::numeric_limits<double>::epsilon())
 {
-   using std::fabs;
-   return fabs(a-b) <= (fabs(a) > fabs(b) ? fabs(b) : fabs(a)*tol);
+  using std::fabs; // koenig lookup
+  return fabs(a-b) <= (fabs(a) > fabs(b) ? fabs(b) : fabs(a)*tol);
 }
 
 void DRSmoother::FormGDevice(const DisjointSets *clustering)
 {
    const Array<int> &bounds = clustering->GetBounds();
    const Array<int> &elems  = clustering->GetElems();
-   const Array<int> &refSizeCounter = clustering->GetSizeCounter();
-   Array<int>       sizeCounter(refSizeCounter);
-   // prefix sum
-   sizeCounter.PartialSum();
+   const Array<int> &sizeCounter = clustering->GetSizeCounter();
    // sizeCtrSum should also be equivalent to bounds/elems.Size()
-   const int sizeCtrSum = sizeCounter.Last(), sizeCtrSize = sizeCounter.Size();
+   const int sizeCtrSize = sizeCounter.Size();
    // vector of clusters packed by size, i.e. all 1,2,3 etc sized clusters in one array
    std::vector<Array<int>> clusterPack(sizeCtrSize);
    // an 'i' for each size
    std::vector<int> clusterIter(sizeCtrSize,0);
-   // permutation to unpack clusterPack
-   Array<int>       clusterPerm(sizeCtrSum);
 
-   int coeffSize = 0;
    // loop over all the packed vectors
-   for (int i = 0; i < sizeCtrSize; ++i)
+   for (int i = 1; i < sizeCtrSize; ++i)
    {
-      // note the use of refSizeCounter, it has NOT been prefix summed!
-      if (refSizeCounter[i])
+      if (sizeCounter[i])
       {
          // we have clusters of size i, now we set sizes
-         coeffSize += i*refSizeCounter[i];
-         clusterPack[i].SetSize(i*refSizeCounter[i]);
+         clusterPack[i].SetSize(i*sizeCounter[i]);
       }
    }
+
+   int totalCoeffSize = 0;
+   std::vector<int> clusterSize;
+
+   for (auto &cpack: clusterPack) {
+     totalCoeffSize += cpack.Size();
+     clusterSize.push_back(totalCoeffSize);
+   }
+
+   // permutation to unpack clusterPack
+   //Array<int> clusterPerm(totalCoeffSize);
 
    // now we loop over all clusters
    for (int i = 0; i < bounds.Size()-1; ++i)
    {
-      const int size = bounds[i+1]-bounds[i];
-      const int ci   = clusterIter[size];
+      const int csize = bounds[i+1]-bounds[i];
+      const int ci    = clusterIter[csize];
 
       // append the cluster to the packed vector
-      for (int j = 0; j < size; ++j)
+      for (int j = 0; j < csize; ++j)
       {
-         clusterPack[size][ci+j] = elems[bounds[i]+j];
+	// record the original location for unpacking, recall sizeCounter has been prefix
+	// summed so sizecounter[size-1] returns the total number of clusters of less than
+	// size 'size'
+	//clusterPerm[clusterSize[csize-1]+ci+j] = i;
+	clusterPack[csize][ci+j] = elems[bounds[i]+j];
       }
-      // record the original location for unpacking, recall sizeCounter has been prefix
-      // summed so sizecounter[size-1] returns the total number of clusters of less than
-      // size 'size'
-      clusterPerm[sizeCounter[size-1]+(ci/size)] = i;
-      clusterIter[size] += size;
+      clusterIter[csize] += csize;
    }
-   clusterPack.shrink_to_fit();
 
    // can allocate the full coefficient array now
-   Array<double> *coeffs = new Array<double>(coeffSize);
+   Array<double> *coeffs = new Array<double>(totalCoeffSize);
 
    // get device-side memory
    auto devCoeffArray = coeffs->Write();
    auto devData = A->ReadData();
    auto devI    = A->ReadI(), devJ = A->ReadJ();
 #if defined(__NVCC__)
-   const dim3 dimBlock(256);
+   const dim3 dimBlock(MFEM_CUDA_BLOCKS);
 #endif
 
-   std::cout<<bounds.Size()-1<<std::endl;
+   std::cout<<"Device compute begin"<<std::endl;
    // running total of all the coefficients transfered so far
    int totalSize = 0;
    for (int i = 2; i < clusterPack.size(); ++i)
@@ -540,99 +597,39 @@ void DRSmoother::FormGDevice(const DisjointSets *clustering)
          const dim3 dimGrid(std::max(cpackSize/dimBlock.x,static_cast<uint>(1)));
 #endif
          auto devCluster = clusterPack[i].Read();
+
          switch (i)
          {
             case 2:
 #if defined(__NVCC__)
-               computeCoeffsKernel<2><<<dimGrid,dimBlock>>>(cpackSize-1,devI,devJ,devData,
+	      computeCoeffsKernel<2><<<dimGrid,dimBlock>>>(cpackSize/i,devI,devJ,devData,
                                                             devCluster,devCoeffArray+totalSize);
 #endif
-               totalSize += cpackSize;
-               break;
+	      break;
             case 3:
 #if defined(__NVCC__)
-               computeCoeffsKernel<3><<<dimGrid,dimBlock>>>(cpackSize-1,devI,devJ,devData,
+	      computeCoeffsKernel<3><<<dimGrid,dimBlock>>>(cpackSize/i,devI,devJ,devData,
                                                             devCluster,devCoeffArray+totalSize);
 #endif
-               totalSize += cpackSize;
             default:
                break;
          }
-         MFEM_DEVICE_SYNC;
+	 MFEM_DEVICE_SYNC;
+	 totalSize += cpackSize;
       }
    }
-   coeffs->HostRead(),A->HostReadData(),A->HostReadI(),A->HostReadJ();
-   coeffs->Permute(clusterPerm);
+   std::cout<<"Device compute complete"<<std::endl;
+   // update all of the host arrays
+   auto dummy = coeffs->HostRead();
+   auto dummy2 = A->HostReadData();
+   auto dummy3 = A->HostReadJ();
+   auto dummy4 = A->HostReadI();
 
-   MFEM_ASSERT(A != NULL, "'A' matrix be defined");
-   std::vector<DenseMatrix> *diag_blocks = DiagonalBlocks(A, clustering);
-   Array<double> coeffsHost = Array<double>(coeffSize);
-   for (int group = 0; group < bounds.Size()-1; ++group)
-   {
-      const int size = bounds[group+1] - bounds[group];
-
-      if (size > 1)
-      {
-         // Get eigenvalues and eigenvectors of subblock
-         DenseMatrix &submat = (*diag_blocks)[group];
-         DenseMatrix eigenvectors(size, size);
-         Vector eigenvalues(size);
-         submat.Eigenvalues(eigenvalues, eigenvectors);
-
-         Array<int> indices(size);
-         elems.GetSubArray(bounds[group], size, indices);
-
-         // Get the smallest eigenvector
-         int min_idx = 0;
-         double min_eigenvalue = eigenvalues.Min();
-         for (; min_idx < eigenvalues.Size(); ++min_idx)
-         {
-            if (eigenvalues[min_idx] == min_eigenvalue) { break; }
-         }
-
-         const int i = indices[min_idx];
-         // Compute normalization for eigenvector
-         double two_norm = 0.0;
-         for (int l = 0; l < size; ++l)
-         {
-            const double val = eigenvectors(l, min_idx);
-            two_norm += val*val;
-         }
-         two_norm = sqrt(two_norm);
-
-         const double diag_val = eigenvectors(0, min_idx) / two_norm;
-         coeffsHost.Append(diag_val);
-
-         for (int l = 1; l < size; ++l)
-         {
-            const double val = eigenvectors(l, min_idx) / two_norm;
-            coeffsHost.Append(val);
-         }
-      }
-   }
-
-   MFEM_VERIFY(coeffs->Size() == coeffsHost.Size(),
-               "Size mismatch device "<<coeffs->Size()<<" != host "<<coeffsHost.Size()
-               <<std::endl);
-   //MFEM_VERIFY(*coeffs == coeffsHost, "Device array != Host array");
-   {
-      auto hostArr = coeffs->HostRead();
-      for (int i = 0; i < coeffs->Size(); ++i)
-      {
-         MFEM_VERIFY(isCloseAtTol(hostArr[i],coeffsHost[i]),
-                     "DeviceCoeff "<<hostArr[i]<<" != HostCoeff "<<coeffsHost[i]<<" at loc "<<i<<std::endl);
-         std::cout<<"["<<i<<"] "<<hostArr[i]<<" == "<<coeffsHost[i]<<std::endl;
-      }
-   }
-   std::cout<<"here6"<<std::endl;
+   // invalid host pointer access error here ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
    G = new DRSmootherG(clustering, coeffs);
-
-   SparseMatrix *GtAG = NULL;
-   diagonal_scaling.SetSize(0);
-   G->GtAG(GtAG, diagonal_scaling, *A, diag_blocks);
-
-   //if (diag_blocks) { delete diag_blocks; }
-   if (GtAG) { delete GtAG; }
+   diagonal_scaling.SetSize(coeffs->Size());
+   diagonal_scaling = *coeffs;
+   return;
 }
 
 std::vector<DenseMatrix> *DRSmoother::DiagonalBlocks(const SparseMatrix *A,

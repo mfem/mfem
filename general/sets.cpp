@@ -229,14 +229,14 @@ void DisjointSets::Finalize()
    elems = Array<int>();
    // preallocate to 4, could be more but not usually
    sizeCounters = Array<int>(4);
-   for (int i = 0; i < sizeCounters.Size(); ++i) { sizeCounters[i] = 0; }
+   sizeCounters = 0;
 
    std::unordered_map<int, int> reps_to_groups;
    int smallest_unused = 0;
    elems.SetSize(parent.Size());
 
-   bounds.Append(0);
    int largestGroup = 0;
+   bounds.Append(0);
    for (int i = 0; i < parent.Size(); ++i)
    {
       elems[i] = -1;
@@ -247,26 +247,16 @@ void DisjointSets::Finalize()
 
       reps_to_groups[rep] = smallest_unused;
       bounds.Append(bounds.Last()+size[rep]);
-      if (size[rep] >= largestGroup)
-      {
-         sizeCounters.SetSize(size[rep]+1,1);
-         largestGroup = size[rep]+1;
-      }
-      else
-      {
-         ++sizeCounters[size[rep]];
-      }
+      largestGroup = largestGroup >= size[rep] ? largestGroup :	size[rep]+1;
       smallest_unused++;
    }
-   // since bounds is an "interior" array we need to add 1 more of each to get the true size
-   for (int i = 1; i < largestGroup; ++i) { sizeCounters[i] += i; }
-   // in case it was smaller than initial
-   sizeCounters.SetSize(largestGroup);
+   sizeCounters.SetSize(largestGroup,0);
 
    // Assemble the elems array
    for (int i = 0; i < parent.Size(); ++i)
    {
       int group = reps_to_groups[Find(i)];
+      ++sizeCounters[bounds[group+1]-bounds[group]];
       for (int j = bounds[group]; j < bounds[group+1]; ++j)
       {
          if (elems[j] == -1)
@@ -276,6 +266,7 @@ void DisjointSets::Finalize()
          }
       }
    }
+   for (int i = 2; i < sizeCounters.Size(); ++i) sizeCounters[i] /= i;
 
    elem_to_group = Array<int>(elems.Size());
    for (int group = 0; group < bounds.Size()-1; ++group)
