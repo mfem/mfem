@@ -21,6 +21,7 @@
 
 #ifndef _WIN32
 #include <sys/stat.h>  // mkdir
+#include <unistd.h>    // truncate
 #else
 #include <direct.h>    // _mkdir
 #define mkdir(dir, mode) _mkdir(dir)
@@ -865,6 +866,8 @@ void ParaViewDataCollection::Save()
 
          std::regex regexp("timestep=\"([^[:space:]]+)\"");
          std::smatch match;
+         bool needTruncate = false;
+
          while (getline(pvd_stream,line))
          {
             if (regex_search(line,match,regexp))
@@ -876,8 +879,25 @@ void ParaViewDataCollection::Save()
                {
                   pos = pvd_stream.tellg();
                }
+               else
+               {
+                  needTruncate = true;
+               }
             }
          }
+
+#ifndef _WIN32
+         if (needTruncate)
+         {
+            // remove timesteps newer than current time
+            pvd_stream.close();
+            int status = truncate(pvdname.c_str(), pos);
+            MFEM_ASSERT(status == 0,
+                        "Unable to truncate newer time values from pvd file: " << pvdname);
+            pvd_stream.open(pvdname.c_str(),std::ios::in|std::ios::out);
+         }
+#endif
+
          pvd_stream.clear();
          pvd_stream.seekp(pos);
       }
@@ -1129,10 +1149,17 @@ void ParaViewDataCollection::SetCompression(bool compression_)
    }
 }
 
+#ifndef _WIN32
 void ParaViewDataCollection::SetRestartMode(bool restart_mode_)
 {
    restart_mode = restart_mode_;
 }
+#else
+void ParaViewDataCollection::SetRestartMode(bool restart_mode_)
+{
+   MFEM_ABORT("this method is not implemented for windows");
+}
+#endif
 
 const char *ParaViewDataCollection::GetDataFormatString() const
 {
