@@ -135,7 +135,7 @@ ListOfIntegerSets::~ListOfIntegerSets()
 }
 
 DisjointSets::DisjointSets(int n)
-  : parent(n), size(n), sizeCounters(0)
+   : parent(n), size(n), sizeCounters(0)
 {
    finalized = false;
    for (int i = 0; i < n; ++i)
@@ -229,7 +229,7 @@ void DisjointSets::Finalize()
    elems = Array<int>();
    // preallocate to 4, could be more but not usually
    sizeCounters = Array<int>(4);
-   for (int i = 0; i < sizeCounters.Size(); ++i) sizeCounters[i] = 0;
+   for (int i = 0; i < sizeCounters.Size(); ++i) { sizeCounters[i] = 0; }
 
    std::unordered_map<int, int> reps_to_groups;
    int smallest_unused = 0;
@@ -247,16 +247,19 @@ void DisjointSets::Finalize()
 
       reps_to_groups[rep] = smallest_unused;
       bounds.Append(bounds.Last()+size[rep]);
-      if (size[rep] >= largestGroup) {
-	sizeCounters.SetSize(size[rep]+1,1);
-	largestGroup = size[rep]+1;
-      } else {
-	++sizeCounters[size[rep]];
+      if (size[rep] >= largestGroup)
+      {
+         sizeCounters.SetSize(size[rep]+1,1);
+         largestGroup = size[rep]+1;
+      }
+      else
+      {
+         ++sizeCounters[size[rep]];
       }
       smallest_unused++;
    }
    // since bounds is an "interior" array we need to add 1 more of each to get the true size
-   for (int i = 1; i < largestGroup; ++i) sizeCounters[i] += i;
+   for (int i = 1; i < largestGroup; ++i) { sizeCounters[i] += i; }
    // in case it was smaller than initial
    sizeCounters.SetSize(largestGroup);
 
@@ -298,8 +301,8 @@ const Array<int> &DisjointSets::GetElems() const
 
 const Array<int> &DisjointSets::GetSizeCounter() const
 {
-  MFEM_VERIFY(finalized, "DisjointSets must be finalized");
-  return sizeCounters;
+   MFEM_VERIFY(finalized, "DisjointSets must be finalized");
+   return sizeCounters;
 }
 
 void DisjointSets::Print(std::ostream& out) const

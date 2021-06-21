@@ -5,17 +5,19 @@ using namespace mfem;
 
 struct _b_UserCtx
 {
-  Device            device;
-  Mesh              mesh;
-  const std::string smootherType,solverType;
-  const int         order,refine;
+   Device            device;
+   Mesh              mesh;
+   const std::string smootherType,solverType;
+   const int         order,refine;
 
-  _b_UserCtx(const char *dev,const char *file, const char *smoother, const char *solver, int ord,int ref) :
-    device(dev),mesh(file,1,1),smootherType(smoother),solverType(solver),order(ord),refine(ref)
-  {
-    for (int i = 0; i < ref; ++i) { mesh.UniformRefinement(); }
-    device.Print();
-  }
+   _b_UserCtx(const char *dev,const char *file, const char *smoother,
+              const char *solver, int ord,int ref) :
+      device(dev),mesh(file,1,1),smootherType(smoother),solverType(solver),order(ord),
+      refine(ref)
+   {
+      for (int i = 0; i < ref; ++i) { mesh.UniformRefinement(); }
+      device.Print();
+   }
 
 };
 
@@ -112,7 +114,7 @@ static UserCtx ParseCommandLineOptions(int argc, char *argv[])
    OptionsParser args(argc,argv);
 
    args.AddOption(&device, "-d", "--device",
-		  "Device configuration string, see Device::Configure().");
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&meshFile,"-m","--mesh-file","Input mesh file");
    args.AddOption(&smoother,"-s","--smoother",
                   "Smoother to use (one of J-Jacobi, DR-distributive relaxation)");
