@@ -206,7 +206,8 @@ protected:
    Mesh *patchTopo;
    int own_topo;
    Array<int> edge_to_knot;
-   Array<KnotVector *> knotVectors;
+   Array<KnotVector *> knotVectorsRed;
+   Array<KnotVector *> knotVectorsExt;
    Vector weights;
 
    // periodic BC info:
@@ -244,6 +245,12 @@ protected:
 
    void CheckPatches();
    void CheckBdrPatches();
+   // Checks the direction of the knotvectors in the patch based on 
+   // the patch orientation.
+   void CheckKVDirection(int p, Array <int> &kvdir);
+
+   void KVRed2Ext();
+
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
@@ -380,7 +387,7 @@ public:
    int GetNDof()      const { return NumOfActiveDofs; }
 
    // Knotvector read-only access function
-   const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
+   const KnotVector *GetKnotVector(int i) const { return knotVectorsRed[i]; }
 
    // Mesh generation functions
    void GetElementTopo   (Array<Element *> &elements) const;
@@ -571,12 +578,12 @@ inline int NURBSExtension::KnotInd(int edge) const
 
 inline KnotVector *NURBSExtension::KnotVec(int edge)
 {
-   return knotVectors[KnotInd(edge)];
+   return knotVectorsRed[KnotInd(edge)];
 }
 
 inline const KnotVector *NURBSExtension::KnotVec(int edge) const
 {
-   return knotVectors[KnotInd(edge)];
+   return knotVectorsRed[KnotInd(edge)];
 }
 
 inline const KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
@@ -586,12 +593,12 @@ const
    if (kv >= 0)
    {
       *okv = oedge;
-      return knotVectors[kv];
+      return knotVectorsRed[kv];
    }
    else
    {
       *okv = -oedge;
-      return knotVectors[-1-kv];
+      return knotVectorsRed[-1-kv];
    }
 }
 
