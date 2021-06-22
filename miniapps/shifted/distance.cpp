@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool algebraic_ceed = false;
    bool visualization = true;
-   SolverConfig solverConfig(SolverConfig::FA_AMGX);
+   SolverConfig solverConfig(SolverConfig::LOR_AMGX);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",

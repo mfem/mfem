@@ -39,6 +39,7 @@ struct SolverConfig
 struct LOR
 {
    std::unique_ptr<ParMesh> mesh;
+
    H1_FECollection fec;
    ParFiniteElementSpace fes;
    ParBilinearForm a;
@@ -102,11 +103,17 @@ public:
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
+   Solver * ConfigurePreconditioner(ParBilinearForm &a,
+                                    Coefficient &coeff,
+                                    Array<int> &ess_tdof_list,
+                                    OperatorPtr * A = NULL);
+
    void ConfigComputeScalarDistance(Coefficient &zero_level_set,
                                     ParGridFunction &distance);
 
    bool use_pa = false;
    bool use_ceed = false;
+   std::unique_ptr<LOR> lor;
    SolverConfig solverConfig;
    double parameter_t;
    int smooth_steps, diffuse_iter;
