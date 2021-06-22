@@ -861,7 +861,6 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
    h_ptr = ptr;
    capacity = size;
-   const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
 #ifdef MFEM_DEBUG
@@ -869,7 +868,10 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
 #endif
    if (own && h_mt != MemoryType::HOST)
-   { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
+   {
+      const size_t bytes = size*sizeof(T);
+      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
+   }
 }
 
 template <typename T>

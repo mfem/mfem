@@ -508,9 +508,9 @@ signed char HypreParMatrix::CopyCSR(SparseMatrix *csr,
 
    const int num_rows = csr->Height();
    const int nnz = csr->NumNonZeroElems();
-   hypre_CSRMatrixI(hypre_csr) = mem_csr.I.ReadWrite(hypre_mc, num_rows + 1);
-   hypre_CSRMatrixJ(hypre_csr) = mem_csr.J.ReadWrite(hypre_mc, nnz);
-   hypre_CSRMatrixData(hypre_csr) = mem_csr.data.ReadWrite(hypre_mc, nnz);
+   hypre_csr->i = const_cast<HYPRE_Int*>(mem_csr.I.Read(hypre_mc, num_rows+1));
+   hypre_csr->j = const_cast<HYPRE_Int*>(mem_csr.J.Read(hypre_mc, nnz));
+   hypre_csr->data = const_cast<double*>(mem_csr.data.Read(hypre_mc, nnz));
 
    return 3; // delete all mem_csr.{I,J,data}
 }
@@ -537,9 +537,9 @@ signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
    {
       data[i] = 1.0;
    }
-   hypre_CSRMatrixI(hypre_csr) = mem_csr.I.ReadWrite(hypre_mc, num_rows + 1);
-   hypre_CSRMatrixJ(hypre_csr) = mem_csr.J.ReadWrite(hypre_mc, nnz);
-   hypre_CSRMatrixData(hypre_csr) = mem_csr.data.ReadWrite(hypre_mc, nnz);
+   hypre_csr->i = const_cast<HYPRE_Int*>(mem_csr.I.Read(hypre_mc, num_rows+1));
+   hypre_csr->j = const_cast<HYPRE_Int*>(mem_csr.J.Read(hypre_mc, nnz));
+   hypre_csr->data = const_cast<double*>(mem_csr.data.Read(hypre_mc, nnz));
    return 3;
 }
 
@@ -830,7 +830,7 @@ HypreParMatrix::HypreParMatrix(
    const MemoryType host_mt = Device::GetHostMemoryType();
    diagOwner = HypreCsrToMem(A->diag, host_mt, true, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, host_mt, true, mem_offd);
-   HypreReadWrite();
+   HypreRead();
 }
 
 // Constructor from a CSR matrix on rank 0 (4 arguments, v2)
@@ -881,7 +881,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    diagOwner = HypreCsrToMem(A->diag, MemoryType::HOST, false, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, MemoryType::HOST, false, mem_offd);
-   HypreReadWrite();
+   HypreRead();
 }
 
 // Boolean, rectangular, block-diagonal constructor (6 arguments, v2)
@@ -1016,7 +1016,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    const MemoryType host_mt = Device::GetHostMemoryType();
    diagOwner = HypreCsrToMem(A->diag, host_mt, true, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, host_mt, true, mem_offd);
-   HypreReadWrite();
+   HypreRead();
 }
 
 // General rectangular constructor with diagonal and off-diagonal constructed
@@ -1156,7 +1156,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    height = GetNumRows();
    width = GetNumCols();
 
-   HypreReadWrite();
+   HypreRead();
 }
 
 HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
@@ -2016,7 +2016,7 @@ HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
    HostReadWrite();
    internal::hypre_ParCSRMatrixEliminateAAe(
       A, &Ae, rc_sorted.Size(), rc_sorted.GetData());
-   HypreReadWrite();
+   HypreRead();
 
    return new HypreParMatrix(Ae, true);
 }
@@ -2030,7 +2030,7 @@ HypreParMatrix* HypreParMatrix::EliminateCols(const Array<int> &cols)
    HostReadWrite();
    internal::hypre_ParCSRMatrixEliminateAAe(
       A, &Ae, rc_sorted.Size(), rc_sorted.GetData(), 1);
-   HypreReadWrite();
+   HypreRead();
 
    return new HypreParMatrix(Ae, true);
 }
@@ -2044,7 +2044,7 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
       HostReadWrite();
       internal::hypre_ParCSRMatrixEliminateRows(A, r_sorted.Size(),
                                                 r_sorted.GetData());
-      HypreReadWrite();
+      HypreRead();
    }
 }
 
@@ -2054,6 +2054,10 @@ void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
 {
    // B -= Ae*X
    Ae.Mult(-1.0, X, 1.0, B);
+
+   // All operations below are local, so we can skip them if ess_dof_list is
+   // empty on this processor to avoid potential host <--> device transfers.
+   if (ess_dof_list.Size() == 0) { return; }
 
    HostRead();
    hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A);
@@ -2482,6 +2486,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
 
+   // FIXME: Do we still need to do this when HYPRE_USING_CUDA?
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
       from Rt and P (even if they do not own them)! */
    hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
@@ -2935,8 +2940,9 @@ HypreSmoother::HypreSmoother() : Solver()
 }
 
 HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
-                             int relax_times_, double relax_weight_, double omega_,
-                             int poly_order_, double poly_fraction_, int eig_est_cg_iter_)
+                             int relax_times_, double relax_weight_,
+                             double omega_, int poly_order_,
+                             double poly_fraction_, int eig_est_cg_iter_)
 {
    type = type_;
    relax_times = relax_times_;

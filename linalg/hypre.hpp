@@ -400,7 +400,7 @@ public:
 #endif
       diagOwner = HypreCsrToMem(A->diag, diag_mt, false, mem_diag);
       offdOwner = HypreCsrToMem(A->offd, offd_mt, false, mem_offd);
-      HypreReadWrite();
+      HypreRead();
    }
 
    /// Converts hypre's format to HypreParMatrix
