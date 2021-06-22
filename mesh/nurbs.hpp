@@ -250,6 +250,8 @@ protected:
    void CheckKVDirection(int p, Array <int> &kvdir);
 
    void KVRed2Ext();
+   void UpdateKVRed();
+   void CheckKVRedKVExt();
 
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);

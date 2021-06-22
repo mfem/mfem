@@ -1766,6 +1766,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
 
    knotVectorsExt.SetSize(GetNP()*Dimension());
    KVRed2Ext();
+   UpdateKVRed();
 
    SetOrdersFromKnotVectors();
 
@@ -2003,6 +2004,11 @@ NURBSExtension::~NURBSExtension()
    for (int i = 0; i < knotVectorsRed.Size(); i++)
    {
       delete knotVectorsRed[i];
+   }
+
+   for (int i = 0; i < knotVectorsExt.Size(); i++)
+   {
+      delete knotVectorsExt[i];
    }
 
    for (int i = 0; i < patches.Size(); i++)
@@ -2551,6 +2557,13 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 
    // Compare the vertices of the patches with the vertices of the knotvectors of knot2dge
    // Based on the match the orientation will be a 1 or a -1
+   // -1: direction is flipped
+   //  1: direction is not  flipped
+
+  
+
+
+   
    if (Dimension() == 2)
    {
       for (int i = 0; i < edges.Size(); i++)
@@ -2619,12 +2632,7 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
          }
       }
    }
-
-
-
-   cout <<endl <<"Found orientations of knotvectors for patch " << p << ": " <<endl;
-   kvdir.Print(cout);
-   cout << endl;
+   
 
    // Verify that all knotvectors have been given a direction.
    for (int i = 0; i < kvdir.Size(); i++)
@@ -2636,32 +2644,143 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    }
 
 }
+
 void NURBSExtension::KVRed2Ext()
 {
-   Array<int> edges, orient;
+   Array<int>e(Dimension());
+   Array<int> edges, orient, kvdir;
+
    if (Dimension() == 2)
    {
-      for (int p = 0; p < GetNP(); p++)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         cout << "1" <<endl;
-         knotVectorsExt[2*p]   = new KnotVector(*(KnotVec(edges[0])));
-         knotVectorsExt[2*p+1] = new KnotVector(*(KnotVec(edges[1])));
-         cout << "2" << endl;
-      }
+      e[0] = 0;
+      e[1] = 1;
    }
 
-   if (Dimension() == 3)
+   else if (Dimension() == 3)
    {
-      for (int p = 0; p < GetNP(); p++)
+      e[0] = 0;
+      e[1] = 3;
+      e[2] = 8;
+   }
+
+
+   // Create extended set of knotvectors based on direction of the element. 
+   for (int p = 0; p < GetNP(); p++)
+   {
+      CheckKVDirection(p, kvdir);
+      patchTopo->GetElementEdges(p, edges, orient);
+
+      for (int i = 0; i < Dimension(); i++)
       {
-         patchTopo->GetElementEdges(p, edges, orient);
-         knotVectorsExt[3*p]   = new KnotVector(*KnotVec(edges[0]));
-         knotVectorsExt[3*p+1] = new KnotVector(*KnotVec(edges[3]));
-         knotVectorsExt[3*p+2] = new KnotVector(*KnotVec(edges[8]));
+         knotVectorsExt[Dimension()*p+i]   = new KnotVector(*(KnotVec(edges[e[i]])));
+         if (kvdir[i] == -1){knotVectorsExt[Dimension()*p+i]->Flip();}
       }
    }
 }
+
+void NURBSExtension::UpdateKVRed()
+{
+   Array<int> edges, orient, ifupdated, kvdir;
+   Vector diff;
+   ifupdated = 0;
+   Array<int>e(Dimension());
+
+   if (Dimension() == 2)
+   {
+      e[0] = 0;
+      e[1] = 1;
+   }
+
+   else if (Dimension() == 3)
+   {
+      e[0] = 0;
+      e[1] = 3;
+      e[2] = 8;
+   }
+
+
+   ifupdated.SetSize(NumOfKnotVectors);
+   for (int p = 0; p < GetNP(); p++)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
+
+      CheckKVDirection(p, kvdir);
+
+      for ( int i = 0; i < Dimension(); i++)      
+      {  
+         // Check if difference between knotvector arrays
+         if (kvdir[i] < -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+         KnotVec(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
+         if (kvdir[i] < -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+
+
+         if (diff.Size() > 0)
+         {
+            // Check if knotvector is allready update. If update twice, something is wrong
+            if (ifupdated[KnotInd(edges[e[i]])] == 1)
+            {
+               mfem::out << "KnotVectorRed[i] was Updated and is updated again. Knotvectors problably not equal." << endl;
+               mfem_error("NURBSExtension::UpdateKVRed()");
+            }
+            
+            // Update reduced set of knotvectors
+            *(KnotVec(edges[e[i]])) = *(knotVectorsExt[Dimension()*p]);
+            
+            // Give correct direction to knotvector. Reduced knotvectors are always not rotated.
+            if (kvdir[i] == -1){KnotVec(edges[e[i]])->Flip();}
+            
+            ifupdated[KnotInd(edges[e[i]])] = 1;
+         }
+      }
+   }
+}
+
+void NURBSExtension::CheckKVRedKVExt()
+{
+   Array<int> edges, orient, ifupdated, kvdir;
+   Vector diff;
+   ifupdated = 0;
+   Array<int>e(Dimension());
+
+   if (Dimension() == 2)
+   {
+      e[0] = 0;
+      e[1] = 1;
+   }
+
+   else if (Dimension() == 3)
+   {
+      e[0] = 0;
+      e[1] = 3;
+      e[2] = 8;
+   }
+
+
+   ifupdated.SetSize(NumOfKnotVectors);
+   for (int p = 0; p < GetNP(); p++)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
+
+      CheckKVDirection(p, kvdir);
+
+      for ( int i = 0; i < Dimension(); i++)      
+      {  
+         if (kvdir[i] < -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+         KnotVec(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
+         if (kvdir[i] < -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+
+         if (diff.Size() > 0)
+         {
+            mfem::out << "Knotvector " << i << " of patch " << p; 
+            mfem::out << " does not agree with knotvector " << KnotInd(edges[e[i]]) << "\n";
+            mfem_error();
+         }
+      }
+   }
+}
+
+
+
 
 
 
