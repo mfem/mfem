@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,15 @@ inline T read(std::istream& is)
    return value;
 }
 
+/// Read a value of type @a T from a binary buffer and return it.
+template <typename T>
+inline T read(const char *buf)
+{
+   T value;
+   std::copy(buf, buf + sizeof(T), reinterpret_cast<char*>(&value));
+   return value;
+}
+
 template <typename T>
 void AppendBytes(std::vector<char> &vec, const T &val)
 {
@@ -49,6 +58,8 @@ void AppendBytes(std::vector<char> &vec, const T &val)
 }
 
 void WriteBase64(std::ostream &out, const void *bytes, size_t length);
+
+void DecodeBase64(const char *src, size_t len, std::vector<unsigned char> &buf);
 
 } // namespace mfem::bin_io
 

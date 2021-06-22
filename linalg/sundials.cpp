@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,6 +31,7 @@
 
 // SUNDIALS linear solvers
 #include <sunlinsol/sunlinsol_spgmr.h>
+#include <sunlinsol/sunlinsol_spfgmr.h>
 
 // Access SUNDIALS object's content pointer
 #define GET_CONTENT(X) ( X->content )
@@ -279,8 +280,8 @@ SundialsNVector::SundialsNVector()
    own_NVector = 1;
 }
 
-SundialsNVector::SundialsNVector(double *_data, int _size)
-   : Vector(_data, _size)
+SundialsNVector::SundialsNVector(double *data_, int size_)
+   : Vector(data_, size_)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(UseDevice());
@@ -313,9 +314,9 @@ SundialsNVector::SundialsNVector(MPI_Comm comm, int loc_size, long glob_size)
    _SetNvecDataAndSize_(glob_size);
 }
 
-SundialsNVector::SundialsNVector(MPI_Comm comm, double *_data, int loc_size,
+SundialsNVector::SundialsNVector(MPI_Comm comm, double *data_, int loc_size,
                                  long glob_size)
-   : Vector(_data, loc_size)
+   : Vector(data_, loc_size)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(comm, UseDevice());
@@ -576,7 +577,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
    if (!sundials_mem)
    {
-      // Temporarly set N_Vector wrapper data to create CVODE. The correct
+      // Temporarily set N_Vector wrapper data to create CVODE. The correct
       // initial condition will be set using CVodeReInit() when Step() is
       // called.
 
@@ -721,7 +722,7 @@ void CVODESolver::SetMaxStep(double dt_max)
 void CVODESolver::SetMaxNSteps(int mxsteps)
 {
    flag = CVodeSetMaxNumSteps(sundials_mem, mxsteps);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxNSteps()");
+   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxNumSteps()");
 }
 
 long CVODESolver::GetNumSteps()
@@ -895,6 +896,12 @@ void CVODESSolver::InitAdjointSolve(int steps, int interpolation)
 {
    flag = CVodeAdjInit(sundials_mem, steps, interpolation);
    MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeAdjInit");
+}
+
+void CVODESSolver::SetMaxNStepsB(int mxstepsB)
+{
+   flag = CVodeSetMaxNumStepsB(sundials_mem, indexB, mxstepsB);
+   MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeSetMaxNumStepsB()");
 }
 
 void CVODESSolver::InitQuadIntegration(mfem::Vector &q0, double reltolQ,
@@ -1699,6 +1706,44 @@ int KINSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix, N_Vector u,
    return (0);
 }
 
+int KINSolver::PrecSetup(N_Vector uu,
+                         N_Vector uscale,
+                         N_Vector fval,
+                         N_Vector fscale,
+                         void *user_data)
+{
+   SundialsNVector mfem_u(uu);
+   KINSolver *self = static_cast<KINSolver *>(user_data);
+
+   // Update the Jacobian
+   self->jacobian = &self->oper->GetGradient(mfem_u);
+
+   // Set the Jacobian solve operator
+   self->prec->SetOperator(*self->jacobian);
+
+   return 0;
+}
+
+int KINSolver::PrecSolve(N_Vector uu,
+                         N_Vector uscale,
+                         N_Vector fval,
+                         N_Vector fscale,
+                         N_Vector vv,
+                         void *user_data)
+{
+   KINSolver *self = static_cast<KINSolver *>(user_data);
+   SundialsNVector mfem_v(vv);
+
+   self->wrk = 0.0;
+
+   // Solve for u = P^{-1} v
+   self->prec->Mult(mfem_v, self->wrk);
+
+   mfem_v = self->wrk;
+
+   return 0;
+}
+
 KINSolver::KINSolver(int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
      f_scale(NULL), jacobian(NULL), maa(0)
@@ -1810,7 +1855,7 @@ void KINSolver::SetOperator(const Operator &op)
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
 
       // Set the linear solver
-      if (prec)
+      if (prec || jfnk)
       {
          KINSolver::SetSolver(*prec);
       }
@@ -1838,36 +1883,73 @@ void KINSolver::SetOperator(const Operator &op)
 
 void KINSolver::SetSolver(Solver &solver)
 {
+   if (jfnk)
+   {
+      SetJFNKSolver(solver);
+   }
+   else
+   {
+      // Store the solver
+      prec = &solver;
+
+      // Free any existing linear solver
+      if (A != NULL) { SUNMatDestroy(A); A = NULL; }
+      if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+      // Wrap KINSolver as SUNLinearSolver and SUNMatrix
+      LSA = SUNLinSolNewEmpty();
+      MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
+
+      LSA->content      = this;
+      LSA->ops->gettype = LSGetType;
+      LSA->ops->solve   = KINSolver::LinSysSolve;
+      LSA->ops->free    = LSFree;
+
+      A = SUNMatNewEmpty();
+      MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
+
+      A->content      = this;
+      A->ops->getid   = MatGetID;
+      A->ops->destroy = MatDestroy;
+
+      // Attach the linear solver and matrix
+      flag = KINSetLinearSolver(sundials_mem, LSA, A);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
+
+      // Set the Jacobian evaluation function
+      flag = KINSetJacFn(sundials_mem, KINSolver::LinSysSetup);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetJacFn()");
+   }
+}
+
+void KINSolver::SetJFNKSolver(Solver &solver)
+{
    // Store the solver
    prec = &solver;
+
+   wrk.SetSize(height);
 
    // Free any existing linear solver
    if (A != NULL) { SUNMatDestroy(A); A = NULL; }
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
-   // Wrap KINSolver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
+   // Setup FGMRES
+   LSA = SUNLinSol_SPFGMR(*Y, prec ? PREC_RIGHT : PREC_NONE, maxli);
+   MFEM_VERIFY(LSA, "error in SUNLinSol_SPFGMR()");
 
-   LSA->content      = this;
-   LSA->ops->gettype = LSGetType;
-   LSA->ops->solve   = KINSolver::LinSysSolve;
-   LSA->ops->free    = LSFree;
+   flag = SUNLinSol_SPFGMRSetMaxRestarts(LSA, maxlrs);
+   MFEM_VERIFY(flag == SUNLS_SUCCESS, "error in SUNLinSol_SPFGMR()");
 
-   A = SUNMatNewEmpty();
-   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
-
-   A->content      = this;
-   A->ops->getid   = MatGetID;
-   A->ops->destroy = MatDestroy;
-
-   // Attach the linear solver and matrix
-   flag = KINSetLinearSolver(sundials_mem, LSA, A);
+   flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
    MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
 
-   // Set the Jacobian evaluation function
-   flag = KINSetJacFn(sundials_mem, KINSolver::LinSysSetup);
-   MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetJacFn()");
+   if (prec)
+   {
+      flag = KINSetPreconditioner(sundials_mem,
+                                  KINSolver::PrecSetup,
+                                  KINSolver::PrecSolve);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetPreconditioner()");
+   }
 }
 
 void KINSolver::SetScaledStepTol(double sstol)
@@ -1957,24 +2039,35 @@ void KINSolver::Mult(Vector &x,
    y_scale->MakeRef(const_cast<Vector&>(x_scale), 0, x_scale.Size());
    f_scale->MakeRef(const_cast<Vector&>(fx_scale), 0, fx_scale.Size());
 
+   int rank = -1;
    if (!Parallel())
    {
-      flag = KINSetPrintLevel(sundials_mem, print_level);
-      MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
+      rank = 0;
    }
    else
    {
-
 #ifdef MFEM_USE_MPI
-      int rank;
       MPI_Comm_rank(Y->GetComm(), &rank);
-      if (rank == 0)
+#endif
+   }
+
+   if (rank == 0)
+   {
+      flag = KINSetPrintLevel(sundials_mem, print_level);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
+
+#ifdef SUNDIALS_BUILD_WITH_MONITORING
+      if (jfnk && print_level)
       {
-         flag = KINSetPrintLevel(sundials_mem, print_level);
-         MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
+         flag = SUNLinSolSetInfoFile_SPFGMR(LSA, stdout);
+         MFEM_VERIFY(flag == SUNLS_SUCCESS,
+                     "error in SUNLinSolSetInfoFile_SPFGMR()");
+
+         flag = SUNLinSolSetPrintLevel_SPFGMR(LSA, 1);
+         MFEM_VERIFY(flag == SUNLS_SUCCESS,
+                     "error in SUNLinSolSetPrintLevel_SPFGMR()");
       }
 #endif
-
    }
 
    if (!iterative_mode) { x = 0.0; }

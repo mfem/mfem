@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,9 +69,9 @@ public:
    SundialsNVector();
 
    /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   SundialsNVector(double *_data, int _size);
+   SundialsNVector(double *data_, int size_);
 
    /// Creates a SundialsNVector out of a SUNDIALS N_Vector object.
    /** The N_Vector @a nv must be destroyed outside. */
@@ -85,9 +85,9 @@ public:
    SundialsNVector(MPI_Comm comm, int loc_size, long glob_size);
 
    /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   SundialsNVector(MPI_Comm comm, double *_data, int loc_size, long glob_size);
+   SundialsNVector(MPI_Comm comm, double *data_, int loc_size, long glob_size);
 
    /// Creates a SundialsNVector from a HypreParVector.
    /** Ownership of the data will not change. */
@@ -100,11 +100,11 @@ public:
    /// Returns the N_Vector_ID for the internal N_Vector.
    inline N_Vector_ID GetNVectorID() const { return N_VGetVectorID(x); }
 
-   /// Returns the N_Vector_ID for the N_Vector @a _x.
-   inline N_Vector_ID GetNVectorID(N_Vector _x) const { return N_VGetVectorID(_x); }
+   /// Returns the N_Vector_ID for the N_Vector @a x_.
+   inline N_Vector_ID GetNVectorID(N_Vector x_) const { return N_VGetVectorID(x_); }
 
 #ifdef MFEM_USE_MPI
-   /// Returns the MPI commmunicator for the internal N_Vector x.
+   /// Returns the MPI communicator for the internal N_Vector x.
    inline MPI_Comm GetComm() const { return *static_cast<MPI_Comm*>(N_VGetCommunicator(x)); }
 
    /// Returns the MPI global length for the internal N_Vector x.
@@ -239,7 +239,7 @@ public:
    /// Access the SUNDIALS memory structure.
    void *GetMem() const { return sundials_mem; }
 
-   /// Returns the last flag retured by a call to a SUNDIALS function.
+   /// Returns the last flag returned by a call to a SUNDIALS function.
    int GetFlag() const { return flag; }
 };
 
@@ -472,6 +472,9 @@ public:
 
    /// Initialize Adjoint
    void InitAdjointSolve(int steps, int interpolation);
+
+   /// Set the maximum number of backward steps
+   void SetMaxNStepsB(int mxstepsB);
 
    /// Get Number of Steps for ForwardSolve
    long GetNumSteps();
@@ -714,7 +717,11 @@ protected:
    bool use_oper_grad;                         ///< use the Jv prod function
    mutable SundialsNVector *y_scale, *f_scale; ///< scaling vectors
    const Operator *jacobian;                   ///< stores oper->GetGradient()
-   int maa;                                    ///< number of acceleration vectors
+   int maa;           ///< number of acceleration vectors
+   bool jfnk = false; ///< enable JFNK
+   Vector wrk;        ///< Work vector needed for the JFNK PC
+   int maxli = 5;     ///< Maximum linear iterations
+   int maxlrs = 0;    ///< Maximum linear solver restarts
 
    /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
@@ -730,6 +737,23 @@ protected:
    /// Solve the linear system \f$ J u = b \f$.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
                           N_Vector b, realtype tol);
+
+   /// Setup the preconditioner.
+   static int PrecSetup(N_Vector uu,
+                        N_Vector uscale,
+                        N_Vector fval,
+                        N_Vector fscale,
+                        void *user_data);
+
+   /// Solve the preconditioner equation \f$ Pz = v \f$.
+   static int PrecSolve(N_Vector uu,
+                        N_Vector uscale,
+                        N_Vector fval,
+                        N_Vector fscale,
+                        N_Vector vv,
+                        void *user_data);
+
+   void SetJFNKSolver(Solver &solver);
 
 public:
 
@@ -774,7 +798,7 @@ public:
 
    /// Set KINSOL's scaled step tolerance.
    /** The default tolerance is \f$ U^\frac{2}{3} \f$ , where
-       U = machine unit roundoff.
+       U = machine unit round-off.
        @note This method must be called after SetOperator(). */
    void SetScaledStepTol(double sstol);
 
@@ -790,6 +814,24 @@ public:
        altered after SetOperator() is called but it can't be higher than initial
        maximum. */
    void SetMAA(int maa);
+
+   /// Set the Jacobian Free Newton Krylov flag. The default is false.
+   /** This flag indicates to use JFNK as the linear solver for KINSOL. This
+       means that the Solver object set in SetSolver() or SetPreconditioner() is
+       used as a preconditioner for an FGMRES algorithm provided by SpFGMR from
+       SUNDIALS. Furthermore, all Jacobian-vector products in the outer Krylov
+       method are approximated by a difference quotient and the relative
+       tolerance for the outer Krylov method is adaptive. See the KINSOL User
+       Manual for details. */
+   void SetJFNK(bool use_jfnk) { jfnk = use_jfnk; }
+
+   /// Set the maximum number of linear solver iterations
+   /** @note Only valid in combination with JFNK */
+   void SetLSMaxIter(int m) { maxli = m; }
+
+   /// Set the maximum number of linear solver restarts
+   /** @note Only valid in combination with JFNK */
+   void SetLSMaxRestarts(int m) { maxlrs = m; }
 
    /// Solve the nonlinear system \f$ F(x) = 0 \f$.
    /** This method computes the x_scale and fx_scale vectors and calls the

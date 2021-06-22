@@ -37,7 +37,7 @@ using namespace mfem;
 // all spaces except the coarsest one in the ParFiniteElementSpaceHierarchy.
 // The multigrid uses a PCG solver preconditioned with AMG on the coarsest level
 // and second order Chebyshev accelerated smoothers on the other levels.
-class DiffusionMultigrid : public Multigrid
+class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
    ConstantCoefficient one;
@@ -48,7 +48,7 @@ public:
    // and the array of essential boundaries
    DiffusionMultigrid(ParFiniteElementSpaceHierarchy& fespaces,
                       Array<int>& ess_bdr)
-      : Multigrid(fespaces), one(1.0)
+      : GeometricMultigrid(fespaces), one(1.0)
    {
       ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
       fespaces->AddOrderRefinedLevel(collections.Last());
    }
 
-   HYPRE_Int size = fespaces->GetFinestFESpace().GlobalTrueVSize();
+   HYPRE_BigInt size = fespaces->GetFinestFESpace().GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -245,9 +245,9 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    // 10. Create the multigrid operator using the previously created parallel
-   //     FiniteElementSpaceHierarchy and additional boundary information. This operator
-   //     is then used to create the MultigridSolver as a preconditioner in the
-   //     iterative solver.
+   //     FiniteElementSpaceHierarchy and additional boundary information. This
+   //     operator is then used to create the MultigridSolver as preconditioner
+   //     in the iterative solver.
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    if (pmesh->bdr_attributes.Size())
    {
@@ -274,8 +274,8 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    M->RecoverFineFEMSolution(X, *b, x);
 
-   // 13. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 13. Save the refined mesh and the solution in parallel. This output can be
+   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;

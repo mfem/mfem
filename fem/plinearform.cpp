@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,46 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
 {
    LinearForm::MakeRef(pf, v, v_offset);
    pfes = pf;
+}
+
+void ParLinearForm::Assemble()
+{
+   LinearForm::Assemble();
+
+   if (iflfi.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      AssembleSharedFaces();
+   }
+}
+
+void ParLinearForm::AssembleSharedFaces()
+{
+   Array<int> vdofs;
+   Vector elemvect;
+
+   if (iflfi.Size())
+   {
+      ParMesh *pmesh = pfes->GetParMesh();
+      for (int k = 0; k < iflfi.Size(); k++)
+      {
+         for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+         {
+            FaceElementTransformations *tr = NULL;
+            tr = pmesh->GetSharedFaceTransformations(i);
+
+            if (tr != NULL)
+            {
+               int Elem2Nbr = tr->Elem2No - pmesh->GetNE();
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               iflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                   *pfes->GetFaceNbrFE(Elem2Nbr),
+                                                   *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+      }
+   }
 }
 
 void ParLinearForm::ParallelAssemble(Vector &tv)

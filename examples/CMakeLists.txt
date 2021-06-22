@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,6 +10,7 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND ALL_EXE_SRCS
+  ex0.cpp
   ex1.cpp
   ex2.cpp
   ex3.cpp
@@ -34,10 +35,13 @@ list(APPEND ALL_EXE_SRCS
   ex25.cpp
   ex26.cpp
   ex27.cpp
+  ex28.cpp
+  ex29.cpp
   )
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
+    ex0p.cpp
     ex1p.cpp
     ex2p.cpp
     ex3p.cpp
@@ -64,6 +68,8 @@ if (MFEM_USE_MPI)
     ex25p.cpp
     ex26p.cpp
     ex27p.cpp
+    ex28p.cpp
+    ex29p.cpp
     )
 endif()
 
@@ -78,7 +84,9 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  set(THIS_TEST_OPTIONS "-no-vis")
+  if (NOT (${TEST_NAME} MATCHES "ex0p?"))
+    set(THIS_TEST_OPTIONS "-no-vis")
+  endif()
   if (${TEST_NAME} MATCHES "ex10p*")
     list(APPEND THIS_TEST_OPTIONS "-tf" "5")
   elseif(${TEST_NAME} MATCHES "ex15p*")
@@ -117,14 +125,19 @@ if (MFEM_USE_SUPERLU)
     ${MPIEXEC_POSTFLAGS})
 endif()
 
-# Include the examples/sundials directory if SUNDIALS is enabled.
-if (MFEM_USE_SUNDIALS)
-  add_subdirectory(sundials)
+# Include the examples/amgx directory if AmgX is enabled
+if (MFEM_USE_AMGX)
+  add_subdirectory(amgx)
 endif()
 
-# Include the examples/sundials directory if SUNDIALS is enabled.
+# Include the examples/ginkgo directory if GINKGO is enabled.
 if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
+endif()
+
+# Include the examples/hiop directory if HiOp is enabled
+if (MFEM_USE_HIOP)
+  add_subdirectory(hiop)
 endif()
 
 # Include the examples/petsc directory if PETSc is enabled.
@@ -137,7 +150,16 @@ if (MFEM_USE_PUMI)
   add_subdirectory(pumi)
 endif()
 
-if (MFEM_USE_HIOP)
-  add_subdirectory(hiop)
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_SUNDIALS)
+  add_subdirectory(sundials)
 endif()
 
+if(MFEM_USE_CALIPER)
+  add_subdirectory(caliper)
+endif()
+
+# Include the examples/superlu directory if SUPERLU is enabled.
+if (MFEM_USE_SUPERLU)
+  add_subdirectory(superlu)
+endif()

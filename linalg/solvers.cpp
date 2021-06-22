@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
+#include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include "../fem/bilinearform.hpp"
@@ -38,7 +39,7 @@ IterativeSolver::IterativeSolver()
 }
 
 #ifdef MFEM_USE_MPI
-IterativeSolver::IterativeSolver(MPI_Comm _comm)
+IterativeSolver::IterativeSolver(MPI_Comm comm_)
    : Solver(0, true)
 {
    oper = NULL;
@@ -47,7 +48,7 @@ IterativeSolver::IterativeSolver(MPI_Comm _comm)
    print_level = -1;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
-   comm = _comm;
+   comm = comm_;
 }
 #endif
 
@@ -115,20 +116,29 @@ void IterativeSolver::Monitor(int it, double norm, const Vector& r,
    }
 }
 
+OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
+   : damping(dmpng),
+     ess_tdof_list(nullptr),
+     oper(nullptr),
+     allow_updates(true)
+{ }
+
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
                                                const double dmpng)
    :
    Solver(a.FESpace()->GetTrueVSize()),
-   N(height),
-   dinv(N),
+   dinv(height),
    damping(dmpng),
-   ess_tdof_list(ess_tdofs),
-   residual(N)
+   ess_tdof_list(&ess_tdofs),
+   residual(height),
+   allow_updates(false)
 {
-   Vector diag(N);
+   Vector &diag(residual);
    a.AssembleDiagonal(diag);
-   oper = &a;
+   // 'a' cannot be used for iterative_mode == true because its size may be
+   // different.
+   oper = nullptr;
    Setup(diag);
 }
 
@@ -137,13 +147,50 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const double dmpng)
    :
    Solver(d.Size()),
-   N(d.Size()),
-   dinv(N),
+   dinv(height),
    damping(dmpng),
-   ess_tdof_list(ess_tdofs),
-   residual(N)
+   ess_tdof_list(&ess_tdofs),
+   residual(height),
+   oper(NULL),
+   allow_updates(false)
 {
    Setup(d);
+}
+
+void OperatorJacobiSmoother::SetOperator(const Operator &op)
+{
+   if (!allow_updates)
+   {
+      // original behavior of this method
+      oper = &op; return;
+   }
+
+   // Treat (Par)BilinearForm objects as a special case since their
+   // AssembleDiagonal method returns the true-dof diagonal whereas the form
+   // itself may act as an ldof operator. This is for compatibility with the
+   // constructor that takes a BilinearForm parameter.
+   const BilinearForm *blf = dynamic_cast<const BilinearForm *>(&op);
+   if (blf)
+   {
+      // 'a' cannot be used for iterative_mode == true because its size may be
+      // different.
+      oper = nullptr;
+      height = width = blf->FESpace()->GetTrueVSize();
+   }
+   else
+   {
+      oper = &op;
+      height = op.Height();
+      width = op.Width();
+      MFEM_ASSERT(height == width, "not a square matrix!");
+      // ess_tdof_list is only used with BilinearForm
+      ess_tdof_list = nullptr;
+   }
+   dinv.SetSize(height);
+   residual.SetSize(height);
+   Vector &diag(residual);
+   op.AssembleDiagonal(diag);
+   Setup(diag);
 }
 
 void OperatorJacobiSmoother::Setup(const Vector &diag)
@@ -152,20 +199,26 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    const double delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
-   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
-   auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
+   MFEM_FORALL(i, height, DI[i] = delta / D[i]; );
+   if (ess_tdof_list && ess_tdof_list->Size() > 0)
+   {
+      auto I = ess_tdof_list->Read();
+      MFEM_FORALL(i, ess_tdof_list->Size(), DI[I[i]] = delta; );
+   }
 }
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_ASSERT(x.Size() == N, "invalid input vector");
-   MFEM_ASSERT(y.Size() == N, "invalid output vector");
+   // For empty MPI ranks, height may be 0:
+   // MFEM_VERIFY(Height() > 0, "The diagonal hasn't been computed.");
+   MFEM_ASSERT(x.Size() == Width(), "invalid input vector");
+   MFEM_ASSERT(y.Size() == Height(), "invalid output vector");
 
-   if (iterative_mode && oper)
+   if (iterative_mode)
    {
-      oper->Mult(y, residual);  // r = A x
-      subtract(x, residual, residual); // r = b - A x
+      MFEM_VERIFY(oper, "iterative_mode == true requires the forward operator");
+      oper->Mult(y, residual);  // r = A y
+      subtract(x, residual, residual); // r = x - A y
    }
    else
    {
@@ -176,7 +229,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    auto DI = dinv.Read();
    auto R = residual.Read();
    auto Y = y.ReadWrite();
-   MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
+   MFEM_FORALL(i, height, Y[i] += DI[i] * R[i]; );
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
@@ -501,6 +554,8 @@ void SLI(const Operator &A, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
          double RTOLERANCE, double ATOLERANCE)
 {
+   MFEM_PERF_FUNCTION;
+
    SLISolver sli;
    sli.SetPrintLevel(print_iter);
    sli.SetMaxIter(max_num_iter);
@@ -514,6 +569,8 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
          double RTOLERANCE, double ATOLERANCE)
 {
+   MFEM_PERF_FUNCTION;
+
    SLISolver sli;
    sli.SetPrintLevel(print_iter);
    sli.SetMaxIter(max_num_iter);
@@ -645,7 +702,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       Monitor(i, betanom, r, x);
 
-      if (betanom < r0)
+      if (betanom <= r0)
       {
          if (print_level == 2)
          {
@@ -721,6 +778,8 @@ void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,
         double RTOLERANCE, double ATOLERANCE)
 {
+   MFEM_PERF_FUNCTION;
+
    CGSolver cg;
    cg.SetPrintLevel(print_iter);
    cg.SetMaxIter(max_num_iter);
@@ -734,6 +793,8 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
          double RTOLERANCE, double ATOLERANCE)
 {
+   MFEM_PERF_FUNCTION;
+
    CGSolver pcg;
    pcg.SetPrintLevel(print_iter);
    pcg.SetMaxIter(max_num_iter);
@@ -1156,6 +1217,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
           int &max_iter, int m, double &tol, double atol, int printit)
 {
+   MFEM_PERF_FUNCTION;
+
    GMRESSolver gmres;
    gmres.SetPrintLevel(printit);
    gmres.SetMaxIter(max_iter);
@@ -1526,6 +1589,8 @@ loop_end:
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
             int max_it, double rtol, double atol)
 {
+   MFEM_PERF_FUNCTION;
+
    MINRESSolver minres;
    minres.SetPrintLevel(print_it);
    minres.SetMaxIter(max_it);
@@ -1569,12 +1634,12 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
-   ProcessNewState(x);
-
    if (!iterative_mode)
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    oper->Mult(x, r);
    if (have_b)
@@ -1615,9 +1680,20 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      prec->SetOperator(oper->GetGradient(x));
+      grad = &oper->GetGradient(x);
+      prec->SetOperator(*grad);
 
-      prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPreSolve(x, it, norm);
+      }
+
+      prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
+
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPostSolve(c, r, it, norm);
+      }
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
@@ -1641,6 +1717,86 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
+void NewtonSolver::SetAdaptiveLinRtol(const int type,
+                                      const double rtol0,
+                                      const double rtol_max,
+                                      const double alpha,
+                                      const double gamma)
+{
+   lin_rtol_type = type;
+   lin_rtol0 = rtol0;
+   lin_rtol_max = rtol_max;
+   this->alpha = alpha;
+   this->gamma = gamma;
+}
+
+void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
+                                           const int it,
+                                           const double fnorm) const
+{
+   // Assume that when adaptive linear solver relative tolerance is activated,
+   // we are working with an iterative solver.
+   auto iterative_solver = static_cast<IterativeSolver *>(prec);
+   // Adaptive linear solver relative tolerance
+   double eta;
+   // Safeguard threshold
+   double sg_threshold = 0.1;
+
+   if (it == 0)
+   {
+      eta = lin_rtol0;
+   }
+   else
+   {
+      if (lin_rtol_type == 1)
+      {
+         // eta = gamma * abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
+         eta = gamma * abs(fnorm - lnorm_last) / fnorm_last;
+      }
+      else if (lin_rtol_type == 2)
+      {
+         // eta = gamma * (||F(x1)|| / ||F(x0)||)^alpha
+         eta = gamma * pow(fnorm / fnorm_last, alpha);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown adaptive linear solver rtol version");
+      }
+
+      // Safeguard rtol from "oversolving" ?!
+      const double sg_eta = gamma * pow(eta_last, alpha);
+      if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
+   }
+
+   eta = std::min(eta, lin_rtol_max);
+   iterative_solver->SetRelTol(eta);
+   eta_last = eta;
+   if (print_level >= 0)
+   {
+      mfem::out << "Eisenstat-Walker rtol = " << eta << "\n";
+   }
+}
+
+void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
+                                            const Vector &b,
+                                            const int it,
+                                            const double fnorm) const
+{
+   fnorm_last = fnorm;
+
+   // If version 1 is chosen, the true linear residual norm has to be computed
+   // and in most cases we can only retrieve the preconditioned linear residual
+   // norm.
+   if (lin_rtol_type == 1)
+   {
+      // lnorm_last = ||F(x0) + DF(x0) s0||
+      Vector linres(x.Size());
+      grad->Mult(x, linres);
+      linres -= b;
+      lnorm_last = Norm(linres);
+   }
+}
+
 void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
@@ -1649,12 +1805,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
 
-   //r - r_{k+1}, c - descent direction
-   sk.SetSize(width);    //x_{k+1}-x_k
-   rk.SetSize(width);    //nabla(f(x_{k}))
-   yk.SetSize(width);    //r_{k+1}-r_{k}
-   rho.SetSize(m);       //1/(dot(yk,sk)
-   alpha.SetSize(m);    //rhok*sk'*c
+   // r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    // x_{k+1}-x_k
+   rk.SetSize(width);    // nabla(f(x_{k}))
+   yk.SetSize(width);    // r_{k+1}-r_{k}
+   rho.SetSize(m);       // 1/(dot(yk,sk)
+   alpha.SetSize(m);     // rhok*sk'*c
    int last_saved_id = -1;
 
    int it;
@@ -1665,6 +1821,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    // r = F(x)-b
    oper->Mult(x, r);
@@ -1707,7 +1865,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+      add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
 
       ProcessNewState(x);
 
@@ -1717,12 +1875,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          r -= b;
       }
 
-      //    LBFGS - construct descent direction
+      // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
-      //  Save last m vectors
+      // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
       skM.SetCol(last_saved_id, sk);
       ykM.SetCol(last_saved_id, yk);
@@ -1982,16 +2140,16 @@ void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
    problem = &prob;
 }
 
-void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
+void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
 {
-   lo.SetDataAndSize(_lo.GetData(), _lo.Size());
-   hi.SetDataAndSize(_hi.GetData(), _hi.Size());
+   lo.SetDataAndSize(lo_.GetData(), lo_.Size());
+   hi.SetDataAndSize(hi_.GetData(), hi_.Size());
 }
 
-void SLBQPOptimizer::SetLinearConstraint(const Vector &_w, double _a)
+void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
 {
-   w.SetDataAndSize(_w.GetData(), _w.Size());
-   a = _a;
+   w.SetDataAndSize(w_.GetData(), w_.Size());
+   a = a_;
 }
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
@@ -2720,9 +2878,7 @@ void UMFPackSolver::Init()
 
 void UMFPackSolver::SetOperator(const Operator &op)
 {
-   int *Ap, *Ai;
    void *Symbolic;
-   double *Ax;
 
    if (Numeric)
    {
@@ -2748,9 +2904,9 @@ void UMFPackSolver::SetOperator(const Operator &op)
    width = mat->Width();
    MFEM_VERIFY(width == height, "not a square matrix");
 
-   Ap = mat->GetI();
-   Ai = mat->GetJ();
-   Ax = mat->GetData();
+   const int * Ap = mat->HostReadI();
+   const int * Ai = mat->HostReadJ();
+   const double * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
@@ -2820,12 +2976,13 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::Mult : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_At, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2836,7 +2993,7 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
@@ -2852,12 +3009,13 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::MultTranspose : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_A, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2869,7 +3027,7 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
@@ -2971,5 +3129,102 @@ KLUSolver::~KLUSolver()
 }
 
 #endif // MFEM_USE_SUITESPARSE
+
+DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
+                                           const SparseMatrix &block_dof_)
+   : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
+     block_solvers(new DenseMatrixInverse[block_dof.NumRows()])
+{
+   DenseMatrix sub_A;
+   for (int i = 0; i < block_dof.NumRows(); ++i)
+   {
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      sub_A.SetSize(local_dofs.Size());
+      A.GetSubMatrix(local_dofs, local_dofs, sub_A);
+      block_solvers[i].SetOperator(sub_A);
+   }
+}
+
+void DirectSubBlockSolver::Mult(const Vector &x, Vector &y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+
+   for (int i = 0; i < block_dof.NumRows(); ++i)
+   {
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      x.GetSubVector(local_dofs, sub_rhs);
+      sub_sol.SetSize(local_dofs.Size());
+      block_solvers[i].Mult(sub_rhs, sub_sol);
+      y.AddElementVector(local_dofs, sub_sol);
+   }
+}
+
+void ProductSolver::Mult(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S0->Mult(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A->Mult(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A * S0) x
+
+   Vector S1z(x.Size());
+   S1z = 0.0;
+   S1->Mult(z, S1z);
+   y += S1z;
+}
+
+void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S1->MultTranspose(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A->MultTranspose(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A^T * S1^T) x
+
+   Vector S0Tz(x.Size());
+   S0Tz = 0.0;
+   S0->MultTranspose(z, S0Tz);
+   y += S0Tz;
+}
+
+#ifdef MFEM_USE_MPI
+AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
+                                   HypreParMatrix *aux_map,
+                                   bool op_is_symmetric,
+                                   bool own_aux_map)
+   : Solver(op.NumRows()), aux_map_(aux_map, own_aux_map)
+{
+   aux_system_.Reset(RAP(&op, aux_map));
+   aux_system_.As<HypreParMatrix>()->EliminateZeroRows();
+   aux_smoother_.Reset(new HypreSmoother(*aux_system_.As<HypreParMatrix>()));
+   aux_smoother_.As<HypreSmoother>()->SetOperatorSymmetry(op_is_symmetric);
+}
+
+void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
+{
+   Vector aux_rhs(aux_map_->NumCols());
+   aux_map_->MultTranspose(x, aux_rhs);
+
+   Vector aux_sol(aux_rhs.Size());
+   if (transpose)
+   {
+      aux_smoother_->MultTranspose(aux_rhs, aux_sol);
+   }
+   else
+   {
+      aux_smoother_->Mult(aux_rhs, aux_sol);
+   }
+
+   y.SetSize(aux_map_->NumRows());
+   aux_map_->Mult(aux_sol, y);
+}
+#endif // MFEM_USE_MPI
 
 }
