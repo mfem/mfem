@@ -19,6 +19,7 @@ private:
    const Mesh *mesh0=nullptr;
    int dim, sdim;
    const FiniteElementSpace *fes0=nullptr;
+   DenseMatrix vcoords;
    Mesh *mesh=nullptr; // Submesh 
    Mesh *bdr_mesh=nullptr; //bdr mesh 
    Mesh *surface_mesh=nullptr; //Surface mesh 

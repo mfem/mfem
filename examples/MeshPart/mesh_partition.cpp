@@ -5,6 +5,7 @@
 Subdomain::Subdomain(const Mesh & mesh0_) 
 : mesh0(&mesh0_), dim(mesh0->Dimension()), sdim(mesh0->SpaceDimension()) 
 { 
+   // MFEM_VERIFY(dim == 3, "Only 3D domains for now are supported");
    if(mesh0->NURBSext)
    {
       MFEM_ABORT("Nurbs meshes are not supported yet");
@@ -15,7 +16,11 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
 {
    // if mesh nodes are defined we use them for the vertices
    // otherwise we use the vertices them selfs
-   cout << etype << endl;
+   cout << "entity type " << etype << endl;
+
+   // in case of a periodic mesh, check if the given boundary element is indeed, 
+
+
    int nv = mesh0->GetNV();
    int subelems = elems.Size();
    Array<int> vmarker(nv); vmarker = 0;
@@ -48,7 +53,7 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
    switch (etype)
    {
    case 0: 
-      mesh = new Mesh(dim,numvertices, subelems, 0, sdim); 
+      mesh = new Mesh(dim,numvertices, subelems); 
       element_map = elems;
       meshptr = mesh;
       break;
@@ -58,7 +63,7 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
       meshptr = bdr_mesh;
       break;   
    case 2: 
-      surface_mesh = new Mesh(dim-1,numvertices, subelems, 0, sdim);
+      surface_mesh = new Mesh(dim-1,numvertices, subelems,0,sdim);
       face_element_map = elems;
       meshptr = surface_mesh;
       break;
@@ -67,43 +72,28 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
          break;
    }
 
+   Vector values;
    const GridFunction * nodes0 = mesh0->GetNodes();
+   if (nodes0)
+   {
+      vcoords.SetSize(sdim, mesh0->GetNV());
+      for (int i = 0; i< sdim; i++)
+      {
+         nodes0->GetNodalValues(values,i+1);
+         vcoords.SetRow(i,values);
+      }
+   }
    int vk = 0;
-   // if (nodes0) // TODO 
-   // {
-   //    vmarker = 0;
-   //    for (int ie = 0; ie<subelems; ie++)
-   //    {
-   //       int el = elems[ie];
-   //       Array<int> vertices;
-   //       switch (etype)
-   //       {
-   //       case 0: mesh0->GetElementVertices(el,vertices); break;
-   //       case 1: mesh0->GetBdrElementVertices(el,vertices); break;
-   //       case 2: mesh0->GetFaceVertices(el,vertices); break;
-   //       default:
-   //          MFEM_ABORT("Wrong entity type choice");
-   //          break;
-   //       }
-   //       DenseMatrix val(sdim,vertices.Size());
-   //       for (int d=0; d<sdim; d++)
-   //       {
-   //          Array<double> values;
-   //          nodes0->GetNodalValues(el,values,d+1);
-   //          val.SetRow(d,values.GetData());
-   //       }
-
-   //       for (int iv=0; iv<vertices.Size(); iv++)
-   //       {
-   //          int v = vertices[iv];
-   //          if (vmarker[v]) continue;
-   //          double * coords = val.GetColumn(iv);
-   //          mesh->AddVertex(coords);
-   //          vmarker[v] = ++vk;
-   //       }
-   //    }
-   // }
-   // else
+   if (nodes0) 
+   {
+      for (int iv = 0; iv<mesh0->GetNV(); ++iv)
+      {
+         if (!vmarker[iv]) continue;
+         meshptr->AddVertex(vcoords.GetColumn(iv));
+         vmarker[iv] = ++vk;
+      }
+   }
+   else
    {
       for (int iv = 0; iv<mesh0->GetNV(); ++iv)
       {
@@ -138,6 +128,7 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
 
    if (nodes0)
    {
+      cout << "nodes not null" << endl;
       // Extract Nodes GridFunction and determine its type
       const FiniteElementSpace * fes0 = nodes0->FESpace();
 
@@ -146,6 +137,7 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
       bool discont =
          dynamic_cast<const L2_FECollection*>(fes0->FEColl()) != NULL;
 
+      cout << "discont = " << discont << endl;
       // Set curvature of the same type as original mesh
       meshptr->SetCurvature(order, discont, sdim, ordering);
 
@@ -161,7 +153,11 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
          switch (etype)
          {
          case 0: fes0->GetElementVDofs(elems[e], vdofs0); break;
-         case 1: fes0->GetBdrElementVDofs(elems[e], vdofs0); break;
+         case 1: 
+            fes0->GetBdrElementVDofs(elems[e], vdofs0); 
+            // this is a problem with L2 nodes (they don't carry bdr dofs) (probably for periodic meshes)
+            if (!vdofs0.Size()) continue; 
+            break;
          case 2: fes0->GetFaceVDofs(elems[e], vdofs0); break;
          default:
             MFEM_ABORT("Wrong entity type choice");
@@ -173,6 +169,7 @@ void Subdomain::BuildSubMesh(const Array<int> & elems, const entity_type & etype
       }
    }
 }
+
 
 void Subdomain::BuildDofMap(const entity_type & etype)
 {
