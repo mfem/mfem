@@ -21,7 +21,6 @@
 
 #ifndef _WIN32
 #include <sys/stat.h>  // mkdir
-#include <unistd.h>    // truncate
 #else
 #include <direct.h>    // _mkdir
 #define mkdir(dir, mode) _mkdir(dir)
@@ -854,54 +853,40 @@ void ParaViewDataCollection::Save()
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
 
-      std::ifstream fileTest(pvdname);
-
-      if (fileTest.good() && restart_mode)
+      std::ifstream pvd_in;
+      if (restart_mode && (pvd_in.open(pvdname), pvd_in.good()))
       {
-         // pvd file exists, open and update output pos so we retain any older timesteps
-         pvd_stream.open(pvdname.c_str(),std::ios::in|std::ios::out);
+         // PVD file exists and restart mode enabled: preserve existing time
+         // steps less than the current time.
+         std::fstream::pos_type pos_begin = pvd_in.tellg();
+         std::fstream::pos_type pos_end = pos_begin;
+
+         std::regex regexp("timestep=\"([^[:space:]]+)\".*file=\"Cycle(\\d+)");
+         std::smatch match;
 
          std::string line;
-         std::fstream::pos_type pos = pvd_stream.tellp();
-
-         std::regex regexp("timestep=\"([^[:space:]]+)\"");
-         std::smatch match;
-         bool needTruncate = false;
-
-         while (getline(pvd_stream,line))
+         while (getline(pvd_in,line))
          {
             if (regex_search(line,match,regexp))
             {
-               MFEM_ASSERT(match.size() == 2,
-                           "Unable to ascertain time value from existing pvd file: " << pvdname);
+               MFEM_ASSERT(match.size() == 3, "Unable to parse DataSet");
                double tvalue = std::stod(match[1]);
-               if (tvalue < GetTime())
-               {
-                  pos = pvd_stream.tellg();
-               }
-               else
-               {
-                  needTruncate = true;
-               }
+               if (tvalue >= GetTime()) { break; }
+               int cvalue = std::stoi(match[2]);
+               MFEM_VERIFY(cvalue < GetCycle(), "Cycle " << GetCycle() <<
+                           " is too small for restart mode: trying to overwrite"
+                           " existing data.");
+               pos_end = pvd_in.tellg();
             }
          }
-
-#ifndef _WIN32
-         if (needTruncate)
-         {
-            // remove timesteps newer than current time
-            pvd_stream.close();
-            int status = truncate(pvdname.c_str(), pos);
-            if (status != 0)
-            {
-               MFEM_ABORT("Unable to truncate newer time values from pvd file:: " << pvdname);
-            }
-            pvd_stream.open(pvdname.c_str(),std::ios::in|std::ios::out);
-         }
-#endif
-
-         pvd_stream.clear();
-         pvd_stream.seekp(pos);
+         size_t count = pos_end - pos_begin;
+         std::vector<char> buf(count);
+         pvd_in.clear();
+         pvd_in.seekg(pos_begin);
+         pvd_in.read(buf.data(), count);
+         pvd_in.close();
+         pvd_stream.open(pvdname.c_str(),std::ios::out);
+         pvd_stream.write(buf.data(), count);
       }
       else
       {
