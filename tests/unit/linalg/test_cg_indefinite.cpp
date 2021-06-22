@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,15 +27,16 @@ public:
 
 TEST_CASE("CGSolver", "[Indefinite]")
 {
+   mfem::out << "===> BEGIN: Expected PCG warning messages" << std::endl;
+
    // Define indefinite SparseMatrix
    SparseMatrix indefinite(2, 2);
-   indefinite.Add(0, 1, 1.0);
-   indefinite.Add(1, 0, 1.0);
+   indefinite.Add(0, 0, -1.0);
    indefinite.Finalize();
 
    Vector v(2);
    v(0) = 1.0;
-   v(1) = -1.0;
+   v(1) = 1.0;
    Vector x(2);
    x = 0.0;
 
@@ -58,4 +59,6 @@ TEST_CASE("CGSolver", "[Indefinite]")
    x = 0.0;
    cg2.Mult(v, x);
    REQUIRE(!cg2.GetConverged());
+
+   mfem::out << "===> END: Expected PCG warning messages" << std::endl;
 }

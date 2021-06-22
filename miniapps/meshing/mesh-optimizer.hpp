@@ -1,4 +1,15 @@
-//           MFEM Mesh Optimizer Miniapp - Serial/Parallel Shared Code
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+// MFEM Mesh Optimizer Miniapp - Serial/Parallel Shared Code
 
 #include "mfem.hpp"
 #include <fstream>
@@ -26,6 +37,23 @@ double discrete_size_2d(const Vector &x)
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
    }
+
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+
+   return val * small + (1.0 - val) * big;
+}
+
+double discrete_size_3d(const Vector &x)
+{
+   const double small = 0.0001, big = 0.01;
+   double val = 0.;
+
+   // semi-circle
+   const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
+   const double r = sqrt(xc*xc + yc*yc + zc*zc);
+   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+   val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
 
    val = std::max(0.,val);
    val = std::min(1.,val);
@@ -62,8 +90,8 @@ double discrete_aspr_2d(const Vector &x)
    double th = 22.5*M_PI/180.;
    double xn =  cos(th)*xc + sin(th)*yc;
    double yn = -sin(th)*xc + cos(th)*yc;
-   //double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-   //double stretch = 1/cos(th2);
+   // double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+   // double stretch = 1/cos(th2);
    xc = xn; yc = yn;
 
    double tfac = 20;
@@ -103,7 +131,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (metric != 14 && metric != 85)
+      if (metric != 14 && metric != 36 && metric != 85)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
@@ -118,7 +146,7 @@ public:
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
       }
-      else if (metric == 14) // Size + Alignment
+      else if (metric == 14 || metric == 36) // Size + Alignment
       {
          const double xc = pos(0), yc = pos(1);
          double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);

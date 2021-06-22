@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -9,12 +9,16 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-cmake_minimum_required(VERSION 2.8.11)
+# The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
+cmake_minimum_required(VERSION 3.1)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
 # Require C++11 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 11)
+if (MFEM_USE_GINKGO) 
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -50,7 +54,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.1.1)
+set(${PROJECT_NAME}_VERSION 4.2.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -87,6 +91,9 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 # Enable languages.
 enable_language(CXX)
 if (MFEM_USE_CUDA)
+   if (MFEM_USE_HIP)
+      message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
+   endif()
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
@@ -95,6 +102,9 @@ if (MFEM_USE_CUDA)
    endif()
    enable_language(CUDA)
    set(CMAKE_CUDA_STANDARD 11)
+   if (MFEM_USE_GINKGO) 
+     set(CMAKE_CUDA_STANDARD 14)
+   endif()
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
    set(CMAKE_CUDA_EXTENSIONS OFF)
    set(CUDA_FLAGS "--expt-extended-lambda")
@@ -169,6 +179,12 @@ endif()
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
+  if (MFEM_MPIEXEC)
+    set(MPIEXEC ${MFEM_MPIEXEC})
+  endif()
+  if (MFEM_MPIEXEC_NP)
+    set(MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
+  endif()
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
@@ -185,7 +201,7 @@ if (MFEM_USE_MPI)
     endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC SLEPC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU MUMPS PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -240,13 +256,12 @@ endif()
 
 # SUNDIALS
 if (MFEM_USE_SUNDIALS)
-  set(SUNDIALS_COMPONENTS "CVODES ARKODE KINSOL NVector_Serial")
+  set(SUNDIALS_COMPONENTS CVODES ARKODE KINSOL NVector_Serial)
   if (MFEM_USE_MPI)
-    set(SUNDIALS_COMPONENTS
-      "${SUNDIALS_COMPONENTS} NVector_Parallel NVector_MPIPlusX")
+    list(APPEND SUNDIALS_COMPONENTS NVector_Parallel NVector_MPIPlusX)
   endif()
   if (MFEM_USE_CUDA)
-    set(SUNDIALS_COMPONENTS "${SUNDIALS_COMPONENTS} NVector_Cuda")
+    list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
   endif()
   find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
 endif()
@@ -262,6 +277,15 @@ if (MFEM_USE_SUPERLU)
     find_package(SuperLUDist REQUIRED)
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
+  endif()
+endif()
+
+# MUMPS can only be enabled in parallel
+if (MFEM_USE_MUMPS)
+  if (MFEM_USE_MPI)
+    find_package(MUMPS REQUIRED mumps_common pord)
+  else()
+    message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
 endif()
 
@@ -296,6 +320,10 @@ endif()
 
 if (MFEM_USE_CEED)
   find_package(libCEED REQUIRED)
+endif()
+
+if (MFEM_USE_AMGX)
+  find_package(AMGX REQUIRED)
 endif()
 
 if (MFEM_USE_CONDUIT)
@@ -344,9 +372,32 @@ if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
 endif()
 
+# Caliper
+if (MFEM_USE_CALIPER)
+  find_package(Caliper REQUIRED)
+endif()
+
+# AMD HIP
+if (MFEM_USE_HIP)
+  find_package(HIP REQUIRED)
+  if (HIP_ARCH)
+    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
+    list(APPEND HIP_HIPCC_FLAGS "--amdgpu-target=${HIP_ARCH}")
+    if (MFEM_USE_GINKGO)
+      list(APPEND HIP_HIPCC_FLAGS "-std=c++14")
+    endif()
+  endif()
+endif()
+
 # ADIOS2 for parallel I/O
 if (MFEM_USE_ADIOS2)
    find_package(ADIOS2 REQUIRED)
+endif()
+
+if (MFEM_USE_MKL_CPARDISO)
+  if (MFEM_USE_MPI)
+   find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
+  endif()
 endif()
 
 # MFEM_TIMER_TYPE
@@ -372,10 +423,10 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+    SLEPC MESQUITE MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE)
+    CUSPARSE MKL_CPARDISO AMGX CALIPER)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -413,9 +464,9 @@ foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
 endforeach()
 
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS SOURCES)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
+  set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
+elseif(MFEM_USE_HIP)
+  set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
 add_subdirectory(config)
@@ -434,7 +485,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
 # Declaring the library
-add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
@@ -477,6 +528,8 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 ")
   endforeach()
 endif()
+
+set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
@@ -528,16 +581,17 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 endif()
 
 # Add 'check' target - quick test
+set(MFEM_CHECK_TARGET_NAME ${MFEM_CUSTOM_TARGET_PREFIX}check)
 if (NOT MFEM_USE_MPI)
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1_ser\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1)
 else()
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1p\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1p)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1p)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -591,7 +645,7 @@ endif()
 if (MFEM_USE_CEED)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
-    FILES_MATCHING PATTERN "fem/libceed/*.h")
+    FILES_MATCHING PATTERN "fem/ceed/*.h")
 endif()
 
 # Install ${HEADERS}

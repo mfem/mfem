@@ -19,15 +19,17 @@
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
+//
 //                                 k*u + grad p = f
 //                                 - div u      = g
+//
 //               with natural boundary condition -p = <given pressure>.
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the BlockMatrix class, as
+//               The example demonstrates the use of the BlockOperator class, as
 //               well as the collective saving of several grid functions in
 //               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //               Optional saving with ADIOS2 (adios2.readthedocs.io) streams is
@@ -153,8 +155,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, hdiv_coll);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, l2_coll);
 
-   HYPRE_Int dimR = R_space->GlobalTrueVSize();
-   HYPRE_Int dimW = W_space->GlobalTrueVSize();
+   HYPRE_BigInt dimR = R_space->GlobalTrueVSize();
+   HYPRE_BigInt dimW = W_space->GlobalTrueVSize();
 
    if (verbose)
    {

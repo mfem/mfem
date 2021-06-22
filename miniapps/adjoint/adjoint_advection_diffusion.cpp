@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -233,14 +233,21 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    // Create a small 1D mesh with a length of 2. This mesh corresponds with the
    // cvsAdvDiff_ASA_p_non_p example.
-   Mesh *mesh = new Mesh(mx+1, 2.);
+   Mesh mesh = Mesh::MakeCartesian1D(mx+1, 2.);
 
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -248,11 +255,11 @@ int main(int argc, char *argv[])
    // a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
@@ -262,7 +269,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, pmesh->SpaceDimension());
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;
@@ -305,6 +312,7 @@ int main(int argc, char *argv[])
                                            step_mode ? CV_ADAMS : CV_BDF);
    cvodes->Init(adv);
    cvodes->UseSundialsLinearSolver();
+   cvodes->SetMaxNSteps(5000);
 
    // Relative and absolute tolerances for CVODES
    double reltol = 1e-8, abstol = 1e-6;

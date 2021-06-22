@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -249,6 +249,24 @@ TEST_CASE("First order ODE methods",
       std::cout <<"\nTesting SDIRK34Solver" << std::endl;
       double conv_rate = check.order(new SDIRK34Solver);
       REQUIRE(conv_rate + tol > 4.0);
+   }
+
+   SECTION("TrapezoidalRuleSolver")
+   {
+      std::cout <<"\nTesting TrapezoidalRuleSolver" << std::endl;
+      REQUIRE(check.order(new TrapezoidalRuleSolver) + tol > 2.0 );
+   }
+
+   SECTION("ESDIRK32Solver")
+   {
+      std::cout <<"\nTesting ESDIRK32Solver" << std::endl;
+      REQUIRE(check.order(new ESDIRK32Solver) + tol > 2.0 );
+   }
+
+   SECTION("ESDIRK33Solver")
+   {
+      std::cout <<"\nTesting ESDIRK33Solver" << std::endl;
+      REQUIRE(check.order(new ESDIRK33Solver) + tol > 3.0 );
    }
 
    // Generalized-alpha

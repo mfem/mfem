@@ -141,7 +141,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // check for vaild ODE solver option
+   // check for valid ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 9)
    {
       if (myid == 0)
@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;
@@ -588,39 +588,39 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                           const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     b(_b),
-     M_solver(_M.ParFESpace()->GetComm()),
-     z(_M.Height())
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                           const Vector &b_)
+   : TimeDependentOperator(M_.Height()),
+     b(b_),
+     M_solver(M_.ParFESpace()->GetComm()),
+     z(M_.Height())
 {
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M.Reset(_M.ParallelAssemble(), true);
-      K.Reset(_K.ParallelAssemble(), true);
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
    }
    else
    {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
+      M.Reset(&M_, false);
+      K.Reset(&K_, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace());
+      dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace());
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
       dg_solver = NULL;
    }
 
