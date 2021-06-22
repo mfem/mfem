@@ -45,6 +45,9 @@
 #endif
 #endif // MFEM_USE_UMPIRE
 
+// Internal debug option, useful for tracking some memory manager operations.
+// #define MFEM_TRACK_MEM_MANAGER
+
 namespace mfem
 {
 
@@ -1278,6 +1281,10 @@ bool MemoryManager::IsAlias_(const void *h_ptr)
 void MemoryManager::Insert(void *h_ptr, size_t bytes,
                            MemoryType h_mt, MemoryType d_mt)
 {
+#ifdef MFEM_TRACK_MEM_MANAGER
+   mfem::out << "[mfem memory manager]: registering h_ptr: " << h_ptr
+             << ", bytes: " << bytes << std::endl;
+#endif
    if (h_ptr == NULL)
    {
       MFEM_VERIFY(bytes == 0, "Trying to add NULL with size " << bytes);
@@ -1294,6 +1301,10 @@ void MemoryManager::Insert(void *h_ptr, size_t bytes,
       auto &m = res.first->second;
       MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt && m.d_mt == d_mt,
                   "Address already present with different attributes!");
+#ifdef MFEM_TRACK_MEM_MANAGER
+      mfem::out << "[mfem memory manager]: repeated registration of h_ptr: "
+                << h_ptr << std::endl;
+#endif
    }
 #endif
 }
@@ -1314,6 +1325,11 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
 {
    size_t offset = static_cast<size_t>(static_cast<const char*>(alias_ptr) -
                                        static_cast<const char*>(base_ptr));
+#ifdef MFEM_TRACK_MEM_MANAGER
+   mfem::out << "[mfem memory manager]: registering alias of base_ptr: "
+             << base_ptr << ", offset: " << offset << ", bytes: " << bytes
+             << ", base is alias: " << base_is_alias << std::endl;
+#endif
    if (!base_ptr)
    {
       MFEM_VERIFY(offset == 0,
@@ -1326,6 +1342,10 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
       MFEM_ASSERT(alias.mem,"");
       base_ptr = alias.mem->h_ptr;
       offset += alias.offset;
+#ifdef MFEM_TRACK_MEM_MANAGER
+      mfem::out << "[mfem memory manager]: real base_ptr: " << base_ptr
+                << std::endl;
+#endif
    }
    internal::Memory &mem = maps->memories.at(base_ptr);
    auto res =
@@ -1346,6 +1366,10 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
 
 void MemoryManager::Erase(void *h_ptr, bool free_dev_ptr)
 {
+#ifdef MFEM_TRACK_MEM_MANAGER
+   mfem::out << "[mfem memory manager]: un-registering h_ptr: " << h_ptr
+             << std::endl;
+#endif
    if (!h_ptr) { return; }
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
@@ -1370,6 +1394,10 @@ void MemoryManager::EraseDevice(void *h_ptr)
 
 void MemoryManager::EraseAlias(void *alias_ptr)
 {
+#ifdef MFEM_TRACK_MEM_MANAGER
+   mfem::out << "[mfem memory manager]: un-registering alias_ptr: " << alias_ptr
+             << std::endl;
+#endif
    if (!alias_ptr) { return; }
    auto alias_map_iter = maps->aliases.find(alias_ptr);
    if (alias_map_iter == maps->aliases.end()) { mfem_error("Unknown alias!"); }
@@ -1543,6 +1571,15 @@ void MemoryManager::Configure(const MemoryType host_mt,
 void MemoryManager::Destroy()
 {
    MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
+#ifdef MFEM_TRACK_MEM_MANAGER
+   size_t num_memories = maps->memories.size();
+   size_t num_aliases = maps->aliases.size();
+   if (num_memories != 0 || num_aliases != 0)
+   {
+      MFEM_WARNING("...\n\t number of registered pointers: " << num_memories
+                   << "\n\t number of registered aliases : " << num_aliases);
+   }
+#endif
    for (auto& n : maps->memories)
    {
       internal::Memory &mem = n.second;
