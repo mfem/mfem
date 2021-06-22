@@ -831,7 +831,7 @@ void MemoryManager::Register_(void *h_ptr, void *d_ptr, size_t bytes,
             flags & ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE)) |
            Mem::VALID_HOST;
 
-   CheckHostMemoryType_(h_mt, h_ptr);
+   CheckHostMemoryType_(h_mt, h_ptr, alias);
 }
 
 void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
@@ -1601,7 +1601,7 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
    else
    {
       auto it = maps->aliases.find(h_ptr);
-      MFEM_VERIFY(it != maps->aliases.end() && h_mt == it->second.mem->h_mt,"");
+      MFEM_VERIFY(it != maps->aliases.end() && h_mt == it->second.h_mt,"");
    }
 }
 
