@@ -854,7 +854,7 @@ void ParaViewDataCollection::Save()
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
 
       std::ifstream pvd_in;
-      if (restart_mode && (pvd_in.open(pvdname), pvd_in.good()))
+      if (restart_mode && (pvd_in.open(pvdname,std::ios::binary),pvd_in.good()))
       {
          // PVD file exists and restart mode enabled: preserve existing time
          // steps less than the current time.
