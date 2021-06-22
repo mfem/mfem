@@ -1151,17 +1151,10 @@ void ParaViewDataCollection::SetCompression(bool compression_)
    }
 }
 
-#ifndef _WIN32
-void ParaViewDataCollection::SetRestartMode(bool restart_mode_)
+void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
 {
    restart_mode = restart_mode_;
 }
-#else
-void ParaViewDataCollection::SetRestartMode(bool restart_mode_)
-{
-   MFEM_ABORT("this method is not implemented for windows");
-}
-#endif
 
 const char *ParaViewDataCollection::GetDataFormatString() const
 {

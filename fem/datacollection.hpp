@@ -547,8 +547,9 @@ public:
    void SetHighOrderOutput(bool high_order_output_);
 
    /// Enable or disable restart mode. If restart is enabled, new writes will
-   /// preserve timestep metadata for any solutions prior to the currently defined time.
-   void SetRestartMode(bool restart_mode_);
+   /// preserve timestep metadata for any solutions prior to the currently
+   /// defined time.
+   void UseRestartMode(bool restart_mode_);
 
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;
