@@ -345,11 +345,18 @@ public:
        with indices offset by the local number of elements. */
    Table *GetFaceToAllElementTable() const;
 
+   FaceElementTransformations *GetFaceElementTransformations(
+      int FaceNo,
+      int mask = 31) override;
+
    /** Get the FaceElementTransformations for the given shared face (edge 2D).
        In the returned object, 1 and 2 refer to the local and the neighbor
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
+
+   FaceElementTransformations *
+   GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2);
 
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)

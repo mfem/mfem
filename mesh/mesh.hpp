@@ -1220,8 +1220,9 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
-   FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
-                                                             int mask = 31);
+   virtual FaceElementTransformations *GetFaceElementTransformations(
+      int FaceNo,
+      int mask = 31);
 
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
