@@ -43,13 +43,9 @@ env:
 # (https://github.com/actions/cache/pull/489)
 
 jobs:
-  dependencies:
-    strategy:
-      matrix:
-        os: [ubuntu-18.04, macos-10.15]
-    name: Deps-${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-
+  clean:
+    name: clean-macos-10.15
+    runs-on: macos-10.15
     steps:
     # This external action allows to interrupt a workflow alrealy running on
     # the same branch to same resource
@@ -58,18 +54,14 @@ jobs:
       with:
         access_token: ${{ github.token }}
 
-    - name: get MPI (Linux)
-      if: matrix.os == 'ubuntu-18.04'
-      run: |
-        sudo apt-get install mpich libmpich-dev
-        export MAKE_CXX_FLAG="MPICXX=mpic++"
-
-    - name: Set up Homebrew
-      if: matrix.os == 'macos-10.15'
+  dependencies:
+    name: deps-macos-10.15
+    runs-on: macos-10.15
+    steps:
+    - name: set up Homebrew
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
-    - name: get MPI (MacOS)
-      if: matrix.os == 'macos-10.15'
+    - name: get MPI
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
@@ -94,7 +86,7 @@ jobs:
     - name: upload hypre artifact
       uses: actions/upload-artifact@v2
       with:
-        name: hypre-${{ matrix.os }}
+        name: hypre-${{ runner.os }}
         path: ${{ env.HYPRE_TOP_DIR }}
         retention-days: 1
 
@@ -117,7 +109,7 @@ jobs:
     - name: upload metis artifact
       uses: actions/upload-artifact@v2
       with:
-        name: metis-${{ matrix.os }}
+        name: metis-${{ runner.os }}
         path: ${{ env.METIS_TOP_DIR }}
         retention-days: 1
 
@@ -126,7 +118,6 @@ jobs:
     needs: dependencies
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15]
         target: [debug, optim]
         mpi: [sequential, parallel]
         build-system: [make]
@@ -141,31 +132,17 @@ jobs:
             codecov: NO
           - target: optim
             codecov: YES
-          - os: ubuntu-18.04
-            target: optim
-            codecov: NO
-            mpi: parallel
-            build-system: cmake
-    name: Build-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+    name: bld-mac-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-10.15
 
     steps:
-    # Only get MPI if defined for the job.
-    # TODO: It would be nice to have only one step, e.g. with a dedicated
-    # action, but I (@adrienbernede) don't see how at the moment.
-    - name: get MPI (Linux)
-      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
-      run: |
-        sudo apt-get install mpich libmpich-dev
-        export MAKE_CXX_FLAG="MPICXX=mpic++"
-
     - name: Set up Homebrew
-      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      if: matrix.mpi == 'parallel'
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
     - name: get MPI (MacOS)
-      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      if: matrix.mpi == 'parallel'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
@@ -196,7 +173,7 @@ jobs:
     - name: build
       uses: mfem/github-actions/build-mfem@bernede1/optimize-deps-space
       with:
-        os: ${{ matrix.os }}
+        os: ${{ runner.os }}
         target: ${{ matrix.target }}
         codecov: ${{ matrix.codecov }}
         mpi: ${{ matrix.mpi }}
@@ -214,7 +191,7 @@ jobs:
     - name: upload mfem artifact
       uses: actions/upload-artifact@v2
       with:
-        name: mfem-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+        name: mfem-${{ runner.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
         path: ${{ env.MFEM_TOP_DIR }}
         retention-days: 1
 
@@ -223,7 +200,6 @@ jobs:
     needs: builds
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15]
         target: [debug, optim]
         mpi: [sequential, parallel]
         build-system: [make]
@@ -238,43 +214,27 @@ jobs:
             codecov: NO
           - target: optim
             codecov: YES
-          - os: ubuntu-18.04
-            target: optim
-            codecov: NO
-            mpi: parallel
-            build-system: cmake
-    name: Test-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+    name: test-mac-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
-    runs-on: ${{ matrix.os }}
+    runs-on: 
 
     steps:
     # Only get MPI if defined for the job.
     # TODO: It would be nice to have only one step, e.g. with a dedicated
     # action, but I (@adrienbernede) don't see how at the moment.
-    - name: get MPI (Linux)
-      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
-      run: |
-        sudo apt-get install mpich libmpich-dev
-        export MAKE_CXX_FLAG="MPICXX=mpic++"
-
-    - name: get lcov (Linux)
-      if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-18.04'
-      run: |
-        sudo apt-get install lcov
-
     - name: Set up Homebrew
-      if: ( matrix.mpi == 'parallel' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
+      if: matrix.mpi == 'parallel' || matrix.codecov == 'YES'
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
     - name: get MPI (MacOS)
-      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      if: matrix.mpi == 'parallel'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get lcov (MacOS)
-      if: matrix.codecov == 'YES' && matrix.os == 'macos-10.15'
+      if: matrix.codecov == 'YES'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install lcov
@@ -282,19 +242,19 @@ jobs:
     - name: download hypre artifact
       uses: actions/download-artifact@v2
       with:
-        name: hypre-${{ matrix.os }}
+        name: hypre-${{ runner.os }}
         path: ${{ env.HYPRE_TOP_DIR }}
 
     - name: download metis artifact
       uses: actions/download-artifact@v2
       with:
-        name: metis-${{ matrix.os }}
+        name: metis-${{ runner.os }}
         path: ${{ env.METIS_TOP_DIR }}
 
     - name: download mfem artifact
       uses: actions/download-artifact@v2
       with:
-        name: mfem-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+        name: mfem-${{ runner.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
         path: ${{ env.MFEM_TOP_DIR }}
 
     # Checkout MFEM in "mfem" subdirectory. Final path:
@@ -321,6 +281,6 @@ jobs:
       if: matrix.codecov == 'YES'
       uses: mfem/github-actions/upload-coverage@bernede1/optimize-deps-space
       with:
-        name: ${{ matrix.os }}-${{ matrix.mpi }}
+        name: ${{ runner.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
         directories: "fem general linalg mesh"
