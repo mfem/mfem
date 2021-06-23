@@ -50,6 +50,8 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
 
 void TMOP_Integrator::AssemblePA_Limiting()
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    // Return immediately if limiting is not enabled
    if (coeff0 == nullptr) { return; }
    MFEM_VERIFY(nodes0, "internal error");
@@ -68,7 +70,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
    // H0 for coeff0, (dim x dim) Q-vector
    PA.H0.UseDevice(true);
-   PA.H0.SetSize(PA.dim * PA.dim * PA.nq * NE, Device::GetDeviceMemoryType());
+   PA.H0.SetSize(PA.dim * PA.dim * PA.nq * NE, mt);
 
    // coeff0 -> PA.C0 (Q-vector)
    PA.C0.UseDevice(true);
@@ -175,6 +177,8 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    PA.enabled = true;
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -202,14 +206,14 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    // H for Grad, (dim x dim) Q-vector
    PA.H.UseDevice(true);
-   PA.H.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
+   PA.H.SetSize(dim*dim * dim*dim * nq*ne, mt);
 
    // Scalar Q-vector of '1', used to compute sums via dot product
    PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
    PA.O = 1.0;
 
    // Setup ref->target Jacobians, PA.Jtr, (dim x dim) Q-vector, DenseTensor
-   PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq);
+   PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq, mt);
    PA.Jtr_needs_update = true;
    PA.Jtr_debug_grad = false;
 
