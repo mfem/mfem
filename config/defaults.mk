@@ -150,6 +150,7 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_COVERAGE          = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
