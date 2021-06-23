@@ -371,6 +371,8 @@ public:
       AddQualityMetric(sh_metric, 1.-gamma_);
       AddQualityMetric(sz_metric, gamma_);
    }
+   virtual int Id() const { return 80; }
+   double GetGamma() const { return gamma; }
 
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
@@ -588,6 +590,29 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 321; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
+{
+protected:
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_333(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_302),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_302 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 333; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
 };
 
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
