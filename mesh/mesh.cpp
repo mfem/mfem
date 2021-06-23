@@ -4807,6 +4807,11 @@ int Mesh::GetNumFaces() const
    return 0;
 }
 
+int Mesh::GetNumFacesWithGhost() const
+{
+   return faces_info.Size();
+}
+
 int Mesh::GetNFbyType(FaceType type) const
 {
    const bool isInt = type==FaceType::Interior;
@@ -4814,11 +4819,10 @@ int Mesh::GetNFbyType(FaceType type) const
    if (nf<0)
    {
       nf = 0;
-      for (int f = 0; f < GetNumFaces(); ++f)
+      for (int f = 0; f < GetNumFacesWithGhost(); ++f)
       {
          FaceInformation info = GetFaceInformation(f);
-         if ( (type==FaceType::Interior && info.IsInterior()) ||
-              (type==FaceType::Boundary && info.IsBoundary()) )
+         if ( info.IsOfFaceType(type) )
          {
             nf++;
          }

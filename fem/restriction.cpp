@@ -1075,8 +1075,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          MFEM_ABORT("Unexpected shared face in L2FaceRestriction.");
       }
-      if ((type==FaceType::Interior && info.IsInterior()) ||
-          (type==FaceType::Boundary && info.IsBoundary()))
+      if (info.IsOfFaceType(type))
       {
          SetFaceDofsScatterIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued)
@@ -1108,8 +1107,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction.");
       }
-      if ((type==FaceType::Interior && info.IsInterior()) ||
-          (type==FaceType::Boundary && info.IsBoundary()))
+      if (info.IsOfFaceType(type))
       {
          SetFaceDofsGatherIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued &&
@@ -1702,8 +1700,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction. Use "
                     "ParNCL2FaceRestriction");
       }
-      if ((type==FaceType::Interior && info.IsInterior()) ||
-          (type==FaceType::Boundary && info.IsBoundary()))
+      if ( info.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued &&

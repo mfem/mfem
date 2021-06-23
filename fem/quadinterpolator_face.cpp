@@ -25,12 +25,11 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
    const int dim = mesh.SpaceDimension();
    int face_id;
    int f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       face_id = info.elem_1_local_face;
-      if ( (type==FaceType::Interior && info.IsInterior()) ||
-           (type==FaceType::Boundary && info.IsBoundary()) )
+      if ( info.IsOfFaceType(type) )
       {
          if (dim==2)
          {

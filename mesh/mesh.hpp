@@ -927,8 +927,14 @@ public:
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
-   /// Returns the number of faces according to the requested type.
-   /** If type==Boundary returns only the "true" number of boundary faces
+   /** @brief Return the number of faces (3D), edges (2D) or vertices (1D)
+       including ghost faces. */
+   int GetNumFacesWithGhost() const;
+
+   /** @brief Returns the number of faces according to the requested type, does 
+       not count master non-conforming faces.
+
+       If type==Boundary returns only the "true" number of boundary faces
        contrary to GetNBE() that returns "fake" boundary faces associated to
        visualization for GLVis.
        Similarly, if type==Interior, the "fake" boundary faces associated to
@@ -1274,6 +1280,23 @@ public:
       {
          return conformity!=Mesh::FaceConformity::NonConformingMaster &&
                 location==Mesh::FaceLocation::Boundary;
+      }
+
+      bool IsOfFaceType(FaceType type) const
+      {
+         switch (type)
+         {
+         case FaceType::Interior:
+            return IsInterior();
+         case FaceType::Boundary:
+            return IsBoundary();
+         }
+      }
+
+      bool IsGhost() const
+      {
+         return location==Mesh::FaceLocation::Shared &&
+                conformity!=Mesh::FaceConformity::Conforming;
       }
 
       friend std::ostream& operator<<(std::ostream& os, const FaceInformation& info)
