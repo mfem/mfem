@@ -92,7 +92,7 @@ protected:
 
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
-   virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
+   void MarkTetMeshForRefinement(DSTable &v_to_v) override;
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
@@ -127,23 +127,23 @@ protected:
    void ExchangeFaceNbrData(Table *gr_sface, int *s2l_face);
 
    /// Refine a mixed 2D mesh uniformly.
-   virtual void UniformRefinement2D();
+   void UniformRefinement2D() override;
 
    /// Refine a mixed 3D mesh uniformly.
-   virtual void UniformRefinement3D();
+   void UniformRefinement3D() override;
 
-   virtual void NURBSUniformRefinement();
-
-   /// This function is not public anymore. Use GeneralRefinement instead.
-   virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
+   void NURBSUniformRefinement() override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
-   virtual void NonconformingRefinement(const Array<Refinement> &refinements,
-                                        int nc_limit = 0);
+   void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
 
-   virtual bool NonconformingDerefinement(Array<double> &elem_error,
-                                          double threshold, int nc_limit = 0,
-                                          int op = 1);
+   /// This function is not public anymore. Use GeneralRefinement instead.
+   void NonconformingRefinement(const Array<Refinement> &refinements,
+                                int nc_limit = 0) override;
+
+   bool NonconformingDerefinement(Array<double> &elem_error,
+                                  double threshold, int nc_limit = 0,
+                                  int op = 1) override;
 
    void RebalanceImpl(const Array<int> *partition);
 
@@ -269,9 +269,9 @@ public:
        See @a Mesh::MakeSimplicial for more details. */
    static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
-   virtual void Finalize(bool refine = false, bool fix_orientation = false);
+   void Finalize(bool refine = false, bool fix_orientation = false) override;
 
-   virtual void SetAttributes();
+   void SetAttributes() override;
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
@@ -333,8 +333,8 @@ public:
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
-   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                             int ordering = 1);
+   void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                     int ordering = 1) override;
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
@@ -370,10 +370,10 @@ public:
    int GetSharedFace(int sface) const;
 
    /// See the remarks for the serial version in mesh.hpp
-   virtual void ReorientTetMesh();
+   void ReorientTetMesh() override;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   virtual long ReduceInt(int value) const;
+   long ReduceInt(int value) const override;
 
    /** Load balance the mesh by equipartitioning the global space-filling
        sequence of elements. Works for nonconforming meshes only. */
@@ -389,23 +389,23 @@ public:
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
-   virtual void Print(std::ostream &out = mfem::out) const;
+   void Print(std::ostream &out = mfem::out) const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the
    /// files using ParMesh::Print. The given @a precision will be used for ASCII
    /// output.
-   virtual void Save(const char *fname, int precision=16) const;
+   void Save(const char *fname, int precision=16) const override;
 
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
        format. */
-   virtual void Print(adios2stream &out) const;
+   void Print(adios2stream &out) const override;
 #endif
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
-   virtual void PrintXG(std::ostream &out = mfem::out) const;
+   void PrintXG(std::ostream &out = mfem::out) const override;
 
    /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
        visualization: the mesh is written as a disjoint mesh and the shared
@@ -423,15 +423,15 @@ public:
    /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
        stored in the directory specified by @a pathname. If the directory does
        not exist, it will be created. */
-   virtual void PrintVTU(std::string pathname,
-                         VTKFormat format=VTKFormat::ASCII,
-                         bool high_order_output=false,
-                         int compression_level=0,
-                         bool bdr=false);
+   void PrintVTU(std::string pathname,
+                 VTKFormat format=VTKFormat::ASCII,
+                 bool high_order_output=false,
+                 int compression_level=0,
+                 bool bdr=false) override;
 
    /// Parallel version of Mesh::Load().
-   virtual void Load(std::istream &input, int generate_edges = 0,
-                     int refine = 1, bool fix_orientation = true);
+   void Load(std::istream &input, int generate_edges = 0,
+             int refine = 1, bool fix_orientation = true) override;
 
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
@@ -445,11 +445,11 @@ public:
    void Swap(ParMesh &other);
 
    /// Print various parallel mesh stats
-   virtual void PrintInfo(std::ostream &out = mfem::out);
+   void PrintInfo(std::ostream &out = mfem::out) override;
 
-   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
-                          Array<IntegrationPoint>& ips, bool warn = true,
-                          InverseElementTransformation *inv_trans = NULL);
+   int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
+                  Array<IntegrationPoint>& ips, bool warn = true,
+                  InverseElementTransformation *inv_trans = NULL) override;
 
    /// Debugging method
    void PrintSharedEntities(const char *fname_prefix) const;
