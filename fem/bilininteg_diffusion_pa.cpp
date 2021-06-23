@@ -1032,7 +1032,6 @@ static void OccaPADiffusionApply3D(const int D1D,
 #endif // MFEM_USE_OCCA
 
 // PA Diffusion Apply 2D kernel
-#ifndef MFEM_USE_JIT
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PADiffusionApply2D(const int NE,
                                const bool symmetric,
@@ -1153,7 +1152,6 @@ static void PADiffusionApply2D(const int NE,
       }
    });
 }
-#endif
 
 // Shared memory PA Diffusion Apply 2D kernel
 MFEM_JIT
@@ -1316,7 +1314,6 @@ static void SmemPADiffusionApply2D(const int NE,
    });
 }
 
-#ifndef MFEM_USE_JIT
 // PA Diffusion Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PADiffusionApply3D(const int NE,
@@ -1509,7 +1506,6 @@ static void PADiffusionApply3D(const int NE,
       }
    });
 }
-#endif
 
 // Half of B and G are stored in shared to get B, Bt, G and Gt.
 // Indices computation for SmemPADiffusionApply3D.
@@ -1877,57 +1873,59 @@ static void PADiffusionApply(const int dim,
    MFEM_CONTRACT_VAR(Gt);
 #endif // MFEM_USE_OCCA
 
-#ifndef MFEM_USE_JIT
-   const int ID = (D1D << 4) | Q1D;
-   static const bool STD = getenv("STD");
-   if (dim == 2)
-   {
-      if (STD) { return PADiffusionApply2D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D); }
-      switch (ID)
-      {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply2D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
-      }
-   }
+   const bool use_jit = Device::IsJITEnabled();
 
-   if (dim == 3)
+   if (!use_jit)
    {
-      if (STD) { return PADiffusionApply3D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D); }
-      switch ((D1D << 4 ) | Q1D)
+      const int ID = (D1D << 4) | Q1D;
+      if (dim == 2)
       {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply3D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
+         switch (ID)
+         {
+            case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
+            case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
+            case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
+            case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
+            case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
+            case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
+            case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
+            case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
+            default:   return PADiffusionApply2D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
+         }
+      }
+
+      if (dim == 3)
+      {
+         switch ((D1D << 4 ) | Q1D)
+         {
+            case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
+            case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
+            case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
+            case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
+            case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
+            case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
+            case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
+            case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
+            case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
+            default:   return PADiffusionApply3D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
+         }
       }
    }
-#else // MFEM_USE_JIT
-   if (dim == 2)
+   else   // use_jit
    {
-      const int NBZ = (D1D==2 || D1D==3) ? 16:
-                      (D1D==4 || D1D==5) ? 8 :
-                      (D1D==6 || D1D==7) ? 4 :
-                      (D1D==8 || D1D==9) ? 2 : 1;
-      return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
+      if (dim == 2)
+      {
+         const int NBZ = (D1D==2 || D1D==3) ? 16:
+                         (D1D==4 || D1D==5) ? 8 :
+                         (D1D==6 || D1D==7) ? 4 :
+                         (D1D==8 || D1D==9) ? 2 : 1;
+         return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
+      }
+      if (dim == 3)
+      {
+         return SmemPADiffusionApply3D(NE,symm,B,G,D,X,Y,D1D,Q1D);
+      }
    }
-   if (dim == 3)
-   {
-      return SmemPADiffusionApply3D(NE,symm,B,G,D,X,Y,D1D,Q1D);
-   }
-#endif
    MFEM_ABORT("Unknown kernel.");
 }
 

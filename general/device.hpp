@@ -123,11 +123,13 @@ class Device
 private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
+   enum KERNEL_MODES {STANDARD, JIT};
 
    static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static Device device_singleton;
 
    MODES mode = Device::SEQUENTIAL;
+   KERNEL_MODES kernel_mode = KERNEL_MODES::STANDARD;
    int dev = 0;   ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
    /// Bitwise-OR of all configured backends.
@@ -247,6 +249,9 @@ public:
 
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
+
+   /// Return true if the  JIT shortcut option through the device is enabled.
+   static inline bool IsJITEnabled() { return Get().kernel_mode == JIT; }
 
    /// Get the device id of the configured device.
    static inline int GetId() { return Get().dev; }

@@ -380,8 +380,8 @@ int System_MPI_JIT_Session(char *argv[])
 // Entry point toward System_MPISpawn or System_MPI_JIT_Session
 int System(char *argv[])
 {
-   //return System_MPISpawn(argv);
    return System_Std(argv);
+   //return System_MPISpawn(argv);
    //return System_MPI_JIT_Session(argv);
 }
 
@@ -673,6 +673,7 @@ struct kernel_t
 {
    bool is_jit;
    bool is_embed;
+   bool is_prefix;
    bool is_forall;
    bool is_single_source;
    string mfem_cxx;           // holds MFEM_CXX
@@ -695,6 +696,7 @@ struct kernel_t
    string d2u, u2d;           // double to unsigned place holders
    string embed;              // source of the embed function
    struct forall_t forall;    // source of the lambda forall
+   string prefix;
 };
 
 // *****************************************************************************
@@ -768,6 +770,8 @@ int put(const char c, context_t &pp)
    if (pp.ker.is_embed) { pp.ker.embed += c; }
    // if we are storing the lambda body, just save it w/o output
    if (pp.ker.is_forall) { pp.ker.forall.body += c; return c;}
+   // if we are not yet in the forall, just store all the prefix
+   if (pp.ker.is_jit && pp.ker.is_prefix) { pp.ker.prefix += c; }
    pp.out.put(c);
    return c;
 }
@@ -1076,7 +1080,7 @@ void jitArgs(context_t &pp)
          // Targs
          addComa(pp.ker.Targs);
          pp.ker.Targs += is_double?"u":"";
-         pp.ker.Targs += is_pointer?"_":"";
+         //pp.ker.Targs += is_pointer?"_":"";
          pp.ker.Targs += name;
          // Tparams
          if (!has_default_value)
@@ -1086,7 +1090,7 @@ void jitArgs(context_t &pp)
             pp.ker.Tparams += is_double?"uint64_t":type;
             pp.ker.Tparams += " ";
             pp.ker.Tparams += is_double?"t":"";
-            pp.ker.Tparams += is_pointer?"_":"";
+            //pp.ker.Tparams += is_pointer?"_":"";
             pp.ker.Tparams += name;
          }
          if (is_double)
@@ -1095,12 +1099,12 @@ void jitArgs(context_t &pp)
                pp.ker.d2u += "\n\tconst union_du_t union_";
                pp.ker.d2u += name;
                pp.ker.d2u += " = (union_du_t){u:t";
-               pp.ker.d2u += is_pointer?"_":"";
+               //pp.ker.d2u += is_pointer?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += "};";
 
                pp.ker.d2u += "\n\tconst double ";
-               pp.ker.d2u += is_pointer?"_":"";
+               //pp.ker.d2u += is_pointer?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += " = union_";
                pp.ker.d2u += name;
@@ -1108,10 +1112,10 @@ void jitArgs(context_t &pp)
             }
             {
                pp.ker.u2d += "\n\tconst uint64_t u";
-               pp.ker.u2d += is_pointer?"_":"";
+               //pp.ker.u2d += is_pointer?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += " = (union_du_t){";
-               pp.ker.u2d += is_pointer?"_":"";
+               //pp.ker.u2d += is_pointer?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += "}.u;";
             }
@@ -1162,18 +1166,18 @@ void jitArgs(context_t &pp)
          // other_arguments
          if (! pp.ker.args.empty()) { pp.ker.args += ","; }
          pp.ker.args += is_amp?"&":"";
-         pp.ker.args += is_pointer?"_":"";
+         //pp.ker.args += is_pointer?"_":"";
          pp.ker.args += name;
          // other_arguments_wo_amp
          if (! pp.ker.args_wo_amp.empty()) {  pp.ker.args_wo_amp += ","; }
-         pp.ker.args_wo_amp += is_pointer?"_":"";
+         //pp.ker.args_wo_amp += is_pointer?"_":"";
          pp.ker.args_wo_amp += name;
          // other_parameters
          if (not pp.ker.params.empty()) { pp.ker.params += ",";  }
          pp.ker.params += is_const?"const ":"";
          pp.ker.params += type;
          pp.ker.params += " *";
-         pp.ker.params += is_pointer?"_":"";
+         //pp.ker.params += is_pointer?"_":"";
          pp.ker.params += name;
       }
    }
@@ -1189,6 +1193,9 @@ void jitArgs(context_t &pp)
 void jitPrefix(context_t &pp)
 {
    if (not pp.ker.is_jit) { return; }
+   pp.ker.is_prefix = true;
+   pp.ker.prefix.clear();
+   pp.out << "\n\tconst bool use_jit = Device::IsJITEnabled();";
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>\n";
    pp.out << "#include <limits>\n";
@@ -1217,6 +1224,8 @@ void jitPrefix(context_t &pp)
    pp.block = 0;
 }
 
+void forallPostfix(context_t&);
+
 // *****************************************************************************
 void jitPostfix(context_t &pp)
 {
@@ -1230,6 +1239,9 @@ void jitPostfix(context_t &pp)
    pp.out << pp.ker.name << "_%016lx<" << pp.ker.Tformat << ">"
           << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
    pp.out << "})_\";";
+
+   pp.out << "\n\tif (use_jit){";
+
    // typedef, hash map and launch
    pp.out << "\n\ttypedef void (*kernel_t)(const bool use_dev, "
           << pp.ker.params << ");";
@@ -1245,15 +1257,24 @@ void jitPostfix(context_t &pp)
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
    pp.out << "\n\tconst size_t args_hash = jit::hash_args(args_seed,"
           << pp.ker.Targs << ");";
-   pp.out << "\n\tif (!ks[args_hash]){";
-   pp.out << "\n\t\tks[args_hash] = new jit::kernel<kernel_t>"
+   pp.out << "\n\tif (!ks[args_hash]) ";
+   pp.out << "ks[args_hash] = new jit::kernel<kernel_t>"
           << "(\"" << pp.ker.name << "\", "
           << "cxx, src, mfem_build_flags, mfem_source_dir, mfem_install_dir, "
           << pp.ker.Targs << ");";
-   pp.out << "\n\t}";
    pp.out << "\n\tks[args_hash]->operator_void("
           << "Device::Allows(Backend::CUDA_MASK), "
-          << pp.ker.args << ");\n";
+          << pp.ker.args << ");";
+   pp.out << "\n\treturn;";
+   pp.out << "\n\t} // use_jit";
+   pp.out << "\n";
+#warning Should check MFEM_USE_CUDA and push the right MFEM_FORALL
+   pp.out << pp.ker.prefix;
+   pp.out << "for (int " << pp.ker.forall.e << " = 0; "
+          << pp.ker.forall.e << " < " << pp.ker.forall.N.c_str() << "; "
+          << pp.ker.forall.e<<"++){";
+   pp.out << pp.ker.forall.body.c_str();
+   pp.out << "}\n";
    // Stop counting the blocks and flush the kernel status
    pp.block--;
    pp.ker.is_jit = false;
@@ -1339,9 +1360,9 @@ bool jitGetArgs(context_t &pp)
       }
       if (id=="Vector") { pp.out << id; arg.type = id; continue; }
       if (id=="DofToQuad") { pp.out << id; arg.type = id; continue; }
-      const bool is_pointer = arg.is_ptr || arg.is_amp;
-      const bool underscore = is_pointer;
-      pp.out << (underscore?"_":"") << id;
+      //const bool is_pointer = arg.is_ptr || arg.is_amp;
+      //const bool underscore = is_pointer;
+      pp.out << /*(underscore?"_":"") <<*/ id;
       // focus on the name, we should have qual & type
       arg.name = id;
       // now check for a possible default value
@@ -1414,6 +1435,7 @@ void jitAmpFromPtr(context_t &pp)
 void jit(context_t &pp)
 {
    pp.ker.is_jit = true;
+   pp.ker.is_prefix = false;
    next(pp);
    // return type should be void for now, or we could hit a 'static'
    // or even a 'template' which triggers the '__single_source' case
@@ -1478,7 +1500,7 @@ void jit(context_t &pp)
    // Generate the kernel prefix for this kernel
    jitPrefix(pp);
    // Generate the & <=> * transformations
-   jitAmpFromPtr(pp);
+   // jitAmpFromPtr(pp);
    // Push the right #line directive
    pp.out << "\n#line " << pp.line
           << " \"" //<< pp.ker.mfem_source_dir << "/"
@@ -1549,6 +1571,8 @@ void forall(const string &id, context_t &pp)
       return;
    }
    //DBG("is_forall")
+   // Switch from prefix capturing, to the forall one
+   pp.ker.is_prefix = false;
    pp.ker.is_forall = true;
    pp.ker.forall.body.clear();
 
@@ -1656,6 +1680,8 @@ static void tokens(context_t &pp)
    if (token(id, "FORALL_2D")) { return forall(id,pp); }
    if (token(id, "FORALL_3D")) { return forall(id,pp); }
    if (pp.ker.is_embed) { pp.ker.embed += id; }
+   // During the kernel prefix, add MFEM_* id tokens
+   if (pp.ker.is_prefix) { pp.ker.prefix += id; }
    // During the forall body, add MFEM_* id tokens
    if (pp.ker.is_forall) { pp.ker.forall.body += id; return; }
    pp.out << id;
@@ -1676,6 +1702,7 @@ int preprocess(context_t &pp)
    jitHeader(pp);
    pp.ker.is_jit = false;
    pp.ker.is_embed = false;
+   pp.ker.is_prefix = false;
    pp.ker.is_forall = false;
    pp.ker.is_single_source = false;
    do
