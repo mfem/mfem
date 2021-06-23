@@ -2688,7 +2688,7 @@ private:
 
 int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
                                 int elem, const PointMatrix &pm,
-                                PointMatrix &reordered) const
+                                PointMatrix &reordered, int &orientation) const
 {
    const Element &el = elements[elem];
    int master[4] =
@@ -2700,6 +2700,10 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
 
    int local = find_local_face(el.Geom(), master[0], master[1], master[2]);
    const int* fv = GI[el.Geom()].faces[local];
+
+   orientation = (v3 >= 0) ?
+                 Mesh::GetQuadOrientation(fv, master) :
+                 Mesh::GetTetOrientation(fv, master);
 
    reordered.np = pm.np;
    for (int i = 0, j; i < nfv; i++)
@@ -2735,7 +2739,8 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
 
          // reorder the point matrix according to slave face orientation
          PointMatrix pm_r;
-         sl.local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, pm, pm_r);;
+         sl.local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, pm, pm_r,
+                                        sl.orientation);
          sl.matrix = matrix_map.GetIndex(pm_r);
 
          eface[0] = eface[2] = fa;
@@ -2891,7 +2896,8 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
 
          // reorder the point matrix according to slave face orientation
          PointMatrix pm_r;
-         sl.local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, pm, pm_r);
+         sl.local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, pm, pm_r,
+                                        sl.orientation);
          sl.matrix = matrix_map.GetIndex(pm_r);
 
          return true;
@@ -3038,6 +3044,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
 
       Slave &sl = edge_list.slaves.Last();
       sl.matrix = matrix_map.GetIndex(PointMatrix(Point(t0), Point(t1)));
+      sl.orientation = 1;
 
       // handle slave edge orientation
       sl.edge_flags = flags;

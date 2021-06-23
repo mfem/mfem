@@ -1050,6 +1050,65 @@ int Mesh::GetBdrFace(int BdrElemNo) const
    return fn;
 }
 
+Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
+{
+   FaceInformation info;
+   int e1, e2;
+   int inf1, inf2;
+   int ncface;
+   GetFaceElements(f, &e1, &e2);
+   GetFaceInfos(f, &inf1, &inf2, &ncface);
+   info.elem_1_index = e1;
+   info.elem_1_orientation = inf1%64;
+   info.elem_1_local_face =inf1/64;
+   info.elem_2_local_face = inf2/64;
+   info.ncface = ncface;
+   // The following figures out info.location, info.conformity,
+   // info.elem_2_index, and info.elem_2_orientation.
+   if (e2>=0)
+   {
+      info.location = FaceLocation::Interior;
+      info.elem_2_index = e2;
+      if (ncface==-1)
+      {
+         info.conformity = FaceConformity::Conforming;
+         info.elem_2_orientation = inf2%64;
+      }
+      else // ncface >= 0
+      {
+         info.conformity = FaceConformity::NonConformingSlave;
+         info.elem_2_orientation = nc_faces_orientation[ncface];
+      }
+   }
+   else // e2<0
+   {
+      info.elem_2_orientation = inf2%64;
+      if (ncface==-1)
+      {
+         info.conformity = FaceConformity::Conforming;
+         if (inf2<0)
+         {
+            info.location = FaceLocation::Boundary;
+            info.elem_2_index = e2;
+         }
+         else // inf2 >= 0
+         {
+            info.location = FaceLocation::Shared;
+            info.elem_2_index = -1 - e2;
+         }
+      }
+      else // ncface >= 0
+      {
+         info.location = e2==-1 ?
+                         FaceLocation::Interior :
+                         FaceLocation::Shared;
+         info.conformity = FaceConformity::NonConformingMaster;
+         info.elem_2_index = e2==-1 ? e2 : -1 - e2;
+      }
+   }
+   return info;
+}
+
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
 {
    *Elem1 = faces_info[Face].Elem1No;
@@ -4917,26 +4976,27 @@ int Mesh::GetNumFaces() const
    return 0;
 }
 
-static int CountFacesByType(const Mesh &mesh, const FaceType type)
+int Mesh::GetNumFacesWithGhost() const
 {
-   int e1, e2;
-   int inf1, inf2;
-   int nf = 0;
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
-   {
-      mesh.GetFaceElements(f, &e1, &e2);
-      mesh.GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
-   }
-   return nf;
+   return faces_info.Size();
 }
 
 int Mesh::GetNFbyType(FaceType type) const
 {
    const bool isInt = type==FaceType::Interior;
    int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
-   if (nf<0) { nf = CountFacesByType(*this, type); }
+   if (nf<0)
+   {
+      nf = 0;
+      for (int f = 0; f < GetNumFacesWithGhost(); ++f)
+      {
+         FaceInformation info = GetFaceInformation(f);
+         if ( info.IsOfFaceType(type) )
+         {
+            nf++;
+         }
+      }
+   }
    return nf;
 }
 
@@ -6161,6 +6221,7 @@ void Mesh::GenerateNCFaceInfo()
 
    nc_faces_info.SetSize(0);
    nc_faces_info.Reserve(list.masters.Size() + list.slaves.Size());
+   nc_faces_orientation.SetSize(faces_info.Size());
 
    int nfaces = GetNumFaces();
 
@@ -6198,6 +6259,7 @@ void Mesh::GenerateNCFaceInfo()
       //       matrix. In 2D, the point matrix has the orientation of the parent
       //       edge, so its columns need to be flipped when applying it, see
       //       ApplyLocalSlaveTransformation.
+      nc_faces_orientation[slave_fi.NCFace] = slave.orientation;
 
       nc_faces_info.Append(
          NCFaceInfo(true, slave.master,

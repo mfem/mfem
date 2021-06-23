@@ -192,11 +192,12 @@ public:
       int master; ///< master number (in Mesh numbering)
       unsigned matrix : 24;    ///< index into NCList::point_matrices[geom]
       unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
+      int orientation;
 
       Slave() = default;
       Slave(int index, int element, int local, int geom)
          : MeshId(index, element, local, geom)
-         , master(-1), matrix(0), edge_flags(0) {}
+         , master(-1), matrix(0), edge_flags(0), orientation(0) {}
    };
 
    /// Lists all edges/faces in the nonconforming mesh.
@@ -643,7 +644,7 @@ protected: // implementation
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, const PointMatrix &pm,
-                           PointMatrix &reordered) const;
+                           PointMatrix &reordered, int &orientation) const;
 
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                          const PointMatrix& pm, int level, Face* eface[4],
@@ -761,6 +762,22 @@ protected: // implementation
       }
    };
 
+   /** @brief The PointMatrix stores the coordinates of the slave face using the
+       master face coordinate as reference.
+
+       In 2D, the point matrix has the orientation of the parent
+       edge, so its columns need to be flipped when applying it, see
+       ApplyLocalSlaveTransformation.
+
+       In 3D, the orientation part of Elem2Inf is encoded in the point
+       matrix.
+
+       The following transformation gives the relation betwen the
+       reference quad face coordinates (xi, eta) in [0,1]^2, and the fine quad
+       face coordinates (x, y):
+       x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+       y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
+   */
    struct PointMatrix
    {
       int np;

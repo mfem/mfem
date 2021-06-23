@@ -91,6 +91,89 @@ protected:
    Array<Element *> boundary;
    Array<Element *> faces;
 
+   /** @brief This structure stores the low level information necessary to
+       interpret the configuration of elements on a specific face. This
+       information is accessed through Mesh::GetFaceElements and
+       Mesh::GetFaceInfos.
+       For accessing higher level deciphered information
+       look at Mesh::FaceInformation, and its accessor Mesh::GetFaceInformation.
+
+       Each face contains information on the indices, local reference faces,
+       orientations, and potential non-conformity for the two neighboring
+       elements on a face.
+       Each face can either be an interior, boundary, or shared interior face.
+       Each interior face is shared by two elements referred as Elem1 and Elem2.
+       For boundary faces only the information on Elem1 is relevant.
+       Shared interior faces correspond to faces where Elem1 and Elem2 are
+       distributed on different MPI ranks.
+       Regarding conformity, three cases are distinguished, conforming faces,
+       non-conforming slave faces, and non-conforming master faces. Master and
+       slave referring to the coarse and fine elements respectively on a
+       non-conforming face.
+       Non-conforming slave faces always have the slave element as Elem1 and
+       the master element as Elem2. On the other side, non-conforming master
+       faces always have the master element as Elem1, and one of the slave
+       element as Elem2.
+
+       The indices of Elem1 and Elem2 can be indirectly extracted from
+       FaceInfo::Elem1No and FaceInfo::Elem2No, read the note below for special
+       cases on the index of Elem2.
+
+       The local face identifiants are deciphered from FaceInfo::Elem1Inf and
+       FaceInfo::Elem2Inf through the formula: LocalFaceIndex = ElemInf/64,
+       the semantic of the computed local face identifiant can be found in
+       fem/geom.cpp. The local face identifiant corresponds to an index
+       in the Constants<Geometry>::Edges arrays for 2D element geometries, and
+       to an index in the Constants<Geometry>::FaceVert arrays for 3D element
+       geometries.
+
+       The orientation of each element relative to a face is obtained through
+       the formula: Orientation = ElemInf%64, the semantic of the orientation
+       can also be found in fem/geom.cpp. The orientation corresponds to
+       an index in the Constants<Geometry>::Orient arrays, providing the
+       sequence of vertices identifying the orientation of an edge/face. By
+       convention the orientation of Elem1 is always set to 0, serving as the
+       reference orientation. The orientation of Elem2 relatively to Elem1 is
+       therefore determined just by using the orientation of Elem2. An important
+       special case is the one of interior non-conforming slave faces, the
+       orientation is always set to 0 due to a different processing of
+       orientations in NCMesh, and should therefore be disregarded.
+       For this reason, an extra array contains the orientations of
+       non-conforming slave faces: nc_faces_orientation. The orientation in this
+       specific case is accessed using the FaceInfo::NCFace integer as an index
+       into nc_faces_orientation.
+
+       TODO Add local_orientation to PointMatrix function?
+
+       Another special case is the case of shared non-conforming faces. These
+       use a completely different design based on so called "ghost" faces,
+       because why not.
+       Ghost faces, as their name suggest are very well hidden, therefore they
+       are undocumented and have no interface. To understand how they work and
+       are used, one should read the integrality of the mesh.cpp, pmesh.cpp,
+       ncmesh.cpp, and pncmesh.cpp files and reverse engineer the code.
+       What I found about them so far:
+       - Their number is faces_info.Size() - GetNumFaces(), this seems to
+         include a lot of irrelevant uninitialized ghost faces.
+       - Most of the ghost faces only countains -1 in all their attributes
+        (that seems to be explained by pncmesh.cpp:1073-1074).
+         The technical documentation below wonders if these are master
+         non-conforming faces, I think they're probably just ghost ghost cells,
+         unused allocated memory space.
+         However, I still tag them as MasterNonConforming in GetFaceInformation
+       - They seem to be used as a convenience layer only in NCMesh, why not
+         using them all the time?
+       - Due to clashing conventions:
+         1. On shared faces elem1 is always the local element
+         2. On non-conforming faces elem1 is always the slave element
+         The case of shared non-conforming faces is incompatible with the local
+         face being also the master face. For this reason ghost faces only
+         assume elem1 to be the local face.
+       - It seems that ghost faces are only used for shared non-conforming faces
+         where elem1 is master and local. I think non-conforming faces where the
+         local face is slave are treated through conforming shared faces. (This
+         hack has to be confirmed)
+       */
    struct FaceInfo
    {
       // Inf = 64 * LocalFaceIndex + FaceOrientation
@@ -152,6 +235,10 @@ protected:
 
    Array<FaceInfo> faces_info;
    Array<NCFaceInfo> nc_faces_info;
+   // This array stores the face orientation of non-conforming slave faces, the
+   // orientation of the slave face should be accessed with the ncface index
+   // given by Mesh::GetFaceInfos.
+   Array<int> nc_faces_orientation;
 
    Table *el_to_edge;
    Table *el_to_face;
@@ -862,13 +949,25 @@ public:
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
-   /// Returns the number of faces according to the requested type.
-   /** If type==Boundary returns only the "true" number of boundary faces
+   /** @brief Return the number of faces (3D), edges (2D) or vertices (1D)
+       including ghost faces. */
+   int GetNumFacesWithGhost() const;
+
+   /** @brief Returns the number of faces according to the requested type, does 
+       not count master non-conforming faces.
+
+       If type==Boundary returns only the "true" number of boundary faces
        contrary to GetNBE() that returns "fake" boundary faces associated to
        visualization for GLVis.
        Similarly, if type==Interior, the "fake" boundary faces associated to
        visualization are counted as interior faces. */
    int GetNFbyType(FaceType type) const;
+
+   /** @brief Return the PointMatrix of NCFace index @a i. */
+   const DenseMatrix* GetNCFacesPtMat(int i)
+   {
+      return nc_faces_info[i].PointMatrix;
+   }
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
@@ -1143,8 +1242,9 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
-   FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
-                                                             int mask = 31);
+   virtual FaceElementTransformations *GetFaceElementTransformations(
+      int FaceNo,
+      int mask = 31);
 
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
@@ -1162,6 +1262,117 @@ public:
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
+
+   /** This enumerated type is used to describe interior, boundary, or shared
+       interior faces. */
+   enum class FaceLocation {Interior, Shared, Boundary};
+   /** This enumerated type is used to describe if a face is a conforming face,
+       a non-conforming slave face, or a non-conforming master face. */
+   enum class FaceConformity {Conforming,
+                              NonConformingMaster,
+                              NonConformingSlave
+                             };
+   /** @brief This structure is used as a human readable output format that
+       decipheres the information contained in Mesh::FaceInfo when using the
+       Mesh::GetFaceInformation method.
+
+       The element indices in this structure don't need further processing,
+       contrary to the ones obtained through Mesh::GetFacesElements and can
+       directly be used as Elem1 and Elem2 indices.
+       Likewise the orientations for Elem1 and Elem2 already take into account
+       special cases and can be used as is.
+   */
+   struct FaceInformation
+   {
+      FaceLocation location; // Interior, shared-interior, boundary
+      FaceConformity conformity; // Conforming, non-conforming master or slave
+      int elem_1_index, elem_2_index; // Elem1 and Elem2 indices
+      int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
+      int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
+      int ncface;
+
+      /** @brief return true if the face is either an interior or
+          shared-interior face, and not a non-conforming master face. */
+      bool IsInterior() const
+      {
+         return conformity!=Mesh::FaceConformity::NonConformingMaster &&
+                (location==Mesh::FaceLocation::Interior ||
+                 location==Mesh::FaceLocation::Shared);
+      }
+
+      /** @brief return true if the face is a boundary face, and not a
+          non-conforming master face. */
+      bool IsBoundary() const
+      {
+         return conformity!=Mesh::FaceConformity::NonConformingMaster &&
+                location==Mesh::FaceLocation::Boundary;
+      }
+
+      bool IsOfFaceType(FaceType type) const
+      {
+         switch (type)
+         {
+         case FaceType::Interior:
+            return IsInterior();
+         case FaceType::Boundary:
+            return IsBoundary();
+         }
+      }
+
+      bool IsGhost() const
+      {
+         return location==Mesh::FaceLocation::Shared &&
+                conformity!=Mesh::FaceConformity::Conforming;
+      }
+
+      friend std::ostream& operator<<(std::ostream& os, const FaceInformation& info)
+      {
+         os << "location=";
+         switch (info.location)
+         {
+         case Mesh::FaceLocation::Interior:
+            os << "Interior";
+            break;
+         case Mesh::FaceLocation::Shared:
+            os << "Shared";
+            break;
+         case Mesh::FaceLocation::Boundary:
+            os << "Boundary";
+            break;
+         }
+         os << std::endl;
+         os << "conformity=";
+         switch (info.conformity)
+         {
+         case Mesh::FaceConformity::Conforming:
+            os << "Conforming";
+            break;
+         case Mesh::FaceConformity::NonConformingMaster:
+            os << "NonConformingMaster";
+            break;
+         case Mesh::FaceConformity::NonConformingSlave:
+            os << "NonConformingSlave";
+            break;
+         default:
+            break;
+         }
+         os << std::endl;
+         os << "elem_1_index=" << info.elem_1_index << std::endl
+            << "elem_2_index=" << info.elem_2_index << std::endl
+            << "elem_1_local_face=" << info.elem_1_local_face << std::endl
+            << "elem_2_local_face=" << info.elem_2_local_face << std::endl
+            << "elem_1_orientation=" << info.elem_1_orientation << std::endl
+            << "elem_2_orientation=" << info.elem_2_orientation << std::endl
+            << "ncface=" << info.ncface << std::endl;
+         return os;
+      }
+   };
+
+   /** This method aims to provide face information in a deciphered format, i.e.
+       Mesh::FaceInformation, compared to the raw encoded information returned
+       by Mesh::GetFaceElements and Mesh::GetFaceInfos. */
+   FaceInformation GetFaceInformation(int f) const;
+
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
