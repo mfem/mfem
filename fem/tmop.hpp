@@ -593,6 +593,29 @@ public:
 };
 
 /// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
+{
+protected:
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_332(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_302),
+      sz_metric(new TMOP_Metric_315)
+   {
+      // (1-gamma) mu_302 + gamma mu_315
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 332; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
 class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
 {
 protected:
