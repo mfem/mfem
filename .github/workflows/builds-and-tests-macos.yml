@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # In this CI section, we build different variants of mfem and run test on them.
-name: builds-and-tests
+name: builds-and-tests-macos
 
 # Github actions can use the default "GITHUB_TOKEN". By default, this token
 # is set to have permissive access. However, this is not a good practice
@@ -116,17 +116,14 @@ jobs:
 
   builds:
     needs: dependencies
+    runs-on: macos-10.15
     strategy:
       matrix:
         target: [debug, optim]
         mpi: [sequential, parallel]
         build-system: [make]
-        # 'include' allows us to
-        # - add a variable without creating a new matrix dimension.
-        # - add a new combination ('build-system: cmake' case here)
-        #
-        # note: we will gather coverage info for any non-debug run except the
-        # CMake build.
+        # 'include' allows us to add a variable without creating a new matrix
+        # dimension.
         include:
           - target: debug
             codecov: NO
@@ -134,14 +131,14 @@ jobs:
             codecov: YES
     name: bld-mac-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
-    runs-on: macos-10.15
 
     steps:
     - name: Set up Homebrew
       if: matrix.mpi == 'parallel'
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
-    - name: get MPI (MacOS)
+    # Only get MPI if defined for the job.
+    - name: get MPI
       if: matrix.mpi == 'parallel'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
@@ -151,13 +148,13 @@ jobs:
     - name: download hypre artifact
       uses: actions/download-artifact@v2
       with:
-        name: hypre-${{ matrix.os }}
+        name: hypre-${{ runner.os }}
         path: ${{ env.HYPRE_TOP_DIR }}
 
     - name: download metis artifact
       uses: actions/download-artifact@v2
       with:
-        name: metis-${{ matrix.os }}
+        name: metis-${{ runner.os }}
         path: ${{ env.METIS_TOP_DIR }}
 
     # Checkout MFEM in "mfem" subdirectory. Final path:
@@ -198,6 +195,7 @@ jobs:
 
   tests:
     needs: builds
+    runs-on: macos-10.15
     strategy:
       matrix:
         target: [debug, optim]
@@ -216,12 +214,8 @@ jobs:
             codecov: YES
     name: test-mac-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
-    runs-on: 
-
     steps:
     # Only get MPI if defined for the job.
-    # TODO: It would be nice to have only one step, e.g. with a dedicated
-    # action, but I (@adrienbernede) don't see how at the moment.
     - name: Set up Homebrew
       if: matrix.mpi == 'parallel' || matrix.codecov == 'YES'
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
@@ -256,15 +250,6 @@ jobs:
       with:
         name: mfem-${{ runner.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
         path: ${{ env.MFEM_TOP_DIR }}
-
-    # Checkout MFEM in "mfem" subdirectory. Final path:
-    # /home/runner/work/mfem/mfem/mfem
-    - name: checkout mfem
-      uses: actions/checkout@v2
-      with:
-        path: ${{ env.MFEM_TOP_DIR }}
-        # Fetch the complete history for codecov to access commits ID
-        fetch-depth: 0
 
     - name: tests
       if: matrix.build-system == 'make' && matrix.target == 'optim'

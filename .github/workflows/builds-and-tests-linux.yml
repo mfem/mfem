@@ -10,13 +10,13 @@
 # CONTRIBUTING.md for details.
 
 # In this CI section, we build different variants of mfem and run test on them.
-name: builds-and-tests
+name: builds-and-tests-linux
 
 # Github actions can use the default "GITHUB_TOKEN". By default, this token
-# is set to have permissive access. However, this is not a good pracice
-# security-wise. Here we will use an external action, so we restrict the
+# is set to have permissive access. However, this is not a good practice
+# security-wise. Here we use an external action, so we restrict the
 # permission to the minimum required.
-# When the 'permissions' is set, all the scoped not mentioned are set to the
+# When the 'permissions' is set, all the scopes not mentioned are set to the
 # most restrictive setting. So the following is enough.
 permissions:
   actions: write
@@ -44,7 +44,7 @@ env:
 
 jobs:
   clean:
-    name: deps-ubuntu-18.04
+    name: clean-ubuntu-18.04
     runs-on: ubuntu-18.04
 
     steps:
@@ -114,6 +114,7 @@ jobs:
 
   builds:
     needs: dependencies
+    runs-on: ubuntu-18.04
     strategy:
       matrix:
         target: [debug, optim]
@@ -130,19 +131,14 @@ jobs:
             codecov: NO
           - target: optim
             codecov: YES
-          - os: ubuntu-18.04
-            target: optim
+          - target: optim
             codecov: NO
             mpi: parallel
             build-system: cmake
-    name: Build-${{ runner.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
-
-    runs-on: ${{ matrix.os }}
+    name: bld-linux-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
     steps:
     # Only get MPI if defined for the job.
-    # TODO: It would be nice to have only one step, e.g. with a dedicated
-    # action, but I (@adrienbernede) don't see how at the moment.
     - name: get MPI
       if: matrix.mpi == 'parallel'
       run: |
@@ -199,6 +195,7 @@ jobs:
 
   tests:
     needs: builds
+    runs-on: ubuntu-18.04
     strategy:
       matrix:
         target: [debug, optim]
@@ -215,19 +212,14 @@ jobs:
             codecov: NO
           - target: optim
             codecov: YES
-          - os: ubuntu-18.04
-            target: optim
+          - target: optim
             codecov: NO
             mpi: parallel
             build-system: cmake
     name: test-linux-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
-    runs-on: ${{ matrix.os }}
-
     steps:
     # Only get MPI if defined for the job.
-    # TODO: It would be nice to have only one step, e.g. with a dedicated
-    # action, but I (@adrienbernede) don't see how at the moment.
     - name: get MPI
       if: matrix.mpi == 'parallel'
       run: |
