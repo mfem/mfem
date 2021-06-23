@@ -252,6 +252,7 @@ protected:
    void KVRed2Ext();
    void UpdateKVRed();
    void CheckKVRedKVExt();
+   void PrintKnotvectors();
 
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);

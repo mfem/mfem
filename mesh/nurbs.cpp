@@ -2700,6 +2700,7 @@ void NURBSExtension::UpdateKVRed()
 
 
    ifupdated.SetSize(NumOfKnotVectors);
+
    for (int p = 0; p < GetNP(); p++)
    {
       patchTopo->GetElementEdges(p, edges, orient);
@@ -2716,7 +2717,7 @@ void NURBSExtension::UpdateKVRed()
 
          if (diff.Size() > 0)
          {
-            // Check if knotvector is allready update. If update twice, something is wrong
+            // Check if knotvector is allready updated. If update twice, something is wrong
             if (ifupdated[KnotInd(edges[e[i]])] == 1)
             {
                mfem::out << "KnotVectorRed[i] was Updated and is updated again. Knotvectors problably not equal." << endl;
@@ -2724,7 +2725,7 @@ void NURBSExtension::UpdateKVRed()
             }
             
             // Update reduced set of knotvectors
-            *(KnotVec(edges[e[i]])) = *(knotVectorsExt[Dimension()*p]);
+            *(KnotVec(edges[e[i]])) = *(knotVectorsExt[Dimension()*p+i]);
             
             // Give correct direction to knotvector. Reduced knotvectors are always not rotated.
             if (kvdir[i] == -1){KnotVec(edges[e[i]])->Flip();}
@@ -2777,6 +2778,24 @@ void NURBSExtension::CheckKVRedKVExt()
          }
       }
    }
+}
+
+void NURBSExtension::PrintKnotvectors()
+{
+   mfem::out << "\nPrinting reduced set of knotvectors knotVectorsRed\n";
+   for (int i = 0; i < knotVectorsRed.Size(); i++)
+   {
+      knotVectorsRed[i]->Print(mfem::out);
+   }
+
+   mfem::out <<"\nPrinting extended set of knotvectors knotVectorsExt \n";
+   for (int i = 0; i < knotVectorsExt.Size(); i++)
+   {
+      knotVectorsExt[i]->Print(mfem::out);
+   }
+
+   mfem::out <<"\n";
+
 }
 
 
@@ -3673,6 +3692,7 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
          }
       }
    }
+   UpdateKVRed();
 }
 
 void NURBSExtension::UniformRefinement()
@@ -3681,6 +3701,7 @@ void NURBSExtension::UniformRefinement()
    {
       patches[p]->UniformRefinement();
    }
+   UpdateKVRed();
 }
 
 void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
@@ -3708,6 +3729,7 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 
       patches[p]->KnotInsert(pkv);
    }
+   UpdateKVRed();
 }
 
 void NURBSExtension::KnotInsert(Array<Vector *> &kv)
@@ -3735,6 +3757,7 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 
       patches[p]->KnotInsert(pkv);
    }
+   UpdateKVRed();
 }
 
 
