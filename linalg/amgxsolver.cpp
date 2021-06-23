@@ -242,7 +242,7 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "     \"solver\": \"AMG\", \n"
                     "     \"smoother\": { \n"
                     "     \"scope\": \"jacobi\", \n"
-                    "     \"solver\": \"JACOBI_L1\", \n"
+                    "     \"solver\": \"JACOBI_L1\" \n"
                     "       }, \n"
                     "     \"presweeps\": 1, \n"
                     "     \"interpolator\": \"D2\", \n"
