@@ -181,11 +181,9 @@ int main(int argc, char *argv[])
    int rs_levels = 2;
    int order = 2;
    double t_param = 1.0;
-   bool pa = false;
    const char *device_config = "cpu";
-   bool algebraic_ceed = false;
    bool visualization = true;
-   SolverConfig solverConfig(SolverConfig::LOR_AMGX);
+   SolverConfig solverConfig(SolverConfig::FA_HYPRE);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -207,14 +205,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&t_param, "-t", "--t-param",
                   "Diffusion time step (scaled internally scaled by dx*dx).");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-#ifdef MFEM_USE_CEED
-   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
-                  "Use algebraic Ceed solver");
-#endif
+   args.AddOption((int*)&solverConfig.type, "-st", "--precon-solver-config",
+                  "Preconditioner configuration. ");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -271,7 +265,6 @@ int main(int argc, char *argv[])
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
-      //auto ds = new HeatDistanceSolver(t_param * dx * dx, pa, algebraic_ceed);
       auto ds = new HeatDistanceSolver(t_param * dx * dx, solverConfig);
       if (problem == 0)
       {
@@ -309,25 +302,15 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
    //Compute scalar distance for s
-   std::cout<<"\n Compute scalar distance for s \n "<<std::endl;
-   {
-      auto start = std::chrono::steady_clock::now();
-      //dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
-      static_cast<HeatDistanceSolver *>(dist_solver)->ConfigComputeScalarDistance(
-         ls_filt_coeff, distance_s); //configurable solver
-      auto end = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds = end-start;
-      std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
-   }
+   auto start = std::chrono::steady_clock::now();
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+
    //Compute scalar distance for v
-   std::cout<<"\n Compute scalar distance for v \n "<<std::endl;
-   {
-      auto start = std::chrono::steady_clock::now();
-      dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
-      auto end = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds = end-start;
-      std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
-   }
+   dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
+   auto end = std::chrono::steady_clock::now();
+   std::chrono::duration<double> elapsed_seconds = end-start;
+   std::cout << "solve for v + s elapsed time: " << elapsed_seconds.count() <<
+             "s\n";
 
    // Send the solution by socket to a GLVis server.
    if (visualization)

@@ -87,15 +87,15 @@ public:
 class HeatDistanceSolver : public DistanceSolver
 {
 public:
-   HeatDistanceSolver(double diff_coeff, bool use_pa_=false, bool use_ceed_=false)
-      : DistanceSolver(), use_pa(use_pa_), use_ceed(use_ceed_),
-        parameter_t(diff_coeff),
-        smooth_steps(0), diffuse_iter(1), transform(true), vis_glvis(false) { }
-
    HeatDistanceSolver(double diff_coeff, SolverConfig solverConfig_)
       : DistanceSolver(), solverConfig(solverConfig_),
         parameter_t(diff_coeff),
         smooth_steps(0), diffuse_iter(1), transform(true), vis_glvis(false) { }
+
+   Solver * ConfigurePreconditioner(ParBilinearForm &a,
+                                    Coefficient &coeff,
+                                    Array<int> &ess_tdof_list,
+                                    OperatorPtr * A = NULL);
 
    // The computed distance is not "signed". In addition to the standard usage
    // (with zero level sets), this function can be applied to point sources when
@@ -103,16 +103,6 @@ public:
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
-   Solver * ConfigurePreconditioner(ParBilinearForm &a,
-                                    Coefficient &coeff,
-                                    Array<int> &ess_tdof_list,
-                                    OperatorPtr * A = NULL);
-
-   void ConfigComputeScalarDistance(Coefficient &zero_level_set,
-                                    ParGridFunction &distance);
-
-   bool use_pa = false;
-   bool use_ceed = false;
    std::unique_ptr<LOR> lor;
    SolverConfig solverConfig;
    double parameter_t;
