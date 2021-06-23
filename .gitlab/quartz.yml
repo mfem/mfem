@@ -46,6 +46,7 @@
     do
       n=$((n+1))
     done
+  fi
 
 # Allocate
 q_allocate_resources:
