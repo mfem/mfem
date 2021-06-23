@@ -500,12 +500,6 @@ void HeatDistanceSolver::ConfigComputeScalarDistance(Coefficient
    const int cg_print_lvl  = (print_level > 0) ? 1 : 0,
              amg_print_lvl = (print_level > 1) ? 1 : 0;
 
-   // Solver.
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(100);
-   cg.SetPrintLevel(cg_print_lvl);
-
    // Step 1 - diffuse.
    ParGridFunction diffused_source(&pfes);
    for (int i = 0; i < diffuse_iter; i++)
@@ -562,13 +556,19 @@ void HeatDistanceSolver::ConfigComputeScalarDistance(Coefficient
       }
       */
       //NOTE!!
-      cg.SetOperator(*A); //order matters here...
-      cg.SetPreconditioner(*prec);
-      cg.Mult(B, X);
-      cg.SetMaxIter(2000);
+      {//CG withingg this scope
+        CGSolver cg(MPI_COMM_WORLD);
+        cg.SetRelTol(1e-12);
+        cg.SetMaxIter(100);
+        cg.SetPrintLevel(cg_print_lvl);
+
+        cg.SetOperator(*A); //order matters here...
+        cg.SetPreconditioner(*prec);
+        cg.Mult(B, X);
+      }
       a_d.RecoverFEMSolution(X, b, u_dirichlet);
       delete prec;
-      exit(-1);
+
       // Diffusion and mass terms in the LHS.
       ParBilinearForm a_n(&pfes);
       a_n.SetAssemblyLevel(GetAssemblyLevel(solverConfig));
@@ -603,11 +603,16 @@ void HeatDistanceSolver::ConfigComputeScalarDistance(Coefficient
          static_cast<HypreBoomerAMG*>(prec2)->SetPrintLevel(amg_print_lvl);
       }
       */
+      {
+        CGSolver cg(MPI_COMM_WORLD);
+        cg.SetRelTol(1e-12);
+        cg.SetMaxIter(2000);
+        cg.SetPrintLevel(cg_print_lvl);
 
-      cg.SetPreconditioner(*prec2);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      cg.SetMaxIter(2000);
+        cg.SetOperator(*A);
+        cg.SetPreconditioner(*prec2);
+        cg.Mult(B, X);
+      }
       a_n.RecoverFEMSolution(X, b, u_neumann);
       delete prec2;
 
@@ -669,10 +674,17 @@ void HeatDistanceSolver::ConfigComputeScalarDistance(Coefficient
          static_cast<HypreBoomerAMG*>(prec)->SetPrintLevel(amg_print_lvl);
       }
       */
-      cg.SetPreconditioner(*prec);
-      cg.SetOperator(*A);
-      cg.SetMaxIter(2000);
-      cg.Mult(B, X);
+      {
+        CGSolver cg(MPI_COMM_WORLD);
+        cg.SetRelTol(1e-12);
+        cg.SetMaxIter(2000);
+        cg.SetPrintLevel(cg_print_lvl);
+
+        cg.SetOperator(*A);
+        cg.SetPreconditioner(*prec);
+
+        cg.Mult(B, X);
+      }
       a2.RecoverFEMSolution(X, b2, distance);
       delete prec;
    }
@@ -707,9 +719,6 @@ void HeatDistanceSolver::ConfigComputeScalarDistance(Coefficient
    }
 
    std::cout<<"ConfigComputeScalarDistance"<<std::endl;
-   std::cout<<"Exit early "<<std::endl;
-   exit(-1);
-
 }
 
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
