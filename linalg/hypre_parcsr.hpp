@@ -206,7 +206,7 @@ hypre_ParCSRMatrix *
 hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B);
 
-#if MFEM_HYPRE_VERSION >= 22000
+#if MFEM_HYPRE_VERSION >= 22200
 /** Provide an overloaded function for code consistency between HYPRE API
     versions. */
 hypre_CSRMatrix *
@@ -223,7 +223,7 @@ hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
                       HYPRE_Complex       beta,
                       hypre_ParCSRMatrix *B);
 
-#if MFEM_HYPRE_VERSION < 22000
+#if MFEM_HYPRE_VERSION < 22200
 
 /** Initialize all entries of A with value. */
 HYPRE_Int

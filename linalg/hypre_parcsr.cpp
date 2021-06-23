@@ -1765,7 +1765,7 @@ hypre_ParCSRMatrix *
 hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B)
 {
-#if MFEM_HYPRE_VERSION < 22000
+#if MFEM_HYPRE_VERSION < 22200
    MPI_Comm            comm   = hypre_ParCSRMatrixComm(A);
    hypre_CSRMatrix    *A_diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix    *A_offd = hypre_ParCSRMatrixOffd(A);
@@ -1911,7 +1911,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
 
 }
 
-#if MFEM_HYPRE_VERSION >= 22000
+#if MFEM_HYPRE_VERSION >= 22200
 hypre_CSRMatrix *
 hypre_CSRMatrixAdd(hypre_CSRMatrix *A,
                    hypre_CSRMatrix *B)
@@ -1941,7 +1941,7 @@ hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
    return error;
 }
 
-#if MFEM_HYPRE_VERSION < 22000
+#if MFEM_HYPRE_VERSION < 22200
 
 HYPRE_Int
 hypre_CSRMatrixSetConstantValues(hypre_CSRMatrix *A,

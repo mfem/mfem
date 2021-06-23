@@ -517,7 +517,7 @@ public:
    /// Initialize all entries with value.
    HypreParMatrix &operator=(double value)
    {
-#if MFEM_HYPRE_VERSION < 22000
+#if MFEM_HYPRE_VERSION < 22200
       internal::hypre_ParCSRMatrixSetConstantValues(A, value);
 #else
       hypre_ParCSRMatrixSetConstantValues(A, value);
