@@ -1268,7 +1268,7 @@ void jitPostfix(context_t &pp)
    pp.out << "\n\treturn;";
    pp.out << "\n\t} // use_jit";
    pp.out << "\n";
-#warning Should check MFEM_USE_CUDA and push the right MFEM_FORALL
+   // Should check MFEM_USE_CUDA and push the right MFEM_FORALL
    pp.out << pp.ker.prefix;
    pp.out << "for (int " << pp.ker.forall.e << " = 0; "
           << pp.ker.forall.e << " < " << pp.ker.forall.N.c_str() << "; "
