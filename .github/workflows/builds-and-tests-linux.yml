@@ -46,7 +46,6 @@ jobs:
   clean:
     name: clean-ubuntu-18.04
     runs-on: ubuntu-18.04
-
     steps:
     # This external action allows to interrupt a workflow alrealy running on
     # the same branch to same resource
@@ -56,6 +55,7 @@ jobs:
         access_token: ${{ github.token }}
 
   dependencies:
+    needs: clean
     name: deps-ubuntu-18.04
     runs-on: ubuntu-18.04
     steps:

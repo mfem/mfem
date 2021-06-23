@@ -55,6 +55,7 @@ jobs:
         access_token: ${{ github.token }}
 
   dependencies:
+    needs: clean
     name: deps-macos-10.15
     runs-on: macos-10.15
     steps:
