@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace * bdr_elem_fes = 
                subdomain0.GetSubFESpace(Subdomain::entity_type::bdr);
    GridFunction gf_b(bdr_elem_fes);
-   // Pb->MultTranspose(gf,gf_b);
+   Pb->MultTranspose(gf,gf_b);
    // SparseMatrix * Pf = subdomain0.GetFaceProlonationMatrix();
 
    // FiniteElementSpace * face_elem_fes = 
@@ -178,17 +178,17 @@ int main(int argc, char *argv[])
    //    // << "valuerange -5000.0 5000.0 \n" << flush;
    // }
 
-   // ParaViewDataCollection paraview_dc("mesh_partition", bdrmesh0);
-   // paraview_dc.SetPrefixPath("ParaView");
-   // const FiniteElementSpace * fes_ = bdrmesh0->GetNodalFESpace();
-   // int ord = (fes_) ? fes_->GetOrder(0) : order;
-   // paraview_dc.SetLevelsOfDetail(5);
-   // paraview_dc.SetCycle(0);
-   // paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   // paraview_dc.SetHighOrderOutput(true);
-   // paraview_dc.SetTime(0.0); // set the time
-   // paraview_dc.RegisterField("solution",&gf_b);
-   // paraview_dc.Save();
+   ParaViewDataCollection paraview_dc("mesh_partition", bdrmesh0);
+   paraview_dc.SetPrefixPath("ParaView");
+   const FiniteElementSpace * fes_ = bdrmesh0->GetNodalFESpace();
+   int ord = (fes_) ? fes_->GetOrder(0) : order;
+   paraview_dc.SetLevelsOfDetail(5);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("solution",&gf_b);
+   paraview_dc.Save();
 
 
    return 0;
