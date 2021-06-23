@@ -239,9 +239,9 @@ protected:
    Array<NURBSPatch *> patches;
 
    inline int         KnotInd(int edge) const;
-   inline KnotVector *KnotVec(int edge);
-   inline const KnotVector *KnotVec(int edge) const;
-   inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
+   inline KnotVector *KnotVecRed(int edge);
+   inline const KnotVector *KnotVecRed(int edge) const;
+   inline const KnotVector *KnotVecRed(int edge, int oedge, int *okv) const;
 
    void CheckPatches();
    void CheckBdrPatches();
@@ -390,7 +390,7 @@ public:
    int GetNDof()      const { return NumOfActiveDofs; }
 
    // Knotvector read-only access function
-   const KnotVector *GetKnotVector(int i) const { return knotVectorsRed[i]; }
+   const KnotVector *GetKnotVectorRed(int i) const { return knotVectorsRed[i]; }
 
    // Mesh generation functions
    void GetElementTopo   (Array<Element *> &elements) const;
@@ -579,17 +579,17 @@ inline int NURBSExtension::KnotInd(int edge) const
    return (kv >= 0) ? kv : (-1-kv);
 }
 
-inline KnotVector *NURBSExtension::KnotVec(int edge)
+inline KnotVector *NURBSExtension::KnotVecRed(int edge)
 {
    return knotVectorsRed[KnotInd(edge)];
 }
 
-inline const KnotVector *NURBSExtension::KnotVec(int edge) const
+inline const KnotVector *NURBSExtension::KnotVecRed(int edge) const
 {
    return knotVectorsRed[KnotInd(edge)];
 }
 
-inline const KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
+inline const KnotVector *NURBSExtension::KnotVecRed(int edge, int oedge, int *okv)
 const
 {
    int kv = edge_to_knot[edge];
