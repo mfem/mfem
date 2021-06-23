@@ -46,7 +46,7 @@
     do
       n=$((n+1))
     done
-    rundir = ${rundir}_${n}
+    rundir=${rundir}_${n}
   fi
 
 # Allocate
