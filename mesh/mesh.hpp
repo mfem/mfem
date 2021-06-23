@@ -153,14 +153,26 @@ protected:
        are used, one should read the integrality of the mesh.cpp, pmesh.cpp,
        ncmesh.cpp, and pncmesh.cpp files and reverse engineer the code.
        What I found about them so far:
-       - Their number is faces_info.Size() - GetNumFaces()
-       - Most of them only countains -1 for all values (that seems to be
-         explained by pncmesh.cpp:1073-1074), the technical documentation below
-         wonders if these are master non-conforming faces, I think they're
-         probably just ghost ghost cells, unused allocated memory space.
+       - Their number is faces_info.Size() - GetNumFaces(), this seems to
+         include a lot of irrelevant uninitialized ghost faces.
+       - Most of the ghost faces only countains -1 in all their attributes
+        (that seems to be explained by pncmesh.cpp:1073-1074).
+         The technical documentation below wonders if these are master
+         non-conforming faces, I think they're probably just ghost ghost cells,
+         unused allocated memory space.
          However, I still tag them as MasterNonConforming in GetFaceInformation
        - They seem to be used as a convenience layer only in NCMesh, why not
          using them all the time?
+       - Due to clashing conventions:
+         1. On shared faces elem1 is always the local element
+         2. On non-conforming faces elem1 is always the slave element
+         The case of shared non-conforming faces is incompatible with the local
+         face being also the master face. For this reason ghost faces only
+         assume elem1 to be the local face.
+       - It seems that ghost faces are only used for shared non-conforming faces
+         where elem1 is master and local. I think non-conforming faces where the
+         local face is slave are treated through conforming shared faces. (This
+         hack has to be confirmed)
        */
    struct FaceInfo
    {
