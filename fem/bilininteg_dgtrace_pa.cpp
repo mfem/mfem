@@ -182,14 +182,13 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       auto C = Reshape(vel.HostWrite(), dim, nq, nf);
       Vector Vq(dim);
       int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ( (type==FaceType::Interior && info.IsInterior()) ||
-              (type==FaceType::Boundary && info.IsBoundary()) )
+         if ( info.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f);
+               *fes.GetMesh()->GetFaceElementTransformations(f,5);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
@@ -238,11 +237,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
       auto C = Reshape(r.HostWrite(), nq, nf);
       int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ( (type==FaceType::Interior && info.IsInterior()) ||
-              (type==FaceType::Boundary && info.IsBoundary()) )
+         if ( info.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);

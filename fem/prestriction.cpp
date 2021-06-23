@@ -111,8 +111,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    for (int f = 0; f < pfes.GetNF(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if ((type==FaceType::Interior && info.IsInterior()) ||
-          (type==FaceType::Boundary && info.IsBoundary()) )
+      if (info.IsOfFaceType(type))
       {
          SetFaceDofsGatherIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued &&
@@ -446,7 +445,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    }
    // Computation of scatter and offsets indices
    int f_ind=0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       // We skip non-conforming master faces, as they will be treated by the
@@ -526,15 +525,14 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    }
    // Computation of gather_indices
    f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
       {
          continue;
       }
-      if ((type==FaceType::Interior && info.IsInterior()) ||
-          (type==FaceType::Boundary && info.IsBoundary()) )
+      if (info.IsOfFaceType(type))
       {
          SetFaceDofsGatherIndices1(info,f_ind);
          if (m==L2FaceValues::DoubleValued &&
