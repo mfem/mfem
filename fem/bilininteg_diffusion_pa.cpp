@@ -1616,7 +1616,7 @@ static void SmemPADiffusionApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[D1D], v[D1D];
+            double u[MD1], v[MD1];
             MFEM_UNROLL(MD1);
             for (int dz = 0; dz < D1D; dz++) { u[dz] = v[dz] = 0.0; }
             MFEM_UNROLL(MD1);
@@ -1648,7 +1648,7 @@ static void SmemPADiffusionApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[D1D], v[D1D], w[D1D];
+            double u[MD1], v[MD1], w[MD1];
             MFEM_UNROLL(MD1);
             for (int dz = 0; dz < D1D; dz++) { u[dz] = v[dz] = w[dz] = 0.0; }
             MFEM_UNROLL(MD1);
@@ -1681,7 +1681,7 @@ static void SmemPADiffusionApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[Q1D], v[Q1D], w[Q1D];
+            double u[MQ1], v[MQ1], w[MQ1];
             MFEM_UNROLL(MQ1);
             for (int qz = 0; qz < Q1D; qz++) { u[qz] = v[qz] = w[qz] = 0.0; }
             MFEM_UNROLL(MD1);
@@ -1739,7 +1739,7 @@ static void SmemPADiffusionApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[Q1D], v[Q1D], w[Q1D];
+            double u[MQ1], v[MQ1], w[MQ1];
             MFEM_UNROLL(MQ1);
             for (int qz = 0; qz < Q1D; ++qz) { u[qz] = v[qz] = w[qz] = 0.0; }
             MFEM_UNROLL(MQ1);
@@ -1772,7 +1772,7 @@ static void SmemPADiffusionApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[Q1D], v[Q1D], w[Q1D];
+            double u[MQ1], v[MQ1], w[MQ1];
             MFEM_UNROLL(MQ1);
             for (int qz = 0; qz < Q1D; ++qz) { u[qz] = v[qz] = w[qz] = 0.0; }
             MFEM_UNROLL(MQ1);
@@ -1805,7 +1805,7 @@ static void SmemPADiffusionApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[D1D], v[D1D], w[D1D];
+            double u[MD1], v[MD1], w[MD1];
             MFEM_UNROLL(MD1);
             for (int dz = 0; dz < D1D; ++dz) { u[dz] = v[dz] = w[dz] = 0.0; }
             MFEM_UNROLL(MQ1);
