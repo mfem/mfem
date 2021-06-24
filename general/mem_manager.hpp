@@ -175,7 +175,7 @@ public:
    /// Copy constructor, does not take ownership.
    Memory(const Memory &orig)
       : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
-      flags(orig.flags)
+        flags(orig.flags)
    {
       flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
    }
