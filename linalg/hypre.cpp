@@ -722,7 +722,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
    hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
-   HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
+   offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
