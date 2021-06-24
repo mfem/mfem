@@ -828,7 +828,7 @@ inline void Memory<T>::New(int size)
    if (size > 0)
    {
       h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) :
-            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
+              (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
    }
    else
    {
