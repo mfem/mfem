@@ -247,7 +247,7 @@ void DisjointSets::Finalize()
 
       reps_to_groups[rep] = smallest_unused;
       bounds.Append(bounds.Last()+size[rep]);
-      largestGroup = largestGroup >= size[rep] ? largestGroup :	size[rep]+1;
+      largestGroup = largestGroup >= size[rep] ? largestGroup :   size[rep]+1;
       smallest_unused++;
    }
    sizeCounters.SetSize(largestGroup,0);
@@ -266,7 +266,7 @@ void DisjointSets::Finalize()
          }
       }
    }
-   for (int i = 2; i < sizeCounters.Size(); ++i) sizeCounters[i] /= i;
+   for (int i = 2; i < sizeCounters.Size(); ++i) { sizeCounters[i] /= i; }
 
    elem_to_group = Array<int>(elems.Size());
    for (int group = 0; group < bounds.Size()-1; ++group)

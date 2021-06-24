@@ -47,7 +47,8 @@ protected:
 
    // Constructor helpers
    void FormG(const DisjointSets *clustering);
-   void MFEM_DEPRECATED(FormGDevice(const DisjointSets *clustering,Array<int>&,Vector&));
+   void MFEM_DEPRECATED(FormGDevice(const DisjointSets *clustering,Array<int>&,
+                                    Vector&));
 
 public:
 
@@ -92,9 +93,9 @@ public:
       width = G->Width(); height = G->Height();
    }
    DRSmootherG(const DisjointSets *clusters, const Array<double> *coeff_data)
-     : G(NULL), clustering(clusters), coeffs(coeff_data), matrix_free(true)
+      : G(NULL), clustering(clusters), coeffs(coeff_data), matrix_free(true)
    {
-     width = height = clustering->Size();
+      width = height = clustering->Size();
    }
 
    void GtAG(SparseMatrix *&GtAG_mat, Vector &GtAG_diagonal, const SparseMatrix &A,
