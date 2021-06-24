@@ -173,6 +173,7 @@ jobs:
         os: ${{ runner.os }}
         target: ${{ matrix.target }}
         codecov: ${{ matrix.codecov }}
+        shared: "only"
         mpi: ${{ matrix.mpi }}
         build-system: ${{ matrix.build-system }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
