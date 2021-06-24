@@ -489,6 +489,28 @@ HypreParMatrix::HypreParMatrix()
    height = width = 0;
 }
 
+void HypreParMatrix::WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner)
+{
+   Destroy();
+   Init();
+   A = a;
+   ParCSROwner = owner;
+   height = GetNumRows();
+   width = GetNumCols();
+#if MFEM_HYPRE_VERSION >= 21400
+   MemoryType diag_mt = (A->diag->memory_location == HYPRE_MEMORY_HOST
+                         ? MemoryType::HOST : GetHypreMemoryType());
+   MemoryType offd_mt = (A->offd->memory_location == HYPRE_MEMORY_HOST
+                         ? MemoryType::HOST : GetHypreMemoryType());
+#else
+   const MemoryType diag_mt = MemoryType::HOST;
+   const MemoryType offd_mt = MemoryType::HOST;
+#endif
+   diagOwner = HypreCsrToMem(A->diag, diag_mt, false, mem_diag);
+   offdOwner = HypreCsrToMem(A->offd, offd_mt, false, mem_offd);
+   HypreRead();
+}
+
 signed char HypreParMatrix::CopyCSR(SparseMatrix *csr,
                                     MemoryIJData &mem_csr,
                                     hypre_CSRMatrix *hypre_csr,
@@ -512,7 +534,10 @@ signed char HypreParMatrix::CopyCSR(SparseMatrix *csr,
    hypre_csr->j = const_cast<HYPRE_Int*>(mem_csr.J.Read(hypre_mc, nnz));
    hypre_csr->data = const_cast<double*>(mem_csr.data.Read(hypre_mc, nnz));
 
-   return 3; // delete all mem_csr.{I,J,data}
+   MFEM_ASSERT(mem_csr.I.OwnsHostPtr() == mem_csr.J.OwnsHostPtr(),
+               "invalid state: host ownership for I and J differ!");
+   return (mem_csr.I.OwnsHostPtr()    ? 1 : 0) +
+          (mem_csr.data.OwnsHostPtr() ? 2 : 0);
 }
 
 signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
@@ -540,7 +565,11 @@ signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
    hypre_csr->i = const_cast<HYPRE_Int*>(mem_csr.I.Read(hypre_mc, num_rows+1));
    hypre_csr->j = const_cast<HYPRE_Int*>(mem_csr.J.Read(hypre_mc, nnz));
    hypre_csr->data = const_cast<double*>(mem_csr.data.Read(hypre_mc, nnz));
-   return 3;
+
+   MFEM_ASSERT(mem_csr.I.OwnsHostPtr() == mem_csr.J.OwnsHostPtr(),
+               "invalid state: host ownership for I and J differ!");
+   return (mem_csr.I.OwnsHostPtr()    ? 1 : 0) +
+          (mem_csr.data.OwnsHostPtr() ? 2 : 0);
 }
 
 void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
@@ -619,7 +648,7 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
 #endif
       return 3;
    }
-   return own_ija ? 3 : -1;
+   return own_ija ? 3 : (h_mat_mt == GetHypreMemoryType() ? -2 : -1);
 }
 
 // Square block-diagonal constructor (4 arguments, v1)
@@ -768,14 +797,16 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_MatvecCommPkgCreate(A);
 }
 
-// General rectangular constructor with diagonal and off-diagonal (13 arguments)
+// General rectangular constructor with diagonal and off-diagonal (13+1
+// arguments)
 HypreParMatrix::HypreParMatrix(
    MPI_Comm comm,
    HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols,
    HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
    HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
    HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
-   HYPRE_Int offd_num_cols, HYPRE_BigInt *offd_col_map)
+   HYPRE_Int offd_num_cols, HYPRE_BigInt *offd_col_map,
+   bool hypre_arrays)
 {
    Init();
    A = hypre_ParCSRMatrixCreate(comm, global_num_rows, global_num_cols,
@@ -786,7 +817,7 @@ HypreParMatrix::HypreParMatrix(
 
    HYPRE_Int local_num_rows = hypre_CSRMatrixNumRows(A->diag);
 
-   hypre_CSRMatrixSetDataOwner(A->diag,0);
+   hypre_CSRMatrixSetDataOwner(A->diag, hypre_arrays);
    hypre_CSRMatrixI(A->diag) = diag_i;
    hypre_CSRMatrixJ(A->diag) = diag_j;
    hypre_CSRMatrixData(A->diag) = diag_data;
@@ -795,10 +826,8 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->diag);
-   // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
-   diagOwner = 3;
 
-   hypre_CSRMatrixSetDataOwner(A->offd,0);
+   hypre_CSRMatrixSetDataOwner(A->offd, hypre_arrays);
    hypre_CSRMatrixI(A->offd) = offd_i;
    hypre_CSRMatrixJ(A->offd) = offd_j;
    hypre_CSRMatrixData(A->offd) = offd_data;
@@ -807,12 +836,10 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->offd);
-   // Prevent hypre from destroying A->offd->{i,j,data}, own A->offd->{i,j,data}
-   offdOwner = 3;
 
    hypre_ParCSRMatrixColMapOffd(A) = offd_col_map;
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
-   colMapOwner = 1;
+   colMapOwner = hypre_arrays ? -1 : 1;
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
@@ -827,9 +854,18 @@ HypreParMatrix::HypreParMatrix(
    height = GetNumRows();
    width = GetNumCols();
 
-   const MemoryType host_mt = Device::GetHostMemoryType();
-   diagOwner = HypreCsrToMem(A->diag, host_mt, true, mem_diag);
-   offdOwner = HypreCsrToMem(A->offd, host_mt, true, mem_offd);
+   if (!hypre_arrays)
+   {
+      const MemoryType host_mt = Device::GetHostMemoryType();
+      diagOwner = HypreCsrToMem(A->diag, host_mt, true, mem_diag);
+      offdOwner = HypreCsrToMem(A->offd, host_mt, true, mem_offd);
+   }
+   else
+   {
+      const MemoryType host_mt = MemoryType::HOST;
+      diagOwner = HypreCsrToMem(A->diag, host_mt, false, mem_diag);
+      offdOwner = HypreCsrToMem(A->offd, host_mt, false, mem_offd);
+   }
    HypreRead();
 }
 
@@ -859,7 +895,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    // FIXME: does this call create a matrix on device when device support is
    // enabled in hypre? Assuming NO for now.
-   A = hypre_CSRMatrixToParCSRMatrix(comm, csr_a, row_starts, col_starts);
+   hypre_ParCSRMatrix *new_A =
+      hypre_CSRMatrixToParCSRMatrix(comm, csr_a, row_starts, col_starts);
 
    mem_a.I.Delete();
    mem_a.J.Delete();
@@ -868,20 +905,15 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixI(csr_a) = NULL;
    hypre_CSRMatrixDestroy(csr_a);
 
-   height = GetNumRows();
-   width = GetNumCols();
-
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
-      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(new_A));
    }
 
    hypre_MatvecCommPkgCreate(A);
 
-   diagOwner = HypreCsrToMem(A->diag, MemoryType::HOST, false, mem_diag);
-   offdOwner = HypreCsrToMem(A->offd, MemoryType::HOST, false, mem_offd);
-   HypreRead();
+   WrapHypreParCSRMatrix(new_A);
 }
 
 // Boolean, rectangular, block-diagonal constructor (6 arguments, v2)
@@ -982,8 +1014,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->diag);
-   // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
-   diagOwner = 3;
 
    hypre_CSRMatrixSetDataOwner(A->offd,0);
    hypre_CSRMatrixI(A->offd)    = i_offd;
@@ -993,8 +1023,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->offd);
-   // Prevent hypre from destroying A->offd->{i,j,data}, own A->offd->{i,j,data}
-   offdOwner = 3;
 
    hypre_ParCSRMatrixColMapOffd(A) = cmap;
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
@@ -1204,16 +1232,35 @@ void HypreParMatrix::MakeRef(const HypreParMatrix &master)
 
 hypre_ParCSRMatrix* HypreParMatrix::StealData()
 {
-   // Only safe when (diagOwner == -1 && offdOwner == -1 && colMapOwner == -1)
+   // Only safe when (diagOwner < 0 && offdOwner < 0 && colMapOwner == -1)
    // Otherwise, there may be memory leaks or hypre may destroy arrays allocated
    // with operator new.
-   MFEM_ASSERT(diagOwner == -1 && offdOwner == -1 && colMapOwner == -1, "");
+   MFEM_ASSERT(diagOwner < 0 && offdOwner < 0 && colMapOwner == -1, "");
+   MFEM_ASSERT(diagOwner == offdOwner, "");
    MFEM_ASSERT(ParCSROwner, "");
    hypre_ParCSRMatrix *R = A;
-   A = NULL;
+#ifdef HYPRE_USING_CUDA
+   if (diagOwner == -1) { HostReadWrite(); }
+   else { HypreReadWrite(); }
+#endif
+   ParCSROwner = false;
    Destroy();
    Init();
    return R;
+}
+
+void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
+                                   signed char colmap)
+{
+   diagOwner = diag;
+   mem_diag.I.SetHostPtrOwner((diag >= 0) && (diag & 1));
+   mem_diag.J.SetHostPtrOwner((diag >= 0) && (diag & 1));
+   mem_diag.data.SetHostPtrOwner((diag >= 0) && (diag & 2));
+   offdOwner = offd;
+   mem_offd.I.SetHostPtrOwner((offd >= 0) && (offd & 1));
+   mem_offd.J.SetHostPtrOwner((offd >= 0) && (offd & 1));
+   mem_offd.data.SetHostPtrOwner((offd >= 0) && (offd & 2));
+   colMapOwner = colmap;
 }
 
 void HypreParMatrix::CopyRowStarts()
@@ -2267,29 +2314,25 @@ void HypreParMatrix::Destroy()
    if (A == NULL) { return; }
 
 #ifdef HYPRE_USING_CUDA
-   if (ParCSROwner && (diagOwner == -1 || offdOwner == -1))
+   if (ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
-      // Determine which (host or device) pointers are to be destroyed by hypre
-      // and put those pointers in A->diag and A->offd.
+      // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
+      // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
+      // is called below.
 
-      int hypre_delete_loc = -1; // -1,0,1 -- none,host,device
-      if (diagOwner == -1)
+      // Check that if both diagOwner and offdOwner are negative then they have
+      // the same value.
+      MFEM_VERIFY(!(diagOwner < 0 && offdOwner < 0) || diagOwner == offdOwner,
+                  "invalid state");
+
+      if (diagOwner == -1 || offdOwner == -1)
       {
-         MFEM_VERIFY(mem_diag.I.OwnsHostPtr() != mem_diag.I.OwnsDevicePtr(),
-                     "unexpected state");
-         hypre_delete_loc = mem_diag.I.OwnsHostPtr() ? 1 : 0;
+         HostWrite();
       }
-      if (offdOwner == -1)
+      else
       {
-         MFEM_VERIFY(mem_offd.I.OwnsHostPtr() != mem_offd.I.OwnsDevicePtr(),
-                     "unexpected state");
-         MFEM_VERIFY(diagOwner != -1 ||
-                     mem_diag.I.OwnsHostPtr() == mem_offd.I.OwnsHostPtr(),
-                     "unexpected state");
-         hypre_delete_loc = mem_offd.I.OwnsHostPtr() ? 1 : 0;
+         HypreWrite();
       }
-      if (hypre_delete_loc == 0) { HostWrite(); }
-      else { HypreWrite(); }
    }
 #endif
 
