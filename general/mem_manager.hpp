@@ -172,14 +172,26 @@ public:
    /// Default constructor: no initialization.
    Memory() { }
 
-   /// Copy constructor: default.
-   Memory(const Memory &orig) = default;
+   /// Copy constructor, does not take ownership.
+   Memory(const Memory &orig)
+      : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
+      flags(orig.flags)
+   {
+      flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
+   }
 
    /// Move constructor: default.
    Memory(Memory &&orig) = default;
 
-   /// Copy-assignment operator: default.
-   Memory &operator=(const Memory &orig) = default;
+   /// Copy-assignment operator, does not take ownership.
+   Memory &operator=(const Memory &orig)
+   {
+      h_ptr = orig.h_ptr;
+      capacity = orig.capacity;
+      h_mt = orig.h_mt;
+      flags = orig.flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
+      return *this;
+   }
 
    /// Move-assignment operator: default.
    Memory &operator=(Memory &&orig) = default;
