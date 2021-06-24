@@ -175,8 +175,16 @@ public:
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
 
-   /// Move constructor: default.
-   Memory(Memory &&orig) = default;
+   /// Move constructor, takes ownership when possible and invalidates @a orig.
+   Memory(Memory &&orig)
+      : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
+        flags(orig.flags)
+   {
+      orig.h_ptr = nullptr;
+      orig.capacity = 0;
+      orig.h_mt = MemoryType::DEFAULT;
+      orig.flags = 0;
+   }
 
    /// Copy-assignment operator: default.
    Memory &operator=(const Memory &orig) = default;
