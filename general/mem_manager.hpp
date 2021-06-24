@@ -189,8 +189,20 @@ public:
    /// Copy-assignment operator: default.
    Memory &operator=(const Memory &orig) = default;
 
-   /// Move-assignment operator: default.
-   Memory &operator=(Memory &&orig) = default;
+   /** Move-assignment operator, takes ownership when possible and invalidates
+       @a orig. */
+   Memory &operator=(Memory &&orig)
+   {
+      h_ptr = orig.h_ptr;
+      capacity = orig.capacity;
+      h_mt = orig.h_mt;
+      flags = orig.flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
+      orig.h_ptr = nullptr;
+      orig.capacity = 0;
+      orig.h_mt = MemoryType::DEFAULT;
+      orig.flags = 0;
+      return *this;
+   }
 
    /// Allocate host memory for @a size entries.
    /** The allocation uses the current host memory type returned by
