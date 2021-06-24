@@ -224,9 +224,11 @@ public:
    Memory(const Memory &base, int offset, int size)
    { MakeAlias(base, offset, size); }
 
-   /// Destructor: default.
-   /** @note The destructor will NOT delete the current memory. */
-   ~Memory() = default;
+   /// Destructor.
+   ~Memory()
+   {
+      Delete();
+   }
 
    /** @brief Return true if the host pointer is owned. Ownership indicates
        whether the pointer will be deleted by the method Delete(). */
