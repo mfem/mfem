@@ -215,6 +215,16 @@ hypre_CSRMatrixSum(hypre_CSRMatrix *A,
                    HYPRE_Complex    beta,
                    hypre_CSRMatrix *B);
 
+#if MFEM_HYPRE_VERSION >= 22200
+/** Provide an overloaded function for code consistency between HYPRE API
+    versions. */
+inline hypre_CSRMatrix *hypre_CSRMatrixAdd(hypre_CSRMatrix *A,
+                                           hypre_CSRMatrix *B)
+{
+   return ::hypre_CSRMatrixAdd(1.0, A, 1.0, B);
+}
+#endif
+
 /** Return a new matrix containing the sum of A and B, assuming that both
     matrices use the same row and column partitions. The col_map_offd do not
     need to be the same, but a more efficient algorithm is used if that's the

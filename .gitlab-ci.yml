@@ -157,7 +157,7 @@ setup:
   then
     echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
     cat ${_base_diff}
-    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.txt
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}
     # We create a .err file, because that's how we signal that there was a diff.
     cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/gitlab-${BASELINE_TEST}-${SYS_TYPE}.err
   fi
