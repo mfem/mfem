@@ -23,7 +23,7 @@ DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0)
 }
 
 DenseSymmetricMatrix::DenseSymmetricMatrix(int s)
-: Matrix(s), data((s*(s+1))/2)
+   : Matrix(s), data((s*(s+1))/2)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseSymmetricMatrix size: " << s);
    *this = 0.0; // init with zeroes

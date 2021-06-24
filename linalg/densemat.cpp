@@ -73,7 +73,7 @@ using namespace std;
 DenseMatrix::DenseMatrix() : Matrix(0) { }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &m)
-: Matrix(m.height, m.width), data(m.height * m.width)
+   : Matrix(m.height, m.width), data(m.height * m.width)
 {
    const int hw = height * width;
    if (hw > 0)

@@ -172,9 +172,9 @@ public:
    /// Default constructor.
    Memory()
       : h_ptr(nullptr),
-      capacity(0),
-      h_mt(MemoryManager::GetHostMemoryType()),
-      flags(0)
+        capacity(0),
+        h_mt(MemoryManager::GetHostMemoryType()),
+        flags(0)
    { }
 
    /// Copy constructor: default.
