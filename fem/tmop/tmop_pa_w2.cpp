@@ -149,7 +149,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double m = metric_normal;
+   const double mn = metric_normal;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -160,7 +160,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    double mp = 0.0;
    if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,m,mp,M,N,J,W,B,G,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,mp,M,N,J,W,B,G,X,O,E);
 }
 
 } // namespace mfem
