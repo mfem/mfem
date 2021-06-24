@@ -284,10 +284,14 @@ private:
    // and A->col_map_offd.
    // The possible values for diagOwner are:
    //  -1: no special treatment of A->diag (default)
+   //      when hypre is built with CUDA support, A->diag owns the "host"
+   //      pointers (according to A->diag->owns_data)
+   //  -2: used when hypre is built with CUDA support, A->diag owns the "hypre"
+   //      pointers (according to A->diag->owns_data)
    //   0: prevent hypre from destroying A->diag->{i,j,data}
-   //   1: same as 0, plus take ownership of A->diag->{i,j}
-   //   2: same as 0, plus take ownership of A->diag->data
-   //   3: same as 0, plus take ownership of A->diag->{i,j,data}
+   //   1: same as 0, plus own the "host" A->diag->{i,j}
+   //   2: same as 0, plus own the "host" A->diag->data
+   //   3: same as 0, plus own the "host" A->diag->{i,j,data}
    // The same values and rules apply to offdOwner and A->offd.
    // The possible values for colMapOwner are:
    //  -1: no special treatment of A->col_map_offd (default)
@@ -365,7 +369,7 @@ private:
    // the indices from HYPRE_Int/HYPRE_BigInt to int.
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
-   // Wrap the data from h_mat into mem with the given ownership flags.
+   // Wrap the data from h_mat into mem with the given ownership flag.
    // If the new Memory arrays in mem are not suitable to be accessed via
    // GetHypreMemoryClass(), then mem will be re-allocated using the memory type
    // returned by GetHypreMemoryType(), the data will be deep copied, and h_mat
@@ -381,27 +385,7 @@ public:
 
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
-   void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
-   {
-      Destroy();
-      Init();
-      A = a;
-      ParCSROwner = owner;
-      height = GetNumRows();
-      width = GetNumCols();
-#if MFEM_HYPRE_VERSION >= 21400
-      MemoryType diag_mt = (A->diag->memory_location == HYPRE_MEMORY_HOST
-                            ? MemoryType::HOST : GetHypreMemoryType());
-      MemoryType offd_mt = (A->offd->memory_location == HYPRE_MEMORY_HOST
-                            ? MemoryType::HOST : GetHypreMemoryType());
-#else
-      const MemoryType diag_mt = MemoryType::HOST;
-      const MemoryType offd_mt = MemoryType::HOST;
-#endif
-      diagOwner = HypreCsrToMem(A->diag, diag_mt, false, mem_diag);
-      offdOwner = HypreCsrToMem(A->offd, offd_mt, false, mem_offd);
-      HypreRead();
-   }
+   void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true);
 
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
@@ -452,14 +436,20 @@ public:
    /** The new HypreParMatrix takes ownership of all input arrays, except
        @a col_starts and @a row_starts. See @ref hypre_partitioning_descr "here"
        for a description of the partitioning arrays @a row_starts and @a
-       col_starts. */
+       col_starts.
+
+       If @a hypre_arrays is false, all arrays (except @a row_starts and
+       @a col_starts) are assumed to be allocated according to the MemoryType
+       returned by Device::GetHostMemoryType(). If @a hypre_arrays is true, then
+       the same arrays are assumed to be allocated by hypre as host arrays. */
    HypreParMatrix(MPI_Comm comm,
                   HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols,
                   HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
                   HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
                   HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
                   HYPRE_Int offd_num_cols,
-                  HYPRE_BigInt *offd_col_map); // constructor with 13 arguments
+                  HYPRE_BigInt *offd_col_map,
+                  bool hypre_arrays = false); // constructor with 13+1 arguments
 
    /// Creates a parallel matrix from SparseMatrix on processor 0.
    /** See @ref hypre_partitioning_descr "here" for a description of the
@@ -519,8 +509,7 @@ public:
    hypre_ParCSRMatrix* StealData();
 
    /// Explicitly set the three ownership flags, see docs for diagOwner etc.
-   void SetOwnerFlags(signed char diag, signed char offd, signed char colmap)
-   { diagOwner = diag, offdOwner = offd, colMapOwner = colmap; }
+   void SetOwnerFlags(signed char diag, signed char offd, signed char colmap);
 
    /// Get diag ownership flag
    signed char OwnsDiag() const { return diagOwner; }
@@ -577,12 +566,6 @@ public:
 
    /// Return the diagonal of the matrix (Operator interface).
    virtual void AssembleDiagonal(Vector &diag) const { GetDiag(diag); }
-
-   /// Return a reference to the Memory object used by the diagonal I array.
-   Memory<HYPRE_Int> &GetMemory_diagI() { return mem_diag.I; }
-
-   /// Return a reference to the Memory object used by the diagonal data array.
-   Memory<double> &GetMemory_diagData() { return mem_diag.data; }
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
