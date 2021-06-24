@@ -1765,7 +1765,6 @@ hypre_ParCSRMatrix *
 hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B)
 {
-#if MFEM_HYPRE_VERSION < 22200
    MPI_Comm            comm   = hypre_ParCSRMatrixComm(A);
    hypre_CSRMatrix    *A_diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix    *A_offd = hypre_ParCSRMatrixOffd(A);
@@ -1900,25 +1899,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    hypre_ParCSRMatrixSetColStartsOwner(C, 0);
 
    return C;
-
-#else
-
-   hypre_ParCSRMatrix *C;
-   hypre_ParCSRMatrixAdd(1.0, A, 1.0, B, &C);
-   return C;
-
-#endif
-
 }
-
-#if MFEM_HYPRE_VERSION >= 22200
-hypre_CSRMatrix *
-hypre_CSRMatrixAdd(hypre_CSRMatrix *A,
-                   hypre_CSRMatrix *B)
-{
-   return hypre_CSRMatrixAdd(1.0, A, 1.0, B);
-}
-#endif
 
 HYPRE_Int
 hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
@@ -1941,8 +1922,6 @@ hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
    return error;
 }
 
-#if MFEM_HYPRE_VERSION < 22200
-
 HYPRE_Int
 hypre_CSRMatrixSetConstantValues(hypre_CSRMatrix *A,
                                  HYPRE_Complex    value)
@@ -1963,13 +1942,11 @@ HYPRE_Int
 hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
                                     HYPRE_Complex       value)
 {
-   hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixDiag(A), value);
-   hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixOffd(A), value);
+   internal::hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixDiag(A), value);
+   internal::hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixOffd(A), value);
 
    return 0;
 }
-
-#endif
 
 } // namespace mfem::internal
 

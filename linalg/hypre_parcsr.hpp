@@ -198,6 +198,16 @@ hypre_CSRMatrixSum(hypre_CSRMatrix *A,
                    HYPRE_Complex    beta,
                    hypre_CSRMatrix *B);
 
+#if MFEM_HYPRE_VERSION >= 22200
+/** Provide an overloaded function for code consistency between HYPRE API
+    versions. */
+inline hypre_CSRMatrix *hypre_CSRMatrixAdd(hypre_CSRMatrix *A,
+                                           hypre_CSRMatrix *B)
+{
+   return ::hypre_CSRMatrixAdd(1.0, A, 1.0, B);
+}
+#endif
+
 /** Return a new matrix containing the sum of A and B, assuming that both
     matrices use the same row and column partitions. The col_map_offd do not
     need to be the same, but a more efficient algorithm is used if that's the
@@ -205,14 +215,6 @@ hypre_CSRMatrixSum(hypre_CSRMatrix *A,
 hypre_ParCSRMatrix *
 hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B);
-
-#if MFEM_HYPRE_VERSION >= 22200
-/** Provide an overloaded function for code consistency between HYPRE API
-    versions. */
-hypre_CSRMatrix *
-hypre_CSRMatrixAdd(hypre_CSRMatrix *A,
-                   hypre_CSRMatrix *B);
-#endif
 
 /** Perform the operation A += beta*B, assuming that both matrices use the same
     row and column partitions and the same col_map_offd arrays, or B has an empty
@@ -223,8 +225,6 @@ hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
                       HYPRE_Complex       beta,
                       hypre_ParCSRMatrix *B);
 
-#if MFEM_HYPRE_VERSION < 22200
-
 /** Initialize all entries of A with value. */
 HYPRE_Int
 hypre_CSRMatrixSetConstantValues(hypre_CSRMatrix *A,
@@ -234,8 +234,6 @@ hypre_CSRMatrixSetConstantValues(hypre_CSRMatrix *A,
 HYPRE_Int
 hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
                                     HYPRE_Complex       value);
-
-#endif
 
 } // namespace mfem::internal
 
