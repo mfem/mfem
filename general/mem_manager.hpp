@@ -210,7 +210,7 @@ public:
        host memory type returned by MemoryManager::GetHostMemoryType(). */
    /** The parameter @a own determines whether @a ptr will be deleted when the
        method Delete() is called. */
-   explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
+   Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
