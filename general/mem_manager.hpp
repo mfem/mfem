@@ -169,8 +169,13 @@ protected:
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
-   /// Default constructor: no initialization.
-   Memory() { }
+   /// Default constructor.
+   Memory()
+      : h_ptr(nullptr),
+      capacity(0),
+      h_mt(MemoryManager::GetHostMemoryType()),
+      flags(0)
+   { }
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
