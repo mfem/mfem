@@ -170,12 +170,7 @@ protected:
 
 public:
    /// Default constructor.
-   Memory()
-      : h_ptr(nullptr),
-        capacity(0),
-        h_mt(MemoryManager::GetHostMemoryType()),
-        flags(0)
-   { }
+   Memory() { New(0); }
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
