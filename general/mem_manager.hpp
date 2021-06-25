@@ -170,7 +170,7 @@ protected:
 
 public:
    /// Default constructor.
-   Memory() { New(0); }
+   Memory() { Reset(); }
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
