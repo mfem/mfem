@@ -515,7 +515,7 @@ const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
    else { return FiniteElementSpace::GetFE(i); }
 }
 
-const Operator *ParFiniteElementSpace::GetFaceRestriction(
+const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
@@ -529,7 +529,7 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
    }
    else
    {
-      Operator* res;
+      FaceRestriction *res;
       if (is_dg_space)
       {
          res = new ParL2FaceRestriction(*this, e_ordering, type, m);
