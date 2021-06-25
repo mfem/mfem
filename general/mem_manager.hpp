@@ -942,6 +942,7 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
+   Reset();
 }
 
 template <typename T>
