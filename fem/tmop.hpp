@@ -804,6 +804,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -1358,6 +1360,10 @@ public:
    { PA.enabled = false; }
 
    ~TMOP_Integrator();
+
+   /// Release the device memory of large PA allocations. This will copy device
+   /// memory back to the host before releasing.
+   void ReleasePADeviceMemory();
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */

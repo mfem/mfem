@@ -1953,8 +1953,8 @@ HYPRE_Int
 hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
                                     HYPRE_Complex       value)
 {
-   hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixDiag(A), value);
-   hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixOffd(A), value);
+   internal::hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixDiag(A), value);
+   internal::hypre_CSRMatrixSetConstantValues(hypre_ParCSRMatrixOffd(A), value);
 
    return 0;
 }
