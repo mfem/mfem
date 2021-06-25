@@ -75,7 +75,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space-v4
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-optimize-deps-space-v5
 
     - name: install hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
@@ -98,7 +98,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space-v4
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-optimize-deps-space-v5
 
     - name: install metis
       if: steps.metis-cache.outputs.cache-hit != 'true'
@@ -181,12 +181,6 @@ jobs:
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
 
-    # Run checks (and only checks) on debug targets
-    - name: checks
-      if: matrix.build-system == 'make' && matrix.target == 'debug'
-      run: |
-        cd ${{ env.MFEM_TOP_DIR }}  && make check
-
     - name: clean mfem dir
       run: |
         cd ${{ env.MFEM_TOP_DIR }}
@@ -260,14 +254,18 @@ jobs:
         path: ${{ env.MFEM_TOP_DIR }}
 
     - name: tests
-      if: matrix.build-system == 'make' && matrix.target == 'optim'
       run: |
-        cd ${{ env.MFEM_TOP_DIR }} && make test
-
-    - name: cmake unit tests
-      if: matrix.build-system == 'cmake'
-      run: |
-        cd ${{ env.MFEM_TOP_DIR }}/build/tests/unit && ctest --output-on-failure
+        if [[ ${{ matrix.target }} == 'optim' ]]; then
+          if [[ ${{ matrix.build-system }} == 'make' ]]; then
+            cd ${{ env.MFEM_TOP_DIR }}
+            make -j 3 examples
+            make test
+          elif [[ ${{ matrix.build-system }} == 'cmake' ]]; then
+            cd ${{ env.MFEM_TOP_DIR }}
+            make -C build -j 3 examples
+            cd build && ctest --output-on-failure
+          fi
+        fi
 
     # Code coverage (process and upload reports)
     - name: codecov
