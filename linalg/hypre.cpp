@@ -4271,7 +4271,7 @@ void HypreBoomerAMG::SetDefaultOptions()
    // AMG coarsening options:
    int coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
    int agg_levels   = 0;    // number of aggressive coarsening levels
-   double theta     = 0.5; // strength threshold: 0.25, 0.5, 0.8
+   double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
    // AMG interpolation options:
    int interp_type  = 6;   // or 3 = direct
@@ -4680,12 +4680,21 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
+#ifndef HYPRE_USING_CUDA
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
    int amg_rlx_type     = 8;
    double theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
+#else
+   int amg_coarsen_type = 8;
+   int amg_agg_levels   = 0;
+   int amg_rlx_type     = 18;
+   double theta         = 0.25;
+   int amg_interp_type  = 6;
+   int amg_Pmax         = 4;
+#endif
 
    int dim = edge_fespace->GetMesh()->Dimension();
    int sdim = edge_fespace->GetMesh()->SpaceDimension();
@@ -4757,8 +4766,8 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       x = x_coord.ParallelProject();
       y = y_coord.ParallelProject();
 
-      x->HostReadWrite();
-      y->HostReadWrite();
+      x->HypreReadWrite();
+      y->HypreReadWrite();
       if (sdim == 2)
       {
          z = NULL;
@@ -4767,7 +4776,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       else
       {
          z = z_coord.ParallelProject();
-         z->HostReadWrite();
+         z->HypreReadWrite();
          HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
       }
    }
@@ -4918,12 +4927,21 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
+#ifndef HYPRE_USING_CUDA
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
    int amg_rlx_type     = 8;
    double theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
+#else
+   int amg_coarsen_type = 8;
+   int amg_agg_levels   = 0;
+   int amg_rlx_type     = 18;
+   double theta         = 0.25;
+   int amg_interp_type  = 6;
+   int amg_Pmax         = 4;
+#endif
    int ams_cycle_type   = 14;
 
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
@@ -4986,6 +5004,9 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
       x = x_coord.ParallelProject();
       y = y_coord.ParallelProject();
       z = z_coord.ParallelProject();
+      x->HypreReadWrite();
+      y->HypreReadWrite();
+      z->HypreReadWrite();
       HYPRE_ADSSetCoordinateVectors(ads, *x, *y, *z);
    }
    else
