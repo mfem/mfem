@@ -93,7 +93,6 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n), data(m*n)
 {
    MFEM_ASSERT(m >= 0 && n >= 0,
                "invalid DenseMatrix size: " << m << " x " << n);
-   const int capacity = m*n;
    *this = 0.0; // init with zeroes
 }
 
