@@ -27,7 +27,7 @@ using namespace std;
 Table::Table(const Table &table)
 {
    size = table.size;
-   if (size >=0)
+   if (size >= 0)
    {
       const int nnz = table.I[size];
       I.New(size+1, table.I.GetMemoryType());

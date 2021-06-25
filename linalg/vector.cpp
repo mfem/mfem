@@ -37,7 +37,7 @@ namespace mfem
 {
 
 Vector::Vector(const Vector &v)
-   : size(v.Size()), data(v.Size(), v.data.GetMemoryType())
+   : data(v.Size(), v.data.GetMemoryType()), size(v.Size())
 {
    const int s = v.Size();
    MFEM_ASSERT(!v.data.Empty(), "invalid source vector");

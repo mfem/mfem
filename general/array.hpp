@@ -68,7 +68,7 @@ public:
 
    /// Creates array of @a asize elements
    explicit inline Array(int asize)
-      : size(asize), data(asize) { }
+      : data(asize), size(asize) { }
 
    /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
@@ -626,7 +626,7 @@ inline void Swap(Array<T> &a, Array<T> &b)
 
 template <class T>
 inline Array<T>::Array(const Array &src)
-   : size(src.Size()), data(size, src.data.GetMemoryType())
+   : data(size, src.data.GetMemoryType()), size(src.Size())
 {
    data.CopyFrom(src.data, size);
    data.UseDevice(src.data.UseDevice());
@@ -634,7 +634,7 @@ inline Array<T>::Array(const Array &src)
 
 template <typename T> template <typename CT>
 inline Array<T>::Array(const Array<CT> &src)
-   : size(src.Size()), data(size)
+   : data(size), size(src.Size())
 {
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }

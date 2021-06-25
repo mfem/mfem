@@ -491,7 +491,7 @@ inline int CheckFinite(const double *v, const int n)
    return bad;
 }
 
-inline Vector::Vector(int s): size(s), data(s) { }
+inline Vector::Vector(int s): data(s), size(s) { }
 
 inline void Vector::SetSize(int s)
 {
