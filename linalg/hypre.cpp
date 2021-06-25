@@ -1439,8 +1439,10 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
    int nc = blocks.NumCols();
 
    hypre_ParCSRMatrix **hypre_blocks = new hypre_ParCSRMatrix*[nr * nc];
+   HostRead();
    internal::hypre_ParCSRMatrixSplit(A, nr, nc, hypre_blocks,
                                      interleaved_rows, interleaved_cols);
+   HypreRead();
 
    for (int i = 0; i < nr; i++)
    {
