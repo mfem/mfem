@@ -3133,6 +3133,8 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
                                         dg_.sigma,
                                         dg_.kappa,
                                         kappa2));
+   bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, 0.5));
+   bfbfi_marker_.Append(NULL);
 
    if (blf_[index_] == NULL)
    {
@@ -3151,6 +3153,8 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
                               dg_.sigma,
                               dg_.kappa,
                               kappa2));
+
+   blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef, 1.0, 0.5));
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
