@@ -634,7 +634,7 @@ inline Array<T>::Array(const Array &src)
 
 template <typename T> template <typename CT>
 inline Array<T>::Array(const Array<CT> &src)
-   : data(size), size(src.Size())
+   : data(src.Size()), size(src.Size())
 {
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
