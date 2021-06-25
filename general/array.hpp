@@ -626,7 +626,7 @@ inline void Swap(Array<T> &a, Array<T> &b)
 
 template <class T>
 inline Array<T>::Array(const Array &src)
-   : data(size, src.data.GetMemoryType()), size(src.Size())
+   : data(src.Size(), src.data.GetMemoryType()), size(src.Size())
 {
    data.CopyFrom(src.data, size);
    data.UseDevice(src.data.UseDevice());

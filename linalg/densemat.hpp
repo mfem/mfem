@@ -772,7 +772,7 @@ public:
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
       : Mk(NULL, other.Mk.height, other.Mk.width),
-        tdata(Mk.Height()*Mk.Width()*nk, other.tdata.GetMemoryType()),
+        tdata(Mk.Height()*Mk.Width()*other.nk, other.tdata.GetMemoryType()),
         nk(other.nk)
    {
       const int size = Mk.Height()*Mk.Width()*nk;
