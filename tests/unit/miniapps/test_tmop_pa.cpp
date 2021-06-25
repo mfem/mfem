@@ -746,6 +746,7 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../miniapps/meshing/square01.mesh").REFINE(1).
           NORMALIZATION(true).
           POR({1,2}).QOR({4,6}).
+          LINEAR_ITERATIONS(150).
           TID({5}).MID({80}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("Blade").
