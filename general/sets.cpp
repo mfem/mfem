@@ -11,7 +11,6 @@
 
 #include "sets.hpp"
 
-
 namespace mfem
 {
 
@@ -250,13 +249,19 @@ void DisjointSets::Finalize()
       largestGroup = largestGroup >= size[rep] ? largestGroup :   size[rep]+1;
       smallest_unused++;
    }
-   sizeCounters.SetSize(largestGroup,0);
+   MFEM_ASSERT(largestGroup >= 1,"Largest cluster size "<<largestGroup<<" < 1");
+   // sizeCounter should range from [0, maxClusterSize], where sizeCounter[i] returns the
+   // number of clusters of size 'i'. But since there __cannot__ be a 0 sized cluster
+   // sizeCounter[0] will always be zero. To save on space and make subsequent use easier
+   // we simply shift the entries such that sizeCounter[i] returns the number of clusters
+   // of size 'i' + 1.
+   sizeCounters.SetSize(largestGroup-1,0);
 
    // Assemble the elems array
    for (int i = 0; i < parent.Size(); ++i)
    {
       int group = reps_to_groups[Find(i)];
-      ++sizeCounters[bounds[group+1]-bounds[group]];
+      ++sizeCounters[bounds[group+1]-bounds[group]-1];
       for (int j = bounds[group]; j < bounds[group+1]; ++j)
       {
          if (elems[j] == -1)
@@ -266,7 +271,8 @@ void DisjointSets::Finalize()
          }
       }
    }
-   for (int i = 2; i < sizeCounters.Size(); ++i) { sizeCounters[i] /= i; }
+   // Why i+1? recall the shift rationale from above
+   for (int i = 1; i < sizeCounters.Size(); ++i) { sizeCounters[i] /= (i+1); }
 
    elem_to_group = Array<int>(elems.Size());
    for (int group = 0; group < bounds.Size()-1; ++group)

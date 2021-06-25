@@ -110,7 +110,7 @@ static UserCtx ParseCommandLineOptions(int argc, char *argv[])
    const char *smoother = "DR";
    const char *solver   = "simpleamg";
    const char *device   = "cuda";
-   int        nRefine = 1, order = 3;
+   int        nRefine = 1, order = 4;
    OptionsParser args(argc,argv);
 
    args.AddOption(&device, "-d", "--device",
@@ -162,8 +162,6 @@ int main(int argc, char *argv[])
    OperatorHandle A;
 
    x = 0.0;
-   X = 0.0;
-   B.Randomize(8675309);
    a.FormLinearSystem(ess_dofs,x,b,A,X,B);
 
    LORDiscretization    lor(a,ess_dofs);
@@ -171,8 +169,8 @@ int main(int argc, char *argv[])
    LORInfo              lorInfo(*lor.GetFESpace().GetMesh(),ctx->mesh,ctx->order);
    DisjointSets        *cluster = lorInfo.Cluster();
    PrintClusteringStats(std::cout,cluster);
-   LORSolver<SimpleAMG> lorSol(lor,&ALor,new DRSmoother(cluster,&ALor,dim == 3),
-                               MPI_COMM_WORLD);
+   DRSmoother           smoother(cluster,&ALor,dim == 3);
+   LORSolver<SimpleAMG> lorSol(lor,&ALor,&smoother,MPI_COMM_WORLD);
 
    CGSolver cg;
 

@@ -35,6 +35,7 @@ protected:
    const SparseMatrix *A;
 
    Vector diagonal_scaling;
+   std::vector<Array<int>> clusterPack;
 
    const Operator *oper;
 
@@ -42,14 +43,15 @@ protected:
 
    // Smoother helpers
    void DRSmootherJacobi(const Vector &b, Vector &x) const;
+   void MFEM_DEPRECATED(DRSmootherJacobiDevice(const Vector &b, Vector &x) const);
    static void L1Jacobi(const Vector &x0, Vector &x1, const SparseMatrix &A);
    void GtAGDiagScale(const Vector &b, Vector &x) const;
 
    // Constructor helpers
    void FormG(const DisjointSets *clustering);
-   void MFEM_DEPRECATED(FormGDevice(const DisjointSets *clustering,Array<int>&,
-                                    Vector&));
-
+   // Temporary device version of FormG, should ultimately be removed (hence the
+   // deprecation macro wrap)
+   void MFEM_DEPRECATED(FormGDevice(const DisjointSets *clustering));
 public:
 
    /// Create distributive relaxation smoother.
@@ -92,7 +94,7 @@ public:
       G = g; clustering = clusters; coeffs = NULL; matrix_free = false;
       width = G->Width(); height = G->Height();
    }
-   DRSmootherG(const DisjointSets *clusters, const Array<double> *coeff_data)
+   DRSmootherG(const DisjointSets *clusters, const Array<double> *coeff_data=NULL)
       : G(NULL), clustering(clusters), coeffs(coeff_data), matrix_free(true)
    {
       width = height = clustering->Size();
