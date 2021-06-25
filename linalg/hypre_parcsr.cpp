@@ -1828,12 +1828,12 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
          temporary memory usage. */
 
       /* Add diagonals, off-diagonals, copy cmap. */
-      C_diag = hypre_CSRMatrixAdd(A_diag, B_diag);
+      C_diag = hypre_CSRMatrixAdd(1.0, A_diag, 1.0, B_diag);
       if (!C_diag)
       {
          return NULL; /* error: A_diag and B_diag have different dimensions */
       }
-      C_offd = hypre_CSRMatrixAdd(A_offd, B_offd);
+      C_offd = hypre_CSRMatrixAdd(1.0, A_offd, 1.0, B_offd);
       if (!C_offd)
       {
          hypre_CSRMatrixDestroy(C_diag);
@@ -1881,7 +1881,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
       csr_B = hypre_MergeDiagAndOffd(B);
 
       /* add A and B */
-      csr_C_temp = hypre_CSRMatrixAdd(csr_A,csr_B);
+      csr_C_temp = hypre_CSRMatrixAdd(1.0, csr_A, 1.0, csr_B);
 
       /* delete CSR versions of A and B */
       ierr += hypre_CSRMatrixDestroy(csr_A);

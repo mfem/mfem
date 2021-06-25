@@ -4678,7 +4678,6 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
 void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 {
    int cycle_type       = 13;
-   int rlx_type         = 2;
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
@@ -4686,6 +4685,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
    int amg_rlx_type     = 8;
+   int rlx_type         = 2;
    double theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
@@ -4693,6 +4693,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int amg_coarsen_type = 8;
    int amg_agg_levels   = 0;
    int amg_rlx_type     = 18;
+   int rlx_type         = 1;
    double theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
@@ -4865,6 +4866,9 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
                                theta, amg_interp_type, amg_Pmax);
    HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                               theta, amg_interp_type, amg_Pmax);
+
+   HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, amg_rlx_type);
+   HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, amg_rlx_type);
 
    // The AMS preconditioner may sometimes require inverting singular matrices
    // with BoomerAMG, which are handled correctly in hypre's Solve method, but
