@@ -180,10 +180,7 @@ public:
       : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
         flags(orig.flags)
    {
-      orig.h_ptr = nullptr;
-      orig.capacity = 0;
-      orig.h_mt = MemoryType::DEFAULT;
-      orig.flags = 0;
+      orig.Reset();
    }
 
    /// Copy-assignment operator: default.
@@ -196,11 +193,8 @@ public:
       h_ptr = orig.h_ptr;
       capacity = orig.capacity;
       h_mt = orig.h_mt;
-      flags = orig.flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL);
-      orig.h_ptr = nullptr;
-      orig.capacity = 0;
-      orig.h_mt = MemoryType::DEFAULT;
-      orig.flags = 0;
+      flags = orig.flags;
+      orig.Reset();
       return *this;
    }
 
