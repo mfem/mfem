@@ -175,7 +175,7 @@ public:
    /// Copy constructor, does not take ownership.
    Memory(const Memory &orig)
    {
-      MakesAlias(orig, 0, orig.capacity);
+      MakeAlias(orig, 0, orig.capacity);
    }
 
    /// Move constructor: default.
@@ -184,7 +184,7 @@ public:
    /// Copy-assignment operator, does not take ownership.
    Memory &operator=(const Memory &orig)
    {
-      MakesAlias(orig, 0, orig.capacity);
+      MakeAlias(orig, 0, orig.capacity);
       return *this;
    }
 
