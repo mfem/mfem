@@ -541,8 +541,8 @@ The specific libraries and their options are:
   URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
   Versions: HYPRE >= 2.10.0b  (HYPRE built without CUDA)
-            HYPRE >= 2.20.0   (HYPRE built with CUDA, older versions OK?)
             HYPRE >= 2.20.0   (for '--enable-mixedint' support.)
+            HYPRE >= 2.22.0   (HYPRE built with CUDA)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
