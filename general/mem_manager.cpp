@@ -1102,22 +1102,20 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                  (base_flags & (Mem::VALID_HOST | Mem::VALID_DEVICE));
 }
 
-MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr)
+MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr, bool alias)
 {
    if (mm.exists)
    {
-      const bool known = mm.IsKnown(h_ptr);
-      if (known)
+      if (!alias)
       {
-         internal::Memory &mem = maps->memories.at(h_ptr);
-         return mem.d_mt;
+         auto iter = maps->memories.find(h_ptr);
+         MFEM_ASSERT(iter != maps->memories.end(), "internal error");
+         return iter->second.d_mt;
       }
-      const bool alias = mm.IsAlias(h_ptr);
-      if (alias)
-      {
-         internal::Memory *mem = maps->aliases.at(h_ptr).mem;
-         return mem->d_mt;
-      }
+      // alias == true
+      auto iter = maps->aliases.find(h_ptr);
+      MFEM_ASSERT(iter != maps->aliases.end(), "internal error");
+      return iter->second.mem->d_mt;
    }
    MFEM_ABORT("internal error");
    return MemoryManager::host_mem_type;
@@ -1299,7 +1297,9 @@ void MemoryManager::Insert(void *h_ptr, size_t bytes,
    if (res.second == false)
    {
       auto &m = res.first->second;
-      MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt && m.d_mt == d_mt,
+      MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt &&
+                  (m.d_mt == d_mt || (d_mt == MemoryType::DEFAULT &&
+                                      m.d_mt == GetDualMemoryType(h_mt))),
                   "Address already present with different attributes!");
 #ifdef MFEM_TRACK_MEM_MANAGER
       mfem::out << "[mfem memory manager]: repeated registration of h_ptr: "

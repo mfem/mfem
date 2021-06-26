@@ -1345,14 +1345,29 @@ void HypreParMatrix::CopyColStarts()
 
 void HypreParMatrix::GetDiag(Vector &diag) const
 {
-   // FIXME
-   int size = Height();
+   const int size = Height();
    diag.SetSize(size);
-   for (int j = 0; j < size; j++)
+#ifdef HYPRE_USING_CUDA
+   if (Device::Allows(Backend::CUDA_MASK))
    {
-      diag(j) = A->diag->data[A->diag->i[j]];
-      MFEM_ASSERT(A->diag->j[A->diag->i[j]] == j,
-                  "the first entry in each row must be the diagonal one");
+      MFEM_ASSERT(A->diag->memory_location == HYPRE_MEMORY_DEVICE, "");
+      double *d_diag = diag.Write();
+      const HYPRE_Int *A_diag_i = A->diag->i;
+      const double *A_diag_d = A->diag->data;
+      MFEM_FORALL(i, size, d_diag[i] = A_diag_d[A_diag_i[i]];);
+   }
+   else
+#endif
+   {
+      diag.HostWrite();
+      HostRead();
+      for (int j = 0; j < size; j++)
+      {
+         diag(j) = A->diag->data[A->diag->i[j]];
+         MFEM_ASSERT(A->diag->j[A->diag->i[j]] == j,
+                     "the first entry in each row must be the diagonal one");
+      }
+      HypreRead();
    }
 }
 
@@ -2463,7 +2478,11 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
                          bool own_matrix)
 {
    hypre_ParCSRMatrix * ab;
+#ifdef HYPRE_USING_CUDA
+   ab = hypre_ParCSRMatMat(*A, *B);
+#else
    ab = hypre_ParMatmul(*A,*B);
+#endif
    hypre_ParCSRMatrixSetNumNonzeros(ab);
 
    hypre_MatvecCommPkgCreate(ab);
@@ -2979,6 +2998,7 @@ HypreSmoother::HypreSmoother() : Solver()
    pos_l1_norms = false;
    eig_est_cg_iter = 10;
    B = X = V = Z = NULL;
+   auxB.Reset(); auxX.Reset();
    X0 = X1 = NULL;
    fir_coeffs = NULL;
    A_is_symmetric = false;
@@ -3000,6 +3020,7 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
    l1_norms = NULL;
    pos_l1_norms = false;
    B = X = V = Z = NULL;
+   auxB.Reset(); auxX.Reset();
    X0 = X1 = NULL;
    fir_coeffs = NULL;
    A_is_symmetric = false;
@@ -3068,6 +3089,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    height = A->Height();
    width = A->Width();
 
+   auxX.Delete(); auxB.Delete();
    if (B) { delete B; }
    if (X) { delete X; }
    if (V) { delete V; }
@@ -3080,6 +3102,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    delete X1;
 
    X1 = X0 = Z = V = B = X = NULL;
+   auxB.Reset(); auxX.Reset();
 
    if (type >= 1 && type <= 4)
    {
@@ -3100,10 +3123,18 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    if (l1_norms && pos_l1_norms)
    {
+#ifdef HYPRE_USING_CUDA
+      double *d_l1_norms = l1_norms;  // avoid *this capture
+      CuWrap1D(height, [=] MFEM_DEVICE (int i)
+      {
+         d_l1_norms[i] = std::abs(d_l1_norms[i]);
+      });
+#else
       for (int i = 0; i < height; i++)
       {
          l1_norms[i] = std::abs(l1_norms[i]);
       }
+#endif
    }
 
    if (type == 16)
@@ -3201,22 +3232,25 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
 
    // TODO: figure out where each function needs A, b, and x ...
 
-   b.HostRead();
+   b.HypreRead();
    if (!iterative_mode)
    {
+      x.HypreWrite();
       if (type == 0 && relax_times == 1)
       {
-         x.HostWrite();
-         HYPRE_ParCSRDiagScale(NULL, *A, b, x);
+         hypre_ParCSRDiagScale(*A, b, x);
          if (relax_weight != 1.0)
          {
-            x *= relax_weight;
+            hypre_ParVectorScale(relax_weight, x);
          }
          return;
       }
-      x = 0.0;
+      hypre_ParVectorSetConstantValues(x, 0.0);
    }
-   x.HostReadWrite();
+   else
+   {
+      x.HypreReadWrite();
+   }
 
    if (V == NULL)
    {
@@ -3265,35 +3299,63 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSmoother::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_ASSERT(b.Size() == NumCols(), "");
+   MFEM_ASSERT(x.Size() == NumRows(), "");
+
    if (A == NULL)
    {
       mfem_error("HypreSmoother::Mult (...) : HypreParMatrix A is missing");
       return;
    }
 
-   // TODO: wrap b and x properly in B and X ...
-
-   auto b_data = b.HostRead();
-   auto x_data = iterative_mode ? x.HostReadWrite() : x.HostWrite();
-
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             const_cast<double*>(b_data),
+                             nullptr,
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             x_data,
+                             nullptr,
                              A -> GetColStarts());
+   }
+
+   const bool bshallow = CanShallowCopy(b.GetMemory(), GetHypreMemoryClass());
+   const bool xshallow = CanShallowCopy(x.GetMemory(), GetHypreMemoryClass());
+
+   if (bshallow)
+   {
+      B->WrapMemoryRead(b.GetMemory());
    }
    else
    {
-      B -> SetData(const_cast<double*>(b_data));
-      X -> SetData(x_data);
+      if (auxB.Empty()) { auxB.New(NumCols(), GetHypreMemoryType()); }
+      auxB.CopyFrom(b.GetMemory(), auxB.Capacity());  // Deep copy
+      B->WrapMemoryRead(auxB);
+   }
+
+   if (xshallow)
+   {
+      if (iterative_mode) { X->WrapMemoryReadWrite(x.GetMemory()); }
+      else { X->WrapMemoryWrite(x.GetMemory()); }
+   }
+   else
+   {
+      if (auxX.Empty()) { auxX.New(NumRows(), GetHypreMemoryType()); }
+      if (iterative_mode)
+      {
+         auxX.CopyFrom(x.GetMemory(), x.Size());  // Deep copy
+         X->WrapMemoryReadWrite(auxX);
+      }
+      else
+      {
+         X->WrapMemoryWrite(auxX);
+      }
    }
 
    Mult(*B, *X);
+
+   if (!xshallow) { x = *X; }  // Deep copy
 }
 
 void HypreSmoother::MultTranspose(const Vector &b, Vector &x) const
@@ -3308,6 +3370,7 @@ void HypreSmoother::MultTranspose(const Vector &b, Vector &x) const
 
 HypreSmoother::~HypreSmoother()
 {
+   auxX.Delete(); auxB.Delete();
    if (B) { delete B; }
    if (X) { delete X; }
    if (V) { delete V; }
@@ -3393,6 +3456,9 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_ASSERT(b.Size() == NumCols(), "");
+   MFEM_ASSERT(x.Size() == NumRows(), "");
+
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -3413,9 +3479,6 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
 
    const bool bshallow = CanShallowCopy(b.GetMemory(), GetHypreMemoryClass());
    const bool xshallow = CanShallowCopy(x.GetMemory(), GetHypreMemoryClass());
-
-   MFEM_ASSERT(b.Size() == NumCols(), "");
-   MFEM_ASSERT(x.Size() == NumRows(), "");
 
    if (bshallow)
    {

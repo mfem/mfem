@@ -32,6 +32,10 @@
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
 
+#if defined(HYPRE_USING_CUDA) && !defined(MFEM_USE_CUDA)
+#error "MFEM_USE_CUDA=YES is required when HYPRE is built with CUDA!"
+#endif
+
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
 
@@ -276,7 +280,7 @@ private:
    /// Auxiliary vectors for typecasting
    mutable HypreParVector *X, *Y;
    /** @brief Auxiliary buffers for the case when the input or output arrays in
-       methods like Mult(double, const Vector &, double, Vector &) needs to be
+       methods like Mult(double, const Vector &, double, Vector &) need to be
        deep copied in order to be used by hypre. */
    mutable Memory<double> auxX, auxY;
 
@@ -302,6 +306,8 @@ private:
 
    // Does the object own the pointer A?
    signed char ParCSROwner;
+
+   MemoryIJData mem_diag, mem_offd;
 
    // Initialize with defaults. Does not initialize inherited members.
    void Init();
@@ -376,8 +382,6 @@ private:
    // will be updated with the new pointers.
    static signed char HypreCsrToMem(hypre_CSRMatrix *h_mat, MemoryType h_mat_mt,
                                     bool own_ija, MemoryIJData &mem);
-
-   MemoryIJData mem_diag, mem_offd;
 
 public:
    /// An empty matrix to be used as a reference to an existing matrix
@@ -836,6 +840,10 @@ protected:
    HypreParMatrix *A;
    /// Right-hand side and solution vectors
    mutable HypreParVector *B, *X;
+   /** @brief Auxiliary buffers for the case when the input or output arrays in
+       methods like Mult(const Vector &, Vector &) need to be deep copied in
+       order to be used by hypre. */
+   mutable Memory<double> auxB, auxX;
    /// Temporary vectors
    mutable HypreParVector *V, *Z;
    /// FIR Filter Temporary Vectors
