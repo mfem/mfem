@@ -213,10 +213,10 @@ jobs:
             codecov: NO
           - target: optim
             codecov: YES
-          - target: optim
-            codecov: NO
-            mpi: parallel
-            build-system: cmake
+#          - target: optim
+#            codecov: NO
+#            mpi: parallel
+#            build-system: cmake
     name: test-linux-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
 
     steps:
