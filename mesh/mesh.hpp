@@ -486,6 +486,9 @@ protected:
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
    void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
+   /// Internal helper used in ExtractMesh
+   void ExtractMesh_(const Mesh &orig_mesh, const Array<int> & elems);
+
 public:
 
    Mesh() { SetEmpty(); }
@@ -578,6 +581,11 @@ public:
        @warning The curvature of the original mesh is not carried over to the
        new mesh. Periodic meshes are not supported. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
+
+   /** Create a mesh by extracting from @a orig_mesh the given list of
+       @a elems. Periodic and high-order meshes are also supported.
+       @warning NonConforming meshes are not supported. */
+   static Mesh ExtractMesh(const Mesh &orig_mesh, const Array<int> & elems);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.
    /** Each vertex @a i will be mapped to vertex @a v2v[i], such that all

@@ -23,10 +23,9 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
    // mesh.Print(cout);
-   // mesh.UniformRefinement();
+   mesh.UniformRefinement();
 
    // mesh.EnsureNodes();
-
    // Array<int> elems0({0,4,8,12,16});
    // Array<int> elems0({0,4,8,12,16});
    // Array<int> elems0({6,7,8});
@@ -41,14 +40,12 @@ int main(int argc, char *argv[])
    // Array<int> bdrelems0({8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23});
    cout << "number of boundary elements = " << mesh.GetNBE() << endl;
    Array<int> bdrelems0({0,1});
-   
-   // Array<int> bdrelems0(1); bdrelems0 = 1;
-   Mesh * bdrmesh0 = subdomain0.GetBdrSurfaceMesh(bdrelems0);
-
-   // // Array<int> faceelems0({153,151}); 
-   // Array<int> faceelems0({3,4}); 
-   // Mesh * surfmesh0 = subdomain0.GetSurfaceMesh(faceelems0);
-
+   Array<int> faces(bdrelems0.Size());
+   for (int i = 0; i<bdrelems0.Size(); i++)
+   {
+      faces[i] = mesh.GetBdrFace(bdrelems0[i]);
+   }
+   Mesh * surfmesh0 = subdomain0.GetSurfaceMesh(faces);
 
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
@@ -60,7 +57,6 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream mesh_sock(vishost, visport);
       mesh_sock.precision(8);
-      // mesh_sock << "mesh\n" << mesh << "keys n \n" << flush;
       mesh_sock << "solution\n" << mesh << gf 
       << "valuerange -1.0 1.0 \n" << flush;
    }
@@ -71,28 +67,13 @@ int main(int argc, char *argv[])
    FiniteElementSpace * elem_fes = 
                subdomain0.GetSubFESpace(Subdomain::entity_type::volume);
    GridFunction gf_e(elem_fes);
-   if (!P)
-   {
-      cout << "P is null" << endl;
-   }
-   cout << "P->size = " << P->Height() << " x " << P->Width() << endl;
-   cout << "gf.Size = " << gf.Size() << endl;
-   cout << "gf_e.Size = " << gf_e.Size() << endl;
    P->MultTranspose(gf,gf_e);
 
-
-   SparseMatrix * Pb = subdomain0.GetBdrProlonationMatrix();
-   FiniteElementSpace * bdr_elem_fes = 
-               subdomain0.GetSubFESpace(Subdomain::entity_type::bdr);
-   GridFunction gf_b(bdr_elem_fes);
-   Pb->MultTranspose(gf,gf_b);
-   // SparseMatrix * Pf = subdomain0.GetFaceProlonationMatrix();
-
-   // FiniteElementSpace * face_elem_fes = 
-   //          subdomain0.GetSubFESpace(Subdomain::entity_type::face);     
-   // GridFunction gf_f(face_elem_fes);
-   // Pf->MultTranspose(gf,gf_f);
-
+   SparseMatrix * Pf = subdomain0.GetSurfaceProlonationMatrix();
+   FiniteElementSpace * face_elem_fes = 
+               subdomain0.GetSubFESpace(Subdomain::entity_type::surface);
+   GridFunction gf_f(face_elem_fes);
+   Pf->MultTranspose(gf,gf_f);
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -104,37 +85,25 @@ int main(int argc, char *argv[])
          mesh0_sock << "solution\n" << *submesh0 << gf_e 
          << "valuerange -1.0 1.0 \n" << flush;
       }
-      if (bdrmesh0)
+      if (surfmesh0 && mesh.Dimension()==3)
       {
          socketstream mesh1_sock(vishost, visport);
          mesh1_sock.precision(8);
          // mesh1_sock << "mesh\n" << *bdrmesh0 << "keys n \n" << flush;
-         mesh1_sock << "solution\n" << *bdrmesh0 << gf_b 
+         mesh1_sock << "solution\n" << *surfmesh0 << gf_f 
          << "valuerange -1.0 1.0 \n" << flush;
       }
-      // if (surfmesh0)
-      // {
-      //    socketstream mesh2_sock(vishost, visport);
-      //    mesh2_sock.precision(8);
-      //    // mesh2_sock << "mesh\n" << *surfmesh0 << "keys n \n" << flush;
-      //    mesh2_sock << "solution\n" << *surfmesh0 << gf_f << 
-         // << "keys \n" 
-         // << "valuerange -1.0 1.0 \n" << flush;
-      // }
    }
 
-   // Array<int> bdr_elems;
+   // Array<int> bdr_faces;
    // for (int i =0; i<mesh.GetNBE(); i++)
    // {
    //    int attr = mesh.GetBdrAttribute(i);
    //    if (attr == 4)
    //    {
-   //       bdr_elems.Append(i);
+   //       bdr_faces.Append(mesh.GetBdrFace(i));
    //    }
    // }
-   // // bdr_elems.SetSize(1);
-   // // bdr_elems[0] = 1;
-   // // bdr_elems.Print();
 
    // H1_FECollection fec(order, mesh.Dimension());
    // FiniteElementSpace fespace(&mesh, &fec);
@@ -154,17 +123,17 @@ int main(int argc, char *argv[])
 
    // Subdomain subdomain1(mesh);
    // subdomain1.SetFESpace(fespace);
-   // Mesh * bdrmesh0 = subdomain1.GetBdrSurfaceMesh(bdr_elems);
+   // Mesh * bdrmesh0 = subdomain1.GetBdrSurfaceMesh(bdr_faces);
    // SparseMatrix * Pb = subdomain1.GetBdrProlonationMatrix();
    // FiniteElementSpace * bdr_elem_fes = 
    //             subdomain1.GetSubFESpace(Subdomain::entity_type::bdr);
-   // GridFunction gf_b(bdr_elem_fes);
-   // Pb->MultTranspose(gf,gf_b);
+   // GridFunction gf_f(bdr_elem_fes);
+   // Pb->MultTranspose(gf,gf_f);
 
 
 
    // // gf.Print();
-   // // gf_b.Print();
+   // // gf_f.Print();
    // // bdrmesh0->Print(cout);
 
    // if (bdrmesh0)
@@ -174,20 +143,20 @@ int main(int argc, char *argv[])
    //    socketstream mesh1_sock(vishost, visport);
    //    mesh1_sock.precision(8);
    //    // mesh1_sock << "mesh\n" << *bdrmesh0 << "keys n \n" << flush;
-   //    mesh1_sock << "solution\n" << *bdrmesh0 << gf_b << flush;
+   //    mesh1_sock << "solution\n" << *bdrmesh0 << gf_f << flush;
    //    // << "valuerange -5000.0 5000.0 \n" << flush;
    // }
 
-   ParaViewDataCollection paraview_dc("mesh_partition", bdrmesh0);
+   ParaViewDataCollection paraview_dc("mesh_partition", surfmesh0);
    paraview_dc.SetPrefixPath("ParaView");
-   const FiniteElementSpace * fes_ = bdrmesh0->GetNodalFESpace();
+   const FiniteElementSpace * fes_ = surfmesh0->GetNodalFESpace();
    int ord = (fes_) ? fes_->GetOrder(0) : order;
    paraview_dc.SetLevelsOfDetail(5);
    paraview_dc.SetCycle(0);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("solution",&gf_b);
+   paraview_dc.RegisterField("solution",&gf_f);
    paraview_dc.Save();
 
 

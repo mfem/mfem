@@ -208,6 +208,10 @@ protected:
    /// Internal function used in ParMesh::MakeRefined (and related constructor)
    void MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type);
 
+
+   /// Internal helper used in ExtractMesh_
+   void ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems);
+
    // Mark Mesh::Swap as protected, should use ParMesh::Swap to swap @a ParMesh
    // objects.
    using Mesh::Swap;
@@ -268,6 +272,11 @@ public:
    /** Create a mesh by splitting each element of @a orig_mesh into simplices.
        See @a Mesh::MakeSimplicial for more details. */
    static ParMesh MakeSimplicial(ParMesh &orig_mesh);
+
+   /** Create a mesh by extracting from @a orig_mesh the given list of
+       @a elems. Periodic and high-order meshes are also supported.
+       @warning NonConforming meshes are not supported. */
+   static ParMesh ExtractMesh(ParMesh &orig_mesh, const Array<int> & elems);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
