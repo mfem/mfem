@@ -31,25 +31,44 @@ int main(int argc, char *argv[])
 
    ParMesh orig_pmesh(MPI_COMM_WORLD, orig_mesh);
 
-   orig_pmesh.Save("orig_mesh.mesh");
+
+
+   // orig_pmesh.Save("orig_mesh.mesh");
 
    // mesh.EnsureNodes();
+   Array<int> elems;
+   if (myid == 0)
+   {
+      elems.Append(1);
+      elems.Append(3);
+   }
+   else if (myid == 1)
+   {
+      elems.Append(0);
+      elems.Append(4);
+   }
+   else if (myid == 2)
+   {
+      elems.Append(0);
+      elems.Append(4);
+   }
    // mesh.UniformRefinement();
    // Array<int> elems({1,3,21,10,20,2,0});
-   int nel = orig_pmesh.GetNE()/2;
+   int nel = orig_pmesh.GetNE();
    // int nel = elems.Size();
-   Array<int> elems(nel);
-   for (int i = 0; i<nel; i++)
-   {
-      elems[i] = i;
-   }
-   elems.Print();
+   // elems.SetSize(nel);
+   // for (int i = 0; i<nel; i++)
+   // {
+   //    elems[i] = i;
+   // }
+   // elems.Print();
 
+   // ParMesh new_pmesh = ParMesh::MakeRefined(orig_pmesh,1,1);
    ParMesh new_pmesh = ParMesh::ExtractMesh(orig_pmesh,elems);
    new_pmesh.CheckElementOrientation(true);
    new_pmesh.CheckBdrElementOrientation(true);
-
-   new_pmesh.Save("new_mesh.mesh");
+   cout << "new mesh extracted " << endl;
+   // new_pmesh.Save("new_mesh.mesh");
 
 
    {
@@ -67,8 +86,10 @@ int main(int argc, char *argv[])
    }
 
 
-   SolveEx1p(orig_pmesh,2,mpi);
+   // SolveEx1p(orig_pmesh,2,mpi);
    SolveEx1p(new_pmesh,2,mpi);
+
+   cout << "myid = " << myid << ", NGroups = " << orig_pmesh.GetNGroups() << endl;
 
 
 

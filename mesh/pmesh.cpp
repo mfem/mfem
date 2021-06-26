@@ -1526,9 +1526,19 @@ void ParMesh::ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems)
    pncmesh = NULL;
 
    Mesh::ExtractMesh_(orig_mesh,elems);
+   // Array<int> ref_factors(orig_mesh.GetNE());
+   // ref_factors = 1;
+   // Mesh::MakeRefined_(orig_mesh, ref_factors, 1);
+
 
    Array<int> vmarker(orig_mesh.GetNV()); vmarker = -1;
    Array<int> emarker(orig_mesh.GetNEdges()); emarker = -1;
+
+   H1_FECollection fec(1,orig_mesh.Dimension());
+   ParFiniteElementSpace fes(&orig_mesh,&fec);
+   int ntdof = fes.GetTrueVSize();
+
+   Array<int> globaltdof2dof;
 
    int new_nv = 0;
    int new_ne = 0;
@@ -1566,22 +1576,32 @@ void ParMesh::ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems)
 
    meshgen = orig_mesh.meshgen; // copy the global 'meshgen'
 
+
    group_svert.MakeI(GetNGroups()-1); // exclude the local group 0
    group_sedge.MakeI(GetNGroups()-1);
    group_stria.MakeI(GetNGroups()-1);
    group_squad.MakeI(GetNGroups()-1);
-   Array<int> new_shared_vertices;
-   Array<int> new_shared_edges;
-   Array<int> new_shared_edges_or;
+   // counters
+   Array<int> new_shared_vertices(GetNGroups()-1); new_shared_vertices = 0;
+   Array<int> new_shared_edges(GetNGroups()-1); new_shared_edges = 0;
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       const int orig_n_verts = orig_mesh.GroupNVertices(gr);
       for (int j = 0; j < orig_n_verts; j++)
       {
          int shared_origv = orig_mesh.GroupVertex(gr, j);
+         // need to find if it's still shared.
+         // This is not enough
          if (vmarker[shared_origv] !=-1 )
          {
-            new_shared_vertices.Append(vmarker[shared_origv]);
+            if (MyRank == 1)
+            {
+               mfem::out << "group = " << gr << endl;
+               mfem::out << "shared_origv = " << shared_origv << endl;
+               mfem::out << "vmarker[shared_origv] = " << vmarker[shared_origv] << endl;
+            }
+
+            new_shared_vertices[gr-1]++;
          }
       }
       const int orig_n_edges = orig_mesh.GroupNEdges(gr);
@@ -1591,20 +1611,26 @@ void ParMesh::ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems)
          orig_mesh.GroupEdge(gr, j, shared_orige,orient);
          Array<int> vert;
          orig_mesh.GetEdgeVertices(shared_orige,vert);
-         if (vmarker[vert[0]] != -1 && vmarker[vert[1]] != -1)
+         // if (vmarker[vert[0]] != -1 && vmarker[vert[1]] != -1)
+         if (emarker[shared_orige] != -1)
          {
-            // shared_e++;
-            new_shared_edges.Append(emarker[shared_orige]);
-            new_shared_edges_or.Append(orient);
+            new_shared_edges[gr-1]++;
          }
       }
    }
 
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
-      group_svert.AddColumnsInRow(gr-1, new_shared_vertices.Size());
-      group_sedge.AddColumnsInRow(gr-1, new_shared_edges.Size());
+      group_svert.AddColumnsInRow(gr-1, new_shared_vertices[gr-1]);
+      group_sedge.AddColumnsInRow(gr-1, new_shared_edges[gr-1]);
+      // mfem::out << "myid = " << MyRank <<" edges = " << new_shared_edges[gr-1] << endl;
+      mfem::out << "myid = " << MyRank <<" vert = " << new_shared_vertices[gr-1] <<
+                endl;
    }
+
+   // H1_FECollection rfec(1, orig_mesh.Dimension());
+   // ParFiniteElementSpace rfes(&orig_mesh, &rfec);
+   // int ref_factor = 1;
 
    group_svert.MakeJ();
    svert_lvert.Reserve(group_svert.Size_of_connections());
@@ -1619,21 +1645,72 @@ void ParMesh::ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems)
    shared_quads.Reserve(group_squad.Size_of_connections());
    sface_lface.SetSize(shared_trias.Size() + shared_quads.Size());
 
+
+   // Array<int> rdofs;
+   // for (int gr = 1; gr < GetNGroups(); gr++)
+   // {
+   //    const int orig_n_verts = orig_mesh.GroupNVertices(gr);
+   //    for (int j = 0; j < orig_n_verts; j++)
+   //    {
+   //       rfes.GetVertexDofs(orig_mesh.GroupVertex(gr, j), rdofs);
+   //       group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[0])-1);
+   //    }
+   //    const int orig_n_edges = orig_mesh.GroupNEdges(gr);
+   //    if (orig_n_edges > 0)
+   //    {
+   //       const Geometry::Type geom = Geometry::SEGMENT;
+   //       const int nvert = Geometry::NumVerts[geom];
+   //       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, 1);
+   //       const int *c2h_map = rfec.GetDofMap(geom, 1); // FIXME hp
+
+   //       for (int e = 0; e < orig_n_edges; e++)
+   //       {
+   //          rfes.GetSharedEdgeDofs(gr, e, rdofs);
+   //          MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
+   //          // add the internal edge 'rdofs' as shared vertices
+   //          for (int j = 2; j < rdofs.Size(); j++)
+   //          {
+   //             group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
+   //          }
+   //          for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
+   //          {
+   //             Element *elem = NewElement(geom);
+   //             int *v = elem->GetVertices();
+   //             for (int k = 0; k < nvert; k++)
+   //             {
+   //                int cid = RG.RefGeoms[j+k]; // local Cartesian index
+   //                v[k] = rdofs[c2h_map[cid]];
+   //             }
+   //             group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
+   //          }
+   //       }
+   //    }
+
+
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
-      for (int j=0; j<new_shared_vertices.Size(); j++)
+      const int orig_n_verts = orig_mesh.GroupNVertices(gr);
+      for (int j = 0; j < orig_n_verts; j++)
       {
-         group_svert.AddConnection(gr-1, svert_lvert.Append(new_shared_vertices[j])-1);
-         // group_svert.AddConnection(gr-1, new_shared_vertices[j]);
-      }
-      if (new_shared_edges.Size() > 0)
-      {
-         const Geometry::Type geom = Geometry::SEGMENT;
-         const int nvert = Geometry::NumVerts[geom];
-         for (int j=0; j<new_shared_edges.Size(); j++)
+         int shared_origv = orig_mesh.GroupVertex(gr, j);
+         if (vmarker[shared_origv] !=-1 )
          {
-            Array<int> vert;
-            GetEdgeVertices(new_shared_edges[j],vert);
+            group_svert.AddConnection(gr-1, svert_lvert.Append(vmarker[shared_origv])-1);
+         }
+      }
+      const int orig_n_edges = orig_mesh.GroupNEdges(gr);
+      for (int j = 0; j < orig_n_edges; j++)
+      {
+         int shared_orige, orient;
+         orig_mesh.GroupEdge(gr, j, shared_orige,orient);
+         Array<int> vert;
+         orig_mesh.GetEdgeVertices(shared_orige,vert);
+         // if (vmarker[vert[0]] != -1 && vmarker[vert[1]] != -1)
+         if (emarker[shared_orige] != -1)
+         {
+            const Geometry::Type geom = Geometry::SEGMENT;
+            const int nvert = Geometry::NumVerts[geom];
+            GetEdgeVertices(emarker[shared_orige],vert);
             Element *elem = NewElement(geom);
             int *v = elem->GetVertices();
             for (int k = 0; k < nvert; k++)
@@ -1643,6 +1720,31 @@ void ParMesh::ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems)
             group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
          }
       }
+      // }
+
+      // for (int j=0; j<new_shared_vertices.Size(); j++)
+      // {
+      //    group_svert.AddConnection(gr-1, svert_lvert.Append(new_shared_vertices[j])-1);
+
+      //    // group_svert.AddConnection(gr-1, new_shared_vertices[j]);
+      // }
+      // if (new_shared_edges.Size() > 0)
+      // {
+      //    const Geometry::Type geom = Geometry::SEGMENT;
+      //    const int nvert = Geometry::NumVerts[geom];
+      //    for (int j=0; j<new_shared_edges.Size(); j++)
+      //    {
+      //       Array<int> vert;
+      //       GetEdgeVertices(new_shared_edges[j],vert);
+      //       Element *elem = NewElement(geom);
+      //       int *v = elem->GetVertices();
+      //       for (int k = 0; k < nvert; k++)
+      //       {
+      //          v[k] = vert[k];
+      //       }
+      //       group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
+      //    }
+      // }
    }
 
    group_svert.ShiftUpI();
@@ -1651,12 +1753,12 @@ void ParMesh::ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems)
    group_squad.ShiftUpI();
    FinalizeParTopo();
 
-   if (Nodes != NULL)
-   {
-      // This call will turn the Nodes into a ParGridFunction
-      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
-                   GetNodalFESpace()->GetOrdering());
-   }
+   // if (Nodes != NULL)
+   // {
+   //    // This call will turn the Nodes into a ParGridFunction
+   //    SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
+   //                 GetNodalFESpace()->GetOrdering());
+   // }
 
 }
 
