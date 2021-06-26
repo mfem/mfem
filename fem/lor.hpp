@@ -286,6 +286,9 @@ public:
    /// Access the underlying solver.
    const SolverType &GetSolver() const { return solver; }
 
+   /// Access the LOR discretization object.
+   const LORBase &GetLOR() const { return *lor; }
+
    ~LORSolver() { if (own_lor) { delete lor; } }
 };
 
