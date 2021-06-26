@@ -3238,7 +3238,8 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       x.HypreWrite();
       if (type == 0 && relax_times == 1)
       {
-         hypre_ParCSRDiagScale(*A, b, x);
+         // Note: hypre_ParCSRDiagScale() is not exposed in older versions
+         HYPRE_ParCSRDiagScale(NULL, *A, b, x);
          if (relax_weight != 1.0)
          {
             hypre_ParVectorScale(relax_weight, x);
