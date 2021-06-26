@@ -238,7 +238,7 @@ const OperatorHandle &LORBase::GetAssembledSystem() const
    return A;
 }
 
-void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
+void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
    a->UseExternalIntegrators();
    AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
@@ -373,7 +373,6 @@ LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
                                      int ref_type)
    : LORDiscretization(*a_ho_.FESpace(), ref_type)
 {
-   a = new BilinearForm(fes);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
@@ -399,6 +398,14 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
    A.SetType(Operator::MFEM_SPARSEMAT);
 }
 
+void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
+                                       const Array<int> &ess_dofs)
+{
+   delete a;
+   a = new BilinearForm(&GetFESpace());
+   AssembleSystem_(a_ho, ess_dofs);
+}
+
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 {
    MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
@@ -412,7 +419,6 @@ ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
                                            int ref_type)
    : ParLORDiscretization(*a_ho_.ParFESpace(), ref_type)
 {
-   a = new ParBilinearForm(static_cast<ParFiniteElementSpace*>(fes));
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
@@ -437,6 +443,14 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
    if (fes_ho.Nonconforming()) { SetupNonconforming(); }
 
    A.SetType(Operator::Hypre_ParCSR);
+}
+
+void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
+                                          const Array<int> &ess_dofs)
+{
+   delete a;
+   a = new ParBilinearForm(&GetParFESpace());
+   AssembleSystem_(a_ho, ess_dofs);
 }
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
