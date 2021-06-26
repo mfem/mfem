@@ -35,7 +35,7 @@ private:
    /// Adds all the integrators from the BilinearForm @a a_from to @a a_to. If
    /// the mesh consists of tensor product elements, temporarily changes the
    /// integration rules of the integrators to use collocated quadrature for
-   /// better conditioning of the %LOR system.
+   /// better conditioning of the LOR system.
    void AddIntegrators(BilinearForm &a_from,
                        BilinearForm &a_to,
                        GetIntegratorsFn get_integrators,
@@ -53,7 +53,7 @@ private:
                                  const IntegrationRule *ir);
 
    /// Resets the integration rules of the integrators of @a a to their original
-   /// values (after temporarily changing them for %LOR assembly).
+   /// values (after temporarily changing them for LOR assembly).
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
    static inline int absdof(int i) { return i < 0 ? -1-i : i; }
@@ -75,7 +75,7 @@ protected:
    /// ConstructDofPermutation and GetDofPermutation).
    void ConstructLocalDofPermutation(Array<int> &perm_) const;
 
-   /// Construct the permutation that maps %LOR DOFs to high-order DOFs. See
+   /// Construct the permutation that maps LOR DOFs to high-order DOFs. See
    /// GetDofPermutation.
    void ConstructDofPermutation() const;
 
@@ -86,19 +86,19 @@ protected:
    /// Returns the type of finite element space: H1, ND, RT or L2.
    FESpaceType GetFESpaceType() const;
 
-   /// Returns the order of the %LOR space. 1 for H1 or ND, 0 for L2 or RT.
+   /// Returns the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
 
    LORBase(FiniteElementSpace &fes_ho_);
 
 public:
-   /// Returns the assembled %LOR system.
+   /// Returns the assembled LOR system.
    const OperatorHandle &GetAssembledSystem() const;
 
    /// Assembles the %LOR system.
    void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
-   /// @brief Returns the permutation that maps %LOR DOFs to high-order DOFs.
+   /// @brief Returns the permutation that maps LOR DOFs to high-order DOFs.
    ///
    /// This permutation is constructed the first time it is requested, and then
    /// is cached. For H1 and L2 finite element spaces (or for nonconforming
@@ -108,11 +108,11 @@ public:
    ///
    /// For vector finite element spaces (ND and RT), the DOF permutation is
    /// nontrivial. Returns an array @a perm such that, given an index @a i of a
-   /// %LOR dof, @a perm[i] is the index of the corresponding HO dof.
+   /// LOR dof, @a perm[i] is the index of the corresponding HO dof.
    const Array<int> &GetDofPermutation() const;
 
-   /// Returns true if the %LOR spaces requires a DOF permutation (if the
-   /// corresponding %LOR and HO DOFs are numbered differently), false
+   /// Returns true if the LOR spaces requires a DOF permutation (if the
+   /// corresponding LOR and HO DOFs are numbered differently), false
    /// otherwise. Note: permutations are not required in the case of
    /// nonconforming spaces, since the DOF numbering is incorporated into the
    /// prolongation operators.
@@ -144,7 +144,7 @@ public:
    LORDiscretization(FiniteElementSpace &fes_ho,
                      int ref_type=BasisType::GaussLobatto);
 
-   /// Return the assembled %LOR operator as a SparseMatrix.
+   /// Return the assembled LOR operator as a SparseMatrix.
    SparseMatrix &GetAssembledMatrix() const;
 };
 
@@ -170,10 +170,10 @@ public:
    ParLORDiscretization(ParFiniteElementSpace &fes_ho,
                         int ref_type=BasisType::GaussLobatto);
 
-   /// Return the assembled %LOR operator as a HypreParMatrix.
+   /// Return the assembled LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix() const;
 
-   /// Return the %LOR ParFiniteElementSpace.
+   /// Return the LOR ParFiniteElementSpace.
    ParFiniteElementSpace &GetParFESpace() const;
 };
 
@@ -197,7 +197,7 @@ protected:
    mutable Vector px, py;
 public:
    /// @brief Create a solver of type @a SolverType, formed using the assembled
-   /// SparseMatrix of the %LOR version of @a a_ho. @see LORDiscretization
+   /// SparseMatrix of the LOR version of @a a_ho. @see LORDiscretization
    LORSolver(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
@@ -207,7 +207,7 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// @brief Create a solver of type @a SolverType, formed using the assembled
-   /// HypreParMatrix of the %LOR version of @a a_ho. @see ParLORDiscretization
+   /// HypreParMatrix of the LOR version of @a a_ho. @see ParLORDiscretization
    LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
@@ -228,7 +228,7 @@ public:
       SetOperator(op);
    }
 
-   /// @brief Create a solver of type @a SolverType using the assembled %LOR
+   /// @brief Create a solver of type @a SolverType using the assembled LOR
    /// operator represented by @a lor_.
    ///
    /// The given @a args will be used as arguments to the solver constructor.
@@ -270,9 +270,9 @@ public:
 
    /// @brief Enable or disable the DOF permutation (enabled by default).
    ///
-   /// The corresponding %LOR and high-order DOFs may not have the same
+   /// The corresponding LOR and high-order DOFs may not have the same
    /// numbering (for example, when using ND or RT spaces), and so a permutation
-   /// is required when applying the %LOR solver as a preconditioner for the
+   /// is required when applying the LOR solver as a preconditioner for the
    /// high-order problem. This permutation can be disabled (for example, in
    /// order to precondition the low-order problem directly).
    void UsePermutation(bool use_permutation_)
