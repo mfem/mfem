@@ -381,15 +381,16 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
 {
    CheckBasisType(fes_ho);
 
-   // TODO: support variable-order spaces
-   MFEM_VERIFY(!fes_ho.IsVariableOrder(),
-               "Cannot construct LOR operators on variable-order spaces");
-
-   int order = fes_ho.GetMaxElementOrder();
-   if (GetFESpaceType() == L2) { ++order; }
-
    Mesh &mesh_ho = *fes_ho.GetMesh();
-   mesh = new Mesh(Mesh::MakeRefined(mesh_ho, order, ref_type));
+   // For H1, ND and RT spaces, use refinement = element order, for DG spaces,
+   // use refinement = element order + 1 (since LOR is p = 0 in this case).
+   int increment = (GetFESpaceType() == L2) ? 1 : 0;
+   Array<int> refinements(mesh_ho.GetNE());
+   for (int i=0; i<refinements.Size(); ++i)
+   {
+      refinements[i] = fes_ho.GetOrder(i) + increment;
+   }
+   mesh = new Mesh(Mesh::MakeRefined(mesh_ho, refinements, ref_type));
 
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
@@ -426,7 +427,7 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
                                            int ref_type) : LORBase(fes_ho)
 {
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
-   // TODO: support variable-order spaces
+   // TODO: support variable-order spaces in parallel
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
 
