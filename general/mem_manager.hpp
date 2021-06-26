@@ -645,7 +645,7 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
-   static MemoryType GetDeviceMemoryType_(void *h_ptr);
+   static MemoryType GetDeviceMemoryType_(void *h_ptr, bool alias);
 
    /// Return the type the of the host memory.
    static MemoryType GetHostMemoryType_(void *h_ptr);
@@ -1081,14 +1081,14 @@ template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & VALID_DEVICE)) { return h_mt; }
-   return MemoryManager::GetDeviceMemoryType_(h_ptr);
+   return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 
 template <typename T>
 inline MemoryType Memory<T>::GetDeviceMemoryType() const
 {
    if (!(flags & REGISTERED)) { return MemoryType::DEFAULT; }
-   return MemoryManager::GetDeviceMemoryType_(h_ptr);
+   return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 
 template <typename T>
