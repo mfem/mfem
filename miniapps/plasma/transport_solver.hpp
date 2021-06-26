@@ -736,6 +736,8 @@ class StateVariableVecCoef : public StateVariableFunc,
    public VectorCoefficient
 {
 public:
+   virtual StateVariableVecCoef * Clone() const = 0;
+
    virtual void Eval(Vector &V,
                      ElementTransformation &T,
                      const IntegrationPoint &ip)
@@ -795,6 +797,9 @@ class StateVariableMatCoef : public StateVariableFunc,
    public MatrixCoefficient
 {
 public:
+
+   virtual StateVariableMatCoef * Clone() const = 0;
+
    virtual void Eval(DenseMatrix &M,
                      ElementTransformation &T,
                      const IntegrationPoint &ip)
@@ -1238,6 +1243,18 @@ public:
       : StateVariableVecCoef(2),
         vi_(vi),
         B3_(&B3Coef), B_(3) {}
+
+   IonAdvectionCoef(const IonAdvectionCoef &other)
+      : StateVariableVecCoef(other.vdim),
+        vi_(other.vi_),
+        B3_(other.B3_),
+        B_(3)
+   {}
+
+   virtual IonAdvectionCoef * Clone() const
+   {
+      return new IonAdvectionCoef(*this);
+   }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
@@ -1692,6 +1709,23 @@ public:
         B3_(&B3Coef), B_(3)
    {}
 
+   IonMomentumAdvectionCoef(const IonMomentumAdvectionCoef &other)
+      : StateVariableVecCoef(other.vdim),
+        mi_(other.mi_),
+        ni_(other.ni_),
+        vi_(other.vi_),
+        grad_ni0_(other.grad_ni0_.GetGridFunction()),
+        grad_dni0_(other.grad_dni0_.GetGridFunction()),
+        dt_(other.dt_),
+        B3_(other.B3_),
+        B_(3)
+   {}
+
+   virtual IonMomentumAdvectionCoef * Clone() const
+   {
+      return new IonMomentumAdvectionCoef(*this);
+   }
+
    virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
@@ -2018,6 +2052,18 @@ public:
       : StateVariableMatCoef(2),
         Para_(para ? &Coef : NULL), Perp_(para ? NULL : &Coef),
         B3_(&B3Coef), B_(3) {}
+
+   Aniso2DDiffusionCoef(const Aniso2DDiffusionCoef &other)
+      : StateVariableMatCoef(2),
+        Para_(other.Para_),
+        Perp_(other.Perp_),
+        B3_(other.B3_),
+        B_(3) {}
+
+   virtual Aniso2DDiffusionCoef * Clone() const
+   {
+      return new Aniso2DDiffusionCoef(*this);
+   }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
