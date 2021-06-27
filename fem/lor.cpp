@@ -92,13 +92,29 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    int dim = mesh_lor.Dimension();
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
 
+   using GeomRef = std::pair<Geometry::Type, int>;
+   std::map<GeomRef, int> point_matrices_offsets;
    perm_.SetSize(fes_lor.GetVSize());
 
    Array<int> vdof_ho, vdof_lor;
    for (int ilor=0; ilor<mesh_lor.GetNE(); ++ilor)
    {
       int iho = cf_tr.embeddings[ilor].parent;
+      int p = fes_ho.GetOrder(iho);
       int lor_index = cf_tr.embeddings[ilor].matrix;
+      // We use the point matrix index to identify the local LOR element index
+      // within the high-order coarse element.
+      //
+      // In variable-order spaces, the point matrices for each order are
+      // concatenated sequentially, so for the given element order, we need to
+      // find the offset that will give us the point matrix index relative to
+      // the current element order only.
+      GeomRef id(mesh_lor.GetElementBaseGeometry(ilor), p);
+      if (point_matrices_offsets.find(id) == point_matrices_offsets.end())
+      {
+         point_matrices_offsets[id] = lor_index;
+      }
+      lor_index -= point_matrices_offsets[id];
 
       fes_ho.GetElementVDofs(iho, vdof_ho);
       fes_lor.GetElementVDofs(ilor, vdof_lor);
@@ -109,7 +125,6 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
          continue;
       }
 
-      int p = fes_ho.GetOrder(iho);
       int p1 = p+1;
       int ndof_per_dim = (dim == 2) ? p*p1 : type == ND ? p*p1*p1 : p*p*p1;
 
