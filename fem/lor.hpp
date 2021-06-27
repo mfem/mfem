@@ -79,6 +79,10 @@ protected:
    /// GetDofPermutation.
    void ConstructDofPermutation() const;
 
+   /// Returns true if the LOR space and HO space have the same DOF numbering
+   /// (H1 or L2 spaces), false otherwise (ND or RT spaces).
+   bool HasSameDofNumbering() const;
+
    /// Sets up the prolongation and restriction operators required for
    /// nonconforming spaces.
    void SetupNonconforming();
@@ -113,11 +117,19 @@ public:
    /// LOR dof, @a perm[i] is the index of the corresponding HO dof.
    const Array<int> &GetDofPermutation() const;
 
-   /// Returns true if the LOR spaces requires a DOF permutation (if the
-   /// corresponding LOR and HO DOFs are numbered differently), false
-   /// otherwise. Note: permutations are not required in the case of
-   /// nonconforming spaces, since the DOF numbering is incorporated into the
-   /// prolongation operators.
+   /// @brief Returns true if the LOR space requires a DOF permutation, false
+   /// otherwise.
+   ///
+   /// DOF permutations are required if all of the following conditions are
+   /// true:
+   ///  * The spaces have different DOF numberings (which occurs for ND and RT
+   ///    spaces, in this case @ref HasSameDofNumbering returns false).
+   ///  * The mesh is conforming.
+   ///  * The space is not variable degree.
+   ///
+   /// Note: permutations are not required in the case of nonconforming meshes
+   /// or variable polynomial degrees, since in these cases the DOF numbering is
+   /// incorporated into the prolongation operators.
    bool RequiresDofPermutation() const;
 
    /// Returns the low-order refined finite element space.

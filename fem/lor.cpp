@@ -241,10 +241,15 @@ const Array<int> &LORBase::GetDofPermutation() const
    return perm;
 }
 
-bool LORBase::RequiresDofPermutation() const
+bool LORBase::HasSameDofNumbering() const
 {
    FESpaceType type = GetFESpaceType();
-   return (type == H1 || type == L2 || nonconforming) ? false : true;
+   return type == H1 || type == L2;
+}
+
+bool LORBase::RequiresDofPermutation() const
+{
+   return (HasSameDofNumbering() || nonconforming) ? false : true;
 }
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
@@ -295,7 +300,7 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 
 void LORBase::SetupNonconforming()
 {
-   if (RequiresDofPermutation())
+   if (!HasSameDofNumbering())
    {
       Array<int> p;
       ConstructLocalDofPermutation(p);
@@ -305,7 +310,7 @@ void LORBase::SetupNonconforming()
    {
       fes->CopyProlongationAndRestriction(fes_ho, NULL);
    }
-   nonconforming = true;
+   nonconforming = fes->Nonconforming();
 }
 
 template <typename FEC>
