@@ -208,7 +208,7 @@ public:
        the matrix-free setting. The estimated largest eigenvalue of the
        diagonally preconditoned operator must be provided via
        max_eig_estimate. */
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, double max_eig_estimate);
 
@@ -220,13 +220,13 @@ public:
        accuracy of the estimated eigenvalue may be controlled via
        power_iterations and power_tolerance. */
 #ifdef MFEM_USE_MPI
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
                              double power_tolerance = 1e-8);
 #else
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
                              double power_tolerance = 1e-8);
@@ -731,7 +731,7 @@ public:
     *  case that @a op is a HypreParMatrix, the ILU factorization is performed
     *  on the diagonal blocks of the parallel decomposition.
     */
-   BlockILU(Operator &op, int block_size_ = 1,
+   BlockILU(const Operator &op, int block_size_ = 1,
             Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
             int k_fill_ = 0);
 
