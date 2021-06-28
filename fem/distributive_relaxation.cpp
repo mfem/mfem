@@ -412,17 +412,20 @@ namespace kernels
 // cache loads
 template <int LDA>
 MFEM_HOST_DEVICE __forceinline__ void loadSubmatLDG(const int *__restrict__ I,
-                                               const int *__restrict__ J, const double *__restrict__ data,
-                                               const int *__restrict__ clusters, double *__restrict__ subMat)
+						    const int *__restrict__ J,
+						    const double *__restrict__ data,
+						    const int *__restrict__ clusters,
+						    double *__restrict__ subMat)
 {
    MFEM_UNROLL(LDA)
    for (int i = 0; i < LDA; ++i)
    {
       const int dof_i = MFEM_LDG(clusters+i);
-
+      const int dofLo = MFEM_LDG(I+dof_i);
+      const int	dofHi = MFEM_LDG(I+dof_i+1);
       // shouldn't unroll here, we don't know trip count and nvcc is kinda terrible at
       // guessing it
-      for (int j = MFEM_LDG(I+dof_i); j < MFEM_LDG(I+dof_i+1); ++j)
+      for (int j = dofLo; j < dofHi; ++j)
       {
 	 const int dof_j = MFEM_LDG(J+j);
 
@@ -494,7 +497,7 @@ MFEM_HOST_DEVICE __forceinline__ void GTAGDiag<3>(const double G[3],
 
 template <>
 MFEM_HOST_DEVICE void CalcEigenvalues<1>(const double *data, double *lambda,
-                                    double *vec)
+					 double *vec)
 {
    lambda[0] = data[0];
    vec[0]    = data[0];
@@ -502,7 +505,7 @@ MFEM_HOST_DEVICE void CalcEigenvalues<1>(const double *data, double *lambda,
 }
 
 template <int LDA, int LDB>
-MFEM_HOST_DEVICE __forceinline__ void printMatrix(const double mat[LDA*LDA])
+MFEM_HOST_DEVICE __forceinline__ void printMatrix(const double *__restrict__ mat)
 {
    if (!threadIdx.x && !blockIdx.x)
    {
@@ -598,7 +601,6 @@ void forAllDispatchCoeffs<1>(const int size,
    });
   MFEM_DEVICE_SYNC;
 }
-
 
 void DRSmoother::FormG(const DisjointSets *clustering)
 {
@@ -785,21 +787,6 @@ void DRSmoother::FormG(const DisjointSets *clustering)
     SparseMatrix *GtAG = NULL;
     diagonal_scaling.SetSize(0);
     G->GtAG(GtAG, diagonal_scaling, *A, diag_blocks);
-
-#if 0
-    mfem::out<<"Comparing vectors"<<std::endl;
-    MFEM_ASSERT(deviceCoeffs.Size()/2 == diagonal_scaling.Size(),
-		"Size does not match, deviceCoeffs.Size() "<<deviceCoeffs.Size()
-		<<" != "<<diagonal_scaling.Size());
-    MFEM_ASSERT(deviceCoeffs.Size()/2 == perm.Size(),"");
-    auto dCoeffArr = deviceCoeffs.HostRead();
-    for (int i = 0; i < diagonal_scaling.Size(); ++i)
-      {
-	MFEM_ASSERT(isCloseAtTol(dCoeffArr[perm[i]],diagonal_scaling[i],1e-6),
-		    "Entry "<<i<<" (permuted entry "<<perm[i]<<") doesn't match: "<<dCoeffArr[perm[i]]<<" != "<<diagonal_scaling[i]);
-      }
-    mfem::out<<"Vectors match!"<<std::endl;
-#endif
 
     if (l1 || diagonal_scaling.Size() == 01)
       {
