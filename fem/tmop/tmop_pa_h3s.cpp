@@ -181,8 +181,58 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
    }
 }
 
+// H_332 = (1-gamma) H_302 + gamma H_315
+static MFEM_HOST_DEVICE inline
+void EvalH_332(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double gamma,
+               const double *J, DeviceTensor<8,double> dP)
+{
+   double B[9];
+   double         dI1b[9],          ddI1b[9];
+   double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
+   double         dI3b[9],          ddI3b[9];
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b).ddI3b(ddI3b));
+   double sign_detJ;
+   const double c1 = weight/9.;
+   const double I1b = ie.Get_I1b();
+   const double I2b = ie.Get_I2b();
+   const double I3b = ie.Get_I3b(sign_detJ);
+   ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
+   ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
+   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp_302 =
+                  (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
+                  + ddi2b(r,c)*I1b
+                  + ddi1b(r,c)*I2b;
+               const double dp_315 = 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
+                                     2.0 * weight * di3b(r,c) * di3b(i,j);
+               dP(r,c,i,j,qx,qy,qz,e) = (1.0 - gamma) * c1 * dp_302 +
+                                        gamma * dp_315;
+            }
+         }
+      }
+   }
+}
+
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                            const double metric_normal,
+                           const double metric_param,
                            const int mid,
                            const Vector &x_,
                            const int NE,
@@ -194,8 +244,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 321 ,
-               "3D metric not yet implemented!");
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
+               mid == 321 || mid == 332, "3D metric not yet implemented!");
 
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -255,6 +305,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                if (mid == 303) { EvalH_303(e,qx,qy,qz,weight,Jpt,H); }
                if (mid == 315) { EvalH_315(e,qx,qy,qz,weight,Jpt,H); }
                if (mid == 321) { EvalH_321(e,qx,qy,qz,weight,Jpt,H); }
+               if (mid == 332) { EvalH_332(e,qx,qy,qz,weight,metric_param,Jpt,H); }
             } // qx
          } // qy
       } // qz
@@ -275,7 +326,10 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    const Array<double> &G = PA.maps->G;
    Vector &H = PA.H;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,M,X,N,W,B,G,J,H);
+   double mp = 0.0;
+   if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
+
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,mp,M,X,N,W,B,G,J,H);
 }
 
 } // namespace mfem
