@@ -1537,7 +1537,6 @@ void ParMesh::ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems)
    H1_FECollection fec(1,orig_mesh.Dimension());
    ParFiniteElementSpace fes(&orig_mesh,&fec);
    int ntdof = fes.GetTrueVSize();
-
    Array<int> globaltdof2dof;
 
    int new_nv = 0;

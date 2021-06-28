@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 
 
    // SolveEx1p(orig_pmesh,2,mpi);
-   SolveEx1p(new_pmesh,2,mpi);
+   // SolveEx1p(new_pmesh,2,mpi);
 
    cout << "myid = " << myid << ", NGroups = " << orig_pmesh.GetNGroups() << endl;
 
