@@ -76,119 +76,132 @@ void DRSmoother::Mult(const Vector &b, Vector &x) const
    }
 }
 
-namespace kernels {
+namespace kernels
+{
 
 template <int DIM>
-MFEM_DEVICE __forceinline__ static void computeSmootherAction(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret);
+MFEM_DEVICE __forceinline__ static void computeSmootherAction(
+   const double *__restrict__ d, const double *__restrict__ g,
+   const double *__restrict__ v, double *__restrict__ ret);
 
 template <>
-MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<1>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<1>
+(const double *__restrict__ d, const double *__restrict__ g,
+ const double *__restrict__ v, double *__restrict__ ret)
 {
-  const double d0 = d[0];
-  const double v0 = v[0];
+   const double d0 = d[0];
+   const double v0 = v[0];
 
-  // common subexpr
-  const double d0givi = d0*v0;
+   // common subexpr
+   const double d0givi = d0*v0;
 
-  ret[0] = d0givi;
-  return;
+   ret[0] = d0givi;
+   return;
 }
 
 template <>
-MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<2>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<2>
+(const double *__restrict__ d, const double *__restrict__ g,
+ const double *__restrict__ v, double *__restrict__ ret)
 {
-  const double d0 = d[0], d1 = d[1];
-  const double g0 = g[0], g1 = g[1];
-  const double v0 = v[0], v1 = v[1];
+   const double d0 = d[0], d1 = d[1];
+   const double g0 = g[0], g1 = g[1];
+   const double v0 = v[0], v1 = v[1];
 
-  // common subexpr
-  const double d0givi = d0*(g0*v0+g1*v1);
+   // common subexpr
+   const double d0givi = d0*(g0*v0+g1*v1);
 
-  ret[0] = g0*d0givi;
-  ret[1] = d1*v1+g1*d0givi;
-  return;
+   ret[0] = g0*d0givi;
+   ret[1] = d1*v1+g1*d0givi;
+   return;
 }
 
 template <>
-MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<3>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<3>
+(const double *__restrict__ d, const double *__restrict__ g,
+ const double *__restrict__ v, double *__restrict__ ret)
 {
-  const double d0 = d[0], d1 = d[1], d2 = d[2];
-  const double g0 = g[0], g1 = g[1], g2 = g[2];
-  const double v0 = v[0], v1 = v[1], v2 = v[2];
+   const double d0 = d[0], d1 = d[1], d2 = d[2];
+   const double g0 = g[0], g1 = g[1], g2 = g[2];
+   const double v0 = v[0], v1 = v[1], v2 = v[2];
 
-  // common subexpr
-  const double d0givi = d0*(g0*v0+g1*v1+g2*v2);
+   // common subexpr
+   const double d0givi = d0*(g0*v0+g1*v1+g2*v2);
 
-  ret[0] = g0*d0givi;
-  ret[1] = d1*v1+g1*d0givi;
-  ret[2] = d2*v2+g2*d0givi;
-  return;
+   ret[0] = g0*d0givi;
+   ret[1] = d1*v1+g1*d0givi;
+   ret[2] = d2*v2+g2*d0givi;
+   return;
 }
 
 } // namespace kernels
 
 template <int DIM>
-static void forAllDispatch(const int size, const double scale, const int *__restrict__ c, const double *__restrict__ dg, const double *__restrict__ b, double *__restrict__ x)
+static void forAllDispatch(const int size, const double scale,
+                           const int *__restrict__ c, const double *__restrict__ dg,
+                           const double *__restrict__ b, double *__restrict__ x)
 {
-  MFEM_FORALL(group, size,
-  {
-    double diags[DIM],gcoeffs[DIM],vin[DIM],vout[DIM];
-    int    cmap[DIM];
+   MFEM_FORALL(group, size,
+   {
+      double diags[DIM],gcoeffs[DIM],vin[DIM],vout[DIM];
+      int    cmap[DIM];
 
-    // load the diagonals of g^TAg ("D")
-    MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) diags[i]   = MFEM_LDG(dg+2*DIM*group+i);
+      // load the diagonals of g^TAg ("D")
+      MFEM_UNROLL(DIM)
+      for (int i = 0; i < DIM; ++i) diags[i]   = MFEM_LDG(dg+2*DIM*group+i);
 
-    // load the coefficient array ("G")
-    MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) gcoeffs[i] = MFEM_LDG(dg+2*DIM*group+DIM+i);
+      // load the coefficient array ("G")
+      MFEM_UNROLL(DIM)
+      for (int i = 0; i < DIM; ++i) gcoeffs[i] = MFEM_LDG(dg+2*DIM*group+DIM+i);
 
-    // load the map from packed representation to DOF layout in the vector
-    MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) cmap[i]    = MFEM_LDG(c+DIM*group+i);
+      // load the map from packed representation to DOF layout in the vector
+      MFEM_UNROLL(DIM)
+      for (int i = 0; i < DIM; ++i) cmap[i]    = MFEM_LDG(c+DIM*group+i);
 
-    // load the input vector
-    MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) vin[i]     = MFEM_LDG(b+cmap[i]);
+      // load the input vector
+      MFEM_UNROLL(DIM)
+      for (int i = 0; i < DIM; ++i) vin[i]     = MFEM_LDG(b+cmap[i]);
 
-    kernels::computeSmootherAction<DIM>(diags,gcoeffs,vin,vout);
+      kernels::computeSmootherAction<DIM>(diags,gcoeffs,vin,vout);
 
-    // stream results back down
-    MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) x[cmap[i]] = scale*vout[i];
-  });
-  MFEM_DEVICE_SYNC;
+      // stream results back down
+      MFEM_UNROLL(DIM)
+      for (int i = 0; i < DIM; ++i) x[cmap[i]] = scale*vout[i];
+   });
+   MFEM_DEVICE_SYNC;
 }
 
 template <>
-void forAllDispatch<1>(const int size, const double scale, const int *__restrict__ c, const double *__restrict__ dg, const double *__restrict__ b, double *__restrict__ x)
+void forAllDispatch<1>(const int size, const double scale,
+                       const int *__restrict__ c, const double *__restrict__ dg,
+                       const double *__restrict__ b, double *__restrict__ x)
 {
-  MFEM_FORALL(group, size,
-  {
-    double diags,vin,vout;
-    int    cmap;
+   MFEM_FORALL(group, size,
+   {
+      double diags,vin,vout;
+      int    cmap;
 
-    // load the diagonals of g^TAg ("D")
-    diags = MFEM_LDG(dg+group);
+      // load the diagonals of g^TAg ("D")
+      diags = MFEM_LDG(dg+group);
 
-    // load the map from packed	representation to DOF layout in the vector
-    cmap  = MFEM_LDG(c+group);
+      // load the map from packed  representation to DOF layout in the vector
+      cmap  = MFEM_LDG(c+group);
 
-    // load the input vector
-    vin   = MFEM_LDG(b+cmap);
+      // load the input vector
+      vin   = MFEM_LDG(b+cmap);
 
-    // G is unused
-    kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
+      // G is unused
+      kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
 
-    // stream results back down
-    x[cmap] = scale*vout;
-  });
-  MFEM_DEVICE_SYNC;
+      // stream results back down
+      x[cmap] = scale*vout;
+   });
+   MFEM_DEVICE_SYNC;
 }
 
 static inline bool isCloseAtTol(double a, double b,
-				double rtol = std::numeric_limits<double>::epsilon(),
-				double atol = std::numeric_limits<double>::epsilon())
+                                double rtol = std::numeric_limits<double>::epsilon(),
+                                double atol = std::numeric_limits<double>::epsilon())
 {
    using std::fabs; // koenig lookup
    using std::max;
@@ -197,46 +210,52 @@ static inline bool isCloseAtTol(double a, double b,
 
 void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
 {
-  if (Device::IsEnabled()) {
-    mfem::out<<"Beginning device Jacobi iteration"<<std::endl;
-    auto devDG = diagonal_scaling.Read();
-    auto devB  = b.Read();
-    auto devX  = x.Write();
+   if (Device::IsEnabled())
+   {
+      mfem::out<<"Beginning device Jacobi iteration"<<std::endl;
+      auto devDG = diagonal_scaling.Read();
+      auto devB  = b.Read();
+      auto devX  = x.Write();
 
-    for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i) {
-      const int cpackSize = clusterPack[i].Size();
+      for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
+      {
+         const int cpackSize = clusterPack[i].Size();
 
-      if (cpackSize) {
-	auto devC = clusterPack[i].Read();
+         if (cpackSize)
+         {
+            auto devC = clusterPack[i].Read();
 
-	switch (i+1) {
-	case 1:
-	  forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
-	  totalSize += cpackSize; // no interleaving
-	  break;
-	case 2:
-	  forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
-	  totalSize += 2*cpackSize;
-	  break;
-	case 3:
-	  forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
-	  totalSize += 2*cpackSize;
-	  break;
-	default:
-	  MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
-	  break;
-	}
+            switch (i+1)
+            {
+               case 1:
+                  forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
+                  totalSize += cpackSize; // no interleaving
+                  break;
+               case 2:
+                  forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
+                  totalSize += 2*cpackSize;
+                  break;
+               case 3:
+                  forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
+                  totalSize += 2*cpackSize;
+                  break;
+               default:
+                  MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
+                  break;
+            }
+         }
       }
-    }
-    mfem::out<<"Finished device Jacobi iteration"<<std::endl;
-   } else {
-     G->MultTranspose(b, tmp);
+      mfem::out<<"Finished device Jacobi iteration"<<std::endl;
+   }
+   else
+   {
+      G->MultTranspose(b, tmp);
 
-     const int end = diagonal_scaling.Size();
+      const int end = diagonal_scaling.Size();
 
-     for (int i = 0; i < end; ++i) { tmp[i] /= diagonal_scaling[i]; }
-     G->Mult(tmp, x);
-     for (int i = 0; i < x.Size(); ++i) { x[i] *= scale; }
+      for (int i = 0; i < end; ++i) { tmp[i] /= diagonal_scaling[i]; }
+      G->Mult(tmp, x);
+      for (int i = 0; i < x.Size(); ++i) { x[i] *= scale; }
    }
 }
 
@@ -427,7 +446,7 @@ MFEM_HOST_DEVICE __forceinline__ void loadSubmatLDG(const int *__restrict__ I,
       // guessing it
       for (int j = dofLo; j < dofHi; ++j)
       {
-	 const int dof_j = MFEM_LDG(J+j);
+         const int dof_j = MFEM_LDG(J+j);
 
          MFEM_UNROLL(LDA)
          for (int k = 0; k < LDA; ++k)
@@ -446,14 +465,14 @@ MFEM_HOST_DEVICE __forceinline__ void loadSubmatLDG(const int *__restrict__ I,
 // compute diag(g^T x A x g) for set sizes
 template <int LDA>
 MFEM_HOST_DEVICE __forceinline__ void GTAGDiag(const double G[LDA],
-					       const double A[LDA*LDA], double result[LDA]);
+                                               const double A[LDA*LDA], double result[LDA]);
 
 // convert i,j to column-major
 #define MFEM_MAT_IDX(_mat,_lda,_i,_j) _mat[((_lda)*(_j))+(_i)]
 
 template <>
 MFEM_HOST_DEVICE __forceinline__ void GTAGDiag<1>(const double G[1],
-						  const double A[1], double result[1])
+                                                  const double A[1], double result[1])
 {
    result[0] = A[0];
    return;
@@ -461,7 +480,7 @@ MFEM_HOST_DEVICE __forceinline__ void GTAGDiag<1>(const double G[1],
 
 template <>
 MFEM_HOST_DEVICE __forceinline__ void GTAGDiag<2>(const double G[2],
-						  const double A[4], double result[2])
+                                                  const double A[4], double result[2])
 {
    const double a00 = MFEM_MAT_IDX(A,2,0,0), a01 = MFEM_MAT_IDX(A,2,0,1);
    const double a10 = MFEM_MAT_IDX(A,2,1,0), a11 = MFEM_MAT_IDX(A,2,1,1);
@@ -474,7 +493,7 @@ MFEM_HOST_DEVICE __forceinline__ void GTAGDiag<2>(const double G[2],
 
 template <>
 MFEM_HOST_DEVICE __forceinline__ void GTAGDiag<3>(const double G[3],
-						  const double A[9], double result[3])
+                                                  const double A[9], double result[3])
 {
    const double a00 = MFEM_MAT_IDX(A,3,0,0),a01 = MFEM_MAT_IDX(A,3,0,1),
                 a02 = MFEM_MAT_IDX(A,3,0,2);
@@ -527,300 +546,306 @@ MFEM_HOST_DEVICE __forceinline__ void printMatrix(const double *__restrict__ mat
 
 template <int LDA>
 static void forAllDispatchCoeffs(const int size,
-				 const int *__restrict__ I,
-				 const int *__restrict__ J, const double *__restrict__ data,
-				 const int *__restrict__ clusters, double *__restrict__ ret)
+                                 const int *__restrict__ I,
+                                 const int *__restrict__ J, const double *__restrict__ data,
+                                 const int *__restrict__ clusters, double *__restrict__ ret)
 {
-  MFEM_FORALL(group, size,
+   MFEM_FORALL(group, size,
    {
-     double subMat[LDA*LDA],eigVal[LDA],eigVec[LDA*LDA];
-     int    minEigIdx = 0;
+      double subMat[LDA*LDA],eigVal[LDA],eigVec[LDA*LDA];
+      int    minEigIdx = 0;
 
-     // must zero the submatrix, theres no guarantee the super-matrix has a full NxN's
-     // worth of stuff.
-     MFEM_UNROLL(LDA*LDA)
-     for (int i = 0; i < LDA*LDA; ++i) subMat[i] = 0.0;
+      // must zero the submatrix, theres no guarantee the super-matrix has a full NxN's
+      // worth of stuff.
+      MFEM_UNROLL(LDA*LDA)
+      for (int i = 0; i < LDA*LDA; ++i) subMat[i] = 0.0;
 
-     kernels::loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,subMat);
-     kernels::CalcEigenvalues<LDA>(subMat,eigVal,eigVec);
-     {
-       // search the eigenvalues for the smallest eigenvalue, note the "index" here is
-       // just multiples of LDA to make indexing easier
-       double smallestEigVal = eigVal[0];
-       MFEM_UNROLL(LDA)
-       for (int i = 1; i < LDA; ++i)
-	   {
-	     if (eigVal[i] < smallestEigVal)
-	       {
-		 smallestEigVal = eigVal[i];
-		 minEigIdx += LDA;
-	       }
-	   }
-     }
-     {
-       double mod = eigVec[minEigIdx]*eigVec[minEigIdx];
-       MFEM_UNROLL(LDA)
-       for (int i = 1; i < LDA; ++i) { mod += eigVec[minEigIdx+i]*eigVec[minEigIdx+i]; }
+      kernels::loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,subMat);
+      kernels::CalcEigenvalues<LDA>(subMat,eigVal,eigVec);
+      {
+         // search the eigenvalues for the smallest eigenvalue, note the "index" here is
+         // just multiples of LDA to make indexing easier
+         double smallestEigVal = eigVal[0];
+         MFEM_UNROLL(LDA)
+         for (int i = 1; i < LDA; ++i)
+         {
+            if (eigVal[i] < smallestEigVal)
+            {
+               smallestEigVal = eigVal[i];
+               minEigIdx += LDA;
+            }
+         }
+      }
+      {
+         double mod = eigVec[minEigIdx]*eigVec[minEigIdx];
+         MFEM_UNROLL(LDA)
+         for (int i = 1; i < LDA; ++i) { mod += eigVec[minEigIdx+i]*eigVec[minEigIdx+i]; }
 
-       mod = 1.0/sqrt(mod);
+         mod = 1.0/sqrt(mod);
 
-       // modify in-place to save precious registers
-       MFEM_UNROLL(LDA)
-       for (int i = 0; i < LDA; ++i) { eigVec[minEigIdx+i] *= mod; }
-     }
+         // modify in-place to save precious registers
+         MFEM_UNROLL(LDA)
+         for (int i = 0; i < LDA; ++i) { eigVec[minEigIdx+i] *= mod; }
+      }
 
-     // compute g^T A g, reusing eigVal in place of results
-     kernels::GTAGDiag<LDA>(eigVec+minEigIdx,subMat,eigVal);
+      // compute g^T A g, reusing eigVal in place of results
+      kernels::GTAGDiag<LDA>(eigVec+minEigIdx,subMat,eigVal);
 
-     // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
-     // [LDA,2*LDA)
-     MFEM_UNROLL(LDA)
-     for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/eigVal[i];
+      // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
+      // [LDA,2*LDA)
+      MFEM_UNROLL(LDA)
+      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/eigVal[i];
 
-     MFEM_UNROLL(LDA)
-     for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = eigVec[minEigIdx+i];
+      MFEM_UNROLL(LDA)
+      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = eigVec[minEigIdx+i];
    });
-  MFEM_DEVICE_SYNC;
+   MFEM_DEVICE_SYNC;
 }
 
 // For LDA = 1 the coeffs are always = 1, (so no point storing them in the interleaved
 // format detailed above). Since NVCC is not able to elide the loading of the initial
-// coefficients	even if they aren't used we must specialize
+// coefficients   even if they aren't used we must specialize
 template <>
 void forAllDispatchCoeffs<1>(const int size,
-			     const int *__restrict__ I,
-			     const int *__restrict__ J, const double *__restrict__ data,
-			     const int *__restrict__ clusters, double *__restrict__ ret)
+                             const int *__restrict__ I,
+                             const int *__restrict__ J, const double *__restrict__ data,
+                             const int *__restrict__ clusters, double *__restrict__ ret)
 {
-  MFEM_FORALL(group, size,
+   MFEM_FORALL(group, size,
    {
-     double diag_value;
+      double diag_value;
 
-     kernels::loadSubmatLDG<1>(I,J,data,clusters+group,&diag_value);
-     ret[group] = 1.0/diag_value;
+      kernels::loadSubmatLDG<1>(I,J,data,clusters+group,&diag_value);
+      ret[group] = 1.0/diag_value;
    });
-  MFEM_DEVICE_SYNC;
+   MFEM_DEVICE_SYNC;
 }
 
 void DRSmoother::FormG(const DisjointSets *clustering)
 {
-  const Array<int> &bounds = clustering->GetBounds();
-  const Array<int> &elems  = clustering->GetElems();
-  if (Device::IsEnabled()) {
-    const Array<int> &sizeCounter = clustering->GetSizeCounter();
-    const int         sizeCtrSize = sizeCounter.Size();
-    // vector of clusters arranged by size. Entry i contains all the clusters of size i+1
-    // (as there are no 0 sized clusters) in the order that they appear in elems.
-    clusterPack.resize(sizeCtrSize);
-    // an 'i' for each size
-    std::vector<int> clusterIter(sizeCtrSize,0);
-    // clusterSize[i]
-    std::vector<int> clusterSize(sizeCtrSize);
+   const Array<int> &bounds = clustering->GetBounds();
+   const Array<int> &elems  = clustering->GetElems();
+   if (Device::IsEnabled())
+   {
+      const Array<int> &sizeCounter = clustering->GetSizeCounter();
+      const int         sizeCtrSize = sizeCounter.Size();
+      // vector of clusters arranged by size. Entry i contains all the clusters of size i+1
+      // (as there are no 0 sized clusters) in the order that they appear in elems.
+      clusterPack.resize(sizeCtrSize);
+      // an 'i' for each size
+      std::vector<int> clusterIter(sizeCtrSize,0);
+      // clusterSize[i]
+      std::vector<int> clusterSize(sizeCtrSize);
 
-    {
-      int totalCoeffSize = 0;
-      // loop over all the packed vectors setting size, ignore size 0
-      for (int i = 0; i < sizeCtrSize; ++i)
-	{
-	  const int csize = (i+1)*sizeCounter[i];
-
-	  clusterPack[i].SetSize(csize);
-	  clusterSize[i] = totalCoeffSize;
-	  totalCoeffSize += csize;
-	}
-
-      // permutation to unpack clusterPack
-      //devicePerm.SetSize(totalCoeffSize);
-
-      // can allocate the full coefficient array now. Due to interleaving of the coefficients
-      // and g^TAg we allocate twice as many
-      diagonal_scaling.SetSize(2*totalCoeffSize);
-    }
-
-    // now we loop over all clusters
-    for (int i = 0; i < bounds.Size()-1; ++i)
       {
-	// get size of cluster and adjust it
-	const int csize = bounds[i+1]-bounds[i], adjustedCsize = csize-1;
-	const int ci    = clusterIter[adjustedCsize];
+         int totalCoeffSize = 0;
+         // loop over all the packed vectors setting size, ignore size 0
+         for (int i = 0; i < sizeCtrSize; ++i)
+         {
+            const int csize = (i+1)*sizeCounter[i];
 
-	// append the cluster to the appropriate packed vector
-	for (int j = 0; j < csize; ++j)
-	  {
-	    //perm[elems[bounds[i]+j]]         = 2*(clusterSize[adjustedCsize]+ci)+j;
-	    clusterPack[adjustedCsize][ci+j] = elems[bounds[i]+j];
-	  }
-	clusterIter[adjustedCsize] += csize;
+            clusterPack[i].SetSize(csize);
+            clusterSize[i] = totalCoeffSize;
+            totalCoeffSize += csize;
+         }
+
+         // permutation to unpack clusterPack
+         //devicePerm.SetSize(totalCoeffSize);
+
+         // can allocate the full coefficient array now. Due to interleaving of the coefficients
+         // and g^TAg we allocate twice as many
+         diagonal_scaling.SetSize(2*totalCoeffSize);
       }
 
-    // get device-side memory
-    auto devCoeffArray = diagonal_scaling.Write();
-    auto devData = A->ReadData();
-    auto devI    = A->ReadI(), devJ = A->ReadJ();
-
-    mfem::out<<"Device compute begin"<<std::endl;
-    // running total of all the coefficients transfered so far
-    for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
+      // now we loop over all clusters
+      for (int i = 0; i < bounds.Size()-1; ++i)
       {
-	const int cpackSize = clusterPack[i].Size();
+         // get size of cluster and adjust it
+         const int csize = bounds[i+1]-bounds[i], adjustedCsize = csize-1;
+         const int ci    = clusterIter[adjustedCsize];
 
-	if (cpackSize)
-	  {
-	    auto devCluster = clusterPack[i].Read();
-
-	    switch (i+1) {
-	    case 1:
-	      forAllDispatchCoeffs<1>(cpackSize,devI,devJ,devData,devCluster,devCoeffArray);
-	      totalSize += cpackSize; // no interleaving
-	      break;
-	    case 2:
-	      forAllDispatchCoeffs<2>(cpackSize/2,devI,devJ,devData,devCluster,devCoeffArray+totalSize);
-	      totalSize += 2*cpackSize;
-	      break;
-	    case 3:
-	      forAllDispatchCoeffs<3>(cpackSize/3,devI,devJ,devData,devCluster,devCoeffArray+totalSize);
-	      totalSize += 2*cpackSize;
-	      break;
-	    default:
-	      MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
-	      break;
-	    }
-	  }
-      }
-    mfem::out<<"Device compute complete"<<std::endl;
-    G = new DRSmootherG(clustering);
-  } else {
-    SparseMatrix *g = NULL;
-    Array<double> *coeffs = NULL;
-    bool form_G = l1;
-
-    if (form_G)
-      {
-	g = new SparseMatrix(elems.Size());
-      }
-    else
-      {
-	coeffs = new Array<double>();
+         // append the cluster to the appropriate packed vector
+         for (int j = 0; j < csize; ++j)
+         {
+            //perm[elems[bounds[i]+j]]         = 2*(clusterSize[adjustedCsize]+ci)+j;
+            clusterPack[adjustedCsize][ci+j] = elems[bounds[i]+j];
+         }
+         clusterIter[adjustedCsize] += csize;
       }
 
-    MFEM_ASSERT(A != NULL, "'A' matrix be defined");
-    std::vector<DenseMatrix> *diag_blocks = DiagonalBlocks(A, clustering);
+      // get device-side memory
+      auto devCoeffArray = diagonal_scaling.Write();
+      auto devData = A->ReadData();
+      auto devI    = A->ReadI(), devJ = A->ReadJ();
 
-    for (int group = 0; group < bounds.Size()-1; ++group)
+      mfem::out<<"Device compute begin"<<std::endl;
+      // running total of all the coefficients transfered so far
+      for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
       {
-	const int size = bounds[group+1] - bounds[group];
+         const int cpackSize = clusterPack[i].Size();
 
-	if (size == 1)
-	  {
-	    const int i = elems[bounds[group]];
-	    if (form_G)
-	      {
-		g->Add(i, i, 1.0);
-	      }
-	  }
-	else
-	  {
-	    // Get eigenvalues and eigenvectors of subblock
-	    DenseMatrix &submat = (*diag_blocks)[group];
-	    DenseMatrix eigenvectors(size, size);
-	    Vector eigenvalues(size);
-	    submat.Eigenvalues(eigenvalues, eigenvectors);
+         if (cpackSize)
+         {
+            auto devCluster = clusterPack[i].Read();
 
-	    Array<int> indices(size);
-	    elems.GetSubArray(bounds[group], size, indices);
+            switch (i+1)
+            {
+               case 1:
+                  forAllDispatchCoeffs<1>(cpackSize,devI,devJ,devData,devCluster,devCoeffArray);
+                  totalSize += cpackSize; // no interleaving
+                  break;
+               case 2:
+                  forAllDispatchCoeffs<2>(cpackSize/2,devI,devJ,devData,devCluster,
+                                          devCoeffArray+totalSize);
+                  totalSize += 2*cpackSize;
+                  break;
+               case 3:
+                  forAllDispatchCoeffs<3>(cpackSize/3,devI,devJ,devData,devCluster,
+                                          devCoeffArray+totalSize);
+                  totalSize += 2*cpackSize;
+                  break;
+               default:
+                  MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
+                  break;
+            }
+         }
+      }
+      mfem::out<<"Device compute complete"<<std::endl;
+      G = new DRSmootherG(clustering);
+   }
+   else
+   {
+      SparseMatrix *g = NULL;
+      Array<double> *coeffs = NULL;
+      bool form_G = l1;
 
-	    // Get the smallest eigenvector
-	    int min_idx = 0;
-	    double min_eigenvalue = eigenvalues.Min();
-	    for (; min_idx < eigenvalues.Size(); ++min_idx)
-	      {
-		if (eigenvalues[min_idx] == min_eigenvalue) { break; }
-	      }
-
-	    const int i = indices[min_idx];
-	    // Compute normalization for eigenvector
-	    double two_norm = 0.0;
-	    for (int l = 0; l < size; ++l)
-	      {
-		const double val = eigenvectors(l, min_idx);
-		two_norm += val*val;
-	      }
-	    two_norm = sqrt(two_norm);
-
-	    const double diag_val = eigenvectors(0, min_idx) / two_norm;
-	    if (form_G)
-	      {
-		g->Add(i, i, diag_val);
-	      }
-	    else
-	      {
-		coeffs->Append(diag_val);
-	      }
-
-	    for (int l = 1; l < size; ++l)
-	      {
-		const double val = eigenvectors(l, min_idx) / two_norm;
-		if (form_G)
-		  {
-		    const int j = indices[l];
-		    g->Add(j, i, val);
-		    g->Add(j, j, 1.0);
-		  }
-		else
-		  {
-		    coeffs->Append(val);
-		  }
-	      }
-	  }
+      if (form_G)
+      {
+         g = new SparseMatrix(elems.Size());
+      }
+      else
+      {
+         coeffs = new Array<double>();
       }
 
-    if (form_G)
+      MFEM_ASSERT(A != NULL, "'A' matrix be defined");
+      std::vector<DenseMatrix> *diag_blocks = DiagonalBlocks(A, clustering);
+
+      for (int group = 0; group < bounds.Size()-1; ++group)
       {
-	g->Finalize();
-	G = new DRSmootherG(g, clustering);
-      }
-    else
-      {
-	G = new DRSmootherG(clustering, coeffs);
+         const int size = bounds[group+1] - bounds[group];
+
+         if (size == 1)
+         {
+            const int i = elems[bounds[group]];
+            if (form_G)
+            {
+               g->Add(i, i, 1.0);
+            }
+         }
+         else
+         {
+            // Get eigenvalues and eigenvectors of subblock
+            DenseMatrix &submat = (*diag_blocks)[group];
+            DenseMatrix eigenvectors(size, size);
+            Vector eigenvalues(size);
+            submat.Eigenvalues(eigenvalues, eigenvectors);
+
+            Array<int> indices(size);
+            elems.GetSubArray(bounds[group], size, indices);
+
+            // Get the smallest eigenvector
+            int min_idx = 0;
+            double min_eigenvalue = eigenvalues.Min();
+            for (; min_idx < eigenvalues.Size(); ++min_idx)
+            {
+               if (eigenvalues[min_idx] == min_eigenvalue) { break; }
+            }
+
+            const int i = indices[min_idx];
+            // Compute normalization for eigenvector
+            double two_norm = 0.0;
+            for (int l = 0; l < size; ++l)
+            {
+               const double val = eigenvectors(l, min_idx);
+               two_norm += val*val;
+            }
+            two_norm = sqrt(two_norm);
+
+            const double diag_val = eigenvectors(0, min_idx) / two_norm;
+            if (form_G)
+            {
+               g->Add(i, i, diag_val);
+            }
+            else
+            {
+               coeffs->Append(diag_val);
+            }
+
+            for (int l = 1; l < size; ++l)
+            {
+               const double val = eigenvectors(l, min_idx) / two_norm;
+               if (form_G)
+               {
+                  const int j = indices[l];
+                  g->Add(j, i, val);
+                  g->Add(j, j, 1.0);
+               }
+               else
+               {
+                  coeffs->Append(val);
+               }
+            }
+         }
       }
 
-    SparseMatrix *GtAG = NULL;
-    diagonal_scaling.SetSize(0);
-    G->GtAG(GtAG, diagonal_scaling, *A, diag_blocks);
+      if (form_G)
+      {
+         g->Finalize();
+         G = new DRSmootherG(g, clustering);
+      }
+      else
+      {
+         G = new DRSmootherG(clustering, coeffs);
+      }
+
+      SparseMatrix *GtAG = NULL;
+      diagonal_scaling.SetSize(0);
+      G->GtAG(GtAG, diagonal_scaling, *A, diag_blocks);
 
     if (l1 || diagonal_scaling.Size() == 01)
       {
-	MFEM_VERIFY(GtAG != NULL, "Product GtAG not computed!");
-	const int size = A->Width();
+         MFEM_VERIFY(GtAG != NULL, "Product GtAG not computed!");
+         const int size = A->Width();
 
-	diagonal_scaling.SetSize(size);
-	diagonal_scaling = 0.0;
+         diagonal_scaling.SetSize(size);
+         diagonal_scaling = 0.0;
 
-	const int *I = GtAG->GetI();
-	const int *J = GtAG->GetJ();
-	const double *data = GtAG->GetData();
+         const int *I = GtAG->GetI();
+         const int *J = GtAG->GetJ();
+         const double *data = GtAG->GetData();
 
-	for (int i = 0; i < size; ++i)
-	  {
-	    const int end = I[i+1];
-	    for (int j = I[i]; j < end; ++j)
-	      {
-		if (J[j] == i)
-		  {
-		    diagonal_scaling[i] += data[j];
-		  }
-		else if (l1)
-		  {
-		    diagonal_scaling[i] += 0.5 * fabs(data[j]);
-		  }
-	      }
-	    MFEM_ASSERT(diagonal_scaling[i] > 0.0,
-			"Diagonal scaling should have positive entries");
-	  }
+         for (int i = 0; i < size; ++i)
+         {
+            const int end = I[i+1];
+            for (int j = I[i]; j < end; ++j)
+            {
+               if (J[j] == i)
+               {
+                  diagonal_scaling[i] += data[j];
+               }
+               else if (l1)
+               {
+                  diagonal_scaling[i] += 0.5 * fabs(data[j]);
+               }
+            }
+            MFEM_ASSERT(diagonal_scaling[i] > 0.0,
+                        "Diagonal scaling should have positive entries");
+         }
       }
-    if (diag_blocks) { delete diag_blocks; }
-    if (GtAG) { delete GtAG; }
-  }
+      if (diag_blocks) { delete diag_blocks; }
+      if (GtAG) { delete GtAG; }
+   }
 }
 
 std::vector<DenseMatrix> *DRSmoother::DiagonalBlocks(const SparseMatrix *A,
