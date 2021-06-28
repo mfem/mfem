@@ -14,6 +14,7 @@
 
 #include "sparsemat.hpp"
 #include "hypre.hpp"
+#include <memory>
 
 namespace mfem
 {

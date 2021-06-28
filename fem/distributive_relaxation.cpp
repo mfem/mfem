@@ -427,7 +427,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
    {
       const int dof_i = MFEM_LDG(clusters+i);
       const int dofLo = MFEM_LDG(I+dof_i);
-      const int	dofHi = MFEM_LDG(I+dof_i+1);
+      const int   dofHi = MFEM_LDG(I+dof_i+1);
       // shouldn't unroll here, we don't know trip count and nvcc is kinda terrible at
       // guessing it
       for (int j = dofLo; j < dofHi; ++j)
