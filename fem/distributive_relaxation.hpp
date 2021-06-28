@@ -35,7 +35,6 @@ protected:
    const SparseMatrix *A;
 
    Vector diagonal_scaling;
-   Vector diagonal_scaling_d; // temporary device version
    std::vector<Array<int>> clusterPack;
 
    const Operator *oper;
@@ -44,15 +43,11 @@ protected:
 
    // Smoother helpers
    void DRSmootherJacobi(const Vector &b, Vector &x) const;
-   void MFEM_DEPRECATED(DRSmootherJacobiDevice(const Vector &b, Vector &x) const);
    static void L1Jacobi(const Vector &x0, Vector &x1, const SparseMatrix &A);
    void GtAGDiagScale(const Vector &b, Vector &x) const;
 
    // Constructor helpers
    void FormG(const DisjointSets *clustering);
-   // Temporary device version of FormG, should ultimately be removed (hence the
-   // deprecation macro wrap)
-   void MFEM_DEPRECATED(FormGDevice(const DisjointSets *clustering));
 public:
 
    /// Create distributive relaxation smoother.
