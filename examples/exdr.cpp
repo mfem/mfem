@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
    DisjointSets        *cluster = lorInfo.Cluster();
    PrintClusteringStats(std::cout,cluster);
    DRSmoother           smoother(cluster,&ALor,dim == 3);
-   LORSolver<SimpleAMG> lorSol(lor,&ALor,&smoother,MPI_COMM_WORLD);
+   LORSolver<SimpleAMG> lorSol(lor,ALor,smoother,MPI_COMM_WORLD);
 
    CGSolver cg;
 
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
 
 #if 0
    // need to figure out a way to do either without a segfault
-   LORSolver<DRSmoother> lorSol(lor,lorInfo.Cluster(),&ALor);
+   LORSolver<DRSmoother> lorSol(lor,lorInfo.Cluster(),ALor);
    cg.SetPreconditioner(lorSol);
 #endif
 

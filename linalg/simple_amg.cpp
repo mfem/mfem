@@ -21,13 +21,13 @@
 namespace mfem
 {
 
-SparseMatrix *SimpleAMG::Restriction() const
+void SimpleAMG::FormRestriction()
 {
-   int n = A->Height();
+   int n = A.Height();
 
-   const int *I = A->GetI();
-   const int *J = A->GetJ();
-   const double *data = A->GetData();
+   const int *I = A.GetI();
+   const int *J = A.GetJ();
+   const double *data = A.GetData();
 
    // Determine neighbors of each DOF
    Array<int> priorities(n);
@@ -96,13 +96,13 @@ SparseMatrix *SimpleAMG::Restriction() const
 
    // Assemble prolongator
    int coarse_vertices = coarse_points.size();
-   SparseMatrix *R = new SparseMatrix(coarse_vertices, n);
+   SparseMatrix R_(coarse_vertices, n);
 
    for (int i = 0; i < n; ++i)
    {
       if (coarse_points.count(i))
       {
-         R->Add(coarse_to_label[i], i, 1.0);
+         R_.Add(coarse_to_label[i], i, 1.0);
       }
       else
       {
@@ -130,33 +130,30 @@ SparseMatrix *SimpleAMG::Restriction() const
          itr = coarse_neighbors.begin();
          for (int j = 0; j < num_coarse_neigh; ++j)
          {
-            R->Add(coarse_to_label[*itr], i, 1.0 / num_coarse_neigh);
+            R_.Add(coarse_to_label[*itr], i, 1.0 / num_coarse_neigh);
             itr++;
          }
       }
    }
 
-   R->Finalize();
-   R->BuildTranspose();
-   return R;
+   R_.Finalize();
+   R_.BuildTranspose();
+   R.Swap(R_);
 }
 
-SimpleAMG::SimpleAMG(const SparseMatrix *A, Solver *smoother, MPI_Comm comm,
-                     bool two_level)
+SimpleAMG::SimpleAMG(const SparseMatrix &A_, Solver &smoother_, MPI_Comm comm,
+                     bool two_level) : A(A_), smoother(smoother_)
 {
-   this->A = A;
-   this->R = Restriction();
-   this->smoother = smoother;
-
-   Ac = RAP(*A, *R);
+   FormRestriction();
+   Ac.reset(RAP(A, R));
 
    if (two_level)
    {
 #ifdef MFEM_USE_SUITESPARSE
-      UMFPackSolver *umf = new UMFPackSolver();
+      UMFPackSolver *umf = new UMFPackSolver;
       umf->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf->SetOperator((SparseMatrix&) *Ac);
-      coarse_solver = umf;
+      umf->SetOperator(*Ac);
+      coarse_solver.reset(umf);
       Ac_par = NULL;
 #else
       MFEM_ABORT("SimpleAMG requires UMFPack in order to do two-level method");
@@ -164,52 +161,37 @@ SimpleAMG::SimpleAMG(const SparseMatrix *A, Solver *smoother, MPI_Comm comm,
    }
    else
    {
-      Ac_par = ToHypreParMatrix(Ac, comm, bounds);
-      auto hamg = new HypreBoomerAMG(*Ac_par);
-      hamg->SetPrintLevel(0);
-      coarse_solver = hamg;
+      row_starts[0] = 0;
+      row_starts[1] = Ac->Height();
+      Ac_par.reset(new HypreParMatrix(comm, Ac->Height(), row_starts, Ac.get()));
+      coarse_solver.reset(new HypreBoomerAMG(*Ac_par));
    }
-}
-
-HypreParMatrix *SimpleAMG::ToHypreParMatrix(SparseMatrix *B, MPI_Comm comm,
-                                            int *bounds)
-{
-   bounds[0] = 0;
-   bounds[1] = B->Height();
-   return new HypreParMatrix(comm, B->Height(), bounds, B);
 }
 
 void SimpleAMG::Mult(const Vector &x, Vector &y) const
 {
-   Vector res(x);
-   y = 0.0;
-   smoother->Mult(x, y); // y = smoothed guess
-   A->AddMult(y, res, -1.0);
+   z.SetSize(x.Size());
+   r_c.SetSize(R.Height());
+   e_c.SetSize(R.Height());
 
-   Vector res_coarse(R->Height());
-   R->Mult(res, res_coarse);
-
-   Vector err_coarse(R->Height());
-   coarse_solver->Mult(res_coarse, err_coarse);
-
-   R->AddMultTranspose(err_coarse, y); // y = corrected_guess
-
-   res = x;
-   A->AddMult(y, res, -1.0);
-
-   Vector tmp(x.Size());
-   smoother->Mult(res, tmp);
-
-   add(y, 1.0, tmp, y);
-}
-
-SimpleAMG::~SimpleAMG()
-{
-   delete Ac;
-   if (Ac_par != NULL) { delete Ac_par; }
-   delete R;
-   delete coarse_solver;
-   delete smoother;
+   // Pre-smoothing
+   smoother.Mult(x, y);
+   // Compute residual
+   r = x;
+   A.AddMult(y, r, -1.0);
+   // Restrict to coarse space
+   R.Mult(r, r_c);
+   // Solve coarse system
+   coarse_solver->Mult(r_c, e_c);
+   // Prolongate error
+   R.AddMultTranspose(e_c, y);
+   // Compute residual
+   r = x;
+   A.AddMult(y, r, -1.0);
+   // TODO: if we implemented AddMult for the smoother, this temporary can be
+   // eliminated.
+   smoother.Mult(r, z);
+   add(y, 1.0, z, y);
 }
 
 } // namespace mfem

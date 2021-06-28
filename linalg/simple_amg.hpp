@@ -20,24 +20,23 @@ namespace mfem
 
 class SimpleAMG : public Solver
 {
-private:
-   const SparseMatrix *A;
-   SparseMatrix *Ac, *R;
-   Solver *coarse_solver, *smoother;
+protected:
+   const SparseMatrix &A;
+   Solver &smoother;
+   std::unique_ptr<Solver> coarse_solver;
+   std::unique_ptr<SparseMatrix> Ac;
+   SparseMatrix R;
 
-   // Parallel stuff
-   HypreParMatrix *Ac_par;
-   int bounds[2];
+   // Parallel version of local matrix, used for HypreBoomerAMG
+   std::unique_ptr<HypreParMatrix> Ac_par;
+   int row_starts[2];
 
-   SparseMatrix *Restriction() const;
+   mutable Vector r, r_c, e_c, z;
 
+   void FormRestriction();
 public:
-   SimpleAMG(const SparseMatrix *A, Solver *smoother, MPI_Comm comm,
+   SimpleAMG(const SparseMatrix &A_, Solver &smoother_, MPI_Comm comm,
              bool two_level=true);
-   ~SimpleAMG();
-
-   static HypreParMatrix *ToHypreParMatrix(SparseMatrix *B, MPI_Comm comm,
-                                           int *bounds);
 
    void Mult(const Vector &x, Vector &y) const;
 
