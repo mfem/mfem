@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
+#include <iostream>
 
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256
@@ -24,6 +25,8 @@
 #define MFEM_HOST_DEVICE __host__ __device__
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
+#define	MFEM_TIME_CALL(cnt_,msg_,...) CuTimeCall<cnt_>(msg_,[&]() {__VA_ARGS__})
+
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
@@ -96,6 +99,37 @@ void CuCheckLastError();
 
 /// Get the number of CUDA devices
 int CuGetDeviceCount();
+
+template <int count, typename LMBDA>
+inline void CuTimeCall(const char msg[], LMBDA &&lmbda)
+{
+  cudaEvent_t start,stop;
+  float       timeT = 0.0f,timeLo = 9999999999.9f,timeHi = 0.0f;
+  int         runCount = 0;
+
+  MFEM_GPU_CHECK(cudaEventCreate(&start));
+  MFEM_GPU_CHECK(cudaEventCreate(&stop));
+  MFEM_DEVICE_SYNC;
+  for (; runCount < count; ++runCount) {
+    float time = 0.0f;
+
+    MFEM_GPU_CHECK(cudaEventRecord(start,0));
+    lmbda();
+    MFEM_GPU_CHECK(cudaEventRecord(stop,0));
+    MFEM_GPU_CHECK(cudaEventSynchronize(stop));
+    MFEM_GPU_CHECK(cudaEventElapsedTime(&time,start,stop));
+    timeLo = timeLo <= time ? timeLo : time;
+    timeHi = timeHi >= time ? timeHi : time;
+    timeT += time;
+  }
+  MFEM_GPU_CHECK(cudaEventDestroy(start));
+  MFEM_GPU_CHECK(cudaEventDestroy(stop));
+  std::cout<<msg<<"\n";
+  std::cout<<"Total number of iterations "<<runCount<<"\n";
+  std::cout<<"Total elapsed time "<<timeT<<" (ms)\n";
+  std::cout<<"Average time/run "<<timeT/(double)std::max(runCount,1)<<" (ms) Lo "<<timeLo<<" (ms), Hi "<<timeHi<<" (ms)\n";
+  return;
+}
 
 } // namespace mfem
 

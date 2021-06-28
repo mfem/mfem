@@ -211,11 +211,11 @@ static inline bool isCloseAtTol(double a, double b,
 
 void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
 {
-   mfem::out<<"Beginning device Jacobi iteration"<<std::endl;
    auto devDG = diagonal_scaling.Read();
    auto devB  = b.Read();
    auto devX  = x.Write();
 
+   mfem::out<<"========================================================="<<std::endl;
    for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
    {
       const int cpackSize = clusterPack[i].Size();
@@ -223,19 +223,28 @@ void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
       if (cpackSize)
       {
          auto devC = clusterPack[i].Read();
-
+	 mfem::out<<"----------------------------------"<<std::endl;
          switch (i+1)
          {
             case 1:
-               forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
+	      MFEM_TIME_CALL(10000,"Packsize 1",
+              {
+		forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
+	      });
                totalSize += cpackSize; // no interleaving
                break;
             case 2:
+	      MFEM_TIME_CALL(10000,"Packsize 2",
+              {
                forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
+	      });
                totalSize += 2*cpackSize;
                break;
             case 3:
+	      MFEM_TIME_CALL(10000,"Packsize 3",
+              {
                forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
+	      });
                totalSize += 2*cpackSize;
                break;
             default:
@@ -244,7 +253,7 @@ void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
          }
       }
    }
-   mfem::out<<"Finished device Jacobi iteration"<<std::endl;
+   return;
 }
 
 LORInfo::LORInfo(const Mesh &lor_mesh, Mesh &ho_mesh, int p)
@@ -643,7 +652,6 @@ void DRSmoother::FormG(const DisjointSets *clustering)
    auto devData = A->ReadData();
    auto devI    = A->ReadI(), devJ = A->ReadJ();
 
-   mfem::out<<"Device compute begin"<<std::endl;
    // running total of all the coefficients transfered so far
    for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
    {
@@ -675,7 +683,7 @@ void DRSmoother::FormG(const DisjointSets *clustering)
          }
       }
    }
-   mfem::out<<"Device compute complete"<<std::endl;
+   return;
 }
 
 void PrintClusteringStats(std::ostream &out, const DisjointSets *clustering)
