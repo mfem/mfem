@@ -81,19 +81,18 @@ void DRSmoother::Mult(const Vector &b, Vector &x) const
 namespace kernels {
 
 template <int DIM>
-MFEM_DEVICE __forceinline__ void computeSmootherAction(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret);
+MFEM_DEVICE __forceinline__ static void computeSmootherAction(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret);
 
 template <>
 MFEM_DEVICE __forceinline__ void computeSmootherAction<1>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
 {
   const double d0 = d[0];
-  const double g0 = g[0];
   const double v0 = v[0];
 
   // common subexpr
-  const double d0givi = d0*g0*v0;
+  const double d0givi = d0*v0;
 
-  ret[0] = g0*d0givi;
+  ret[0] = d0givi;
   return;
 }
 
@@ -131,7 +130,7 @@ MFEM_DEVICE __forceinline__ void computeSmootherAction<3>(const double *__restri
 } // namespace kernels
 
 template <int DIM>
-__global__ void	multDeviceKernel(const int size, const double scale, const int *__restrict__ c, const double *__restrict__ dg, const double *__restrict__ b, double *__restrict__ x)
+__global__ static void multDeviceKernel(const int size, const double scale, const int *__restrict__ c, const double *__restrict__ dg, const double *__restrict__ b, double *__restrict__ x)
 {
   const int tx = threadIdx.x, bx = blockIdx.x, bdx = blockDim.x, gdx = gridDim.x;
 
@@ -139,27 +138,55 @@ __global__ void	multDeviceKernel(const int size, const double scale, const int *
     double diags[DIM],gcoeffs[DIM],vin[DIM],vout[DIM];
     int    cmap[DIM];
 
-    // load the diaogonals of g^TAg ("D)
+    // load the diagonals of g^TAg ("D")
     MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) diags[i]   = dg[2*DIM*group+i];
+    for (int i = 0; i < DIM; ++i) diags[i]   = __ldg(dg+2*DIM*group+i);
 
     // load the coefficient array ("G")
     MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) gcoeffs[i] = dg[2*DIM*group+DIM+i];
+    for (int i = 0; i < DIM; ++i) gcoeffs[i] = __ldg(dg+2*DIM*group+DIM+i);
 
     // load the map from packed	representation to DOF layout in the vector
     MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) cmap[i]    = c[DIM*group+i];
+    for (int i = 0; i < DIM; ++i) cmap[i]    = __ldg(c+DIM*group+i);
 
     // load the input vector
     MFEM_UNROLL(DIM)
-    for (int i = 0; i < DIM; ++i) vin[i]     = b[cmap[i]];
+    for (int i = 0; i < DIM; ++i) vin[i]     = __ldg(b+cmap[i]);
 
     kernels::computeSmootherAction<DIM>(diags,gcoeffs,vin,vout);
 
     // stream results back down
     MFEM_UNROLL(DIM)
     for (int i = 0; i < DIM; ++i) x[cmap[i]] = scale*vout[i];
+  }
+  return;
+}
+
+// specialize for DIM = 1 as g is trivial
+template <>
+__global__ void	multDeviceKernel<1>(const int size, const double scale, const int *__restrict__ c, const double *__restrict__ dg, const double *__restrict__ b, double *__restrict__ x)
+{
+  const int tx = threadIdx.x, bx = blockIdx.x, bdx = blockDim.x, gdx = gridDim.x;
+
+  for (int group = (bx*bdx)+tx; group < size; group += (gdx*bdx)) {
+    double diags,vin,vout;
+    int    cmap;
+
+    // load the diagonals of g^TAg ("D")
+    diags = __ldg(dg+group);
+
+    // load the map from packed	representation to DOF layout in the vector
+    cmap = __ldg(c+group);
+
+    // load the input vector
+    vin = __ldg(b+cmap);
+
+    // G is unused
+    kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
+
+    // stream results back down
+    x[cmap] = scale*vout;
   }
   return;
 }
@@ -188,18 +215,20 @@ void DRSmoother::DRSmootherJacobiDevice(const Vector &b, Vector &x) const
 #if defined(__NVCC__)
       case 1:
 	multDeviceKernel<1><<<dimGrid,dimBlock>>>(cpackSize,scale,devC,devDG,devB,devX);
+	totalSize += cpackSize; // no interleaving
 	break;
       case 2:
 	multDeviceKernel<2><<<dimGrid,dimBlock>>>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
+	totalSize += 2*cpackSize;
 	break;
       case 3:
 	multDeviceKernel<3><<<dimGrid,dimBlock>>>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
+	totalSize += 2*cpackSize;
 #endif
       default:
 	break;
       }
       MFEM_DEVICE_SYNC;
-      totalSize += 2*cpackSize;
     }
   }
   return;
@@ -552,7 +581,7 @@ namespace kernels
 template <int LDA>
 MFEM_DEVICE __forceinline__ void loadSubmatLDG(const int *__restrict__ I,
                                                const int *__restrict__ J, const double *__restrict__ data,
-                                               const int *__restrict__ clusters, double subMat[LDA*LDA])
+                                               const int *__restrict__ clusters, double *__restrict__ subMat)
 {
    MFEM_UNROLL(LDA)
    for (int i = 0; i < LDA; ++i)
@@ -722,6 +751,27 @@ __global__ static void computeCoeffsKernel(const int size,
    }
    return;
 }
+
+// For LDA = 1 the coeffs are always = 1, (so no point storing them in the interleaved
+// format detailed above). Since NVCC is not able to elide the loading of the initial
+// coefficients	even if they aren't used we must specialize
+template <>
+__global__ void computeCoeffsKernel<1>(const int size,
+				       const int *__restrict__ I,
+				       const int *__restrict__ J, const double *__restrict__ data,
+				       const int *__restrict__ clusters, double *__restrict__ ret)
+{
+   const int tx = threadIdx.x, bx = blockIdx.x, bdx = blockDim.x, gdx = gridDim.x;
+
+   for (int group = (bx*bdx)+tx; group < size; group += (gdx*bdx))
+   {
+     double diag_value;
+
+     kernels::loadSubmatLDG<1>(I,J,data,clusters+group,&diag_value);
+     ret[group] = 1.0/diag_value;
+   }
+   return;
+}
 #endif
 
 void DRSmoother::FormGDevice(const DisjointSets *clustering)
@@ -801,21 +851,23 @@ void DRSmoother::FormGDevice(const DisjointSets *clustering)
             case 1:
                computeCoeffsKernel<1><<<dimGrid,dimBlock>>>(cpackSize,devI,devJ,devData,
                                                             devCluster,devCoeffArray);
+	       totalSize += cpackSize; // no interleaving
                break;
             case 2:
 
                computeCoeffsKernel<2><<<dimGrid,dimBlock>>>(cpackSize/2,devI,devJ,devData,
                                                             devCluster,devCoeffArray+totalSize);
+	       totalSize += 2*cpackSize;
                break;
             case 3:
                computeCoeffsKernel<3><<<dimGrid,dimBlock>>>(cpackSize/3,devI,devJ,devData,
                                                             devCluster,devCoeffArray+totalSize);
+	       totalSize += 2*cpackSize;
 #endif
             default:
                break;
          }
          MFEM_DEVICE_SYNC;
-         totalSize += 2*cpackSize;
       }
    }
    mfem::out<<"Device compute complete"<<std::endl;
