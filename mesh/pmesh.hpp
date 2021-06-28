@@ -208,10 +208,6 @@ protected:
    /// Internal function used in ParMesh::MakeRefined (and related constructor)
    void MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type);
 
-
-   /// Internal helper used in ExtractMesh_
-   void ExtractMesh_(ParMesh &orig_mesh, const Array<int> & elems);
-
    // Mark Mesh::Swap as protected, should use ParMesh::Swap to swap @a ParMesh
    // objects.
    using Mesh::Swap;
