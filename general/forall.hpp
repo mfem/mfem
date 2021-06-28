@@ -38,8 +38,14 @@ const int MAX_Q1D = 14;
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#  if defined(__CUDA_ARCH__)
+#    define MFEM_LDG(m_) __ldg(m_)
+#  else
+#    define MFEM_LDG(m_) *(m_)
+#  endif
 #else
 #define MFEM_UNROLL(N)
+#define MFEM_LDG(m_)     *(m_)
 #endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel

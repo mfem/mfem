@@ -35,6 +35,7 @@ protected:
    const SparseMatrix *A;
 
    Vector diagonal_scaling;
+   Vector diagonal_scaling_d; // temporary device version
    std::vector<Array<int>> clusterPack;
 
    const Operator *oper;

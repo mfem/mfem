@@ -188,6 +188,6 @@ int main(int argc, char *argv[])
    cg.SetPreconditioner(lorSol);
 #endif
 
-   a.RecoverFEMSolution(X,b,x);
+   //a.RecoverFEMSolution(X,b,x);
    return 0;
 }

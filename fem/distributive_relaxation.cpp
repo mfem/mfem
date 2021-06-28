@@ -77,14 +77,13 @@ void DRSmoother::Mult(const Vector &b, Vector &x) const
 }
 
 #if defined(__NVCC__)
-
 namespace kernels {
 
 template <int DIM>
 MFEM_DEVICE __forceinline__ static void computeSmootherAction(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret);
 
 template <>
-MFEM_DEVICE __forceinline__ void computeSmootherAction<1>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<1>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
 {
   const double d0 = d[0];
   const double v0 = v[0];
@@ -97,7 +96,7 @@ MFEM_DEVICE __forceinline__ void computeSmootherAction<1>(const double *__restri
 }
 
 template <>
-MFEM_DEVICE __forceinline__ void computeSmootherAction<2>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<2>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
 {
   const double d0 = d[0], d1 = d[1];
   const double g0 = g[0], g1 = g[1];
@@ -112,7 +111,7 @@ MFEM_DEVICE __forceinline__ void computeSmootherAction<2>(const double *__restri
 }
 
 template <>
-MFEM_DEVICE __forceinline__ void computeSmootherAction<3>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE __forceinline__ void computeSmootherAction<3>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
 {
   const double d0 = d[0], d1 = d[1], d2 = d[2];
   const double g0 = g[0], g1 = g[1], g2 = g[2];
@@ -192,13 +191,76 @@ __global__ void	multDeviceKernel<1>(const int size, const double scale, const in
 }
 #endif
 
+static inline bool isCloseAtTol(double a, double b,
+				double rtol = std::numeric_limits<double>::epsilon(),
+				double atol = std::numeric_limits<double>::epsilon())
+{
+   using std::fabs; // koenig lookup
+   using std::max;
+   return fabs(a-b) <= max(rtol*max(fabs(a),fabs(b)),atol);
+}
+
+template <int DIM>
+static void forAllDispatch(const int size, const double scale, const int *__restrict__ c, const double *__restrict__ dg, const double *__restrict__ b, double *__restrict__ x)
+{
+  MFEM_FORALL(group, size,
+  {
+    double diags[DIM],gcoeffs[DIM],vin[DIM],vout[DIM];
+    int    cmap[DIM];
+
+    // load the diagonals of g^TAg ("D")
+    MFEM_UNROLL(DIM)
+    for (int i = 0; i < DIM; ++i) diags[i]   = MFEM_LDG(dg+2*DIM*group+i);
+
+    // load the coefficient array ("G")
+    MFEM_UNROLL(DIM)
+    for (int i = 0; i < DIM; ++i) gcoeffs[i] = MFEM_LDG(dg+2*DIM*group+DIM+i);
+
+    // load the map from packed representation to DOF layout in the vector
+    MFEM_UNROLL(DIM)
+    for (int i = 0; i < DIM; ++i) cmap[i]    = MFEM_LDG(c+DIM*group+i);
+
+    // load the input vector
+    MFEM_UNROLL(DIM)
+    for (int i = 0; i < DIM; ++i) vin[i]     = MFEM_LDG(b+cmap[i]);
+
+    kernels::computeSmootherAction<DIM>(diags,gcoeffs,vin,vout);
+
+    // stream results back down
+    MFEM_UNROLL(DIM)
+    for (int i = 0; i < DIM; ++i) x[cmap[i]] = scale*vout[i];
+  });
+}
+
+template <>
+void forAllDispatch<1>(const int size, const double scale, const int *__restrict__ c, const double *__restrict__ dg, const double *__restrict__ b, double *__restrict__ x)
+{
+  MFEM_FORALL(group, size,
+  {
+    double diags,vin,vout;
+    int    cmap;
+
+    // load the diagonals of g^TAg ("D")
+    diags = MFEM_LDG(dg+group);
+
+    // load the map from packed	representation to DOF layout in the vector
+    cmap  = MFEM_LDG(c+group);
+
+    // load the input vector
+    vin   = MFEM_LDG(b+cmap);
+
+    // G is unused
+    kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
+
+    // stream results back down
+    x[cmap] = scale*vout;
+  });
+}
+
 void DRSmoother::DRSmootherJacobiDevice(const Vector &b, Vector &x) const
 {
-#if defined(__NVCC__)
-  const dim3 dimBlock(MFEM_CUDA_BLOCKS);
-#endif
-
-  auto devDG = diagonal_scaling.Read();
+  mfem::out<<"Beginning device Jacobi iteration"<<std::endl;
+  auto devDG = diagonal_scaling_d.Read();
   auto devB  = b.Read();
   auto devX  = x.Write();
 
@@ -206,13 +268,28 @@ void DRSmoother::DRSmootherJacobiDevice(const Vector &b, Vector &x) const
     const int cpackSize = clusterPack[i].Size();
 
     if (cpackSize) {
-#if defined(__NVCC__)
-      const dim3 dimGrid(std::max(cpackSize/dimBlock.x,static_cast<uint>(1)));
-#endif
       auto devC = clusterPack[i].Read();
+#if 1
+      switch (i+1) {
+      case 1:
+	forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
+	totalSize += cpackSize; // no interleaving
+	break;
+      case 2:
+	forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
+	totalSize += 2*cpackSize;
+	break;
+      case 3:
+	forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
+	totalSize += 2*cpackSize;
+      default:
+	break;
+      }
+#else
+      const dim3 dimBlock(MFEM_CUDA_BLOCKS);
+      const dim3 dimGrid(std::max(cpackSize/dimBlock.x,static_cast<uint>(1)));
 
       switch (i+1) {
-#if defined(__NVCC__)
       case 1:
 	multDeviceKernel<1><<<dimGrid,dimBlock>>>(cpackSize,scale,devC,devDG,devB,devX);
 	totalSize += cpackSize; // no interleaving
@@ -224,26 +301,30 @@ void DRSmoother::DRSmootherJacobiDevice(const Vector &b, Vector &x) const
       case 3:
 	multDeviceKernel<3><<<dimGrid,dimBlock>>>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
 	totalSize += 2*cpackSize;
-#endif
       default:
 	break;
       }
+#endif
       MFEM_DEVICE_SYNC;
     }
   }
+  mfem::out<<"Finished device Jacobi iteration"<<std::endl;
   return;
 }
 
 void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
 {
-   return DRSmootherJacobiDevice(b,x);
-   G->MultTranspose(b, tmp);
+  if (Device::IsEnabled()) {
+     DRSmootherJacobiDevice(b,x);
+   } else {
+     G->MultTranspose(b, tmp);
 
-   const int end = diagonal_scaling.Size();
+     const int end = diagonal_scaling.Size();
 
-   for (int i = 0; i < end; ++i) { tmp[i] /= diagonal_scaling[i]; }
-   G->Mult(tmp, x);
-   for (int i = 0; i < x.Size(); ++i) { x[i] *= scale; }
+     for (int i = 0; i < end; ++i) { tmp[i] /= diagonal_scaling[i]; }
+     G->Mult(tmp, x);
+     for (int i = 0; i < x.Size(); ++i) { x[i] *= scale; }
+   }
 }
 
 LORInfo::LORInfo(const Mesh &lor_mesh, Mesh &ho_mesh, int p)
@@ -411,18 +492,11 @@ LORInfo::LORInfo(const Mesh &lor_mesh, Mesh &ho_mesh, int p)
    num_dofs = lor_mesh.GetNV();
 }
 
-inline bool isCloseAtTol(double a, double b,
-                         double rtol = std::numeric_limits<double>::epsilon(),
-                         double atol = std::numeric_limits<double>::epsilon())
-{
-   using std::fabs; // koenig lookup
-   using std::max;
-   return fabs(a-b) <= max(rtol*max(fabs(a),fabs(b)),atol);
-}
-
 void DRSmoother::FormG(const DisjointSets *clustering)
 {
-   return FormGDevice(clustering);
+  if (Device::IsEnabled()) {
+    return FormGDevice(clustering);
+  }
    const Array<int> &bounds = clustering->GetBounds();
    const Array<int> &elems  = clustering->GetElems();
    SparseMatrix *g = NULL;
@@ -805,7 +879,7 @@ void DRSmoother::FormGDevice(const DisjointSets *clustering)
 
      // can allocate the full coefficient array now. Due to interleaving of the coefficients
      // and g^TAg we allocate twice as many
-     diagonal_scaling.SetSize(2*totalCoeffSize);
+     diagonal_scaling_d.SetSize(2*totalCoeffSize);
    }
 
    // now we loop over all clusters
@@ -825,7 +899,7 @@ void DRSmoother::FormGDevice(const DisjointSets *clustering)
      }
 
    // get device-side memory
-   auto devCoeffArray = diagonal_scaling.Write();
+   auto devCoeffArray = diagonal_scaling_d.Write();
    auto devData = A->ReadData();
    auto devI    = A->ReadI(), devJ = A->ReadJ();
 #if defined(__NVCC__)

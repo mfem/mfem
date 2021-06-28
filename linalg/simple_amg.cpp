@@ -137,6 +137,7 @@ SparseMatrix *SimpleAMG::Restriction() const
    }
 
    R->Finalize();
+   R->BuildTranspose();
    return R;
 }
 
