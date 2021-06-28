@@ -34,6 +34,7 @@ void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
    DenseMatrix Pt(P.Size());
+   P = 0.0;
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
       tmop_q_arr[i]->EvalP(Jpt, Pt);
@@ -50,6 +51,7 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    DenseMatrix At(A.Size());
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
+      At = 0.0;
       tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
       At *= wt_arr[i];
       A += At;
