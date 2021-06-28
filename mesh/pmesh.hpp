@@ -269,11 +269,6 @@ public:
        See @a Mesh::MakeSimplicial for more details. */
    static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
-   /** Create a mesh by extracting from @a orig_mesh the given list of
-       @a elems. Periodic and high-order meshes are also supported.
-       @warning NonConforming meshes are not supported. */
-   static ParMesh ExtractMesh(ParMesh &orig_mesh, const Array<int> & elems);
-
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
    virtual void SetAttributes();
