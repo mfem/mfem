@@ -64,10 +64,6 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
-#endif // MFEM_USE_MPI
-
-#ifdef MFEM_USE_MPI
-
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace& flux_fespace_,
