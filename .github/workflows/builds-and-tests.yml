@@ -50,6 +50,7 @@ jobs:
         target: [debug, optim]
         mpi: [sequential, parallel]
         build-system: [make]
+        hypre-target: [basic]
         # 'include' allows us to
         # - add a variable without creating a new matrix dimension.
         # - add a new combination ('build-system: cmake' case here)
@@ -66,11 +67,13 @@ jobs:
             codecov: NO
             mpi: parallel
             build-system: cmake
+            hypre-target: basic
           - os: ubuntu-18.04
             target: optim
             codecov: YES
             mpi: parallel
             build-system: make
+            hypre-target: basic
           - os: ubuntu-18.04
             target: optim
             codecov: NO
