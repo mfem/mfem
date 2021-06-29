@@ -362,8 +362,7 @@ public:
        be updated as described above. */
    inline void SetDeviceMemoryType(MemoryType d_mt);
 
-   /** @brief Delete the owned pointers. The Memory is not reset by this method,
-       i.e. it will, generally, not be Empty() after this call. */
+   /** @brief Delete the owned pointers and reset the Memory object. */
    inline void Delete();
 
    /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
@@ -940,6 +939,7 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
+   Reset();
 }
 
 template <typename T>
