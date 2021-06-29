@@ -4490,7 +4490,7 @@ void Mesh::ExtractMesh_(const Mesh &orig_mesh, const Array<int> & elems)
       for (int f=0; f<faces.Size(); ++f) { BoundaryMarker[faces[f]]++; }
    }
 
-   for (int f=0; f<nf; ++f) { if (BoundaryMarker[f] == 1) new_nbe++; }   
+   for (int f=0; f<nf; ++f) { if (BoundaryMarker[f] == 1) { new_nbe++; } }
 
    InitMesh(dim,sdim,new_nv,new_ne,new_nbe);
 
@@ -4508,7 +4508,7 @@ void Mesh::ExtractMesh_(const Mesh &orig_mesh, const Array<int> & elems)
    int attr = 0;
    for (int f=0; f<nf; ++f)
    {
-      if (BoundaryMarker[f] != 1) continue;
+      if (BoundaryMarker[f] != 1) { continue; }
       const Element * el = orig_mesh.GetFace(f);
       Element * new_bel = nullptr;
       if (dim == 1)
@@ -4516,7 +4516,7 @@ void Mesh::ExtractMesh_(const Mesh &orig_mesh, const Array<int> & elems)
          int pt = vmarker[f]-1;
          new_bel = (Element*)new Point(&pt);
          new_bel->SetAttribute(++attr);
-      }        
+      }
       else
       {
          new_bel = NewElement(el->GetGeometryType());
@@ -4529,7 +4529,7 @@ void Mesh::ExtractMesh_(const Mesh &orig_mesh, const Array<int> & elems)
          }
          new_bel->SetVertices(v1.GetData());
          new_bel->SetAttribute(++attr);
-      }   
+      }
       AddBdrElement(new_bel);
    }
 
@@ -4632,7 +4632,7 @@ void Mesh::ExtractSurfaceMesh_(const Mesh &orig_mesh, const Array<int> & faces)
       for (int f=0; f<edges.Size(); ++f) { BoundaryMarker[edges[f]]++; }
    }
 
-   for (int f=0; f<nf; ++f) { if (BoundaryMarker[f] == 1) new_nbe++; }   
+   for (int f=0; f<nf; ++f) { if (BoundaryMarker[f] == 1) { new_nbe++; } }
 
    InitMesh(dim,sdim,new_nv,new_ne,new_nbe);
 
@@ -4650,14 +4650,14 @@ void Mesh::ExtractSurfaceMesh_(const Mesh &orig_mesh, const Array<int> & faces)
    int attr = 0;
    for (int f=0; f<nf; ++f)
    {
-      if (BoundaryMarker[f] != 1) continue;
+      if (BoundaryMarker[f] != 1) { continue; }
       Element * new_bel = nullptr;
       if (dim == 1)
       {
          int pt = vmarker[f]-1;
          new_bel = (Element*)new Point(&pt);
          new_bel->SetAttribute(++attr);
-      }        
+      }
       else
       {
          new_bel = NewElement(mfem::Geometry::SEGMENT);
@@ -4671,7 +4671,7 @@ void Mesh::ExtractSurfaceMesh_(const Mesh &orig_mesh, const Array<int> & faces)
          }
          new_bel->SetVertices(v1.GetData());
          new_bel->SetAttribute(++attr);
-      }   
+      }
       AddBdrElement(new_bel);
    }
 
@@ -4715,16 +4715,16 @@ void Mesh::ExtractSurfaceMesh_(const Mesh &orig_mesh, const Array<int> & faces)
          new_fes->GetElementVDofs(e, new_vdofs);
          if (!discont)
          {
-            orig_fes->GetFaceVDofs(faces[e], orig_vdofs); 
+            orig_fes->GetFaceVDofs(faces[e], orig_vdofs);
             orig_nodes->GetSubVector(orig_vdofs, vec);
          }
          else
          {
             const FiniteElement * el = new_fes->GetFE(e);
-            const IntegrationRule & ir = el->GetNodes(); 
+            const IntegrationRule & ir = el->GetNodes();
             int np = ir.GetNPoints();
-            FaceElementTransformations * Tr = 
-            const_cast<Mesh *>(&orig_mesh)->GetFaceElementTransformations(faces[e]);
+            FaceElementTransformations * Tr =
+               const_cast<Mesh *>(&orig_mesh)->GetFaceElementTransformations(faces[e]);
             int el1 = Tr->Elem1No;
             vec.SetSize(new_vdofs.Size());
             for (int i = 0; i<np; i++)
