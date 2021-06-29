@@ -170,7 +170,7 @@ protected:
                 + 8 * (int)std::get<3>(k);
       }
    };
-   using map_L2F = std::unordered_map<const key_face,Operator*,key_hash>;
+   using map_L2F = std::unordered_map<const key_face,FaceRestriction*,key_hash>;
    mutable map_L2F L2F;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
@@ -508,7 +508,7 @@ public:
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   virtual const Operator *GetFaceRestriction(
+   virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering e_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 

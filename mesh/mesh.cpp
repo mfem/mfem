@@ -11485,10 +11485,10 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const int NF   = fespace->GetNFbyType(type);
    const int NQ   = ir.GetNPoints();
 
-   const Operator *face_restr = fespace->GetFaceRestriction(
-                                   ElementDofOrdering::LEXICOGRAPHIC,
-                                   type,
-                                   L2FaceValues::SingleValued );
+   const FaceRestriction *face_restr = fespace->GetFaceRestriction(
+                                          ElementDofOrdering::LEXICOGRAPHIC,
+                                          type,
+                                          L2FaceValues::SingleValued );
    Vector Fnodes(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
 
