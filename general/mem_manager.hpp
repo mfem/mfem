@@ -175,7 +175,8 @@ public:
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
 
-   /// Move constructor, takes ownership when possible and invalidates @a orig.
+   /** Move constructor. Sets the pointers and associated ownership of validity
+       flags of @a *this to those of @a other. Invalidates @a other. */
    Memory(Memory &&orig)
       : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
         flags(orig.flags)
@@ -186,8 +187,8 @@ public:
    /// Copy-assignment operator: default.
    Memory &operator=(const Memory &orig) = default;
 
-   /** Move-assignment operator, takes ownership when possible and invalidates
-       @a orig. */
+   /** Move assignment operator. Sets the pointers and associated ownership of
+       validity flags of @a *this to those of @a other. Invalidates @a other. */
    Memory &operator=(Memory &&orig)
    {
       h_ptr = orig.h_ptr;
