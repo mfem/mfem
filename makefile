@@ -97,7 +97,7 @@ make style
 make tags
    Generate a vi or Emacs compatible TAGS file in ${MFEM_DIR}/TAGS. Requires
    functional "etags" and "egrep" in the user ${PATH}.
-make tags
+make hooks
    Creates symlinks to the hooks in the `.git/hooks` directory.
 endef
 
@@ -768,8 +768,8 @@ endif
 .PHONY: hooks
 hooks:
 	@cd $(MFEM_DIR)/.git/hooks && \
-		ln -s ../../config/githooks/pre-commit pre-commit; \
-		ln -s ../../config/githooks/pre-push pre-push;
+	ln -s ../../config/githooks/pre-commit pre-commit; \
+	ln -s ../../config/githooks/pre-push pre-push;
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:
