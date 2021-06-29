@@ -382,7 +382,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   explained in the error messages and the `tests/scripts` directory.
 
 - Also note that `branch-history`, and the `repos-checks` found in Github
-  Actions can be triggered automatically before eack push using githooks. See
+  Actions can be triggered automatically before each push using githooks. See
   the [git hooks README](config/githooks/README.md) for a detailed explanation.
 
 - If triggered, track the status of the LLNL GitLab tests. If failing, ask
