@@ -388,7 +388,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   checks in Travis and GitHub Actions enforce MFEM-specific rules which are
   explained in the error messages and the `tests/scripts` directory.
 
-- Also note that the tests `branch-history`, and `repos-checks` found in GitHub
+- Also note that the tests `branch-history` and `repos-checks` found in GitHub
   Actions can be triggered automatically before each push using git hooks. See
   the [git hooks README](config/githooks/README.md) for a detailed explanation.
 
