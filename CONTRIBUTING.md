@@ -63,7 +63,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   development branches off `mfem:master`.
 - Please follow the [developer guidelines](#developer-guidelines), in particular
   with regards to documentation and code styling.
-- Please do not commit large/binary files to the central repository (use a fork instead).
+- Please do not commit large/binary files to the central repository (use a fork
+  instead).
 - Pull requests  should be issued toward `mfem:master`. Make sure
   to check the items off the [Pull Request Checklist](#pull-request-checklist).
 - When your contribution is fully working and ready to be reviewed, add
