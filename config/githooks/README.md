@@ -23,12 +23,9 @@ not add any large files to the repo.
 
 ### Setup
 
-To setup a git hook, create a symlink to it from the `.git/hooks` directory.
-
-```bash
-  cd <mfem_root_dir>/.git/hooks
-  ln -s ../../config/githooks/<hook_script> <hook_script>
-```
+To setup the git hooks, run `make hooks`, which creates symlinks to the hooks in
+the `.git/hooks` directory. Individual hooks can be enabled by manually creating
+symlinks.
 
 (You may also copy the script directly and customize it further, but this way
 you may miss additional updates in the future.)

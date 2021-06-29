@@ -37,6 +37,7 @@ MFEM makefile targets:
    make distclean
    make style
    make tags
+   make hooks
 
 Examples:
 
@@ -96,6 +97,8 @@ make style
 make tags
    Generate a vi or Emacs compatible TAGS file in ${MFEM_DIR}/TAGS. Requires
    functional "etags" and "egrep" in the user ${PATH}.
+make tags
+   Creates symlinks to the hooks in the `.git/hooks` directory.
 endef
 
 # Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
@@ -758,6 +761,15 @@ endif
 	$(EGREP_BIN) '(\.[hc](pp)?)$$'))
 	@cd $(MFEM_REAL_DIR) && $(ETAGS_BIN) --class-qualify \
 	--declarations -o $(MFEM_REAL_DIR)/TAGS $(MFEM_TRACKED_SOURCE)
+
+# Creates symlinks to the hooks in the `.git/hooks` directory. Individual
+# hooks can be enabled by manually creating symlinks. Hooks can be customized
+# using hard copies (trading off with automated updates).
+.PHONY: hooks
+hooks:
+	@cd $(MFEM_DIR)/.git/hooks && \
+		ln -s ../../config/githooks/pre-commit pre-commit; \
+		ln -s ../../config/githooks/pre-push pre-push;
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:
