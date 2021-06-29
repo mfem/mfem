@@ -8,7 +8,7 @@
                                https://mfem.org
 
 
-Version 4.3, released on June XX, 2021
+Version 4.3, released on July XX, 2021
 ======================================
 
 Discretization improvements
@@ -244,6 +244,15 @@ New and updated examples and miniapps
 - Added HIP support to the CMake build system.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+API changes
+-----------
+- Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
+  and `L2FaceRestriction`.
+  In order to conform with the semantic of `MultTranspose` in `mfem::Operator`,
+  `mfem::FaceRestriction::MultTranspose` now sets instead of adding values, and
+  `mfem::FaceRestriction::AddMultTranspose` should replace previous calls to
+  `mfem::FaceRestriction::MultTranspose`.
 
 
 Version 4.2, released on October 30, 2020
