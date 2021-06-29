@@ -14,20 +14,20 @@
 option=${1:-""}
 
 if [[ "${option}" == "--help" ]]; then
-  echo " This script runs checks on the repository."
-  echo " It has 2 modes: with and without an option"
+  echo "This script runs checks on the repository."
+  echo "It has 2 modes: with and without an option."
   echo ""
-  echo " - options are used in GitHub Actions and can be:"
-  echo "   --copyright"
-  echo "   --license"
-  echo "   --release"
-  echo "   --style"
-  echo "   --history"
+  echo "Options are used in GitHub Actions and can be:"
+  echo "  --copyright"
+  echo "  --license"
+  echo "  --release"
+  echo "  --style"
+  echo "  --history"
   echo ""
-  echo " - as a githook, the script is used without options"
-  echo "   In that case, it will run all the checks except style."
+  echo "As a githook, the script is used without options."
+  echo "In that case, it will run all the checks except style."
   echo ""
-  echo " - of course, --help is also option and prints this help."
+  echo "Use --help to print this help message."
 fi
 
 cd $(git rev-parse --show-toplevel)
@@ -80,8 +80,7 @@ fi
 
 # `code-style` is not just a check, it will actually reformat the code if
 # necessary. This means that if one pushes while the repo is in dirty state
-# (changes not staged), those changes may be mixed with format changes, which
-# can be annoying.
+# (changes not staged), those changes may be mixed with format changes.
 # To activate this, you will need to hard-copy this hook script in the hook
 # directory and uncomment only then. (See README.md)
 #
