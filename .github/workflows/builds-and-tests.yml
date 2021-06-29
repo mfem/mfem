@@ -50,7 +50,6 @@ jobs:
         target: [debug, optim]
         mpi: [sequential, parallel]
         build-system: [make]
-        hypre-target: [basic]
         # 'include' allows us to
         # - add a variable without creating a new matrix dimension.
         # - add a new combination ('build-system: cmake' case here)
@@ -67,10 +66,14 @@ jobs:
             codecov: NO
             mpi: parallel
             build-system: cmake
-            hypre-target: basic
           - os: ubuntu-18.04
             target: optim
             codecov: YES
+            mpi: parallel
+            build-system: make
+          - os: ubuntu-18.04
+            target: optim
+            codecov: NO
             mpi: parallel
             build-system: make
             hypre-target: bigint
@@ -139,7 +142,7 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@v1.0
+      uses: mfem/github-actions/build-hypre@bernede1/hypre-bigint
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -157,14 +160,14 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v1.0
+      uses: mfem/github-actions/build-metis@bernede1/hypre-bigint
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v1.0
+      uses: mfem/github-actions/build-mfem@bernede1/hypre-bigint
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -200,7 +203,7 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@v1.0
+      uses: mfem/github-actions/upload-coverage@bernede1/hypre-bigint
       with:
         name: ${{ matrix.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
