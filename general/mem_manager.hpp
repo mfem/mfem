@@ -178,9 +178,8 @@ public:
    /** Move constructor. Sets the pointers and associated ownership of validity
        flags of @a *this to those of @a other. Invalidates @a other. */
    Memory(Memory &&orig)
-      : h_ptr(orig.h_ptr), capacity(orig.capacity), h_mt(orig.h_mt),
-        flags(orig.flags)
    {
+      *this = orig;
       orig.Reset();
    }
 
@@ -191,10 +190,7 @@ public:
        validity flags of @a *this to those of @a other. Invalidates @a other. */
    Memory &operator=(Memory &&orig)
    {
-      h_ptr = orig.h_ptr;
-      capacity = orig.capacity;
-      h_mt = orig.h_mt;
-      flags = orig.flags;
+      *this = orig;
       orig.Reset();
       return *this;
    }
