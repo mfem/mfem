@@ -2862,6 +2862,11 @@ void HyprePCG::SetTol(double tol)
    HYPRE_PCGSetTol(pcg_solver, tol);
 }
 
+void HyprePCG::SetAbsTol(double atol)
+{
+   HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
+}
+
 void HyprePCG::SetMaxIter(int max_iter)
 {
    HYPRE_PCGSetMaxIter(pcg_solver, max_iter);

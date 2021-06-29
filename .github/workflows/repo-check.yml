@@ -16,10 +16,6 @@ permissions:
 
 on:
   push:
-    branches:
-      - master
-      - next
-  pull_request:
 
 jobs:
   file-headers-check:
