@@ -1,4 +1,4 @@
 #!/bin/sh
 
-# Apply automated formatting
+# Apply automated code formatting
 make -C $(git rev-parse --show-toplevel) style
