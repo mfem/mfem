@@ -66,7 +66,8 @@ protected:
 
 public:
 
-   /// Default constructor for Vector. Sets size = 0 and data = NULL.
+   /** Default constructor for Vector. Sets size = 0, and calls Memory::Reset on
+       data through Memory<double>'s default constructor. */
    Vector(): size(0) { }
 
    /// Copy constructor. Allocates a new data array and copies the data.

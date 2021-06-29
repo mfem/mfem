@@ -169,7 +169,8 @@ protected:
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
-   /// Default constructor.
+   /** Default constructor, sets the host pointer to nullptr and the metadata to
+       meaningful default values. */
    Memory() { Reset(); }
 
    /// Copy constructor: default.
