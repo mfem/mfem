@@ -37,7 +37,7 @@ won’t benefit from updates automatically if you do so.
 
 The `branch-history` check can fail whereas the history is OK. This is the case
 when a large number of files was modified for a legitimate reason, or if a
-picture was added for documentation for example.
+picture was added for documentation.
 
 In such case, and only after making sure nothing is wrong, you can rerun the
 push command with the `--no-verify` option. This will skip the hooks, allowing
