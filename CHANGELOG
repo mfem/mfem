@@ -173,11 +173,10 @@ Version 4.2.1 (development)
   mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
   supports meshes with any element geometry.
 
-- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
-
-- GitHub Action: Translated the CI logic from Travis to GitLab CI.
-
-- Githooks: Add a directory with suggested githooks for developpers.
+- Testing improvements:
+  * Transitioned from Travis to GitHub Action for testing/CI on GitHub.
+  * Use Spack (and Uberenv) to automate building of TPLs in LLNL GitLab tests.
+  * Added a set of suggested git hooks for developers in config/githooks.
 
 - Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
   see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
