@@ -27,7 +27,7 @@ To setup the git hooks, run `make hooks`, which creates symlinks to the hooks in
 the `.git/hooks` directory. Individual hooks can be enabled by manually creating
 symlinks.
 
-(You may also copy the script directly and customize it further, but this way
+(You may also copy the scripts directly and customize them further, but this way
 you may miss additional updates in the future.)
 
 ### Failures
