@@ -29,6 +29,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
