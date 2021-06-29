@@ -516,7 +516,14 @@ public:
 
    /// Initialize all entries with value.
    HypreParMatrix &operator=(double value)
-   { internal::hypre_ParCSRMatrixSetConstantValues(A, value); return *this; }
+   {
+#if MFEM_HYPRE_VERSION < 22200
+      internal::hypre_ParCSRMatrixSetConstantValues(A, value);
+#else
+      hypre_ParCSRMatrixSetConstantValues(A, value);
+#endif
+      return *this;
+   }
 
    /** Perform the operation `*this += B`, assuming that both matrices use the
        same row and column partitions and the same col_map_offd arrays, or B has
