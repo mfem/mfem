@@ -232,6 +232,22 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_FORALL(i, height, Y[i] += DI[i] * R[i]; );
 }
 
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, double max_eig_estimate_)
+   :
+   Solver(d.Size()),
+   order(order_),
+   max_eig_estimate(max_eig_estimate_),
+   N(d.Size()),
+   dinv(N),
+   diag(d),
+   coeffs(order),
+   ess_tdof_list(ess_tdofs),
+   residual(N),
+   oper(&oper_) { Setup(); }
+
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
@@ -268,6 +284,42 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
      ess_tdof_list(ess_tdofs),
      residual(N),
      oper(oper_)
+{
+   OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
+   ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
+
+#ifdef MFEM_USE_MPI
+   PowerMethod powerMethod(comm);
+#else
+   PowerMethod powerMethod;
+#endif
+   Vector ev(oper->Width());
+   max_eig_estimate = powerMethod.EstimateLargestEigenvalue(diagPrecond, ev,
+                                                            power_iterations, power_tolerance);
+
+   Setup();
+}
+
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, int power_iterations, double power_tolerance)
+#endif
+   : Solver(d.Size()),
+     order(order_),
+     N(d.Size()),
+     dinv(N),
+     diag(d),
+     coeffs(order),
+     ess_tdof_list(ess_tdofs),
+     residual(N),
+     oper(&oper_)
 {
    OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
    ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
