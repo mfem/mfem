@@ -590,7 +590,8 @@ MFEM has several levels of automated testing running on GitHub, as well as on
 local Mac and Linux workstations, and Livermore Computing clusters at LLNL.
 
 In addition, developers can set local git hooks to run some quick checks on
-commit or push, see the [README](config/githooks/README.md) in the `config/githooks` directory.
+commit or push, see the [README](config/githooks/README.md) in the `config/githooks`
+directory.
 
 ### Linux and Mac smoke tests
 We use Travis CI and GitHub Actions to drive the default tests on the `master`
