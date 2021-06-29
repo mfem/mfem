@@ -1269,7 +1269,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
    return L2E_nat.Ptr();
 }
 
-const Operator *FiniteElementSpace::GetFaceRestriction(
+const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
@@ -1283,7 +1283,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
    }
    else
    {
-      Operator* res;
+      FaceRestriction *res;
       if (is_dg_space)
       {
          res = new L2FaceRestriction(*this, e_ordering, type, m);
