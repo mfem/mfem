@@ -63,7 +63,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   development branches off `mfem:master`.
 - Please follow the [developer guidelines](#developer-guidelines), in particular
   with regards to documentation and code styling.
-- Please do not commit large/binary files to the central repository (use a fork instead).
+- Please do not commit large/binary files to the central repository (use a fork
+  instead).
 - Pull requests  should be issued toward `mfem:master`. Make sure
   to check the items off the [Pull Request Checklist](#pull-request-checklist).
 - When your contribution is fully working and ready to be reviewed, add
@@ -388,7 +389,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   checks in Travis and GitHub Actions enforce MFEM-specific rules which are
   explained in the error messages and the `tests/scripts` directory.
 
-- Also note that the tests `branch-history`, and `repos-checks` found in GitHub
+- Also note that the tests `branch-history` and `repos-checks` found in GitHub
   Actions can be triggered automatically before each push using git hooks. See
   the [git hooks README](config/githooks/README.md) for a detailed explanation.
 
@@ -590,7 +591,8 @@ MFEM has several levels of automated testing running on GitHub, as well as on
 local Mac and Linux workstations, and Livermore Computing clusters at LLNL.
 
 In addition, developers can set local git hooks to run some quick checks on
-commit or push, see the [README](config/githooks/README.md) in the `config/githooks` directory.
+commit or push, see the [README](config/githooks/README.md) in the `config/githooks`
+directory.
 
 ### Linux and Mac smoke tests
 We use Travis CI and GitHub Actions to drive the default tests on the `master`

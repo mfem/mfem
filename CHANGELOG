@@ -178,7 +178,7 @@ Version 4.2.1 (development)
 
 - Testing improvements:
   * Transitioned from Travis to GitHub Action for testing/CI on GitHub.
-  * Use Spack (and Uberenv) to automate building of TPLs in LLNL GitLab tests.
+  * Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
   * Added a set of suggested git hooks for developers in config/githooks.
 
 - Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
