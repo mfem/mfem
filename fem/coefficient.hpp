@@ -1512,6 +1512,35 @@ public:
                      const IntegrationPoint &ip);
 };
 
+/// Matrix coefficient defined as the product of two matrices
+class MatrixProductCoefficient : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * a;
+   MatrixCoefficient * b;
+
+   mutable DenseMatrix ma;
+   mutable DenseMatrix mb;
+
+public:
+   /// Construct with the two coefficients.  Result is A * B.
+   MatrixProductCoefficient(MatrixCoefficient &A, MatrixCoefficient &B);
+
+   /// Reset the first matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the first matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the second matrix coefficient
+   void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   /// Return the second matrix coefficient
+   MatrixCoefficient * GetBCoef() const { return b; }
+
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 /** @brief Matrix coefficient defined as a product of a scalar coefficient and a
     matrix coefficient.*/
 class ScalarMatrixProductCoefficient : public MatrixCoefficient

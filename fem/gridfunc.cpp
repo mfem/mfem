@@ -19,6 +19,7 @@
 #include "pfespace.hpp"
 #endif
 
+#include "fem.hpp"
 #include <limits>
 #include <cstring>
 #include <string>
@@ -328,7 +329,28 @@ int GridFunction::VectorDim() const
    {
       return fes->GetVDim();
    }
-   return fes->GetVDim()*fes->GetMesh()->SpaceDimension();
+   return fes->GetVDim()*fe->GetVDim();
+}
+
+int GridFunction::CurlDim() const
+{
+   const FiniteElement *fe;
+   if (!fes->GetNE())
+   {
+      const FiniteElementCollection *fec = fes->FEColl();
+      static const Geometry::Type geoms[3] =
+      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
+      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+   }
+   else
+   {
+      fe = fes->GetFE(0);
+   }
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return 2 * fes->GetMesh()->SpaceDimension() - 3;
+   }
+   return fes->GetVDim()*fe->GetCurlDim();
 }
 
 void GridFunction::GetTrueDofs(Vector &tv) const
@@ -455,12 +477,12 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    }
    else
    {
-      int spaceDim = fes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = VectorDim();
+      DenseMatrix vshape(dof, vdim);
       ElementTransformation *Tr = fes->GetElementTransformation(i);
       Tr->SetIntPoint(&ip);
       FElem->CalcVShape(*Tr, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
 }
@@ -978,10 +1000,10 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    }
    else
    {
-      int spaceDim = fes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = fe->GetVDim();
+      DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
 }
@@ -1025,10 +1047,10 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    }
    else
    {
-      int spaceDim = fes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = FElem->GetVDim();
+      DenseMatrix vshape(dof, vdim);
 
-      vals.SetSize(spaceDim, nip);
+      vals.SetSize(vdim, nip);
       Vector val_j;
 
       for (int j = 0; j < nip; j++)
@@ -1504,20 +1526,9 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
             fes->GetElementDofs(elNo, dofs);
             Vector loc_data;
             GetSubVector(dofs, loc_data);
-            DenseMatrix curl_shape(fe->GetDof(), fe->GetDim() == 3 ? 3 : 1);
-            fe->CalcCurlShape(T.GetIntPoint(), curl_shape);
-            curl.SetSize(curl_shape.Width());
-            if (curl_shape.Width() == 3)
-            {
-               double curl_hat[3];
-               curl_shape.MultTranspose(loc_data, curl_hat);
-               T.Jacobian().Mult(curl_hat, curl);
-            }
-            else
-            {
-               curl_shape.MultTranspose(loc_data, curl);
-            }
-            curl /= T.Weight();
+            DenseMatrix curl_shape(fe->GetDof(), fe->GetCurlDim());
+            fe->CalcPhysCurlShape(T, curl_shape);
+            curl_shape.MultTranspose(loc_data, curl);
          }
       }
       break;
@@ -2755,10 +2766,9 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
    const FiniteElement *fe;
    ElementTransformation *Tr;
    Array<int> dofs;
-   Vector curl;
    int intorder;
-   int dim = fes->GetMesh()->SpaceDimension();
-   int n = (dim == 3) ? dim : 1;
+   int n = CurlDim();
+   Vector curl(n);
    Vector vec(n);
 
    for (int i = 0; i < fes->GetNE(); i++)
@@ -3922,6 +3932,94 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    }
 #endif // MFEM_USE_MPI
    return std::sqrt(total_error);
+}
+
+
+double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+                          const GridFunction &x,
+                          FiniteElementSpace &smooth_flux_fes,
+                          FiniteElementSpace &flux_fes,
+                          Vector &errors,
+                          int norm_p, double solver_tol, int solver_max_it)
+{
+   // Compute fluxes in discontinuous space
+   GridFunction flux(&flux_fes);
+   flux = 0.0;
+
+   const FiniteElementSpace *xfes = x.FESpace();
+   Array<int> xdofs, fdofs;
+   Vector el_x, el_f;
+
+   for (int i = 0; i < xfes->GetNE(); i++)
+   {
+      xfes->GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, el_x);
+
+      ElementTransformation *Transf = xfes->GetElementTransformation(i);
+      flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
+                                         *flux_fes.GetFE(i), el_f, false);
+
+      flux_fes.GetElementVDofs(i, fdofs);
+      flux.AddElementVector(fdofs, el_f);
+   }
+
+   // Assemble the linear system for L2 projection into the "smooth" space
+   BilinearForm a(&smooth_flux_fes);
+   LinearForm b(&smooth_flux_fes);
+   VectorGridFunctionCoefficient f(&flux);
+
+   if (xfes->GetNE())
+   {
+      MFEM_VERIFY(smooth_flux_fes.GetFE(0) != NULL,
+                  "Could not obtain FE of smooth flux space.");
+
+      if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+      {
+         VectorMassIntegrator *vmass = new VectorMassIntegrator;
+         vmass->SetVDim(smooth_flux_fes.GetVDim());
+         a.AddDomainIntegrator(vmass);
+         b.AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+      }
+      else
+      {
+         a.AddDomainIntegrator(new VectorFEMassIntegrator);
+         b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      }
+   }
+
+   b.Assemble();
+   a.Assemble();
+   a.Finalize();
+
+   // The destination of the projected discontinuous flux
+   GridFunction smooth_flux(&smooth_flux_fes);
+   smooth_flux = 0.0;
+
+   OperatorPtr A;
+   Vector B, X;
+   Array<int> ess_tdof_list(0);
+   a.FormLinearSystem(ess_tdof_list, smooth_flux, b, A, X, B);
+
+   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+   GSSmoother M((SparseMatrix&)(*A));
+   PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+
+   // Extract the parallel grid function corresponding to the finite element
+   // approximation X. This is the local solution on each processor.
+   a.RecoverFEMSolution(X, b, smooth_flux);
+
+   // Proceed through the elements one by one, and find the Lp norm differences
+   // between the flux as computed per element and the flux projected onto the
+   // smooth_flux_fes space.
+   double total_error = 0.0;
+   errors.SetSize(xfes->GetNE());
+   for (int i = 0; i < xfes->GetNE(); i++)
+   {
+      errors(i) = ComputeElementLpDistance(norm_p, i, smooth_flux, flux);
+      total_error += pow(errors(i), norm_p);
+   }
+
+   return pow(total_error, 1.0/norm_p);
 }
 
 

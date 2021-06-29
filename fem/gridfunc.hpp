@@ -120,6 +120,7 @@ public:
    FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
+   int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
@@ -895,6 +896,19 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         Array<int> *aniso_flags = NULL,
                         int with_subdomains = 1,
                         bool with_coeff = false);
+
+/** Performs a global L2 projection (through a mass matrix solve) of flux
+    from supplied discontinuous space into supplied smooth (continuous, or at
+    least conforming) space, and computes the Lp norms of the differences
+    between them on each element. This is one approach to handling conforming
+    and non-conforming elements. Returns the total error estimate. */
+double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+                          const GridFunction &x,
+                          FiniteElementSpace &smooth_flux_fes,
+                          FiniteElementSpace &flux_fes,
+                          Vector &errors, int norm_p = 2,
+                          double solver_tol = 1e-12,
+                          int solver_max_it = 200);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

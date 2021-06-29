@@ -443,7 +443,8 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
                           ParFiniteElementSpace &smooth_flux_fes,
                           ParFiniteElementSpace &flux_fes,
-                          Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
+                          Vector &errors, int norm_p = 2,
+                          double solver_tol = 1e-12,
                           int solver_max_it = 200);
 
 }

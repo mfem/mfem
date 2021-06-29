@@ -244,6 +244,8 @@ class FiniteElement
 {
 protected:
    int dim;      ///< Dimension of reference space
+   int vdim;     ///< Vector dimension of vector-valued basis functions
+   int cdim;     ///< Dimension of curl for vector-valued basis functions
    Geometry::Type geom_type; ///< Geometry::Type of the reference element
    int func_space, range_type, map_type,
        deriv_type, deriv_range_type, deriv_map_type;
@@ -253,7 +255,7 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix vshape; // Dof x Dim
+   mutable DenseMatrix vshape; // Dof x VDim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
@@ -309,12 +311,20 @@ public:
        @param Do   Number of degrees of freedom in the FiniteElement
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
-    */
+       @param VD   Vector dimension for vector-valued bases
+       @param CD   Curl dimension for vector-valued bases
+   */
    FiniteElement(int D, Geometry::Type G, int Do, int O,
-                 int F = FunctionSpace::Pk);
+                 int F = FunctionSpace::Pk, int VD = 0, int CD = 0);
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return dim; }
+
+   /// Returns the vector dimension for vector-valued finite elements
+   int GetVDim() const { return vdim; }
+
+   /// Returns the dimension of the curl for vector-valued finite elements
+   int GetCurlDim() const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element
    Geometry::Type GetGeomType() const { return geom_type; }
@@ -368,7 +378,8 @@ public:
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** The size (#dof) of the result Vector @a shape must be set in advance. */
-   void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
+   virtual void CalcPhysShape(ElementTransformation &Trans,
+                              Vector &shape) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -440,8 +451,8 @@ public:
        of the curl of one vector shape function. The size (#dof x CDim) of
        @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
        CDim = 1 for #dim = 2. */
-   void CalcPhysCurlShape(ElementTransformation &Trans,
-                          DenseMatrix &curl_shape) const;
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
@@ -995,13 +1006,13 @@ protected:
    }
 
 public:
-   VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
-                        int F = FunctionSpace::Pk) :
+   VectorFiniteElement (int D, int VD, int CD, Geometry::Type G, int Do,
+                        int O, int M, int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
-      FiniteElement(D, G, Do, O, F)
+      FiniteElement(D, G, Do, O, F, VD, CD)
    { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #else
-      FiniteElement(D, G, Do, O, F), Jinv(D)
+      FiniteElement(D, G, Do, O, F, VD, CD), Jinv(D)
    { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #endif
 };
@@ -2235,7 +2246,8 @@ protected:
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   VectorTensorFiniteElement(const int dims, const int d, const int p,
+   VectorTensorFiniteElement(const int dims, const int dimv, const int dimc,
+                             const int d, const int p,
                              const int cbtype, const int obtype,
                              const int M, const DofMapType dmtype);
 
@@ -2503,7 +2515,6 @@ private:
 
    H1_TriangleElement TriangleFE;
    H1_SegmentElement  SegmentFE;
-
 public:
    /// Construct the H1_WedgeElement of order @a p and BasisType @a btype
    H1_WedgeElement(const int p,
@@ -3356,6 +3367,455 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+};
+
+
+/// A 0D Nedelec finite element for the boundary of a 1D domain
+/** ND_R1D_PointElement provides a representation of the trace of a three
+    component Nedelec basis restricted to 1D.
+*/
+class ND_R1D_PointElement : public VectorFiniteElement
+{
+   static const double tk[9];
+
+public:
+   /** @brief Construct the ND_R1D_PointElement */
+   ND_R1D_PointElement(int p);
+
+   using FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+};
+
+/// Arbitrary order, three component, Nedelec elements in 1D on a segment
+/** ND_R1D_SegmentElement provides a representation of a three component Nedelec
+    basis where the vector components vary along only one dimension.
+*/
+class ND_R1D_SegmentElement : public VectorFiniteElement
+{
+   static const double tk[9];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox;
+   mutable Vector dshape_cx;
+#endif
+   Array<int> dof_map, dof2tk;
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the ND_R1D_SegmentElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   ND_R1D_SegmentElement(const int p,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   using FiniteElement::CalcVShape;
+   using FiniteElement::CalcPhysCurlShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+
+   using FiniteElement::Project;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
+
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
+};
+
+
+/// Arbitrary order, three component, Raviart-Thomas elements in 1D on a segment
+/** RT_R1D_SegmentElement provides a representation of a three component
+    Raviart-Thomas basis where the vector components vary along only one
+    dimension.
+*/
+class RT_R1D_SegmentElement : public VectorFiniteElement
+{
+   static const double nk[9];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox;
+   mutable Vector dshape_cx;
+#endif
+   Array<int> dof_map, dof2nk;
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the RT_R1D_SegmentElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   RT_R1D_SegmentElement(const int p,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+
+/** ND_R2D_SegmentElement provides a representation of a 3D Nedelec
+    basis where the vector field is assumed constant in the third dimension.
+*/
+class ND_R2D_SegmentElement : public VectorFiniteElement
+{
+   static const double tk[4];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox;
+   mutable Vector dshape_cx;
+#endif
+   Array<int> dof_map, dof2tk;
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
+public:
+   /** @brief Construct the ND_R2D_SegmentElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   ND_R2D_SegmentElement(const int p,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { MFEM_ABORT("method is not overloaded"); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+};
+
+class ND_R2D_FiniteElement : public VectorFiniteElement
+{
+protected:
+   const double *tk;
+   Array<int> dof_map, dof2tk;
+
+   ND_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe);
+
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
+public:
+   using FiniteElement::CalcVShape;
+   using FiniteElement::CalcPhysCurlShape;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const;
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
+
+/// Arbitrary order Nedelec 3D elements in 2D on a triangle
+class ND_R2D_TriangleElement : public ND_R2D_FiniteElement
+{
+private:
+   static const double tk_t[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix nd_shape;
+   mutable Vector      h1_shape;
+   mutable DenseMatrix nd_dshape;
+   mutable DenseMatrix h1_dshape;
+#endif
+
+   ND_TriangleElement ND_FE;
+   H1_TriangleElement H1_FE;
+
+public:
+   /// Construct the ND_R2D_TriangleElement of order @a p
+   ND_R2D_TriangleElement(const int p,
+                          const int cb_type = BasisType::GaussLobatto);
+
+   using ND_R2D_FiniteElement::CalcVShape;
+   using ND_R2D_FiniteElement::CalcPhysCurlShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+};
+
+
+/// Arbitrary order Nedelec 3D elements in 2D on a square
+class ND_R2D_QuadrilateralElement : public ND_R2D_FiniteElement
+{
+   static const double tk_q[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
+   mutable Vector dshape_cx, dshape_cy;
+#endif
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the ND_R2D_QuadrilateralElement of order @a p and
+       closed and open BasisType @a cb_type and @a ob_type */
+   ND_R2D_QuadrilateralElement(const int p,
+                               const int cb_type = BasisType::GaussLobatto,
+                               const int ob_type = BasisType::GaussLegendre);
+
+   using ND_R2D_FiniteElement::CalcVShape;
+   using ND_R2D_FiniteElement::CalcPhysCurlShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+};
+
+
+/** RT_R2D_SegmentElement provides a representation of a 3D Raviart-Thomas
+    basis where the vector field is assumed constant in the third dimension.
+*/
+class RT_R2D_SegmentElement : public VectorFiniteElement
+{
+   static const double nk[2];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_ox;
+#endif
+   Array<int> dof_map, dof2nk;
+
+   Poly_1D::Basis &obasis1d;
+
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
+public:
+   /** @brief Construct the RT_R2D_SegmentElement of order @a p and open
+       BasisType @a ob_type */
+   RT_R2D_SegmentElement(const int p,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &div_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { MFEM_ABORT("method is not overloaded"); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+};
+
+class RT_R2D_FiniteElement : public VectorFiniteElement
+{
+protected:
+   const double *nk;
+   Array<int> dof_map, dof2nk;
+
+   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe);
+
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
+public:
+   using FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const;
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+/// Arbitrary order Raviart-Thomas 3D elements in 2D on a triangle
+class RT_R2D_TriangleElement : public RT_R2D_FiniteElement
+{
+private:
+   static const double nk_t[12];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix rt_shape;
+   mutable Vector      l2_shape;
+   mutable Vector      rt_dshape;
+#endif
+
+   RT_TriangleElement RT_FE;
+   L2_TriangleElement L2_FE;
+
+public:
+   /** @brief Construct the RT_R2D_TriangleElement of order @a p */
+   RT_R2D_TriangleElement(const int p);
+
+   using RT_R2D_FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+};
+
+/// Arbitrary order Raviart-Thomas 3D elements in 2D on a square
+class RT_R2D_QuadrilateralElement : public RT_R2D_FiniteElement
+{
+private:
+   static const double nk_q[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
+   mutable Vector dshape_cx, dshape_cy;
+#endif
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   RT_R2D_QuadrilateralElement(const int p,
+                               const int cb_type = BasisType::GaussLobatto,
+                               const int ob_type = BasisType::GaussLegendre);
+
+   using RT_R2D_FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
 };
 
 
