@@ -252,6 +252,10 @@ jobs:
 
     - name: tests
       run: |
+        if [[ ${{ matrix.mpi }} == 'parallel' ]]; then
+          ln -s -f ${{ inputs.hypre-dir }} hypre;
+          ln -s -f ${{ inputs.metis-dir }} metis-4.0;
+        fi
         if [[ ${{ matrix.target }} == 'optim' ]]; then
           if [[ ${{ matrix.build-system }} == 'make' ]]; then
             cd ${{ env.MFEM_TOP_DIR }}
