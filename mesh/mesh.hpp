@@ -489,6 +489,9 @@ protected:
    /// Internal helper used in ExtractMesh
    void ExtractMesh_(const Mesh &orig_mesh, const Array<int> & elems);
 
+   /// Internal helper used in ExtractMesh
+   void ExtractSurfaceMesh_(const Mesh &orig_mesh, const Array<int> & faces);
+
 public:
 
    Mesh() { SetEmpty(); }
@@ -586,6 +589,11 @@ public:
        @a elems. Periodic and high-order meshes are also supported.
        @warning NonConforming meshes are not supported. */
    static Mesh ExtractMesh(const Mesh &orig_mesh, const Array<int> & elems);
+
+   /** Create a surface mesh by extracting from @a orig_mesh the given list of
+       @a faces. Periodic and high-order meshes are also supported.
+       @warning NonConforming meshes are not supported. */
+   static Mesh ExtractSurfaceMesh(const Mesh &orig_mesh, const Array<int> & faces);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.
    /** Each vertex @a i will be mapped to vertex @a v2v[i], such that all
