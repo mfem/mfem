@@ -36,6 +36,7 @@ MFEM makefile targets:
    make clean
    make distclean
    make style
+   make tags
 
 Examples:
 
@@ -92,7 +93,9 @@ make distclean
    installation directory.
 make style
    Format the MFEM C++ source files using Artistic Style (astyle).
-
+make tags
+   Generate a vi or Emacs compatible TAGS file in ${MFEM_DIR}/TAGS. Requires
+   functional "etags" and "egrep" in the user ${PATH}.
 endef
 
 # Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
@@ -117,10 +120,10 @@ EXAMPLE_SUBDIRS = amgx ginkgo hiop petsc pumi sundials superlu
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers
+MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted mtop
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
-MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys)
+MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys shifted)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -267,7 +270,7 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX
+ OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
@@ -332,8 +335,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
  MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_OCCA\
  MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2\
- MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS MFEM_SOURCE_DIR\
- MFEM_INSTALL_DIR
+ MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS MFEM_USE_CALIPER\
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -401,7 +404,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/ceed
+DIRS = general linalg linalg/simd mesh fem fem/ceed fem/qinterp fem/tmop
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -653,6 +656,7 @@ status info:
 	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
@@ -684,10 +688,11 @@ status info:
 ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 2.05.1"
-FORMAT_FILES := $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
 FORMAT_FILES += tests/unit/*.cpp
-FORMAT_FILES += $(foreach dir,general linalg mesh fem,tests/unit/$(dir)/*.?pp)
-FORMAT_FILES := $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
+FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
+FORMAT_LIST = $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
@@ -725,7 +730,7 @@ style:
 	 fi
 	@err_code=0;\
 	$(call mfem_check_command,\
-	    $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
+	    $(ASTYLE) $(FORMAT_LIST) | grep Formatted,\
 	    "No source files were changed",\
 	    "Please make sure the changes are committed");\
 	echo "Checking for use of std::cout...";\
@@ -738,6 +743,21 @@ style:
 	      grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
 	   "No use of std::cerr found", "Use mfem::err instead of std::cerr");\
 	exit $$err_code
+
+# Generate a TAGS table in $MFEM_DIR from all the tracked files
+.PHONY: tags
+tags:
+ifndef ETAGS_BIN
+	$(error Error could not find suitable 'etags', please install one \
+	using your package manager)
+else ifndef EGREP_BIN
+	$(error Error could not find suitable 'egrep', please install one \
+	using your package manager)
+endif
+	$(eval MFEM_TRACKED_SOURCE = $(shell git -C $(MFEM_REAL_DIR) ls-files |\
+	$(EGREP_BIN) '(\.[hc](pp)?)$$'))
+	@cd $(MFEM_REAL_DIR) && $(ETAGS_BIN) --class-qualify \
+	--declarations -o $(MFEM_REAL_DIR)/TAGS $(MFEM_TRACKED_SOURCE)
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:
