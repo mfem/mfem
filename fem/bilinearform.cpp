@@ -266,7 +266,8 @@ void BilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi)
 void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
 {
    boundary_face_integs.Append(bfi);
-   boundary_face_integs_marker.Append(NULL); // NULL marker means apply everywhere
+   // NULL marker means apply everywhere
+   boundary_face_integs_marker.Append(NULL);
 }
 
 void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
@@ -606,7 +607,8 @@ void BilinearForm::Assemble(int skip_zeros)
                if (boundary_face_integs_marker[k] &&
                    (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               boundary_face_integs[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+               boundary_face_integs[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr,
+                                                              elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
          }
@@ -1107,8 +1109,10 @@ BilinearForm::~BilinearForm()
       int k;
       for (k=0; k < domain_integs.Size(); k++) { delete domain_integs[k]; }
       for (k=0; k < boundary_integs.Size(); k++) { delete boundary_integs[k]; }
-      for (k=0; k < interior_face_integs.Size(); k++) { delete interior_face_integs[k]; }
-      for (k=0; k < boundary_face_integs.Size(); k++) { delete boundary_face_integs[k]; }
+      for (k=0; k < interior_face_integs.Size(); k++)
+      { delete interior_face_integs[k]; }
+      for (k=0; k < boundary_face_integs.Size(); k++)
+      { delete boundary_face_integs[k]; }
    }
 
    delete ext;
@@ -1374,9 +1378,9 @@ void MixedBilinearForm::Assemble (int skip_zeros)
             if (boundary_integs_marker[k] &&
                 (*boundary_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-            boundary_integs[k] -> AssembleElementMatrix2 (*trial_fes -> GetBE(i),
-                                                          *test_fes  -> GetBE(i),
-                                                          *eltrans, elemmat);
+            boundary_integs[k]->AssembleElementMatrix2 (*trial_fes -> GetBE(i),
+                                                        *test_fes  -> GetBE(i),
+                                                        *eltrans, elemmat);
             mat -> AddSubMatrix (te_vdofs, tr_vdofs, elemmat, skip_zeros);
          }
       }
@@ -1411,8 +1415,8 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          }
          for (int k = 0; k < trace_face_integs.Size(); k++)
          {
-            trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
-                                                     *ftr, elemmat);
+            trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
+                                                     *test_fe2, *ftr, elemmat);
             mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
          }
       }
@@ -1437,8 +1441,8 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          }
          Array<int> &bdr_marker = *boundary_trace_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary trace face integrator #"
-                     << k << ", counting from zero");
+                     "invalid boundary marker for boundary trace face"
+                     "integrator #" << k << ", counting from zero");
          for (int i = 0; i < bdr_attr_marker.Size(); i++)
          {
             bdr_attr_marker[i] |= bdr_marker[i];
@@ -1464,9 +1468,11 @@ void MixedBilinearForm::Assemble (int skip_zeros)
             for (int k = 0; k < boundary_trace_face_integs.Size(); k++)
             {
                if (boundary_trace_face_integs_marker[k] &&
-                   (*boundary_trace_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+                   (*boundary_trace_face_integs_marker[k])[bdr_attr-1] == 0)
+               { continue; }
 
-               boundary_trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
+               boundary_trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe,
+                                                                 *test_fe1,
                                                                  *test_fe2,
                                                                  *ftr, elemmat);
                mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
@@ -1564,10 +1570,12 @@ void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
       const FiniteElement &trial_fe = *trial_fes->GetFE(i);
       const FiniteElement &test_fe = *test_fes->GetFE(i);
       ElementTransformation *eltrans = test_fes->GetElementTransformation(i);
-      domain_integs[0]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans, elmat);
+      domain_integs[0]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans,
+                                               elmat);
       for (int k = 1; k < domain_integs.Size(); k++)
       {
-         domain_integs[k]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans, elemmat);
+         domain_integs[k]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans,
+                                                  elemmat);
          elmat += elemmat;
       }
    }
@@ -1587,7 +1595,8 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
       const FiniteElement &trial_be = *trial_fes->GetBE(i);
       const FiniteElement &test_be = *test_fes->GetBE(i);
       ElementTransformation *eltrans = test_fes->GetBdrElementTransformation(i);
-      boundary_integs[0]->AssembleElementMatrix2(trial_be, test_be, *eltrans, elmat);
+      boundary_integs[0]->AssembleElementMatrix2(trial_be, test_be, *eltrans,
+                                                 elmat);
       for (int k = 1; k < boundary_integs.Size(); k++)
       {
          boundary_integs[k]->AssembleElementMatrix2(trial_be, test_be, *eltrans,
@@ -1783,7 +1792,8 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
       for (i = 0; i < boundary_integs.Size(); i++) { delete boundary_integs[i]; }
       for (i = 0; i < trace_face_integs.Size(); i++) { delete trace_face_integs[i]; }
-      for (i = 0; i < boundary_trace_face_integs.Size(); i++) { delete boundary_trace_face_integs[i]; }
+      for (i = 0; i < boundary_trace_face_integs.Size(); i++)
+      { delete boundary_trace_face_integs[i]; }
    }
    delete ext;
 }
@@ -1843,10 +1853,12 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          dom_fe = trial_fes->GetFE(i);
          ran_fe = test_fes->GetFE(i);
 
-         domain_integs[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, totelmat);
+         domain_integs[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T,
+                                                  totelmat);
          for (int j = 1; j < domain_integs.Size(); j++)
          {
-            domain_integs[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
+            domain_integs[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T,
+                                                     elmat);
             totelmat += elmat;
          }
          mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
@@ -1864,10 +1876,12 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          dom_fe = trial_fes->GetFaceElement(i);
          ran_fe = test_fes->GetFaceElement(i);
 
-         trace_face_integs[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, totelmat);
+         trace_face_integs[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T,
+                                                      totelmat);
          for (int j = 1; j < trace_face_integs.Size(); j++)
          {
-            trace_face_integs[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
+            trace_face_integs[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T,
+                                                         elmat);
             totelmat += elmat;
          }
          mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
