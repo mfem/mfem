@@ -1291,8 +1291,8 @@ void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
 void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi)
 {
    boundary_trace_face_integs.Append(bfi);
-   boundary_trace_face_integs_marker.Append(
-      NULL); // NULL marker means apply everywhere
+   // NULL marker means apply everywhere
+   boundary_trace_face_integs_marker.Append(NULL);
 }
 
 void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
