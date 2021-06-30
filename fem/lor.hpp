@@ -68,7 +68,6 @@ protected:
    BilinearForm *a;
    OperatorHandle A;
    mutable Array<int> perm;
-   bool nonconforming = false;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
@@ -83,9 +82,9 @@ protected:
    /// (H1 or L2 spaces), false otherwise (ND or RT spaces).
    bool HasSameDofNumbering() const;
 
-   /// Sets up the prolongation and restriction operators required for
-   /// nonconforming spaces.
-   void SetupNonconforming();
+   /// Sets up the prolongation and restriction operators required in the case
+   /// of different DOF numberings (ND or RT spaces) or nonconforming spaces.
+   void SetupProlongationAndRestriction();
 
    /// Returns the type of finite element space: H1, ND, RT or L2.
    FESpaceType GetFESpaceType() const;
@@ -116,21 +115,6 @@ public:
    /// nontrivial. Returns an array @a perm such that, given an index @a i of a
    /// LOR dof, @a perm[i] is the index of the corresponding HO dof.
    const Array<int> &GetDofPermutation() const;
-
-   /// @brief Returns true if the LOR space requires a DOF permutation, false
-   /// otherwise.
-   ///
-   /// DOF permutations are required if all of the following conditions are
-   /// true:
-   ///  * The spaces have different DOF numberings (which occurs for ND and RT
-   ///    spaces, in this case @ref HasSameDofNumbering returns false).
-   ///  * The mesh is conforming.
-   ///  * The space is not variable degree.
-   ///
-   /// Note: permutations are not required in the case of nonconforming meshes
-   /// or variable polynomial degrees, since in these cases the DOF numbering is
-   /// incorporated into the prolongation operators.
-   bool RequiresDofPermutation() const;
 
    /// Returns the low-order refined finite element space.
    FiniteElementSpace &GetFESpace() const { return *fes; }
@@ -263,30 +247,7 @@ public:
       height = solver.Height();
    }
 
-   void Mult(const Vector &x, Vector &y) const
-   {
-      if (use_permutation && lor->RequiresDofPermutation())
-      {
-         const Array<int> &p = lor->GetDofPermutation();
-         px.SetSize(x.Size());
-         py.SetSize(y.Size());
-         for (int i=0; i<x.Size(); ++i)
-         { px[i] = p[i] < 0 ? -x[-1-p[i]] : x[p[i]]; }
-
-         solver.Mult(px, py);
-
-         for (int i=0; i<y.Size(); ++i)
-         {
-            int pi = p[i];
-            int s = pi < 0 ? -1 : 1;
-            y[pi < 0 ? -1-pi : pi] = s*py[i];
-         }
-      }
-      else
-      {
-         solver.Mult(x, y);
-      }
-   }
+   void Mult(const Vector &x, Vector &y) const { solver.Mult(x, y); }
 
    /// @brief Enable or disable the DOF permutation (enabled by default).
    ///

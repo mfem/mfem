@@ -2960,10 +2960,25 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
       else { P = new HypreParMatrix(*pfes->P); }
       nonconf_P = true;
    }
+   else if (perm != NULL)
+   {
+      HYPRE_BigInt glob_nrows = GlobalVSize();
+      HYPRE_BigInt glob_ncols = GlobalTrueVSize();
+      HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+      HYPRE_BigInt *row_starts = GetDofOffsets();
+      P = new HypreParMatrix(MyComm, glob_nrows, glob_ncols, row_starts,
+                             col_starts, perm_mat);
+      nonconf_P = true;
+   }
    if (pfes->R != NULL)
    {
       if (perm) { R = Mult(*pfes->R, *perm_mat_tr); }
       else { R = new SparseMatrix(*pfes->R); }
+   }
+   else if (perm != NULL)
+   {
+      R = perm_mat_tr;
+      perm_mat_tr = NULL;
    }
 
    delete perm_mat;

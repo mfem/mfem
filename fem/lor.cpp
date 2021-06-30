@@ -196,7 +196,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 void LORBase::ConstructDofPermutation() const
 {
    FESpaceType type = GetFESpaceType();
-   if (type == H1 || type == L2 || nonconforming)
+   if (type == H1 || type == L2)
    {
       // H1 and L2: no permutation necessary, return identity
       perm.SetSize(fes->GetTrueVSize());
@@ -247,11 +247,6 @@ bool LORBase::HasSameDofNumbering() const
    return type == H1 || type == L2;
 }
 
-bool LORBase::RequiresDofPermutation() const
-{
-   return (HasSameDofNumbering() || nonconforming) ? false : true;
-}
-
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
    MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
@@ -272,33 +267,14 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
                             &BilinearForm::GetBFBFI_Marker,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
    a->Assemble();
-   if (RequiresDofPermutation())
-   {
-      const Array<int> &p = GetDofPermutation();
-      // Form inverse permutation: given high-order dof i, pi[i] is corresp. LO
-      Array<int> pi(p.Size());
-      for (int i=0; i<p.Size(); ++i)
-      {
-         pi[absdof(p[i])] = i;
-      }
-      Array<int> ess_dofs_perm(ess_dofs.Size());
-      for (int i=0; i<ess_dofs.Size(); ++i)
-      {
-         ess_dofs_perm[i] = pi[ess_dofs[i]];
-      }
-      a->FormSystemMatrix(ess_dofs_perm, A);
-   }
-   else
-   {
-      a->FormSystemMatrix(ess_dofs, A);
-   }
+   a->FormSystemMatrix(ess_dofs, A);
    ResetIntegrationRules(&BilinearForm::GetDBFI);
    ResetIntegrationRules(&BilinearForm::GetFBFI);
    ResetIntegrationRules(&BilinearForm::GetBBFI);
    ResetIntegrationRules(&BilinearForm::GetBFBFI);
 }
 
-void LORBase::SetupNonconforming()
+void LORBase::SetupProlongationAndRestriction()
 {
    if (!HasSameDofNumbering())
    {
@@ -310,7 +286,6 @@ void LORBase::SetupNonconforming()
    {
       fes->CopyProlongationAndRestriction(fes_ho, NULL);
    }
-   nonconforming = fes->Nonconforming();
 }
 
 template <typename FEC>
@@ -414,7 +389,7 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
 
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
-   if (fes_ho.Nonconforming()) { SetupNonconforming(); }
+   SetupProlongationAndRestriction();
 
    A.SetType(Operator::MFEM_SPARSEMAT);
 }
@@ -461,7 +436,7 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
-   if (fes_ho.Nonconforming()) { SetupNonconforming(); }
+   SetupProlongationAndRestriction();
 
    A.SetType(Operator::Hypre_ParCSR);
 }
