@@ -31,7 +31,7 @@ struct HybridizationSolver : Solver
    Hybridization &h;
    mutable Vector b_r, x_r;
    HybridizationSolver(Solver &solv_, Hybridization &h_)
-   : Solver(solv_.Height()), solv(solv_), h(h_) { }
+      : Solver(solv_.Height()), solv(solv_), h(h_) { }
    void SetOperator(const Operator&) { }
    void Mult(const Vector &b, Vector &x) const
    {
@@ -49,7 +49,7 @@ struct PermutedSolver : Solver
    Array<int> p;
    mutable Vector bp, xp;
    PermutedSolver(Solver &solv_, const Array<int> &p_)
-   : Solver(solv_.Height()), solv(solv_), p(p_), bp(p.Size()), xp(p.Size()) { }
+      : Solver(solv_.Height()), solv(solv_), p(p_), bp(p.Size()), xp(p.Size()) { }
    void SetOperator(const Operator&) { }
    void Mult(const Vector &b, Vector &x) const
    {
@@ -209,13 +209,17 @@ int main(int argc, char *argv[])
    unique_ptr<FiniteElementSpace> fes_h;
    if (ND)
    {
-      fec_ho.reset(new ND_FECollection(order, dim, BasisType::GaussLobatto, BasisType::Integrated));
-      fec_lor.reset(new ND_FECollection(1, dim, BasisType::GaussLobatto, BasisType::Integrated));
+      fec_ho.reset(new ND_FECollection(order, dim, BasisType::GaussLobatto,
+                                       BasisType::Integrated));
+      fec_lor.reset(new ND_FECollection(1, dim, BasisType::GaussLobatto,
+                                        BasisType::Integrated));
    }
    else
    {
-      fec_ho.reset(new RT_FECollection(order-1, dim, BasisType::GaussLobatto, BasisType::Integrated));
-      fec_lor.reset(new RT_FECollection(0, dim, BasisType::GaussLobatto, BasisType::Integrated));
+      fec_ho.reset(new RT_FECollection(order-1, dim, BasisType::GaussLobatto,
+                                       BasisType::Integrated));
+      fec_lor.reset(new RT_FECollection(0, dim, BasisType::GaussLobatto,
+                                        BasisType::Integrated));
       if (hybridization)
       {
          fec_h.reset(new DG_Interface_FECollection(0, dim));
@@ -246,7 +250,8 @@ int main(int argc, char *argv[])
       a_lor.AddDomainIntegrator(new DivDivIntegrator);
       if (hybridization)
       {
-         a_lor.EnableHybridization(fes_h.get(), new NormalTraceJumpIntegrator, ess_tdof_list);
+         a_lor.EnableHybridization(fes_h.get(), new NormalTraceJumpIntegrator,
+                                   ess_tdof_list);
       }
    }
    a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -278,7 +283,8 @@ int main(int argc, char *argv[])
    {
       solv_direct.reset(new UMFPackSolver);
       solv_direct->SetOperator(*A_lor);
-      solv_lor.reset(new HybridizationSolver(*solv_direct, *a_lor.GetHybridization()));
+      solv_lor.reset(new HybridizationSolver(*solv_direct,
+                                             *a_lor.GetHybridization()));
    }
    else
    {
@@ -303,8 +309,8 @@ int main(int argc, char *argv[])
    // write_matlab("A_ho.txt", *A_ho);
    // write_matlab("A_lor.txt", *A_lor);
    // {
-      // ofstream f("P.txt");
-      // perm.Print(f, 1);
+   // ofstream f("P.txt");
+   // perm.Print(f, 1);
    // }
 
    DSmoother diag(*A_lor.As<SparseMatrix>());

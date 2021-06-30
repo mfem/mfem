@@ -488,7 +488,8 @@ BlockDiagonalMultiplicativePreconditioner::BlockDiagonalMultiplicativePreconditi
    offsets.MakeRef(offsets_);
 }
 
-void BlockDiagonalMultiplicativePreconditioner::SetDiagonalBlock(int iblock, Operator *opt)
+void BlockDiagonalMultiplicativePreconditioner::SetDiagonalBlock(int iblock,
+                                                                 Operator *opt)
 {
    MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == opt->Height() &&
                offsets[iblock+1] - offsets[iblock] == opt->Width(),
@@ -502,7 +503,8 @@ void BlockDiagonalMultiplicativePreconditioner::SetDiagonalBlock(int iblock, Ope
 }
 
 // Operator application
-void BlockDiagonalMultiplicativePreconditioner::Mult (const Vector & x, Vector & y) const
+void BlockDiagonalMultiplicativePreconditioner::Mult (const Vector & x,
+                                                      Vector & y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
@@ -525,8 +527,8 @@ void BlockDiagonalMultiplicativePreconditioner::Mult (const Vector & x, Vector &
    int n1 = offsets[1];
    int n2 = offsets[2]- offsets[1];
    Array<int> map1(n1), map2(n2);
-   for (int i = 0; i<n1; i++) map1[i] = i;
-   for (int i = 0; i<n2; i++) map2[i] = n1+i;
+   for (int i = 0; i<n1; i++) { map1[i] = i; }
+   for (int i = 0; i<n2; i++) { map2[i] = n1+i; }
 
    Vector r1(n1), z1(n1);
    Vector r2(n2), z2(n2);
@@ -600,12 +602,12 @@ void BlockDiagonalMultiplicativePreconditioner::Mult (const Vector & x, Vector &
 
 // Action of the transpose operator
 void BlockDiagonalMultiplicativePreconditioner::MultTranspose (const Vector & x,
-                                                 Vector & y) const
+                                                               Vector & y) const
 {
-    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+   MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   std::cout << "Mult Transpose" << std::endl; std::cin.get();
+   mfem::out << "Mult Transpose" << std::endl;
 
    x.Read();
    y.Write(); y = 0.0;

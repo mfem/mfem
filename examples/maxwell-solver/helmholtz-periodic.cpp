@@ -14,6 +14,7 @@
 #include <iostream>
 #include "DST/DST.hpp"
 #include "DST2D/DST2D.hpp"
+#include "../../miniapps/common/mesh_extras.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -92,17 +93,16 @@ int main(int argc, char *argv[])
    omega = 2.0 * M_PI * k;
 
    // 3. Read the mesh from the given mesh file.
-   Mesh *mesh;
+   mesh_file = "../../data/inline-quad.mesh";
+   Mesh orig_mesh(mesh_file, 1, 1);
 
-   if (nd == 2)
-   {
-      // mesh = new Mesh(mesh_file,1,1);
-      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, length, length, false);
-   }
-   else
-   {
-      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length,false);
-   }
+
+
+   Array<int> v2v(orig_mesh.GetNV());
+   for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+   for (int i=0; i<5; i++) { v2v[i + 20] = i; }
+
+   Mesh * mesh = mfem::common::MakePeriodicMesh(&orig_mesh, v2v);
 
    // 3. Executing uniform h-refinement
    for (int i = 0; i < ref; i++ )
@@ -112,60 +112,23 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
 
    double hl = GetUniformMeshElementSize(mesh);
-   Vector pmin, pmax;
-   mesh->GetBoundingBox(pmin,pmax);
-   // double domain_length = pmax[0] - pmin[0];
-   // double pml_thickness = 0.125/domain_length;
-   // int nrlayers = pml_thickness/hl;
-   int nrlayers = 2;
-   Array<int> directions;
-   
-   for (int i = 0; i<nrlayers; i++)
-   {
-      for (int comp=0; comp<dim; ++comp)
-      {
-         // directions.Append(comp+1);
-         // directions.Append(-comp-1);
-      }
-   }
-
-   // Find uniform h size of the original mesh
-   // cout << "pml layers = " << nrlayers << endl;
-   // cout << "pml length = " << hl*nrlayers << endl;
-   Mesh *mesh_ext = ExtendMesh(mesh,directions);
-
-
-   // if (visualization)
-   // {
-   //    char vishost[] = "localhost";
-   //    int  visport   = 19916;
-   //    socketstream mesh_sock(vishost, visport);
-   //    mesh_sock.precision(8);
-   //    mesh_sock << "mesh\n" << *mesh_ext << flush;
-   // }
-
-   // char vishost[] = "localhost";
-   // int  visport   = 19916;
-   // socketstream mesh_sock(vishost, visport);
-   // mesh_sock.precision(8);
-   // mesh_sock << "mesh\n" << *mesh_ext << flush;
-
-   // cin.get();
-
+   int nrlayers = 5;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
-   // lengths[0][1] = 0.0;
-   // lengths[1][1] = 0.0;
-   // lengths[1][0] = 0.0;
    // lengths[0][0] = 0.0;
-   CartesianPML pml(mesh_ext,lengths);
+   // lengths[0][1] = 0.0;
+   lengths[1][0] = 0.0;
+   lengths[1][1] = 0.0;
+   CartesianPML pml(&orig_mesh,lengths);
    pml.SetOmega(omega);
    comp_bdr.SetSize(dim,2);
    comp_bdr = pml.GetCompDomainBdr(); 
 
+   comp_bdr.Print();
+
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh_ext, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    // 6. Set up the linear form (Real and Imaginary part)
    FunctionCoefficient f_Re(f_exact_Re);
@@ -212,7 +175,7 @@ int main(int argc, char *argv[])
    a.Finalize();
 
    Array<int> ess_tdof_list;
-   Array<int> ess_bdr(mesh_ext->bdr_attributes.Max());
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -229,112 +192,15 @@ int main(int argc, char *argv[])
    cout << "Size of fine grid system: "
          << A->Height() << " x " << A->Width() << endl;
 
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
-   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
-   chrono.Stop();
-   cout << "Construction time: " << chrono.RealTime() << endl; 
 
 
-   chrono.Clear();
-   chrono.Start();
-   X = 0.0;
-	GMRESSolver gmres;
-	// gmres.iterative_mode = true;
-   gmres.SetPreconditioner(S);
-	gmres.SetOperator(*AZ);
-	gmres.SetRelTol(1e-6);
-	gmres.SetMaxIter(20);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
-
-
-   // DST2D S2D(&a,lengths, omega, &ws, nrlayers);
-   // X = 0.0;
-	// gmres.SetPreconditioner(S2D);
-	// gmres.Mult(B, X);
-
-   chrono.Stop();
-   cout << "GMRES time: " << chrono.RealTime() << endl; 
-
-   // X = 0.0;
-   // SLISolver sli;
-   // sli.iterative_mode = true;
-   // sli.SetPreconditioner(S);
-   // sli.SetOperator(*A);
-   // sli.SetRelTol(1e-6);
-   // sli.SetMaxIter(50);
-   // sli.SetPrintLevel(1);
-   // sli.Mult(B,X);
-
-   // int n= 200;
-   // X = 0.0;
-   // Vector z(X.Size()); z = 0.0;
-   // Vector r(B);
-   // Vector ztemp(r.Size());
-   // Vector Ax(X.Size());
-   // double tol = 1e-10;
-   // cout << endl;
-   // chrono.Clear();
-   // chrono.Start();
-   // for (int i = 0; i<n; i++)
-   // {
-   //    A->Mult(X,Ax); Ax *=-1.0;
-   //    r = b; r+=Ax;
-   //    cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
-   //    if (r.Norml2() < tol) 
-   //    {
-   //       cout << "Convergence in " << i << " iterations" << endl;
-   //       break;
-   //    }
-   //    S1.Mult(r,z); 
-   //    X += z;
-
-   //    // X1-=z;
-   //    // p_gf = 0.0;
-   //    // a.RecoverFEMSolution(X,B,p_gf);
-   //    //    char vishost[] = "localhost";
-   //    //    int  visport   = 19916;
-   //    //    string keys;
-   //    //    if (dim ==2 )
-   //    //    {
-   //    //       keys = "keys mrRljc\n";
-   //    //    }
-   //    //    else
-   //    //    {
-   //    //       keys = "keys mc\n";
-   //    //    }
-   //    //    socketstream sol1_sock_re(vishost, visport);
-   //    //    sol1_sock_re.precision(8);
-   //    //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-   //    //                "window_title 'Numerical Pressure (real part)' "
-   //    //                << keys << flush;
-   //    //    cin.get();
-   // }
-
-   // chrono.Stop();
-   // cout << "Solver time: " << chrono.RealTime() << endl; 
-
-   a.RecoverFEMSolution(X,B,p_gf);
-
-   chrono.Clear();
-   chrono.Start();
    ComplexUMFPackSolver csolver;
    csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    csolver.SetOperator(*AZ);
-   Vector X1(X.Size());
-   csolver.Mult(B,X1);
-   chrono.Stop();
-   cout << "UMFPack time: " << chrono.RealTime() << endl; 
-   // X1-= X;
+   csolver.Mult(B,X);
 
-   // ComplexGridFunction error_gf(fespace);
+   a.RecoverFEMSolution(X,B,p_gf);
 
-   // a.RecoverFEMSolution(X1,B,error_gf);
-
-
-   // cout << "error l2 norm = " << error_gf.Norml2() << endl;
 
    if (visualization)
    {
@@ -351,19 +217,20 @@ int main(int argc, char *argv[])
       }
       socketstream sol_sock_re(vishost, visport);
       sol_sock_re.precision(8);
-      sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-                  "window_title 'Numerical Pressure (real part from DST)' "
+      sol_sock_re << "solution\n" << *mesh << p_gf.real() <<
+                  "window_title 'Numerical Pressure (real part)' "
                   << keys << flush;
+      ComplexGridFunction rhs(fespace);
+      rhs.ProjectCoefficient(f_Re,f_Im);
+      socketstream rhs_sock_re(vishost, visport);
+      rhs_sock_re.precision(8);
+      rhs_sock_re << "solution\n" << *mesh << rhs.real() <<
+                  "window_title 'RHS (real part)' "
+                  << keys << flush;                  
                   // << keys << "valuerange -0.08 0.08 \n" << flush;
-      // socketstream err_sock_re(vishost, visport);
-      // err_sock_re.precision(8);
-      // err_sock_re << "solution\n" << *mesh_ext << error_gf.real() <<
-      //             "window_title 'Difference (real part from UMFPACK)' "
-      //             << keys << flush;
    }
    delete fespace;
    delete fec;
-	delete mesh_ext;
 	delete mesh;
    return 0;
 }
@@ -397,13 +264,6 @@ double f_exact_Re(const Vector &x)
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   // x0 = 0.85;
-   // x1 = 0.15;
-   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   // if (dim == 3) { beta += pow(x2-x(2),2); }
-   // alpha = -pow(n,2) * beta;
-   // f_re += coeff*exp(alpha);
-
    x0 = 0.8;
    x1 = 0.4;
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
@@ -435,70 +295,6 @@ double f_exact_Im(const Vector &x)
 double wavespeed(const Vector &x)
 {
    double ws;
-   // if (x(0) <= 0.25)
-   // {
-   //    ws = 1.0;
-   // }
-   // else if(x(0)<=0.5)
-   // {
-   //    ws = 1.0;
-   // }
-   // else if(x(0)<=0.75)
-   // {
-   //    ws = 0.75;
-   //    // ws = 0.5;
-   // }
-   // else 
-   // {
-   //    ws = 0.75;
-   //    // ws = 1.0;
-   // }
-   // if (x(1) <= 1.0/3.0)
-   // {
-   //    ws = 2.0;
-   // }
-   // else if(x(1)<=2.0/3.0)
-   // {
-   //    ws = 1.0;
-   // }
-   // else 
-   // {
-   //    // ws = 0.75;
-   //    ws = 0.25;
-   // }
-
-   // if (x(0) <= 0.33)
-   // {
-   //    ws = 1.0;
-   // }
-   // else if(x(0)<=0.66)
-   // {
-   //    ws = -0.65 + 5.0*x(0);
-   // }
-   // else 
-   // {
-   //    ws = 2.65;
-   //    // ws = 0.5;
-   // }
-
-   // if (x(0) <= x(1) && x(1) >= 1.0-x(0))
-   // {
-   //    ws = 1.0;
-   // }
-   // else if (x(0) > x(1) && x(1) >= 1.0-x(0))
-   // {
-   //    ws = 3.0;
-   // }
-   // else if (x(0) <= x(1) && x(1) < 1.0-x(0))
-   // {
-   //    ws = 2.0;
-   // }
-   // else
-   // {
-   //    ws = 4.0;
-   // }
-   
-
 
    ws = 1.0;
    return ws;

@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/maxwell-solver/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/maxwell-solver/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
@@ -33,7 +33,8 @@ endif
 
 COMMON_O= common/PML.o common/MeshPartition.o \
 			 common/Utilities.o common/complex_linalg.o common/complex_coeff.o\
-			 DST/DST.o ParDST/ParDST.o ParDST/DofMapsDST.o 
+			 DST/DST.o ParDST/ParDST.o ParDST/DofMapsDST.o \
+			 $(MFEM_DIR)/miniapps/common/mesh_extras.o
 
 # Remove built-in rules
 %: %.cpp

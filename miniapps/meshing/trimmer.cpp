@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
    args.AddOption(&attr, "-a", "--attr",
                   "Set of attributes to remove from the mesh.");
    args.AddOption(&attr_complement, "-ac", "--attr_complement",
-                  "Set of attributes to leave in the mesh.");                  
+                  "Set of attributes to leave in the mesh.");
    args.AddOption(&bdr_attr, "-b", "--bdr-attr",
                   "Set of attributes to assign to the new boundary elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -247,12 +247,12 @@ int main(int argc, char *argv[])
       trimmed_mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
    }
    trimmed_mesh.Transform(gf_nodes);
-   
+
    if (order > 1)
    {
       trimmed_mesh.SetCurvature(order, false, 3, Ordering::byVDIM);
    }
-   
+
    // Save the final mesh
    ofstream mesh_ofs("trimmer.mesh");
    mesh_ofs.precision(8);

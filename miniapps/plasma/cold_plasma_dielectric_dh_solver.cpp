@@ -690,7 +690,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                     sbc_bdr_marker_);
       if (kReCoef_ || kImCoef_)
       {
-         nxD01_->AddBoundaryIntegrator((kReCoef_) ? 
+         nxD01_->AddBoundaryIntegrator((kReCoef_) ?
                                        new nxkIntegrator(*kReCoef_,
                                                          *negOmegaCoef_) : NULL,
                                        (kImCoef_) ?
@@ -924,7 +924,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          */
          // m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), NULL,
          //                            sbc.attr_marker);
-         m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), new MassIntegrator(*zero),
+         m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_),
+                                    new MassIntegrator(*zero),
                                     sbc.attr_marker);
          nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
                                        new VectorFECurlIntegrator(*sbc.imag),
@@ -1628,7 +1629,7 @@ CPDSolverDH::Solve()
       AInv->SetOperator(*A1);
    }
 #endif
-   if (!AInv) MFEM_VERIFY(AInv, "Direct Solver pointer is null");
+   if (!AInv) { MFEM_VERIFY(AInv, "Direct Solver pointer is null"); }
    // solver.Mult(RHS1, H);
    if (sbcs_->Size() > 0)
    {
@@ -1702,7 +1703,7 @@ CPDSolverDH::Solve()
          SchurComplimentOperator schur(*AInv, *B, *C, *D);
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
-         
+
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(50);
          gmres.SetRelTol(1e-16);
