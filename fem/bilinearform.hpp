@@ -84,8 +84,9 @@ protected:
        the BilinearForm. */
    long sequence;
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #domain_integs, #boundary_integs,
-       #interior_face_integs, and #boundary_face_integs are owned by another BilinearForm. */
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #domain_integs,
+       #boundary_integs, #interior_face_integs, and #boundary_face_integs are
+       owned by another BilinearForm. */
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
@@ -98,16 +99,14 @@ protected:
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_integs;
-   Array<Array<int>*>
-   boundary_integs_marker; ///< Entries are not owned.
+   Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
 
    /// Set of interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> interior_face_integs;
 
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_face_integs;
-   Array<Array<int>*>
-   boundary_face_integs_marker; ///< Entries are not owned.
+   Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -250,7 +249,8 @@ public:
    /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBFBFI_Marker() { return &boundary_face_integs_marker; }
+   Array<Array<int>*> *GetBFBFI_Marker()
+   { return &boundary_face_integs_marker; }
 
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
@@ -655,7 +655,8 @@ protected:
    MixedBilinearFormExtension *ext;
 
    /** @brief Indicates the BilinearFormIntegrator%s stored in #domain_integs,
-       #boundary_integs, #trace_face_integs and #boundary_trace_face_integs are owned by another MixedBilinearForm. */
+       #boundary_integs, #trace_face_integs and #boundary_trace_face_integs
+       are owned by another MixedBilinearForm. */
    int extern_bfs;
 
    /// Domain integrators.
@@ -671,8 +672,7 @@ protected:
 
    /// Boundary trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> boundary_trace_face_integs;
-   Array<Array<int>*>
-   boundary_trace_face_integs_marker;///< Entries are not owned.
+   Array<Array<int>*> boundary_trace_face_integs_marker;///< Entries are not owned.
 
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
@@ -779,11 +779,13 @@ public:
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &trace_face_integs; }
 
    /// Access all integrators added with AddBdrTraceFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetBTFBFI() { return &boundary_trace_face_integs; }
+   Array<BilinearFormIntegrator*> *GetBTFBFI()
+   { return &boundary_trace_face_integs; }
    /** @brief Access all boundary markers added with AddBdrTraceFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBTFBFI_Marker() { return &boundary_trace_face_integs_marker; }
+   Array<Array<int>*> *GetBTFBFI_Marker()
+   { return &boundary_trace_face_integs_marker; }
 
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }

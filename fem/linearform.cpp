@@ -83,7 +83,8 @@ void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi,
 void LinearForm::AddBdrFaceIntegrator (LinearFormIntegrator * lfi)
 {
    boundary_face_integs.Append(lfi);
-   boundary_face_integs_marker.Append(NULL); // NULL -> all attributes are active
+   // NULL -> all attributes are active
+   boundary_face_integs_marker.Append(NULL);
 }
 
 void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
@@ -135,7 +136,8 @@ void LinearForm::Assemble()
             {
                fes -> GetElementVDofs (i, vdofs);
                eltrans = fes -> GetElementTransformation (i);
-               domain_integs[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
+               domain_integs[k]->AssembleRHSElementVect(*fes->GetFE(i),
+                                                        *eltrans, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }
@@ -179,7 +181,8 @@ void LinearForm::Assemble()
             if (boundary_integs_marker[k] &&
                 (*boundary_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-            boundary_integs[k]->AssembleRHSElementVect(*fes->GetBE(i), *eltrans, elemvect);
+            boundary_integs[k]->AssembleRHSElementVect(*fes->GetBE(i),
+                                                       *eltrans, elemvect);
 
             AddElementVector (vdofs, elemvect);
          }
@@ -225,8 +228,8 @@ void LinearForm::Assemble()
                if (boundary_face_integs_marker[k] &&
                    (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               boundary_face_integs[k] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
-                                                                  *tr, elemvect);
+               boundary_face_integs[k]->AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
+                                                               *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }
@@ -249,9 +252,9 @@ void LinearForm::Assemble()
                Array<int> vdofs2;
                fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
                vdofs.Append(vdofs2);
-               interior_face_integs[k] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
-                                                                  *fes->GetFE(tr -> Elem2No),
-                                                                  *tr, elemvect);
+               interior_face_integs[k]->AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
+                                                               *fes->GetFE(tr -> Elem2No),
+                                                               *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }
@@ -310,8 +313,8 @@ void LinearForm::AssembleDelta()
       Trans.SetIntPoint(&ip);
 
       fes->GetElementVDofs(elem_id, vdofs);
-      domain_delta_integs[i]->AssembleDeltaElementVect(*fes->GetFE(elem_id), Trans,
-                                                       elemvect);
+      domain_delta_integs[i]->AssembleDeltaElementVect(*fes->GetFE(elem_id),
+                                                       Trans, elemvect);
       AddElementVector(vdofs, elemvect);
    }
 }
@@ -334,11 +337,14 @@ LinearForm::~LinearForm()
    if (!extern_lfs)
    {
       int k;
-      for (k=0; k < domain_delta_integs.Size(); k++) { delete domain_delta_integs[k]; }
+      for (k=0; k < domain_delta_integs.Size(); k++)
+      { delete domain_delta_integs[k]; }
       for (k=0; k < domain_integs.Size(); k++) { delete domain_integs[k]; }
       for (k=0; k < boundary_integs.Size(); k++) { delete boundary_integs[k]; }
-      for (k=0; k < boundary_face_integs.Size(); k++) { delete boundary_face_integs[k]; }
-      for (k=0; k < interior_face_integs.Size(); k++) { delete interior_face_integs[k]; }
+      for (k=0; k < boundary_face_integs.Size(); k++)
+      { delete boundary_face_integs[k]; }
+      for (k=0; k < interior_face_integs.Size(); k++)
+      { delete interior_face_integs[k]; }
    }
 }
 

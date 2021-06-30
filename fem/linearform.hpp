@@ -26,8 +26,9 @@ protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
 
-   /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs, #domain_delta_integs,
-       #boundary_integs, and #boundary_face_integs are owned by another LinearForm. */
+   /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs,
+       #domain_delta_integs, #boundary_integs, and #boundary_face_integs are
+       owned by another LinearForm. */
    int extern_lfs;
 
    /// Set of Domain Integrators to be applied.
