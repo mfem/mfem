@@ -224,10 +224,13 @@ New and updated examples and miniapps
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
-- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
-  help identify elements with poor mesh quality.
+Improved testing
+----------------
+- Transitioned from Travis to GitHub Action for testing/CI on GitHub.
 
-- Added support for reading VTK meshes in XML format.
+- Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
+
+- Added a set of suggested git hooks for developers in config/githooks.
 
 - Added support for Caliper: a library to integrate performance profiling
   capabilities into applications. See examples/caliper for more details.
@@ -237,9 +240,14 @@ New and updated examples and miniapps
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
-- Added makefile rule to generate TAGS table for vi or Emacs users.
+Miscellaneous
+-------------
+- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
+  help identify elements with poor mesh quality.
 
-- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
+- Added support for reading VTK meshes in XML format.
+
+- Added makefile rule to generate TAGS table for vi or Emacs users.
 
 - Added HIP support to the CMake build system.
 
