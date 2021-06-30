@@ -7950,6 +7950,22 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(obtype))) { }
 
+VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
+                                                     const int d,
+                                                     const int p,
+                                                     const int obtype,
+                                                     const int M,
+                                                     const DofMapType dmtype)
+   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
+                         p, M, FunctionSpace::Pk),
+     TensorBasisElement(dims, p, obtype, dmtype),
+     cbasis1d(poly1d.GetBasis(p, VerifyOpen(obtype))),
+     obasis1d(poly1d.GetBasis(p, VerifyOpen(obtype)))
+{
+   MFEM_VERIFY(dims == 1, "Constructor for VectorTensorFiniteElement without "
+               "closed basis is only valid for 1D elements.");
+}
+
 H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyClosed(btype), H1_DOF_MAP)
 {
@@ -13055,9 +13071,8 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 const double ND_SegmentElement::tk[1] = { 1. };
 
 ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
-   : VectorFiniteElement(1, Geometry::SEGMENT, p, p - 1,
-                         H_CURL, FunctionSpace::Pk),
-     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
+   : VectorTensorFiniteElement(1, p, p - 1, ob_type, H_CURL,
+                               DofMapType::L2_DOF_MAP),
      dof2tk(dof)
 {
    if (obasis1d.IsIntegratedType()) { is_nodal = false; }
