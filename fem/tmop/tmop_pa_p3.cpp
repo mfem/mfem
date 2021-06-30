@@ -75,8 +75,29 @@ void EvalP_321(const double *J, double *P)
    kernels::Add(3,3, ie.Get_dI1(), P);
 }
 
+// P_332 = (1-gamma) P_302 + gamma P_315.
+static MFEM_HOST_DEVICE inline
+void EvalP_332(const double *J, double gamma, double *P)
+{
+   double B[9];
+   double dI1b[9], dI2[9], dI2b[9], dI3b[9];
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b)
+                                     .dI2(dI2).dI2b(dI2b)
+                                     .dI3b(dI3b));
+   const double alpha = (1.0 - gamma) * ie.Get_I1b()/9.;
+   const double beta = (1.0 - gamma) * ie.Get_I2b()/9.;
+   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
+
+   double sign_detJ;
+   const double I3b = ie.Get_I3b(sign_detJ);
+   kernels::Add(3,3, gamma * 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
+}
+
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                            const double metric_normal,
+                           double metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
@@ -88,8 +109,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 321 ,
-               "3D metric not yet implemented!");
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
+               mid == 321 || mid == 332, "3D metric not yet implemented!");
 
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -146,10 +167,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
 
                // metric->EvalP(Jpt, P);
                double P[9];
-               if (mid == 302) { EvalP_302(Jpt,P); }
-               if (mid == 303) { EvalP_303(Jpt,P); }
-               if (mid == 315) { EvalP_315(Jpt,P); }
-               if (mid == 321) { EvalP_321(Jpt,P); }
+               if (mid == 302) { EvalP_302(Jpt, P); }
+               if (mid == 303) { EvalP_303(Jpt, P); }
+               if (mid == 315) { EvalP_315(Jpt, P); }
+               if (mid == 321) { EvalP_321(Jpt, P); }
+               if (mid == 332) { EvalP_332(Jpt, metric_param, P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
                // Y += DS . P^t += DSh . (Jrt . P^t)
@@ -180,7 +202,10 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,M,N,J,W,B,G,X,Y);
+   double mp = 0.0;
+   if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
+
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,mp,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

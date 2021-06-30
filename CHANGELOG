@@ -139,7 +139,8 @@ Version 4.2.1 (development)
 
 - Changed the interface for the error estimator.
 
-- Implemented the parallel Kelly error indicator for scalar-valued problems.
+- Implemented the Kelly error indicator for scalar-valued problems, supported
+  in serial and parallel builds.
 
 - Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
   efficient evaluation of symmetric matrix coefficients. This replaces the now
@@ -172,7 +173,10 @@ Version 4.2.1 (development)
   mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
   supports meshes with any element geometry.
 
-- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
+- Testing improvements:
+  * Transitioned from Travis to GitHub Action for testing/CI on GitHub.
+  * Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
+  * Added a set of suggested git hooks for developers in config/githooks.
 
 - Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
   see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
@@ -201,13 +205,18 @@ Version 4.2.1 (development)
 
 - Improved interface for using the Ginkgo library, including: support for matrix-
   free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
-  support, and reduction of unnecessary data copies. 
+  support, and reduction of unnecessary data copies.
 
 - Added initial support for hypre's mixed integer (mixedint) capability, which
   uses different data types for local and global indices in order to save memory
   in large problems. This capability requires that hypre was configured with the
   --enable-mixedint option. Note that this option is currently tested only in
   ex1p and may not work in more general settings.
+
+- Added support for transferring fields (primary and dual) between high-order
+  and low-order refined H1 finite element spaces using the
+  L2ProjectionH1GridTransfer operators. This functionality is demonstrated
+  through the lor-transfer miniapp when run with the -h1 option.
 
 - Added new functionality for constructing low-order refined discretizations and
   solvers, see the LORDiscretization and LORSolver classes. A new basis type for
@@ -218,6 +227,21 @@ Version 4.2.1 (development)
   of the six currently supported element types; ref-segment.mesh,
   ref-triangle.mesh, ref-square.mesh, ref-tetrahedron.mesh, ref-cube.mesh, and
   ref-prism.mesh.
+
+- Added a high-order extension of the shifted boundary method to solve PDEs on
+  non body-fitted meshes. This is illustrated in the new Shifted Diffusion
+  miniapp, see miniapps/shifted/diffusion.cpp.
+
+- Added makefile rule to generate TAGS table for vi or Emacs users.
+
+API changes
+-----------
+- Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
+  and `L2FaceRestriction`.
+  In order to conform with the semantic of `MultTranspose` in `mfem::Operator`,
+  `mfem::FaceRestriction::MultTranspose` now sets instead of adding values, and
+  `mfem::FaceRestriction::AddMultTranspose` should replace previous calls to
+  `mfem::FaceRestriction::MultTranspose`.
 
 libCEED integration improvements
 --------------------------------
