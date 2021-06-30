@@ -123,10 +123,21 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
       else { cP = new SparseMatrix(*fes.GetConformingProlongation()); }
       cP_is_set = true;
    }
+   else if (perm != NULL)
+   {
+      cP = perm_mat;
+      cP_is_set = true;
+      perm_mat = NULL;
+   }
    if (fes.GetConformingRestriction() != NULL)
    {
       if (perm) { cR = Mult(*fes.GetConformingRestriction(), *perm_mat_tr); }
       else { cR = new SparseMatrix(*fes.GetConformingRestriction()); }
+   }
+   else if (perm != NULL)
+   {
+      cR = perm_mat_tr;
+      perm_mat_tr = NULL;
    }
 
    delete perm_mat;
