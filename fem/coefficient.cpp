@@ -218,15 +218,7 @@ CurlGridFunctionCoefficient::CurlGridFunctionCoefficient(
 
 void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
-   if (gf)
-   {
-      int sdim = gf -> FESpace() -> GetMesh() -> SpaceDimension();
-      MFEM_VERIFY(sdim == 2 || sdim == 3,
-                  "CurlGridFunctionCoefficient "
-                  "only defind for spaces of dimension 2 or 3.");
-   }
-   GridFunc = gf;
-   vdim = (gf) ? (2 * gf -> FESpace() -> GetMesh() -> SpaceDimension() - 3) : 0;
+   GridFunc = gf; vdim = (gf) ? gf -> CurlDim() : 0;
 }
 
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -457,7 +449,7 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
 InnerProductCoefficient::InnerProductCoefficient(VectorCoefficient &A,
                                                  VectorCoefficient &B)
-   : a(&A), b(&B)
+   : a(&A), b(&B), va(A.GetVDim()), vb(B.GetVDim())
 {
    MFEM_ASSERT(A.GetVDim() == B.GetVDim(),
                "InnerProductCoefficient:  "
@@ -656,6 +648,26 @@ void MatrixSumCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    if ( beta != 1.0 ) { M *= beta; }
    a->Eval(ma, T, ip);
    M.Add(alpha, ma);
+}
+
+MatrixProductCoefficient::MatrixProductCoefficient(MatrixCoefficient &A,
+                                                   MatrixCoefficient &B)
+   : MatrixCoefficient(A.GetHeight(), B.GetWidth()),
+     a(&A), b(&B),
+     ma(A.GetHeight(), A.GetWidth()),
+     mb(B.GetHeight(), B.GetWidth())
+{
+   MFEM_ASSERT(A.GetWidth() == B.GetHeight(),
+               "MatrixProductCoefficient:  "
+               "Arguments must have compatible dimensions.");
+}
+
+void MatrixProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                    const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   b->Eval(mb, T, ip);
+   Mult(ma, mb, M);
 }
 
 ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(

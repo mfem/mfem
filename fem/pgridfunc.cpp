@@ -463,10 +463,10 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
    else
    {
-      int spaceDim = pfes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = fe->GetVDim();
+      DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
 }
