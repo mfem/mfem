@@ -1060,8 +1060,8 @@ protected:
    // DenseMatrix to hold target_spec values for the (children of the)
    // element being refined to consider for h-refinement.
    DenseMatrix tspec_refine;
-   // Vector to hold the target_spec values for the coarse version of the current
-   // mesh. Used for derefinement decision with hr-adaptivity.
+   // Vector to hold the target_spec values for the coarse version of the
+   // current mesh. Used for derefinement decision with hr-adaptivity.
    Vector tspec_derefine;
 
    // Components of Target Jacobian at each quadrature point of an element. This
@@ -1221,9 +1221,7 @@ public:
 
    // Generates tspec_vals for target construction using intrule
    // Used for the refinement component in hr-adaptivity.
-   void SetTspecFromIntRule(const int e_id,
-                            const FiniteElement &fe,
-                            const IntegrationRule &intrule);
+   void SetTspecFromIntRule(int e_id, const IntegrationRule &intrule);
 
    void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
 
