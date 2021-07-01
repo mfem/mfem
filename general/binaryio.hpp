@@ -59,7 +59,7 @@ void AppendBytes(std::vector<char> &vec, const T &val)
 
 void WriteBase64(std::ostream &out, const void *bytes, size_t length);
 
-void DecodeBase64(const char *src, size_t len, std::vector<unsigned char> &buf);
+void DecodeBase64(const char *src, size_t len, std::vector<char> &buf);
 
 } // namespace mfem::bin_io
 

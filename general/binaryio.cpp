@@ -71,7 +71,7 @@ static const unsigned char b64table[] =
    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
 };
 
-void DecodeBase64(const char *src, size_t len, std::vector<unsigned char> &buf)
+void DecodeBase64(const char *src, size_t len, std::vector<char> &buf)
 {
    const unsigned char *in = (const unsigned char *)src;
    buf.clear();
@@ -79,7 +79,7 @@ void DecodeBase64(const char *src, size_t len, std::vector<unsigned char> &buf)
    for (size_t i=0; i<len; ++i) { if (b64table[in[i]] != 255) { ++count; } }
    if (count % 4 != 0) { return; }
    buf.resize(3*len/4);
-   unsigned char *out = buf.data();
+   unsigned char *out = (unsigned char *)buf.data();
    count = 0;
    int pad = 0;
    unsigned char c[4];
@@ -97,7 +97,7 @@ void DecodeBase64(const char *src, size_t len, std::vector<unsigned char> &buf)
          count = pad = 0;
       }
    }
-   buf.resize(out - buf.data());
+   buf.resize(out - (unsigned char *)buf.data());
 }
 
 } // namespace mfem::bin_io
