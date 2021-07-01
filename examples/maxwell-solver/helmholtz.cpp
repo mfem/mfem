@@ -112,8 +112,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
 
    double hl = GetUniformMeshElementSize(mesh);
-   Vector pmin, pmax;
-   mesh->GetBoundingBox(pmin,pmax);
+
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
@@ -353,7 +352,7 @@ int main(int argc, char *argv[])
       sol_sock_re.precision(8);
       sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
                   "window_title 'Numerical Pressure (real part from DST)' "
-                  << keys << flush;
+                  // << keys << flush;
                   // << keys << "valuerange -0.08 0.08 \n" << flush;
       // socketstream err_sock_re(vishost, visport);
       // err_sock_re.precision(8);

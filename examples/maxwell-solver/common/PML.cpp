@@ -12,24 +12,31 @@ void CartesianPML::SetBoundaries()
    comp_dom_bdr.SetSize(dim, 2);
    dom_bdr.SetSize(dim, 2);
    // initialize
-   for (int i = 0; i < dim; i++)
-   {
-      dom_bdr(i, 0) = infinity();
-      dom_bdr(i, 1) = -infinity();
-   }
+   // for (int i = 0; i < dim; i++)
+   // {
+   //    dom_bdr(i, 0) = infinity();
+   //    dom_bdr(i, 1) = -infinity();
+   // }
 
-   for (int i = 0; i < mesh->GetNBE(); i++)
+   // for (int i = 0; i < mesh->GetNBE(); i++)
+   // {
+   //    Array<int> bdr_vertices;
+   //    mesh->GetBdrElementVertices(i, bdr_vertices);
+   //    for (int j = 0; j < bdr_vertices.Size(); j++)
+   //    {
+   //       for (int k = 0; k < dim; k++)
+   //       {
+   //          dom_bdr(k, 0) = min(dom_bdr(k, 0), mesh->GetVertex(bdr_vertices[j])[k]);
+   //          dom_bdr(k, 1) = max(dom_bdr(k, 1), mesh->GetVertex(bdr_vertices[j])[k]);
+   //       }
+   //    }
+   // }
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin,pmax);
+   for (int k = 0; k < dim; k++)
    {
-      Array<int> bdr_vertices;
-      mesh->GetBdrElementVertices(i, bdr_vertices);
-      for (int j = 0; j < bdr_vertices.Size(); j++)
-      {
-         for (int k = 0; k < dim; k++)
-         {
-            dom_bdr(k, 0) = min(dom_bdr(k, 0), mesh->GetVertex(bdr_vertices[j])[k]);
-            dom_bdr(k, 1) = max(dom_bdr(k, 1), mesh->GetVertex(bdr_vertices[j])[k]);
-         }
-      }
+      dom_bdr(k, 0) = pmin(k);
+      dom_bdr(k, 1) = pmax(k);
    }
 
 #ifdef MFEM_USE_MPI

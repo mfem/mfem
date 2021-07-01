@@ -143,6 +143,7 @@ void DST::Mult(const Vector &r, Vector &z) const
       default: nsteps = nx+ny+nz-2; break;
    }
    int nsweeps = swp->nsweeps;
+   // int nsweeps = 1;
 
    for (int l=0; l<nsweeps; l++)
    {  
@@ -248,15 +249,13 @@ void DST::SetHelmholtzPmlSystemMatrix(int ip)
       if (k == 0 )    length[2][0] = Pmllength[2][0];
       if (k == nz-1 ) length[2][1] = Pmllength[2][1];
    }
-   
    CartesianPML pml(mesh, length);
    pml.SetOmega(omega);
-
    Array <int> ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = 0;
       dmap->fespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 

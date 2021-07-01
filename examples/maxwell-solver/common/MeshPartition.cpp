@@ -650,6 +650,39 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part,int nx, int ny, int nz, int n
       }
       patch_mesh[ip]->FinalizeTopology();
    }
+
+   // high order or periodic meshes
+   GridFunction * gnodes = mesh_->GetNodes();
+   int sdim = mesh_->SpaceDimension();
+   if (gnodes)
+   {
+      const FiniteElementSpace * gfes = gnodes->FESpace();
+
+      Ordering::Type ordering = gfes->GetOrdering();
+      int order = gfes->GetOrder(0);
+      bool discont = gfes->IsDGSpace();
+      for (int ip = 0; ip<nrpatch; ++ip)
+      {
+         patch_mesh[ip]->SetCurvature(order,discont,sdim,ordering);
+         const FiniteElementSpace * lfes = patch_mesh[ip]->GetNodalFESpace();
+         GridFunction * lnodes = patch_mesh[ip]->GetNodes();
+         Array<int> gvdofs;
+         Array<int> lvdofs;
+         Vector vec;
+
+         // Copy nodes to submesh
+         for (int e = 0; e < element_map[ip].Size(); e++)
+         {
+            lfes->GetElementVDofs(e, lvdofs);
+            gfes->GetElementVDofs(element_map[ip][e], gvdofs);
+            gnodes->GetSubVector(gvdofs, vec);
+            lnodes->SetSubVector(lvdofs, vec);
+         }
+         patch_mesh[ip]->Finalize();
+      }
+      
+   }
+
 }
 
 void MeshPartition::AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,

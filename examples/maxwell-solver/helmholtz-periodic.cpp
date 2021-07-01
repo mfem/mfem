@@ -1,19 +1,12 @@
 //
 // Compile with: make helmholtz
 //
-// Sample runs:  helmholtz -m ../data/one-hex.mesh
-//               helmholtz -m ../data/fichera.mesh
-//               helmholtz -m ../data/fichera-mixed.mesh
-//
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Helmholtz problem
-//               -Delta p - omega^2 p = 1 with impedance boundary condition.
+// sample run ./helmholtz-periodic -ref 6 -nx 5 -ny 1 -k 5.2
 //
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include "DST/DST.hpp"
-#include "DST2D/DST2D.hpp"
 #include "../../miniapps/common/mesh_extras.hpp"
 
 using namespace std;
@@ -104,6 +97,7 @@ int main(int argc, char *argv[])
 
    Mesh * mesh = mfem::common::MakePeriodicMesh(&orig_mesh, v2v);
 
+
    // 3. Executing uniform h-refinement
    for (int i = 0; i < ref; i++ )
    {
@@ -112,7 +106,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
 
    double hl = GetUniformMeshElementSize(mesh);
-   int nrlayers = 5;
+   int nrlayers = 10;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][0] = 0.0;
@@ -124,7 +118,6 @@ int main(int argc, char *argv[])
    comp_bdr.SetSize(dim,2);
    comp_bdr = pml.GetCompDomainBdr(); 
 
-   comp_bdr.Print();
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
@@ -176,13 +169,16 @@ int main(int argc, char *argv[])
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 1;
+   ess_bdr = 0;
+   // ess_bdr[1] = 1;
+   // ess_bdr[3] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // Solution grid function
    ComplexGridFunction p_gf(fespace); p_gf = 0.0;
    OperatorHandle Ah;
    Vector X, B;
+
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
 
@@ -193,11 +189,23 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
+   // ComplexUMFPackSolver csolver;
+   // csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   // csolver.SetOperator(*AZ);
+   // csolver.Mult(B,X);
 
-   ComplexUMFPackSolver csolver;
-   csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   csolver.SetOperator(*AZ);
-   csolver.Mult(B,X);
+   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+
+   X = 0.0;
+	GMRESSolver gmres;
+   gmres.SetPreconditioner(S);
+	gmres.SetOperator(*AZ);
+	gmres.SetRelTol(1e-6);
+	gmres.SetMaxIter(20);
+	gmres.SetPrintLevel(1);
+	gmres.Mult(B, X);
+   // S.Mult(B,X);
+
 
    a.RecoverFEMSolution(X,B,p_gf);
 
@@ -236,7 +244,6 @@ int main(int argc, char *argv[])
 }
 
 
-//calculate RHS from exact solution f = - \Delta u
 double f_exact_Re(const Vector &x)
 {
    double f_re = 0.0;
@@ -297,6 +304,24 @@ double wavespeed(const Vector &x)
    double ws;
 
    ws = 1.0;
+   // if (x(0) <= x(1) && x(1) >= 1.0-x(0))
+   // {
+   //    ws = 1.0;
+   // }
+   // else if (x(0) > x(1) && x(1) >= 1.0-x(0))
+   // {
+   //    ws = 3.0;
+   // }
+   // else if (x(0) <= x(1) && x(1) < 1.0-x(0))
+   // {
+   //    ws = 2.0;
+   // }
+   // else
+   // {
+   //    ws = 4.0;
+   // }
+   if (x(0) > 0.5) ws = 2.0;
+
    return ws;
 }
 
