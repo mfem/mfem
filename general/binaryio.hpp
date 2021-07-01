@@ -61,6 +61,10 @@ void WriteBase64(std::ostream &out, const void *bytes, size_t length);
 
 void DecodeBase64(const char *src, size_t len, std::vector<char> &buf);
 
+/// Return the number of characters needed to encode @a nbytes in base-64. This
+/// is equal to 4*nbytes/3, rounded up to the nearest multiple of 4.
+size_t NumBase64Chars(size_t nbytes);
+
 } // namespace mfem::bin_io
 
 } // namespace mfem

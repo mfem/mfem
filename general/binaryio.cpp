@@ -100,5 +100,7 @@ void DecodeBase64(const char *src, size_t len, std::vector<char> &buf)
    buf.resize(out - (unsigned char *)buf.data());
 }
 
+size_t NumBase64Chars(size_t nbytes) { return ((4*nbytes/3) + 3) & ~3; }
+
 } // namespace mfem::bin_io
 } // namespace mfem

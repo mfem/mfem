@@ -819,15 +819,15 @@ struct BufferReader : BufferReaderBase
          // Decode the first entry of the header, which we need to determine
          // how long the rest of the header is.
          std::vector<char> nblocks_buf;
-         int nblocks_b64 = ((4*HeaderEntrySize()/3) + 3) & ~3;
+         int nblocks_b64 = bin_io::NumBase64Chars(HeaderEntrySize());
          bin_io::DecodeBase64(txt, nblocks_b64, nblocks_buf);
          std::vector<char> data, header;
          // Compute number of characters needed to encode header in base 64,
          // then round to nearest multiple of 4 to take padding into account.
-         int b64_header = ((4*NumHeaderBytes(nblocks_buf.data())/3) + 3) & ~3;
+         int header_b64 = bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data()));
          // If data is compressed, header is encoded separately
-         bin_io::DecodeBase64(txt, b64_header, header);
-         bin_io::DecodeBase64(txt + b64_header, strlen(txt)-b64_header, data);
+         bin_io::DecodeBase64(txt, header_b64, header);
+         bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);
          ReadBinaryWithHeader(header.data(), data.data(), dest, n);
       }
       else
