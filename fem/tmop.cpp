@@ -1816,14 +1816,11 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           aspectratioidx*ndofs, ndofs);
-                  const double min_size = 0.1;//par_vals.Min();
-                  const double max_size = 1./0.1;//par_vals.Min();
+                  const double min_size = par_vals.Min();
                   MFEM_VERIFY(min_size > 0.0,
                               "Non-positive aspect-ratio propagated in the target definition.");
 
-                  double val= std::max(shape * par_vals, min_size);
-                  const double aspectratio = std::min(val, max_size);
-                  //const double aspectratio = shape * par_vals;
+                  const double aspectratio = shape * par_vals;
                   D_rho = 0.;
                   D_rho(0,0) = 1./pow(aspectratio,0.5);
                   D_rho(1,1) = pow(aspectratio,0.5);
@@ -2713,7 +2710,7 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
          const DenseMatrix &Jtr_i = Jtr(i);
-         amrmetric->SetTargetJacobian(Jtr_i);
+         h_metric->SetTargetJacobian(Jtr_i);
          CalcInverse(Jtr_i, Jrt);
          const double weight = ip.weight * Jtr_i.Det();
 
@@ -2721,7 +2718,7 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
          MultAtB(PMatI, DSh, Jpr);
          Mult(Jpr, Jrt, Jpt);
 
-         double val = metric_normal * amrmetric->EvalW(Jpt);
+         double val = metric_normal * h_metric->EvalW(Jpt);
          if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
 
          el_energy += weight * val;
@@ -2771,7 +2768,7 @@ double TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       const DenseMatrix &Jtr_i = Jtr(i);
-      amrmetric->SetTargetJacobian(Jtr_i);
+      h_metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
 
@@ -2779,7 +2776,7 @@ double TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
       MultAtB(PMatI, DSh, Jpr);
       Mult(Jpr, Jrt, Jpt);
 
-      double val = metric_normal * amrmetric->EvalW(Jpt);
+      double val = metric_normal * h_metric->EvalW(Jpt);
       if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
 
       energy += weight * val;

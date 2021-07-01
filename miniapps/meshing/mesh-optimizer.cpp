@@ -40,9 +40,9 @@
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
 //   Adapted analytc shape with hr-adaptivity:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 1 -hr
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 2 -hr
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 2 -mid 2 -ht 3 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 1 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 2 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 2 -mid 2 -hrt 3 -hr
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
@@ -129,11 +129,11 @@ int main(int argc, char *argv[])
    bool move_bnd         = true;
    int combomet          = 0;
    bool hradaptivity     = false;
-   int amr_metric_id      = -1;
+   int h_metric_id       = -1;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int hessiantype       = 0;
+   int hr_target_type    = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
@@ -232,10 +232,15 @@ int main(int argc, char *argv[])
    args.AddOption(&hradaptivity, "-hr", "--hr-adaptivity", "-no-hr",
                   "--no-hr-adaptivity",
                   "Enable hr-adaptivity.");
-   args.AddOption(&amr_metric_id, "-hmid", "--h-metric",
-                  "same options as metric_id");
-   args.AddOption(&hessiantype, "-ht", "--Hessian type for hr-adaptivity examples",
-                  "1-3");
+   args.AddOption(&h_metric_id, "-hmid", "--h-metric",
+                  "Same options as metric_id. Used to determine refinement"
+                  " type for each element if h-adaptivity is enabled.");
+   args.AddOption(&hr_target_type, "-hrt", "--hr-target-type",
+                  "Different analytic targets for hr-adaptivity examples"
+                  "0 - (default) original targets used for r-adaptivity\n\t"
+                  "1 - size target in an annular region\n\t"
+                  "2 - size+aspect-ratio in an annular region\n\t"
+                  "3 - size+aspect-ratio target for a rotate sine wave\n\t");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -264,7 +269,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (amr_metric_id < 0) { amr_metric_id = metric_id; }
+   if (h_metric_id < 0) { h_metric_id = metric_id; }
 
    Device device(devopt);
    device.Print();
@@ -411,32 +416,33 @@ int main(int argc, char *argv[])
          cout << "Unknown metric_id: " << metric_id << endl;
          return 3;
    }
-   TMOP_QualityMetric *amrmetric = NULL;
+   TMOP_QualityMetric *h_metric = NULL;
    if (hradaptivity)
    {
-      switch (amr_metric_id)
+      switch (h_metric_id)
       {
-         case 1: amrmetric = new TMOP_Metric_001; break;
-         case 2: amrmetric = new TMOP_Metric_002; break;
-         case 7: amrmetric = new TMOP_Metric_007; break;
-         case 9: amrmetric = new TMOP_Metric_009; break;
-         case 55: amrmetric = new TMOP_Metric_055; break;
-         case 56: amrmetric = new TMOP_Metric_056; break;
-         case 58: amrmetric = new TMOP_Metric_058; break;
-         case 77: amrmetric = new TMOP_Metric_077; break;
-         case 315: amrmetric = new TMOP_Metric_315; break;
-         case 316: amrmetric = new TMOP_Metric_316; break;
-         case 321: amrmetric = new TMOP_Metric_321; break;
-         default: cout << "Metric_id not supported in AMR: " << amr_metric_id << endl;
+         case 1: h_metric = new TMOP_Metric_001; break;
+         case 2: h_metric = new TMOP_Metric_002; break;
+         case 7: h_metric = new TMOP_Metric_007; break;
+         case 9: h_metric = new TMOP_Metric_009; break;
+         case 55: h_metric = new TMOP_Metric_055; break;
+         case 56: h_metric = new TMOP_Metric_056; break;
+         case 58: h_metric = new TMOP_Metric_058; break;
+         case 77: h_metric = new TMOP_Metric_077; break;
+         case 315: h_metric = new TMOP_Metric_315; break;
+         case 316: h_metric = new TMOP_Metric_316; break;
+         case 321: h_metric = new TMOP_Metric_321; break;
+         default: cout << "Metric_id not supported for h-adaptivity: " << h_metric_id <<
+                          endl;
             return 3;
       }
    }
 
-   if (metric_id < 300 || amr_metric_id < 300)
+   if (metric_id < 300 || h_metric_id < 300)
    {
       MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
    }
-   if (metric_id >= 300 || amr_metric_id >= 300)
+   if (metric_id >= 300 || h_metric_id >= 300)
    {
       MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
    }
@@ -462,7 +468,7 @@ int main(int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficient(dim, metric_id, hessiantype);
+         adapt_coeff = new HessianCoefficient(dim, metric_id, hr_target_type);
          tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tc;
          break;
@@ -661,7 +667,7 @@ int main(int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c,
-                                                       amrmetric);
+                                                       h_metric);
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -771,10 +777,10 @@ int main(int argc, char *argv[])
             TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
          target_c2->SetVolumeScale(0.01);
          target_c2->SetNodes(x0);
-         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2, amrmetric);
+         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
          he_nlf_integ2->SetCoefficient(coeff2);
       }
-      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c, amrmetric); }
+      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
       he_nlf_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
@@ -961,7 +967,7 @@ int main(int argc, char *argv[])
    // hr-adaptivity
    TMOPAMRSolver tmopamrsolver(*mesh, a, solver,
                                x, move_bnd, hradaptivity,
-                               mesh_poly_deg, amr_metric_id);
+                               mesh_poly_deg, h_metric_id);
    tmopamrsolver.AddGridFunctionForUpdate(&x0);
    if (adapt_lim_const > 0.)
    {
@@ -1036,7 +1042,7 @@ int main(int argc, char *argv[])
    delete adapt_evaluator;
    delete target_c;
    delete adapt_coeff;
-   delete amrmetric;
+   delete h_metric;
    delete metric;
    delete fespace;
    delete fec;

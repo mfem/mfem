@@ -121,19 +121,23 @@ class HessianCoefficient : public TMOPMatrixCoefficient
 private:
    int dim;
    int metric;
-   int amr_type;
+   int hr_target_type; // Targets for hr-adaptivity/
+   // 0 - original targets used for r-adaptivity,
+   // 1 - size target in an annular region,
+   // 2 - size+aspect-ratio in an annular region,
+   // 3 - size+aspect-ratio target for a rotate sine wave.
 
 public:
-   HessianCoefficient(int dim_, int metric_id, int amr_type_ = 0)
+   HessianCoefficient(int dim_, int metric_id, int hr_target_type_ = 0)
       : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id),
-        amr_type(amr_type_) { }
+        hr_target_type(hr_target_type_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (amr_type == 0)
+      if (hr_target_type == 0)
       {
          if (metric != 14 && metric != 36 && metric != 85)
          {
@@ -196,7 +200,7 @@ public:
             K(1, 1) *=  pow(asp_ratio_tar,0.5);
          }
       }
-      else if (amr_type==1) //size only circle
+      else if (hr_target_type==1) //size only circle
       {
          double small = 0.001, big = 0.01;
          if (dim == 3) { small = 0.005, big = 0.1; }
@@ -223,7 +227,7 @@ public:
          K(1, 1) *= pow(val,0.5);
          if (dim == 3) { K(2, 2) = pow(val,0.5); }
       }
-      else if (amr_type==2) //circle with size and AR
+      else if (hr_target_type==2) //circle with size and AR
       {
          const double small = 0.001, big = 0.01;
          const double xc = pos(0)-0.5, yc = pos(1)-0.5;
@@ -268,7 +272,7 @@ public:
          K(0,0) *= pow(szval,0.5);
          K(1,1) *= pow(szval,0.5);
       }
-      else if (amr_type == 3) //sharp rotated sine wave
+      else if (hr_target_type == 3) //sharp rotated sine wave
       {
          double xc = pos(0)-0.5, yc = pos(1)-0.5;
          double th = 15.5*M_PI/180.;
@@ -303,7 +307,7 @@ public:
       Vector pos(3);
       T.Transform(ip, pos);
       K = 0.;
-      if (amr_type == 0)
+      if (hr_target_type == 0)
       {
          if (metric != 14 && metric != 85)
          {
