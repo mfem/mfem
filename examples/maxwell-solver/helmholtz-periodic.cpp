@@ -86,42 +86,79 @@ int main(int argc, char *argv[])
    omega = 2.0 * M_PI * k;
 
    // 3. Read the mesh from the given mesh file.
-   mesh_file = "../../data/inline-quad.mesh";
-   Mesh orig_mesh(mesh_file, 1, 1);
+   // mesh_file = "../../data/inline-quad.mesh";
+
+   // Mesh orig_mesh(mesh_file, 1, 1);
+
+   // Array<int> v2v(orig_mesh.GetNV());
+   // for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+   // for (int i=0; i<5; i++) { v2v[i + 20] = i; }
+
+   // Mesh * mesh = mfem::common::MakePeriodicMesh(&orig_mesh, v2v);
+
+   mesh_file = "./test-solver-mesh.msh";
+   Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
+   // for (int lev = 0; lev < ser_ref_levels; lev++)
+   // {
+      // mesh2d->UniformRefinement();
+   // }
+   double hz = 0.005;
+   Mesh * mesh = Extrude2D(mesh2d, 8, 8*hz);
 
 
 
-   Array<int> v2v(orig_mesh.GetNV());
-   for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
-   for (int i=0; i<5; i++) { v2v[i + 20] = i; }
+   delete mesh2d;
+   {
+      Array<int> v2v(mesh->GetNV());
+      for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+      for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
 
-   Mesh * mesh = mfem::common::MakePeriodicMesh(&orig_mesh, v2v);
+      Mesh * per_mesh = mfem::common::MakePeriodicMesh(mesh, v2v);
+      delete mesh;
+      mesh = per_mesh;
+   }
 
-
-   // 3. Executing uniform h-refinement
    for (int i = 0; i < ref; i++ )
    {
       mesh->UniformRefinement();
    }
+
+   cout << "periodic mesh" << endl;
+   // 3. Executing uniform h-refinement
+
    dim = mesh->Dimension();
 
    double hl = GetUniformMeshElementSize(mesh);
-   int nrlayers = 10;
+
+   // int geom = mesh->GetElementBaseGeometry(0);
+   // ElementTransformation *T = mesh->GetElementTransformation(0);
+   // T->SetIntPoint(&Geometries.GetCenter(geom));
+   // DenseMatrix J;
+   // Geometries.JacToPerfJac(geom, T->Jacobian(), J);   
+   // J.PrintMatlab();
+
+   cout << "hl = " << hl << endl;
+   int nrlayers = 6;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][0] = 0.0;
    // lengths[0][1] = 0.0;
    lengths[1][0] = 0.0;
    lengths[1][1] = 0.0;
-   CartesianPML pml(&orig_mesh,lengths);
+   lengths[2][0] = 0.0;
+   lengths[2][1] = 0.0;
+   CartesianPML pml(mesh,lengths);
    pml.SetOmega(omega);
    comp_bdr.SetSize(dim,2);
    comp_bdr = pml.GetCompDomainBdr(); 
+   comp_bdr.Print();
 
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+
+   cout << " fespace true size = " << fespace->GetTrueVSize() << endl;
 
    // 6. Set up the linear form (Real and Imaginary part)
    FunctionCoefficient f_Re(f_exact_Re);
@@ -189,6 +226,9 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
+
+
+
    // ComplexUMFPackSolver csolver;
    // csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    // csolver.SetOperator(*AZ);
@@ -252,7 +292,7 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.25;
+   x0 = 0.2;
    // x1 = 0.768;
    // x1 = 0.168;
    x1 = 0.25;
@@ -264,18 +304,18 @@ double f_exact_Re(const Vector &x)
    // double coeff = pow(n,2)/M_PI;
    // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    beta = pow(x0-x(0),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
+   // if (dim == 3) { beta += pow(x2-x(2),2); }
    // alpha = -pow(n,2) * beta;
    // double coeff = pow(n,2)/M_PI;
    double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   x0 = 0.8;
-   x1 = 0.4;
-   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
-   alpha = -pow(n,2) * beta;
+   // x0 = 0.8;
+   // x1 = 0.4;
+   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   // if (dim == 3) { beta += pow(x2-x(2),2); }
+   // alpha = -pow(n,2) * beta;
    // f_re += coeff*exp(alpha);
 
    bool in_pml = false;
@@ -320,7 +360,7 @@ double wavespeed(const Vector &x)
    // {
    //    ws = 4.0;
    // }
-   if (x(0) > 0.5) ws = 2.0;
+   // if (x(0) > 0.5) ws = 2.0;
 
    return ws;
 }
