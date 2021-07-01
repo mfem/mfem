@@ -1071,15 +1071,13 @@ protected:
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    FiniteElementSpace *tspec_fesv;         //owned
-   FiniteElementSpace *c_tspec_fesv;       //not owned, derefinement FESpace
+   FiniteElementSpace *coarse_tspec_fesv;  //not owned, derefinement FESpace
    GridFunction *tspec_gf;                 //owned, uses tspec and tspec_fes
-   Array<GridFunction *> tspec_gf_ptr;     // pointer to functions used for
    // discrete adaptivity
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *ptspec_fesv;     //owned, needed for derefinement to
    // get update operator.
    ParGridFunction *tspec_pgf;             // similar to tspec_gf
-   Array<ParGridFunction *> tspec_pgf_ptr; // similar to tspec_gf_ptr
 #endif
 
    int amr_el;
@@ -1108,7 +1106,7 @@ public:
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
         tspec_refine(), tspec_derefine(),
-        tspec_fesv(NULL), c_tspec_fesv(NULL), tspec_gf(NULL),
+        tspec_fesv(NULL), coarse_tspec_fesv(NULL), tspec_gf(NULL),
 #ifdef MFEM_USE_MPI
         ptspec_fesv(NULL), tspec_pgf(NULL),
 #endif
@@ -1239,7 +1237,7 @@ public:
    void ResetDerefinementTspecData()
    {
       tspec_derefine.Destroy();
-      c_tspec_fesv = NULL;
+      coarse_tspec_fesv = NULL;
    }
 
    // Used to specify the fine element for determining energy of children of a
