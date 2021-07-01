@@ -48,8 +48,7 @@ protected:
 
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> boundary_face_integs;
-   Array<Array<int>*>
-   boundary_face_integs_marker; ///< Entries are not owned.
+   Array<Array<int>*> boundary_face_integs_marker; ///< Entries not owned.
 
    /// Set of Internal Face Integrators to be applied.
    Array<LinearFormIntegrator*> interior_face_integs;
