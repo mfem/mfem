@@ -1368,29 +1368,6 @@ void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
    tspec.SetDataAndSize(tspec_pgf->GetData(), tspec_pgf->Size());
    tspec_sav = tspec;
 
-   for (int i = 0; i < tspec_pgf_ptr.Size(); i++)
-   {
-      tspec_pgf_ptr[i]->FESpace()->Update();
-      tspec_pgf_ptr[i]->Update();
-   }
-
-   if (sizeidx > -1)
-   {
-      GetParDiscreteTargetSpec(*tspec_pgf_ptr[sizeidx], sizeidx);
-   }
-   if (skewidx > -1)
-   {
-      GetParDiscreteTargetSpec(*tspec_pgf_ptr[skewidx], skewidx);
-   }
-   if (aspectratioidx > -1)
-   {
-      GetParDiscreteTargetSpec(*tspec_pgf_ptr[aspectratioidx], aspectratioidx);
-   }
-   if (orientationidx > -1)
-   {
-      GetParDiscreteTargetSpec(*tspec_pgf_ptr[orientationidx], orientationidx);
-   }
-
    adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
                               *ptspec_fesv->FEColl(), ncomp);
    adapt_eval->SetInitialField(*ptspec_fesv->GetMesh()->GetNodes(), tspec);
@@ -1411,60 +1388,36 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
 {
-   if (sizeidx > -1)
-   {
-      SetTspecAtIndex(sizeidx, tspec_);
-      tspec_pgf_ptr[sizeidx] = const_cast<ParGridFunction *>(&tspec_);
-      return;
-   }
+   if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
 {
-   if (skewidx > -1)
-   {
-      SetTspecAtIndex(skewidx, tspec_);
-      tspec_pgf_ptr[skewidx] = const_cast<ParGridFunction *>(&tspec_);
-      return;
-   }
+   if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
                                                       &tspec_)
 {
-   if (aspectratioidx > -1)
-   {
-      SetTspecAtIndex(aspectratioidx, tspec_);
-      tspec_pgf_ptr[aspectratioidx] = const_cast<ParGridFunction *>(&tspec_);
-      return;
-   }
+   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
                                                       &tspec_)
 {
-   if (orientationidx > -1)
-   {
-      SetTspecAtIndex(orientationidx, tspec_);
-      tspec_pgf_ptr[orientationidx] = const_cast<ParGridFunction *>(&tspec_);
-      return;
-   }
+   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   tspec_pgf_ptr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
@@ -1512,60 +1465,36 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
-   if (sizeidx > -1)
-   {
-      SetTspecAtIndex(sizeidx, tspec_);
-      tspec_gf_ptr[sizeidx] = const_cast<GridFunction *>(&tspec_);
-      return;
-   }
+   if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec(tspec_);
-   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
 {
-   if (skewidx > -1)
-   {
-      SetTspecAtIndex(skewidx, tspec_);
-      tspec_gf_ptr[skewidx] = const_cast<GridFunction *>(&tspec_);
-      return;
-   }
+   if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec(tspec_);
-   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
    const GridFunction &tspec_)
 {
-   if (aspectratioidx > -1)
-   {
-      SetTspecAtIndex(aspectratioidx, tspec_);
-      tspec_gf_ptr[aspectratioidx] = const_cast<GridFunction *>(&tspec_);
-      return;
-   }
+   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec(tspec_);
-   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
    const GridFunction &tspec_)
 {
-   if (orientationidx > -1)
-   {
-      SetTspecAtIndex(orientationidx, tspec_);
-      tspec_gf_ptr[orientationidx] = const_cast<GridFunction *>(&tspec_);
-      return;
-   }
+   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec(tspec_);
-   tspec_gf_ptr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction
@@ -1609,29 +1538,6 @@ void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
    tspec_gf->Update();
    tspec.SetDataAndSize(tspec_gf->GetData(), tspec_gf->Size());
    tspec_sav = tspec;
-
-   for (int i = 0; i < tspec_gf_ptr.Size(); i++)
-   {
-      tspec_gf_ptr[i]->FESpace()->Update();
-      tspec_gf_ptr[i]->Update();
-   }
-
-   if (sizeidx > -1)
-   {
-      GetSerialDiscreteTargetSpec(*tspec_gf_ptr[sizeidx], sizeidx);
-   }
-   if (skewidx > -1)
-   {
-      GetSerialDiscreteTargetSpec(*tspec_gf_ptr[skewidx], skewidx);
-   }
-   if (aspectratioidx > -1)
-   {
-      GetSerialDiscreteTargetSpec(*tspec_gf_ptr[aspectratioidx], aspectratioidx);
-   }
-   if (orientationidx > -1)
-   {
-      GetSerialDiscreteTargetSpec(*tspec_gf_ptr[orientationidx], orientationidx);
-   }
 
    adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(),
                                  *tspec_fesv->FEColl(), ncomp);
@@ -1721,7 +1627,7 @@ void DiscreteAdaptTC::SetTspecFromIntRule(int e_id,
 
 void DiscreteAdaptTC::SetTspecDataForDerefinement(FiniteElementSpace *fes)
 {
-   c_tspec_fesv = fes;
+   coarse_tspec_fesv = fes;
    const Operator *c_op = fes->GetUpdateOperator();
    tspec_derefine.SetSize(c_op->Height());
    c_op->Mult(tspec, tspec_derefine);
@@ -1772,9 +1678,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          else if (tspec_derefine.Size() > 0) // Derefinement
          {
             dofs.SetSize(0);
-            c_tspec_fesv->GetElementVDofs(e_id, dofs);
+            coarse_tspec_fesv->GetElementVDofs(e_id, dofs);
             tspec_derefine.GetSubVector(dofs, tspec_vals);
-            src_fes = c_tspec_fesv;
+            src_fes = coarse_tspec_fesv;
          }
 
          for (int q = 0; q < nqp; q++)
@@ -2375,10 +2281,8 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
    if (tspec_gf) { delete tspec_gf; }
    if (adapt_eval) { delete adapt_eval; }
    if (tspec_fesv) { delete tspec_fesv; }
-   tspec_gf_ptr.DeleteAll();
 #ifdef MFEM_USE_MPI
    if (ptspec_fesv) {delete ptspec_fesv; }
-   tspec_pgf_ptr.DeleteAll();
 #endif
 }
 
