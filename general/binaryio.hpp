@@ -58,7 +58,7 @@ void AppendBytes(std::vector<char> &vec, const T &val)
    vec.insert(vec.end(), ptr, ptr + sizeof(T));
 }
 
-/// Encode the buffer of length @a nbytes give by pointer @a bytes in base-64
+/// Given a buffer @a buf of length @a nbytes, encode the data in base-64
 /// format, and write the encoded data to the output stream @a out.
 void WriteBase64(std::ostream &out, const void *bytes, size_t nbytes);
 

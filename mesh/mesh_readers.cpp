@@ -732,6 +732,11 @@ struct BufferReader : BufferReaderBase
       if (compressed)
       {
 #ifdef MFEM_USE_ZLIB
+         // The header has format (where header_t is uint32_t or uint64_t):
+         //    header_t number_of_blocks;
+         //    header_t uncompressed_block_size;
+         //    header_t uncompressed_last_block_size;
+         //    header_t compressed_size[number_of_blocks];
          size_t header_entry_size = HeaderEntrySize();
          uint64_t nblocks = ReadHeaderEntry(header_buf);
          header_buf += header_entry_size;
