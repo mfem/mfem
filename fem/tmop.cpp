@@ -1693,8 +1693,7 @@ void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
    }
 }
 
-void DiscreteAdaptTC::SetTspecFromIntRule(const int e_id,
-                                          const FiniteElement &fe,
+void DiscreteAdaptTC::SetTspecFromIntRule(int e_id,
                                           const IntegrationRule &intrule)
 {
    switch (target_type)
@@ -1770,7 +1769,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
             }
          }
-         else if ( tspec_derefine.Size() > 0 ) // Derefinement
+         else if (tspec_derefine.Size() > 0) // Derefinement
          {
             dofs.SetSize(0);
             c_tspec_fesv->GetElementVDofs(e_id, dofs);
@@ -2659,12 +2658,11 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
        NEsplit = elfun.Size() / (dof*dim), el_id = T.ElementNo;
    double energy = 0.;
 
-
    TargetConstructor *tc = const_cast<TargetConstructor *>(targetC);
    DiscreteAdaptTC *dtc = dynamic_cast<DiscreteAdaptTC *>(tc);
    // For DiscreteAdaptTC the GridFunctions used to set the targets must be
    // mapped onto the fine elements.
-   if (dtc) { dtc->SetTspecFromIntRule(el_id, el, irule); }
+   if (dtc) { dtc->SetTspecFromIntRule(el_id, irule); }
 
    for (int e = 0; e < NEsplit; e++)
    {

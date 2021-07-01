@@ -828,6 +828,7 @@ int main(int argc, char *argv[])
       tauval -= 0.01 * h0.Min();
    }
 
+   // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetGridFunctionEnergy(x) /
                               (hradaptivity ? mesh->GetNE() : 1);
 
