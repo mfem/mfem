@@ -875,6 +875,7 @@ int main (int argc, char *argv[])
       tauval -= 0.01 * h0min_all;
    }
 
+   // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetParGridFunctionEnergy(x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
 
