@@ -1264,7 +1264,7 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
-   TMOP_QualityMetric *amrmetric;
+   TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
@@ -1464,10 +1464,10 @@ protected:
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
        @param[in] tc   Target-matrix construction algorithm to use (not owned).
-       @param[in] amrm TMOP_QualityMetric for h-adaptivity (not owned). */
+       @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
-                   TMOP_QualityMetric *amrm)
-      : amrmetric(amrm), metric(m), targetC(tc), IntegRules(NULL),
+                   TMOP_QualityMetric *hm)
+      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
         integ_order(-1), coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
@@ -1572,7 +1572,7 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   TMOP_QualityMetric &GetAMRQualityMetric() { return *amrmetric; }
+   TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 
    void Update();
 #ifdef MFEM_USE_MPI
