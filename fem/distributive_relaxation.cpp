@@ -27,13 +27,9 @@ namespace mfem
 
 DRSmoother::DRSmoother(DisjointSets *clustering, const SparseMatrix *a,
                        bool use_composite, double sc, bool use_l1, const Operator *op)
+  : l1(use_l1), scale(sc), composite(use_composite), A(a)
 {
    MFEM_VERIFY(use_l1 == false, "l1 scaling not currently supported.");
-   l1 = use_l1;
-   scale = sc;
-   composite = use_composite;
-
-   A = a;
 
    if (op != NULL) { SetOperator((Operator&) *op);}
    else { SetOperator((Operator&) *A);}
@@ -76,9 +72,37 @@ namespace kernels
 
 #ifdef MFEM_USE_CUDA
 #define MFEM_FORCE_INLINE __forceinline__
+#  ifdef __CUDA_ARCH__
+#    define MFEM_BLOCK_SIZE(k) gridDim.k
+#  else
+#    define MFEM_BLOCK_SIZE(k) 1
+#  endif
 #else
 #define MFEM_FORCE_INLINE
+#define MfEM_BLOCK_SIZE(k) 1
 #endif
+
+template <bool allPrint = false>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void whoAmI(int m)
+{
+  if (!allPrint) {
+    if (MFEM_THREAD_ID(x) || MFEM_THREAD_ID(y) || MFEM_THREAD_ID(z)) return;
+  }
+  printf("gdim (%d,%d,%d) bdim (%d,%d,%d) block (%d,%d,%d) thread (%d,%d,%d): %d\n",MFEM_BLOCK_SIZE(x),MFEM_BLOCK_SIZE(y),MFEM_BLOCK_SIZE(z),MFEM_THREAD_SIZE(x),MFEM_THREAD_SIZE(y),MFEM_THREAD_SIZE(z),MFEM_BLOCK_ID(x),MFEM_BLOCK_ID(y),MFEM_BLOCK_ID(z),MFEM_THREAD_ID(x),MFEM_THREAD_ID(y),MFEM_THREAD_ID(z),m);
+  MFEM_SYNC_THREAD;
+  return;
+}
+
+template <bool allPrint = false>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void whoAmI(const char *m)
+{
+  if (!allPrint) {
+    if (MFEM_THREAD_ID(x) || MFEM_THREAD_ID(y) || MFEM_THREAD_ID(z)) return;
+  }
+  printf("gdim (%d,%d,%d) bdim (%d,%d,%d) block (%d,%d,%d) thread (%d,%d,%d): %s\n",MFEM_BLOCK_SIZE(x),MFEM_BLOCK_SIZE(y),MFEM_BLOCK_SIZE(z),MFEM_THREAD_SIZE(x),MFEM_THREAD_SIZE(y),MFEM_THREAD_SIZE(z),MFEM_BLOCK_ID(x),MFEM_BLOCK_ID(y),MFEM_BLOCK_ID(z),MFEM_THREAD_ID(x),MFEM_THREAD_ID(y),MFEM_THREAD_ID(z),m);
+  MFEM_SYNC_THREAD;
+  return;
+}
 
 template <int DIM>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void computeSmootherAction(
@@ -142,8 +166,10 @@ static void forAllDispatch(const int size, const double scale,
                            const int *__restrict__ c, const double *__restrict__ dg,
                            const double *__restrict__ b, double *__restrict__ x)
 {
-   MFEM_FORALL(group, size,
+  MFEM_FORALL_3D_GRID(group, size, MFEM_CUDA_BLOCKS, 1, 1, 1,
    {
+     group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
+     if (group < size) {
       double diags[DIM],gcoeffs[DIM],vin[DIM],vout[DIM];
       int    cmap[DIM];
 
@@ -168,8 +194,10 @@ static void forAllDispatch(const int size, const double scale,
       // stream results back down
       MFEM_UNROLL(DIM)
       for (int i = 0; i < DIM; ++i) x[cmap[i]] = scale*vout[i];
+     }
    });
    MFEM_DEVICE_SYNC;
+   return;
 }
 
 template <>
@@ -177,15 +205,17 @@ void forAllDispatch<1>(const int size, const double scale,
                        const int *__restrict__ c, const double *__restrict__ dg,
                        const double *__restrict__ b, double *__restrict__ x)
 {
-   MFEM_FORALL(group, size,
+   MFEM_FORALL_3D_GRID(group, size, MFEM_CUDA_BLOCKS, 1, 1, 1,
    {
+     group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
+     if (group < size) {
       double diags,vin,vout;
       int    cmap;
 
       // load the diagonals of g^TAg ("D")
       diags = MFEM_LDG(dg+group);
 
-      // load the map from packed  representation to DOF layout in the vector
+      // load the map from packed representation to DOF layout in the vector
       cmap  = MFEM_LDG(c+group);
 
       // load the input vector
@@ -196,8 +226,10 @@ void forAllDispatch<1>(const int size, const double scale,
 
       // stream results back down
       x[cmap] = scale*vout;
+     }
    });
    MFEM_DEVICE_SYNC;
+   return;
 }
 
 static inline bool isCloseAtTol(double a, double b,
@@ -211,11 +243,11 @@ static inline bool isCloseAtTol(double a, double b,
 
 void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
 {
+   mfem::out<<"========================================================="<<std::endl;
    auto devDG = diagonal_scaling.Read();
    auto devB  = b.Read();
    auto devX  = x.Write();
 
-   mfem::out<<"========================================================="<<std::endl;
    for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
    {
       const int cpackSize = clusterPack[i].Size();
@@ -223,33 +255,26 @@ void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
       if (cpackSize)
       {
          auto devC = clusterPack[i].Read();
-	 mfem::out<<"----------------------------------"<<std::endl;
          switch (i+1)
          {
             case 1:
-	      MFEM_TIME_CALL(10000,"Packsize 1",
-              {
-		forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
-	      });
-               totalSize += cpackSize; // no interleaving
-               break;
+	      mfem::out<<"pack size 1"<<std::endl;
+	      forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
+	      totalSize += cpackSize; // no interleaving
+	      break;
             case 2:
-	      MFEM_TIME_CALL(10000,"Packsize 2",
-              {
-               forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
-	      });
-               totalSize += 2*cpackSize;
-               break;
+	      mfem::out<<"pack size 2"<<std::endl;
+	      forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
+	      totalSize += 2*cpackSize;
+	      break;
             case 3:
-	      MFEM_TIME_CALL(10000,"Packsize 3",
-              {
-               forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
-	      });
-               totalSize += 2*cpackSize;
-               break;
+	      mfem::out<<"pack size 3"<<std::endl;
+	      forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
+	      totalSize += 2*cpackSize;
+	      break;
             default:
-               MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
-               break;
+	      MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
+	      break;
          }
       }
    }
