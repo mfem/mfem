@@ -589,7 +589,7 @@ const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
       nodes(i) = ip.x;
    }
    Poly_1D::Basis basis1d(nqpt-1,nodes);
-   Vector u, d;
+   Vector u(nqpt), d(nqpt);
    for (int i = 0; i < nqpt; i++)
    {
       basis1d.Eval(nodes(i), u, d);
