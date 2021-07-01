@@ -602,7 +602,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 	}
 	// check the format for this
 	if(a<Q1D && b<Q1D){
-	  s_GG[b][a] = GG[b*Q1D+a];
+//	  s_GG[b][a] = GG[b*Q1D+a]; // TW: this was the original layout, now gives inconsistent results
+	  s_GG[b][a] = GG[b+a*Q1D];
 	}
       }
     }
@@ -878,7 +879,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
           }
 
           if (a<Q1D && b<Q1D && c==0 ) {
-            s_GG[b][a] = GG[b*Q1D+a];
+//            s_GG[b][a] = GG[b*Q1D+a]; // TW: this was the original layout and gives inconsisten results
+            s_GG[b][a] = GG[b+a*Q1D];
           }
 
 	  if(c<D1D && b<D1D && a<D1D){
