@@ -576,7 +576,10 @@ MFEM_PERF_END("AssembleElementGrad");
 
 /// Implements AD enabled integrator for a p-Laplacian problem.
 /// The tangent matrix is computed using the residual of the
-/// element.
+/// element. The template argument should be equal to the size of
+/// the residual vector (element vector), i.e., the user should
+/// specify the sizeres to match the exact vector size for the
+///  considered order of the shape functions.
 
 template<int sizeres=10>
 class pLaplaceSL : public NonlinearFormIntegrator

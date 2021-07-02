@@ -1,13 +1,13 @@
-//                       MFEM Example 71 - Serial Version
+//                       MFEM AD Example - Serial Version
 //
-// Compile with: make ex71
+// Compile with: make seq_example
 //
 // Sample runs:
-//    ex71 -m ../data/beam-quad.mesh -pp 3.5
-//    ex71 -m ../data/beam-tri.mesh  -pp 4.6
-//    ex71 -m ../data/beam-hex.mesh
-//    ex71 -m ../data/beam-tet.mesh
-//    ex71 -m ../data/beam-wedge.mesh
+//    seqadiff -m ../data/beam-quad.mesh -pp 3.5
+//    seqadiff -m ../data/beam-tri.mesh  -pp 4.6
+//    seqadiff -m ../data/beam-hex.mesh
+//    seqadiff -m ../data/beam-tet.mesh
+//    seqadiff -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static nonlinear
 //               p-Laplacian problem with zero Dirichlet boundary
@@ -18,17 +18,6 @@
 //           integrators are written in the ex71.hpp. Selecting integrator=0
 //           will use the manually implemented integrator. Selecting
 //           integrator=1,2 will utilize one of the AD integrators.
-//
-//           The AD integrators are implemented in ex71.hpp (pLaplaceAD).
-//           The integrand qint is a function which is evaluated at every
-//           integration point. For implementations utilizing ADQFunctionTJ,
-//           the user has to implement the function and the residual
-//           evaluation. The Jacobian of the residual is evaluated using AD
-//
-//           For implementations utilizing ADQFunctionTH, the user has to
-//           implement only the function evaluation (as a template) and the
-//           first derivative (the residual) and the second derivatives (the
-//           Hessian) are evaluated using AD.
 //
 //           We recommend viewing examples 1 and 19, before viewing this
 //           example.
@@ -361,7 +350,7 @@ int main(int argc, char *argv[])
    sv = 0.0;
 
    // 8. Define ParaView DataCollection
-   ParaViewDataCollection *dacol = new ParaViewDataCollection("Example71", mesh);
+   ParaViewDataCollection *dacol = new ParaViewDataCollection("Example", mesh);
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol", &x);
 
