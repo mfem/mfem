@@ -3509,6 +3509,13 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
+DenseTensor &DenseTensor::operator=(const DenseTensor &other)
+{
+   DenseTensor new_tensor(other);
+   Swap(new_tensor);
+   return *this;
+}
+
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
 {
    const int m = Mlu.SizeI();
