@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 //
 //   -----------------------------------------------------------------------
-//       Stix2D_DH Miniapp: Cold Plasma Electromagnetic Simulation Code
+//      Stix_R2D_DH Miniapp: Cold Plasma Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
 //   Assumes that all sources and boundary conditions oscillate with the same
@@ -332,6 +332,7 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+   double hz = 1.0;
    int ser_ref_levels = 0;
    int order = 1;
    int maxit = 100;
@@ -756,6 +757,15 @@ int main(int argc, char *argv[])
    tic_toc.Start();
 
    Mesh * mesh = new Mesh(mesh_file, 1, 1);
+
+   {
+      Vector bb_min(2), bb_max(2);
+      mesh->GetBoundingBox(bb_min, bb_max);
+      bb_max -= bb_min;
+      double mesh_size = bb_max.Normlinf();
+      hz = 0.01 * mesh_size;
+   }
+
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -790,6 +800,8 @@ int main(int argc, char *argv[])
    { cout << "Building Parallel Mesh ..." << endl; }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+
+   Mesh * mesh3d = Extrude2D(&pmesh, 1, hz);
 
    if (mpi.Root())
    {
@@ -1284,26 +1296,29 @@ int main(int argc, char *argv[])
    }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("STIX2D-DH-AMR-Parallel", &pmesh);
+   VisItDataCollection visit_dc(MPI_COMM_WORLD, "STIX-R2D-DH-AMR-Parallel",
+                                mesh3d);
 
    Array<ParComplexGridFunction*> auxFields;
 
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
+      if (false)
+      {
+         auxFields.SetSize(2);
+         auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
+         auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
 
-      auxFields.SetSize(2);
-      auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
-      auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
+         auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
+         auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
 
-      auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
-      auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
+         visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
+         visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
 
-      visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
-      visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
-
-      visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
-      visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
+         visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
+         visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
+      }
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -1446,6 +1461,8 @@ int main(int argc, char *argv[])
    {
       delete auxFields[i];
    }
+
+   delete mesh3d;
 
    return 0;
 }

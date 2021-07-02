@@ -12,6 +12,7 @@
 #ifndef MFEM_COLD_PLASMA_DIELECTRIC_DH_SOLVER
 #define MFEM_COLD_PLASMA_DIELECTRIC_DH_SOLVER
 
+#include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
 #include "cold_plasma_dielectric_solver.hpp"
 #include "plasma.hpp"
@@ -24,6 +25,7 @@
 namespace mfem
 {
 
+using common::L2_FESpace;
 using common::H1_ParFESpace;
 using common::ND_ParFESpace;
 using common::RT_ParFESpace;
@@ -273,6 +275,25 @@ public:
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat);
+};
+
+class VectorR2DCoef : public VectorCoefficient
+{
+private:
+   VectorCoefficient & coef_;
+   ParMesh & pmesh_;
+public:
+   VectorR2DCoef(VectorCoefficient & coef, ParMesh & pmesh)
+      : VectorCoefficient(coef.GetVDim()), coef_(coef), pmesh_(pmesh) {}
+
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      int e = T.ElementNo;
+      ElementTransformation * pT = pmesh_.GetElementTransformation(e);
+      pT->SetIntPoint(&ip);
+      coef_.Eval(v, *pT, ip);
+   }
 };
 
 /// Cold Plasma Dielectric Solver
@@ -621,6 +642,8 @@ private:
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VFESpace_;
+   L2_FESpace * L2FESpace3D_;
+   L2_FESpace * L2VFESpace3D_;
    H1_ParFESpace * H1FESpace_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
@@ -668,7 +691,7 @@ private:
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
    ParComplexGridFunction * h_v_; // Complex magnetic field (L2^d)
-   ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
+   ComplexGridFunction    * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
@@ -677,9 +700,9 @@ private:
    // ParGridFunction        * uE_;  // Electric Energy density (L2)
    // ParGridFunction        * uB_;  // Magnetic Energy density (L2)
    // ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
-   ParComplexGridFunction * StixS_; // Stix S Coefficient (L2)
-   ParComplexGridFunction * StixD_; // Stix D Coefficient (L2)
-   ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
+   ComplexGridFunction * StixS_; // Stix S Coefficient (L2)
+   ComplexGridFunction * StixD_; // Stix D Coefficient (L2)
+   ComplexGridFunction * StixP_; // Stix P Coefficient (L2)
    ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
    VectorCoefficient * BCoef_;        // B Field Unit Vector

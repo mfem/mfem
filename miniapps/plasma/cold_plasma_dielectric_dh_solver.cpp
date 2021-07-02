@@ -483,6 +483,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      L2FESpace_(NULL),
      L2FESpace2p_(NULL),
      L2VFESpace_(NULL),
+     L2FESpace3D_(NULL),
+     L2VFESpace3D_(NULL),
      H1FESpace_(NULL),
      HCurlFESpace_(NULL),
      HDivFESpace_(NULL),
@@ -640,11 +642,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    }
    if (kReCoef_ || kImCoef_)
    {
-      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
-                                      pmesh_->SpaceDimension());
+      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(), 3);
       e_t_ = new ParGridFunction(L2VFESpace_);
       h_v_ = new ParComplexGridFunction(L2VFESpace_);
-      e_v_ = new ParComplexGridFunction(L2VFESpace_);
+      // e_v_ = new ParComplexGridFunction(L2VFESpace_);
       d_v_ = new ParComplexGridFunction(L2VFESpace_);
       j_v_ = new ParComplexGridFunction(L2VFESpace_);
       if (sbcs_.Size() > 0)
@@ -1077,9 +1078,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          dynamic_cast<StixCoefBase*>(DImCoef_)->SetImaginaryPart();
          dynamic_cast<StixCoefBase*>(PImCoef_)->SetImaginaryPart();
 
-         StixS_ = new ParComplexGridFunction(L2FESpace_);
-         StixD_ = new ParComplexGridFunction(L2FESpace_);
-         StixP_ = new ParComplexGridFunction(L2FESpace_);
+         // StixS_ = new ComplexGridFunction(L2FESpace3D_);
+         // StixD_ = new ComplexGridFunction(L2FESpace3D_);
+         // StixP_ = new ComplexGridFunction(L2FESpace3D_);
       }
    }
 
@@ -1124,7 +1125,8 @@ CPDSolverDH::~CPDSolverDH()
    // delete SurfCur_;
 
    if (h_v_ != h_) { delete h_v_; }
-   if (e_v_ != e_) { delete e_v_; }
+   // if (e_v_ != e_) { delete e_v_; }
+   delete e_v_;
    if (d_v_ != d_) { delete d_v_; }
    if (j_v_ != j_) { delete j_v_; }
    if (phi_v_ != phi_) {delete phi_v_;}
@@ -1921,6 +1923,29 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
 
+   if (L2FESpace3D_ == NULL)
+   {
+      L2FESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_,3);
+   }
+   if (L2VFESpace3D_ == NULL)
+   {
+      L2VFESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_,3,3);
+   }
+
+   // cout << "Num elements: " << visit_dc_->GetMesh()->GetNE() << endl;
+   // cout << "Num L2 dofs: " << L2FESpace3D_->GetVSize() << endl;
+   // cout << "Num L2V dofs: " << L2VFESpace3D_->GetVSize() << endl;
+
+   StixS_ = new ComplexGridFunction(L2FESpace3D_);
+   StixD_ = new ComplexGridFunction(L2FESpace3D_);
+   StixP_ = new ComplexGridFunction(L2FESpace3D_);
+
+   e_v_ = new ComplexGridFunction(L2VFESpace3D_);
+
+   visit_dc.RegisterField("Re_E", &e_v_->real());
+   visit_dc.RegisterField("Im_E", &e_v_->imag());
+
+   /*
    visit_dc.RegisterField("Re_H", &h_->real());
    visit_dc.RegisterField("Im_H", &h_->imag());
 
@@ -2225,7 +2250,15 @@ CPDSolverDH::DisplayToGLVis()
    else
    {
       h_v_ = h_;
-      e_v_ = e_;
+
+      cout << "Preparing E viz" << endl;
+      VectorGridFunctionCoefficient e_r(&e_->real());
+      VectorGridFunctionCoefficient e_i(&e_->imag());
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
+
+      e_v_->ProjectCoefficient(e_r, e_i);
+
       d_v_ = d_;
       phi_v_ = phi_;
    }
@@ -2425,7 +2458,10 @@ CPDSolverDH::DisplayAnimationToGLVis()
    }
    else
    {
-      e_v_ = e_;
+      VectorGridFunctionCoefficient e_r(&e_->real());
+      VectorGridFunctionCoefficient e_i(&e_->imag());
+
+      e_v_->ProjectCoefficient(e_r, e_i);
    }
 
    Vector zeroVec(3); zeroVec = 0.0;
