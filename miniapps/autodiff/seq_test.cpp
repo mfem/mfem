@@ -1,4 +1,5 @@
 #include "admfem.hpp"
+#include "mfem.hpp"
 
 template<typename TDataType, typename TParamVector, typename TStateVector
          , int state_size, int param_size>
@@ -39,11 +40,25 @@ public:
 
 
 
-
-
 int main(int argc, char *argv[])
 {
 
+#ifdef MFEM_USE_ADFORWARD
+    std::cout<<"MFEM_USE_ADFORWARD == true"<<std::endl;
+#else
+    std::cout<<"MFEM_USE_ADFORWARD == false"<<std::endl;
+#endif
+
+#ifdef MFEM_USE_CALIPER
+    cali::ConfigManager mgr;
+#endif
+    // Caliper instrumentation
+    MFEM_PERF_FUNCTION;
+    const char* cali_config = "runtime-report";
+#ifdef MFEM_USE_CALIPER
+    mgr.add(cali_config);
+    mgr.start();
+#endif
     mfem::Vector param(2);
     param[0]=3.0; //diffusion coefficient
     param[1]=2.0; //volumetric influx
@@ -52,30 +67,33 @@ int main(int argc, char *argv[])
     state[0]=1.0; // grad_x
     state[1]=2.0; // grad_y
     state[2]=3.0; // grad_z
-    state[4]=4.0; // state value
+    state[3]=4.0; // state value
 
     mfem::QFunctionAutoDiff<DiffusionFunctional,4,2> adf;
-    mfem::QResidualAutoDiff<DiffusionResidual,4,4,2> rdf;
+    mfem::QVectorFuncAutoDiff<DiffusionResidual,4,4,2> rdf;
 
     mfem::Vector rr0(4);
     mfem::DenseMatrix hh0(4,4);
 
     mfem::Vector rr1(4);
     mfem::DenseMatrix hh1(4,4);
-
-    adf.QResidual(param,state,rr0);
-    adf.QGradResidual(param, state, hh0);
+MFEM_PERF_BEGIN("QGrad");
+    adf.QGrad(param,state,rr0);
+MFEM_PERF_END("QGrad");
+MFEM_PERF_BEGIN("QHessian");
+    adf.QHessian(param, state, hh0);
+MFEM_PERF_END("QHessian");
     // dump out the results
     std::cout<<"FunctionAutoDiff"<<std::endl;
     std::cout<< adf.QEval(param,state)<<std::endl;
     rr0.Print(std::cout);
     hh0.Print(std::cout);
 
-    rdf.QResidual(param,state, rr1);
-    rdf.QGradResidual(param, state, hh1);
+MFEM_PERF_BEGIN("QJacobian");
+    rdf.QJacobian(param, state, hh1);
+MFEM_PERF_END("QJacobian");
 
     std::cout<<"ResidualAutoDiff"<<std::endl;
-    rr1.Print(std::cout);
     hh1.Print(std::cout);
 
     //using lambda expression
@@ -90,8 +108,10 @@ int main(int argc, char *argv[])
         vres[3] = -load;
     };
 
-    mfem::FResidualAutoDiff<4,4,2> fdr(func);
-    fdr.QGradResidual(param,state,hh1); //computes the gradient of func and stores the result in hh1
+    mfem::VectorFuncAutoDiff<4,4,2> fdr(func);
+MFEM_PERF_BEGIN("QJacobianV");
+    fdr.QJacobian(param,state,hh1); //computes the gradient of func and stores the result in hh1
+MFEM_PERF_END("QJacobianV");
     std::cout<<"LambdaAutoDiff"<<std::endl;
     hh1.Print(std::cout);
 
@@ -108,10 +128,14 @@ int main(int argc, char *argv[])
         vres[3] = -load;
     };
 
-    mfem::FResidualAutoDiff<4,4,2> fdr01(func01);
-    fdr01.QGradResidual(param,state,hh1);
+    mfem::VectorFuncAutoDiff<4,4,2> fdr01(func01);
+MFEM_PERF_BEGIN("QJacobian1");
+    fdr01.QJacobian(param,state,hh1);
+MFEM_PERF_END("QJacobian1");
     std::cout<<"LambdaAutoDiff 01"<<std::endl;
     hh1.Print(std::cout);
 
-
+#ifdef MFEM_USE_CALIPER
+    mgr.flush();
+#endif
 }

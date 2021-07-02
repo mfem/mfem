@@ -194,14 +194,16 @@ private:
       }
       else if (integ==1)
       {
-         nf->AddDomainIntegrator(new pLaplaceAD<pLapIntegrandTJ>(*plap_power,
-                                                                 *plap_epsilon,*plap_input));
+         nf->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyVFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
-      else
+      else if (integ==2)
       {
-         nf->AddDomainIntegrator(new pLaplaceAD<pLapIntegrandTH>(*plap_power,
-                                                                 *plap_epsilon,*plap_input));
+         nf->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyQFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
+      else{
+         nf->AddDomainIntegrator(new pLaplaceSL<56>(*plap_power,*plap_epsilon,*plap_input));
+      }
+
 
       nf->SetEssentialBC(ess_bdr);
 
@@ -266,12 +268,18 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   // Define Caliper ConfigManager
+#ifdef MFEM_USE_CALIPER
+   cali::ConfigManager mgr;
+#endif
+   // Caliper instrumentation
+   MFEM_PERF_FUNCTION;
 
    // 2. Parse command-line options
-   const char *mesh_file = "../data/beam-tet.mesh";
+   const char *mesh_file = "../../data/beam-tet.mesh";
    int ser_ref_levels = 3;
    int par_ref_levels = 1;
-   int order = 2;
+   int order = 1;
    bool visualization = true;
    double newton_rel_tol = 1e-4;
    double newton_abs_tol = 1e-6;
@@ -279,6 +287,7 @@ int main(int argc, char *argv[])
    int print_level = 0;
    double pp = 2.0;
    int integrator = 2; //use AD
+   const char* cali_config = "runtime-report";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -321,7 +330,8 @@ int main(int argc, char *argv[])
                   "-int",
                   "--integrator",
                   "Integrator 0: standard; 1: AD for Hessian; 2: AD for residual and Hessian");
-
+   args.AddOption(&cali_config, "-p", "--caliper",
+                  "Caliper configuration string.");
    args.Parse();
    if (!args.Good())
    {
@@ -339,6 +349,11 @@ int main(int argc, char *argv[])
 
    StopWatch *timer = new StopWatch();
 
+   // Caliper configuration
+#ifdef MFEM_USE_CALIPER
+   mgr.add(cali_config);
+   mgr.start();
+#endif
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code.
@@ -499,6 +514,10 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete timer;
 
+   // Flush output before MPI_finalize
+#ifdef MFEM_USE_CALIPER
+   mgr.flush();
+#endif
    MPI_Finalize();
 
    return 0;
