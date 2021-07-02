@@ -72,16 +72,7 @@ struct CoarseFineTransformations
                            bool get_coarse_to_fine_only = false) const;
 
    void GetCoarseToFineMap(const Mesh &fine_mesh,
-                           Table &coarse_to_fine) const
-   {
-      Array<int> coarse_to_ref_type;
-      Table ref_type_to_matrix;
-      Array<mfem::Geometry::Type> ref_type_to_geom;
-      bool get_coarse_to_fine_only = true;
-      GetCoarseToFineMap(fine_mesh, coarse_to_fine, coarse_to_ref_type,
-                         ref_type_to_matrix, ref_type_to_geom,
-                         get_coarse_to_fine_only);
-   }
+                           Table &coarse_to_fine) const;
 
    void Clear();
    bool IsInitialized() const;
