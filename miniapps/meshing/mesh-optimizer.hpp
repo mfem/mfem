@@ -225,15 +225,14 @@ class HRHessianCoefficient : public TMOPMatrixCoefficient
 {
 private:
    int dim;
-   int metric;
    int hr_target_type; // Targets for hr-adaptivity/
    // 1 - size target in an annular region,
    // 2 - size+aspect-ratio in an annular region,
    // 3 - size+aspect-ratio target for a rotate sine wave.
 
 public:
-   HRHessianCoefficient(int dim_, int metric_id, int hr_target_type_ = 0)
-      : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id),
+   HRHessianCoefficient(int dim_, int hr_target_type_ = 0)
+      : TMOPMatrixCoefficient(dim_), dim(dim_),
         hr_target_type(hr_target_type_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,

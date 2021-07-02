@@ -671,7 +671,7 @@ int main(int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         hr_adapt_coeff = new HRHessianCoefficient(dim, metric_id, hr_target_type);
+         hr_adapt_coeff = new HRHessianCoefficient(dim, hr_target_type);
          tc->SetAnalyticTargetSpec(NULL, NULL, hr_adapt_coeff);
          target_c = tc;
          break;
