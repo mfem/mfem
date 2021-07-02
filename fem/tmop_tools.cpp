@@ -407,8 +407,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    {
       // Needed for the line search below. The untangling metrics see this
       // reference to detect deteriorations.
-      MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was invalid, and"
-                  " intermediate mesh is invalid.");
+      MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
+                  " intermediate mesh is invalid. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
