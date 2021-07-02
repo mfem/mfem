@@ -462,22 +462,9 @@ MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
 
-MFEM_USE_ADEPT = YES/NO
-  Enable automatic differentiation using the ADEPT library.
-  (http://www.met.reading.ac.uk/clouds/adept)
-  Please, compile the library with flag --disable-openmp.
-
-MFEM_USE_FADBADPP = YES/NO
-  Enable automatic differentiation using the FADBAD++ library.
-  www.fadbad.com/fadbad.html
-
 MFEM_USE_CODIPACK = YES/NO
   Enable automatic differentiation using the CoDiPack library.
   www.scicomp.uni-kl.de/codi/
-
-MFEM_USE_EIGEN = YES/NO
-  Enable the Eigen library.
-  https://gitlab.com/libeigen/eigen
 
 MFEM_USE_ADFORWARD = YES/NO
   Enable forward mode for AD packages. This option is valid
@@ -705,25 +692,10 @@ The specific libraries and their options are:
   Options: HIOP_OPT, HIOP_LIB.
   Versions: HIOP >= 0.4.
 
-- ADEPT (optional), used with MFEM_USE_ADEPT = YES
-  URL: www.met.reading.ac.uk/clouds/adept/
-  Options: ADEPT_OPT, ADEPT_LIB
-  Versions: 1.1 and 2.0.5
-
-- FADBAD++ (optiobal), used with MFEM_USE_FADBADPP = YES
-  URL: www.fadbad.com/fadbad.html
-  Options: FADBADPP_OPT
-  Versions: 2.1
-
 - CoDiPack (optiobal), used with MFEM_USE_CODIPACK = YES
   URL: https://www.scicomp.uni-kl.de/codi/
   Options: CODIPACK_OPT
   Versions: 1.9.3
-
-- Eigen (optiobal), used with MFEM_USE_EIGEN = YES
-  URL: https://gitlab.com/libeigen/eigen
-  Options: EIGEN_OPT
-  Versions: 3.3.9
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
@@ -916,10 +888,7 @@ MFEM_USE_MPFR
 MFEM_USE_ZLIB
 MFEM_USE_PUMI
 MFEM_USE_HIOP
-MFEM_USE_ADEPT
-MFEM_USE_FADBADPP
 MFEM_USE_CODIPACK
-MFEM_USE_EIGEN
 MFEM_USE_ADFORWARD
 MFEM_USE_CUDA
 MFEM_USE_OCCA

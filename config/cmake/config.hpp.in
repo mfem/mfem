@@ -169,17 +169,9 @@
 // library.
 #cmakedefine MFEM_USE_SIMMETRIX
 
-// use ADEPT library for AD
-#cmakedefine MFEM_USE_ADEPT
-
-// use FADBAD++ library for AD
-#cmakedefine MFEM_USE_FADBADPP
-
 // use CoDiPack library for AD
 #cmakedefine MFEM_USE_CODIPACK
 
-// use Eigen library
-#cmakedefine MFEM_USE_EIGEN
 
 // use forward mode for automatic differentiation
 #cmakedefine MFEM_USE_ADFORWARD

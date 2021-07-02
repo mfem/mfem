@@ -1,13 +1,13 @@
-//                       MFEM Example 71 - Parallel Version
+//                       MFEM AD Example  - Parallel Version
 //
-// Compile with: make ex71p
+// Compile with: make par_example
 //
 // Sample runs:
-//   mpirun -np 2 ex71p -m ../data/beam-quad.mesh -pp 3.8
-//   mpirun -np 2 ex71p -m ../data/beam-tri.mesh  -pp 7.2
-//   mpirun -np 2 ex71p -m ../data/beam-hex.mesh
-//   mpirun -np 2 ex71p -m ../data/beam-tet.mesh
-//   mpirun -np 2 ex71p -m ../data/beam-wedge.mesh
+//   mpirun -np 2 paradiff -m ../data/beam-quad.mesh -pp 3.8
+//   mpirun -np 2 paradiff -m ../data/beam-tri.mesh  -pp 7.2
+//   mpirun -np 2 paradiff -m ../data/beam-hex.mesh
+//   mpirun -np 2 paradiff -m ../data/beam-tet.mesh
+//   mpirun -np 2 paradiff -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static nonlinear
 //               p-Laplacian problem with zero Dirichlet boundary
@@ -15,22 +15,12 @@
 //
 //           The example demonstrates the use of nonlinear operators combined
 //           with automatic differentiation (AD). The definitions of the
-//           integrators are written in the ex71.hpp.  Selecting integrator=0
+//           integrators are written in the example.hpp.  Selecting integrator=0
 //           will use the manually implemented integrator.  Selecting
-//           integrator=1,2 will utilize the AD integrator.
+//           integrator=1,2 will utilize one of the AD integrators.
 //
-//        The AD integrators are implemented in ex71.hpp (pLaplaceAD).
-//           The integrand qint is a function which is evaluated at every
-//           integration point. For implementations utilizing ADQFunctionTJ,
-//           the user has to implement the function and the residual
-//           evaluation. The Jacobian of the residual is evaluated using AD
-//           For implementations utilizing ADQFunctionTH, the user has to
-//           implement only the function evaluation (as a template) and the
-//           first derivative (the residual) and the second derivatives (the
-//           Hessian) are evaluated using AD.
-//
-//           We recommend viewing examples 1 and 19, before viewing this
-//           example.
+//        We recommend viewing examples 1 and 19, before playing with this
+//        example.
 
 #include "example.hpp"
 
@@ -200,10 +190,6 @@ private:
       {
          nf->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyQFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
-      else{
-         nf->AddDomainIntegrator(new pLaplaceSL<56>(*plap_power,*plap_epsilon,*plap_input));
-      }
-
 
       nf->SetEssentialBC(ess_bdr);
 
@@ -399,7 +385,7 @@ int main(int argc, char *argv[])
    HypreParVector *sv = x.GetTrueDofs();
 
    // 9. Define ParaView DataCollection
-   ParaViewDataCollection *dacol = new ParaViewDataCollection("Example71",
+   ParaViewDataCollection *dacol = new ParaViewDataCollection("Example",
                                                               pmesh);
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol", &x);
