@@ -58,6 +58,7 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
+- Conda-forge, https://conda-forge.org (pre-built binaries linked with OpenMPI/MPICH, hypre, and METIS)
 - Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
@@ -618,10 +619,11 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
-  C++ compiler that supports the C++-11 standard. For additional requirements
-  and dependencies of specific modules see the Ginkgo webpage below.
+  C++ compiler that supports the C++-14 standard. For additional requirements
+  and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
-  Options: GINKGO_OPT (Not used), GINKGO_LIB.
+  Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or Debug).
+  Versions: Ginkgo >= 1.4.0. 
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX

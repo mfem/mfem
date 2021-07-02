@@ -1018,6 +1018,22 @@ void Mesh::ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
 FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
 {
    FaceElementTransformations *tr;
+   int fn = GetBdrFace(BdrElemNo);
+
+   // Check if the face is interior, shared, or non-conforming.
+   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
+   {
+      return NULL;
+   }
+   tr = GetFaceElementTransformations(fn, 21);
+   tr->Attribute = boundary[BdrElemNo]->GetAttribute();
+   tr->ElementNo = BdrElemNo;
+   tr->ElementType = ElementTransformation::BDR_FACE;
+   return tr;
+}
+
+int Mesh::GetBdrFace(int BdrElemNo) const
+{
    int fn;
    if (Dim == 3)
    {
@@ -1031,16 +1047,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    {
       fn = boundary[BdrElemNo]->GetVertices()[0];
    }
-   // Check if the face is interior, shared, or non-conforming.
-   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
-   {
-      return NULL;
-   }
-   tr = GetFaceElementTransformations(fn, 21);
-   tr->Attribute = boundary[BdrElemNo]->GetAttribute();
-   tr->ElementNo = BdrElemNo;
-   tr->ElementType = ElementTransformation::BDR_FACE;
-   return tr;
+   return fn;
 }
 
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
@@ -11471,10 +11478,10 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const int NF   = fespace->GetNFbyType(type);
    const int NQ   = ir.GetNPoints();
 
-   const Operator *face_restr = fespace->GetFaceRestriction(
-                                   ElementDofOrdering::LEXICOGRAPHIC,
-                                   type,
-                                   L2FaceValues::SingleValued );
+   const FaceRestriction *face_restr = fespace->GetFaceRestriction(
+                                          ElementDofOrdering::LEXICOGRAPHIC,
+                                          type,
+                                          L2FaceValues::SingleValued );
    Vector Fnodes(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
 

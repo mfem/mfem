@@ -26,6 +26,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
@@ -248,6 +249,9 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/diffusion
+miniapps/shifted/diffusion.mesh
+miniapps/shifted/diffusion.gf
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
