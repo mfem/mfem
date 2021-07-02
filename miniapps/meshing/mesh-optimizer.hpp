@@ -115,16 +115,14 @@ void discrete_aspr_3d(const Vector &x, Vector &v)
    v[2] = l3/pow(l2*l1,0.5);
 }
 
-
 class HessianCoefficient : public TMOPMatrixCoefficient
 {
 private:
-   int dim;
    int metric;
 
 public:
-   HessianCoefficient(int dim_, int metric_id)
-      : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id) { }
+   HessianCoefficient(int dim, int metric_id)
+      : TMOPMatrixCoefficient(dim), metric(metric_id) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
