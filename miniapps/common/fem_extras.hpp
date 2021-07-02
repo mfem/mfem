@@ -73,7 +73,7 @@ class L2_FESpace : public FiniteElementSpace
 {
 public:
    L2_FESpace(Mesh *m, const int p, const int space_dim,
-	      int vdim = 1, int order = Ordering::byNODES);
+              int vdim = 1, int order = Ordering::byNODES);
    ~L2_FESpace();
 private:
    const FiniteElementCollection *FEC_;

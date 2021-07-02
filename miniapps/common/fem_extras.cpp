@@ -57,7 +57,7 @@ RT_FESpace::~RT_FESpace()
 }
 
 L2_FESpace::L2_FESpace(Mesh *m, const int p, const int space_dim,
-		       int vdim, int order)
+                       int vdim, int order)
    : FiniteElementSpace(m, new L2_FECollection(p,space_dim),vdim,order)
 {
    FEC_ = this->FiniteElementSpace::fec;
