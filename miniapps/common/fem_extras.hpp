@@ -65,6 +65,20 @@ private:
    const FiniteElementCollection *FEC_;
 };
 
+/** The L2_FESpace class is a FiniteElementSpace which automatically
+    allocates and destroys its own FiniteElementCollection, in this
+    case an L2_FECollection object.
+*/
+class L2_FESpace : public FiniteElementSpace
+{
+public:
+   L2_FESpace(Mesh *m, const int p, const int space_dim,
+	      int vdim = 1, int order = Ordering::byNODES);
+   ~L2_FESpace();
+private:
+   const FiniteElementCollection *FEC_;
+};
+
 
 /// Visualize the given mesh object, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,

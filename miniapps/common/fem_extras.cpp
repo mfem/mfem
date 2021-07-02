@@ -56,6 +56,18 @@ RT_FESpace::~RT_FESpace()
    delete FEC_;
 }
 
+L2_FESpace::L2_FESpace(Mesh *m, const int p, const int space_dim,
+		       int vdim, int order)
+   : FiniteElementSpace(m, new L2_FECollection(p,space_dim),vdim,order)
+{
+   FEC_ = this->FiniteElementSpace::fec;
+}
+
+L2_FESpace::~L2_FESpace()
+{
+   delete FEC_;
+}
+
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
                    Mesh &mesh, const char *title,
                    int x, int y, int w, int h, const char * keys, bool vec)
