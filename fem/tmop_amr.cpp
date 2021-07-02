@@ -536,17 +536,16 @@ void TMOPDeRefinerEstimator::GetTMOPDerefinementEnergy(Mesh &cmesh,
 }
 
 
-TMOPAMRSolver::TMOPAMRSolver(Mesh &mesh_, NonlinearForm &nlf_,
-                             TMOPNewtonSolver &tmopns_,
-                             GridFunction &x_,
-                             bool move_bnd_,
-                             bool hradaptivity_,
-                             int mesh_poly_deg_, int amr_metric_id_) :
+TMOPHRSolver::TMOPHRSolver(Mesh &mesh_, NonlinearForm &nlf_,
+                           TMOPNewtonSolver &tmopns_, GridFunction &x_,
+                           bool move_bnd_, bool hradaptivity_,
+                           int mesh_poly_deg_, int amr_metric_id_,
+                           int hr_iter_, int h_per_r_iter_) :
    mesh(&mesh_), nlf(&nlf_), tmopns(&tmopns_), x(&x_),
    gridfuncarr(), fespacearr(),
    move_bnd(move_bnd_), hradaptivity(hradaptivity_),
    mesh_poly_deg(mesh_poly_deg_), amr_metric_id(amr_metric_id_),
-   serial(true)
+   serial(true), hr_iter(hr_iter_), h_per_r_iter(h_per_r_iter_)
 {
    if (!hradaptivity) { return; }
    tmop_r_est = new TMOPRefinerEstimator(*mesh, *nlf, mesh_poly_deg,
@@ -559,18 +558,17 @@ TMOPAMRSolver::TMOPAMRSolver(Mesh &mesh_, NonlinearForm &nlf_,
 }
 
 #ifdef MFEM_USE_MPI
-TMOPAMRSolver::TMOPAMRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
-                             TMOPNewtonSolver &tmopns_,
-                             ParGridFunction &px_,
-                             bool move_bnd_,
-                             bool hradaptivity_,
-                             int mesh_poly_deg_, int amr_metric_id_) :
+TMOPHRSolver::TMOPHRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
+                           TMOPNewtonSolver &tmopns_, ParGridFunction &px_,
+                           bool move_bnd_, bool hradaptivity_,
+                           int mesh_poly_deg_, int amr_metric_id_,
+                           int hr_iter_, int h_per_r_iter_) :
    mesh(&pmesh_), nlf(&pnlf_), tmopns(&tmopns_), x(&px_),
    gridfuncarr(), fespacearr(),
    move_bnd(move_bnd_), hradaptivity(hradaptivity_),
    mesh_poly_deg(mesh_poly_deg_), amr_metric_id(amr_metric_id_),
    pmesh(&pmesh_), pnlf(&pnlf_), pgridfuncarr(), pfespacearr(),
-   serial(false)
+   serial(false), hr_iter(hr_iter_), h_per_r_iter(h_per_r_iter_)
 {
    if (!hradaptivity) { return; }
    tmop_r_est = new TMOPRefinerEstimator(*pmesh, *pnlf, mesh_poly_deg,
@@ -583,7 +581,7 @@ TMOPAMRSolver::TMOPAMRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
 }
 #endif
 
-void TMOPAMRSolver::Mult()
+void TMOPHRSolver::Mult()
 {
    Vector b(0);
    int myid = 0;
@@ -611,15 +609,12 @@ void TMOPAMRSolver::Mult()
 
    bool radaptivity = true;
 
-   int n_hr = 5;         //Newton + AMR iterations
-   int n_h = 1;          //AMR iterations per Newton iteration
-
    tmop_dr->Reset();
    tmop_r->Reset();
 
    if (serial)
    {
-      for (int i_hr = 0; i_hr < n_hr; i_hr++)
+      for (int i_hr = 0; i_hr < hr_iter; i_hr++)
       {
          if (!radaptivity)
          {
@@ -635,7 +630,7 @@ void TMOPAMRSolver::Mult()
                    nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
                    ", Elements: " << mesh->GetNE() << std::endl;
 
-         for (int i_h = 0; i_h < n_h; i_h++)
+         for (int i_h = 0; i_h < h_per_r_iter; i_h++)
          {
             NCMesh *ncmesh = mesh->ncmesh;
             if (ncmesh) //derefinement
@@ -670,7 +665,7 @@ void TMOPAMRSolver::Mult()
 #ifdef MFEM_USE_MPI
       int NEGlob = pmesh->GetGlobalNE();
       double tmopenergy = pnlf->GetParGridFunctionEnergy(*x);
-      for (int i_hr = 0; i_hr < n_hr; i_hr++)
+      for (int i_hr = 0; i_hr < hr_iter; i_hr++)
       {
          if (!radaptivity)
          {
@@ -689,7 +684,7 @@ void TMOPAMRSolver::Mult()
                       ", Elements: " << NEGlob << std::endl;
          }
 
-         for (int i_h = 0; i_h < n_h; i_h++)
+         for (int i_h = 0; i_h < h_per_r_iter; i_h++)
          {
             ParNCMesh *pncmesh = pmesh->pncmesh;
 
@@ -738,7 +733,7 @@ void TMOPAMRSolver::Mult()
 }
 
 #ifdef MFEM_USE_MPI
-void TMOPAMRSolver::RebalanceParNCMesh()
+void TMOPHRSolver::RebalanceParNCMesh()
 {
    ParNCMesh *pncmesh = pmesh->pncmesh;
    if (pncmesh)
@@ -755,7 +750,7 @@ void TMOPAMRSolver::RebalanceParNCMesh()
 }
 #endif
 
-void TMOPAMRSolver::Update()
+void TMOPHRSolver::Update()
 {
    // Update FESpace
    for (int i = 0; i < fespacearr.Size(); i++)
@@ -854,7 +849,7 @@ void TMOPAMRSolver::Update()
 }
 
 #ifdef MFEM_USE_MPI
-void TMOPAMRSolver::ParUpdate()
+void TMOPHRSolver::ParUpdate()
 {
    // Update FESpace
    for (int i = 0; i < pfespacearr.Size(); i++)

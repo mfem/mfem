@@ -35,7 +35,7 @@ protected:
    Vector error_estimates;
    Array<int> aniso_flags;
    double energy_scaling_factor; // an element is refined only if
-   // [mean E(children)]*factor < E(parent)
+   // [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
    GridFunction *spat_gf;          // If specified, can be used to specify the
    double spat_gf_critical;        // the region where hr-adaptivity is done.
 
@@ -47,7 +47,11 @@ protected:
       return (mesh_sequence > current_sequence);
    }
 
-   /// Compute the element error estimates.
+   /// Compute the element error estimates. For an element E in the mesh,
+   /// error(E) = TMOPEnergy(E)*energy_scaling_factor-Mean(TMOPEnergy(ChildofE)),
+   /// where TMOPEnergy of Children of E is obtained by assuming the element E
+   /// is refined using the refinement type being considered based on the TMOP
+   /// mesh quality metric.
    void ComputeEstimates();
 
    /// Construct the integration rules to model how each element type is split
@@ -109,14 +113,16 @@ public:
       return aniso_flags;
    }
 
-   /// Scaling factor for the TMOP refinement energy. Used to tighten the refinement
-   /// criterion. An element is refined only if
-   /// [mean E(children)]*energy_refuction_factor < E(parent)
+   /// Scaling factor for the TMOP refinement energy. An element is refined if
+   /// [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
    void SetEnergyScalingFactor(double factor_) { energy_scaling_factor = factor_; }
 
-   /// Used to set a space-dependent function that can make elements from being
-   /// refined.
-   void SetSpatialIndicator(GridFunction &spat_gf_) { spat_gf = &spat_gf_; }
+   /// Spatial indicator function (eta) that can be used to prevent elements
+   /// from being refined even if the energy criterion is met. Using this,
+   /// an element E is not refined if mean(@a spat_gf(E)) < @a spat_gf_critical.
+   void SetSpatialIndicator(GridFunction &spat_gf_,
+                            double spat_gf_critical_ = 0.5)
+   { spat_gf = &spat_gf_; spat_gf_critical = spat_gf_critical_; }
    void SetSpatialIndicatorCritical(double val_) { spat_gf_critical = val_; }
 
    /// Reset the error estimator.
@@ -135,7 +141,6 @@ public:
       SetTotalErrorFraction(0.);
    }
 };
-
 
 class TMOPDeRefinerEstimator : public ErrorEstimator
 {
@@ -160,7 +165,10 @@ protected:
       return (mesh_sequence > current_sequence);
    }
 
-   /// Compute the element error estimates.
+   /// Compute the element error estimates. For a given element E in the mesh,
+   /// error(E) = TMOPEnergy(parent_of_E)-TMOPEnergy(E). Children element of an
+   /// element are derefined if the mean TMOP energy of children is greated than
+   /// the TMOP energy associated with their parent.
    void ComputeEstimates();
 
    void GetTMOPDerefinementEnergy(Mesh &cmesh,
@@ -194,8 +202,14 @@ public:
    virtual void Reset() { current_sequence = -1; }
 };
 
-
-class TMOPAMRSolver
+// hr-adaptivity using TMOP.
+// If hr-adaptivity is disabled, r-adaptivity is done once using the
+// TMOPNewtonSolver.
+// Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
+// "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity iteration.
+// The solver terminates if an h-adaptivity iteration does not refine/derefine
+// any element in the mesh.
+class TMOPHRSolver
 {
 protected:
    Mesh *mesh;
@@ -219,29 +233,25 @@ protected:
    TMOPDeRefinerEstimator *tmop_dr_est;
    ThresholdDerefiner *tmop_dr;
 
+   int hr_iter, h_per_r_iter;
+
    void Update();
 #ifdef MFEM_USE_MPI
    void ParUpdate();
 #endif
 
 public:
-   TMOPAMRSolver(Mesh &mesh_,
-                 NonlinearForm &nlf_,
-                 TMOPNewtonSolver &tmopns_,
-                 GridFunction &x_,
-                 bool move_bnd_,
-                 bool hradaptivity_,
-                 int mesh_poly_deg_,
-                 int amr_metric_id_);
+   TMOPHRSolver(Mesh &mesh_, NonlinearForm &nlf_,
+                TMOPNewtonSolver &tmopns_, GridFunction &x_,
+                bool move_bnd_, bool hradaptivity_,
+                int mesh_poly_deg_, int amr_metric_id_,
+                int hr_iter_ = 5, int h_per_r_iter_ = 1);
 #ifdef MFEM_USE_MPI
-   TMOPAMRSolver(ParMesh &pmesh_,
-                 ParNonlinearForm &pnlf_,
-                 TMOPNewtonSolver &tmopns_,
-                 ParGridFunction &x_,
-                 bool move_bnd_,
-                 bool hradaptivity_,
-                 int mesh_poly_deg_,
-                 int amr_metric_id_);
+   TMOPHRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
+                TMOPNewtonSolver &tmopns_, ParGridFunction &x_,
+                bool move_bnd_, bool hradaptivity_,
+                int mesh_poly_deg_, int amr_metric_id_,
+                int hr_iter_ = 5, int h_per_r_iter_ = 1);
 #endif
 
    void Mult();
@@ -275,7 +285,7 @@ public:
    void RebalanceParNCMesh();
 #endif
 
-   ~TMOPAMRSolver()
+   ~TMOPHRSolver()
    {
       if (!hradaptivity) { return; }
       delete tmop_dr;
@@ -283,6 +293,15 @@ public:
       delete tmop_r;
       delete tmop_r_est;
    }
+
+   // Total number of hr-adaptivity iterations. At each iteration, we do an
+   // r-adaptivity iteration followed by a certain number of h-adaptivity
+   // iteration.
+   void SetHRAdaptivityIterations(int hr_iter_) { hr_iter = hr_iter_; }
+
+   // Total number of h-adaptivity iterations per r-adaptivity iteration.
+   void SetHAdaptivityIterations(int h_per_r_iter_)
+   { h_per_r_iter = h_per_r_iter_; }
 };
 
 }

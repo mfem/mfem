@@ -40,9 +40,9 @@
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
 //   Adapted analytc shape and/or size with hr-adaptivity:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 1 -hr
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 2 -hr
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 2 -mid 2 -hrt 3 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 9 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 1 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 9 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 2 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 9 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 2 -mid 2 -hrt 3 -hr
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
@@ -139,6 +139,8 @@ int main(int argc, char *argv[])
    bool exactaction      = false;
    const char *devopt    = "cpu";
    bool pa               = false;
+   int n_hr_iter         = 5;
+   int n_h_iter          = 1;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -236,7 +238,7 @@ int main(int argc, char *argv[])
                   "Same options as metric_id. Used to determine refinement"
                   " type for each element if h-adaptivity is enabled.");
    args.AddOption(&hr_target_type, "-hrt", "--hr-target-type",
-                  "Different analytic targets for hr-adaptivity examples"
+                  "Different analytic targets (target_id = 9) for hr-adaptivity"
                   "0 - (default) original targets used for r-adaptivity\n\t"
                   "1 - size target in an annular region\n\t"
                   "2 - size+aspect-ratio in an annular region\n\t"
@@ -261,6 +263,11 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&n_hr_iter, "-nhr", "--n_hr_iter",
+                  "Number of hr-adaptivity iterations.");
+   args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
+                  "Number of h-adaptivity iterations per r-adaptivity"
+                  "iteration.");
    args.Parse();
    if (!args.Good())
    {
@@ -450,6 +457,7 @@ int main(int argc, char *argv[])
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
+   HRHessianCoefficient *hr_adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
@@ -468,7 +476,7 @@ int main(int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficient(dim, metric_id, hr_target_type);
+         adapt_coeff = new HessianCoefficient(dim, metric_id);
          tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tc;
          break;
@@ -656,6 +664,15 @@ int main(int argc, char *argv[])
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
          tc->SetSerialDiscreteTargetOrientation(ori);
+         target_c = tc;
+         break;
+      }
+      case 9: // Analytic hr-adaptivity
+      {
+         target_t = TargetConstructor::GIVEN_FULL;
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
+         hr_adapt_coeff = new HRHessianCoefficient(dim, metric_id, hr_target_type);
+         tc->SetAnalyticTargetSpec(NULL, NULL, hr_adapt_coeff);
          target_c = tc;
          break;
       }
@@ -965,17 +982,24 @@ int main(int argc, char *argv[])
    }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
-   // hr-adaptivity
-   TMOPAMRSolver tmopamrsolver(*mesh, a, solver,
-                               x, move_bnd, hradaptivity,
-                               mesh_poly_deg, h_metric_id);
-   tmopamrsolver.AddGridFunctionForUpdate(&x0);
+   // hr-adaptivity solver.
+   // If hr-adaptivity is disabled, r-adaptivity is done once using the
+   // TMOPNewtonSolver.
+   // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
+   // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
+   // The solver terminates if an h-adaptivity iteration does not modify
+   // any element in the mesh.
+   TMOPHRSolver TMOPHRSolver(*mesh, a, solver,
+                             x, move_bnd, hradaptivity,
+                             mesh_poly_deg, h_metric_id,
+                             n_hr_iter, n_h_iter);
+   TMOPHRSolver.AddGridFunctionForUpdate(&x0);
    if (adapt_lim_const > 0.)
    {
-      tmopamrsolver.AddGridFunctionForUpdate(&zeta_0);
-      tmopamrsolver.AddFESpaceForUpdate(&ind_fes);
+      TMOPHRSolver.AddGridFunctionForUpdate(&zeta_0);
+      TMOPHRSolver.AddFESpaceForUpdate(&ind_fes);
    }
-   tmopamrsolver.Mult();
+   TMOPHRSolver.Mult();
 
    // 15. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
@@ -1042,6 +1066,7 @@ int main(int argc, char *argv[])
    delete coeff1;
    delete adapt_evaluator;
    delete target_c;
+   delete hr_adapt_coeff;
    delete adapt_coeff;
    delete h_metric;
    delete metric;

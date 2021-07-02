@@ -121,14 +121,120 @@ class HessianCoefficient : public TMOPMatrixCoefficient
 private:
    int dim;
    int metric;
+
+public:
+   HessianCoefficient(int dim_, int metric_id)
+      : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id) { }
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+      if (metric != 14 && metric != 36 && metric != 85)
+      {
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         const double eps = 0.5;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+
+         K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+      }
+      else if (metric == 14 || metric == 36) // Size + Alignment
+      {
+         const double xc = pos(0), yc = pos(1);
+         double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+         double alpha_bar = 0.1;
+
+         K(0, 0) =  cos(theta);
+         K(1, 0) =  sin(theta);
+         K(0, 1) = -sin(theta);
+         K(1, 1) =  cos(theta);
+
+         K *= alpha_bar;
+      }
+      else if (metric == 85) // Shape + Alignment
+      {
+         Vector x = pos;
+         double xc = x(0)-0.5, yc = x(1)-0.5;
+         double th = 22.5*M_PI/180.;
+         double xn =  cos(th)*xc + sin(th)*yc;
+         double yn = -sin(th)*xc + cos(th)*yc;
+         xc = xn; yc=yn;
+
+         double tfac = 20;
+         double s1 = 3;
+         double s2 = 2;
+         double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
+                      - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         xc = pos(0), yc = pos(1);
+         double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
+
+         K(0, 0) =  cos(theta);
+         K(1, 0) =  sin(theta);
+         K(0, 1) = -sin(theta);
+         K(1, 1) =  cos(theta);
+
+         double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
+
+         K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
+         K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
+         K(0, 1) *=  pow(asp_ratio_tar,0.5);
+         K(1, 1) *=  pow(asp_ratio_tar,0.5);
+      }
+   }
+
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+      K = 0.;
+      if (metric != 14 && metric != 85)
+      {
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+         double tan1d = 0., tan2d = 0.;
+         if (r > 0.001)
+         {
+            tan1d = (1.-tan1*tan1)*(sf)/r,
+            tan2d = (1.-tan2*tan2)*(sf)/r;
+         }
+
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+         if (comp == 0) { K(0, 0) = tan1d*xc - tan2d*xc; }
+         else if (comp == 1) { K(0, 0) = tan1d*yc - tan2d*yc; }
+      }
+   }
+};
+
+class HRHessianCoefficient : public TMOPMatrixCoefficient
+{
+private:
+   int dim;
+   int metric;
    int hr_target_type; // Targets for hr-adaptivity/
-   // 0 - original targets used for r-adaptivity,
    // 1 - size target in an annular region,
    // 2 - size+aspect-ratio in an annular region,
    // 3 - size+aspect-ratio target for a rotate sine wave.
 
 public:
-   HessianCoefficient(int dim_, int metric_id, int hr_target_type_ = 0)
+   HRHessianCoefficient(int dim_, int metric_id, int hr_target_type_ = 0)
       : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id),
         hr_target_type(hr_target_type_) { }
 
@@ -137,70 +243,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (hr_target_type == 0)
-      {
-         if (metric != 14 && metric != 36 && metric != 85)
-         {
-            const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-            const double r = sqrt(xc*xc + yc*yc);
-            double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-            const double eps = 0.5;
-
-            const double tan1 = std::tanh(sf*(r-r1)),
-                         tan2 = std::tanh(sf*(r-r2));
-
-            K(0, 0) = eps + 1.0 * (tan1 - tan2);
-            K(0, 1) = 0.0;
-            K(1, 0) = 0.0;
-            K(1, 1) = 1.0;
-         }
-         else if (metric == 14 || metric == 36) // Size + Alignment
-         {
-            const double xc = pos(0), yc = pos(1);
-            double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
-            double alpha_bar = 0.1;
-
-            K(0, 0) =  cos(theta);
-            K(1, 0) =  sin(theta);
-            K(0, 1) = -sin(theta);
-            K(1, 1) =  cos(theta);
-
-            K *= alpha_bar;
-         }
-         else if (metric == 85) // Shape + Alignment
-         {
-            Vector x = pos;
-            double xc = x(0)-0.5, yc = x(1)-0.5;
-            double th = 22.5*M_PI/180.;
-            double xn =  cos(th)*xc + sin(th)*yc;
-            double yn = -sin(th)*xc + cos(th)*yc;
-            xc = xn; yc=yn;
-
-            double tfac = 20;
-            double s1 = 3;
-            double s2 = 2;
-            double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
-                         - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
-            if (wgt > 1) { wgt = 1; }
-            if (wgt < 0) { wgt = 0; }
-
-            xc = pos(0), yc = pos(1);
-            double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
-
-            K(0, 0) =  cos(theta);
-            K(1, 0) =  sin(theta);
-            K(0, 1) = -sin(theta);
-            K(1, 1) =  cos(theta);
-
-            double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
-
-            K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
-            K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
-            K(0, 1) *=  pow(asp_ratio_tar,0.5);
-            K(1, 1) *=  pow(asp_ratio_tar,0.5);
-         }
-      }
-      else if (hr_target_type==1) //size only circle
+      if (hr_target_type==1) //size only circle
       {
          double small = 0.001, big = 0.01;
          if (dim == 3) { small = 0.005, big = 0.1; }
@@ -304,33 +347,7 @@ public:
    virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
                          const IntegrationPoint &ip, int comp)
    {
-      Vector pos(3);
-      T.Transform(ip, pos);
       K = 0.;
-      if (hr_target_type == 0)
-      {
-         if (metric != 14 && metric != 85)
-         {
-            const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-            const double r = sqrt(xc*xc + yc*yc);
-            double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-
-            const double tan1 = std::tanh(sf*(r-r1)),
-                         tan2 = std::tanh(sf*(r-r2));
-            double tan1d = 0., tan2d = 0.;
-            if (r > 0.001)
-            {
-               tan1d = (1.-tan1*tan1)*(sf)/r,
-               tan2d = (1.-tan2*tan2)*(sf)/r;
-            }
-
-            K(0, 1) = 0.0;
-            K(1, 0) = 0.0;
-            K(1, 1) = 1.0;
-            if (comp == 0) { K(0, 0) = tan1d*xc - tan2d*xc; }
-            else if (comp == 1) { K(0, 0) = tan1d*yc - tan2d*yc; }
-         }
-      }
    }
 };
 
