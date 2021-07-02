@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   optimizer_type = 1;
+   optimizer_type = 2;
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;

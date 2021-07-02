@@ -69,8 +69,8 @@ int main(int argc, char *argv[])
 {
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 4;
-   int lref = order;
+   int order = 3;
+   int lref = order+1;
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
@@ -121,13 +121,13 @@ int main(int argc, char *argv[])
          lorder = 1;
          cerr << "Switching the H1 LOR space order from 0 to 1\n";
       }
-      fec = new H1_FECollection(order-1, dim);
-      fec_lor = new L2_FECollection(lorder, dim);
+      fec = new H1_FECollection(order, dim);
+      fec_lor = new H1_FECollection(lorder, dim);
    }
    else
    {
       space = "L2";
-      fec = new L2_FECollection(order-1, dim);
+      fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
    }
 
