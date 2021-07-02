@@ -10,14 +10,18 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SEQADIFF_COMMON_SOURCES
-        )
+        stokes.cpp
+	advdiff.cpp)
 
 list(APPEND SEQADIFF_COMMON_HEADERS
         fdual.hpp
 	tadvector.hpp
 	taddensemat.hpp
 	adnonlininteg.hpp
-	admfem.hpp)
+	admfem.hpp
+	stokes.hpp
+	advdiff.hpp)
+
 
 
 convert_filenames_to_full_paths(SEQADIFF_COMMON_SOURCES)
@@ -58,5 +62,10 @@ add_mfem_miniapp(paradiff
      MAIN par_example.cpp
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
+
+add_mfem_miniapp(stokes
+     MAIN stokes_test.cpp
+     LIBRARIES mfem)
+
 
 endif ()

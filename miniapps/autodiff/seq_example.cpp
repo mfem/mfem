@@ -198,13 +198,11 @@ private:
       }
       else if (integ==1)
       {
-         nf->AddDomainIntegrator(new pLaplaceAD<pLapIntegrandTJ>(*plap_power,
-                                                                 *plap_epsilon,*plap_input));
+         nf->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyVFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
       else
       {
-         nf->AddDomainIntegrator(new pLaplaceAD<pLapIntegrandTH>(*plap_power,
-                                                                 *plap_epsilon,*plap_input));
+         nf->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyQFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
 
       nf->SetEssentialBC(ess_bdr);
@@ -271,7 +269,7 @@ private:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options
-   const char *mesh_file = "../data/beam-tet.mesh";
+   const char *mesh_file = "../../data/beam-tet.mesh";
    int ser_ref_levels = 3;
    int order = 1;
    bool visualization = true;
