@@ -57,20 +57,20 @@ namespace mfem
 class DofTransformation
 {
 protected:
-   int height_;
-   int width_;
+   int size_;
 
    Array<int> Fo;
 
-   DofTransformation(int height, int width)
-      : height_(height), width_(width) {}
+   DofTransformation(int size)
+      : size_(size) {}
 
 public:
 
-   inline int Height() const { return height_; }
-   inline int NumRows() const { return height_; }
-   inline int Width() const { return width_; }
-   inline int NumCols() const { return width_; }
+   inline int Size() const { return size_; }
+   inline int Height() const { return size_; }
+   inline int NumRows() const { return size_; }
+   inline int Width() const { return size_; }
+   inline int NumCols() const { return size_; }
 
    /** @brief Configure the transformation using face orientations for the
        current element. */
@@ -84,35 +84,32 @@ public:
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
-   virtual void TransformPrimal(const double *v, double *v_trans) const = 0;
-   virtual void TransformPrimal(const Vector &v, Vector &v_trans) const;
+   virtual void TransformPrimal(double *v) const = 0;
+   virtual void TransformPrimal(Vector &v) const;
 
    /// Transform groups of DoFs stored as dense matrices
-   virtual void TransformPrimalCols(const DenseMatrix &V,
-                                    DenseMatrix &V_trans) const;
+   virtual void TransformPrimalCols(DenseMatrix &V) const;
 
    /** Inverse transform local DoFs.  Used to transform DoFs from a global
        vector back to their element-local form.  For example, this must be used
        to transform the vector obtained using GridFunction::GetSubVector
        before it can be used to compute a local interpolation.
    */
-   virtual void InvTransformPrimal(const double *v_trans, double *v) const = 0;
-   virtual void InvTransformPrimal(const Vector &v_trans, Vector &v) const;
+   virtual void InvTransformPrimal(double *v) const = 0;
+   virtual void InvTransformPrimal(Vector &v) const;
 
    /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
        into a LinearForm object. */
-   virtual void TransformDual(const double *v, double *v_trans) const = 0;
-   virtual void TransformDual(const Vector &v, Vector &v_trans) const;
+   virtual void TransformDual(double *v) const = 0;
+   virtual void TransformDual(Vector &v) const;
 
    /** Transform a matrix of dual DoFs entries as computed by a
        BilinearFormIntegrator before summing into a BilinearForm object. */
-   virtual void TransformDual(const DenseMatrix &V, DenseMatrix &V_trans) const;
+   virtual void TransformDual(DenseMatrix &V) const;
 
    /// Transform groups of dual DoFs stored as dense matrices
-   virtual void TransformDualRows(const DenseMatrix &V,
-                                  DenseMatrix &V_trans) const;
-   virtual void TransformDualCols(const DenseMatrix &V,
-                                  DenseMatrix &V_trans) const;
+   virtual void TransformDualRows(DenseMatrix &V) const;
+   virtual void TransformDualCols(DenseMatrix &V) const;
 
    virtual ~DofTransformation() {}
 };
@@ -123,7 +120,7 @@ public:
 */
 void TransformPrimal(const DofTransformation *ran_dof_trans,
                      const DofTransformation *dom_dof_trans,
-                     const DenseMatrix &elmat, DenseMatrix &elmat_trans);
+                     DenseMatrix &elmat);
 
 /** Transform a matrix of dual DoFs entries from different finite element spaces
     as computed by a BilinearFormIntegrator before summing into a
@@ -131,7 +128,7 @@ void TransformPrimal(const DofTransformation *ran_dof_trans,
 */
 void TransformDual(const DofTransformation *ran_dof_trans,
                    const DofTransformation *dom_dof_trans,
-                   const DenseMatrix &elmat, DenseMatrix &elmat_trans);
+                   DenseMatrix &elmat);
 
 /** The VDofTransformation class implements a nested transformation where an
     arbitrary DofTransformation is replicated with a vdim >= 1.
@@ -147,14 +144,14 @@ public:
    /** @brief Default constructor which requires that SetDofTransformation be
        called before use. */
    VDofTransformation(int vdim = 1, int ordering = 0)
-      : DofTransformation(0,0),
+      : DofTransformation(0),
         vdim_(vdim), ordering_(ordering),
         doftrans_(NULL) {}
 
    /// Constructor with a known DofTransformation
    VDofTransformation(DofTransformation & doftrans, int vdim = 1,
                       int ordering = 0)
-      : DofTransformation(vdim * doftrans.Height(), vdim * doftrans.Width()),
+      : DofTransformation(vdim * doftrans.Size()),
         vdim_(vdim), ordering_(ordering),
         doftrans_(&doftrans) {}
 
@@ -164,8 +161,7 @@ public:
       vdim_ = vdim;
       if (doftrans_)
       {
-         height_ = vdim_ * doftrans_->Height();
-         width_  = vdim_ * doftrans_->Width();
+         size_ = vdim_ * doftrans_->Size();
       }
    }
 
@@ -175,8 +171,7 @@ public:
    /// Set or change the nested DofTransformation object
    inline void SetDofTransformation(DofTransformation & doftrans)
    {
-      height_ = vdim_ * doftrans.Height();
-      width_  = vdim_ * doftrans.Width();
+      size_ = vdim_ * doftrans.Size();
       doftrans_ = &doftrans;
    }
 
@@ -190,9 +185,9 @@ public:
    using DofTransformation::InvTransformPrimal;
    using DofTransformation::TransformDual;
 
-   void TransformPrimal(const double *v, double *v_trans) const;
-   void InvTransformPrimal(const double *v_trans, double *v) const;
-   void TransformDual(const double *v, double *v_trans) const;
+   void TransformPrimal(double *v) const;
+   void InvTransformPrimal(double *v) const;
+   void TransformDual(double *v) const;
 };
 
 /** Abstract base class for high-order Nedelec spaces on elements with
@@ -216,7 +211,7 @@ protected:
    static const DenseTensor T, TInv;
    int order;
 
-   ND_DofTransformation(int height, int width, int order);
+   ND_DofTransformation(int size, int order);
 
 public:
    // Return the 2x2 transformation operator for the given face orientation
@@ -237,11 +232,11 @@ public:
    using DofTransformation::InvTransformPrimal;
    using DofTransformation::TransformDual;
 
-   void TransformPrimal(const double *v, double *v_trans) const;
+   void TransformPrimal(double *v) const;
 
-   void InvTransformPrimal(const double *v_trans, double *v) const;
+   void InvTransformPrimal(double *v) const;
 
-   void TransformDual(const double *v, double *v_trans) const;
+   void TransformDual(double *v) const;
 };
 
 /// DoF transformation implementation for the Nedelec basis on tetrahedra
@@ -254,11 +249,11 @@ public:
    using DofTransformation::InvTransformPrimal;
    using DofTransformation::TransformDual;
 
-   void TransformPrimal(const double *v, double *v_trans) const;
+   void TransformPrimal(double *v) const;
 
-   void InvTransformPrimal(const double *v_trans, double *v) const;
+   void InvTransformPrimal(double *v) const;
 
-   void TransformDual(const double *v, double *v_trans) const;
+   void TransformDual(double *v) const;
 };
 
 /// DoF transformation implementation for the Nedelec basis on wedge elements
@@ -272,11 +267,11 @@ public:
    using DofTransformation::InvTransformPrimal;
    using DofTransformation::TransformDual;
 
-   void TransformPrimal(const double *v, double *v_trans) const;
+   void TransformPrimal(double *v) const;
 
-   void InvTransformPrimal(const double *v_trans, double *v) const;
+   void InvTransformPrimal(double *v) const;
 
-   void TransformDual(const double *v, double *v_trans) const;
+   void TransformDual(double *v) const;
 };
 
 } // namespace mfem
