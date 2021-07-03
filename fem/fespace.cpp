@@ -1558,9 +1558,7 @@ void FiniteElementSpace::RefinementOperator
    int vdim = fespace->GetVDim();
    int old_ndofs = width / vdim;
 
-   Vector subY, subX, subYt, subXt;
-
-   //old_VDoFTrans.SetVDim(vdim);
+   Vector subY, subX;
 
    for (int k = 0; k < mesh->GetNE(); k++)
    {
@@ -1588,11 +1586,8 @@ void FiniteElementSpace::RefinementOperator
       }
       else
       {
-         subYt.SetSize(lP.Height());
-
          old_elem_fos->GetRow(emb.parent, old_Fo);
          old_DoFTrans[geom]->SetFaceOrientations(old_Fo);
-         // old_VDoFTrans.SetDofTransformation(*old_DoFTrans[geom]);
 
          DofTransformation *new_doftrans = NULL;
          VDofTransformation *vdoftrans =
@@ -1610,10 +1605,9 @@ void FiniteElementSpace::RefinementOperator
             old_dofs.Copy(old_vdofs);
             fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
             x.GetSubVector(old_vdofs, subX);
-            // old_VDoFTrans.InvTransformPrimal(subX, subXt);
-            old_DoFTrans[geom]->InvTransformPrimal(subX, subXt);
-            lP.Mult(subXt, subYt);
-            doftrans->TransformPrimal(subYt, subY);
+            old_DoFTrans[geom]->InvTransformPrimal(subX);
+            lP.Mult(subX, subY);
+            doftrans->TransformPrimal(subY);
             y.SetSubVector(vdofs, subY);
          }
 
@@ -1701,18 +1695,18 @@ void FiniteElementSpace::RefinementOperator
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-            old_DoFTrans[geom]->InvTransformPrimal(subX, subXt);
+            old_DoFTrans[geom]->InvTransformPrimal(subX);
 
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
                if (processed[DecodeDof(f_dofs[p])])
                {
-                  subXt[p] = 0.0;
+                  subX[p] = 0.0;
                }
             }
 
-            lP.MultTranspose(subXt, subYt);
-            doftrans->TransformPrimal(subYt, subY);
+            lP.MultTranspose(subX, subY);
+            doftrans->TransformPrimal(subY);
             y.AddElementVector(c_vdofs, subY);
          }
 

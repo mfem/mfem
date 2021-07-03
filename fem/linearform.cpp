@@ -103,7 +103,7 @@ void LinearForm::Assemble()
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
-   Vector elemvect, elemvect_t;
+   Vector elemvect;
 
    int i;
 
@@ -140,14 +140,9 @@ void LinearForm::Assemble()
                                                elemvect);
                if (doftrans)
                {
-                  elemvect_t.SetSize(elemvect.Size());
-                  doftrans->TransformDual(elemvect, elemvect_t);
-                  AddElementVector (vdofs, elemvect_t);
+                  doftrans->TransformDual(elemvect);
                }
-               else
-               {
-                  AddElementVector (vdofs, elemvect);
-               }
+               AddElementVector (vdofs, elemvect);
             }
          }
       }
@@ -194,14 +189,9 @@ void LinearForm::Assemble()
 
             if (doftrans)
             {
-               elemvect_t.SetSize(elemvect.Size());
-               doftrans->TransformDual(elemvect, elemvect_t);
-               AddElementVector (vdofs, elemvect_t);
+               doftrans->TransformDual(elemvect);
             }
-            else
-            {
-               AddElementVector (vdofs, elemvect);
-            }
+            AddElementVector (vdofs, elemvect);
          }
       }
    }
