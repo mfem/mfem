@@ -517,6 +517,17 @@ test test-noclean:
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
 
+.PHONY: test-miniapps
+test-miniapps:
+	@echo "Building all miniapps ..."
+	@$(MAKE) $(MAKEOVERRIDES_SAVE) miniapps
+	@ERR=0; for dir in $(MINIAPP_TEST_DIRS); do \
+	   echo "Running tests in $${dir} ..."; \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   ERR=1; fi; done; \
+	   if [ 0 -ne $${ERR} ]; then echo "Some miniapp tests failed."; \
+	   exit 1; else echo "All miniapp tests passed."; fi
+
 unittest: lib
 	$(MAKE) -C $(BLD)tests/unit test
 

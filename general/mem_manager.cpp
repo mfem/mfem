@@ -955,15 +955,19 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       MFEM_VERIFY(bytes == 0, "Trying to access NULL with size " << bytes);
       return true;
    }
-
-   const bool known = mm.IsKnown(h_ptr);
-   const bool alias = mm.IsAlias(h_ptr);
-   const bool check = known || ((flags & Mem::ALIAS) && alias);
-   MFEM_VERIFY(check, "Unknown host pointer: " << h_ptr);
-   const internal::Memory &mem =
-      (flags & Mem::ALIAS) ?
-      *maps->aliases.at(h_ptr).mem : maps->memories.at(h_ptr);
-   MemoryType d_mt = mem.d_mt;
+   MemoryType d_mt;
+   if (!(flags & Mem::ALIAS))
+   {
+      auto iter = maps->memories.find(h_ptr);
+      MFEM_VERIFY(iter != maps->memories.end(), "internal error");
+      d_mt = iter->second.d_mt;
+   }
+   else
+   {
+      auto iter = maps->aliases.find(h_ptr);
+      MFEM_VERIFY(iter != maps->aliases.end(), "internal error");
+      d_mt = iter->second.mem->d_mt;
+   }
    if (d_mt == MemoryType::DEFAULT) { d_mt = GetDualMemoryType(h_mt); }
    switch (mc)
    {

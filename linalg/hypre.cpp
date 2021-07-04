@@ -465,21 +465,27 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
 #endif
 }
 
-void HypreParMatrix::Write(MemoryClass mc)
+void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
 {
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
-   diag->i = mem_diag.I.Write(mc, mem_diag.I.Capacity());
-   diag->j = mem_diag.J.Write(mc, mem_diag.J.Capacity());
-   diag->data = mem_diag.data.Write(mc, mem_diag.data.Capacity());
-   offd->i = mem_offd.I.Write(mc, mem_offd.I.Capacity());
-   offd->j = mem_offd.J.Write(mc, mem_offd.J.Capacity());
-   offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
+   if (set_diag)
+   {
+      diag->i = mem_diag.I.Write(mc, mem_diag.I.Capacity());
+      diag->j = mem_diag.J.Write(mc, mem_diag.J.Capacity());
+      diag->data = mem_diag.data.Write(mc, mem_diag.data.Capacity());
+   }
+   if (set_offd)
+   {
+      offd->i = mem_offd.I.Write(mc, mem_offd.I.Capacity());
+      offd->j = mem_offd.J.Write(mc, mem_offd.J.Capacity());
+      offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
+   }
 #if MFEM_HYPRE_VERSION >= 21400
    HYPRE_MemoryLocation ml = (mc != GetHypreMemoryClass()
                               ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
-   diag->memory_location = ml;
-   offd->memory_location = ml;
+   if (set_diag) { diag->memory_location = ml; }
+   if (set_offd) { offd->memory_location = ml; }
 #endif
 }
 
@@ -2172,7 +2178,9 @@ void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
 void HypreParMatrix::Print(const char *fname, HYPRE_Int offi,
                            HYPRE_Int offj) const
 {
+   HostRead();
    hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);
+   HypreRead();
 }
 
 void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
@@ -2342,14 +2350,9 @@ void HypreParMatrix::Destroy()
       MFEM_VERIFY(!(diagOwner < 0 && offdOwner < 0) || diagOwner == offdOwner,
                   "invalid state");
 
-      if (diagOwner == -1 || offdOwner == -1)
-      {
-         HostWrite();
-      }
-      else
-      {
-         HypreWrite();
-      }
+      MemoryClass mc = (diagOwner == -1 || offdOwner == -1) ?
+                       Device::GetHostMemoryClass() : GetHypreMemoryClass();
+      Write(mc, diagOwner < 0, offdOwner <0);
    }
 #endif
 
@@ -2502,6 +2505,10 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 
    hypre_ParCSRMatrix * rap;
 #ifdef HYPRE_USING_CUDA
+   // FIXME: this way of computing Pt A P can completely eliminate zero rows
+   //        from the sparsity pattern of the product which prevents
+   //        EliminateZeroRows() from working correctly. This issue is observed
+   //        in ex28p.
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       const bool keepTranspose = false;
@@ -2984,7 +2991,7 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
 
 HypreSmoother::HypreSmoother() : Solver()
 {
-   type = 2;
+   type = default_type;
    relax_times = 1;
    relax_weight = 1.0;
    omega = 1.0;
@@ -3286,15 +3293,19 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       if (type == 5) { hypre_type = 1; }
 
       if (Z == NULL)
+      {
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, NULL);
+      }
       else
+      {
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, *Z);
+      }
    }
 }
 
@@ -4474,7 +4485,7 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
    {
       // hypre actually deletes the following pointer in HYPRE_BoomerAMGDestroy,
       // so we don't need to track it
-      HYPRE_Int *mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
+      HYPRE_Int *mapping = mfem_hypre_CTAlloc_host(HYPRE_Int, height);
       int h_nnodes = height / dim; // nodes owned in linear algebra (not fem)
       MFEM_VERIFY(height % dim == 0, "Ordering does not work as claimed!");
       int k = 0;
@@ -4568,6 +4579,10 @@ void HypreBoomerAMG::RecomputeRBMs()
 
 void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 {
+#ifdef HYPRE_USING_CUDA
+   MFEM_ABORT("this method is not supported in hypre built with CUDA");
+#endif
+
    // Save the finite element space to support multiple calls to SetOperator()
    this->fespace = fespace;
 
@@ -5658,7 +5673,7 @@ HypreAME::~HypreAME()
 {
    if ( multi_vec )
    {
-      mfem_hypre_TFree(multi_vec);
+      mfem_hypre_TFree_host(multi_vec);
    }
 
    if ( eigenvectors )
@@ -5672,7 +5687,7 @@ HypreAME::~HypreAME()
 
    if ( eigenvalues )
    {
-      mfem_hypre_TFree(eigenvalues);
+      mfem_hypre_TFree_host(eigenvalues);
    }
 
    HYPRE_AMEDestroy(ame_solver);
