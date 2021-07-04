@@ -1339,6 +1339,37 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
    }
 }
 
+void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks) const
+{
+   new_ranks.SetSize(leaf_elements.Size()-GetNGhostElements());
+   for (int i = 0; i < leaf_elements.Size()-GetNGhostElements(); i++)
+   {
+      new_ranks[i] = elements[leaf_elements[i]].rank;
+   }
+
+   for (int i = 0; i < derefs.Size(); i++)
+   {
+      int row = derefs[i];
+      MFEM_VERIFY(row >= 0 && row < derefinements.Size(),
+                  "invalid derefinement number.");
+
+      const int* fine = derefinements.GetRow(row);
+      int size = derefinements.RowSize(row);
+
+      int coarse_rank = INT_MAX;
+      for (int j = 0; j < size; j++)
+      {
+         int fine_rank = elements[leaf_elements[fine[j]]].rank;
+         coarse_rank = std::min(coarse_rank, fine_rank);
+      }
+      for (int j = 0; j < size; j++)
+      {
+         new_ranks[fine[j]] = coarse_rank;
+      }
+   }
+}
+
 void ParNCMesh::Derefine(const Array<int> &derefs)
 {
    MFEM_VERIFY(Dim < 3 || Iso,
