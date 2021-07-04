@@ -317,7 +317,8 @@ private:
 
    void Read(MemoryClass mc) const;
    void ReadWrite(MemoryClass mc);
-   void Write(MemoryClass mc);
+   // The Boolean flags are used in Destroy().
+   void Write(MemoryClass mc, bool set_diag = true, bool set_offd = true);
 
    /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
    /** After this call #A's diagonal and off-diagonal should not be modified
@@ -904,10 +905,15 @@ public:
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
                GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
+#ifndef HYPRE_USING_CUDA
+   static constexpr Type default_type = l1GS;
+#else
+   static constexpr Type default_type = l1Jacobi;
+#endif
 
    HypreSmoother();
 
-   HypreSmoother(const HypreParMatrix &A_, int type = l1GS,
+   HypreSmoother(const HypreParMatrix &A_, int type = default_type,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
                  double poly_fraction = .3, int eig_est_cg_iter = 10);
