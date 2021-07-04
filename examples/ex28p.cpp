@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   HYPRE_Init();
-   HYPRE_SetSpGemmUseCusparse(0);
+   // HYPRE_Init();
+   // HYPRE_SetSpGemmUseCusparse(0);
 
    // 2. Parse command-line options.
    int order = 1;
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      HYPRE_Finalize();
+      // HYPRE_Finalize();
       MPI_Finalize();
       return 1;
    }
@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
    }
    delete pmesh;
 
-   HYPRE_Finalize();
+   // HYPRE_Finalize();
    MPI_Finalize();
 
    return 0;
