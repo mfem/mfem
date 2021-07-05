@@ -2850,7 +2850,6 @@ const
 
 void NURBSExtension::GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv)
 {
-
    Array<int> edges;
    Array<int> orient;
 
@@ -3118,8 +3117,6 @@ void NURBSExtension::CountElements()
 
 void NURBSExtension::CountBdrElements()
 {
-   cout << "In NURBSExtension::CountBdrElements()" << endl;
-   cout<< "GetNBP(): "<< GetNBP() << endl;
    int dim = Dimension() - 1;
    Array<KnotVector *> kv(dim);
 
@@ -3272,6 +3269,9 @@ void NURBSExtension::Get2DBdrElementTopo(Array<Element *> &boundary) const
 
             boundary[l_be] = new Segment(ind, bdr_patch_attr);
             l_be++;
+
+            cout << "ind[0] <<     << ind[1]" << endl;
+            cout << ind[0] << "   " << ind[1] << endl;
          }
          g_be++;
       }
@@ -3629,7 +3629,6 @@ void NURBSExtension::LoadFE(int i, const FiniteElement *FE) const
 
 void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
 {
-   cout << "In LoadBE()" <<endl;
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(BE);
 

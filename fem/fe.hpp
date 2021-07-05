@@ -3217,7 +3217,7 @@ public:
                            std::max(px, py), FunctionSpace::Qk),
         u(dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(dof,2)
-   { orders[0] = px; orders[1] = py; }
+   { orders[0] = px; orders[1] = py;}
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
