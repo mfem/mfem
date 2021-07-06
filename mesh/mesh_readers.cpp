@@ -737,10 +737,10 @@ struct BufferReader : BufferReaderBase
          //    header_t uncompressed_block_size;
          //    header_t uncompressed_last_block_size;
          //    header_t compressed_size[number_of_blocks];
-         size_t header_entry_size = HeaderEntrySize();
-         uint64_t nblocks = ReadHeaderEntry(header_buf);
+         int header_entry_size = HeaderEntrySize();
+         int nblocks = ReadHeaderEntry(header_buf);
          header_buf += header_entry_size;
-         std::vector<uint64_t> header(nblocks + 2);
+         std::vector<int> header(nblocks + 2);
          for (int i=0; i<nblocks+2; ++i)
          {
             header[i] = ReadHeaderEntry(header_buf);
@@ -759,7 +759,7 @@ struct BufferReader : BufferReaderBase
             dest_ptr += dest_len;
             source_ptr += source_len;
          }
-         MFEM_VERIFY(sizeof(F)*n == (dest_ptr - dest_start),
+         MFEM_VERIFY(int(sizeof(F)*n) == (dest_ptr - dest_start),
                      "AppendedData: wrong data size");
          buf = uncompressed_data.data();
 #else
