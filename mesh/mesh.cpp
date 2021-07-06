@@ -3824,7 +3824,6 @@ void Mesh::DegreeElevate(int rel_degree, int degree)
 
 void Mesh::UpdateNURBS()
 {
-   cout << endl <<"Mesh::UpdateNURBS()" << endl;
    ResetLazyData();
 
    NURBSext->SetKnotsFromPatches();
@@ -3832,8 +3831,6 @@ void Mesh::UpdateNURBS()
    Dim = NURBSext->Dimension();
    spaceDim = Dim;
 
-   cout <<"NumOfElements != NURBSext->GetNE() " <<endl;
-   cout << NumOfElements <<"    " << NURBSext->GetNE() <<endl;
 
 
    if (NumOfElements != NURBSext->GetNE())
@@ -3846,9 +3843,6 @@ void Mesh::UpdateNURBS()
       NURBSext->GetElementTopo(elements);
    }
 
-   cout << "NumOfBdrElements != NURBSext->GetNBE()" << endl;
-   cout <<  NumOfBdrElements <<"    " <<  NURBSext->GetNBE() << endl;
-   cout << "boundary.Size() = " << boundary.Size() << endl;
 
    if (NumOfBdrElements != NURBSext->GetNBE())
    {
@@ -3863,7 +3857,6 @@ void Mesh::UpdateNURBS()
    Nodes->FESpace()->Update();
    Nodes->Update();
    NURBSext->SetCoordsFromPatches(*Nodes);
-   cout << "Printing ver_val" << endl;
 
    if (NumOfVertices != NURBSext->GetNV())
    {
@@ -3874,14 +3867,12 @@ void Mesh::UpdateNURBS()
       {
          Vector vert_val;
          Nodes->GetNodalValues(vert_val, i+1);
-         vert_val.Print(cout);
          for (int j = 0; j < NumOfVertices; j++)
          {
             vertices[j](i) = vert_val(j);
          }
       }
    }
-   cout << "_" << endl;
 
 
    if (el_to_edge)
@@ -8783,6 +8774,8 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       NURBSext->Print(out);
       out << '\n';
       Nodes->Save(out);
+
+
 
       // patch-wise format
       // NURBSext->ConvertToPatches(*Nodes);

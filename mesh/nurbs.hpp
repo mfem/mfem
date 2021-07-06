@@ -238,7 +238,7 @@ protected:
 
    Array<NURBSPatch *> patches;
 
-   inline int         KnotInd(int edge) const;
+   inline int         KnotIndRed(int edge) const;
    inline KnotVector *KnotVecRed(int edge);
    inline const KnotVector *KnotVecRed(int edge) const;
    inline const KnotVector *KnotVecRed(int edge, int oedge, int *okv) const;
@@ -573,7 +573,7 @@ inline const double &NURBSPatch::operator()(int i, int j, int k, int l) const
 }
 
 
-inline int NURBSExtension::KnotInd(int edge) const
+inline int NURBSExtension::KnotIndRed(int edge) const
 {
    int kv = edge_to_knot[edge];
    return (kv >= 0) ? kv : (-1-kv);
@@ -581,12 +581,12 @@ inline int NURBSExtension::KnotInd(int edge) const
 
 inline KnotVector *NURBSExtension::KnotVecRed(int edge)
 {
-   return knotVectorsRed[KnotInd(edge)];
+   return knotVectorsRed[KnotIndRed(edge)];
 }
 
 inline const KnotVector *NURBSExtension::KnotVecRed(int edge) const
 {
-   return knotVectorsRed[KnotInd(edge)];
+   return knotVectorsRed[KnotIndRed(edge)];
 }
 
 inline const KnotVector *NURBSExtension::KnotVecRed(int edge, int oedge, int *okv)
