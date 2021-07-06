@@ -1857,11 +1857,11 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
       if (newOrder > pOrders[i])
       {
          knotVectorsRed[i] =
-            parent->GetKnotVectorRed(i)->DegreeElevate(newOrder - pOrders[i]);
+            parent->GetKnotVector(i)->DegreeElevate(newOrder - pOrders[i]);
       }
       else
       {
-         knotVectorsRed[i] = new KnotVector(*parent->GetKnotVectorRed(i));
+         knotVectorsRed[i] = new KnotVector(*parent->GetKnotVector(i));
       }
    }
    KVRed2Ext();
@@ -1916,11 +1916,11 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
       if (mOrders[i] > pOrders[i])
       {
          knotVectorsRed[i] =
-            parent->GetKnotVectorRed(i)->DegreeElevate(mOrders[i] - pOrders[i]);
+            parent->GetKnotVector(i)->DegreeElevate(mOrders[i] - pOrders[i]);
       }
       else
       {
-         knotVectorsRed[i] = new KnotVector(*parent->GetKnotVectorRed(i));
+         knotVectorsRed[i] = new KnotVector(*parent->GetKnotVector(i));
       }
    }
    KVRed2Ext();
@@ -1973,7 +1973,7 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    knotVectorsExt.SetSize(parent->GetNP()*parent->Dimension());
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
-      knotVectorsRed[i] = new KnotVector(*parent->GetKnotVectorRed(i));
+      knotVectorsRed[i] = new KnotVector(*parent->GetKnotVector(i));
    }
    KVRed2Ext();
 
@@ -4006,7 +4006,7 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    knotVectorsRed.SetSize(NumOfKnotVectors);
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
-      knotVectorsRed[i] = new KnotVector(*parent->GetKnotVectorRed(i));
+      knotVectorsRed[i] = new KnotVector(*parent->GetKnotVector(i));
    }
 
 

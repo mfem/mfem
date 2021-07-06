@@ -389,8 +389,8 @@ public:
    int GetNTotalDof() const { return NumOfDofs; }
    int GetNDof()      const { return NumOfActiveDofs; }
 
-   // Knotvector read-only access function
-   const KnotVector *GetKnotVectorRed(int i) const { return knotVectorsRed[i]; }
+   // Knotvector read-only access function for reduced set of knotvectors
+   const KnotVector *GetKnotVector(int i) const { return knotVectorsRed[i]; }
 
    // Mesh generation functions
    void GetElementTopo   (Array<Element *> &elements) const;
