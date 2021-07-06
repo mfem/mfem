@@ -214,21 +214,27 @@ $(DATA_DIR):
 MFEM_TESTS = UNIT_TESTS
 include $(MFEM_TEST_MK)
 
+ifeq (,$(wildcard $(MFEM_DIR)/../data))
+   MFEM_DATA_FLAG =
+else
+   MFEM_DATA_FLAG = --data $(MFEM_DIR)/../data
+endif
+
 %-test-seq: %
-	@$(call mfem-test,$<,, Unit tests,,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, Unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
 ceed_tests-test-seq: ceed_tests
-	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 ifeq ($(MFEM_USE_CUDA),YES)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),--device ceed-cuda:/gpu/cuda/ref,SKIP-NO-VIS)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared,SKIP-NO-VIS)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),--device ceed-cuda:/gpu/cuda/ref $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 endif
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 %-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,,SKIP-NO-VIS)
-	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -237,4 +243,3 @@ $(MFEM_LIB_FILE):
 clean:
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
 	rm -rf *.dSYM output_meshes
-
