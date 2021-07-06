@@ -7,13 +7,13 @@ struct _b_UserCtx
 {
    Device            device;
    Mesh              mesh;
-   const std::string smootherType,solverType;
+   const std::string smootherType,solverType,amgConfig;
    const int         order,refine;
 
    _b_UserCtx(const char *dev,const char *file, const char *smoother,
-              const char *solver, int ord,int ref) :
-      device(dev),mesh(file,1,1),smootherType(smoother),solverType(solver),order(ord),
-      refine(ref)
+              const char *solver, const char *amg, int ord,int ref) :
+     device(dev),mesh(file,1,1),smootherType(smoother),solverType(solver),amgConfig(amg),
+     order(ord),refine(ref)
    {
       for (int i = 0; i < ref; ++i) { mesh.UniformRefinement(); }
       device.Print();
@@ -108,8 +108,9 @@ static UserCtx ParseCommandLineOptions(int argc, char *argv[])
 {
    const char *meshFile = "../data/star.mesh";
    const char *smoother = "DR";
-   const char *solver   = "simpleamg";
+   const char *solver   = "amgx";
    const char *device   = "cuda";
+   const char *amg      = "amgx.json";
    int        nRefine = 1, order = 4;
    OptionsParser args(argc,argv);
 
@@ -118,13 +119,14 @@ static UserCtx ParseCommandLineOptions(int argc, char *argv[])
    args.AddOption(&meshFile,"-m","--mesh-file","Input mesh file");
    args.AddOption(&smoother,"-s","--smoother",
                   "Smoother to use (one of J-Jacobi, DR-distributive relaxation)");
-   args.AddOption(&solver,"-S","--solver","Which solver to use (either simpleamg");
+   args.AddOption(&solver,"-S","--solver","Which solver to use (either direct, simpleamg, or amgx");
+   args.AddOption(&amg,"-A","--amg-config","Path to amg config file, if using amgx");
    args.AddOption(&order,"-o","--order","Polynomial degree");
    args.AddOption(&nRefine,"-r","--refine",
                   "Number of times to refine the mesh uniformly");
    args.ParseCheck();
 
-   return UserCtx{new _b_UserCtx{device,meshFile,smoother,solver,order,nRefine}};
+   return UserCtx{new _b_UserCtx{device,meshFile,smoother,solver,amg,order,nRefine}};
 }
 
 int main(int argc, char *argv[])
@@ -170,7 +172,7 @@ int main(int argc, char *argv[])
    DisjointSets        *cluster = lorInfo.Cluster();
    PrintClusteringStats(std::cout,cluster);
    DRSmoother           smoother(cluster,&ALor,dim == 3);
-   LORSolver<SimpleAMG> lorSol(lor,ALor,smoother,MPI_COMM_WORLD);
+   LORSolver<SimpleAMG> lorSol(lor,ALor,smoother,SimpleAMG::solverBackend::AMG_AMGX,MPI_COMM_WORLD,ctx->amgConfig);
 
    CGSolver cg;
 

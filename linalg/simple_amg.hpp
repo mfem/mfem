@@ -14,6 +14,7 @@
 
 #include "sparsemat.hpp"
 #include "hypre.hpp"
+#include "amgxsolver.hpp"
 #include <memory>
 
 namespace mfem
@@ -36,8 +37,9 @@ protected:
 
    void FormRestriction();
 public:
-   SimpleAMG(const SparseMatrix &A_, Solver &smoother_, MPI_Comm comm,
-             bool two_level=true);
+   enum class solverBackend{DIRECT,AMG_HYPRE,AMG_AMGX};
+
+  SimpleAMG(const SparseMatrix &A_, Solver &smoother_, const solverBackend &backend, MPI_Comm comm, std::string);
 
    void Mult(const Vector &x, Vector &y) const;
 
