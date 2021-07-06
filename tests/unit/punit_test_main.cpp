@@ -14,6 +14,7 @@
 #include "unit_tests.hpp"
 
 bool launch_all_non_regression_tests = false;
+std::string mfem_data_dir;
 
 #ifdef MFEM_USE_MPI
 mfem::MPI_Session *GlobalMPISession;
@@ -28,8 +29,9 @@ int main(int argc, char *argv[])
 
    // Build a new command line parser on top of Catch's
    using namespace Catch::clara;
-   auto cli = session.cli() |
-              Opt(launch_all_non_regression_tests) ["--all"] ("all tests");
+   auto cli = session.cli()
+              | Opt(launch_all_non_regression_tests) ["--all"] ("all tests")
+              | Opt(mfem_data_dir, "") ["--data"] ("mfem/data repository");
    session.cli(cli);
 
    // For floating point comparisons, print 8 digits for single precision
@@ -44,20 +46,28 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MPI
    mfem::MPI_Session mpi;
    GlobalMPISession = &mpi;
+   bool root = mpi.Root();
+#else
+   bool root = true;
+#endif
 
-   // Exclude all tests that are not labeled with Parallel.
    auto cfg = session.configData();
+   // Exclude all tests that are not labeled with Parallel.
    cfg.testsOrTags.push_back("[Parallel]");
+   if (mfem_data_dir == "") { cfg.testsOrTags.push_back("~[MFEMData]"); }
    session.useConfigData(cfg);
 
    // NOTE: tests marked with "[CUDA]" (in addition to "[Parallel]") are still
    //       run with the default device.
-
-   if (mpi.Root())
+   if (root)
    {
-      std::cout << "INFO: Test filter: [Parallel]" << std::endl;
+      std::cout << "INFO: Test filter: ";
+      for (std::string &filter : cfg.testsOrTags)
+      {
+         std::cout << filter << " ";
+      }
+      std::cout << std::endl;
    }
-#endif
 
    int result = session.run();
 
