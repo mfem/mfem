@@ -126,7 +126,7 @@ void RefineNURBSFromFile(std::string ref_file, Mesh *mesh)
 {
    if (!mesh->NURBSext) { return; }
 
-   int s,nkv;
+   int nkv;
    ifstream input(ref_file);
    input >> nkv;
 
