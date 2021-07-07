@@ -25,7 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer
+SEQ_MINIAPPS = display-basis load-dc coef-fact convert-dc get-values lor-transfer
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -60,6 +60,10 @@ display-basis: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
+coef-fact: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
+
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
@@ -75,8 +79,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, Tools miniapp)
 
 # Testing: Specific execution options
-# Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer
-NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer
+# Do not test: display-basis, load-dc, coef-fact, convert-dc, get-values, lor-transfer
+NO_TEST_APPS = display-basis load-dc coef-fact convert-dc get-values lor-transfer
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
