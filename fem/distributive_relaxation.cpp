@@ -461,7 +461,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
    {
       const int dof_i = MFEM_LDG(clusters+i);
       const int dofLo = MFEM_LDG(I+dof_i);
-      const int   dofHi = MFEM_LDG(I+dof_i+1);
+      const int dofHi = MFEM_LDG(I+dof_i+1);
       // shouldn't unroll here, we don't know trip count and nvcc is kinda terrible at
       // guessing it
       for (int j = dofLo; j < dofHi; ++j)
@@ -485,10 +485,14 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
 // compute diag(g^T x A x g) for set sizes
 template <int LDA>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag(const double G[LDA],
-                                                 const double A[LDA*LDA], double result[LDA]);
+                                                 const double A[LDA*LDA], double result[LDA])
+{
+  // declare empty function so sizes greater than 3 compile
+  MFEM_ABORT_KERNEL("Do not use");
+}
 
 // convert i,j to column-major
-#define MFEM_MAT_IDX(_mat,_lda,_i,_j) _mat[((_lda)*(_j))+(_i)]
+#define MFEM_MAT_IDX(_mat,_lda,_i,_j) (_mat)[((_lda)*(_j))+(_i)]
 
 template <>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag<1>(const double G[1],
@@ -532,10 +536,144 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag<3>(const double G[3],
    result[2] = a22;
    return;
 }
+
+enum class MATRIX_FACTOR_TYPE {CHOLESKY};
+
+// Solves Ax = b assuming that A is in cholesky factorized, i.e. A = L L^T. This routine
+// is also the equivalent of computing x = A^-1 b
+template <int LDA, MATRIX_FACTOR_TYPE F>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInv(const double *__restrict__ mat, const double *__restrict__ b, double *__restrict__ x)
+{
+  if (F == MATRIX_FACTOR_TYPE::CHOLESKY) {
+    // scratch space to hold the intermediate soln
+    double y[LDA];
+
+    MFEM_UNROLL(LDA)
+    for (int i = 0; i < LDA; ++i) {y[i] = 0.0;}
+
+    // forward substitution
+    MFEM_UNROLL(LDA)
+    for (int i = 0; i < LDA; ++i) {
+      double tmp = b[i];
+
+      for (int j = 0; j < i-1; ++j) tmp -= MFEM_MAT_IDX(mat,LDA,i,j)*y[j];
+      y[i] = tmp/MFEM_MAT_IDX(mat,LDA,i,i);
+    }
+
+    // backward substitution
+    MFEM_UNROLL(LDA)
+    for (int i = LDA-1; i > -1; --i) {
+      double tmp = y[i];
+
+      // indices are flipped here for transpose
+      for (int j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_IDX(mat,LDA,j,i)*x[j];
+      x[i] = tmp/MFEM_MAT_IDX(mat,LDA,i,i);
+    }
+  } else {
+    MFEM_ABORT_KERNEL("Not Implemented");
+  }
+  return;
+}
+
+template <int LDA, MATRIX_FACTOR_TYPE F>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void factor(double *__restrict__ mat)
+{
+  // only option for now
+  if (F == MATRIX_FACTOR_TYPE::CHOLESKY) {
+    // compute in-place lower cholesky using Cholesky-Crout algorithm for matrix A = LL^T
+    MFEM_UNROLL(LDA)
+    for (int j = 0; j < LDA; ++j) {
+      double x = MFEM_MAT_IDX(mat,LDA,j,j);
+
+      // trip count is known at compile time
+      for (int k = 0; k < j; ++k) x -= MFEM_MAT_IDX(mat,LDA,j,k)*MFEM_MAT_IDX(mat,LDA,j,k);
+
+      x = sqrt(x);
+      MFEM_MAT_IDX(mat,LDA,j,j) = x;
+
+      const double r = 1.0/x;
+
+      MFEM_UNROLL(LDA)
+      for (int i = j+1; i < LDA; ++i) {
+	x = MFEM_MAT_IDX(mat,LDA,i,j);
+
+	// trip count also known at compile time
+	for (int k = 0; k < j; ++k) x -= MFEM_MAT_IDX(mat,LDA,i,k)*MFEM_MAT_IDX(mat,LDA,j,k);
+	MFEM_MAT_IDX(mat,LDA,i,j) = x*r;
+      }
+    }
+  } else {
+    MFEM_ABORT_KERNEL("Not Implemented");
+  }
+  return;
+}
+
+// constexpr square root for doubles using the newton-raphson method
+MFEM_HOST_DEVICE double constexpr sqrtNewtonRaphson(double x, double curr, double prev)
+{
+  return curr == prev ? curr : sqrtNewtonRaphson(x,0.5*(curr+x/curr),curr);
+}
+
+MFEM_HOST_DEVICE double constexpr constexprSqrt(double x)
+{
+  return x >= 0 && x < 999999999999999.9 ? sqrtNewtonRaphson(x,x,0) : std::nan("1");
+}
+
+template <int LDA>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE double vecDot(const double *__restrict__ v1, const double *__restrict__ v2)
+{
+  double ret = v1[0]*v2[0];
+
+  MFEM_UNROLL(LDA-1)
+  for (int i = 1; i < LDA; ++i)	ret += v1[i]*v2[i];
+
+  return ret;
+}
+
+template <int LDA>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void vecNormalize(const double *__restrict__ vi, double *__restrict__ vo)
+{
+  double mod = vi[0]*vi[0];
+
+  MFEM_UNROLL(LDA)
+  for (int i = 1; i < LDA; ++i) mod += vi[i]*vi[i];
+
+  mod = 1.0/sqrt(mod);
+
+  // modify in-place to save precious registers
+  MFEM_UNROLL(LDA)
+  for (int i = 0; i < LDA; ++i) { eigVec[minEigIdx+i] *= mod; }
+  return;
+}
+
+template <int LDA, MATRIX_FACTOR_TYPE F>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenvalues(const double *__restrict__ mat, double *__restrict__ eigVec, double &eigVal)
+{
+  double eigVecTmp[LDA],scratch[LDA];
+  double eigTmp;
+
+  constexpr double LDA_d   = static_cast<double>(LDA);
+  constexpr double initVal = LDA_d/constexprSqrt(LDA_d);
+
+  MFEM_UNROLL(LDA)
+  for (int i = 0; i < LDA; ++i)	eigVecTmp[i] = initVal;
+
+  matMultInv<LDA,F>(mat,eigVec,scratch);
+  eigTmp = vecDot<LDA>(eigVec,scratch);
+
+  int iter = 0;
+  do {
+    // scratch already contains valid vector in first iteration
+    if (iter) matMultInv<LDA,F>(mat,eigVec,scratch);
+
+    vecNormalize<LDA>(scratch,eigVecTmp);
+    ++iter;
+  } while (1);
+}
 #undef MFEM_MAT_IDX
 
 template <>
-MFEM_HOST_DEVICE void CalcEigenvalues<1>(const double *data, double *lambda,
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void CalcEigenvalues<1>(const double *data, double *lambda,
 					 double *vec)
 {
    lambda[0] = data[0];
@@ -543,14 +681,20 @@ MFEM_HOST_DEVICE void CalcEigenvalues<1>(const double *data, double *lambda,
    return;
 }
 
+// declare generic template so size 4+ compiles. Sadly constexpr if is c++17...
+template <int d> void CalcEigenvalues(const double *data, double *lambda, double *vec) {}
+
 } // namespace kernels
 
 template <int LDA>
 static void forAllDispatchCoeffs(const int size,
-                                 const int *__restrict__ I,
-                                 const int *__restrict__ J, const double *__restrict__ data,
-                                 const int *__restrict__ clusters, double *__restrict__ ret)
+				 const int *__restrict__ I,
+				 const int *__restrict__ J,
+				 const double *__restrict__ data,
+				 const int *__restrict__ clusters,
+				 double *__restrict__ ret)
 {
+  if (LDA <= 3) {
    MFEM_FORALL(group, size,
    {
       double subMat[LDA*LDA],eigVal[LDA],eigVec[LDA*LDA];
@@ -600,7 +744,21 @@ static void forAllDispatchCoeffs(const int size,
       MFEM_UNROLL(LDA)
       for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = eigVec[minEigIdx+i];
    });
-   MFEM_DEVICE_SYNC;
+  } else {
+   MFEM_FORALL(group, size,
+   {
+     double subMat[LDA*LDA],eigVal,eigVec[LDA];
+
+     MFEM_UNROLL(LDA*LDA)
+     for (int i = 0; i < LDA*LDA; ++i) subMat[i] = 0.0;
+
+     kernels::loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,subMat);
+     kernels::factor<LDA,kernels::MATRIX_FACTOR_TYPE::CHOLESKY>(subMat);
+     kernels::computeLowestEigenvalues<LDA,kernels::MATRIX_FACTOR_TYPE::CHOLESKY>(subMat,eigVec,eigVal);
+   });
+  }
+  MFEM_DEVICE_SYNC;
+  return;
 }
 
 // For LDA = 1 the coeffs are always = 1, (so no point storing them in the interleaved
@@ -608,9 +766,11 @@ static void forAllDispatchCoeffs(const int size,
 // coefficients   even if they aren't used we must specialize
 template <>
 void forAllDispatchCoeffs<1>(const int size,
-                             const int *__restrict__ I,
-                             const int *__restrict__ J, const double *__restrict__ data,
-                             const int *__restrict__ clusters, double *__restrict__ ret)
+			     const int *__restrict__ I,
+			     const int *__restrict__ J,
+			     const double *__restrict__ data,
+			     const int *__restrict__ clusters,
+			     double *__restrict__ ret)
 {
    MFEM_FORALL(group, size,
    {
@@ -702,6 +862,10 @@ void DRSmoother::FormG(const DisjointSets *clustering)
                                        devCoeffArray+totalSize);
                totalSize += 2*cpackSize;
                break;
+	    case 4:
+	      forAllDispatchCoeffs<4>(cpackSize/4,devI,devJ,devData,devCluster,devCoeffArray+totalSize);
+	       totalSize += 2*cpackSize;
+	       break;
             default:
                MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
                break;
