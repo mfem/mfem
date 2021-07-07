@@ -2290,6 +2290,9 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
 
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
+
+      RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
+      RT_dof[Geometry::PRISM] = p*pp1*(3*p + 4)/2;
    }
    else
    {
@@ -2656,18 +2659,31 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       {
          for (int i = 0; i + j <= pm2; i++)
          {
-            int k1 = p*pm1 - (p - j)*(pm1 - j) + 2*i;
-            int k2 = p*pm1 - (p - i)*(pm1 - i) + 2*j;
-            // (0,1,2)
-            TriDofOrd[0][k1  ] = k1;
-            TriDofOrd[0][k1+1] = k1 + 1;
-            // (0,2,1)
-            TriDofOrd[5][k1  ] = k2 + 1;
-            TriDofOrd[5][k1+1] = k2;
+            int k0 = p*pm1 - (p - j)*(pm1 - j) + 2*i;
+            int k1 = 2*pm2 - 2*i + ((2*p-3)-j)*j;
+            int k2 = 2*pm2 - 2*j + ((2*p-3)-i)*i;
+            int k3 = p*pm1 - 2 - 3*j - i - (i+j)*(i+j);
+            int k4 = p*pm1 - 2 - 3*i - j - (i+j)*(i+j);
+            int k5 = p*pm1 - (p - i)*(pm1 - i) + 2*j;
 
-            // The other orientations can not be supported with the current
-            // interface. The method Mesh::ReorientTetMesh will ensure that
-            // only orientations 0 and 5 are generated.
+            // (0,1,2)
+            TriDofOrd[0][k0  ] = k0;
+            TriDofOrd[0][k0+1] = k0 + 1;
+            // (1,0,2)
+            TriDofOrd[1][k0  ] = k1;
+            TriDofOrd[1][k0+1] = k1 + 1;
+            // (2,0,1)
+            TriDofOrd[2][k0  ] = k2;
+            TriDofOrd[2][k0+1] = k2 + 1;
+            // (2,1,0)
+            TriDofOrd[3][k0  ] = k3;
+            TriDofOrd[3][k0+1] = k3 + 1;
+            // (1,2,0)
+            TriDofOrd[4][k0  ] = k4;
+            TriDofOrd[4][k0+1] = k4 + 1;
+            // (0,2,1)
+            TriDofOrd[5][k0  ] = k5;
+            TriDofOrd[5][k0+1] = k5 + 1;
          }
       }
    }
@@ -2680,6 +2696,9 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       // TODO: cb_type and ob_type for tets
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
+
+      ND_Elements[Geometry::PRISM] = new ND_WedgeElement(p);
+      ND_dof[Geometry::PRISM] = p*pm1*(3*p-4)/2;
    }
 }
 
@@ -2692,11 +2711,6 @@ const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
-      if (Or != 0 && Or != 5)
-      {
-         MFEM_ABORT("triangle face orientation " << Or << " is not supported! "
-                    "Use Mesh::ReorientTetMesh to fix it.");
-      }
       return TriDofOrd[Or%6];
    }
    else if (GeomType == Geometry::SQUARE)

@@ -3057,6 +3057,63 @@ public:
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
+class RT_WedgeElement : public VectorFiniteElement
+{
+   static const double nk[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector      tl2_shape;
+   mutable Vector      sh1_shape;
+   mutable DenseMatrix trt_shape;
+   mutable Vector      sl2_shape;
+   mutable DenseMatrix sh1_dshape;
+   mutable Vector      trt_dshape;
+#endif
+   Array<int> dof2nk, t_dof, s_dof;
+
+   // The RT_Wedge is implemented as the sum of tensor products of
+   // lower dimensional basis funcgtions.
+   // Specifically: L2TriangleFE x H1SegmentFE + RTTriangle x L2SegmentFE
+   L2_TriangleElement L2TriangleFE;
+   RT_TriangleElement RTTriangleFE;
+   H1_SegmentElement  H1SegmentFE;
+   L2_SegmentElement  L2SegmentFE;
+
+public:
+   RT_WedgeElement(const int p);
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+};
+
 
 /// Arbitrary order Nedelec elements in 3D on a cube
 class ND_HexahedronElement : public VectorTensorFiniteElement
@@ -3359,6 +3416,76 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+};
+
+
+class ND_WedgeElement : public VectorFiniteElement
+{
+private:
+   static const double tk[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector      t1_shape, s1_shape;
+   mutable DenseMatrix tn_shape, sn_shape;
+   mutable DenseMatrix t1_dshape, s1_dshape, tn_dshape;
+#endif
+   Array<int> dof2tk, t_dof, s_dof;
+
+   H1_TriangleElement H1TriangleFE;
+   ND_TriangleElement NDTriangleFE;
+   H1_SegmentElement  H1SegmentFE;
+   ND_SegmentElement  NDSegmentFE;
+
+public:
+   ND_WedgeElement(const int p,
+                   const int cb_type = BasisType::GaussLobatto,
+                   const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+
+   using FiniteElement::Project;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
+
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_ND(tk, dof2tk, fe, Trans, I); }
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
 

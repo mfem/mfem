@@ -409,18 +409,14 @@ int main(int argc, char *argv[])
       ref_list.DeleteAll();
    }
 
-   // 10. Reorient the mesh. Must be done after refinement but before definition
-   //     of higher order Nedelec spaces
-   pmesh->ReorientTetMesh();
-
-   // 11. Rebalance the mesh. Since the mesh was adaptively refined in a
+   // 10. Rebalance the mesh. Since the mesh was adaptively refined in a
    //     non-uniform way it will be computationally unbalanced.
    if (pmesh->Nonconforming())
    {
       pmesh->Rebalance();
    }
 
-   // 12. Define the parallel finite element spaces. We use:
+   // 11. Define the parallel finite element spaces. We use:
    //
    //     H(curl) for electric field,
    //     H(div) for magnetic flux,
@@ -468,13 +464,14 @@ int main(int argc, char *argv[])
    int Vsize_rt = HDivFESpace.GetVSize();
    int Vsize_h1 = HGradFESpace.GetVSize();
 
-   // the big BlockVector stores the fields as
-   //    0 Temperature
-   //    1 Temperature Flux
-   //    2 P field
-   //    3 E field
-   //    4 B field
-   //    5 Joule Heating
+   // 12. Declare storage for field data.
+   //     The big BlockVector stores the fields as
+   //       0 Temperature
+   //       1 Temperature Flux
+   //       2 P field
+   //       3 E field
+   //       4 B field
+   //       5 Joule Heating
 
    Array<int> true_offset(7);
    true_offset[0] = 0;

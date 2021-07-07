@@ -118,6 +118,11 @@ int STable3D::Index (int r, int c, int f) const
 {
    STable3DNode *node;
 
+   if (r >= Size)
+   {
+      return -1;
+   }
+
    Sort3 (r, c, f);
 
    for (node = Rows[r]; node != NULL; node = node->Prev)

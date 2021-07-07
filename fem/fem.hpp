@@ -16,6 +16,7 @@
 #include "geom.hpp"
 #include "fe.hpp"
 #include "fe_coll.hpp"
+#include "doftrans.hpp"
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 #include "complex_fem.hpp"
