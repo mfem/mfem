@@ -77,12 +77,12 @@ if (MFEM_USE_MPI)
     -m ${PROJECT_SOURCE_DIR}/data/ball-nurbs.mesh -o 2 --weak-bc -r 0
     ${MPIEXEC_POSTFLAGS})
 
-add_test(NAME nurbs_ex1_weak_patch_format_np=4
+  add_test(NAME nurbs_ex1_weak_patch_format_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0)
 
-add_test(NAME nurbs_ex1_weak_patch_format_r1_np=4
+  add_test(NAME nurbs_ex1_weak_patch_format_r1_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
@@ -96,3 +96,46 @@ add_test(NAME nurbs_ex1_weak_patch_format_r1_np=4
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex11p> -no-vis
     ${MPIEXEC_POSTFLAGS})
 endif()
+
+
+
+add_mfem_miniapp(twosquares
+  MAIN twosquares.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(twocubes
+  MAIN twocubes.cpp
+  LIBRARIES mfem)
+
+
+
+
+add_test(NAME twosquares_meshes
+   COMMAND $<TARGET_FILE:twosquares> )
+
+foreach(i RANGE 1 4)
+ foreach(j RANGE 1 4)
+  add_test(NAME twosquares${i}${j}
+    COMMAND $<TARGET_FILE:nurbs_ex1> -m twosquares${i}${j}.mesh -rf refinetwosquares.ref) 
+ endforeach(j)
+endforeach(i)
+
+
+add_test(NAME twocubes_meshes
+   COMMAND $<TARGET_FILE:twocubes> )
+
+foreach(i RANGE 1 4)
+ foreach(j RANGE 1 4)
+  add_test(NAME twocubes${i}${j}
+    COMMAND $<TARGET_FILE:nurbs_ex1> -m twocubes${i}${j}.mesh -rf refinetwocubes.ref) 
+ endforeach(j)
+endforeach(i)
+
+
+
+
+
+
+
+
+
