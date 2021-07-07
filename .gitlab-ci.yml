@@ -80,6 +80,7 @@ stages:
 setup:
   tags:
     - shell
+    - quartz
   stage: setup
   variables:
     GIT_STRATEGY: none
