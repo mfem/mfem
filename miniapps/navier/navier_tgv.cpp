@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
 
    QuantitiesOfInterest kin_energy(pmesh);
 
-   ParaViewDataCollection pvdc("shear_output", pmesh);
+   ParaViewDataCollection pvdc("tgv_output", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);

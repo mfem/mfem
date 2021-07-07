@@ -387,7 +387,8 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
    sw_extrap.Start();
 
    N->Mult(un, Nun);
-   Nun.Add(1.0, fn);
+   N->Mult(unm1, Nunm1);
+   N->Mult(unm2, Nunm2);
 
    {
       const auto d_Nun = Nun.Read();
@@ -402,6 +403,8 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
                               ab2_ * d_Nunm1[i] +
                               ab3_ * d_Nunm2[i];);
    }
+
+   Fext.Add(1.0, fn);
 
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
    MvInv->Mult(Fext, tmp1);
