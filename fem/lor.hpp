@@ -196,7 +196,6 @@ class LORSolver : public Solver
 protected:
    LORBase *lor;
    bool own_lor = true;
-   bool use_permutation = true;
    SolverType solver;
    mutable Vector px, py;
 public:
@@ -222,8 +221,6 @@ public:
 
    /// @brief Create a solver of type @a SolverType using Operator @a op and
    /// arguments @a args.
-   ///
-   /// The object @a lor_ will be used for DOF permutations.
    template <typename... Args>
    LORSolver(const Operator &op, LORBase &lor_, Args&&... args) : solver(args...)
    {
@@ -248,18 +245,6 @@ public:
    }
 
    void Mult(const Vector &x, Vector &y) const { solver.Mult(x, y); }
-
-   /// @brief Enable or disable the DOF permutation (enabled by default).
-   ///
-   /// The corresponding LOR and high-order DOFs may not have the same
-   /// numbering (for example, when using ND or RT spaces), and so a permutation
-   /// is required when applying the LOR solver as a preconditioner for the
-   /// high-order problem. This permutation can be disabled (for example, in
-   /// order to precondition the low-order problem directly).
-   void UsePermutation(bool use_permutation_)
-   {
-      use_permutation = use_permutation_;
-   }
 
    /// Access the underlying solver.
    SolverType &GetSolver() { return solver; }
