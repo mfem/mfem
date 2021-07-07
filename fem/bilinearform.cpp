@@ -953,6 +953,7 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
                                   const Vector &sol, Vector &rhs,
                                   DiagonalPolicy dpolicy)
 {
+   vdofs.HostRead();
    for (int i = 0; i < vdofs.Size(); i++)
    {
       int vdof = vdofs[i];
