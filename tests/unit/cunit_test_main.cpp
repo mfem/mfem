@@ -11,7 +11,7 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "unit_tests.hpp"
+#include "run_unit_tests.hpp"
 
 bool launch_all_non_regression_tests = false;
 std::string mfem_data_dir;
@@ -19,42 +19,6 @@ std::string mfem_data_dir;
 int main(int argc, char *argv[])
 {
    mfem::Device device("cuda");
-
-   // There must be exactly one instance.
-   Catch::Session session;
-
-   // Build a new command line parser on top of Catch's
-   using namespace Catch::clara;
-   auto cli = session.cli()
-              | Opt(launch_all_non_regression_tests) ["--all"] ("all tests")
-              | Opt(mfem_data_dir, "") ["--data"] ("mfem/data repository");
-   session.cli(cli);
-
-   // For floating point comparisons, print 8 digits for single precision
-   // values, and 16 digits for double precision values.
-   Catch::StringMaker<float>::precision = 8;
-   Catch::StringMaker<double>::precision = 16;
-
-   // Apply provided command line arguments.
-   int r = session.applyCommandLine(argc, argv);
-   if (r != 0) { return r; }
-
-   auto cfg = session.configData();
-
-   cfg.testsOrTags.push_back("[CUDA]");
-   // Exclude tests marked as Parallel in a serial run, even when compiled with
-   // MPI. This is done because there is no MPI session initialized.
-   cfg.testsOrTags.push_back("~[Parallel]");
-   if (mfem_data_dir == "") { cfg.testsOrTags.push_back("~[MFEMData]"); }
-   session.useConfigData(cfg);
-
-   std::cout << "INFO: Test filter: ";
-   for (std::string &filter : cfg.testsOrTags) { std::cout << filter << " "; }
-   std::cout << std::endl;
-   device.Print();
-
-
-   int result = session.run();
-
-   return result;
+   // Include only tests labeled with CUDA. Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"[CUDA]", "~[Parallel]"});
 }
