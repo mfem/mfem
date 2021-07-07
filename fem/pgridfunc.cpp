@@ -328,15 +328,10 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
       DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
                                                                   dofs);
       Vector loc_data;
+      face_nbr_data.GetSubVector(dofs, loc_data);
       if (doftrans)
       {
-         Vector loc_data_t;
-         face_nbr_data.GetSubVector(dofs, loc_data_t);
-         doftrans->InvTransformPrimal(loc_data_t, loc_data);
-      }
-      else
-      {
-         face_nbr_data.GetSubVector(dofs, loc_data);
+         doftrans->InvTransformPrimal(loc_data);
       }
       const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
       int dof = FElem->GetDof();
@@ -453,15 +448,10 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
 
    int dof = fe->GetDof();
    Vector loc_data;
+   face_nbr_data.GetSubVector(vdofs, loc_data);
    if (doftrans)
    {
-      Vector loc_data_t;
-      face_nbr_data.GetSubVector(vdofs, loc_data_t);
-      doftrans->InvTransformPrimal(loc_data_t, loc_data);
-   }
-   else
-   {
-      face_nbr_data.GetSubVector(vdofs, loc_data);
+      doftrans->InvTransformPrimal(loc_data);
    }
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
