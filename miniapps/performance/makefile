@@ -82,6 +82,10 @@ endef
 
 ifneq (YES,$(MFEM_USE_CUDA))
   PEDANTIC_FLAG = -pedantic
+else
+	ifeq (YES,$(MFEM_USE_SIMD))
+		MFEM_FLAGS := $(filter-out -x=cu, $(MFEM_FLAGS))
+	endif
 endif
 
 # - GCC extra options:

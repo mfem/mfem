@@ -12,6 +12,10 @@
 #ifndef MFEM_SIMD_VSX_HPP
 #define MFEM_SIMD_VSX_HPP
 
+#if !(defined(__CUDACC__) || defined(__HIPCC__))
+
 #include "vsx128.hpp"
+
+#endif // ! (__CUDACC__ || __HIPCC__)
 
 #endif // MFEM_SIMD_VSX_HPP

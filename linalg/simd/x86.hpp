@@ -12,10 +12,14 @@
 #ifndef MFEM_SIMD_X86_HPP
 #define MFEM_SIMD_X86_HPP
 
+#if !(defined(__CUDACC__) || defined(__HIPCC__))
+
 #include "m128.hpp"
 
 #include "m256.hpp"
 
 #include "m512.hpp"
+
+#endif // ! (__CUDACC__ || __HIPCC__)
 
 #endif // MFEM_SIMD_X86_HPP
