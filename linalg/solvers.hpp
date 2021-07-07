@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "densemat.hpp"
 #include "handle.hpp"
+#include <memory>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -91,7 +92,7 @@ public:
    IterativeSolver();
 
 #ifdef MFEM_USE_MPI
-   IterativeSolver(MPI_Comm _comm);
+   IterativeSolver(MPI_Comm comm_);
 #endif
 
    void SetRelTol(double rtol) { rel_tol = rtol; }
@@ -207,7 +208,7 @@ public:
        the matrix-free setting. The estimated largest eigenvalue of the
        diagonally preconditoned operator must be provided via
        max_eig_estimate. */
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, double max_eig_estimate);
 
@@ -219,13 +220,13 @@ public:
        accuracy of the estimated eigenvalue may be controlled via
        power_iterations and power_tolerance. */
 #ifdef MFEM_USE_MPI
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
                              double power_tolerance = 1e-8);
 #else
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
                              double power_tolerance = 1e-8);
@@ -270,7 +271,7 @@ public:
    SLISolver() { }
 
 #ifdef MFEM_USE_MPI
-   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   SLISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -302,7 +303,7 @@ public:
    CGSolver() { }
 
 #ifdef MFEM_USE_MPI
-   CGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   CGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -332,7 +333,7 @@ public:
    GMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   GMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    /// Set the number of iteration to perform between restarts, default is 50.
@@ -351,7 +352,7 @@ public:
    FGMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   FGMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   FGMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    void SetKDim(int dim) { m = dim; }
@@ -381,7 +382,7 @@ public:
    BiCGSTABSolver() { }
 
 #ifdef MFEM_USE_MPI
-   BiCGSTABSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   BiCGSTABSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -411,7 +412,7 @@ public:
    MINRESSolver() { }
 
 #ifdef MFEM_USE_MPI
-   MINRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   MINRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetPreconditioner(Solver &pr)
@@ -442,7 +443,7 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector xcur, r, c;
+   mutable Vector r, c;
    mutable Operator *grad;
 
    // Adaptive linear solver rtol variables
@@ -481,7 +482,7 @@ public:
    NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
    virtual void SetOperator(const Operator &op);
 
@@ -503,9 +504,6 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
-
-   const Vector &GetCurrentResidual() const { return r; }
-   const Vector &GetCurrentIterate() const { return xcur; }
 
    /// Enable adaptive linear solver relative tolerance algorithm.
    /** Compute a relative tolerance for the Krylov method after each nonlinear
@@ -536,7 +534,7 @@ public:
    LBFGSSolver() : NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
    void SetHistorySize(int dim) { m = dim; }
@@ -620,7 +618,7 @@ protected:
 public:
    OptimizationSolver(): IterativeSolver(), problem(NULL) { }
 #ifdef MFEM_USE_MPI
-   OptimizationSolver(MPI_Comm _comm): IterativeSolver(_comm), problem(NULL) { }
+   OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
 #endif
    virtual ~OptimizationSolver() { }
 
@@ -678,7 +676,7 @@ public:
    SLBQPOptimizer() { }
 
 #ifdef MFEM_USE_MPI
-   SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) { }
+   SLBQPOptimizer(MPI_Comm comm_) : OptimizationSolver(comm_) { }
 #endif
 
    /** Setting an OptimizationProblem will overwrite the Vectors given by
@@ -686,8 +684,8 @@ public:
     *  unchanged. */
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
-   void SetBounds(const Vector &_lo, const Vector &_hi);
-   void SetLinearConstraint(const Vector &_w, double _a);
+   void SetBounds(const Vector &lo_, const Vector &hi_);
+   void SetLinearConstraint(const Vector &w_, double a_);
 
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
@@ -733,7 +731,7 @@ public:
     *  case that @a op is a HypreParMatrix, the ILU factorization is performed
     *  on the diagonal blocks of the parallel decomposition.
     */
-   BlockILU(Operator &op, int block_size_ = 1,
+   BlockILU(const Operator &op, int block_size_ = 1,
             Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
             int k_fill_ = 0);
 
@@ -832,14 +830,14 @@ public:
    mutable double Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
-       _use_long_ints = true. */
-   UMFPackSolver(bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); }
+       use_long_ints_ = true. */
+   UMFPackSolver(bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); }
    /** @brief Factorize the given SparseMatrix using the defaults. For larger
-       matrices, if the solver fails, set the parameter @a _use_long_ints =
+       matrices, if the solver fails, set the parameter @a use_long_ints_ =
        true. */
-   UMFPackSolver(SparseMatrix &A, bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); SetOperator(A); }
+   UMFPackSolver(SparseMatrix &A, bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be a SparseMatrix.
 
@@ -895,7 +893,7 @@ class DirectSubBlockSolver : public Solver
    mutable Array<int> local_dofs;
    mutable Vector sub_rhs;
    mutable Vector sub_sol;
-   Array<DenseMatrixInverse> block_solvers;
+   std::unique_ptr<DenseMatrixInverse[]> block_solvers;
 public:
    /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
    /// i-th block, block_dof(i, j) = 0 otherwise.
