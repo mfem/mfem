@@ -436,6 +436,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
                    << std::endl;
          pmesh->ent_sets = pmesh->pent_sets =
                               (pncent_sets) ? new ParEntitySets(*pmesh, *this): NULL;
+	 */
          /*
          if (pmesh->ent_sets)
          {
