@@ -163,3 +163,7 @@ endif()
 if (MFEM_USE_SUPERLU)
   add_subdirectory(superlu)
 endif()
+
+if(MFEM_USE_MOONOLITH)
+  add_subdirectory(moonolith)
+endif()
