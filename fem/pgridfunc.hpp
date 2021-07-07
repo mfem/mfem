@@ -242,16 +242,13 @@ public:
 
    using GridFunction::ProjectBdrCoefficient;
 
-   // Only the values in the master are guaranteed to be correct!
    virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                                       Array<int> &attr)
    { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
    virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
    { ProjectBdrCoefficient(coeff, NULL, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              Array<int> &bdr_attr);
 

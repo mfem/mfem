@@ -256,7 +256,7 @@ public:
    }
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
-   int IsSorted();
+   int IsSorted() const;
 
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();

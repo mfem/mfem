@@ -2054,6 +2054,11 @@ void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
 #endif
 }
 
+void MultTranspose(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
+{
+   MultAtB(b, c, a);
+}
+
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
@@ -2082,6 +2087,45 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
             ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
          }
       }
+   }
+#endif
+}
+
+void AddMultTranspose(const DenseMatrix &b, const DenseMatrix &c,
+                      DenseMatrix &a)
+{
+   MFEM_ASSERT(a.Height() == b.Width() && a.Width() == c.Width() &&
+               b.Height() == c.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'T', transb = 'N';
+   static double alpha = 1.0, beta = 1.0;
+   int m = b.Width(), n = c.Width(), k = b.Height();
+
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &k,
+          c.Data(), &k, &beta, a.Data(), &m);
+#else
+   const int bh = b.Height();
+   const int bw = b.Width();
+   const int cw = c.Width();
+   const double *bd = b.Data();
+   const double *cd = c.Data();
+   double *ad = a.Data();
+
+   for (int j = 0; j < cw; j++)
+   {
+      const double *bp = bd;
+      for (int i = 0; i < bw; i++)
+      {
+         double d = 0.0;
+         for (int k = 0; k < bh; k++)
+         {
+            d += bp[k] * cd[k];
+         }
+         *(ad++) += d;
+         bp += bh;
+      }
+      cd += bh;
    }
 #endif
 }

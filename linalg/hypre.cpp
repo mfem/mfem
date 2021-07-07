@@ -2496,6 +2496,10 @@ void HypreSmoother::SetOperator(const Operator &op)
       ones = 1.0;
       A->Mult(ones, diag);
    }
+   else if (type == 6)
+   {
+      Z = new HypreParVector(*A);
+   }
    else
    {
       l1_norms = NULL;
@@ -3416,9 +3420,34 @@ void HypreParaSails::SetOperator(const Operator &op)
    B = X = NULL;
 }
 
+void HypreParaSails::SetParameters(double thresh, int nlevels)
+{
+   HYPRE_ParaSailsSetParams(sai_precond, thresh, nlevels);
+}
+
+void HypreParaSails::SetFilter(double filter)
+{
+   HYPRE_ParaSailsSetFilter(sai_precond, filter);
+}
+
 void HypreParaSails::SetSymmetry(int sym)
 {
    HYPRE_ParaSailsSetSym(sai_precond, sym);
+}
+
+void HypreParaSails::SetLoadbalancing(double loadbal)
+{
+   HYPRE_ParaSailsSetLoadbal(sai_precond, loadbal);
+}
+
+void HypreParaSails::SetReuse(int reuse)
+{
+   HYPRE_ParaSailsSetReuse(sai_precond, reuse);
+}
+
+void HypreParaSails::SetLogging(int logging)
+{
+   HYPRE_ParaSailsSetLogging(sai_precond, logging);
 }
 
 HypreParaSails::~HypreParaSails()

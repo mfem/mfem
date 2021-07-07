@@ -613,9 +613,10 @@ void ParGridFunction::ProjectBdrCoefficient(
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   gcomm.Bcast<int>(values_counter);
    // Accumulate the values globally.
    gcomm.Reduce<double>(values, GroupCommunicator::Sum);
-   // Only the values in the master are guaranteed to be correct!
+   gcomm.Bcast<double>(values);
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -651,9 +652,10 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   gcomm.Bcast<int>(values_counter);
    // Accumulate the values globally.
    gcomm.Reduce<double>(values, GroupCommunicator::Sum);
-   // Only the values in the master are guaranteed to be correct!
+   gcomm.Bcast<double>(values);
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
