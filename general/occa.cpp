@@ -28,15 +28,7 @@ occa::device &OccaDev() { return internal::occaDevice; }
 
 occa::memory OccaMemoryWrap(void *ptr, std::size_t bytes)
 {
-#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
-   // If OCCA_CUDA is allowed, it will be used since it has the highest priority
-   if (Device::Allows(Backend::OCCA_CUDA))
-   {
-      return occa::cuda::wrapMemory(internal::occaDevice, ptr, bytes);
-   }
-#endif // MFEM_USE_CUDA && OCCA_CUDA_ENABLED
-   // otherwise, fallback to occa::cpu address space
-   return occa::cpu::wrapMemory(internal::occaDevice, ptr, bytes);
+   return internal::occaDevice.wrapMemory(ptr, bytes);
 }
 
 } // namespace mfem

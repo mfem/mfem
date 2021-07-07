@@ -1096,8 +1096,9 @@ double Vector::operator*(const Vector &v) const
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
-      return occa::linalg::dot<double,double,double>(
-                OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
+      occa::array<double> left = OccaMemoryRead(data, size);
+      occa::array<double> right = OccaMemoryRead(v.data, size);
+      return left.dotProduct(right);
    }
 #endif
 
@@ -1181,7 +1182,7 @@ double Vector::Min() const
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
-      return occa::linalg::min<double,double>(OccaMemoryRead(data, size));
+      return occa::array<double>(OccaMemoryRead(data, size)).min();
    }
 #endif
 
