@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
@@ -24,13 +24,69 @@ CCC = $(CC) $(CCOPTS)
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
-SOURCE_FILES = $(SRC)unit_test_main.cpp $(sort $(wildcard $(SRC)*/*.cpp))
-HEADER_FILES = $(SRC)catch.hpp
+SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
+CEED_SOURCE_FILES = $(sort $(wildcard $(SRC)ceed/*.cpp))
+MINI_SOURCE_FILES = $(sort $(wildcard $(SRC)miniapps/*.cpp))
+SOURCE_FILES := $(filter-out \
+   $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES), $(SOURCE_FILES))
+HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
-SEQ_UNIT_TESTS = unit_tests
-PAR_UNIT_TESTS =
+SEQ_MAIN_OBJ = unit_test_main.o
+PAR_MAIN_OBJ = punit_test_main.o
+CUDA_MAIN_OBJ = cunit_test_main.o
+PCUDA_MAIN_OBJ = pcunit_test_main.o
+
+# Sedov numerical seq/par files and tests
+SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
+
+USE_CUDA := $(MFEM_USE_CUDA:NO=)
+SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
+SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda)
+SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda_uvm)
+PAR_SEDOV_TESTS = $(SEQ_SEDOV_TESTS:%=p%)
+
+SEQ_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
+SEQ_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
+SEQ_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.o))
+SEQ_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+
+PAR_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu.o)
+PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
+PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
+PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
+
+# TMOP numerical seq/par files and tests
+TMOP_FILES = $(SRC)miniapps/test_tmop_pa.cpp
+
+SEQ_TMOP_TESTS = tmop_pa_tests_cpu tmop_pa_tests_debug
+SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_pa_tests_cuda)
+# SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda_uvm)
+PAR_TMOP_TESTS = ptmop_pa_tests_cpu
+PAR_TMOP_TESTS += $(if $(USE_CUDA),ptmop_pa_tests_cuda)
+
+SEQ_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.cpu.o)
+SEQ_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.debug.o)
+SEQ_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda.o))
+SEQ_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+
+PAR_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pcpu.o)
+PAR_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pdebug.o)
+PAR_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda.o))
+PAR_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
+
+# seq/par files and tests
+SEQ_UNIT_TESTS = unit_tests $(if $(USE_CUDA),cunit_tests)
+SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
+PAR_UNIT_TESTS = punit_tests $(if $(USE_CUDA),pcunit_tests)
+PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
+
+# Ceed tests
+USE_CEED := $(MFEM_USE_CEED:NO=)
+CEED_OBJ = $(CEED_SOURCE_FILES:$(SRC)%.cpp=%.o)
+SEQ_UNIT_TESTS += $(if $(USE_CEED),ceed_tests)
+
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
 else
@@ -43,14 +99,113 @@ all: $(UNIT_TESTS)
 .SUFFIXES: .cpp .o
 .PHONY: all clean
 
-unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OBJ): %.o: $(SRC)%.cpp \
+ $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) -o $(@)
+	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+
+$(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
+	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+
+# Template rule for devices
+# SEDOV Template rule for devices
+# 1: postfix of 'sedov_tests_', 2: prefix of '_OBJECT_FILES',
+# 3: configuration string for the MFEM device, separated with '$(comma)'
+comma=,
+define sedov_tests
+sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_DEVICE='"$(3)"'
+sedov_tests_$(1): unit_test_main.o $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call sedov_tests,cpu,CPU,cpu))
+$(eval $(call sedov_tests,debug,DEBUG,debug))
+$(eval $(call sedov_tests,cuda,CUDA,cuda))
+$(eval $(call sedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+define psedov_tests
+psedov_tests_$(1): SEDOV_TESTS_FLAGS =-DMFEM_SEDOV_MPI
+psedov_tests_$(1): SEDOV_TESTS_FLAGS+=-DMFEM_SEDOV_DEVICE='"$(3)"'
+psedov_tests_$(1): punit_test_main.o $$(PAR_SEDOV_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(PAR_SEDOV_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call psedov_tests,cpu,CPU,cpu))
+$(eval $(call psedov_tests,debug,DEBUG,debug))
+$(eval $(call psedov_tests,cuda,CUDA,cuda))
+$(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+# For out-of-source builds, copy the meshes in ../../miniapps/meshing from the
+# source location; these are used by the TMOP tests.
+.PHONY: copy-miniapps-meshing-data
+copy-miniapps-meshing-data:
+	$(MAKE) -C ../../miniapps/meshing copy-data
+
+# TMOP Template rule for devices
+# 1: postfix of 'tmop_tests_', 2: prefix of '_OBJECT_FILES',
+# 3: configuration string for the MFEM device, separated with '$(comma)'
+define tmop_pa_tests
+tmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
+tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_DEVICE='"$(3)"'
+tmop_pa_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(TMOP_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call tmop_pa_tests,cpu,CPU,cpu))
+$(eval $(call tmop_pa_tests,debug,DEBUG,debug))
+$(eval $(call tmop_pa_tests,cuda,CUDA,cuda))
+# $(eval $(call tmop_pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+define ptmop_pa_tests
+ptmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
+ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
+ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_DEVICE='"$(3)"'
+ptmop_pa_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(PAR_TMOP_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(TMOP_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call ptmop_pa_tests,cpu,CPU,cpu))
+#$(eval $(call ptmop_pa_tests,debug,DEBUG,debug))
+$(eval $(call ptmop_pa_tests,cuda,CUDA,cuda))
+#$(eval $(call ptmop_pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
@@ -62,6 +217,19 @@ include $(MFEM_TEST_MK)
 %-test-seq: %
 	@$(call mfem-test,$<,, Unit tests,,SKIP-NO-VIS)
 
+ceed_tests-test-seq: ceed_tests
+	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu,SKIP-NO-VIS)
+ifeq ($(MFEM_USE_CUDA),YES)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),--device ceed-cuda:/gpu/cuda/ref,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen,SKIP-NO-VIS)
+endif
+
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,,SKIP-NO-VIS)
+
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
@@ -69,3 +237,4 @@ $(MFEM_LIB_FILE):
 clean:
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
 	rm -rf *.dSYM output_meshes
+

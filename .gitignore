@@ -26,9 +26,12 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
+doc/undoc.log
+doc/warnings.log
 
 # Temporary files created by the tests.
 *.stderr
@@ -42,8 +45,8 @@ doc/CodeDocumentation
 
 # Example and miniapp binaries and outputs
 
-examples/ex[1-9]
-examples/ex[1-9]p
+examples/ex[0-9]
+examples/ex[0-9]p
 examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
@@ -54,7 +57,7 @@ examples/displaced.mesh
 examples/mesh.*
 examples/ex5.mesh
 examples/Example5*
-examples/PVExample*
+examples/ParaView
 examples/Example9*
 examples/Example15*
 examples/Example16*
@@ -64,6 +67,7 @@ examples/sol_u.*
 examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
+examples/ex6p-checkpoint.*
 examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
@@ -72,6 +76,10 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/ex5-p-*.bp
+examples/ex9-p-*.bp
+examples/ex12-p-*.bp
+examples/ex16-p-*.bp
 examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
@@ -89,12 +97,66 @@ examples/gnuplot_ex20p.inp
 examples/ex21*.mesh
 examples/ex21*.sol
 examples/ex21p_*.*
+examples/ex23-*.gf
+examples/ex23*.mesh
+examples/Example23*
+examples/ex25.mesh
+examples/ex25-*.gf
+examples/ex25p-*.*
+examples/ex28_*
+examples/ex28p_*
+examples/flux.*
+
+examples/amgx/ex1
+examples/amgx/ex1p
+examples/amgx/.logamgx
+examples/amgx/refined.mesh
+examples/amgx/sol.gf
+examples/amgx/mesh.*
+examples/amgx/sol.*
+
+examples/gingko/ex1
+examples/gingko/refined.mesh
+examples/gingko/sol.gf
+examples/gingko/mesh.*
+examples/gingko/sol.*
+
+examples/hiop/ex9
+examples/hiop/ex9p
+examples/hiop/ex9.mesh
+examples/hiop/ex9-mesh.*
+examples/hiop/ex9-init.*
+examples/hiop/ex9-final.*
+
+examples/petsc/ex[1-69]p
+examples/petsc/ex1[0-1]p
+examples/petsc/mesh.*
+examples/petsc/sol.*
+examples/petsc/sol_p.*
+examples/petsc/sol_u.*
+examples/petsc/Example5*
+examples/petsc/ex9.mesh
+examples/petsc/ex9-mesh.*
+examples/petsc/ex9-init.*
+examples/petsc/ex9-final.*
+examples/petsc/Example9*
+examples/petsc/deformed.*
+examples/petsc/velocity.*
+examples/petsc/elastic_energy.*
+examples/petsc/mode_*
+
+examples/pumi/ex1
+examples/pumi/ex[126]p
+examples/pumi/refined.mesh
+examples/pumi/sol.gf
+examples/pumi/mesh.*
+examples/pumi/sol.*
+examples/pumi/displaced.mesh
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
 examples/sundials/ex9p
 examples/sundials/ex1[06]p
-
 examples/sundials/ex9.mesh
 examples/sundials/ex9-mesh.*
 examples/sundials/ex9-init.*
@@ -109,72 +171,87 @@ examples/sundials/ex16-init.*
 examples/sundials/ex16-final.*
 examples/sundials/Example16*
 
-examples/petsc/ex[1-69]p
-examples/petsc/ex10p
+examples/superlu/ex1p
+examples/superlu/mesh.*
+examples/superlu/sol.*
 
-examples/petsc/mesh.*
-examples/petsc/sol.*
-examples/petsc/sol_p.*
-examples/petsc/sol_u.*
-examples/petsc/Example5*
-examples/petsc/ex9.mesh
-examples/petsc/ex9-mesh.*
-examples/petsc/ex9-init.*
-examples/petsc/ex9-final.*
-examples/petsc/Example9*
-examples/petsc/deformed.*
-examples/petsc/velocity.*
-examples/petsc/elastic_energy.*
-
-examples/pumi/ex1
-examples/pumi/ex[126]p
-
-examples/hiop/ex9.mesh
-examples/hiop/ex9-mesh.*
-examples/hiop/ex9-init.*
-examples/hiop/ex9-final.*
-
-examples/pumi/refined.mesh
-examples/pumi/sol.gf
-examples/pumi/mesh.*
-examples/pumi/sol.*
-examples/pumi/displaced.mesh
+miniapps/adjoint/cvsRoberts_ASAi_dns
+miniapps/adjoint/adjoint_advection_diffusion
 
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
 miniapps/electromagnetics/maxwell
 miniapps/electromagnetics/joule
-
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
 miniapps/electromagnetics/Maxwell-Parallel*
 miniapps/electromagnetics/Joule_*
 
+miniapps/gslib/field-diff
+miniapps/gslib/field-interp
+miniapps/gslib/findpts
+miniapps/gslib/pfindpts
+
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
 miniapps/meshing/toroid
+miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
+miniapps/meshing/trimmer
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
-
+miniapps/meshing/minimal-surface
+miniapps/meshing/pminimal-surface
+miniapps/meshing/polar-nc
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
+miniapps/meshing/twist-*.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
+miniapps/meshing/trimmer.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
+miniapps/meshing/polar-nc.mesh
+
+miniapps/mtop/parheat
+miniapps/mtop/ParHeat*
+miniapps/mtop/seqheat
+miniapps/mtop/SeqHeat*
+
+miniapps/navier/navier_mms
+miniapps/navier/navier_kovasznay
+miniapps/navier/navier_kovasznay_vs
+miniapps/navier/navier_tgv
+miniapps/navier/navier_shear
+miniapps/navier/navier_3dfoc
+miniapps/navier/tgv_out*.txt
+miniapps/navier/*_output
+
+miniapps/nurbs/nurbs_ex1
+miniapps/nurbs/nurbs_ex1p
+miniapps/nurbs/nurbs_ex11p
+miniapps/nurbs/refined.mesh
+miniapps/nurbs/mesh.*
+miniapps/nurbs/sol.*
+miniapps/nurbs/mode_*
+miniapps/nurbs/Example1*
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
-
 miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
+
+miniapps/shifted/distance
+miniapps/shifted/ParaViewDistance
+miniapps/shifted/diffusion
+miniapps/shifted/diffusion.mesh
+miniapps/shifted/diffusion.gf
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
@@ -189,7 +266,6 @@ miniapps/toys/rubik
 miniapps/toys/snake
 miniapps/toys/lissajous
 miniapps/toys/mondrian
-
 miniapps/toys/snake-init.mesh
 miniapps/toys/snake-user.mesh
 miniapps/toys/snake-joined.mesh
@@ -204,22 +280,36 @@ miniapps/toys/lissajous.mesh
 miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
-miniapps/nurbs/nurbs_ex1
-miniapps/nurbs/nurbs_ex1p
-miniapps/nurbs/nurbs_ex11p
-miniapps/nurbs/refined.mesh
-miniapps/nurbs/mesh.*
-miniapps/nurbs/sol.*
-miniapps/nurbs/mode_*
-miniapps/nurbs/Example1*
-
-miniapps/gslib/field-diff
-miniapps/gslib/findpts
-miniapps/gslib/pfindpts
+miniapps/solvers/block-solvers
+miniapps/solvers/lor_solvers
+miniapps/solvers/plor_solvers
+miniapps/solvers/ParaView
+miniapps/solvers/mesh.*
+miniapps/solvers/sol.*
 
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
+tests/unit/punit_tests
+tests/unit/sedov_tests_*
+tests/unit/psedov_tests_*
+tests/unit/tmop_pa_tests_*
+tests/unit/ptmop_pa_tests_*
+tests/unit/ceed_tests
+
+# Test script output
+tests/scripts/*.err
+tests/scripts/*.out
+tests/scripts/*.msg
+
+# Other tests
+tests/convergence/rates
+tests/convergence/prates
+tests/par-mesh-format/ex1p
 
 # VPATH builds
 build-*/*
+
+# PETSc automated build
+petsc-build/*
+pkg.gitcommit

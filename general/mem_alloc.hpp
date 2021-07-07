@@ -1,19 +1,19 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MEM_ALLOC
 #define MFEM_MEM_ALLOC
 
 #include "../config/config.hpp"
-#include <cstddef>
+#include "array.hpp" // mfem::Swap
 
 namespace mfem
 {
@@ -33,11 +33,21 @@ private:
    StackPart <Elem, Num> *TopPart, *TopFreePart;
    int UsedInTop, SSize;
 public:
+   /// Construct an empty stack.
    Stack() { TopPart = TopFreePart = NULL; UsedInTop = Num; SSize = 0; }
+   /// Return the number of elements on the stack.
    int Size() const { return SSize; }
+   /// Push element 'E' on the stack.
    void Push (Elem E);
+   /// Pop an element off the stack and return it.
    Elem Pop();
+   /// Clear the elements off the stack.
    void Clear();
+
+   /// Swap the data in this stack with the data in @a other.
+   void Swap(Stack<Elem, Num> &other);
+
+   /// Return the number of bytes used by the stack.
    size_t MemoryUsage() const;
    ~Stack() { Clear(); }
 };
@@ -98,6 +108,15 @@ void Stack <Elem, Num>::Clear()
 }
 
 template <class Elem, int Num>
+void Stack<Elem, Num>::Swap(Stack<Elem, Num> &other)
+{
+   mfem::Swap(TopPart, other.TopPart);
+   mfem::Swap(TopFreePart, other.TopFreePart);
+   mfem::Swap(UsedInTop, other.UsedInTop);
+   mfem::Swap(SSize, other.SSize);
+}
+
+template <class Elem, int Num>
 size_t Stack <Elem, Num>::MemoryUsage() const
 {
    size_t used_mem = 0;
@@ -138,6 +157,7 @@ public:
    Elem *Alloc();
    void Free (Elem *);
    void Clear();
+   void Swap(MemAlloc<Elem, Num> &other);
    size_t MemoryUsage() const;
    ~MemAlloc() { Clear(); }
 };
@@ -178,6 +198,14 @@ void MemAlloc <Elem, Num>::Clear()
    }
    AllocatedInLast = Num;
    UsedMem.Clear();
+}
+
+template <class Elem, int Num>
+void MemAlloc<Elem, Num>::Swap(MemAlloc<Elem, Num> &other)
+{
+   mfem::Swap(Last, other.Last);
+   mfem::Swap(AllocatedInLast, other.AllocatedInLast);
+   UsedMem.Swap(other.UsedMem);
 }
 
 template <class Elem, int Num>

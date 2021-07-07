@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HASH
 #define MFEM_HASH
@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "array.hpp"
 #include "globals.hpp"
+#include <type_traits>
 
 namespace mfem
 {
@@ -77,7 +78,7 @@ public:
    HashTable(const HashTable& other); // deep copy
    ~HashTable();
 
-   /// Get item whose parents are p1, p2... Create it if it doesn't exist.
+   /// Get item whose parents are 'p1', 'p2'... Create it if it doesn't exist.
    T* Get(int p1, int p2);
    T* Get(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
 
@@ -116,6 +117,15 @@ public:
    /// Remove all items.
    void DeleteAll();
 
+   /// Allocate an item at 'id'. Enlarge the underlying BlockArray if necessary.
+   /** This is a special purpose method used when loading data from a file.
+       Does nothing if the slot 'id' has already been allocated. */
+   void Alloc(int id, int p1, int p2);
+
+   /// Reinitialize the internal list of unallocated items.
+   /** This is a special purpose method used when loading data from a file. */
+   void UpdateUnused();
+
    /// Make an item hashed under different parent IDs.
    void Reparent(int id, int new_p1, int new_p2);
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
@@ -123,6 +133,7 @@ public:
    /// Return total size of allocated memory (tables plus items), in bytes.
    long MemoryUsage() const;
 
+   /// Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
 
    class iterator : public Base::iterator
@@ -202,6 +213,84 @@ protected:
 };
 
 
+/// Hash function for data sequences.
+/** Depends on GnuTLS for SHA-256 hashing. */
+class HashFunction
+{
+protected:
+   void *hash_data;
+
+   /// Add a sequence of bytes for hashing
+   void HashBuffer(const void *buffer, size_t num_bytes);
+
+   /// Integer encoding method; result is independent of endianness and type
+   template <typename int_type_const_iter>
+   HashFunction &EncodeAndHashInts(int_type_const_iter begin,
+                                   int_type_const_iter end);
+
+   /// Double encoding method: encode in little-endian byte-order
+   template <typename double_const_iter>
+   HashFunction &EncodeAndHashDoubles(double_const_iter begin,
+                                      double_const_iter end);
+
+public:
+   /// Default constructor: initialize the hash function
+   HashFunction();
+
+   /// Destructor
+   ~HashFunction();
+
+   /// Add a sequence of bytes for hashing
+   HashFunction &AppendBytes(const void *seq, size_t num_bytes)
+   { HashBuffer(seq, num_bytes); return *this; }
+
+   /// Add a sequence of integers for hashing, given as a c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness and type: int, long, unsigned, etc. */
+   template <typename int_type>
+   HashFunction &AppendInts(const int_type *ints, size_t num_ints)
+   { return EncodeAndHashInts(ints, ints + num_ints); }
+
+   /// Add a sequence of integers for hashing, given as a fixed-size c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness and type: int, long, unsigned, etc. */
+   template <typename int_type, size_t num_ints>
+   HashFunction &AppendInts(const int_type (&ints)[num_ints])
+   { return EncodeAndHashInts(ints, ints + num_ints); }
+
+   /// Add a sequence of integers for hashing, given as a container.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness and type: int, long, unsigned, etc. */
+   template <typename int_type_container>
+   HashFunction &AppendInts(const int_type_container &ints)
+   { return EncodeAndHashInts(ints.begin(), ints.end()); }
+
+   /// Add a sequence of doubles for hashing, given as a c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness. */
+   HashFunction &AppendDoubles(const double *doubles, size_t num_doubles)
+   { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
+
+   /// Add a sequence of doubles for hashing, given as a fixed-size c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness. */
+   template <size_t num_doubles>
+   HashFunction &AppendDoubles(const double (&doubles)[num_doubles])
+   { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
+
+   /// Add a sequence of doubles for hashing, given as a container.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness. */
+   template <typename double_container>
+   HashFunction &AppendDoubles(const double_container &doubles)
+   { return EncodeAndHashDoubles(doubles.begin(), doubles.end()); }
+
+   /** @brief Return the hash string for the current sequence and reset (clear)
+       the sequence. */
+   std::string GetHash() const;
+};
+
+
 // implementation
 
 template<typename T>
@@ -212,7 +301,10 @@ HashTable<T>::HashTable(int block_size, int init_hash_size)
    MFEM_VERIFY(!(init_hash_size & mask), "init_size must be a power of two.");
 
    table = new int[init_hash_size];
-   for (int i = 0; i < init_hash_size; i++) { table[i] = -1; }
+   for (int i = 0; i < init_hash_size; i++)
+   {
+      table[i] = -1;
+   }
 }
 
 template<typename T>
@@ -483,6 +575,36 @@ void HashTable<T>::DeleteAll()
 }
 
 template<typename T>
+void HashTable<T>::Alloc(int id, int p1, int p2)
+{
+   // enlarge the BlockArray to hold 'id'
+   while (id >= Base::Size())
+   {
+      Base::At(Base::Append()).next = -2; // append "unused" items
+   }
+
+   T& item = Base::At(id);
+   if (item.next == -2)
+   {
+      item.next = -1;
+      item.p1 = p1;
+      item.p2 = p2;
+
+      Insert(Hash(p1, p2), id, item);
+   }
+}
+
+template<typename T>
+void HashTable<T>::UpdateUnused()
+{
+   unused.DeleteAll();
+   for (int i = 0; i < Base::Size(); i++)
+   {
+      if (Base::At(i).next == -2) { unused.Append(i); }
+   }
+}
+
+template<typename T>
 void HashTable<T>::Reparent(int id, int new_p1, int new_p2)
 {
    T& item = Base::At(id);
@@ -525,6 +647,93 @@ void HashTable<T>::PrintMemoryDetail() const
 {
    mfem::out << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int)
              << " + " << unused.MemoryUsage();
+}
+
+
+template <typename int_type_const_iter>
+HashFunction &HashFunction::EncodeAndHashInts(int_type_const_iter begin,
+                                              int_type_const_iter end)
+{
+   // For hashing, an integer k is encoded as follows:
+   // * 1 byte = sign_bit(k) + num_bytes(k), where
+   //   - sign_bit(k) = (k >= 0) ? 0 : 128
+   //   - num_bytes(k) = minimum number of bytes needed to represent abs(k)
+   //     with the convention that num_bytes(0) = 0.
+   // * num_bytes(k) bytes = the bytes of abs(k), starting with the least
+   //   significant byte.
+
+   static_assert(
+      std::is_integral<
+      /**/ typename std::remove_reference<decltype(*begin)>::type
+      /**/ >::value,
+      "invalid iterator type");
+
+   // Skip encoding if hashing is not available:
+   if (hash_data == nullptr) { return *this; }
+
+   constexpr int max_buffer_bytes = 64*1024;
+   unsigned char buffer[max_buffer_bytes];
+   int buffer_counter = 0;
+   while (begin != end)
+   {
+      int byte_counter = 0;
+      auto k = *begin;
+      buffer[buffer_counter] = (k >= 0) ? 0 : (k = -k, 128);
+      while (k != 0)
+      {
+         byte_counter++;
+         buffer[buffer_counter + byte_counter] = (unsigned char)(k % 256);
+         k /= 256; // (k >>= 8) results in error, e.g. for 'char'
+      }
+      buffer[buffer_counter] |= byte_counter;
+      buffer_counter += (byte_counter + 1);
+
+      ++begin;
+
+      if (begin == end ||
+          buffer_counter + (1 + sizeof(*begin)) > max_buffer_bytes)
+      {
+         HashBuffer(buffer, buffer_counter);
+         buffer_counter = 0;
+      }
+   }
+   return *this;
+}
+
+template <typename double_const_iter>
+HashFunction &HashFunction::EncodeAndHashDoubles(double_const_iter begin,
+                                                 double_const_iter end)
+{
+   // For hashing, a double is encoded in little endian byte-order.
+
+   static_assert(
+      std::is_same<decltype(*begin), const double &>::value,
+      "invalid iterator type");
+
+   // Skip encoding if hashing is not available:
+   if (hash_data == nullptr) { return *this; }
+
+   constexpr int max_buffer_bytes = 64*1024;
+   unsigned char buffer[max_buffer_bytes];
+   int buffer_counter = 0;
+   while (begin != end)
+   {
+      auto k = reinterpret_cast<const uint64_t &>(*begin);
+      for (int i = 0; i != 7; i++)
+      {
+         buffer[buffer_counter++] = (unsigned char)(k & 255); k >>= 8;
+      }
+      buffer[buffer_counter++] = (unsigned char)k;
+
+      ++begin;
+
+      if (begin == end || buffer_counter + 8 > max_buffer_bytes)
+      {
+         HashBuffer(buffer, buffer_counter);
+         buffer_counter = 0;
+      }
+   }
+   return *this;
 }
 
 } // namespace mfem

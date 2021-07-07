@@ -1,13 +1,13 @@
-// Copyright (c) 2019, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
@@ -164,9 +164,9 @@ static void PADivergenceApply2D(const int NE,
                                 const Array<double> &b,
                                 const Array<double> &g,
                                 const Array<double> &bt,
-                                const Vector &_op,
-                                const Vector &_x,
-                                Vector &_y,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_,
                                 const int tr_d1d = 0,
                                 const int te_d1d = 0,
                                 const int q1d = 0)
@@ -180,9 +180,9 @@ static void PADivergenceApply2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 2,2, NE);
-   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, 2, NE);
-   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
+   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, 2, NE);
+   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -282,12 +282,12 @@ static void PADivergenceApply2D(const int NE,
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
          const int T_NBZ = 0>
 static void SmemPADivergenceApply2D(const int NE,
-                                    const Array<double> &_b,
-                                    const Array<double> &_g,
-                                    const Array<double> &_bt,
-                                    const Vector &_op,
-                                    const Vector &_x,
-                                    Vector &_y,
+                                    const Array<double> &b_,
+                                    const Array<double> &g_,
+                                    const Array<double> &bt_,
+                                    const Vector &op_,
+                                    const Vector &x_,
+                                    Vector &y_,
                                     const int tr_d1d = 0,
                                     const int te_d1d = 0,
                                     const int q1d = 0)
@@ -302,9 +302,9 @@ static void PADivergenceApplyTranspose2D(const int NE,
                                          const Array<double> &bt,
                                          const Array<double> &gt,
                                          const Array<double> &b,
-                                         const Vector &_op,
-                                         const Vector &_x,
-                                         Vector &_y,
+                                         const Vector &op_,
+                                         const Vector &x_,
+                                         Vector &y_,
                                          const int tr_d1d = 0,
                                          const int te_d1d = 0,
                                          const int q1d = 0)
@@ -318,9 +318,9 @@ static void PADivergenceApplyTranspose2D(const int NE,
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
    auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
    auto B  = Reshape(b.Read(), Q1D, TE_D1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 2,2, NE);
-   auto x  = Reshape(_x.Read(), TE_D1D, TE_D1D, NE);
-   auto y  = Reshape(_y.ReadWrite(), TR_D1D, TR_D1D, 2, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
+   auto x  = Reshape(x_.Read(), TE_D1D, TE_D1D, NE);
+   auto y  = Reshape(y_.ReadWrite(), TR_D1D, TR_D1D, 2, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -418,9 +418,9 @@ static void PADivergenceApply3D(const int NE,
                                 const Array<double> &b,
                                 const Array<double> &g,
                                 const Array<double> &bt,
-                                const Vector &_op,
-                                const Vector &_x,
-                                Vector &_y,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_,
                                 int tr_d1d = 0,
                                 int te_d1d = 0,
                                 int q1d = 0)
@@ -434,9 +434,9 @@ static void PADivergenceApply3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 3,3, NE);
-   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
-   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
+   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
+   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -601,9 +601,9 @@ static void PADivergenceApplyTranspose3D(const int NE,
                                          const Array<double> &bt,
                                          const Array<double> &gt,
                                          const Array<double> &b,
-                                         const Vector &_op,
-                                         const Vector &_x,
-                                         Vector &_y,
+                                         const Vector &op_,
+                                         const Vector &x_,
+                                         Vector &y_,
                                          int tr_d1d = 0,
                                          int te_d1d = 0,
                                          int q1d = 0)
@@ -617,9 +617,9 @@ static void PADivergenceApplyTranspose3D(const int NE,
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
    auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
    auto B  = Reshape(b.Read(), Q1D, TE_D1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 3,3, NE);
-   auto x  = Reshape(_x.Read(), TE_D1D, TE_D1D, TE_D1D, NE);
-   auto y  = Reshape(_y.ReadWrite(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
+   auto x  = Reshape(x_.Read(), TE_D1D, TE_D1D, TE_D1D, NE);
+   auto y  = Reshape(y_.ReadWrite(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_CONFIG_HEADER
 #define MFEM_CONFIG_HEADER
@@ -49,8 +49,8 @@
 // Throw an exception on errors.
 // #define MFEM_USE_EXCEPTIONS
 
-// Enable gzstream in MFEM.
-// #define MFEM_USE_GZSTREAM
+// Enable zlib in MFEM.
+// #define MFEM_USE_ZLIB
 
 // Enable backtraces for mfem_error through libunwind.
 // #define MFEM_USE_LIBUNWIND
@@ -93,21 +93,29 @@
 
 // Enable MFEM functionality based on the SuperLU library.
 // #define MFEM_USE_SUPERLU
+// #define MFEM_USE_SUPERLU5
+
+// Enable MFEM functionality based on the MUMPS library.
+// #define MFEM_USE_MUMPS
+// #define MFEM_MUMPS_VERSION @MFEM_MUMPS_VERSION@
 
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
-// Enable functionality based on the Gecko library
-// #define MFEM_USE_GECKO
-
 // Enable MFEM features based on the Ginkgo library
 // #define MFEM_USE_GINKGO
+
+// Enable MFEM functionality based on the AmgX library.
+// #define MFEM_USE_AMGX
 
 // Enable secure socket streams based on the GNUTLS library
 // #define MFEM_USE_GNUTLS
 
 // Enable Sidre support
 // #define MFEM_USE_SIDRE
+
+// Enable the use of SIMD in the high performance templated classes
+// #define MFEM_USE_SIMD
 
 // Enable Conduit support
 // #define MFEM_USE_CONDUIT
@@ -117,6 +125,9 @@
 
 // Enable functionality based on the PETSc library
 // #define MFEM_USE_PETSC
+
+// Enable functionality based on the SLEPc library
+// #define MFEM_USE_SLEPC
 
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR
@@ -147,11 +158,23 @@
 // Enable functionality based on the libCEED library.
 // #define MFEM_USE_CEED
 
+// Enable functionality based on the Caliper library.
+// #define MFEM_USE_CALIPER
+
+// Enable functionality based on the Umpire library.
+// #define MFEM_USE_UMPIRE
+
+// Enable IO functionality based on the ADIOS2 library.
+// #define MFEM_USE_ADIOS2
+
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
 
 // Macro defined when PUMI is built with support for the Simmetrix SimModSuite
 // library.
 // #define MFEM_USE_SIMMETRIX
+
+// Enable interface to the MKL CPardiso library.
+// #define MFEM_USE_MKL_CPARDISO
 
 #endif // MFEM_CONFIG_HEADER

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //       --------------------------------------------------------------
 //       LOR Transfer Miniapp:  Map functions between HO and LOR spaces
@@ -18,10 +18,12 @@
 // low-order refined (LOR) finite element space, typically defined by 0th or 1st
 // order functions on a low-order refinement of the HO mesh.
 //
-// Two main operators are illustrated:
+// The grid transfer operators are represented using either
+// InterpolationGridTransfer or L2ProjectionGridTransfer (depending on the
+// options requested by the user). The two transfer operators are then:
 //
-//  1. R: HO -> LOR, defined by FiniteElementSpace::GetTransferOperator
-//  2. P: LOR -> HO, defined by FiniteElementSpace::GetReverseTransferOperator
+//  1. R: HO -> LOR, defined by GridTransfer::ForwardOperator
+//  2. P: LOR -> HO, defined by GridTransfer::BackwardOperator
 //
 // While defined generally, these operators have some nice properties for
 // particular finite element spaces. For example they satisfy PR=I, plus mass
@@ -33,6 +35,7 @@
 //               lor-transfer -h1
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
+//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
 //               lor-transfer -lref 4 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 3 -p 2
@@ -66,12 +69,12 @@ int main(int argc, char *argv[])
 {
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 4;
-   int lref = order;
+   int order = 3;
+   int lref = order+1;
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
-   bool use_transfer = false;
+   bool use_pointwise_transfer = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -89,8 +92,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&useH1, "-h1", "--use-h1", "-l2", "--use-l2",
                   "Use H1 spaces instead of L2.");
-   args.AddOption(&use_transfer, "-t", "--use-pointwise-transfer", "-no-t",
-                  "--dont-use-pointwise-transfer",
+   args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
+                  "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
    args.Parse();
    if (!args.Good())
@@ -106,7 +109,7 @@ int main(int argc, char *argv[])
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
-   Mesh mesh_lor(&mesh, lref, basis_lor);
+   Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -118,13 +121,13 @@ int main(int argc, char *argv[])
          lorder = 1;
          cerr << "Switching the H1 LOR space order from 0 to 1\n";
       }
-      fec = new H1_FECollection(order-1, dim);
+      fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
    }
    else
    {
       space = "L2";
-      fec = new L2_FECollection(order-1, dim);
+      fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
    }
 
@@ -140,6 +143,15 @@ int main(int argc, char *argv[])
    VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
+   BilinearForm M_ho(&fespace);
+   M_ho.AddDomainIntegrator(new MassIntegrator);
+   M_ho.Assemble();
+   M_ho.Finalize();
+
+   BilinearForm M_lor(&fespace_lor);
+   M_lor.AddDomainIntegrator(new MassIntegrator);
+   M_lor.Assemble();
+   M_lor.Finalize();
 
    // HO projections
    direction = "HO -> LOR @ HO";
@@ -149,7 +161,7 @@ int main(int argc, char *argv[])
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
    GridTransfer *gt;
-   if (use_transfer)
+   if (use_pointwise_transfer)
    {
       gt = new InterpolationGridTransfer(fespace, fespace_lor);
    }
@@ -175,7 +187,20 @@ int main(int argc, char *argv[])
 
    rho_prev -= rho;
    cout.precision(12);
-   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl << endl;
+   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+
+   // HO* to LOR* dual fields
+   GridFunction ones(&fespace), ones_lor(&fespace_lor);
+   ones = 1.0;
+   ones_lor = 1.0;
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   if (!use_pointwise_transfer)
+   {
+      M_ho.Mult(rho, M_rho);
+      P.MultTranspose(M_rho, M_rho_lor);
+      cout << "HO -> LOR dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
+           << endl << endl;
+   }
 
    // LOR projections
    direction = "LOR -> HO @ LOR";
@@ -200,6 +225,15 @@ int main(int argc, char *argv[])
    rho_lor_prev -= rho_lor;
    cout.precision(12);
    cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+
+   // LOR* to HO* dual fields
+   if (!use_pointwise_transfer)
+   {
+      M_lor.Mult(rho_lor, M_rho_lor);
+      R.MultTranspose(M_rho_lor, M_rho);
+      cout << "LOR -> HO dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
+           << '\n';
+   }
 
    delete fec;
    delete fec_lor;

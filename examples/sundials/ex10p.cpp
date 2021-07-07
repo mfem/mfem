@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // check for vaild ODE solver option
+   // check for valid ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 17)
    {
       if (myid == 0)
@@ -365,7 +365,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
 
-   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of velocity/deformation unknowns: " << glob_size << endl;
@@ -721,12 +721,14 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    if (nls_type == KINSOL)
    {
-      KINSolver *kinsolver = new KINSolver(f.GetComm(), KIN_NONE, true);
+      KINSolver *kinsolver = new KINSolver(f.GetComm(), KIN_LINESEARCH, true);
+      kinsolver->SetJFNK(true);
+      kinsolver->SetLSMaxIter(100);
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
       newton_solver->SetRelTol(rel_tol);
-      newton_solver->SetPrintLevel(0);
+      newton_solver->SetPrintLevel(1);
       kinsolver->SetMaxSetupCalls(4);
    }
    else

@@ -1,13 +1,13 @@
-// Copyright (c) 2019, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
@@ -25,7 +25,7 @@ namespace mfem
    \b Q1D number of quadrature points in one dimension.
    \b w quadrature weights.
    \b j element Jacobians.
-   \b COEFF coefficient at quadrature points.
+   \b c coefficient at quadrature points.
 
    The function is used precompute data needed at quadrature points during
    the action. */
@@ -74,13 +74,17 @@ static void PAGradientSetup2D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              const double COEFF,
+                              const Vector &c,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
+
+   const bool const_c = c.Size() == 1;
+   const auto C = const_c ? Reshape(c.Read(), 1,1) :
+                  Reshape(c.Read(), NQ, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -91,10 +95,11 @@ static void PAGradientSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J22 = J(q,1,1,e);
          // Store wq * Q * adj(J)
-         y(q,0,0,e) = W[q] * COEFF *  J22; // 1,1
-         y(q,0,1,e) = W[q] * COEFF * -J12; // 1,2
-         y(q,1,0,e) = W[q] * COEFF * -J21; // 2,1
-         y(q,1,1,e) = W[q] * COEFF *  J11; // 2,2
+         const double Co = const_c ? C(0,0) : C(q,e);
+         y(q,0,0,e) = W[q] * Co *  J22; // 1,1
+         y(q,0,1,e) = W[q] * Co * -J12; // 1,2
+         y(q,1,0,e) = W[q] * Co * -J21; // 2,1
+         y(q,1,1,e) = W[q] * Co *  J11; // 2,2
       }
    });
 }
@@ -104,17 +109,24 @@ static void PAGradientSetup3D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
-                              const double COEFF,
+                              const Vector &c,
                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
+
+   const bool const_c = c.Size() == 1;
+   const auto C = const_c ? Reshape(c.Read(), 1,1) :
+                  Reshape(c.Read(), NQ,NE);
+
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
+         const double Co = const_c ? C(0,0) : C(q,e);
+
          const double J11 = J(q,0,0,e);
          const double J21 = J(q,1,0,e);
          const double J31 = J(q,2,0,e);
@@ -124,7 +136,7 @@ static void PAGradientSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         const double cw  = W[q] * COEFF;
+         const double cw  = W[q] * Co;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -156,7 +168,7 @@ static void PAGradientSetup(const int dim,
                             const int NE,
                             const Array<double> &W,
                             const Vector &J,
-                            const double COEFF,
+                            const Vector &COEFF,
                             Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAGradientSetup"); }
@@ -196,13 +208,46 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_ASSERT(quad1D == test_maps->nqpt,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
-   double coeff = 1.0;
-   if (Q)
+
+   Vector coeff;
+
+   if (Q == nullptr)
    {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      coeff = cQ->constant;
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == ne*nq,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+   }
+   else
+   {
+      coeff.SetSize(nq * ne);
+      auto C = Reshape(coeff.HostWrite(), nq, ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *trial_fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            C(q,e) = Q->Eval(T, ir->IntPoint(q));
+         }
+      }
+   }
+
    PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                    ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
@@ -213,9 +258,9 @@ static void PAGradientApply2D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
                               const Array<double> &bt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               const int tr_d1d = 0,
                               const int te_d1d = 0,
                               const int q1d = 0)
@@ -229,9 +274,9 @@ static void PAGradientApply2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 2,2, NE);
-   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, 2, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
+   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, 2, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -326,15 +371,15 @@ static void PAGradientApplyTranspose2D(const int NE,
                                        const Array<double> &bt,
                                        const Array<double> &gt,
                                        const Array<double> &b,
-                                       const Vector &_op,
-                                       const Vector &_x,
-                                       Vector &_y,
+                                       const Vector &op_,
+                                       const Vector &x_,
+                                       Vector &y_,
                                        const int tr_d1d = 0,
                                        const int te_d1d = 0,
                                        const int q1d = 0)
 {
    // TODO
-   MFEM_ASSERT(false, "GradientPAApplyTranspose 3D not implemented.");
+   MFEM_ASSERT(false, "PAGradientApplyTranspose2D not implemented.");
 }
 
 // PA Gradient Apply 3D kernel
@@ -343,9 +388,9 @@ static void PAGradientApply3D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
                               const Array<double> &bt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               int tr_d1d = 0,
                               int te_d1d = 0,
                               int q1d = 0)
@@ -359,9 +404,9 @@ static void PAGradientApply3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 3,3, NE);
-   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, TR_D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
+   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 3, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -522,9 +567,9 @@ static void PAGradientApplyTranspose3D(const int NE,
                                        const Array<double> &bt,
                                        const Array<double> &gt,
                                        const Array<double> &b,
-                                       const Vector &_op,
-                                       const Vector &_x,
-                                       Vector &_y,
+                                       const Vector &op_,
+                                       const Vector &x_,
+                                       Vector &y_,
                                        int tr_d1d = 0,
                                        int te_d1d = 0,
                                        int q1d = 0)

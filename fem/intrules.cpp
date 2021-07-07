@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of IntegrationRule(s) classes
 
@@ -34,6 +34,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
    nx = irx.GetNPoints();
    ny = iry.GetNPoints();
    SetSize(nx * ny);
+   SetPointIndices();
 
    for (j = 0; j < ny; j++)
    {
@@ -48,8 +49,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
          ip.weight = ipx.weight * ipy.weight;
       }
    }
-
-   SetPointIndices();
 }
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
@@ -59,6 +58,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    const int ny = iry.GetNPoints();
    const int nz = irz.GetNPoints();
    SetSize(nx*ny*nz);
+   SetPointIndices();
 
    for (int iz = 0; iz < nz; ++iz)
    {
@@ -78,8 +78,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
          }
       }
    }
-
-   SetPointIndices();
 }
 
 const Array<double> &IntegrationRule::GetWeights() const
@@ -125,6 +123,7 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    }
    np /= f;
    SetSize(np);
+   SetPointIndices();
 
    int pt = 0;
    for (int i = 0; i <= s; i++)
@@ -375,6 +374,7 @@ public:
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    switch (np)
    {
@@ -477,6 +477,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
    */
 
    ir->SetSize(np);
+   ir->SetPointIndices();
    if ( np == 1 )
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -576,6 +577,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 void QuadratureFunctions1D::OpenUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    // The Newton-Cotes quadrature is based on weights that integrate exactly the
    // interpolatory polynomial through the equally spaced quadrature points.
@@ -591,6 +593,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
                                           IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
    if ( np == 1 ) // allow this case as "closed"
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -608,6 +611,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
 void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    // Open half points: the centers of np uniform intervals
    for (int i = 0; i < np ; ++i)
@@ -616,6 +620,27 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
    }
 
    CalculateUniformWeights(ir, Quadrature1D::OpenHalfUniform);
+}
+
+void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
+{
+   ir->SetSize(np);
+   ir->SetPointIndices();
+   ir->IntPoint(0).x = 0.0;
+   ir->IntPoint(np-1).x = 1.0;
+
+   if ( np > 2 )
+   {
+      IntegrationRule gl_ir;
+      GaussLegendre(np-1, &gl_ir);
+
+      for (int i = 1; i < np-1; ++i)
+      {
+         ir->IntPoint(i).x = (gl_ir.IntPoint(i-1).x + gl_ir.IntPoint(i).x)/2;
+      }
+   }
+
+   CalculateUniformWeights(ir, Quadrature1D::ClosedGL);
 }
 
 void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
@@ -648,6 +673,11 @@ void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
       case Quadrature1D::OpenHalfUniform:
       {
          OpenHalfUniform(np, &ir);
+         break;
+      }
+      case Quadrature1D::ClosedGL:
+      {
+         ClosedGL(np, &ir);
          break;
       }
       default:
@@ -853,8 +883,8 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
-IntegrationRules::IntegrationRules(int Ref, int _type):
-   quad_type(_type)
+IntegrationRules::IntegrationRules(int Ref, int type_):
+   quad_type(type_)
 {
    refined = Ref;
 
@@ -862,27 +892,28 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
    own_rules = 1;
 
-   PointIntRules.SetSize(2);
+   const MemoryType h_mt = MemoryType::HOST;
+   PointIntRules.SetSize(2, h_mt);
    PointIntRules = NULL;
 
-   SegmentIntRules.SetSize(32);
+   SegmentIntRules.SetSize(32, h_mt);
    SegmentIntRules = NULL;
 
    // TriangleIntegrationRule() assumes that this size is >= 26
-   TriangleIntRules.SetSize(32);
+   TriangleIntRules.SetSize(32, h_mt);
    TriangleIntRules = NULL;
 
-   SquareIntRules.SetSize(32);
+   SquareIntRules.SetSize(32, h_mt);
    SquareIntRules = NULL;
 
    // TetrahedronIntegrationRule() assumes that this size is >= 10
-   TetrahedronIntRules.SetSize(32);
+   TetrahedronIntRules.SetSize(32, h_mt);
    TetrahedronIntRules = NULL;
 
-   PrismIntRules.SetSize(32);
+   PrismIntRules.SetSize(32, h_mt);
    PrismIntRules = NULL;
 
-   CubeIntRules.SetSize(32);
+   CubeIntRules.SetSize(32, h_mt);
    CubeIntRules = NULL;
 }
 
@@ -1054,35 +1085,35 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
       {
          // Gauss-Legendre is exact for 2*n-1
          n = Order/2 + 1;
-         quad_func.GaussLegendre(n, ir);
+         QuadratureFunctions1D::GaussLegendre(n, ir);
          break;
       }
       case Quadrature1D::GaussLobatto:
       {
          // Gauss-Lobatto is exact for 2*n-3
          n = Order/2 + 2;
-         quad_func.GaussLobatto(n, ir);
+         QuadratureFunctions1D::GaussLobatto(n, ir);
          break;
       }
       case Quadrature1D::OpenUniform:
       {
          // Open Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.OpenUniform(n, ir);
+         QuadratureFunctions1D::OpenUniform(n, ir);
          break;
       }
       case Quadrature1D::ClosedUniform:
       {
          // Closed Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.ClosedUniform(n, ir);
+         QuadratureFunctions1D::ClosedUniform(n, ir);
          break;
       }
       case Quadrature1D::OpenHalfUniform:
       {
          // Open half Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.OpenHalfUniform(n, ir);
+         QuadratureFunctions1D::OpenHalfUniform(n, ir);
          break;
       }
       default:

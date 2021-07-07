@@ -1,15 +1,15 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-#include "hip.hpp"
+#include "backends.hpp"
 #include "globals.hpp"
 
 namespace mfem
@@ -46,6 +46,36 @@ void* HipMemAlloc(void** dptr, size_t bytes)
    return *dptr;
 }
 
+void* HipMallocManaged(void** dptr, size_t bytes)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMallocManaged(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipMallocManaged(dptr, bytes));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done: " << *dptr << std::endl;
+#endif
+#endif
+   return *dptr;
+}
+
+void* HipMemAllocHostPinned(void** ptr, size_t bytes)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemAllocHostPinned(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipHostMalloc(ptr, bytes, hipHostMallocDefault));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done: " << *ptr << std::endl;
+#endif
+#endif
+   return *ptr;
+}
+
 void* HipMemFree(void *dptr)
 {
 #ifdef MFEM_USE_HIP
@@ -59,6 +89,21 @@ void* HipMemFree(void *dptr)
 #endif
 #endif
    return dptr;
+}
+
+void* HipMemFreeHostPinned(void *ptr)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemFreeHostPinned(): deallocating memory @ " << ptr << " ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipHostFree(ptr));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done." << std::endl;
+#endif
+#endif
+   return ptr;
 }
 
 void* HipMemcpyHtoD(void* dst, const void* src, size_t bytes)
@@ -110,7 +155,7 @@ void* HipMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 void* HipMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_HIP
-#ifdef MFEM_TRACK_HPI_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "HipMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
@@ -128,6 +173,22 @@ void* HipMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
    MFEM_GPU_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToHost));
 #endif
    return dst;
+}
+
+void HipCheckLastError()
+{
+#ifdef MFEM_USE_HIP
+   MFEM_GPU_CHECK(hipGetLastError());
+#endif
+}
+
+int HipGetDeviceCount()
+{
+   int num_gpus = -1;
+#ifdef MFEM_USE_HIP
+   MFEM_GPU_CHECK(hipGetDeviceCount(&num_gpus));
+#endif
+   return num_gpus;
 }
 
 } // namespace mfem

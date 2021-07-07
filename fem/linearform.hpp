@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_LINEARFORM
 #define MFEM_LINEARFORM
@@ -19,19 +19,24 @@
 namespace mfem
 {
 
-/// Class for linear form - Vector with associated FE space and LFIntegrators.
+/// Vector with associated FE space and LinearFormIntegrators.
 class LinearForm : public Vector
 {
 protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
 
-   /** @brief Indicates the LinerFormIntegrator%s stored in #dlfi, #dlfi_delta,
+   /** @brief Indicates the LinearFormIntegrator%s stored in #dlfi, #dlfi_delta,
        #blfi, and #flfi are owned by another LinearForm. */
    int extern_lfs;
 
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> dlfi;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>           dlfi_marker;
 
    /// Separate array for integrators with delta function coefficients.
    Array<DeltaLFIntegrator*> dlfi_delta;
@@ -43,6 +48,9 @@ protected:
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker; ///< Entries are not owned.
+
+   /// Set of Internal Face Integrators to be applied.
+   Array<LinearFormIntegrator*> iflfi;
 
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
@@ -94,13 +102,13 @@ public:
        have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    LinearForm &operator=(const LinearForm &rhs)
    { return operator=((const Vector &)rhs); }
 
    /// (DEPRECATED) Return the FE space associated with the LinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Read+write access to the associated FiniteElementSpace.
    FiniteElementSpace *FESpace() { return fes; }
@@ -109,6 +117,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a lfi.
    void AddDomainIntegrator(LinearFormIntegrator *lfi);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a lfi.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi);
@@ -131,6 +143,9 @@ public:
        internally as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
+
+   /// Adds new Interior Face Integrator. Assumes ownership of @a lfi.
+   void AddInteriorFaceIntegrator(LinearFormIntegrator *lfi);
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
@@ -159,7 +174,7 @@ public:
    void AssembleDelta();
 
    /// Update the object according to the associated FE space #fes.
-   /** This method should be called when the asscociated FE space #fes has been
+   /** This method should be called when the associated FE space #fes has been
        updated, e.g. after its associated Mesh object has been refined.
 
        @note This method does not perform assembly. */
@@ -174,6 +189,16 @@ public:
 
        @note This method does not perform assembly. */
    void Update(FiniteElementSpace *f, Vector &v, int v_offset);
+
+   /** @brief Make the LinearForm reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the LinearForm
+       @a *f and sets the data of the Vector @a v (plus the @a v_offset) as
+       external data in the LinearForm.
+
+       @note This version of the method will also perform bounds checks when the
+       build option MFEM_DEBUG is enabled. */
+   virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
 
    /// Return the action of the LinearForm as a linear mapping.
    /** Linear forms are linear functionals which map GridFunctions to

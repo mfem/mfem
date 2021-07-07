@@ -1,9 +1,9 @@
-//            MFEM Example 9 with Nonlinear Constrained Optimization
+//                                MFEM Example 9
+//               Nonlinear Constrained Optimization Modification
 //
 // Compile with: make ex9
 //
 // Sample runs:
-//
 //    ex9 -m ../../data/periodic-segment.mesh -r 3 -p 0 -o 2 -dt 0.002 -opt 1
 //    ex9 -m ../../data/periodic-segment.mesh -r 3 -p 0 -o 2 -dt 0.002 -opt 2
 //
@@ -51,6 +51,10 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+
+#ifndef MFEM_USE_HIOP
+#error This example requires that MFEM is built with MFEM_USE_HIOP=YES
+#endif
 
 using namespace std;
 using namespace mfem;
@@ -100,7 +104,7 @@ public:
    }
 };
 
-/// Nonlinear monotone bounded operator to test nonlinear ineq constraints.
+/// Nonlinear monotone bounded operator to test nonlinear inequality constraints
 /// Computes D(x) = tanh(sum(x_i)).
 class TanhSumOperator : public Operator
 {
@@ -124,7 +128,7 @@ public:
    }
 };
 
-/** Monotone and conservative a-posteriori correction for transport solutions:
+/** Monotone and conservative a posteriori correction for transport solutions:
  *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
  *  sum w_i x_i = mass,
  *  tanh(sum(x_i_min)) <= tanh(sum(x_i)) <= tanh(sum(x_i_max)),
@@ -197,11 +201,11 @@ private:
    Vector &M_rowsums;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
-                BilinearForm &_bf, Vector &M_rs);
+   FE_Evolution(SparseMatrix &M_, SparseMatrix &K_, const Vector &b_,
+                BilinearForm &bf_, Vector &M_rs);
 
-   void SetTimeStep(double _dt) { dt = _dt; }
-   void SetK(SparseMatrix &_K) { K = _K; }
+   void SetTimeStep(double dt_) { dt = dt_; }
+   void SetK(SparseMatrix &K_) { K = K_; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
@@ -212,7 +216,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   optimizer_type = 1;
+   optimizer_type = 2;
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
@@ -470,11 +474,11 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K,
-                           const Vector &_b, BilinearForm &_bf, Vector &M_rs)
-   : TimeDependentOperator(_M.Size()),
-     M(_M), K(_K), b(_b), M_prec(), M_solver(), z(_M.Size()),
-     bf(_bf), M_rowsums(M_rs)
+FE_Evolution::FE_Evolution(SparseMatrix &M_, SparseMatrix &K_,
+                           const Vector &b_, BilinearForm &bf_, Vector &M_rs)
+   : TimeDependentOperator(M_.Size()),
+     M(M_), K(K_), b(b_), M_prec(), M_solver(), z(M_.Size()),
+     bf(bf_), M_rowsums(M_rs)
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);

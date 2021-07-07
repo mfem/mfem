@@ -1,19 +1,20 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SPARSEMAT_HPP
 #define MFEM_SPARSEMAT_HPP
 
 // Data types for sparse matrix
 
+#include "../general/backends.hpp"
 #include "../general/mem_alloc.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
@@ -80,9 +81,36 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
+   bool useCuSparse{true}; // Use cuSPARSE if available
+
+   // Initialize cuSPARSE
+   void InitCuSparse();
+
+#ifdef MFEM_USE_CUDA
+   cusparseStatus_t status;
+   static cusparseHandle_t handle;
+   cusparseMatDescr_t descr=0;
+   static int SparseMatrixCount;
+   static size_t bufferSize;
+   static void *dBuffer;
+   mutable bool initBuffers{false};
+#if CUDA_VERSION >= 10010
+   mutable cusparseSpMatDescr_t matA_descr;
+   mutable cusparseDnVecDescr_t vecX_descr;
+   mutable cusparseDnVecDescr_t vecY_descr;
+#else
+   mutable cusparseMatDescr_t matA_descr;
+#endif
+#endif
+
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix()
+   {
+      SetEmpty();
+
+      InitCuSparse();
+   }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -112,12 +140,19 @@ public:
    /// Copy constructor (deep copy).
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
-       ownership. */
-   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
+       ownership.
+       If @a mt is MemoryType::PRESERVE the memory type of the resulting
+       SparseMatrix's #I, #J, and #A arrays will be the same as @a mat,
+       otherwise the type will be @a mt for those arrays that are deep
+       copied. */
+   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true,
+                MemoryType mt = MemoryType::PRESERVE);
 
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
+   // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
+   void UseCuSparse(bool useCuSparse_ = true) { useCuSparse = useCuSparse_;}
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -133,6 +168,10 @@ public:
 
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
+
+   /** @brief Clear the CuSparse descriptors.
+       This must be called after releasing the device memory of A. */
+   void ClearCuSparse();
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
@@ -259,7 +298,10 @@ public:
    void ToDenseMatrix(DenseMatrix & B) const;
 
    virtual MemoryClass GetMemoryClass() const
-   { return Finalized() ? Device::GetMemoryClass() : MemoryClass::HOST; }
+   {
+      return Finalized() ?
+             Device::GetDeviceMemoryClass() : Device::GetHostMemoryClass();
+   }
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -305,15 +347,21 @@ public:
 
    /// y = A * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMult(const Array<int> &x, Array<int> &y) const;
 
    /// y = At * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
+
+   /// y = |A| * x, using entry-wise absolute values of matrix A
+   void AbsMult(const Vector &x, Vector &y) const;
+
+   /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const;
@@ -478,6 +526,12 @@ public:
    void SetSubMatrixTranspose(const Array<int> &rows, const Array<int> &cols,
                               const DenseMatrix &subm, int skip_zeros = 1);
 
+   /** Insert the DenseMatrix into this SparseMatrix at the specified rows and
+       columns. If \c skip_zeros==0 , all entries from the DenseMatrix are
+       added including zeros. If \c skip_zeros==2 , no zeros are added to the
+       SparseMatrix regardless of their position in the matrix. Otherwise, the
+       default \c skip_zeros behavior is to omit the zero from the SparseMatrix
+       unless it would break the symmetric structure of the SparseMatrix. */
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
 
@@ -531,7 +585,7 @@ public:
    /// Prints a sparse matrix to stream out in CSR format.
    void PrintCSR2(std::ostream &out) const;
 
-   /// Print various sparse matrix staticstics.
+   /// Print various sparse matrix statistics.
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix
@@ -570,10 +624,39 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix() { Destroy(); }
+   virtual ~SparseMatrix()
+   {
+      Destroy();
+#ifdef MFEM_USE_CUDA
+      if (useCuSparse)
+      {
+         if (SparseMatrixCount==1)
+         {
+            if (handle)
+            {
+               cusparseDestroy(handle);
+               handle = nullptr;
+            }
+            if (dBuffer)
+            {
+               CuMemFree(dBuffer);
+               dBuffer = nullptr;
+               bufferSize = 0;
+            }
+         }
+         SparseMatrixCount--;
+      }
+#endif
+   }
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
+
+inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
+{
+   mat.Print(os);
+   return os;
+}
 
 /// Applies f() to each element of the matrix (after it is finalized).
 void SparseMatrixFunction(SparseMatrix &S, double (*f)(double));

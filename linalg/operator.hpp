@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_OPERATOR
 #define MFEM_OPERATOR
@@ -37,12 +37,21 @@ protected:
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
 
-   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
+   /// Defines operator diagonal policy upon elimination of rows and/or columns.
+   enum DiagonalPolicy
+   {
+      DIAG_ZERO, ///< Set the diagonal value to zero
+      DIAG_ONE,  ///< Set the diagonal value to one
+      DIAG_KEEP  ///< Keep the diagonal value
+   };
+
    /// Initializes memory for true vectors of linear system
-   void InitTVectors(const Operator *Po, const Operator *Ri,
+   void InitTVectors(const Operator *Po, const Operator *Ri, const Operator *Pi,
                      Vector &x, Vector &b,
                      Vector &X, Vector &B) const;
 
@@ -92,6 +101,15 @@ public:
       return const_cast<Operator &>(*this);
    }
 
+   /** @brief Computes the diagonal entries into @a diag. Typically, this
+       operation only makes sense for linear Operator%s. In some cases, only an
+       approximation of the diagonal is computed. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      MFEM_CONTRACT_VAR(diag);
+      MFEM_ABORT("Not relevant or not implemented for this Operator.");
+   }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
@@ -104,6 +122,11 @@ public:
    {
       return GetProlongation(); // Assume square unless specialized
    }
+   /** @brief Transpose of GetOutputRestriction, directly available in this
+       form to facilitate matrix-free RAP-type operators.
+
+       `NULL` means identity. */
+   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
@@ -251,7 +274,7 @@ public:
 };
 
 
-/// Base abstract class for time dependent operators.
+/// Base abstract class for first order time dependent operators.
 /** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
     algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
     _implicit_ and _explicit_ parts of the operator, respectively. For explicit
@@ -300,7 +323,7 @@ public:
    virtual double GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double _t) { t = _t; }
+   virtual void SetTime(const double t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -442,6 +465,185 @@ public:
    virtual ~TimeDependentOperator() { }
 };
 
+
+/** TimeDependentAdjointOperator is a TimeDependentOperator with Adjoint rate
+    equations to be used with CVODESSolver. */
+class TimeDependentAdjointOperator : public TimeDependentOperator
+{
+public:
+
+   /**
+      \brief The TimedependentAdjointOperator extends the TimeDependentOperator
+      class to use features in SUNDIALS CVODESSolver for computing quadratures
+      and solving adjoint problems.
+
+      To solve adjoint problems one needs to implement the AdjointRateMult
+      method to tell CVODES what the adjoint rate equation is.
+
+      QuadratureIntegration (optional) can be used to compute values over the
+      forward problem
+
+      QuadratureSensitivityMult (optional) can be used to find the sensitivity
+      of the quadrature using the adjoint solution in part.
+
+      SUNImplicitSetupB (optional) can be used to setup custom solvers for the
+      newton solve for the adjoint problem.
+
+      SUNImplicitSolveB (optional) actually uses the solvers from
+      SUNImplicitSetupB to solve the adjoint problem.
+
+      See SUNDIALS user manuals for specifics.
+
+      \param[in] dim Dimension of the forward operator
+      \param[in] adjdim Dimension of the adjoint operator. Typically it is the
+      same size as dim. However, SUNDIALS allows users to specify the size if
+      one wants to perform custom operations.
+      \param[in] t Starting time to set
+      \param[in] type The TimeDependentOperator type
+   */
+   TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
+                                Type type = EXPLICIT) :
+      TimeDependentOperator(dim, t, type),
+      adjoint_height(adjdim)
+   {}
+
+   /// Destructor
+   virtual ~TimeDependentAdjointOperator() {};
+
+   /**
+      \brief Provide the operator integration of a quadrature equation
+
+      \param[in] y The current value at time t
+      \param[out] qdot The current quadrature rate value at t
+   */
+   virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const {};
+
+   /** @brief Perform the action of the operator:
+       @a yBdot = k = f(@a y,@2 yB, t), where
+
+       @param[in] y The primal solution at time t
+       @param[in] yB The adjoint solution at time t
+       @param[out] yBdot the rate at time t
+   */
+   virtual void AdjointRateMult(const Vector &y, Vector & yB,
+                                Vector &yBdot) const = 0;
+
+   /**
+      \brief Provides the sensitivity of the quadrature w.r.t to primal and
+      adjoint solutions
+
+      \param[in] y the value of the primal solution at time t
+      \param[in] yB the value of the adjoint solution at time t
+      \param[out] qBdot the value of the sensitivity of the quadrature rate at
+      time t
+   */
+   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
+                                          Vector &qBdot) const {}
+
+   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
+       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+
+       @param[in]  t     The current time
+       @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
+       @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
+       @param[in]  fxB   The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  jokB   Flag indicating if the Jacobian should be updated.
+       @param[out] jcurB  Flag to signal if the Jacobian was updated.
+       @param[in]  gammaB The scaled time step value.
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ODE solvers, for more details,
+       see the SUNDIALS User Guides.
+   */
+   virtual int SUNImplicitSetupB(const double t, const Vector &x,
+                                 const Vector &xB, const Vector &fxB,
+                                 int jokB, int *jcurB, double gammaB)
+   {
+      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
+                 "overridden!");
+      return (-1);
+   }
+
+   /** @brief Solve the ODE linear system \f$ A(x,xB,t) xB = b \f$ as setup by
+       the method SUNImplicitSetup().
+
+       @param[in]      b   The linear system right-hand side.
+       @param[in,out]  x   On input, the initial guess. On output, the solution.
+       @param[in]      tol Linear solve tolerance.
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ODE solvers, for more details,
+       see the SUNDIALS User Guides. */
+   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
+   {
+      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
+                 "overridden!");
+      return (-1);
+   }
+
+   /// Returns the size of the adjoint problem state space
+   int GetAdjointHeight() {return adjoint_height;}
+
+protected:
+   int adjoint_height; /// Size of the adjoint problem
+};
+
+
+/// Base abstract class for second order time dependent operators.
+/** Operator of the form: (x,dxdt,t) -> f(x,dxdt,t), where k = f(x,dxdt,t)
+    generally solves the algebraic equation F(x,dxdt,k,t) = G(x,dxdt,t).
+    The functions F and G represent the_implicit_ and _explicit_ parts of
+    the operator, respectively. For explicit operators,
+    F(x,dxdt,k,t) = k, so f(x,dxdt,t) = G(x,dxdt,t). */
+class SecondOrderTimeDependentOperator : public TimeDependentOperator
+{
+public:
+   /** @brief Construct a "square" SecondOrderTimeDependentOperator
+       y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
+   explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
+                                             Type type_ = EXPLICIT)
+      : TimeDependentOperator(n, t_,type_) { }
+
+   /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,dxdt,t),
+       where x, dxdt and y have the same dimension @a n. */
+   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0,
+                                    Type type_ = EXPLICIT)
+      : TimeDependentOperator(h, w, t_,type_) { }
+
+   using TimeDependentOperator::Mult;
+
+   /** @brief Perform the action of the operator: @a y = k = f(@a x,@ dxdt, t),
+       where k solves the algebraic equation
+       F(@a x,@ dxdt, k, t) = G(@a x,@ dxdt, t) and t is the current time. */
+   virtual void Mult(const Vector &x, const Vector &dxdt, Vector &y) const;
+
+   using TimeDependentOperator::ImplicitSolve;
+   /** @brief Solve the equation:
+       @a k = f(@a x + @a fac0 @a k, @a dxdt + @a fac1 @a k, t), for the
+       unknown @a k at the current time t.
+
+       For general F and G, the equation for @a k becomes:
+       F(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t)
+                        = G(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t).
+
+       The input vectors @a x and @a dxdt corresponds to time index (or cycle) n, while the
+       currently set time, #t, and the result vector @a k correspond to time
+       index n+1.
+
+       This method allows for the abstract implementation of some time
+       integration methods.
+
+       If not re-implemented, this method simply generates an error. */
+   virtual void ImplicitSolve(const double fac0, const double fac1,
+                              const Vector &x, const Vector &dxdt, Vector &k);
+
+
+   virtual ~SecondOrderTimeDependentOperator() { }
+};
+
+
 /// Base class for solvers
 class Solver : public Operator
 {
@@ -571,6 +773,23 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Approximate diagonal of the RAP Operator.
+   /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
+       multiplied be P^T.
+
+       When P is the FE space prolongation operator on a mesh without hanging
+       nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
+       of A is also exact. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      A.AssembleDiagonal(APx);
+      P.MultTranspose(APx, diag);
+
+      // TODO: For an AMR mesh, a convergent diagonal can be assembled with
+      // |P^T| APx, where |P^T| has entry-wise absolute values of the conforming
+      // prolongation transpose operator. See BilinearForm::AssembleDiagonal.
+   }
+
    /// Application of the transpose.
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
@@ -608,7 +827,10 @@ public:
 
     Square operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormLinearSystem. */
+    general, matrix-free system formulation of Operator::FormLinearSystem.
+
+    Do not confuse with ConstrainedSolver, which despite the name has very
+    different functionality. */
 class ConstrainedOperator : public Operator
 {
 protected:
@@ -617,19 +839,29 @@ protected:
    bool own_A;                  ///< Ownership flag for A.
    mutable Vector z, w;         ///< Auxiliary vectors.
    MemoryClass mem_class;
+   DiagonalPolicy diag_policy;  ///< Diagonal policy for constrained dofs
 
 public:
    /** @brief Constructor from a general Operator and a list of essential
        indices/dofs.
 
        Specify the unconstrained operator @a *A and a @a list of indices to
-       constrain, i.e. each entry @a list[i] represents an essential-dof. If the
+       constrain, i.e. each entry @a list[i] represents an essential dof. If the
        ownership flag @a own_A is true, the operator @a *A will be destroyed
-       when this object is destroyed. */
-   ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false);
+       when this object is destroyed. The @a diag_policy determines how the
+       operator sets entries corresponding to essential dofs. */
+   ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false,
+                       DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.
    virtual MemoryClass GetMemoryClass() const { return mem_class; }
+
+   /// Set the diagonal policy for the constrained operator.
+   void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
+   { diag_policy = diag_policy_; }
+
+   /// Diagonal of A, modified according to the used DiagonalPolicy.
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -705,7 +937,41 @@ public:
        where the "_i" subscripts denote all the nonessential (boundary) trial
        indices and the "_j" subscript denotes the essential test indices */
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
+};
+
+/** @brief PowerMethod helper class to estimate the largest eigenvalue of an
+           operator using the iterative power method. */
+class PowerMethod
+{
+   Vector v1;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+
+public:
+
+#ifdef MFEM_USE_MPI
+   PowerMethod() : comm(MPI_COMM_NULL) {}
+#else
+   PowerMethod() {}
+#endif
+
+#ifdef MFEM_USE_MPI
+   PowerMethod(MPI_Comm comm_) : comm(comm_) {}
+#endif
+
+   /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr
+   /// using the iterative power method.
+   /** \p v0 is being used as the vector for the iterative process and will contain
+       the eigenvector corresponding to the largest eigenvalue after convergence.
+       The maximum number of iterations may set with \p numSteps, the relative
+       tolerance with \p tolerance and the seed of the random initialization of
+       \p v0 with \p seed. If \p seed is 0 \p v0 will not be random-initialized. */
+   double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                    int numSteps = 10, double tolerance = 1e-8,
+                                    int seed = 12345);
 };
 
 }

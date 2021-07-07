@@ -5,23 +5,540 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 
-Version 4.0.1 (development)
+Version 4.2.1 (development)
 ===========================
+- Added initial support for GPU-accelerated versions of PETSc that works with
+  MFEM_USE_CUDA if PETSc has been configured with CUDA support. Examples 1 and 9
+  in the examples/petsc directory have been modified to work with --device cuda.
+  Examples with GAMG (ex1p) and SLEPc (ex11p) are also provided.
 
-Improved GPU support
+- Memory management:
+  * Added method Device::SetMemoryTypes that can be used to change the default
+    host and device MemoryTypes before Device setup.
+  * In class MemoryManager, added methods GetDualMemoryType and
+    SetDualMemoryType; dual MemoryTypes are used to determine the second
+    MemoryType (host or device) when only one MemoryType is specified in methods
+    of class Memory.
+  * Added Memory constructor for setting both the host and device MemoryTypes.
+  * Switched the default behavior of device memory allocations so that they
+    are deferred until the device pointer is needed.
+  * Added a second Umpire device MemoryType, DEVICE_UMPIRE_2, with
+    corresponding allocator that can be set with the method
+    MemoryManager::SetUmpireDevice2AllocatorName.
+  * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
+
+- Added support for Caliper: a library to integrate performance profiling
+  capabilities into applications. See examples/caliper for more details.
+
+- Added support for explicit vectorization in the high-performance templated
+  code for Fujitsu's A64FX ARM microprocessor architecture.
+
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
+
+- Introduced new options for the mesh-explorer miniapp to visualize the actual
+  element attributes in parallel meshes while retaining the visualization of
+  the domain decomposition.
+
+- Introduced solver interface for linear problems with constraints, a few
+  concrete solvers that implement the interface, and a demonstration of their
+  use in Example 28(p), which solves an elasticity problem with zero normal
+  displacement (but allowed tangential displacement) on two boundaries.
+
+- Added high-order matrix-free auxiliary Maxwell solver for H(curl) problems,
+  as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348). See
+  Example 3p and linalg/auxiliary.?pp.
+
+- Added a new miniapp block-solvers that compares the performance of various
+  solvers for mixed finite element discretization of the second order scalar
+  elliptic equations. Currently available solvers in the miniapp include a
+  block-diagonal preconditioner that is based on approximate Schur complement
+  (implemented in ex5p), and a newly implemented solver DivFreeSolver, which
+  exploits a multilevel decomposition of the Raviart-Thomas space and its
+  divergence-free subspace. See the miniapps/solvers directory for more details.
+
+- Added a new miniapp for computing (signed) distance functions to a point
+  source or zero level set. See miniapps/shifted/distance.cpp.
+
+- Added matrix-free GPU-enabled implementations of GradientInterpolator and
+  IdentityInterpolator.
+
+- Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
+  See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
+
+- Added three ESDIRK time integrators: implicit trapezoid rule, L-stable
+  ESDIRK-32, and A-stable ESDIRK-33.
+
+- Introduced a new non-conforming mesh format that fixes known inconsistencies
+  of legacy "MFEM mesh v1.1" NC format and works consistently in both serial and
+  parallel. ParMesh::ParPrint can now print non-conforming AMR meshes that can
+  be used to restart a parallel AMR computation. Example 6p has been extended to
+  demonstrate restarting from a previously saved checkpoint. Note that parallel
+  NC data files are compatible with serial code, e.g., can be viewed with serial
+  GLVis. Loading of legacy NC mesh files is still supported.
+
+- Added support for 1D non-conforming meshes (which can be useful for parallel
+  load balancing and derefinement).
+
+- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
+  help identify elements with poor mesh quality.
+
+- Added support for the "BR2" discontinuous Galerkin discretization for
+  diffusion via DGDiffusionBR2Integrator (see Example 14/14p).
+
+- Generalized the Multigrid class to support non-geometric multigrid. The
+  previous functionality, based on FiniteElementSpaceHierarchy, is now available
+  in the derived class GeometricMultigrid.
+
+- Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
+
+- The TMOP mesh optimization algorithms were extended to GPU:
+   - QualityMetric #1, #2, #7 and #77 are available in 2D, #302, #303, #315
+     and #321 in 3D
+   - Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
+   - Kernels for normalization and limiting have been added
+   - The AdvectorCG now also supports AssemblyLevel::PARTIAL
+
+- Added a new command line boolean option (`--all`) to the unit tests to launch
+  *all* non-regression tests.
+
+- Added support for different modes of QuadratureInterpolator on GPU.
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
+  be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  Determinants methods.
+
+- Implemented a filter method for the Navier miniapp to stabilize highly
+  turbulent flows in direct numerical simulation.
+
+- Added HIP support to the CMake build system.
+
+- Added support for reading high-order Lagrange meshes in VTK format. Arbitrary-
+  orders and all element types are supported. See the VTK blog for more info:
+  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf.
+
+- Added support for reading VTK meshes in XML format.
+
+- Added partial assembly and device support to Example 25/25p, with diagonal
+  preconditioning.
+
+- Implemented a variable step-size IMEX (VSSIMEX) method for the Navier miniapp.
+
+- Added new mesh quality metrics and improved the untangling capabilities of the
+  TMOP-based mesh optimization algorithms.
+
+- Added convective and skew-symmetric integrators for the nonlinear term in the
+  Navier-Stokes equations.
+
+- Added new miniapp directory mtop/ with optimization-oriented block parametric
+  non-linear form and abstract integrators. Two new miniapps, ParHeat and
+  SeqHeat, demonstrate parallel and sequential implementation of gradients
+  evaluation for linear diffusion with discrete density.
+
+- Changed the interface for the error estimator.
+
+- Implemented the Kelly error indicator for scalar-valued problems, supported
+  in serial and parallel builds.
+
+- Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
+  efficient evaluation of symmetric matrix coefficients. This replaces the now
+  deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
+  for clarity, which is a typedef of VectorCoefficient.
+
+- Added support for AMG preconditioners for non-symmetric systems (e.g.
+  advection-dominated problems) using hypre's approximate ideal restriction
+  (AIR) AMG. Requires hypre version 2.14.0 or newer. Usage is illustrated in
+  example 9/9p.
+
+- Implemented an adaptive linear solver tolerance option for NewtonSolver based
+  on the algorithm of Eisenstat and Walker.
+
+- Added support for nonscalar coefficient with VectorDiffusionIntegrator.
+
+- Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
+  linear interpolators and GridFunction "GetValue" methods.
+
+- Variable order spaces, p- and hp-refinement. This is the initial (serial)
+  support for variable-order FiniteElementCollection and FiniteElementSpace.
+  The new method FiniteElementSpace::SetElementOrder can be called to set an
+  arbitrary order for each mesh element. The conforming interpolation matrix
+  will now automatically constrain p- and hp- interfaces, enabling general
+  hp-refinement in both 2D and 3D, on uniform or mixed NC meshes. Support for
+  parallel variable-order spaces will follow shortly.
+
+- Added support for creating refined meshes for all element types (e.g. by
+  splitting high-order elements into low-order refined elements), including
+  mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
+  supports meshes with any element geometry.
+
+- Testing improvements:
+  * Transitioned from Travis to GitHub Action for testing/CI on GitHub.
+  * Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
+  * Added a set of suggested git hooks for developers in config/githooks.
+
+- Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
+  see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
+  see navier/cht. Note that gslib v1.0.7 is require (see INSTALL for details).
+
+- Added a new, very simple example (ex0 and parallel version ex0p). This
+  example solves a simple Poisson problem using H1 elements (the same problem as
+  ex1), but is intended to be extremely simple and approachable for new users.
+
+- Meshes consisting of any type of elements (including mixed meshes) can be
+  converted to all-simplex meshes using Mesh::MakeSimplicial.
+
+- Several of the mesh constructors (creating Cartesian meshes, refined (LOR)
+  meshes, simplex meshes, etc.) are now available as "named constructors", e.g.
+  Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
+  as deprecated.
+
+- Added support for creating periodic meshes with Mesh::MakePeriodic. The
+  requisite periodic vertex mappings can be created with
+  Mesh::CreatePeriodicVertexMapping.
+
+- Added support for transferring dual fields between high-order and low-order
+  refined finite element spaces using the transposed versions of the
+  L2ProjectionGridTransfer operators. This functionality is illustrated in the
+  lor-transfer miniapp.
+
+- Improved interface for using the Ginkgo library, including: support for matrix-
+  free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
+  support, and reduction of unnecessary data copies.
+
+- Added initial support for hypre's mixed integer (mixedint) capability, which
+  uses different data types for local and global indices in order to save memory
+  in large problems. This capability requires that hypre was configured with the
+  --enable-mixedint option. Note that this option is currently tested only in
+  ex1p and may not work in more general settings.
+
+- Added support for transferring fields (primary and dual) between high-order
+  and low-order refined H1 finite element spaces using the
+  L2ProjectionH1GridTransfer operators. This functionality is demonstrated
+  through the lor-transfer miniapp when run with the -h1 option.
+
+- Added new functionality for constructing low-order refined discretizations and
+  solvers, see the LORDiscretization and LORSolver classes. A new basis type for
+  H(curl) and H(div) spaces is introduced to give spectral equivalence. This
+  functionality is illustrated in the LOR solvers miniapp in miniapps/solvers.
+
+- Added sample meshes in the `data` subdirectory showing the reference elements
+  of the six currently supported element types; ref-segment.mesh,
+  ref-triangle.mesh, ref-square.mesh, ref-tetrahedron.mesh, ref-cube.mesh, and
+  ref-prism.mesh.
+
+- Added a high-order extension of the shifted boundary method to solve PDEs on
+  non body-fitted meshes. This is illustrated in the new Shifted Diffusion
+  miniapp, see miniapps/shifted/diffusion.cpp.
+
+- Added makefile rule to generate TAGS table for vi or Emacs users.
+
+API changes
+-----------
+- Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
+  and `L2FaceRestriction`.
+  In order to conform with the semantic of `MultTranspose` in `mfem::Operator`,
+  `mfem::FaceRestriction::MultTranspose` now sets instead of adding values, and
+  `mfem::FaceRestriction::AddMultTranspose` should replace previous calls to
+  `mfem::FaceRestriction::MultTranspose`.
+
+libCEED integration improvements
+--------------------------------
+- Refactor the libCEED integration
+
+- Add support for VectorCoefficient with libCEED backends.
+
+- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with
+  libCEED backends.
+
+
+Version 4.2, released on October 30, 2020
+=========================================
+
+High-Performance Computing
+--------------------------
+- Added support for explicit vectorization in the high-performance templated
+  code, which can now take advantage of specific classes on the following
+  architectures:
+  * x86 (SSE/AVX/AVX2/AVX512),
+  * Power8 & Power9 (VSX),
+  * BG/Q (QPX).
+  These are disabled by default, but can be enabled with MFEM_USE_SIMD=YES.
+  See the new file linalg/simd.hpp and the new directory linalg/simd.
+
+- Added an Element Assembly mode compatible with GPU device execution for H1 and
+  L2 spaces in the mass, convection, diffusion, transpose, and the face DG trace
+  integrators. See option '-ea' in Example 9. When enabled, this assembly level
+  stores independent dense matrices for the elements, and independent dense
+  matrices for the faces in the DG case.
+
+- Added a Full Assembly mode compatible with GPU device execution. This assembly
+  level builds on top of the Element Assembly kernels to compute a global sparse
+  matrix. All integrators supported by element assembly are also supported by
+  full assembly. See the '-fa' option in Example 9.
+
+- Optimized the AMD/HIP kernel support and enabled HIP support in the libCEED
+  integration. This is now available via the "ceed-hip" device backend.
+
+- Improved the libCEED integration to support:
+  * AssemblyLevel::NONE for Mass, Diffusion, VectorMass, and VectorDiffusion
+    Integrators. This level computes the full operator evaluation "on the fly".
+  * VectorMassIntegrator and VectorDiffusionIntegrator.
+  * All types of (scalar) Coefficients.
+
+- Added partial assembly / device support for:
+  * H(div) bilinear forms and VectorFEDivergenceIntegrator.
+  * BlockOperator, see the updated Example 5.
+  * Complex operators, see the updated Example 22.
+  * Chebyshev accelerated polynomial smoother.
+  * Convergent diagonal preconditioning on non-conforming adaptively refined
+    meshes, see Example 6/6p.
+
+- Added CUDA support for:
+  * Sparse matrix-vector multiplication with cuSPARSE,
+  * SUNDIALS ODE integrators, see updated SUNDIALS modification of Example 9/9p.
+
+Linear and nonlinear solvers
+----------------------------
+- Added a new solver class for simple integration with NVIDIA's multigrid
+  library, AmgX. The AmgX class is designed to work as a standalone solver or
+  preconditioner for existing MFEM solvers. It uses MFEM's sparse matrix format
+  for serial runs and the HypreParMatrix format for parallel runs. The new
+  solver may be configured to run with one GPU per MPI rank or with more MPI
+  ranks than GPUs. In the latter case, matrices and vectors are consolidated to
+  ranks communicating with the GPUs and the solution is then broadcasted.
+
+  Although CUDA is required to build, the AmgX support is compatible with the
+  MFEM CPU device configuration. The examples/amgx folder illustrates how to
+  integrate AmgX in existing MFEM applications. The AmgX solver class is
+  partially based on: "AmgXWrapper: An interface between PETSc and the NVIDIA
+  AmgX library", by Pi-Yueh Chuang and Lorena A. Barba, doi:10.21105/joss.00280.
+
+- Added initial support for geometric h- and p-multigrid preconditioners for
+  matrix-based and matrix-free discretizations with basic GPU capability, see
+  Example 26/26p.
+
+- Added support for the CVODES package in SUNDIALS which provides ODE solvers
+  with sensitivity analysis capabilities. See the CVODESSolver class and the new
+  adjoint miniapps in the miniapps/adjoint directory.
+
+- Added an interface to the MKL CPardiso solver, an MPI-parallel sparse direct
+  solver developed by Intel. See Example 11p for an illustration of its usage.
+
+- Added support for the SLEPc eigensolver package, https://slepc.upv.es.
+
+- Upgraded SuperLU interface to use SuperLU_DIST 6.3.1. Added a simple SuperLU
+  example in the new directory examples/superlu.
+
+- Extended the KINSOL (SUNDIALS) nonlinear solver interface to support the
+  Jacobian-free Newton-Krylov method. A usage example is shown in Example 10p.
+
+- Block arrays of parallel matrices can now be merged into a single parallel
+  matrix with the function HypreParMatrixFromBlocks. This could be useful for
+  solving block systems with parallel direct solvers such as STRUMPACK.
+
+- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
+  modification of Example 9/9p.
+
+- Added wrappers for hypre's flexible GMRES solver and the new parallel ILU
+  preconditioner. The latter requires hypre version 2.19.0 or later.
+
+Discretization improvements
+---------------------------
+- Extended GSLIB-FindPoints integration to support simplices and interpolation
+  of functions from L2, H(div) and H(curl) spaces.
+
+- Added support for computing asymptotic error estimates and convergence rates
+  for the whole de Rham sequence based on the new class ConvergenceStudy and new
+  member methods in GridFunction and ParGridFunction. See the rates.cpp file in
+  the tests/convergence directory for sample usage.
+
+- Extended the GetValue and GetVectorValue methods of GridFunction to support
+  evaluation on boundary elements and, in the continuous field case, arbitrary
+  mesh edges and faces. This requires passing an ElementTransformation argument.
+
+- Added support for matrix-free interpolation and restriction operators between
+  continuous H1 finite element spaces of different order on the same mesh or
+  with the same order on uniformly refined meshes.
+
+- The Coefficient classes based on a C-function pointer (FunctionCoefficient,
+  VectorFunctionCoefficient and MatrixFunctionCoefficient) now use the more
+  general std::function class template. This allows the classes to be backward
+  compatible (i.e. they can still work with C-functions) and, in addition,
+  support any "callable", e.g. lambda functions.
+
+- Non-conforming meshes are now supported with block nonlinear forms. See the
+  updated Example 19/19p.
+
+Meshing improvements
 --------------------
-- Added support for matrix-free diagonal smoothers on GPUs.
+- The graph linear ordering library Gecko, previously an external dependency, is
+  now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
+  always available. The interface has also been improved, see for example the
+  Mesh Explorer miniapp.
 
+- Added support for finite difference-based gradient and Hessian approximation
+  in the TMOP mesh optimization algorithms. This improves the accuracy of the
+  Hessian for r-adaptivity using discrete fields, and allows use of skewness
+  and orientation based metrics.
+
+- Improved Gmsh reader (version 2.2), which now supports both high-order and
+  periodic meshes. Segments, triangles, quadrilaterals, and tetrahedra are
+  supported up to order 10. Wedges and hexahedra are supported up to order 9.
+  For sample periodic meshes, see the periodic*.msh files in the data directory.
+
+- Added support for construction of (serial) non-conforming meshes. Hanging
+  nodes can be marked with Mesh::AddVertexParents when building the mesh with
+  the "init" constructor. The usage is demonstrated in a new meshing miniapp,
+  Polar NC, which generates meshes that are non-conforming from the start.
+
+- Added support for r-adaptivity with more than one discrete field. This allows
+  the user to specify different discrete functions for controlling the size,
+  aspect-ratio, orientation, and skew of elements in the mesh.
+
+- Additional TMOP improvements:
+  * Capability for approximate tangential mesh relaxation.
+  * Support and examples for using TMOP on mixed meshes.
+  * Complete integrator action accounting for spatial derivatives of discrete
+    and analytic targets.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new miniapp, Navier, that solves the time-dependent Navier-Stokes
+  equations of incompressible fluid dynamics. See the miniapps/navier directory
+  for more details.
+
+- Added 10 new example codes:
+  * Example 25/25p demonstrates the use of a Perfectly Matched Layer (PML) for
+    electromagnetic wave propagation (indefinite Maxwell).
+  * Example 26/26p shows how to construct matrix-free geometric and p-multigrid
+    preconditioner for the Laplace problem.
+  * Example 27/27p demonstrates the enforcement of Dirichlet, Neumann, Robin,
+    and periodic boundary conditions with either H1 or DG Laplace problems.
+  * Versions of Example 1/1p in examples/amgx demonstrating the use of AmgX,
+    to solve the Laplace problem with AMG preconditioning on GPUs.
+  * A version of Example 11p in examples/petsc demonstrating the use of SLEPc,
+    to solve the Laplace eigenproblem with shift-and-invert transformation.
+  * A version of Example 1 in examples/superlu demonstrating the use of SuperLU
+    to solve the Laplace problem.
+
+- Added a new Field Interpolation miniapp in miniapps/gslib that demonstrates
+  transfer of grid functions between different meshes using GSLIB-FindPoints.
+
+- Added 2 miniapps in the new miniapps/adjoint directory demonstrating how to
+  solve adjoint problems in MFEM using the CVODES package in SUNDIALS. Both of
+  these miniapps require the MFEM_USE_SUNDIALS configuration option.
+  * The cvsRoberts_ASAi_dns miniapp solves a backward adjoint problem for a
+    system of ODEs, evaluating both forward and adjoint quadratures in serial.
+  * The adjoint_advection_diffusion miniapp solves a backward adjoint problem
+    for an advection diffusion PDE, evaluating adjoint quadratures in parallel.
+
+- Added 4 additional meshing miniapps:
+  * The Minimal Surface miniapp solves Plateau's problem: the Dirichlet problem
+    for the minimal surface equation.
+  * The Twist miniapp demonstrates how to stitch together opposite surfaces of a
+    mesh to create a topologically periodic mesh.
+  * The Trimmer miniapp trims away parts of a mesh based on element attributes.
+  * Polar NC shows the construction of polar non-conforming meshes.
+
+- Several examples and miniapps were updated to include:
+  * Full and element assembly support in Example 9/9p.
+  * Partial assembly with diagonal preconditioning in Examples 4/4p/5/5p/22/22p.
+  * Diagonal preconditioner in Example 6/6p for partial assembly with AMR.
+  * The option to plot a function in Mesh Explorer.
+  * A new test problem showing a mixed bilinear form for H1, H(curl), H(div) and
+    L2, with partial assembly support in Example 24/24p.
+  * Weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
+
+Data management and Visualization
+---------------------------------
+- Added support for ADIOS2 for parallel I/O with ParaView visualization. See
+  Examples 5, 9, 12, 16. The classes adios2stream and ADIOS2DataCollection
+  provide the interface to generate ADIOS2 Binary Pack (BP4) directory datasets.
+
+- Added VTU output of boundary elements and attributes and parallel VTU (PVTU)
+  output of parallel meshes for visualization using ParaView.
+
+Improved testing
+----------------
+- Added a GitLab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
+  and the updated CONTRIBUTING.md file.
+
+- Added additional testing for convergence, the parallel mesh I/O, and for the
+  libCEED integration in MFEM in the tests/ directory.
+
+- Upgraded the Catch unit test framework from version 1.6.1 to version 2.13.0.
+
+Miscellaneous
+-------------
+- Renamed "Backend::DEBUG" to "Backend::DEBUG_DEVICE" to avoid conflicts,
+  as DEBUG is sometimes used as a macro.
+
+- Added a new IterativeSolverMonitor class that allows to monitor the residual
+  and solution with an IterativeSolver after every iteration.
+
+- Added power method to iteratively estimate the largest eigenvalue and the
+  corresponding eigenvector of an operator.
+
+- Added support for face integrals on the boundaries of NURBS meshes.
+
+- In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
+  solver can work with non-SPD preconditioner B.
+
+- Added new coefficient and vector coefficient classes for QuadratureFunctions,
+  with new LinearForm integrators which use them.
+
+- The integration order used in the ComputeLpError and ComputeElementLpError
+  methods of class GridFunction has been increased.
+
+- Change the IntegrationRule inside VectorDiffusionIntegrator to use the same
+  quadrature as DiffusionIntegrator.
+
+- The README.html files previously included in several source directories have
+  been removed. Use the corresponding pages at mfem.org instead.
+
+- Various other simplifications, extensions, and bugfixes in the code.
+
+
+Version 4.1, released on March 10, 2020
+=======================================
+
+Starting with this version, the MFEM open source license is changed to BSD-3.
+
+Improved GPU capabilities
+-------------------------
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. With this change and
-  the libCEED addition below, the current list of available backends is:
-  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
-  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
+  language that can run on both AMD and NVIDIA hardware.
+
+- Added support for Umpire, a resource management library that allows the
+  discovery, provision, and management of memory on machines with multiple
+  memory devices like NUMA and GPUs, see https://github.com/LLNL/Umpire.
+
+- GPU acceleration is now available in 3 additional examples: 3, 9 and 24.
 
 - Improved RAJA backend and multi-GPU MPI communications.
+
+- Added a "debug" device designed specifically to aid in debugging GPU code by
+  following the "device" code path (using separate host/device memory spaces and
+  host <-> device transfers) without any GPU hardware.
+
+- Added support for matrix-free diagonal smoothers on GPUs.
+
+- The current list of available device backends is: "ceed-cuda", "occa-cuda",
+  "raja-cuda", "cuda", "hip", "debug", "occa-omp", "raja-omp", "omp",
+  "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
+
+- The MFEM memory manager now supports different memory types, associated with
+  the following memory backends:
+  * Default host memory, using standard C++ new and delete,
+  * CUDA pointers, using cudaMalloc and HIP pointers, using hipMalloc,
+  * Managed CUDA/HIP memory (UVM), using cudaMallocManaged/hipMallocManaged,
+  * Umpire-managed memory, including memory pools,
+  * 32- or 64-byte aligned memory, using posix_memalign (WIN32 also supported),
+  * Debug memory with mmap/mprotect protection used by the new "debug" device.
 
 libCEED support
 ---------------
@@ -37,9 +554,35 @@ libCEED support
   ceed-cuda), using some of the best performing CPU and GPU backends from
   libCEED, see the sample runs in examples 1 and 6.
 
+- NOTE: The current default libCEED GPU backend (ceed-cuda) uses atomics and
+  therefore is non-deterministic.
+
+Partial assembly and matrix-free discretizations
+------------------------------------------------
+- The support for matrix-free methods on both CPU and GPU devices based on a
+  partially assembled operator decomposition was extended to include:
+  * DG integrators, (for now only in the Gauss-Lobatto basis), see Example 9,
+  * H(curl) bilinear forms, see Example 3,
+  * vector mass and vector diffusion bilinear integrators,
+  * convection integrator with improved performance,
+  * gradient and vector divergence integrators for Stokes problems,
+  * initial partial assembly mode for NonlinearForms.
+
+- Diagonals of partially assembled operators can now be computed efficiently.
+  See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
+  BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
+
+- In many examples, the partial assembly algorithms provide significantly
+  improved performance, particularly in high-order 3D runs on GPUs.
+
 Meshing improvements
 --------------------
-- Added support for non-conforming AMR on prisms and tetrahedra, including
+- The algorithms for mesh element numbering were changed to have significantly
+  better caching and parallel partitioning properties. Both initial (see e.g.
+  Mesh::GetHilbertElementOrdering) and ordering after uniform refinement were
+  improved. NOTE: new ordering can have a round-off effect on solver results.
+
+- Added support for non-conforming AMR on both prisms and tetrahedra, including
   coarsening and parallel load balancing. Anisotropic prism refinement is only
   available in the serial version at the moment.
 
@@ -48,17 +591,11 @@ Meshing improvements
   (e.g. spatial dependence of size, aspect ratio, etc., for each element) or via
   a (Par)GridFunction specified on the original mesh.
 
-- New method Mesh::GetHilbertElementOrdering for sorting mesh elements along the
-  Hilbert curve. The ordering can be used to improve caching and parallel
-  partitioning in non-conforming AMR.
+- The TMOP algorithms were also improved to support non-conforming AMR meshes.
 
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
-
-- The TMOP mesh optimization algorithms have been improved to support AMR meshes.
-
-- Improved element numbering after uniform mesh refinement.
 
 Discretization improvements
 ---------------------------
@@ -67,28 +604,22 @@ Discretization improvements
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
 
-- Added support for serendipity elements of arbitrary order on affinely-mapped
-  square elements. Basis functions for these elements can be visualized using
-  an option in the display-basis miniapp.
-
 - Added support for complex-valued finite element operators and fields using a
   2x2 block structured linear system to mimic complex arithmetic. New classes
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
   parallel counterparts.
+
+- Added second order derivatives of NURBS shape functions.
+
+- Added support for serendipity elements of arbitrary order on affinely-mapped
+  square elements. Basis functions for these elements can be visualized using
+  an option in the display-basis miniapp.
 
 - Two integrators related to Stokes problems, (Q grad u, v) and (Q div v, u),
   where u and the components of v are in H1, were added/modified to support full
   and partial assembly modes. See the new GradientIntegrator and the updated
   VectorDivergenceIntegrator classes in fem/bilininteg.hpp, as well as the PA
   kernels in fem/bilininteg_gradient.cpp and fem/bilininteg_divergence.cpp.
-
-- Diagonals of partially assembled operators can now be computed efficiently.
-  See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
-  BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
-
-- Added second order derivatives of NURBS shape functions.
-
-- Added initial support for NonlinearForms to support the partial assembly mode.
 
 - Added a nonlinear vector valued convection integrator (Q u \cdot grad u, v)
   where u_i and v_i are in H1. This form occurs e.g. in the Navier-Stokes
@@ -100,26 +631,24 @@ Discretization improvements
   be used to impose boundary conditions on the non-square off-diagonal blocks of
   a block operator (similar to FormLinearSystem in the square case).
 
-- Extended the support for partial assembly to vector mass and vector diffusion
-  bilinear integrators.
-
 Linear and nonlinear solvers
 ----------------------------
-- Added a general interface for specifying and solving nonlinear constrained
-  optimization problems through the new classes OptimizationProblem and
-  OptimizationSolver, see linalg/solver.hpp
-
-- Added support for HiOp, a lightweight HPC solver for nonlinear optimization
-  problems see class HiOpNLPOptimizer and the example codes in examples/hiop.
-
 - Added support for Ginkgo, a high-performance linear algebra library for GPU
   and manycore nodes, with a focus on sparse solution of linear systems. For
   more details see linalg/ginkgo.hpp and the example code in examples/gingko.
 
-- Added Adams-Bashforth and Adams-Moulton time integrators.
+- Added support for HiOp, a lightweight HPC solver for nonlinear optimization
+  problems, see class HiOpNLPOptimizer and the example codes in examples/hiop.
+
+- Added a general interface for specifying and solving nonlinear constrained
+  optimization problems through the new classes OptimizationProblem and
+  OptimizationSolver, see linalg/solver.hpp.
 
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
+
+- New time integrators: Adams-Bashforth, Adams-Moulton and several integrators
+  for 2nd order ODEs, see the new Example 23.
 
 - Added a LinearSolve(A,X) convenience method to solve dense linear systems. In
   the trivial cases, i.e., square matrices of size 1 or 2, the system is solved
@@ -127,45 +656,53 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- Added two new miniapps: Find Points (serial + parallel) and Field Diff in
-  miniapps/gslib that show how GSLIB-FindPoints can be used to interpolate a
-  (Par)GridFunction in an arbitrary number of physical space points in 2D and
-  3D. The GridFunction must be in H1 and in the same space as the mesh that is
-  used to find the points.
-
-- Added a new example, Example 22/22p, to demonstrate the use of the new
-  complex-valued finite element operators. The example defines and solves
-  a family of time-harmonic PDEs related to damped harmonic oscillators.
-
-- Updated Example 1/1p to use diagonal preconditioning in partial assembly mode.
-
-- The mesh-optimizer and pmesh-optimizer miniapps have been updated to
-  demonstrate the new r-adaptivity capabilities of TMOP.
-
-- New options to reorder and partition the mesh in the mesh-explorer miniapp.
-
-- The mesh-explorer miniapp now supports visualization of boundary attributes of
-  3D meshes (key 'b').
-
-- The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
-  optimization for an AMR mesh.
-
-- Added a modification of Example 1 in examples/ginkgo that demonstrates the use
-  of the Gingko interface to solve a linear system.
-
-- Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
-  constrained optimization interface and the use of the SLBQP and HiOp solvers.
-
 - Added a collection of 7 playful miniapps in miniapps/toys that illustrate the
   meshing and visualization features of the library in more relaxed settings.
   The toys include simulations of cellular automata, Rubik's cube, Mandelbrot
   set, a tool to convert any image to mfem mesh, and more.
 
-- Example 9 and 9p now support implicit time integration, using the new block
-  ILU(0) solvers as preconditioners for the linear system.
+- Added 8 new example codes:
+  * Example 22/22p demonstrates the use of the new complex-valued finite element
+    operators by defining and solving a family of time-harmonic PDEs related to
+    damped harmonic oscillators.
+  * Example 23 solves a simple 2D/3D wave equation with the new second order
+    time integrators.
+  * Example 24/24p demonstrates usage of mixed finite element spaces in bilinear
+    forms. Partial assembly is supported in this example.
+  * A version of Example 1 in examples/ginkgo demonstrating the use of the
+    Gingko interface to solve a linear system.
+  * A version of Example 9/9p in examples/hiop demonstrating the nonlinear
+    constrained optimization interface and use of the SLBQP and HiOp solvers.
+
+- Added two new miniapps: Find Points and Field Diff in miniapps/gslib that show
+  how GSLIB-FindPoints can be used to interpolate a (Par) GridFunction in an
+  arbitrary number of physical space points in 2D and 3D. The GridFunction must
+  be in H1 and in the same space as the mesh that is used to find the points.
+
+- Added a simple miniapp, Get Values, that extracts field values at a set of
+  points, from previously saved data via DataCollection classes.
+
+- Several examples and miniapps were updated:
+  * Added device support in Example 3/3p and Example 9/9p.
+  * Example 1/1p and Example 3/3p now use diagonal preconditioning in partial
+    assembly mode.
+  * Example 9/9p now supports implicit time integration, using the new block
+    ILU(0) solvers as preconditioners for the linear system.
+  * The mesh-optimizer and pmesh-optimizer miniapps now include the new
+    r-adaptivity capabilities of TMOP. They were also updated to support mesh
+    optimization on non-conforming AMR meshes.
+  * New options to reorder and partition the mesh and boundary attribute
+    visualization (key 'b') are now available in the mesh-explorer miniapp.
+
+- Collected object files from the miniapps/common directory into a new library,
+  libmfem-common for the convenience of application developers. The new library
+  is now used in several miniapps in the electromagnetic and tools directories.
 
 Improved testing
 ----------------
+- Added a large number of unit tests in the tests/unit directory, including
+  several parallel unit tests.
+
 - Added a new directory, tests/scripts, with several shell scripts that perform
   simple checks on the code including: code styling, documentation formatting,
   proper use of .gitignore, and preventing the accidental commit of large files.
@@ -180,18 +717,27 @@ Improved testing
 
 Miscellaneous
 -------------
-- Upgraded the SUNDIALS interface to utilize version 5.0. This necessitated a
+- Added support for output in the ParaView XML format. Both low-order and
+  high-order Lagrange elements are supported. Output can be in ASCII or binary
+  format. The binary output can be compressed if MFEM is compiled with zlib
+  support (MFEM_USE_ZLIB). See the new ParaViewDataCollection class and the
+  updated Examples 5/5p and 9/9p.
+
+- Upgraded the SUNDIALS interface to utilize SUNDIALS 5.0. This necessitated a
   complete rework of the interface and requires changes at the application
   level. Example usage of the new interface can be found in examples/sundials.
 
-- Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
-  and the new ParaViewDataCollection class.
+- Switched from gzstream to zstr for the implementation of zlib-compressed C++
+  output stream. The build system definition now uses MFEM_USE_ZLIB instead of
+  MFEM_USE_GZSTREAM, but the code interface (e.g. ofgzstream) remains the same.
 
-- Collected object files from the miniapps/common directory into a new library,
-  libmfem-common for the convenience of application developers. The new library
-  is now used in several miniapps in the electromagnetic and tools directories.
+- Various other simplifications, extensions, and bugfixes in the code.
 
-- Added unit tests for time integrators.
+API changes
+-----------
+- In the enum classes MemoryType and MemoryClass, "CUDA" was renamed to "DEVICE"
+  which now denotes either "CUDA" or "HIP" depending on the build configuration.
+  In the same enum classes, "CUDA_UVM" was renamed to "MANAGED".
 
 
 Version 4.0, released on May 24, 2019
@@ -286,7 +832,7 @@ Other meshing improvements
   follows precisely the paper:
 
      D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
-     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431–448.
+     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431-448.
 
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
@@ -431,7 +977,7 @@ Discretization improvements
 
 - New specialized time integrators: symplectic integrators of orders 1-4 for
   systems of first order ODEs derived from a Hamiltonian and generalized-alpha
-  ODE solver for the filtered Navier–Stokes equations with stabilization. See
+  ODE solver for the filtered Navier-Stokes equations with stabilization. See
   classes SIASolver and GeneralizedAlphaSolver in linalg/ode.hpp.
 
 - Inherit finite element classes from the new base class TensorBasisElement,
@@ -444,6 +990,9 @@ New and updated examples and miniapps
 - Added a new serial and parallel example (ex19) that solves the quasi-static
   incompressible hyperelastic equations. The example demonstrates the use of
   block nonlinear forms as well as custom block preconditioners.
+
+- Added a new serial example (ex23) to demonstrate the use of second order
+  time integration to solve the wave equation.
 
 - Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
   electromagnetics phenomena as a coupled first order system of equations.
@@ -578,7 +1127,7 @@ New and updated examples and miniapps
 
 - Added a new meshing miniapp, Shaper, that can be used to resolve complicated
   material interfaces by mesh refinement, e.g. as a tool for initial mesh
-  generation from prescribed "material()" function.  Both conforming and
+  generation from prescribed "material()" function. Both conforming and
   non-conforming (isotropic and anisotropic) refinements are supported.
 
 - Added a new meshing miniapp, Mesh Optimizer, that demonstrates the use of TMOP
@@ -590,7 +1139,7 @@ Discretization improvements
 ---------------------------
 - Added a FindPoints method of the Mesh and ParMesh classes that returns the
   elements that contain a given set of points, together with the coordinates of
-  the points in the reference space of the corresponding element.  In parallel,
+  the points in the reference space of the corresponding element. In parallel,
   if a point is shared by multiple processors, only one of them will mark that
   point as found. Note that the current implementation of this method is not
   optimal and/or 100% reliable. See the mesh-explorer miniapp for an example.
@@ -917,8 +1466,8 @@ New and improved linear solvers
   which is a sparse direct solver for distributed memory architectures. As such
   it can only be enabled along with MFEM_USE_MPI. When MFEM is configured with
   MFEM_USE_SUPERLU, one also needs to alter the version of METIS, since SuperLU
-  requires ParMETIS (which comes packaged with a serial version of METIS).  See
-  http://http://crd-legacy.lbl.gov/~xiaoye/SuperLU for SuperLU_DIST details.
+  requires ParMETIS (which comes packaged with a serial version of METIS). See
+  http://crd-legacy.lbl.gov/~xiaoye/SuperLU for SuperLU_DIST details.
 
 - Added a wrapper for the KLU solver in SuiteSparse see
   http://faculty.cse.tamu.edu/davis/suitesparse.html for details of KLU.
@@ -1328,7 +1877,7 @@ New and updated examples
   (ADS) in hypre.
 
 - Modified Example 1 to use isoparametric discretization (use the FE space from
-  the mesh) including NURBS meshes and spaces.  Updated Example 2 to support
+  the mesh) including NURBS meshes and spaces. Updated Example 2 to support
   arbitrary order spaces. Updated all examples to work with NURBS meshes and
   spaces, as well as to not use projection onto discontinuous polynomial spaces
   for visualization (this is now handled directly in GLVis when necessary).
@@ -1420,7 +1969,7 @@ Version 1.1, released on Sep 13, 2010
 New MFEM format for general meshes
 ----------------------------------
 - New MFEM mesh v1.0 format with uniform structure for any dimension and support
-  for curved meshes including in 3D.  Class Mesh will recognize and read the new
+  for curved meshes including in 3D. Class Mesh will recognize and read the new
   format (in addition to all previously used formats) and Mesh::Print uses the
   new format by default. The old print function was renamed to Mesh::PrintXG.
 

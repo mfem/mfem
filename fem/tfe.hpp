@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TEMPLATE_FINITE_ELEMENTS
 #define MFEM_TEMPLATE_FINITE_ELEMENTS
@@ -20,6 +20,18 @@ namespace mfem
 
 // Templated finite element classes, cf. fe.?pp
 
+/** @brief Store mass-like matrix B for each integration point on the reference
+    element.
+    For tensor product evaluation, this is only called on the 1D reference
+    element, and higher dimensions are put together from that.
+    The element mass matrix can be written \f$ M_E = B^T D_E B \f$ where the B
+    built here is the B, and is unchanging across the mesh. The diagonal matrix
+    \f$ D_E \f$ then contains all the element-specific geometry and physics data.
+    @param fe the element we are calculating on
+    @param ir the integration rule to calculate the shape matrix on
+    @param B must be (nip x dof) with column major storage
+    @param dof_map the inverse of dof_map is applied to reorder local dofs.
+*/
 template <typename real_t>
 void CalcShapeMatrix(const FiniteElement &fe, const IntegrationRule &ir,
                      real_t *B, const Array<int> *dof_map = NULL)
@@ -41,6 +53,23 @@ void CalcShapeMatrix(const FiniteElement &fe, const IntegrationRule &ir,
    }
 }
 
+/** @brief store gradient matrix G for each integration point on the reference
+    element.
+    For tensor product evaluation, this is only called on the 1D reference
+    element, and higher dimensions are put together from that.
+    The element stiffness matrix can be written
+    \f[
+       S_E = \sum_{k=1}^{nq} G_{k,i}^T (D_E^G)_{k,k} G_{k,j}
+    \f]
+    where \f$ nq \f$ is the number of quadrature points, \f$ D_E^G \f$ contains
+    all the information about the element geometry and coefficients (Jacobians
+    etc.), and \f$ G \f$ is the matrix built in this routine, which is the same
+    for all elements in a mesh.
+    @param fe the element we are calculating on
+    @param ir the integration rule to calculate the gradients on
+    @param[out] G must be (nip x dim x dof) with column major storage
+    @param[in] dof_map the inverse of dof_map is applied to reorder local dofs.
+*/
 template <typename real_t>
 void CalcGradTensor(const FiniteElement &fe, const IntegrationRule &ir,
                     real_t *G, const Array<int> *dof_map = NULL)

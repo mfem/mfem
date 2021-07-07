@@ -1,13 +1,35 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+set(MESH_FILES
+  amr-quad-q2.mesh
+  blade.mesh
+  cube.mesh
+  icf.mesh
+  jagged.mesh
+  square01.mesh
+  stretched2D.mesh
+)
+
+# Add a target to copy the mesh files from the source directory; used by sample
+# runs.
+set(SRC_MESH_FILES)
+foreach(MESH_FILE ${MESH_FILES})
+  list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
+endforeach()
+add_custom_command(OUTPUT data_is_copied
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} .
+  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
+  COMMENT "Copying meshing miniapps data files ...")
+add_custom_target(copy_miniapps_meshing_data DEPENDS data_is_copied)
 
 add_mfem_miniapp(klein-bottle
   MAIN klein-bottle.cpp
@@ -31,20 +53,46 @@ add_mfem_miniapp(extruder
 
 add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
+add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
+
+add_mfem_miniapp(minimal-surface
+  MAIN minimal-surface.cpp
   LIBRARIES mfem)
 
 add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(trimmer
+  MAIN trimmer.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(twist
+  MAIN twist.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(polar-nc
+  MAIN polar-nc.cpp
+  LIBRARIES mfem)
+
 # Add serial tests.
 add_test(NAME mesh-optimizer
   COMMAND mesh-optimizer -no-vis -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh)
+
+add_test(NAME minimal-surface COMMAND minimal-surface -no-vis)
 
 # Parallel apps.
 if (MFEM_USE_MPI)
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
+
+  add_mfem_miniapp(pminimal-surface
+    MAIN pminimal-surface.cpp
     LIBRARIES mfem)
 
   # Add parallel tests.
@@ -52,5 +100,10 @@ if (MFEM_USE_MPI)
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pmesh-optimizer> -no-vis
     -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh
+    ${MPIEXEC_POSTFLAGS})
+
+  add_test(NAME pminimal-surface_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pminimal-surface> -no-vis
     ${MPIEXEC_POSTFLAGS})
 endif()

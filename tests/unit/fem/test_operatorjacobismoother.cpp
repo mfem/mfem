@@ -1,16 +1,16 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -27,19 +27,21 @@ TEST_CASE("operatorjacobismoother")
                    << std::pow(ne, dimension) << " elements." << std::endl;
          for (int order = 1; order < 5; ++order)
          {
-            Mesh * mesh;
+            Mesh mesh;
             if (dimension == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
             FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-            FiniteElementSpace h1_fespace(mesh, h1_fec);
+            FiniteElementSpace h1_fespace(&mesh, h1_fec);
             Array<int> ess_tdof_list;
-            Array<int> ess_bdr(mesh->bdr_attributes.Max());
+            Array<int> ess_bdr(mesh.bdr_attributes.Max());
             ess_bdr = 1;
             h1_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -80,7 +82,6 @@ TEST_CASE("operatorjacobismoother")
             std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(y_fa.Norml2() < 1.e-12);
 
-            delete mesh;
             delete h1_fec;
          }
       }
@@ -96,12 +97,11 @@ TEST_CASE("operatorjacobifichera")
                 << "fichera mesh, refine level " << refine << std::endl;
       for (int order = 1; order < 5; ++order)
       {
-         Mesh * mesh;
-         mesh = new Mesh("../../data/fichera.mesh", 1, refine, true);
+         Mesh mesh("../../data/fichera.mesh", 1, refine, true);
          FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-         FiniteElementSpace h1_fespace(mesh, h1_fec);
+         FiniteElementSpace h1_fespace(&mesh, h1_fec);
          Array<int> ess_tdof_list;
-         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         Array<int> ess_bdr(mesh.bdr_attributes.Max());
          ess_bdr = 1;
          h1_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -142,7 +142,6 @@ TEST_CASE("operatorjacobifichera")
          std::cout << "    order: " << order << ", error norm: " << error << std::endl;
          REQUIRE(y_fa.Norml2() < 1.e-12);
 
-         delete mesh;
          delete h1_fec;
       }
    }

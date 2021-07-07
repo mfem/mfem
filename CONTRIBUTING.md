@@ -1,33 +1,39 @@
 <p align="center">
-<a href="http://mfem.org/"><img alt="mfem" src="http://mfem.org/img/logo-300.png"></a>
+<a href="https://mfem.org/"><img alt="mfem" src="https://mfem.org/img/logo-300.png"></a>
 </p>
 
 <p align="center">
-<a href="https://github.com/mfem/mfem/blob/master/COPYRIGHT"><img alt="License" src="https://img.shields.io/badge/License-LGPL--2.1-brightgreen.svg"></a>
+<a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-brightgreen.svg"></a>
 <a href="https://travis-ci.org/mfem/mfem"><img alt="Build Status" src="https://travis-ci.org/mfem/mfem.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
-<a href="http://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
+<a href="https://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
 </p>
 
 
 # How to Contribute
 
-The MFEM team welcomes contributions at all levels: bugfixes; code
-improvements; simplifications; new mesh, discretization or solver
-capabilities; improved documentation; new examples and miniapps;
-HPC performance improvements; ...
+The MFEM team welcomes contributions at all levels: bugfixes; code improvements;
+simplifications; new mesh, discretization or solver capabilities; improved
+documentation; new examples and miniapps; HPC performance improvements; etc.
 
-Use a pull request (PR) toward the `mfem:master` branch to propose your
-contribution. If you are planning significant code changes, or have any
-questions, you can also open an [issue](https://github.com/mfem/mfem/issues)
-before issuing a PR.  We also welcome your [simulation
-images](http://mfem.org/gallery/), which you can submit via a pull request in
-[mfem/web](https://github.com/mfem/web).
+MFEM is distributed under the terms of the BSD-3 license. All new contributions
+must be made under this license.
+
+If you plan on contributing to MFEM, consider reviewing the
+[issue tracker](https://github.com/mfem/mfem/issues) first to check if a thread
+already exists for your desired feature or the bug you ran into. Use a pull
+request (PR) toward the `mfem:master` branch to propose your contribution. If
+you are planning significant code changes or have questions, you may want to
+open an [issue](https://github.com/mfem/mfem/issues) before issuing a PR. In
+addition to technical contributions, we are also interested in your results and
+[simulation images](https://mfem.org/gallery/), which you can share via a pull
+request in the [mfem/web](https://github.com/mfem/web) repo.
 
 See the [Quick Summary](#quick-summary) section for the main highlights of our
 GitHub workflow. For more details, consult the following sections and refer
 back to them before issuing pull requests:
 
+- [Quick Summary](#quick-summary)
 - [Code Overview](#code-overview)
 - [GitHub Workflow](#github-workflow)
   - [MFEM Organization](#mfem-organization)
@@ -45,7 +51,7 @@ back to them before issuing pull requests:
 Contributing to MFEM requires knowledge of Git and, likely, finite elements. If
 you are new to Git, see the [GitHub learning
 resources](https://help.github.com/articles/git-and-github-learning-resources/).
-To learn more about the finite element method, see our [FEM page](http://mfem.org/fem).
+To learn more about the finite element method, see our [FEM page](https://mfem.org/fem).
 
 *By submitting a pull request, you are affirming the [Developer's Certificate of
 Origin](#developers-certificate-of-origin-11) at the end of this file.*
@@ -57,8 +63,17 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   development branches off `mfem:master`.
 - Please follow the [developer guidelines](#developer-guidelines), in particular
   with regards to documentation and code styling.
+- Please do not commit large/binary files to the central repository (use a fork
+  instead).
 - Pull requests  should be issued toward `mfem:master`. Make sure
   to check the items off the [Pull Request Checklist](#pull-request-checklist).
+- When your contribution is fully working and ready to be reviewed, add
+  the `ready-for-review` label.
+- PRs are treated similarly to journal submission with an "editor" assigning two
+  reviewers to evaluate the changes.
+- The reviewers have 3 weeks to evaluate the PR and work with the author to
+  fix issues and implement improvements.
+- During review there should be no force pushes/rewriting history in the branch.
 - After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
 - After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
 - We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
@@ -68,119 +83,141 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 
 ### Code Overview
 
-- The MFEM library uses object-orient design principles which reflect, in code,
-  the independent mathematical concepts of meshing, linear algebra and finite
-  element spaces and operators.
+#### Source code structure:
 
-- The MFEM source code has the following structure:
-  ```
+The MFEM library uses object-oriented design principles which reflect, in code,
+the independent mathematical concepts of meshing, linear algebra and finite
+element spaces and operators.
+
+The MFEM source code has the following structure:
+
+```
   .
   ├── config
-  │   └── cmake
-  │       └── modules
+  │   ├── cmake
+  │   │    └── ...
+  │   └── githooks
   ├── data
   ├── doc
-  │   └── web
-  │       └── examples
   ├── examples
+  │   ├── amgx
+  │   ├── caliper
   │   ├── ginkgo
   │   ├── hiop
   │   ├── petsc
   │   ├── pumi
-  │   └── sundials
+  │   ├── sundials
+  |   └── superlu
   ├── fem
+  │   ├── ceed
+  │   ├── qinterp
+  │   └── tmop
   ├── general
   ├── linalg
+  │   └── simd
   ├── mesh
   ├── miniapps
+  │   ├── adjoint
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib
   │   ├── meshing
+  │   ├── mtop
+  │   ├── navier
   │   ├── nurbs
   │   ├── performance
-  │   └── tools
+  │   ├── shifted
+  │   ├── solvers
+  │   ├── tools
+  │   └── toys
   └── tests
-      ├── unit
-      │   ├── ...
-      └── ...
+      ├── convergence
+      ├── gitlab
+      ├── par-mesh-format
+      ├── scripts
+      └── unit
+          └── ...
+```
 
-  ```
+#### Main directories and classes
 
-- The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
-  classes implementing the finite element, mesh and linear algebra concepts
-  respectively.
+The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
+classes implementing the finite element, mesh and linear algebra concepts
+respectively.
 
 - The main mesh classes are:
-  + [`Mesh`](http://mfem.github.io/doxygen/html/classmfem_1_1Mesh.html)
-  + [`NCMesh`](http://mfem.github.io/doxygen/html/classmfem_1_1NCMesh.html)
-  + [`Element`](http://mfem.github.io/doxygen/html/classmfem_1_1Element.html)
-  + [`ElementTransformation`](http://mfem.github.io/doxygen/html/classmfem_1_1ElementTransformation.html)
+  + [`Mesh`](https://mfem.github.io/doxygen/html/classmfem_1_1Mesh.html)
+  + [`NCMesh`](https://mfem.github.io/doxygen/html/classmfem_1_1NCMesh.html)
+  + [`Element`](https://mfem.github.io/doxygen/html/classmfem_1_1Element.html)
+  + [`ElementTransformation`](https://mfem.github.io/doxygen/html/classmfem_1_1ElementTransformation.html)
 
 - The main finite element classes are:
-  + [`FiniteElement`](http://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
-  + [`FiniteElementCollection`](http://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
-  + [`FiniteElementSpace`](http://mfem.github.io/doxygen/html/classmfem_1_1FiniteElementSpace.html)
-  + [`GridFunction`](http://mfem.github.io/doxygen/html/classmfem_1_1GridFunction.html)
-  + [`BilinearFormIntegrator`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearFormIntegrator.html) and [`LinearFormIntegrator`](http://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html)
-  + [`LinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html), [`BilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`MixedBilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1MixedBilinearForm.html)
+  + [`FiniteElement`](https://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
+  + [`FiniteElementCollection`](https://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
+  + [`FiniteElementSpace`](https://mfem.github.io/doxygen/html/classmfem_1_1FiniteElementSpace.html)
+  + [`GridFunction`](https://mfem.github.io/doxygen/html/classmfem_1_1GridFunction.html)
+  + [`BilinearFormIntegrator`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearFormIntegrator.html) and [`LinearFormIntegrator`](https://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html)
+  + [`LinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html), [`BilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`MixedBilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1MixedBilinearForm.html)
 
 - The main linear algebra classes and sources are
-  + [`Operator`](http://mfem.github.io/doxygen/html/classmfem_1_1Operator.html) and [`BilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html)
-  + [`Vector`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`LinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1LinearForm.html)
-  + [`DenseMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1DenseMatrix.html) and [`SparseMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1SparseMatrix.html)
-  + Sparse [smoothers](http://mfem.github.io/doxygen/html/sparsesmoothers_8hpp.html) and linear [solvers](http://mfem.github.io/doxygen/html/solvers_8hpp.html)
+  + [`Operator`](https://mfem.github.io/doxygen/html/classmfem_1_1Operator.html) and [`BilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html)
+  + [`Vector`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`LinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1LinearForm.html)
+  + [`DenseMatrix`](https://mfem.github.io/doxygen/html/classmfem_1_1DenseMatrix.html) and [`SparseMatrix`](https://mfem.github.io/doxygen/html/classmfem_1_1SparseMatrix.html)
+  + Sparse [smoothers](https://mfem.github.io/doxygen/html/sparsesmoothers_8hpp.html) and linear [solvers](https://mfem.github.io/doxygen/html/solvers_8hpp.html)
 
-- Parallel MPI objects in MFEM inherit their serial counterparts, so a parallel
-  mesh for example is just a serial mesh on each task plus the information on
-  shared geometric entities between different tasks. The parallel source files
-  have a `p` prefix, e.g. `pmesh.cpp` vs. the serial `mesh.cpp`.
+#### Parallel implementation
+
+Parallel MPI objects in MFEM inherit their serial counterparts, so a parallel
+mesh for example is just a serial mesh on each task plus the information on
+shared geometric entities between different tasks. The parallel source files
+have a `p` prefix, e.g. `pmesh.cpp` vs. the serial `mesh.cpp`.
 
 - The main parallel classes are
-  + [`ParMesh`](http://mfem.github.io/doxygen/html/solvers_8hpp.html)
-  + [`ParNCMesh`](http://mfem.github.io/doxygen/html/classmfem_1_1ParMesh.html)
-  + [`ParFiniteElementSpace`](http://mfem.github.io/doxygen/html/classmfem_1_1ParFiniteElementSpace.html)
-  + [`ParGridFunction`](http://mfem.github.io/doxygen/html/classmfem_1_1ParGridFunction.html)
-  + [`ParBilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1ParBilinearForm.html) and [`ParLinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1ParLinearForm.html)
-  + [`HypreParMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
-  + [`HypreSolver`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](http://mfem.github.io/doxygen/html/hypre_8hpp.html)
+  + [`ParMesh`](https://mfem.github.io/doxygen/html/solvers_8hpp.html)
+  + [`ParNCMesh`](https://mfem.github.io/doxygen/html/classmfem_1_1ParMesh.html)
+  + [`ParFiniteElementSpace`](https://mfem.github.io/doxygen/html/classmfem_1_1ParFiniteElementSpace.html)
+  + [`ParGridFunction`](https://mfem.github.io/doxygen/html/classmfem_1_1ParGridFunction.html)
+  + [`ParBilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1ParBilinearForm.html) and [`ParLinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1ParLinearForm.html)
+  + [`HypreParMatrix`](https://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](https://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
+  + [`HypreSolver`](https://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](https://mfem.github.io/doxygen/html/hypre_8hpp.html)
 
-- GPU and multi-core CPU support is based on device kernels supporting different
-  backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
-  device/host memory manager.
+#### GPU and general device support
+
+GPU and multi-core CPU support is based on device kernels supporting different
+backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
+device/host memory manager.
 
 - The main device-relevant classes and sources are:
-  + [`Device`](http://mfem.github.io/doxygen/html/device_8hpp.html)
-  + [`MemoryManager`](http://mfem.github.io/doxygen/html/mem_manager_8hpp.html)
-  + the [`MFEM_FORALL`](http://mfem.github.io/doxygen/html/forall_8hpp.html) macro
-  + the [`cuda.hpp`](http://mfem.github.io/doxygen/html/cuda_8hpp.html) and [`occa.hpp`](http://mfem.github.io/doxygen/html/occa_8hpp.html) files
+  + [`Device`](https://mfem.github.io/doxygen/html/device_8hpp.html)
+  + [`MemoryManager`](https://mfem.github.io/doxygen/html/mem_manager_8hpp.html)
+  + the [`MFEM_FORALL`](https://mfem.github.io/doxygen/html/forall_8hpp.html) macro
+  + the [`cuda.hpp`](https://mfem.github.io/doxygen/html/cuda_8hpp.html) and [`occa.hpp`](https://mfem.github.io/doxygen/html/occa_8hpp.html) files
 
+#### Utilities, building and documentation
 - The `general/` directory contains C++ classes that serve as utilities for
   communication, error handling, arrays, (Boolean) tables, timing, etc.
-
 - The `config/` directory contains build-related files, both for the plain
   Makefile and the CMake build options.
-
 - The `doc/` directory contains configuration for the Doxygen code documentation
-  that can either be build locally, or browsed online at
-  http://mfem.github.io/doxygen/html/index.html.
+  that can either be built locally or browsed online at
+  https://mfem.github.io/doxygen/html/index.html.
 
-- The `data/` directory contains a collection of small mesh files, that are used
-  in the simple example codes and more fully-featured mini applications in the
-  `examples/` and `miniapps/` directories.
-
+#### Examples and tests
+- `examples` and `miniapps` respectively gather simple and more fully-featured
+  demonstrations of the usage on MFEM. They both rely on `data/` for the
+  collection of meshes.
 - The `tests/` directory contains a unit test suite and will later contain more
   tests that run example codes.
 
-- See also the [code overview](http://mfem.org/code-overview/) section on the
-  MFEM website.
+See also the [code overview](https://mfem.org/code-overview/) section on the MFEM
+website.
 
 ## GitHub Workflow
 
-The GitHub organization, https://github.com/mfem, is the main developer hub for
-the MFEM project.
+The MFEM GitHub organization: https://github.com/mfem, is the main developer hub
+for the MFEM project.
 
-If you plan to make contributions or will like to stay up-to-date with changes
+If you plan to make contributions or would like to stay up-to-date with changes
 in the code, *we strongly encourage you to [join the MFEM organization](#mfem-organization)*.
 
 This will simplify the workflow (by providing you additional permissions), and
@@ -189,34 +226,31 @@ will allow us to reach you directly with project announcements.
 
 ### MFEM Organization
 
-- Before you can start, you need a GitHub account, here are a few suggestions:
-  + Create the account at: github.com/join.
-  + For easy identification, please add your name and maybe a picture of you at: https://github.com/settings/profile.
+#### Getting started (GitHub)
+Before you can start, you need a GitHub account, here are a few suggestions:
+  + Create the account at: [github.com/join](https://github.com/join).
+  + For easy identification, please add your full name and maybe a picture of you at:
+    https://github.com/settings/profile.
   + To receive notification, set a primary email at: https://github.com/settings/emails.
   + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys.
 
+#### Joining
 - [Contact us](#contact-information) for an invitation to join the MFEM GitHub
-  organization.
-
-- You should receive an invitation email, which you can directly accept.
+  organization. You will receive an invitation email, which you can directly accept.
   Alternatively, *after logging into GitHub*, you can accept the invitation at
   the top of https://github.com/mfem.
-
 - Consider making your membership public by going to https://github.com/orgs/mfem/people
-  and clicking on the organization visibility dropbox next to your name.
-
+  and clicking on the organization visibility drop box next to your name.
 - Project discussions and announcements will be posted at
   https://github.com/orgs/mfem/teams/everyone.
 
+#### Structure
 - The MFEM source code is in the [mfem](https://github.com/mfem/mfem)
   repository.
-
 - The website and corresponding documentation are in the
   [web](https://github.com/mfem/web) repository.
-
 - The [PyMFEM](https://github.com/mfem/PyMFEM) repository contains a Python
   wrapper for MFEM.
-
 - The [data](https://github.com/mfem/data) repository contains additional
   (large) datafiles for MFEM.
 
@@ -224,9 +258,9 @@ will allow us to reach you directly with project announcements.
 ### New Feature Development
 
 - A new feature should be important enough that at least one person, the
-  proposer, is willing to work on it and be its champion.
+  author, is willing to work on it and be its champion.
 
-- The proposer creates a branch for the new feature (with suffix `-dev`), off
+- The author creates a branch for the new feature (with suffix `-dev`), off
   the `master` branch, or another existing feature branch, for example:
 
   ```
@@ -269,12 +303,13 @@ will allow us to reach you directly with project announcements.
   - Lean code base is easier to understand by new collaborators.
   - New features should be added only if they are necessary or generally useful.
   - Introduction of language constructions not currently used in MFEM should be
-    justified and generally avoided (so we can build on cutting-edge systems).
+    justified and generally avoided (to maintain portability to various systems
+    and compilers, including early access hardware).
   - We prefer basic C++ and the C++03 standard, to keep the code readable by
     a large audience and to make sure it compiles anywhere.
 
 - *Keep the code general and reasonably efficient*
-  - Main goal is fast prototyping for research.
+  - The main goal is fast prototyping for research and application development.
   - When in doubt, generality wins over efficiency.
   - Respect the needs of different users (current and/or future).
 
@@ -317,15 +352,49 @@ will allow us to reach you directly with project announcements.
 
      `[DISCUSS] Hybridized DG [hdg-dev]`
 
+- If the PR is still a work in progress, add the `WIP` label to it and
+  optionally the `[WIP]` prefix in the title.
+
 - Add a description, appropriate labels and assign yourself to the PR. The MFEM
   team will add reviewers as appropriate.
 
 - List outstanding TODO items in the description, see PR #222 for an example.
 
-- Track the Travis CI and Appveyor [continuous integration](#automated-testing)
-  builds at the end of the PR. These should run clean, so address any errors as
-  soon as possible.
+- When your contribution is fully working and ready to be reviewed, add
+  the `ready-for-review` label.
 
+- PRs are treated similarly to journal submission with an "editor" assigning
+  two reviewers to evaluate the changes. The reviewers have 3 weeks to evaluate
+  the PR and work with the author to implement improvements and fix issues.
+
+- Once the `ready-for-review` label has been applied and reviewers have been
+  assigned, the PR is considered under review. To help with the review process
+  there should be no force pushes/rewriting history in the branch.
+
+- After approval, the PR is [tested](#masternext-workflow) for a week with
+  other approved PRs in the `mfem:next` branch.
+
+- Consider manually running the tests in `tests/scripts` before merging in
+  `mfem:next`, see the [README](tests/scripts/README) file in that directory
+  for more details.
+
+- Track the Travis CI, GitHub Actions and Appveyor [continuous integration](#automated-testing)
+  builds at the end of the PR. These should generally run clean, so address any
+  errors as soon as possible. Please ask if you are unsure how to do that.
+
+- Note that some tests, such as the `branch-history` check in Travis and GitHub
+  Actions are safeguards that are allowed to fail in certain cases.
+
+- Other tests, such as the `code-style`, `documentation` and `gitignore`
+  checks in Travis and GitHub Actions enforce MFEM-specific rules which are
+  explained in the error messages and the `tests/scripts` directory.
+
+- Also note that the tests `branch-history` and `repos-checks` found in GitHub
+  Actions can be triggered automatically before each push using git hooks. See
+  the [git hooks README](config/githooks/README.md) for a detailed explanation.
+
+- If triggered, track the status of the LLNL GitLab tests. If failing, ask
+  one of the _LLNL developers_ for details.
 
 ### Pull Request Checklist
 
@@ -337,14 +406,18 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Is this a new feature users need to be aware of? New or updated example or miniapp?
     - [ ] Does it make sense to create a new section in the `CHANGELOG` to group with other related features?
 - [ ] Update `INSTALL`:
-    - [ ] Had a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
+    - [ ] Had a new optional library been added? If so, what range of versions of this library are required? (*Make sure the external library is compatible with our BSD license, e.g. it is not licensed under GPL!*)
+    - [ ] Have the version ranges for any required or optional libraries changed?
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
+- [ ] Update continuous integration server configurations if necessary (e.g. with new version requirements for each of MFEM's dependencies)
+    - [ ] `.travis.yml`
+    - [ ] `.appveyor.yml`
 - [ ] Update `.gitignore`:
-    - [ ] Check if `make distclean; git status` shows any files that are generated from the source but we don't want to track in the repository.
+    - [ ] Check if `make distclean; git status` shows any files that were generated from the source by the project (not an IDE) but we don't want to track in the repository.
     - [ ] Add new patterns (just for the new files above) and re-run the above test.
 - [ ] New examples:
-    - [ ] All sample runs at the top of the example work.
+    - [ ] All sample runs at the top of the example source file work.
     - [ ] Update `examples/makefile`:
       - [ ] Add the example code to the appropriate `SEQ_EXAMPLES` and `PAR_EXAMPLES` variables.
       - [ ] Add any files generated by it to the `clean` target.
@@ -360,7 +433,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] In `examples.md`, list the example under the appropriate categories, add new categories if necessary.
       - [ ] Add a short description of the example in the "Extensive Examples" section of `features.md`.
 - [ ] New miniapps:
-   - [ ] All sample runs at the top of the miniapp work.
+   - [ ] All sample runs at the top of the miniapp source file work.
    - [ ] Update top-level `makefile` and `makefile` in corresponding miniapp directory.
    - [ ] Add the miniapp binary and any files generated by it to the top-level `.gitignore` file.
    - [ ] Update CMake build system:
@@ -368,6 +441,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Add/update the `CMakeLists.txt` file in the new miniapp directory.
       - [ ] Consider adding a new test for the new miniapp.
    - [ ] List the new miniapp in `doc/CodeDocumentation.dox`
+   - [ ] If new miniapps directory (e.g.`miniapps/nurbs`), add it to `MINIAPP_SUBDIRS` in the `makefile`.
    - [ ] If new miniapps directory (e.g.`miniapps/nurbs`), list it in `doc/CodeDocumentation.conf.in`
    - [ ] Companion pull request for documentation in [mfem/web](https://github.com/mfem/web) repo:
      - [ ] Update or add miniapp-specific documentation, see e.g. the `src/meshing.md` and `src/electromagnetics.md` files.
@@ -378,18 +452,13 @@ Before a PR can be merged, it should satisfy the following:
    - [ ] All significant new classes, methods and functions have Doxygen-style documentation in source comments.
    - [ ] Consider adding new sample runs in existing examples to highlight the new capability.
    - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery (LLNL only) or submitting them, via pull request, to the gallery section of the `mfem/web` repo.
-   - [ ] If this is a major new feature, consider mentioning in the short summary inside `README` *(rare)*.
+   - [ ] If this is a major new feature, consider mentioning it in the short summary inside `README` *(rare)*.
    - [ ] List major new classes in `doc/CodeDocumentation.dox` *(rare)*.
 - [ ] Update this checklist, if the new pull request affects it.
-- [ ] Run the unit tests and make sure they all pass `make unittest`.
-- [ ] (LLNL only) Clone the `tests` repository and run the following tests, see `mfem/tests/README.md`:
-   - [ ] `compilers`
-   - [ ] `memcheck`
-   - [ ] `documentation`
+- [ ] Run `make unittest` to make sure all unit tests pass.
+- [ ] Run the tests in `tests/scripts`.
 - [ ] (LLNL only) After merging:
-   - [ ] Regenerate `README.html` files from companion documentation pull requests.
-   - [ ] Update the `baseline` and `compiler` tests, add new tests if necessary.
-   - [ ] Consider updating the script `mfem/tests/sample-runs` (`sample-runs-serial` and `sample-runs-parallel`).
+   - [ ] Update internal tests to include the new features.
 
 ### Master/Next Workflow
 
@@ -448,7 +517,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   (replace `3.3.2` with current release):
   - Rename the current `next` branch to `next-pre-v3.3.2`.
   - Create a new `next` branch starting from the `v3.3.2` release.
-  - Local copies of `next` can then be updated with `git checkout -B next origin/next`.
+  - Local copies of `next` can then be updated with `git fetch origin next && git checkout -B next origin/next`.
 
 ### Release Checklist
 
@@ -457,7 +526,14 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - [ ] `makefile`
     - [ ] `CMakeLists.txt`
     - [ ] `doc/CodeDocumentation.conf.in`
-- [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
+- [ ] Check that version requirements for each of MFEM's dependencies are documented in `INSTALL` and up-to-date
+- [ ] Check that continuous integration server configurations reflect the dependency version requirements of the new release
+    - [ ] `.travis.yml`
+    - [ ] `.appveyor.yml`
+- [ ] Update the `CHANGELOG` to organize all release contributions
+- [ ] Review the whole source code once over
+- [ ] Ask MFEM-based applications to test the pre-release branch
+- [ ] Test on additional platforms and compilers
 - [ ] Tag the repository:
 
   ```
@@ -467,16 +543,17 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 - [ ] Create the release tarball and push to `mfem/releases`.
 - [ ] Recreate the `next` branch as described in previous section.
 - [ ] Update and push documentation  to `mfem/doxygen`.
-- [ ] Update URL shorlinks:
-    - [ ] Create a shortlink at [https://goo.gl/](https://goo.gl/) for the release tarball, e.g. http://mfem.github.io/releases/mfem-3.1.tgz.
-    - [ ] (LLNL only) Add and commit the new shorlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
+- [ ] Update URL shortlinks:
+    - [ ] Create a shortlink at [http://bit.ly/](http://bit.ly/) for the release tarball, e.g. https://mfem.github.io/releases/mfem-3.1.tgz.
+    - [ ] (LLNL only) Add and commit the new shortlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
     - [ ] Add the new shortlinks to the MFEM packages in `spack`, `homebrew/science`, `VisIt`, etc.
 - [ ] Update website in `mfem/web` repo:
     - Update version and shortlinks in `src/index.md` and `src/download.md`.
     -  Use [cloc-1.62.pl](http://cloc.sourceforge.net/) and `ls -lh` to estimate the SLOC and the tarball size in `src/download.md`.
 
-
 ## LLNL Workflow
+
+### Mirroring on Bitbucket
 
 - The GitHub `master` and `next` branches are mirrored to the LLNL institutional
   Bitbucket repository as `gh-master` and `gh-next`.
@@ -495,18 +572,36 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
 
+### Mirroring on GitLab
+
+- MFEM repository is also mirrored on the LLNL GitLab instance, in a
+  semi-automated manner.
+
+- This instance is meant to complete CI testing with tests on Livermore
+  Computing systems. Gitlab pipeline status is reported in the corresponding
+  GitHub pull request.
+
+- In Gitlab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
+
+- No change to the MFEM repo can be made on this instance.
+
 ## Automated Testing
 
 MFEM has several levels of automated testing running on GitHub, as well as on
 local Mac and Linux workstations, and Livermore Computing clusters at LLNL.
 
+In addition, developers can set local git hooks to run some quick checks on
+commit or push, see the [README](config/githooks/README.md) in the `config/githooks`
+directory.
+
 ### Linux and Mac smoke tests
-We use Travis CI to drive the default tests on the `master` and `next`
-branches. See the `.travis` file and the logs at
+We use Travis CI and GitHub Actions to drive the default tests on the `master`
+and `next` branches. See the `.travis` file and the logs at
 [https://travis-ci.org/mfem/mfem](https://travis-ci.org/mfem/mfem).
 
-Testing using Travis CI should be kept lightweight, as there is a 50 minute time
-constraint on jobs. Two virtual machines are configured - Mac (OS X) and Linux.
+Testing using Travis CI and GitHub Actions should be kept lightweight, as there
+is a time constraint on jobs. Two virtual machines are configured - Mac (OS X)
+and Linux.
 
 - Tests on the `master` branch are triggered whenever a PR is issued on this branch.
 - Tests on the `next` branch are currently scheduled to run each night.
@@ -521,11 +616,15 @@ CMake is used to generate the MSVC Project files and drive the build.  A release
 and debug build is performed with a simple run of `ex1` to verify the executable.
 
 ### Tests at LLNL
-At LLNL, we mirror the `master` and `next` branches internally (to `gh-master`
-and `gh-next`) and run longer nightly tests via cron. On the weekends, a more
-extensive test is run which extracts and executes all the different sample runs
-from each example.
 
+- We mirror the `master` and `next` branches internally (to `gh-master` and
+  `gh-next`) and run longer nightly tests via cron. On the weekends, a more
+  extensive test is run which extracts and executes all the different sample
+  runs from each example.
+
+- We also mirror PRs on the LLNL GitLab instance. PR mirroring can only be
+  triggered by _LLNL developers_, but test status is publicly available. Only
+  _LLNL developers_ can access the detailed test report.
 
 ## Contact Information
 

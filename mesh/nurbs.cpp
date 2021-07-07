@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
@@ -441,7 +441,7 @@ void NURBSPatch::init(int dim_)
    }
    else
    {
-      mfem_error("NURBSPatch::init : Wrond dimension of knotvectors!");
+      mfem_error("NURBSPatch::init : Wrong dimension of knotvectors!");
    }
 }
 
@@ -2570,9 +2570,9 @@ void NURBSExtension::Get2DBdrElementTopo(Array<Element *> &boundary) const
       {
          if (activeBdrElem[g_be])
          {
-            int _i = (okv[0] >= 0) ? i : (nx - 1 - i);
-            ind[0] = activeVert[p2g[_i  ]];
-            ind[1] = activeVert[p2g[_i+1]];
+            int i_ = (okv[0] >= 0) ? i : (nx - 1 - i);
+            ind[0] = activeVert[p2g[i_  ]];
+            ind[1] = activeVert[p2g[i_+1]];
 
             boundary[l_be] = new Segment(ind, bdr_patch_attr);
             l_be++;
@@ -2600,16 +2600,16 @@ void NURBSExtension::Get3DBdrElementTopo(Array<Element *> &boundary) const
 
       for (int j = 0; j < ny; j++)
       {
-         int _j = (okv[1] >= 0) ? j : (ny - 1 - j);
+         int j_ = (okv[1] >= 0) ? j : (ny - 1 - j);
          for (int i = 0; i < nx; i++)
          {
             if (activeBdrElem[g_be])
             {
-               int _i = (okv[0] >= 0) ? i : (nx - 1 - i);
-               ind[0] = activeVert[p2g(_i,  _j  )];
-               ind[1] = activeVert[p2g(_i+1,_j  )];
-               ind[2] = activeVert[p2g(_i+1,_j+1)];
-               ind[3] = activeVert[p2g(_i,  _j+1)];
+               int i_ = (okv[0] >= 0) ? i : (nx - 1 - i);
+               ind[0] = activeVert[p2g(i_,  j_  )];
+               ind[1] = activeVert[p2g(i_+1,j_  )];
+               ind[2] = activeVert[p2g(i_+1,j_+1)];
+               ind[3] = activeVert[p2g(i_,  j_+1)];
 
                boundary[l_be] = new Quadrilateral(ind, bdr_patch_attr);
                l_be++;
@@ -2867,11 +2867,11 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                      Connection conn(lbe,0);
                      for (int jj = 0; jj <= ord1; jj++)
                      {
-                        const int _jj = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
+                        const int jj_ = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
                         for (int ii = 0; ii <= ord0; ii++)
                         {
-                           const int _ii = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
-                           conn.to = DofMap(p2g(_ii, _jj));
+                           const int ii_ = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
+                           conn.to = DofMap(p2g(ii_, jj_));
                            bel_dof_list.Append(conn);
                         }
                      }
@@ -3610,7 +3610,7 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
    return (new Table(GetGNE(), gel_dof_list));
 }
 
-void ParNURBSExtension::SetActive(const int *_partitioning,
+void ParNURBSExtension::SetActive(const int *partitioning_,
                                   const Array<bool> &active_bel)
 {
    activeElem.SetSize(GetGNE());
@@ -3618,7 +3618,7 @@ void ParNURBSExtension::SetActive(const int *_partitioning,
    NumOfActiveElems = 0;
    const int MyRank = gtopo.MyRank();
    for (int i = 0; i < GetGNE(); i++)
-      if (_partitioning[i] == MyRank)
+      if (partitioning_[i] == MyRank)
       {
          activeElem[i] = true;
          NumOfActiveElems++;
@@ -3633,7 +3633,7 @@ void ParNURBSExtension::SetActive(const int *_partitioning,
       }
 }
 
-void ParNURBSExtension::BuildGroups(const int *_partitioning,
+void ParNURBSExtension::BuildGroups(const int *partitioning_,
                                     const Table &elem_dof)
 {
    Table dof_proc;
@@ -3645,7 +3645,7 @@ void ParNURBSExtension::BuildGroups(const int *_partitioning,
    // convert elements to processors
    for (int i = 0; i < dof_proc.Size_of_connections(); i++)
    {
-      dof_proc.GetJ()[i] = _partitioning[dof_proc.GetJ()[i]];
+      dof_proc.GetJ()[i] = partitioning_[dof_proc.GetJ()[i]];
    }
 
    // the first group is the local one

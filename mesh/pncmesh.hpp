@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PNCMESH
 #define MFEM_PNCMESH
@@ -65,8 +65,17 @@ class FiniteElementSpace;
 class ParNCMesh : public NCMesh
 {
 public:
+   /// Construct by partitioning a serial NCMesh.
+   /** SFC partitioning is used by default. A user-specified partition can be
+       passed in 'part', where part[i] is the desired MPI rank for element i. */
    ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
+   /** Load from a stream, parallel version. See the serial NCMesh::NCMesh
+       counterpart for a description of the parameters. */
+   ParNCMesh(MPI_Comm comm, std::istream &input,
+             int version, int &curved, int &is_nc);
+
+   /// Deep copy of another instance.
    ParNCMesh(const ParNCMesh &other);
 
    virtual ~ParNCMesh();
@@ -91,7 +100,7 @@ public:
        elements) so that each processor owns the same number of leaves (+-1).
        The default partitioning strategy is based on equal splitting of the
        space-filling sequence of leaf elements (custom_partition == NULL).
-       Alternatively, a used-defined element-rank assignemnt array can be
+       Alternatively, a used-defined element-rank assignment array can be
        passed. */
    void Rebalance(const Array<int> *custom_partition = NULL);
 
@@ -272,10 +281,7 @@ protected: // interface for ParMesh
 protected: // implementation
 
    MPI_Comm MyComm;
-   int NRanks, MyRank;
-
-   int NGhostVertices, NGhostEdges, NGhostFaces;
-   int NElements, NGhostElements;
+   int NRanks;
 
    typedef std::vector<CommGroup> GroupList;
    typedef std::map<CommGroup, GroupId> GroupMap;
@@ -291,7 +297,7 @@ protected: // implementation
    // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_conf_group[3];
    // ParMesh compatibility helper arrays to order groups, also temporary
-   Array<int> leaf_glob_order, entity_elem_local[3];
+   Array<int> entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -311,12 +317,6 @@ protected: // implementation
 
    virtual void Update();
 
-   virtual bool IsGhost(const Element& el) const
-   { return el.rank != MyRank; }
-
-   virtual int GetNumGhostElements() const { return NGhostElements; }
-   virtual int GetNumGhostVertices() const { return NGhostVertices; }
-
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
    { return index * NRanks / total_elements; }
@@ -328,10 +328,6 @@ protected: // implementation
    /// Return the global index of the first element owned by processor 'rank'.
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
-
-   virtual void UpdateVertices();
-   virtual void AssignLeafIndices();
-   virtual void OnMeshUpdated(Mesh *mesh);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
@@ -541,7 +537,7 @@ protected: // implementation
        owners, keeping the ghost layer up to date. Used by Rebalance() and
        Derefine(). 'target_elements' is the number of elements this rank
        is supposed to own after the exchange. If this number is not known
-       apriori, the parameter can be set to -1, but more expensive communication
+       a priori, the parameter can be set to -1, but more expensive communication
        (synchronous sends and a barrier) will be used in that case. */
    void RedistributeElements(Array<int> &new_ranks, int target_elements,
                              bool record_comm);

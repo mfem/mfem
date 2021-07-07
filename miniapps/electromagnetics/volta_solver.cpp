@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "volta_solver.hpp"
 
@@ -85,12 +85,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
 
    // Select surface attributes for Dirichlet BCs
-   ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
-   ess_bdr_ = 0;   // Deselect all outer surfaces
-   for (int i=0; i<dbcs_->Size(); i++)
-   {
-      ess_bdr_[(*dbcs_)[i]-1] = 1;
-   }
+   AttrToMarker(pmesh.bdr_attributes.Max(), *dbcs_, ess_bdr_);
 
    // Setup various coefficients
 
@@ -237,7 +232,7 @@ VoltaSolver::~VoltaSolver()
    }
 }
 
-HYPRE_Int
+HYPRE_BigInt
 VoltaSolver::GetProblemSize()
 {
    return H1FESpace_->GlobalTrueVSize();
@@ -246,10 +241,10 @@ VoltaSolver::GetProblemSize()
 void
 VoltaSolver::PrintSizes()
 {
-   HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
-   HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_l2 = L2FESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_h1 = H1FESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_nd = HCurlFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_rt = HDivFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_l2 = L2FESpace_->GlobalTrueVSize();
    if (myid_ == 0)
    {
       cout << "Number of H1      unknowns: " << size_h1 << endl;
@@ -550,7 +545,7 @@ VoltaSolver::WriteVisItFields(int it)
    {
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
 
-      HYPRE_Int prob_size = this->GetProblemSize();
+      HYPRE_BigInt prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
       visit_dc_->SetTime(prob_size);
       visit_dc_->Save();
