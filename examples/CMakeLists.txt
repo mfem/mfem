@@ -70,6 +70,10 @@ if (MFEM_USE_MPI)
     ex27p.cpp
     ex28p.cpp
     ex29p.cpp
+    ex1p-orth.cpp
+    ex11p-cyl.cpp
+    ex13p-cyl.cpp
+    ex13p-cyl-3d.cpp
     )
 endif()
 
