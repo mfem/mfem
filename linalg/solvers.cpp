@@ -20,6 +20,9 @@
 #include <cmath>
 #include <set>
 
+#define MFEM_DEBUG_COLOR 155
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -591,6 +594,9 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
+   dbg("b:%f",b*b); //b.Print();
+   //assert(false);
+   dbg("x:%f",x*x); //x.Print();
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 

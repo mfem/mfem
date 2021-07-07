@@ -56,6 +56,13 @@
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
+#define MFEM_REGISTER(v,n) v[n]
+#define MFEM_REGISTER_2D(v,n,m) v[n][m]
+#define MFEM_REGISTER_3D(v,n,m,p) v[n][m][p]
+#else
+#define MFEM_REGISTER(v,n) v
+#define MFEM_REGISTER_2D(v,n,m) v
+#define MFEM_REGISTER_3D(v,n,m,p) v
 #endif
 
 template <typename T>

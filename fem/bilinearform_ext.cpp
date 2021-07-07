@@ -18,6 +18,9 @@
 #include "pgridfunc.hpp"
 #include "ceed/util.hpp"
 
+#define MFEM_DEBUG_COLOR 45
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -398,9 +401,13 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       elem_restrict->Mult(x, localX);
       localY = 0.0;
+      dbg("iSz:%d",iSz);
       for (int i = 0; i < iSz; ++i)
       {
+         dbg("localX.Size:%d localY.Size:%d, %f",
+             localX.Size(), localY.Size(), localY*localY);
          integrators[i]->AddMultPA(localX, localY);
+         dbg("after AddMultPA, %f",localY*localY);
       }
       elem_restrict->MultTranspose(localY, y);
    }
