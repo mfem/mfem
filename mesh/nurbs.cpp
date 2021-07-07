@@ -2542,7 +2542,6 @@ void NURBSExtension::CheckBdrPatches()
 void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 {
    Array<int> patchvert, edges, orient, edgevert;
-   int vertex0, vertex1, vertex2;
 
    // Get Element Vertices
    patchTopo->GetElementVertices(p, patchvert);
