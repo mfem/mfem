@@ -18,6 +18,7 @@ namespace doftrans
 {
 
 TEST_CASE("DoF Transformation Classes"
+          "[DofTransformation]"
           "[ND_TetDofTransformation]")
 {
    int p = 4;
@@ -52,8 +53,8 @@ TEST_CASE("DoF Transformation Classes"
       {
          Vector w;
 
-         T.TransformPrimal(u, ut);
-         T.InvTransformPrimal(ut, w);
+         ut = u; T.TransformPrimal(ut);
+         w = ut; T.InvTransformPrimal(w);
 
          w -= u;
 
@@ -62,8 +63,8 @@ TEST_CASE("DoF Transformation Classes"
 
       SECTION("Inner product with linear form f(v)")
       {
-         T.TransformPrimal(v, vt);
-         T.TransformDual(f, ft);
+         vt = v; T.TransformPrimal(vt);
+         ft = f; T.TransformDual(ft);
 
          double fv = f * v;
 
@@ -88,12 +89,12 @@ TEST_CASE("DoF Transformation Classes"
          DenseMatrix At;
          DenseMatrix tAt;
 
-         T.TransformPrimal(u, ut);
-         T.TransformPrimal(v, vt);
+         ut = u; T.TransformPrimal(ut);
+         vt = v; T.TransformPrimal(vt);
 
-         T.TransformDualRows(A, At);
-         T.TransformDualCols(A, tA);
-         T.TransformDual(A, tAt);
+         At = A; T.TransformDualRows(At);
+         tA = A; T.TransformDualCols(tA);
+         tAt = A; T.TransformDual(tAt);
 
          double uAv = A.InnerProduct(v, u);
 
@@ -109,12 +110,12 @@ TEST_CASE("DoF Transformation Classes"
          DenseMatrix At;
          DenseMatrix tAt;
 
-         T.TransformDual(f, ft);
-         T.TransformPrimal(v, vt);
+         ft = f; T.TransformDual(ft);
+         vt = v; T.TransformPrimal(vt);
 
-         T.TransformDualRows(A, At);
-         T.TransformPrimalCols(A, tA);
-         T.TransformPrimalCols(At, tAt);
+         At = A; T.TransformDualRows(At);
+         tA = A; T.TransformPrimalCols(tA);
+         tAt = At; T.TransformPrimalCols(tAt);
 
          double fAv = A.InnerProduct(v, f);
 
@@ -126,6 +127,7 @@ TEST_CASE("DoF Transformation Classes"
 }
 
 TEST_CASE("DoF Transformation Functions"
+          "[DofTransformation]"
           "TransformPrimal"
           "TransformDual")
 {
@@ -169,18 +171,18 @@ TEST_CASE("DoF Transformation Functions"
       v.Randomize(seed);
       f.Randomize(seed+1);
 
-      Tq.TransformPrimal(v, vt);
-      Tp.TransformDual(f, ft);
+      vt = v; Tq.TransformPrimal(vt);
+      ft = f; Tp.TransformDual(ft);
 
       DenseMatrix nAn;
       DenseMatrix tA;
       DenseMatrix At;
       DenseMatrix tAt;
 
-      TransformPrimal(NULL, NULL, A, nAn);
-      TransformPrimal(NULL,  &Tq, A, At);
-      TransformPrimal( &Tp, NULL, A, tA);
-      TransformPrimal( &Tp,  &Tq, A, tAt);
+      nAn = A; TransformPrimal(NULL, NULL, nAn);
+      At = A; TransformPrimal(NULL,  &Tq, At);
+      tA = A; TransformPrimal( &Tp, NULL, tA);
+      tAt = A; TransformPrimal( &Tp,  &Tq, tAt);
 
       double fAv = A.InnerProduct(v, f);
 
@@ -202,18 +204,18 @@ TEST_CASE("DoF Transformation Functions"
       u.Randomize(seed);
       v.Randomize(seed+1);
 
-      Tp.TransformPrimal(u, ut);
-      Tq.TransformPrimal(v, vt);
+      ut = u; Tp.TransformPrimal(ut);
+      vt = v; Tq.TransformPrimal(vt);
 
       DenseMatrix nAn;
       DenseMatrix tA;
       DenseMatrix At;
       DenseMatrix tAt;
 
-      TransformDual(NULL, NULL, A, nAn);
-      TransformDual(NULL,  &Tq, A, At);
-      TransformDual( &Tp, NULL, A, tA);
-      TransformDual( &Tp,  &Tq, A, tAt);
+      nAn = A; TransformDual(NULL, NULL, nAn);
+      At = A; TransformDual(NULL,  &Tq, At);
+      tA = A; TransformDual( &Tp, NULL, tA);
+      tAt = A; TransformDual( &Tp,  &Tq, tAt);
 
       double uAv = A.InnerProduct(v, u);
 
@@ -225,6 +227,7 @@ TEST_CASE("DoF Transformation Functions"
 }
 
 TEST_CASE("VDoF Transformation Class"
+          "[DofTransformation]"
           "[VDofTransformation]")
 {
    int p = 4;
@@ -259,8 +262,8 @@ TEST_CASE("VDoF Transformation Class"
       {
          Vector w;
 
-         T.TransformPrimal(v, vt);
-         T.InvTransformPrimal(vt, w);
+         vt = v; T.TransformPrimal(vt);
+         w = vt; T.InvTransformPrimal(w);
 
          w -= v;
 
@@ -268,8 +271,8 @@ TEST_CASE("VDoF Transformation Class"
       }
       SECTION("Inner product with linear form f(v)")
       {
-         T.TransformPrimal(v, vt);
-         T.TransformDual(f, ft);
+         vt = v; T.TransformPrimal(vt);
+         ft = f; T.TransformDual(ft);
 
          double fv = f * v;
 
@@ -294,8 +297,8 @@ TEST_CASE("VDoF Transformation Class"
          {
             Vector w;
 
-            T.TransformPrimal(v, vt);
-            T.InvTransformPrimal(vt, w);
+            vt = v; T.TransformPrimal(vt);
+            w = vt; T.InvTransformPrimal(w);
 
             w -= v;
 
@@ -303,8 +306,8 @@ TEST_CASE("VDoF Transformation Class"
          }
          SECTION("Inner product with linear form f(v)")
          {
-            T.TransformPrimal(v, vt);
-            T.TransformDual(f, ft);
+            vt = v; T.TransformPrimal(vt);
+            ft = f; T.TransformDual(ft);
 
             double fv = f * v;
 
@@ -319,8 +322,8 @@ TEST_CASE("VDoF Transformation Class"
          {
             Vector w;
 
-            T.TransformPrimal(v, vt);
-            T.InvTransformPrimal(vt, w);
+            vt = v; T.TransformPrimal(vt);
+            w = vt; T.InvTransformPrimal(w);
 
             w -= v;
 
@@ -328,8 +331,8 @@ TEST_CASE("VDoF Transformation Class"
          }
          SECTION("Inner product with linear form f(v)")
          {
-            T.TransformPrimal(v, vt);
-            T.TransformDual(f, ft);
+            vt = v; T.TransformPrimal(vt);
+            ft = f; T.TransformDual(ft);
 
             double fv = f * v;
 

@@ -392,7 +392,7 @@ void BilinearForm::Assemble(int skip_zeros)
    ElementTransformation *eltrans;
    DofTransformation * doftrans;
    Mesh *mesh = fes -> GetMesh();
-   DenseMatrix elmat, elmat_t, *elmat_p;
+   DenseMatrix elmat, *elmat_p;
 
    if (mat == NULL)
    {
@@ -459,13 +459,9 @@ void BilinearForm::Assemble(int skip_zeros)
             }
             if (doftrans)
             {
-               doftrans->TransformDual(elmat, elmat_t);
-               elmat_p = &elmat_t;
+               doftrans->TransformDual(elmat);
             }
-            else
-            {
-               elmat_p = &elmat;
-            }
+            elmat_p = &elmat;
          }
          if (static_cond)
          {
@@ -533,13 +529,9 @@ void BilinearForm::Assemble(int skip_zeros)
          }
          if (doftrans)
          {
-            doftrans->TransformDual(elmat, elmat_t);
-            elmat_p = &elmat_t;
+            doftrans->TransformDual(elmat);
          }
-         else
-         {
-            elmat_p = &elmat;
-         }
+         elmat_p = &elmat;
          if (!static_cond)
          {
             mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
@@ -1360,13 +1352,9 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          }
          if (ran_dof_trans || dom_dof_trans)
          {
-            TransformDual(ran_dof_trans, dom_dof_trans, totelemmat, elemmat);
-            mat -> AddSubMatrix (te_vdofs, tr_vdofs, elemmat, skip_zeros);
+            TransformDual(ran_dof_trans, dom_dof_trans, totelemmat);
          }
-         else
-         {
-            mat -> AddSubMatrix (te_vdofs, tr_vdofs, totelemmat, skip_zeros);
-         }
+         mat -> AddSubMatrix (te_vdofs, tr_vdofs, totelemmat, skip_zeros);
       }
    }
 
@@ -1883,13 +1871,9 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          }
          if (ran_dof_trans || dom_dof_trans)
          {
-            TransformPrimal(ran_dof_trans, dom_dof_trans, totelmat, elmat);
-            mat->SetSubMatrix(ran_vdofs, dom_vdofs, elmat, skip_zeros);
+            TransformPrimal(ran_dof_trans, dom_dof_trans, totelmat);
          }
-         else
-         {
-            mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
-         }
+         mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
       }
    }
 
