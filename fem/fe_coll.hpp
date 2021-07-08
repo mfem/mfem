@@ -529,10 +529,10 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
    const Linear3DFiniteElement TetrahedronFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
-   const H1_WedgeElement WedgeFE;
+   const LinearWedgeFiniteElement WedgeFE;
    const LinearPyramidFiniteElement PyramidFE;
 public:
-   LinearFECollection() : FiniteElementCollection(1), WedgeFE(1) { }
+   LinearFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
