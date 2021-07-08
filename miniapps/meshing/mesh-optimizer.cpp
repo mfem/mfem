@@ -36,6 +36,8 @@
 // make mesh-optimizer;./mesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
 // Kershaw 3D
 // make mesh-optimizer;./mesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+// Kershaw 3D, PA runs, CUDA: 0m3.867s, CPU: 3m56.210s
+// ./mesh-optimizer -m hex.mesh -o 2 -mid 302 -tid 1 -ni 300 -ls 3 -bnd -qt 1 -qo 8 -bm -vl 0 -st 0 -rs 1 -pa -d cuda -no-vis
 //
 // Stretch/Rotate 2D
 // make mesh-optimizer;./mesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
@@ -254,11 +256,11 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&benchmark, "-bm", "--bm", "-no-bm",
-                  "--no-bm",
+   args.AddOption(&benchmark, "-bm", "--benchmark",
+                  "-no-bm", "--no-benchmark",
                   "Apply benchmark modification.");
-   args.AddOption(&benchmarkid, "-bm_id", "--bm_id",
-                  "1 = kershaw, 2 is stretching.");
+   args.AddOption(&benchmarkid, "-bm_id", "--benchmark_id",
+                  "1: kershaw, 2: stretching.");
    args.Parse();
    if (!args.Good())
    {
@@ -359,6 +361,7 @@ int main(int argc, char *argv[])
    x -= rdm;
    x.SetTrueVector();
    x.SetFromTrueVector();
+   x.HostReadWrite();
 
    // 9. Save the starting (prior to the optimization) mesh to a file. This
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
@@ -367,20 +370,18 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
-
    // Add benchmark transformation
    if (benchmark)
    {
+      Vector xc(dim), xn(dim);
+      const double epsy = 0.3, epsz = 0.3;
       for (int i = 0; i < fespace->GetNDofs(); i++)
       {
-         Array<double> xc(dim), xn(dim);
          for (int d = 0; d < dim; d++)
          {
             xc[d] = x(fespace->DofToVDof(i,d));
          }
          xn = xc;
-         double epsy = 0.3,
-                epsz = 0.3;
 
          if (benchmarkid == 1)
          {
@@ -396,6 +397,7 @@ int main(int argc, char *argv[])
             {
                stretching3D(xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
             }
+            else { MFEM_ABORT("Unsupported benchmark dim!"); }
          }
          else if (benchmarkid == 3)
          {
