@@ -401,74 +401,87 @@ int main (int argc, char *argv[])
    // Add benchmark transformation
    if (benchmark)
    {
-       for (int i = 0; i < pfespace->GetNDofs(); i++)
-       {
-           Array<double> xc(dim), xn(dim);
-           for (int d = 0; d < dim; d++)
-           {
-               xc[d] = x(pfespace->DofToVDof(i,d));
-           }
-           double epsy = 0.3,
-                  epsz = 0.3;
+      for (int i = 0; i < pfespace->GetNDofs(); i++)
+      {
+         Array<double> xc(dim), xn(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            xc[d] = x(pfespace->DofToVDof(i,d));
+         }
+         double epsy = 0.3,
+                epsz = 0.3;
 
-           if (benchmarkid == 1) {
-               kershaw(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
-           }
-           else if (benchmarkid == 2) {
-               if (dim == 2) {
-                   stretching2D(xc[0], xc[1], xn[0], xn[1]);
-               }
-               else if (dim == 3) {
-                   stretching3D(xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
-               }
-           }
-           else if (benchmarkid == 3) {
-                rotation2D(xc[0], xc[1], xn[0], xn[1]);
-                if (dim == 3) { xn[2] = xc[2]; }
-           }
+         if (benchmarkid == 1)
+         {
+            kershaw(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+         }
+         else if (benchmarkid == 2)
+         {
+            if (dim == 2)
+            {
+               stretching2D(xc[0], xc[1], xn[0], xn[1]);
+            }
+            else if (dim == 3)
+            {
+               stretching3D(xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+            }
+         }
+         else if (benchmarkid == 3)
+         {
+            rotation2D(xc[0], xc[1], xn[0], xn[1]);
+            if (dim == 3) { xn[2] = xc[2]; }
+         }
 
-           for (int d = 0; d < dim; d++)
-           {
-               x(pfespace->DofToVDof(i,d)) = xn[d];
-           }
-       }
-       x.SetTrueVector();
-       x.SetFromTrueVector();
-       {
-           ostringstream mesh_name;
-           mesh_name << "perturbed.mesh";
-           ofstream mesh_ofs(mesh_name.str().c_str());
-           mesh_ofs.precision(8);
-           pmesh->PrintAsOne(mesh_ofs);
-       }
+         for (int d = 0; d < dim; d++)
+         {
+            x(pfespace->DofToVDof(i,d)) = xn[d];
+         }
+      }
+      x.SetTrueVector();
+      x.SetFromTrueVector();
+      {
+         ostringstream mesh_name;
+         mesh_name << "perturbed.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->PrintAsOne(mesh_ofs);
+      }
    }
 
    // Change boundary attribute for boundary element if tangential relaxation is allowed
-   if (move_bnd && benchmark) {
-       for (int e = 0; e < pmesh->GetNBE(); e++) {
-           Array<int> dofs;
-           pfespace->GetBdrElementDofs(e, dofs);
-           Array<bool> check(dim);
-           check = true;
-           Array<double> x_c(dim);
-           for (int j = 0; j < dofs.Size(); j++) {
-               if (j == 0) {
-                   for (int d = 0; d < dim; d++) {
-                       x_c[d] = x(pfespace->DofToVDof(dofs[j], d));
-                   }
+   if (move_bnd && benchmark)
+   {
+      for (int e = 0; e < pmesh->GetNBE(); e++)
+      {
+         Array<int> dofs;
+         pfespace->GetBdrElementDofs(e, dofs);
+         Array<bool> check(dim);
+         check = true;
+         Array<double> x_c(dim);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            if (j == 0)
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  x_c[d] = x(pfespace->DofToVDof(dofs[j], d));
                }
-               else {
-                   for (int d = 0; d < dim; d++) {
-                       check[d] = check[d] && (x_c[d] == x(pfespace->DofToVDof(dofs[j],d)));
-                   }
+            }
+            else
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  check[d] = check[d] && (x_c[d] == x(pfespace->DofToVDof(dofs[j],d)));
                }
-               Element *be = pmesh->GetBdrElement(e);
-               be->SetAttribute(4);
-               for (int d = 0; d < dim; d++) {
-                   if (check[d]) { be->SetAttribute(d+1); }
-               }
-           }
-       }
+            }
+            Element *be = pmesh->GetBdrElement(e);
+            be->SetAttribute(4);
+            for (int d = 0; d < dim; d++)
+            {
+               if (check[d]) { be->SetAttribute(d+1); }
+            }
+         }
+      }
    }
    pmesh->SetAttributes();
 

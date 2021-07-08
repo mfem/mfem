@@ -21,47 +21,47 @@ using namespace std;
 class DiscreteSize2D : public Coefficient
 {
 protected:
-    const int ref_levels, type;
+   const int ref_levels, type;
 
 public:
    DiscreteSize2D(int ref_levels_, int type_ = 2)
-       : ref_levels(ref_levels_), type(type_)  { }
+      : ref_levels(ref_levels_), type(type_)  { }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-       const double small = 0.016/pow(4., ref_levels), big = 0.16/pow(4., ref_levels);
-       double val = 0.;
-       Vector x(3);
-       T.Transform(ip, x);
+      const double small = 0.016/pow(4., ref_levels), big = 0.16/pow(4., ref_levels);
+      double val = 0.;
+      Vector x(3);
+      T.Transform(ip, x);
 
-       if (type == 1) // sine wave.
-       {
-          const double X = x(0), Y = x(1);
-          val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-       }
-       else if (type == 2) // semi-circle
-       {
-          const double xc = x(0) - 0.0, yc = x(1) - 0.5;
-          const double r = sqrt(xc*xc + yc*yc);
-          double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-          val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-       }
-       else if (type == 3)
-       {
-           double dxyl = 0.25;
-           const double xc = fabs(x(0) - 0.5), yc = fabs(x(1) - 0.5);
-           const double dxy = max(xc, yc);
-           if (dxy <= dxyl) { val = 1.0; }
-           else { val = 0.0; }
-           return val * (dxyl*dxyl/16) + (1.0 - val)*(1 - dxyl*dxyl)/(64-16);
-       }
+      if (type == 1) // sine wave.
+      {
+         const double X = x(0), Y = x(1);
+         val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+               std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+      }
+      else if (type == 2) // semi-circle
+      {
+         const double xc = x(0) - 0.0, yc = x(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+         val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+      }
+      else if (type == 3)
+      {
+         double dxyl = 0.25;
+         const double xc = fabs(x(0) - 0.5), yc = fabs(x(1) - 0.5);
+         const double dxy = max(xc, yc);
+         if (dxy <= dxyl) { val = 1.0; }
+         else { val = 0.0; }
+         return val * (dxyl*dxyl/16) + (1.0 - val)*(1 - dxyl*dxyl)/(64-16);
+      }
 
-       val = std::max(0.,val);
-       val = std::min(1.,val);
+      val = std::max(0.,val);
+      val = std::min(1.,val);
 
-       return val * small + (1.0 - val) * big;
+      return val * small + (1.0 - val) * big;
    }
 };
 
@@ -69,33 +69,33 @@ public:
 class DiscreteSize3D : public Coefficient
 {
 protected:
-    const int ref_levels;
+   const int ref_levels;
 
 public:
    DiscreteSize3D(int ref_levels_)
-       : ref_levels(ref_levels_) { }
+      : ref_levels(ref_levels_) { }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-       Vector x(3);
-       T.Transform(ip, x);
+      Vector x(3);
+      T.Transform(ip, x);
 
-       double small = 0.0064/pow(8., ref_levels),
-              big   =   0.64/pow(8., ref_levels);
+      double small = 0.0064/pow(8., ref_levels),
+             big   =   0.64/pow(8., ref_levels);
 
-       double val = 0.;
+      double val = 0.;
 
-       // semi-circle
-       const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
-       const double r = sqrt(xc*xc + yc*yc + zc*zc);
-       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+      // semi-circle
+      const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc + zc*zc);
+      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
 
-       val = std::max(0.,val);
-       val = std::min(1.,val);
+      val = std::max(0.,val);
+      val = std::min(1.,val);
 
-       return val * small + (1.0 - val) * big;
+      return val * small + (1.0 - val) * big;
    }
 };
 
@@ -369,11 +369,11 @@ double left(const double eps, const double x)
 // smooth -- see the commented versions at the end.
 double step(const double a, const double b, double x)
 {
-   if (x <= 0) return a;
-   if (x >= 1) return b;
+   if (x <= 0) { return a; }
+   if (x >= 1) { return b; }
    //return a + (b-a) * (x);
    //return a + (b-a) * (x*x*(3-2*x));
-    return a + (b-a) * (x*x*x*(x*(6*x-15)+10));
+   return a + (b-a) * (x*x*x*(x*(6*x-15)+10));
 }
 
 // 3D version of a generalized Kershaw mesh transformation, see D. Kershaw,
@@ -397,27 +397,27 @@ void kershaw(const double epsy, const double epsz,
    // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
    switch (layer)
    {
-   case 0:
-      Y = left(epsy, y);
-      Z = left(epsz, z);
-      break;
-   case 1:
-   case 4:
-      Y = step(left(epsy, y), right(epsy, y), lambda);
-      Z = step(left(epsz, z), right(epsz, z), lambda);
-      break;
-   case 2:
-      Y = step(right(epsy, y), left(epsy, y), lambda/2);
-      Z = step(right(epsz, z), left(epsz, z), lambda/2);
-      break;
-   case 3:
-      Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
-      Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
-      break;
-   default:
-      Y = right(epsy, y);
-      Z = right(epsz, z);
-      break;
+      case 0:
+         Y = left(epsy, y);
+         Z = left(epsz, z);
+         break;
+      case 1:
+      case 4:
+         Y = step(left(epsy, y), right(epsy, y), lambda);
+         Z = step(left(epsz, z), right(epsz, z), lambda);
+         break;
+      case 2:
+         Y = step(right(epsy, y), left(epsy, y), lambda/2);
+         Z = step(right(epsz, z), left(epsz, z), lambda/2);
+         break;
+      case 3:
+         Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
+         Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
+         break;
+      default:
+         Y = right(epsy, y);
+         Z = right(epsz, z);
+         break;
    }
 }
 
@@ -439,30 +439,31 @@ void stretching2D(const double x, const double y,
 }
 
 static double rad2D(double x, double y,
-                  double const xc = 0.0,
-                  double const yc = 0.0) {
-    double dx = x - xc,
-           dy = y - yc;
-    double dr = dx*dx + dy*dy;
-    if (dr > 0.0) { dr = std::pow(dr, 0.5); }
-    return dr;
+                    double const xc = 0.0,
+                    double const yc = 0.0)
+{
+   double dx = x - xc,
+          dy = y - yc;
+   double dr = dx*dx + dy*dy;
+   if (dr > 0.0) { dr = std::pow(dr, 0.5); }
+   return dr;
 }
 
 void rotation2D_substep(const double xc, const double yc,
                         const double r1, const double r2,
                         double &ux, double &uy)
 {
-    double rad = rad2D(xc, yc, 0.0, 0.0);
-    if (rad < r1)
-    {
-       ux =  5.0 * yc;
-       uy = -5.0 * xc;
-    }
-    else if (rad < r2)
-    {
-       ux =  2.0 * yc / rad - 5.0 * yc;
-       uy = -2.0 * xc / rad + 5.0 * xc;
-    }
+   double rad = rad2D(xc, yc, 0.0, 0.0);
+   if (rad < r1)
+   {
+      ux =  5.0 * yc;
+      uy = -5.0 * xc;
+   }
+   else if (rad < r2)
+   {
+      ux =  2.0 * yc / rad - 5.0 * yc;
+      uy = -2.0 * xc / rad + 5.0 * xc;
+   }
 }
 
 void rotation2D(const double x, const double y,
@@ -476,19 +477,20 @@ void rotation2D(const double x, const double y,
    double r1 = 0.2,
           r2 = 0.4;
 
-   for (int i = 0; i < 300; i++) {
+   for (int i = 0; i < 300; i++)
+   {
 
-       double xs = xc, ys = yc;
+      double xs = xc, ys = yc;
 
-       rotation2D_substep(xc, yc, r1, r2, ux, uy);
+      rotation2D_substep(xc, yc, r1, r2, ux, uy);
 
-       xc = xc + 0.5*dt*ux;
-       yc = yc + 0.5*dt*uy;
+      xc = xc + 0.5*dt*ux;
+      yc = yc + 0.5*dt*uy;
 
-       rotation2D_substep(xc, yc, r1, r2, ux, uy);
+      rotation2D_substep(xc, yc, r1, r2, ux, uy);
 
-       xc = xs + dt*ux;
-       yc = ys + dt*uy;
+      xc = xs + dt*ux;
+      yc = ys + dt*uy;
    }
 
    X = xc + 0.5;
@@ -496,7 +498,7 @@ void rotation2D(const double x, const double y,
 }
 
 void stretching3D(const double x, const double y, const double z,
-               double &X, double &Y, double &Z)
+                  double &X, double &Y, double &Z)
 {
    double amp = 0.3;
    double frq = 8.;
