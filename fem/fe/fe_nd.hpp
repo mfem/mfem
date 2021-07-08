@@ -275,11 +275,10 @@ public:
 
 
 /// Arbitrary order Nedelec elements in 1D on a segment
-class ND_SegmentElement : public VectorFiniteElement
+class ND_SegmentElement : public VectorTensorFiniteElement
 {
    static const double tk[1];
 
-   Poly_1D::Basis &obasis1d;
    Array<int> dof2tk;
 
 public:

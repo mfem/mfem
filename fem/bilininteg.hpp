@@ -21,7 +21,11 @@ namespace mfem
 
 // Local maximum size of dofs and quads in 1D
 constexpr int HCURL_MAX_D1D = 5;
+#ifdef MFEM_USE_HIP
+constexpr int HCURL_MAX_Q1D = 5;
+#else
 constexpr int HCURL_MAX_Q1D = 6;
+#endif
 
 constexpr int HDIV_MAX_D1D = 5;
 constexpr int HDIV_MAX_Q1D = 6;
@@ -257,6 +261,8 @@ public:
    TransposeIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
+   virtual void SetIntRule(const IntegrationRule *ir);
+
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -324,6 +330,8 @@ public:
    LumpedIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
+   virtual void SetIntRule(const IntegrationRule *ir);
+
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -342,6 +350,8 @@ public:
    InverseIntegrator(BilinearFormIntegrator *integ, int own_integ = 1)
    { integrator = integ; own_integrator = own_integ; }
 
+   virtual void SetIntRule(const IntegrationRule *ir);
+
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -359,6 +369,8 @@ private:
 
 public:
    SumIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   virtual void SetIntRule(const IntegrationRule *ir);
 
    void AddIntegrator(BilinearFormIntegrator *integ)
    { integrators.Append(integ); }

@@ -1222,6 +1222,11 @@ public:
                              const int cbtype, const int obtype,
                              const int M, const DofMapType dmtype);
 
+   // For 1D elements: there is only an "open basis", no "closed basis"
+   VectorTensorFiniteElement(const int dims, const int d, const int p,
+                             const int obtype, const int M,
+                             const DofMapType dmtype);
+
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const;
 

@@ -1190,9 +1190,8 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 const double ND_SegmentElement::tk[1] = { 1. };
 
 ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
-   : VectorFiniteElement(1, Geometry::SEGMENT, p, p - 1,
-                         H_CURL, FunctionSpace::Pk),
-     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
+   : VectorTensorFiniteElement(1, p, p - 1, ob_type, H_CURL,
+                               DofMapType::L2_DOF_MAP),
      dof2tk(dof)
 {
    if (obasis1d.IsIntegratedType()) { is_nodal = false; }
