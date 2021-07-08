@@ -3271,6 +3271,77 @@ const
 }
 
 
+LinearPyramidFiniteElement::LinearPyramidFiniteElement()
+   : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1)
+{
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(2).x = 1.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 1.0;
+   Nodes.IntPoint(3).z = 0.0;
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 1.0;
+}
+
+void LinearPyramidFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                           Vector &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+   double ox = 1.-x, oy = 1.-y, oz = 1.-z;
+
+   shape(0) = ox * oy * oz;
+   shape(1) =  x * oy * oz;
+   shape(2) =  x *  y * oz;
+   shape(3) = ox *  y * oz;
+   shape(4) = ox * oy *  z;
+}
+
+void LinearPyramidFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                            DenseMatrix &dshape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+   double ox = 1.-x, oy = 1.-y, oz = 1.-z;
+
+   dshape(0,0) = - oy * oz;
+   dshape(0,1) = - ox * oz;
+   dshape(0,2) = - ox * oy;
+
+   dshape(1,0) =   oy * oz;
+   dshape(1,1) = -  x * oz;
+   dshape(1,2) = -  x * oy;
+
+   dshape(2,0) =    y * oz;
+   dshape(2,1) =    x * oz;
+   dshape(2,2) = -  x *  y;
+
+   dshape(3,0) = -  y * oz;
+   dshape(3,1) =   ox * oz;
+   dshape(3,2) = - ox *  y;
+
+   dshape(4,0) = - oy *  z;
+   dshape(4,1) = - ox *  z;
+   dshape(4,2) =   ox * oy;
+}
+
+void LinearPyramidFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
+const
+{
+   static int face_dofs[5][4] =
+   {{3, 2, 1, 0}, {0, 1, 4, -1}, {1, 2, 4, -1}, {2, 3, 4, -1}, {3, 0, 4, -1}};
+
+   *ndofs = (face < 1) ? 4 : 3;
+   *dofs  = face_dofs[face];
+}
+
+
 Quadratic3DFiniteElement::Quadratic3DFiniteElement()
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, 10, 2)
 {

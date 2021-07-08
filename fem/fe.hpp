@@ -1313,6 +1313,35 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+/// A linear element defined on a square pyramid
+class LinearPyramidFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the Linear3DFiniteElement
+   LinearPyramidFiniteElement();
+
+   /** @brief virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (4) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** @brief virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
+       face, while *ndofs is set to the number of dofs on that face.
+   */
+   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
+};
+
 /// A 2D constant element on a triangle
 class P0TriangleFiniteElement : public NodalFiniteElement
 {
