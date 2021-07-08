@@ -979,6 +979,8 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
 
             for (int k = 0; k < bfnfi.Size(); ++k)
             {
+	       if (bfnfi_marker[k] &&
+                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }	    
                bfnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
                for (int l=0; l<fes.Size(); ++l)
                {
