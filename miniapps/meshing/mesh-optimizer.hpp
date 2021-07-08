@@ -250,6 +250,54 @@ double adapt_lim_fun(const Vector &x)
    return val;
 }
 
+// Used for exact surface alignment
+double surface_level_set(const Vector &x)
+{
+   const int type = 1;
+
+   const int dim = x.Size();
+   if (type == 0)
+   {
+      const double sine = 0.25 * std::sin(4 * M_PI * x(0));
+      return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
+   }
+   else
+   {
+      if (dim == 2)
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         return std::tanh(2.0*(r-0.2));
+      }
+      else
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc + zc*zc);
+         return std::tanh(2.0*(r-0.3));
+      }
+   }
+}
+
+int material_id(int el_id, const GridFunction &g)
+{
+   const FiniteElementSpace *fes = g.FESpace();
+   const FiniteElement *fe = fes->GetFE(el_id);
+   Vector g_vals;
+   const IntegrationRule &ir =
+      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+
+   double integral = 0.0;
+   g.GetValues(el_id, ir, g_vals);
+   ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      Tr->SetIntPoint(&ip);
+      integral += ip.weight * g_vals(q) * Tr->Weight();
+   }
+   return (integral > 0.0) ? 1.0 : 0.0;
+}
+
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
    //Setup the Laplacian operator
@@ -296,3 +344,70 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete Lap;
 }
 #endif
+
+void DiffuseField2(ParGridFunction &field, double coeff)
+{
+   ParFiniteElementSpace &pfes = *field.ParFESpace();
+
+   // Compute average mesh size (assumes similar cells).
+   double loc_area = 0.0, dx;
+   ParMesh &pmesh = *pfes.GetParMesh();
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      loc_area += pmesh.GetElementVolume(i);
+   }
+   double glob_area;
+   MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
+                 MPI_SUM, pfes.GetComm());
+
+   const int glob_zones = pmesh.GetGlobalNE();
+   switch (pmesh.GetElementBaseGeometry(0))
+   {
+      case Geometry::SEGMENT:
+         dx = glob_area / glob_zones; break;
+      case Geometry::SQUARE:
+         dx = sqrt(glob_area / glob_zones); break;
+      case Geometry::TRIANGLE:
+         dx = sqrt(2.0 * glob_area / glob_zones); break;
+      case Geometry::CUBE:
+         dx = pow(glob_area / glob_zones, 1.0/3.0); break;
+      case Geometry::TETRAHEDRON:
+         dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
+      default: MFEM_ABORT("Unknown zone type!");
+   }
+   dx /= pfes.GetOrder(0);
+
+   // Set up RHS.
+   ParLinearForm b(&pfes);
+   GridFunctionCoefficient src_coeff(&field);
+   b.AddDomainIntegrator(new DomainLFIntegrator(src_coeff));
+   b.Assemble();
+
+   // Diffusion and mass terms in the LHS.
+   ParBilinearForm a(&pfes);
+   a.AddDomainIntegrator(new MassIntegrator);
+   ConstantCoefficient diffuse_coeff(coeff * dx * dx);
+   a.AddDomainIntegrator(new DiffusionIntegrator(diffuse_coeff));
+   a.Assemble();
+
+   // Solve with Neumann BC.
+   ParGridFunction u_neumann(&pfes);
+   Array<int> ess_tdof_list;
+   ess_tdof_list.DeleteAll();
+   // Solver.
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(100);
+   cg.SetPrintLevel(1);
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
+   Solver *prec = new HypreBoomerAMG;
+   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   a.RecoverFEMSolution(X, b, u_neumann);
+   delete prec;
+
+   field = u_neumann;
+}

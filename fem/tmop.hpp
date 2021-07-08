@@ -638,6 +638,69 @@ public:
    virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
 };
 
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_328(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_301),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_301 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_333(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_302),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_302 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_334 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_334(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_303),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_303 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
+};
+
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
 class TMOP_Metric_352 : public TMOP_QualityMetric
 {
@@ -1231,6 +1294,13 @@ protected:
    Coefficient *coeff_zeta;          // Not owned.
    AdaptivityEvaluator *adapt_eval;  // Not owned.
 
+   // Surface fitting.
+   GridFunction *sigma, *sigma_bar;  // Owned. Updated by sigma_eval.
+   const Array<bool> *sigma_marker;  // Not owned.
+   Coefficient *coeff_sigma;         // Not owned.
+   AdaptivityEvaluator *sigma_eval;  // Not owned.
+   double sigma_normal;
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
@@ -1299,7 +1369,8 @@ protected:
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     double &metric_energy, double &lim_energy);
+                                     double &metric_energy, double &lim_energy,
+                                     double &sigma_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
@@ -1318,12 +1389,25 @@ protected:
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
 
-   void AssembleElemVecAdaptLim(const FiniteElement &el, const Vector &weights,
+   void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
-                                const IntegrationRule &ir, DenseMatrix &m);
-   void AssembleElemGradAdaptLim(const FiniteElement &el, const Vector &weights,
+                                const IntegrationRule &ir,
+                                const Vector &weights, DenseMatrix &mat);
+   void AssembleElemGradAdaptLim(const FiniteElement &el,
                                  IsoparametricTransformation &Tpr,
-                                 const IntegrationRule &ir, DenseMatrix &m);
+                                 const IntegrationRule &ir,
+                                 const Vector &weights, DenseMatrix &m);
+
+   // First derivative of the surface fitting term.
+   void AssembleElemVecSurfFit(const FiniteElement &el_x,
+                               IsoparametricTransformation &Tpr,
+                               const IntegrationRule &ir_quad,
+                               const Vector &weights, DenseMatrix &mat);
+   // Second derivative of the surface fitting term.
+   void AssembleElemGradSurfFit(const FiniteElement &el_x,
+                                IsoparametricTransformation &Tpr,
+                                const IntegrationRule &ir_quad,
+                                const Vector &weights, DenseMatrix &mat);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
@@ -1403,6 +1487,8 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
+        sigma(NULL), sigma_bar(NULL), sigma_marker(NULL), coeff_sigma(NULL),
+        sigma_eval(NULL), sigma_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -1466,6 +1552,13 @@ public:
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae);
 #endif
+
+#ifdef MFEM_USE_MPI
+   void EnableSurfaceFitting(const ParGridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
+#endif
+   void GetSurfaceFittingErrors(double &err_avg, double &err_max);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }

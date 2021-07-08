@@ -120,6 +120,7 @@ int main (int argc, char *argv[])
    int target_id         = 1;
    double lim_const      = 0.0;
    double adapt_lim_const = 0.0;
+   double surface_fit_const   = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
@@ -195,6 +196,8 @@ int main (int argc, char *argv[])
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
                   "Adaptive limiting coefficient constant.");
+   args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
+                  "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -689,8 +692,6 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
-   if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
-
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
    ParFiniteElementSpace dist_pfespace(pmesh, fec); // scalar space
@@ -731,6 +732,72 @@ int main (int argc, char *argv[])
                                 300, 600, 300, 300);
       }
    }
+
+   // Surface fitting.
+   L2_FECollection mat_coll(0, dim);
+   H1_FECollection sigma_fec(mesh_poly_deg, dim);
+   ParFiniteElementSpace sigma_fes(pmesh, &sigma_fec);
+   ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
+   ParGridFunction mat(&mat_fes);
+   ParGridFunction marker_gf(&sigma_fes);
+   ParGridFunction ls_0(&sigma_fes);
+   Array<bool> marker(ls_0.Size());
+   ConstantCoefficient coef_ls(surface_fit_const);
+   AdaptivityEvaluator *adapt_surface = NULL;
+   if (surface_fit_const > 0.0)
+   {
+      FunctionCoefficient ls_coeff(surface_level_set);
+      ls_0.ProjectCoefficient(ls_coeff);
+
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         mat(i) = material_id(i, ls_0);
+         pmesh->SetAttribute(i, mat(i) + 1);
+      }
+
+      GridFunctionCoefficient coeff_mat(&mat);
+      marker_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+      for (int j = 0; j < marker.Size(); j++)
+      {
+         if (marker_gf(j) > 0.1 && marker_gf(j) < 0.9)
+         {
+            marker[j] = true;
+            marker_gf(j) = 1.0;
+         }
+         else
+         {
+            marker[j] = false;
+            marker_gf(j) = 0.0;
+         }
+      }
+
+      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+      else if (adapt_eval == 1)
+      {
+#ifdef MFEM_USE_GSLIB
+         adapt_surface = new InterpolatorFP;
+#else
+         MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+      }
+      else { MFEM_ABORT("Bad interpolation option."); }
+
+      he_nlf_integ->EnableSurfaceFitting(ls_0, marker, coef_ls, *adapt_surface);
+      if (visualization)
+      {
+         socketstream vis1, vis2, vis3;
+         common::VisualizeField(vis1, "localhost", 19916, ls_0, "Level Set 0",
+                                300, 600, 300, 300);
+         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                600, 600, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Dofs to Move",
+                                900, 600, 300, 300);
+      }
+   }
+
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -821,7 +888,19 @@ int main (int argc, char *argv[])
       tauval -= 0.01 * h0min_all;
    }
 
+   // Compute the initial energy of the functional.
    const double init_energy = a.GetParGridFunctionEnergy(x);
+   double init_metric_energy = init_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   {
+      lim_coeff.constant = 0.0;
+      coef_zeta.constant = 0.0;
+      coef_ls.constant   = 0.0;
+      init_metric_energy = a.GetParGridFunctionEnergy(x);
+      lim_coeff.constant = lim_const;
+      coef_zeta.constant = adapt_lim_const;
+      coef_ls.constant   = surface_fit_const;
+   }
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.
@@ -970,26 +1049,38 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // 17. Compute the amount of energy decrease.
+   if (visualization && surface_fit_const > 0.0)
+   {
+      socketstream vis2, vis3;
+      common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                             600, 900, 300, 300);
+      common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Surface dof",
+                             900, 900, 300, 300);
+   }
+
+   // Compute the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
-   double metric_part = fin_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0)
+   double fin_metric_energy = fin_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
-      metric_part = a.GetParGridFunctionEnergy(x);
+      coef_ls.constant   = 0.0;
+      fin_metric_energy  = a.GetParGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
+      coef_ls.constant   = surface_fit_const;
    }
    if (myid == 0)
    {
+      std::cout << std::scientific << std::setprecision(4);
       cout << "Initial strain energy: " << init_energy
-           << " = metrics: " << init_energy
-           << " + limiting term: " << 0.0 << endl;
+           << " = metrics: " << init_metric_energy
+           << " + extra terms: " << init_energy - init_metric_energy << endl;
       cout << "  Final strain energy: " << fin_energy
-           << " = metrics: " << metric_part
-           << " + limiting term: " << fin_energy - metric_part << endl;
-      cout << "The strain energy decreased by: " << setprecision(12)
+           << " = metrics: " << fin_metric_energy
+           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+      cout << "The strain energy decreased by: "
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
