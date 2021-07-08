@@ -3513,7 +3513,7 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    pncmesh->MarkCoarseLevel();
    pncmesh->Refine(refinements);
 
-   if (nc_limit > 0)
+   if (nc_limit >= 0)
    {
       pncmesh->LimitNCLevel(nc_limit);
    }

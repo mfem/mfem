@@ -66,7 +66,7 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    current_sequence = -1;
 
    non_conforming = -1;
-   nc_limit = 0;
+   nc_limit = -1;
 }
 
 double ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const

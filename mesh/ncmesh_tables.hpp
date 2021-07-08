@@ -52,6 +52,9 @@ const int prism_deref_table[7][6 + 5] =
 
 // child ordering tables
 
+const char tri_sierpinski_child_order[2][2] = { {0, 1}, {1, 0} };
+const char tri_sierpinski_child_state[2][2] = { {1, 1}, {0, 0} };
+
 const char quad_hilbert_child_order[8][4] =
 {
    {0,1,2,3}, {0,3,2,1}, {1,2,3,0}, {1,0,3,2},

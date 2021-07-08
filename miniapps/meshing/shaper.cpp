@@ -61,8 +61,10 @@ int material(Vector &x, Vector &xmin, Vector &xmax)
    }
 
    // A simple annulus/shell
-   if (x.Normlp(p) > 0.4 && x.Normlp(p) < 0.6) { return 1; }
-   if (x.Normlp(p) < 0.4 || x.Normlp(p) > 0.6) { return 2; }
+/*   if (x.Normlp(p) > 0.4 && x.Normlp(p) < 0.6) { return 1; }
+   if (x.Normlp(p) < 0.4 || x.Normlp(p) > 0.6) { return 2; }*/
+   if (x.Normlp(p) < 0.7) { return 1; }
+   if (x.Normlp(p) > 0.7) { return 2; }
    return 0;
 }
 
@@ -99,6 +101,12 @@ int main(int argc, char *argv[])
 
    // Anisotropic refinement not supported for simplex meshes.
    if (mesh.MeshGenerator() & 1) { aniso = false; }
+
+   Array<int> ordering;
+   mesh.GetGeckoElementOrdering(ordering);
+   mesh.ReorderElements(ordering);
+
+   mesh.EnsureNCMesh(true);
 
    // Mesh attributes will be visualized as piece-wise constants
    L2_FECollection attr_fec(0, dim);
@@ -150,7 +158,7 @@ int main(int argc, char *argv[])
          // Mark the element for refinement
          if (refine)
          {
-            int type = 7;
+            int type = (mesh.MeshGenerator() & 1) ? 1 : 7;
             if (aniso)
             {
                // Determine the XYZ bitmask for anisotropic refinement.
@@ -189,7 +197,10 @@ int main(int argc, char *argv[])
       }
 
       // Visualization
+      NCMesh * tmp = mesh.ncmesh;
+      mesh.ncmesh = NULL;
       sol_sock << "solution\n" << mesh << attr;
+      mesh.ncmesh = tmp;
       if (iter == 0 && sdim == 2)
       {
          sol_sock << "keys 'RjlmpppppppppppppA*************'\n";
@@ -211,7 +222,7 @@ int main(int argc, char *argv[])
 
       // Perform refinement, update spaces and grid functions
       mesh.GeneralRefinement(refs, -1, nclimit);
-      attr_fespace.Update();
+      attr_fespace.Update(false);
       attr.Update();
    }
 
