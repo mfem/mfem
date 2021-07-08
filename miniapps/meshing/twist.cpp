@@ -109,16 +109,16 @@ int main(int argc, char *argv[])
    }
 
    // Define the mesh
-   Mesh *mesh = new Mesh(1, 1, nz_, el_type_, false, a_, b_, c_, false);
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, nz_, el_type_, a_, b_, c_, false);
 
    // Promote to high order mesh and transform into a twisted shape
    if (order_ > 1 || dg_mesh || per_mesh)
    {
-      mesh->SetCurvature(order_, dg_mesh || per_mesh, 3, Ordering::byVDIM);
+      mesh.SetCurvature(order_, dg_mesh || per_mesh, 3, Ordering::byVDIM);
    }
    if (nt_ != 0 )
    {
-      mesh->Transform(trans);
+      mesh.Transform(trans);
    }
 
    while (per_mesh)
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
       int nnode = 4;
       int noff = (nt_ >= 0) ? 0 : (nnode * (1 - nt_ / nnode));
 
-      Array<int> v2v(mesh->GetNV());
+      Array<int> v2v(mesh.GetNV());
       for (int i = 0; i < v2v.Size() - nnode; i++)
       {
          v2v[i] = i;
@@ -177,9 +177,9 @@ int main(int argc, char *argv[])
             break;
       }
       // renumber elements
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
-         Element *el = mesh->GetElement(i);
+         Element *el = mesh.GetElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -188,9 +188,9 @@ int main(int argc, char *argv[])
          }
       }
       // renumber boundary elements
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         Element *el = mesh->GetBdrElement(i);
+         Element *el = mesh.GetBdrElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -198,8 +198,8 @@ int main(int argc, char *argv[])
             v[j] = v2v[v[j]];
          }
       }
-      mesh->RemoveUnusedVertices();
-      mesh->RemoveInternalBoundaries();
+      mesh.RemoveUnusedVertices();
+      mesh.RemoveInternalBoundaries();
 
       break;
    }
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
    // Refine the mesh if desired
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
    // Output the resulting mesh to a file
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
       oss << ".mesh";
       ofstream ofs(oss.str().c_str());
       ofs.precision(8);
-      mesh->Print(ofs);
+      mesh.Print(ofs);
       ofs.close();
    }
 
@@ -257,11 +257,10 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "mesh\n" << *mesh << flush;
+      sol_sock << "mesh\n" << mesh << flush;
    }
 
    // Clean up and exit
-   delete mesh;
    return 0;
 }
 

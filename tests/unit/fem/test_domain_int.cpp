@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -92,8 +92,8 @@ TEST_CASE("Domain Integration (Scalar Field)",
          if (ft == (int)FEType::ND_FEC || ft == (int)FEType::RT_FEC)
          { continue; }
 
-         SECTION("Integrating field type " + std::to_string(ft) +
-                 " on mesh type " + std::to_string(mt))
+         SECTION("Integral of field " + std::to_string(ft) +
+                 " on mesh type " + std::to_string(mt) )
          {
 
             FiniteElementCollection *fec = NULL;
@@ -106,7 +106,8 @@ TEST_CASE("Domain Integration (Scalar Field)",
                   fec = new L2_FECollection(order-1, dim);
                   break;
                case FEType::L2I_FEC:
-                  fec = new L2_FECollection(order-1, dim, BasisType::GaussLegendre,
+                  fec = new L2_FECollection(order-1, dim,
+                                            BasisType::GaussLegendre,
                                             FiniteElement::INTEGRAL);
                   break;
                default:
@@ -150,7 +151,7 @@ TEST_CASE("Domain Integration (Vector Field)",
           "[GridFunction]"
           "[LinearForm]")
 {
-   int order = 3;
+   int order = 1;
 
    for (int mt = (int)MeshType::SEGMENT;
         mt <= (int)MeshType::MIXED3D8; mt++)
@@ -179,54 +180,59 @@ TEST_CASE("Domain Integration (Vector Field)",
              mt == (int)MeshType::MIXED3D6 || mt == (int)MeshType::MIXED3D8)
          { continue; }
 
-         FiniteElementCollection *fec = NULL;
-         switch ((FEType)ft)
+         SECTION("Integral of field " + std::to_string(ft) +
+                 " on mesh type " + std::to_string(mt) )
          {
-            case FEType::ND_FEC:
-               fec = new ND_FECollection(order, dim);
-               break;
-            case FEType::RT_FEC:
-               fec = new RT_FECollection(order-1, dim);
-               break;
-            default:
-               MFEM_ABORT("Invalid vector FE type");
+
+            FiniteElementCollection *fec = NULL;
+            switch ((FEType)ft)
+            {
+               case FEType::ND_FEC:
+                  fec = new ND_FECollection(order, dim);
+                  break;
+               case FEType::RT_FEC:
+                  fec = new RT_FECollection(order-1, dim);
+                  break;
+               default:
+                  MFEM_ABORT("Invalid vector FE type");
+            }
+            FiniteElementSpace fespace(mesh, fec);
+
+            GridFunction u(&fespace);
+            u.ProjectCoefficient(f1Coef);
+
+            LinearForm bx(&fespace);
+            LinearForm by(&fespace);
+            LinearForm bz(&fespace);
+            bx.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fxCoef));
+            by.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fyCoef));
+            bz.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fzCoef));
+            bx.Assemble();
+            by.Assemble();
+            bz.Assemble();
+
+            double ix = bx(u);
+            double iy = by(u);
+            double iz = bz(u);
+
+            if (dim == 1)
+            {
+               REQUIRE(ix == MFEM_Approx( 5.0));
+            }
+            else if (dim == 2)
+            {
+               REQUIRE(ix == MFEM_Approx(15.0));
+               REQUIRE(iy == MFEM_Approx(15.0));
+            }
+            else
+            {
+               REQUIRE(ix == MFEM_Approx(30.0));
+               REQUIRE(iy == MFEM_Approx(30.0));
+               REQUIRE(iz == MFEM_Approx(30.0));
+            }
+
+            delete fec;
          }
-         FiniteElementSpace fespace(mesh, fec);
-
-         GridFunction u(&fespace);
-         u.ProjectCoefficient(f1Coef);
-
-         LinearForm bx(&fespace);
-         LinearForm by(&fespace);
-         LinearForm bz(&fespace);
-         bx.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fxCoef));
-         by.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fyCoef));
-         bz.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fzCoef));
-         bx.Assemble();
-         by.Assemble();
-         bz.Assemble();
-
-         double ix = bx(u);
-         double iy = by(u);
-         double iz = bz(u);
-
-         if (dim == 1)
-         {
-            REQUIRE(ix == MFEM_Approx( 5.0));
-         }
-         else if (dim == 2)
-         {
-            REQUIRE(ix == MFEM_Approx(15.0));
-            REQUIRE(iy == MFEM_Approx(15.0));
-         }
-         else
-         {
-            REQUIRE(ix == MFEM_Approx(30.0));
-            REQUIRE(iy == MFEM_Approx(30.0));
-            REQUIRE(iz == MFEM_Approx(30.0));
-         }
-
-         delete fec;
       }
 
       delete mesh;
@@ -234,7 +240,7 @@ TEST_CASE("Domain Integration (Vector Field)",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("Domain Integration in Parallel (Scalar Field)",
           "[H1_FECollection]"
           "[L2_FECollection]"
@@ -254,7 +260,7 @@ TEST_CASE("Domain Integration in Parallel (Scalar Field)",
         mt <= (int)MeshType::MIXED3D8; mt++)
    {
       Mesh *mesh = GetMesh((MeshType)mt);
-      int  dim = mesh->Dimension();
+      int dim = mesh->Dimension();
       while (mesh->GetNE() < num_procs)
       {
          mesh->UniformRefinement();
@@ -269,47 +275,52 @@ TEST_CASE("Domain Integration in Parallel (Scalar Field)",
          if (ft == (int)FEType::ND_FEC || ft == (int)FEType::RT_FEC)
          { continue; }
 
-         FiniteElementCollection *fec = NULL;
-         switch ((FEType)ft)
+         SECTION("Integral of field " + std::to_string(ft) +
+                 " on mesh type " + std::to_string(mt) )
          {
-            case FEType::H1_FEC:
-               fec = new H1_FECollection(order, dim);
-               break;
-            case FEType::L2V_FEC:
-               fec = new L2_FECollection(order-1, dim);
-               break;
-            case FEType::L2I_FEC:
-               fec = new L2_FECollection(order-1, dim, BasisType::GaussLegendre,
-                                         FiniteElement::INTEGRAL);
-               break;
-            default:
-               MFEM_ABORT("Invalid vector FE type");
+            FiniteElementCollection *fec = NULL;
+            switch ((FEType)ft)
+            {
+               case FEType::H1_FEC:
+                  fec = new H1_FECollection(order, dim);
+                  break;
+               case FEType::L2V_FEC:
+                  fec = new L2_FECollection(order-1, dim);
+                  break;
+               case FEType::L2I_FEC:
+                  fec = new L2_FECollection(order-1, dim,
+                                            BasisType::GaussLegendre,
+                                            FiniteElement::INTEGRAL);
+                  break;
+               default:
+                  MFEM_ABORT("Invalid vector FE type");
+            }
+            ParFiniteElementSpace fespace(&pmesh, fec);
+
+            ParGridFunction u(&fespace);
+            u.ProjectCoefficient(oneCoef);
+
+            ParLinearForm b(&fespace);
+            b.AddDomainIntegrator(new DomainLFIntegrator(oneCoef));
+            b.Assemble();
+
+            double id = b(u);
+
+            if (dim == 1)
+            {
+               REQUIRE(id == MFEM_Approx( 5.0));
+            }
+            else if (dim == 2)
+            {
+               REQUIRE(id == MFEM_Approx(15.0));
+            }
+            else
+            {
+               REQUIRE(id == MFEM_Approx(30.0));
+            }
+
+            delete fec;
          }
-         ParFiniteElementSpace fespace(&pmesh, fec);
-
-         ParGridFunction u(&fespace);
-         u.ProjectCoefficient(oneCoef);
-
-         ParLinearForm b(&fespace);
-         b.AddDomainIntegrator(new DomainLFIntegrator(oneCoef));
-         b.Assemble();
-
-         double id = b(u);
-
-         if (dim == 1)
-         {
-            REQUIRE(id == MFEM_Approx( 5.0));
-         }
-         else if (dim == 2)
-         {
-            REQUIRE(id == MFEM_Approx(15.0));
-         }
-         else
-         {
-            REQUIRE(id == MFEM_Approx(30.0));
-         }
-
-         delete fec;
       }
    }
 }
@@ -359,54 +370,58 @@ TEST_CASE("Domain Integration in Parallel (Vector Field)",
              mt == (int)MeshType::MIXED3D6 || mt == (int)MeshType::MIXED3D8)
          { continue; }
 
-         FiniteElementCollection *fec = NULL;
-         switch ((FEType)ft)
+         SECTION("Integral of field " + std::to_string(ft) +
+                 " on mesh type " + std::to_string(mt) )
          {
-            case FEType::ND_FEC:
-               fec = new ND_FECollection(order, dim);
-               break;
-            case FEType::RT_FEC:
-               fec = new RT_FECollection(order-1, dim);
-               break;
-            default:
-               MFEM_ABORT("Invalid vector FE type");
+            FiniteElementCollection *fec = NULL;
+            switch ((FEType)ft)
+            {
+               case FEType::ND_FEC:
+                  fec = new ND_FECollection(order, dim);
+                  break;
+               case FEType::RT_FEC:
+                  fec = new RT_FECollection(order-1, dim);
+                  break;
+               default:
+                  MFEM_ABORT("Invalid vector FE type");
+            }
+            ParFiniteElementSpace fespace(&pmesh, fec);
+
+            ParGridFunction u(&fespace);
+            u.ProjectCoefficient(f1Coef);
+
+            ParLinearForm bx(&fespace);
+            ParLinearForm by(&fespace);
+            ParLinearForm bz(&fespace);
+            bx.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fxCoef));
+            by.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fyCoef));
+            bz.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fzCoef));
+            bx.Assemble();
+            by.Assemble();
+            bz.Assemble();
+
+            double ix = bx(u);
+            double iy = by(u);
+            double iz = bz(u);
+
+            if (dim == 1)
+            {
+               REQUIRE(ix == MFEM_Approx( 5.0));
+            }
+            else if (dim == 2)
+            {
+               REQUIRE(ix == MFEM_Approx(15.0));
+               REQUIRE(iy == MFEM_Approx(15.0));
+            }
+            else
+            {
+               REQUIRE(ix == MFEM_Approx(30.0));
+               REQUIRE(iy == MFEM_Approx(30.0));
+               REQUIRE(iz == MFEM_Approx(30.0));
+            }
+
+            delete fec;
          }
-         ParFiniteElementSpace fespace(&pmesh, fec);
-
-         ParGridFunction u(&fespace);
-         u.ProjectCoefficient(f1Coef);
-
-         ParLinearForm bx(&fespace);
-         ParLinearForm by(&fespace);
-         ParLinearForm bz(&fespace);
-         bx.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fxCoef));
-         by.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fyCoef));
-         bz.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fzCoef));
-         bx.Assemble();
-         by.Assemble();
-         bz.Assemble();
-
-         double ix = bx(u);
-         double iy = by(u);
-         double iz = bz(u);
-
-         if (dim == 1)
-         {
-            REQUIRE(ix == MFEM_Approx( 5.0));
-         }
-         else if (dim == 2)
-         {
-            REQUIRE(ix == MFEM_Approx(15.0));
-            REQUIRE(iy == MFEM_Approx(15.0));
-         }
-         else
-         {
-            REQUIRE(ix == MFEM_Approx(30.0));
-            REQUIRE(iy == MFEM_Approx(30.0));
-            REQUIRE(iz == MFEM_Approx(30.0));
-         }
-
-         delete fec;
       }
    }
 }
@@ -416,218 +431,131 @@ TEST_CASE("Domain Integration in Parallel (Vector Field)",
 Mesh * GetMesh(MeshType type)
 {
    Mesh * mesh = NULL;
-   double c[3];
-   int    v[8];
 
    switch (type)
    {
       case SEGMENT:
          mesh = new Mesh(1, 2, 1);
-         c[0] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_;
-         mesh->AddVertex(c);
-         v[0] = 0; v[1] = 1;
-         mesh->AddSegment(v);
-         {
-            Element * el = mesh->NewElement(Geometry::POINT);
-            el->SetAttribute(1);
-            el->SetVertices(&v[0]);
-            mesh->AddBdrElement(el);
-         }
-         {
-            Element * el = mesh->NewElement(Geometry::POINT);
-            el->SetAttribute(2);
-            el->SetVertices(&v[1]);
-            mesh->AddBdrElement(el);
-         }
+         mesh->AddVertex(0.0);
+         mesh->AddVertex(a_);
+
+         mesh->AddSegment(0, 1);
+
+         mesh->AddBdrPoint(0);
+         mesh->AddBdrPoint(1);
          break;
       case QUADRILATERAL:
          mesh = new Mesh(2, 4, 1);
-         c[0] = 0.0; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0);
+         mesh->AddVertex(a_, 0.0);
+         mesh->AddVertex(a_, b_);
+         mesh->AddVertex(0.0, b_);
 
-         v[0] = 0; v[1] = 1; v[2] = 2; v[3] = 3;
-         mesh->AddQuad(v);
+         mesh->AddQuad(0, 1, 2, 3);
          break;
       case TRIANGLE2A:
          mesh = new Mesh(2, 4, 2);
-         c[0] = 0.0; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0);
+         mesh->AddVertex(a_, 0.0);
+         mesh->AddVertex(a_, b_);
+         mesh->AddVertex(0.0, b_);
 
-         v[0] = 0; v[1] = 1; v[2] = 2;
-         mesh->AddTri(v);
-         v[0] = 2; v[1] = 3; v[2] = 0;
-         mesh->AddTri(v);
+         mesh->AddTriangle(0, 1, 2);
+         mesh->AddTriangle(2, 3, 0);
          break;
       case TRIANGLE2B:
          mesh = new Mesh(2, 4, 2);
-         c[0] = 0.0; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0);
+         mesh->AddVertex(a_, 0.0);
+         mesh->AddVertex(a_, b_);
+         mesh->AddVertex(0.0, b_);
 
-         v[0] = 1; v[1] = 2; v[2] = 0;
-         mesh->AddTri(v);
-         v[0] = 3; v[1] = 0; v[2] = 2;
-         mesh->AddTri(v);
+         mesh->AddTriangle(1, 2, 0);
+         mesh->AddTriangle(3, 0, 2);
          break;
       case TRIANGLE2C:
          mesh = new Mesh(2, 4, 2);
-         c[0] = 0.0; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0);
+         mesh->AddVertex(a_, 0.0);
+         mesh->AddVertex(a_, b_);
+         mesh->AddVertex(0.0, b_);
 
-         v[0] = 2; v[1] = 0; v[2] = 1;
-         mesh->AddTri(v);
-         v[0] = 0; v[1] = 2; v[2] = 3;
-         mesh->AddTri(v);
+         mesh->AddTriangle(2, 0, 1);
+         mesh->AddTriangle(0, 2, 3);
          break;
       case TRIANGLE4:
          mesh = new Mesh(2, 5, 4);
-         c[0] = 0.0; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * a_; c[1] = 0.5 * b_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0);
+         mesh->AddVertex(a_, 0.0);
+         mesh->AddVertex(a_, b_);
+         mesh->AddVertex(0.0, b_);
+         mesh->AddVertex(0.5 * a_, 0.5 * b_);
 
-         v[0] = 0; v[1] = 1; v[2] = 4;
-         mesh->AddTri(v);
-         v[0] = 1; v[1] = 2; v[2] = 4;
-         mesh->AddTri(v);
-         v[0] = 2; v[1] = 3; v[2] = 4;
-         mesh->AddTri(v);
-         v[0] = 3; v[1] = 0; v[2] = 4;
-         mesh->AddTri(v);
+         mesh->AddTriangle(0, 1, 4);
+         mesh->AddTriangle(1, 2, 4);
+         mesh->AddTriangle(2, 3, 4);
+         mesh->AddTriangle(3, 0, 4);
          break;
       case MIXED2D:
          mesh = new Mesh(2, 6, 4);
-         c[0] = 0.0; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * b_; c[1] = 0.5 * b_;
-         mesh->AddVertex(c);
-         c[0] = a_ - 0.5 * b_; c[1] = 0.5 * b_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0);
+         mesh->AddVertex(a_, 0.0);
+         mesh->AddVertex(a_, b_);
+         mesh->AddVertex(0.0, b_);
+         mesh->AddVertex(0.5 * b_, 0.5 * b_);
+         mesh->AddVertex(a_ - 0.5 * b_, 0.5 * b_);
 
-         v[0] = 0; v[1] = 1; v[2] = 5; v[3] = 4;
-         mesh->AddQuad(v);
-         v[0] = 1; v[1] = 2; v[2] = 5;
-         mesh->AddTri(v);
-         v[0] = 2; v[1] = 3; v[2] = 4; v[3] = 5;
-         mesh->AddQuad(v);
-         v[0] = 3; v[1] = 0; v[2] = 4;
-         mesh->AddTri(v);
+         mesh->AddQuad(0, 1, 5, 4);
+         mesh->AddTriangle(1, 2, 5);
+         mesh->AddQuad(2, 3, 4, 5);
+         mesh->AddTriangle(3, 0, 4);
          break;
       case HEXAHEDRON:
          mesh = new Mesh(3, 8, 1);
-         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.0, b_, c_);
 
-         v[0] = 0; v[1] = 1; v[2] = 2; v[3] = 3;
-         v[4] = 4; v[5] = 5; v[6] = 6; v[7] = 7;
-         mesh->AddHex(v);
+         mesh->AddHex(0, 1, 2, 3, 4, 5, 6, 7);
          break;
       case HEXAHEDRON2A:
       case HEXAHEDRON2B:
       case HEXAHEDRON2C:
       case HEXAHEDRON2D:
          mesh = new Mesh(3, 12, 2);
-         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(0.5 * a_, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.5 * a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(0.5 * a_, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.5 * a_, b_, c_);
+         mesh->AddVertex(0.0,b_, c_);
 
-         v[0] = 0; v[1] = 5; v[2] = 11; v[3] = 6;
-         v[4] = 1; v[5] = 4; v[6] = 10; v[7] = 7;
-         mesh->AddHex(v);
+         mesh->AddHex(0, 5, 11, 6, 1, 4, 10, 7);
 
          switch (type)
          {
             case HEXAHEDRON2A: // Face Orientation 1
-               v[0] = 4; v[1] = 10; v[2] = 7; v[3] = 1;
-               v[4] = 3; v[5] = 9; v[6] = 8; v[7] = 2;
-               mesh->AddHex(v);
+               mesh->AddHex(4, 10, 7, 1, 3, 9, 8, 2);
                break;
             case HEXAHEDRON2B: // Face Orientation 3
-               v[0] = 10; v[1] = 7; v[2] = 1; v[3] = 4;
-               v[4] = 9; v[5] = 8; v[6] = 2; v[7] = 3;
-               mesh->AddHex(v);
+               mesh->AddHex(10, 7, 1, 4, 9, 8, 2, 3);
                break;
             case HEXAHEDRON2C: // Face Orientation 5
-               v[0] = 7; v[1] = 1; v[2] = 4; v[3] = 10;
-               v[4] = 8; v[5] = 2; v[6] = 3; v[7] = 9;
-               mesh->AddHex(v);
+               mesh->AddHex(7, 1, 4, 10, 8, 2, 3, 9);
                break;
             case HEXAHEDRON2D: // Face Orientation 7
-               v[0] = 1; v[1] = 4; v[2] = 10; v[3] = 7;
-               v[4] = 2; v[5] = 3; v[6] = 9; v[7] = 8;
-               mesh->AddHex(v);
+               mesh->AddHex(1, 4, 10, 7, 2, 3, 9, 8);
                break;
             default:
                // Cannot happen
@@ -636,173 +564,96 @@ Mesh * GetMesh(MeshType type)
          break;
       case WEDGE2:
          mesh = new Mesh(3, 8, 2);
-         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.0, b_, c_);
 
-         v[0] = 0; v[1] = 1; v[2] = 2; v[3] = 4; v[4] = 5; v[5] = 6;
-         mesh->AddWedge(v);
-         v[0] = 0; v[1] = 2; v[2] = 3; v[3] = 4; v[4] = 6; v[5] = 7;
-         mesh->AddWedge(v);
+         mesh->AddWedge(0, 1, 2, 4, 5, 6);
+         mesh->AddWedge(0, 2, 3, 4, 6, 7);
          break;
       case TETRAHEDRA:
          mesh = new Mesh(3, 8, 5);
-         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.0, b_, c_);
 
-         v[0] = 0; v[1] = 2; v[2] = 7; v[3] = 5;
-         mesh->AddTet(v);
-         v[0] = 6; v[1] = 7; v[2] = 2; v[3] = 5;
-         mesh->AddTet(v);
-         v[0] = 4; v[1] = 7; v[2] = 5; v[3] = 0;
-         mesh->AddTet(v);
-         v[0] = 1; v[1] = 0; v[2] = 5; v[3] = 2;
-         mesh->AddTet(v);
-         v[0] = 3; v[1] = 7; v[2] = 0; v[3] = 2;
-         mesh->AddTet(v);
+         mesh->AddTet(0, 2, 7, 5);
+         mesh->AddTet(6, 7, 2, 5);
+         mesh->AddTet(4, 7, 5, 0);
+         mesh->AddTet(1, 0, 5, 2);
+         mesh->AddTet(3, 7, 0, 2);
          break;
       case WEDGE4:
          mesh = new Mesh(3, 10, 4);
-         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * a_; c[1] = 0.5 * b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * a_; c[1] = 0.5 * b_; c[2] = c_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.5 * a_, 0.5 * b_, 0.0);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.0, b_, c_);
+         mesh->AddVertex(0.5 * a_, 0.5 * b_, c_);
 
-         v[0] = 0; v[1] = 1; v[2] = 4; v[3] = 5; v[4] = 6; v[5] = 9;
-         mesh->AddWedge(v);
-         v[0] = 1; v[1] = 2; v[2] = 4; v[3] = 6; v[4] = 7; v[5] = 9;
-         mesh->AddWedge(v);
-         v[0] = 2; v[1] = 3; v[2] = 4; v[3] = 7; v[4] = 8; v[5] = 9;
-         mesh->AddWedge(v);
-         v[0] = 3; v[1] = 0; v[2] = 4; v[3] = 8; v[4] = 5; v[5] = 9;
-         mesh->AddWedge(v);
+         mesh->AddWedge(0, 1, 4, 5, 6, 9);
+         mesh->AddWedge(1, 2, 4, 6, 7, 9);
+         mesh->AddWedge(2, 3, 4, 7, 8, 9);
+         mesh->AddWedge(3, 0, 4, 8, 5, 9);
          break;
       case MIXED3D6:
          mesh = new Mesh(3, 12, 6);
-         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * c_; c[1] = 0.5 * c_; c[2] = 0.5 * c_;
-         mesh->AddVertex(c);
-         c[0] = a_ - 0.5 * c_; c[1] = 0.5 * c_; c[2] = 0.5 * c_;
-         mesh->AddVertex(c);
-         c[0] = a_ - 0.5 * c_; c[1] = b_ - 0.5 * c_; c[2] = 0.5 * c_;
-         mesh->AddVertex(c);
-         c[0] = 0.5 * c_; c[1] = b_ - 0.5 * c_; c[2] = 0.5 * c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.5 * c_, 0.5 * c_, 0.5 * c_);
+         mesh->AddVertex(a_ - 0.5 * c_, 0.5 * c_, 0.5 * c_);
+         mesh->AddVertex(a_ - 0.5 * c_, b_ - 0.5 * c_, 0.5 * c_);
+         mesh->AddVertex(0.5 * c_, b_ - 0.5 * c_, 0.5 * c_);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.0, b_, c_);
 
-         v[0] = 0; v[1] = 1; v[2] = 2; v[3] = 3;
-         v[4] = 4; v[5] = 5; v[6] = 6; v[7] = 7;
-         mesh->AddHex(v);
-         v[0] = 0; v[1] = 4; v[2] = 8; v[3] = 1; v[4] = 5; v[5] = 9;
-         mesh->AddWedge(v);
-         v[0] = 1; v[1] = 5; v[2] = 9; v[3] = 2; v[4] = 6; v[5] = 10;
-         mesh->AddWedge(v);
-         v[0] = 2; v[1] = 6; v[2] = 10; v[3] = 3; v[4] = 7; v[5] = 11;
-         mesh->AddWedge(v);
-         v[0] = 3; v[1] = 7; v[2] = 11; v[3] = 0; v[4] = 4; v[5] = 8;
-         mesh->AddWedge(v);
-         v[0] = 4; v[1] = 5; v[2] = 6; v[3] = 7;
-         v[4] = 8; v[5] = 9; v[6] = 10; v[7] = 11;
-         mesh->AddHex(v);
+         mesh->AddHex(0, 1, 2, 3, 4, 5, 6, 7);
+         mesh->AddWedge(0, 4, 8, 1, 5, 9);
+         mesh->AddWedge(1, 5, 9, 2, 6, 10);
+         mesh->AddWedge(2, 6, 10, 3, 7, 11);
+         mesh->AddWedge(3, 7, 11, 0, 4, 8);
+         mesh->AddHex(4, 5, 6, 7, 8, 9, 10, 11);
          break;
       case MIXED3D8:
          mesh = new Mesh(3, 10, 8);
-         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
-         mesh->AddVertex(c);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.25 * a_, 0.5 * b_, 0.5 * c_);
+         mesh->AddVertex(0.75 * a_, 0.5 * b_, 0.5 * c_);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.0, b_, c_);
 
-         c[0] = 0.25 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
-         mesh->AddVertex(c);
-         c[0] = 0.75 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
-         mesh->AddVertex(c);
-
-         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = 0.0; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = a_; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-         c[0] = 0.0; c[1] = b_; c[2] = c_;
-         mesh->AddVertex(c);
-
-         v[0] = 0; v[1] = 3; v[2] = 4; v[3] = 1; v[4] = 2; v[5] = 5;
-         mesh->AddWedge(v);
-         v[0] = 3; v[1] = 9; v[2] = 4; v[3] = 2; v[4] = 8; v[5] = 5;
-         mesh->AddWedge(v);
-         v[0] = 9; v[1] = 6; v[2] = 4; v[3] = 8; v[4] = 7; v[5] = 5;
-         mesh->AddWedge(v);
-         v[0] = 6; v[1] = 0; v[2] = 4; v[3] = 7; v[4] = 1; v[5] = 5;
-         mesh->AddWedge(v);
-         v[0] = 0; v[1] = 3; v[2] = 9; v[3] = 4;
-         mesh->AddTet(v);
-         v[0] = 0; v[1] = 9; v[2] = 6; v[3] = 4;
-         mesh->AddTet(v);
-         v[0] = 1; v[1] = 7; v[2] = 2; v[3] = 5;
-         mesh->AddTet(v);
-         v[0] = 8; v[1] = 2; v[2] = 7; v[3] = 5;
-         mesh->AddTet(v);
+         mesh->AddWedge(0, 3, 4, 1, 2, 5);
+         mesh->AddWedge(3, 9, 4, 2, 8, 5);
+         mesh->AddWedge(9, 6, 4, 8, 7, 5);
+         mesh->AddWedge(6, 0, 4, 7, 1, 5);
+         mesh->AddTet(0, 3, 9, 4);
+         mesh->AddTet(0, 9, 6, 4);
+         mesh->AddTet(1, 7, 2, 5);
+         mesh->AddTet(8, 2, 7, 5);
          break;
       case PYRAMID:
          mesh = new Mesh(3, 9, 6);

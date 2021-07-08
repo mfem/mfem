@@ -21,7 +21,7 @@ namespace pa_kernels
 
 TEST_CASE("H1 SumIntegrator", "[SumIntegrator][PartialAssembly]")
 {
-   Mesh mesh(1, 1, 1, Element::HEXAHEDRON);
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    H1_FECollection fec(2, mesh.Dimension());
    FiniteElementSpace fes(&mesh, &fec);
 
@@ -130,7 +130,7 @@ TEST_CASE("H1 SumIntegrator", "[SumIntegrator][PartialAssembly]")
 
 TEST_CASE("DG SumIntegrator", "[SumIntegrator][PartialAssembly]")
 {
-   Mesh mesh(2, 1, 1, Element::HEXAHEDRON);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
    DG_FECollection fec(2, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
@@ -167,9 +167,9 @@ TEST_CASE("DG SumIntegrator", "[SumIntegrator][PartialAssembly]")
    integ2.AssemblePAInteriorFaces(fes);
    integ_sum.AssemblePAInteriorFaces(fes);
 
-   const Operator *R_int = fes.GetFaceRestriction(
-                              ElementDofOrdering::LEXICOGRAPHIC,
-                              FaceType::Interior);
+   const FaceRestriction *R_int = fes.GetFaceRestriction(
+                                     ElementDofOrdering::LEXICOGRAPHIC,
+                                     FaceType::Interior);
 
    int n_int = R_int->Height();
    Vector x(n_int), y1(n_int), y2(n_int);
@@ -198,10 +198,10 @@ TEST_CASE("DG SumIntegrator", "[SumIntegrator][PartialAssembly]")
    integ2.AssemblePABoundaryFaces(fes);
    integ_sum.AssemblePABoundaryFaces(fes);
 
-   const Operator *R_bdr = fes.GetFaceRestriction(
-                              ElementDofOrdering::LEXICOGRAPHIC,
-                              FaceType::Boundary,
-                              L2FaceValues::DoubleValued);
+   const FaceRestriction *R_bdr = fes.GetFaceRestriction(
+                                     ElementDofOrdering::LEXICOGRAPHIC,
+                                     FaceType::Boundary,
+                                     L2FaceValues::DoubleValued);
 
    int n_bdr = R_bdr->Height();
    x.SetSize(n_bdr);
