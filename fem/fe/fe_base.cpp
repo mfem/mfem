@@ -2391,7 +2391,27 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
                          p, M, FunctionSpace::Qk),
      TensorBasisElement(dims, p, VerifyNodal(cbtype), dmtype),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
-     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(obtype))) { }
+     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(obtype)))
+{
+   MFEM_VERIFY(dims > 1, "Constructor for VectorTensorFiniteElement with both "
+               "open and closed bases is not valid for 1D elements.");
+}
+
+VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
+                                                     const int d,
+                                                     const int p,
+                                                     const int obtype,
+                                                     const int M,
+                                                     const DofMapType dmtype)
+   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
+                         p, M, FunctionSpace::Pk),
+     TensorBasisElement(dims, p, obtype, dmtype),
+     cbasis1d(poly1d.GetBasis(p, VerifyOpen(obtype))),
+     obasis1d(poly1d.GetBasis(p, VerifyOpen(obtype)))
+{
+   MFEM_VERIFY(dims == 1, "Constructor for VectorTensorFiniteElement without "
+               "closed basis is only valid for 1D elements.");
+}
 
 const DofToQuad &VectorTensorFiniteElement::GetDofToQuad(
    const IntegrationRule &ir,

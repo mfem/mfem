@@ -371,6 +371,8 @@ public:
       AddQualityMetric(sh_metric, 1.-gamma_);
       AddQualityMetric(sz_metric, gamma_);
    }
+   virtual int Id() const { return 80; }
+   double GetGamma() const { return gamma; }
 
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
@@ -590,6 +592,52 @@ public:
    virtual int Id() const { return 321; }
 };
 
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
+{
+protected:
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_332(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_302),
+      sz_metric(new TMOP_Metric_315)
+   {
+      // (1-gamma) mu_302 + gamma mu_315
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 332; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
+{
+protected:
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_333(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_302),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_302 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 333; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
+};
+
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
 class TMOP_Metric_352 : public TMOP_QualityMetric
 {
@@ -804,6 +852,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -1358,6 +1408,10 @@ public:
    { PA.enabled = false; }
 
    ~TMOP_Integrator();
+
+   /// Release the device memory of large PA allocations. This will copy device
+   /// memory back to the host before releasing.
+   void ReleasePADeviceMemory();
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
