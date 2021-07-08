@@ -119,7 +119,7 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
-   const int id = (D1D << 4 ) | Q1D;
+   const int id = (D1D << 4) | Q1D;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;

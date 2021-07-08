@@ -374,7 +374,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
    // Get the local prolongation of the solution vector.
-   Vector x_out_loc(fes->GetVSize());
+   static Vector x_out_loc(fes->GetVSize());
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -402,7 +402,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    const bool have_b = (b.Size() == Height());
 
-   Vector x_out(x.Size());
+   static Vector x_out(x.Size());
    bool x_out_ok = false;
    double scale = 1.0, energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
@@ -588,7 +588,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
-      Vector x_loc;
+      static Vector x_loc;
       if (P)
       {
          x_loc.SetSize(P->Height());

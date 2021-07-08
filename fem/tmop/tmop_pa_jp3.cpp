@@ -79,7 +79,7 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *R = fes->GetElementRestriction(ordering);
-   Vector XE(R->Height(), Device::GetDeviceMemoryType());
+   static Vector XE(R->Height(), Device::GetDeviceMemoryType());
    XE.UseDevice(true);
    R->Mult(X, XE);
 
@@ -92,7 +92,7 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    const Array<double> &B = maps.B;
    const Array<double> &G = maps.G;
 
-   Vector E(NE*NQ);
+   static Vector E(NE*NQ);
    E.UseDevice(true);
 
    MFEM_LAUNCH_TMOP_KERNEL(MinDetJpr_Kernel_3D,id,NE,B,G,XE,E);
