@@ -17,14 +17,14 @@
 #include "../linalg/linalg.hpp"
 
 // Base and derived classes for finite elements
-#include "fe_base.hpp"
-#include "fe_fixed_order.hpp"
-#include "fe_h1.hpp"
-#include "fe_nd.hpp"
-#include "fe_rt.hpp"
-#include "fe_l2.hpp"
-#include "fe_nurbs.hpp"
-#include "fe_pos.hpp"
-#include "fe_ser.hpp"
+#include "fe/fe_base.hpp"
+#include "fe/fe_fixed_order.hpp"
+#include "fe/fe_h1.hpp"
+#include "fe/fe_nd.hpp"
+#include "fe/fe_rt.hpp"
+#include "fe/fe_l2.hpp"
+#include "fe/fe_nurbs.hpp"
+#include "fe/fe_pos.hpp"
+#include "fe/fe_ser.hpp"
 
 #endif

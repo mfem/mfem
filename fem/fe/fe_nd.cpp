@@ -12,7 +12,7 @@
 // Nedelec Finite Element classes
 
 #include "fe_nd.hpp"
-#include "coefficient.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {

@@ -12,7 +12,7 @@
 // H1 Finite Element classes utilizing the Bernstein basis
 
 #include "fe_nurbs.hpp"
-#include "../mesh/nurbs.hpp"
+#include "../../mesh/nurbs.hpp"
 
 namespace mfem
 {

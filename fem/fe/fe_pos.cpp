@@ -12,8 +12,8 @@
 // H1 Finite Element classes utilizing the Bernstein basis
 
 #include "fe_pos.hpp"
-#include "bilininteg.hpp"
-#include "coefficient.hpp"
+#include "../bilininteg.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {

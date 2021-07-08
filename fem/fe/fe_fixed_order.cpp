@@ -12,7 +12,7 @@
 // Fixed Order Finite Element classes
 
 #include "fe_fixed_order.hpp"
-#include "coefficient.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {

@@ -12,8 +12,8 @@
 #ifndef MFEM_FE_BASE
 #define MFEM_FE_BASE
 
-#include "intrules.hpp"
-#include "geom.hpp"
+#include "../intrules.hpp"
+#include "../geom.hpp"
 
 #include <map>
 
