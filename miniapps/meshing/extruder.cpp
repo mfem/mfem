@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    int meshOrder = 1;
    if (mesh->GetNodalFESpace() != NULL)
    {
-      meshOrder = mesh->GetNodalFESpace()->GetOrder(0);
+      meshOrder = mesh->GetNodalFESpace()->GetElementOrder(0);
    }
    if (order < 0 && trans)
    {

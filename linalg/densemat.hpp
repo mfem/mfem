@@ -405,6 +405,8 @@ public:
    double *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
+   void Swap(DenseMatrix &other);
+
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
 };
@@ -768,6 +770,13 @@ public:
       tdata.Wrap(d, i*j*k, false);
    }
 
+   DenseTensor(int i, int j, int k, MemoryType mt)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.New(i*j*k, mt);
+   }
+
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
       : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
@@ -790,9 +799,9 @@ public:
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
-   void SetSize(int i, int j, int k)
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
-      const MemoryType mt = tdata.GetMemoryType();
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
@@ -809,6 +818,9 @@ public:
 
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
+
+   /// Copy assignment operator (performs a deep copy)
+   DenseTensor &operator=(const DenseTensor &other);
 
    DenseMatrix &operator()(int k)
    {
@@ -880,6 +892,13 @@ public:
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
    double *HostReadWrite()
    { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   void Swap(DenseTensor &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
+   }
 
    ~DenseTensor() { tdata.Delete(); }
 };

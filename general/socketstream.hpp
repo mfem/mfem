@@ -83,9 +83,9 @@ protected:
 
    virtual int_type overflow(int_type c = traits_type::eof());
 
-   virtual std::streamsize xsgetn(char_type *__s, std::streamsize __n);
+   virtual std::streamsize xsgetn(char_type *s__, std::streamsize n__);
 
-   virtual std::streamsize xsputn(const char_type *__s, std::streamsize __n);
+   virtual std::streamsize xsputn(const char_type *s__, std::streamsize n__);
 };
 
 
@@ -200,9 +200,9 @@ protected:
    // Same as in the base class:
    // virtual int_type overflow(int_type c = traits_type::eof());
 
-   virtual std::streamsize xsgetn(char_type *__s, std::streamsize __n);
+   virtual std::streamsize xsgetn(char_type *s__, std::streamsize n__);
 
-   virtual std::streamsize xsputn(const char_type *__s, std::streamsize __n);
+   virtual std::streamsize xsputn(const char_type *s__, std::streamsize n__);
 };
 
 #endif // MFEM_USE_GNUTLS

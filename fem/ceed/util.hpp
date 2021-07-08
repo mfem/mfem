@@ -15,7 +15,8 @@
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
-#include <ceed-hash.h>
+#include <ceed/hash.h>
+#include <ceed/backend.h>  // for CeedOperatorField
 #endif
 #include <tuple>
 #include <unordered_map>
@@ -41,6 +42,15 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 
 #ifdef MFEM_USE_CEED
 
+#define PCeedChk(err) do {                                                     \
+     if ((err))                                                                \
+     {                                                                         \
+        const char * errmsg;                                                   \
+        CeedGetErrorMessage(internal::ceed, &errmsg);                          \
+        MFEM_ABORT(errmsg);                                                    \
+     }                                                                         \
+  } while(0);
+
 /// Initialize a CeedVector from an mfem::Vector
 void InitVector(const mfem::Vector &v, CeedVector &cv);
 
@@ -63,6 +73,14 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                              const mfem::IntegrationRule &ir,
                              Ceed ceed, CeedBasis *basis,
                              CeedElemRestriction *restr);
+
+void InitTensorRestriction(const FiniteElementSpace &fes,
+                           Ceed ceed, CeedElemRestriction *restr);
+
+int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
+
+int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
+                                         CeedElemRestriction* restr_out);
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();

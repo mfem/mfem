@@ -22,21 +22,20 @@ namespace mfem
 
 using namespace std;
 
-int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType) const
+int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
 {
-   switch (GeomType)
+   switch (geom)
    {
-      case Geometry::TETRAHEDRON: return DofForGeometry (Geometry::TRIANGLE);
-      case Geometry::CUBE:        return DofForGeometry (Geometry::SQUARE);
+      case Geometry::TETRAHEDRON:
+         return GetNumDof(Geometry::TRIANGLE, p);
+      case Geometry::CUBE:
+         return GetNumDof(Geometry::SQUARE, p);
       case Geometry::PRISM:
-         return max(DofForGeometry (Geometry::TRIANGLE),
-                    DofForGeometry (Geometry::SQUARE));
       case Geometry::PYRAMID:
-         return max(DofForGeometry (Geometry::TRIANGLE),
-                    DofForGeometry (Geometry::SQUARE));
+         return max(GetNumDof(Geometry::TRIANGLE, p),
+                    GetNumDof(Geometry::SQUARE, p));
       default:
-         mfem_error ("FiniteElementCollection::HasFaceDofs:"
-                     " unknown geometry type.");
+         MFEM_ABORT("unknown geometry type");
    }
    return 0;
 }
@@ -290,6 +289,31 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                << fec->Name() << '"');
 
    return fec;
+}
+
+FiniteElementCollection *FiniteElementCollection::Clone(int p) const
+{
+   // default implementation for collections that don't care about variable p
+   MFEM_ABORT("Collection " << Name() << " does not support variable orders.");
+   (void) p;
+   return NULL;
+}
+
+void FiniteElementCollection::InitVarOrder(int p) const
+{
+   if (p >= var_orders.Size())
+   {
+      var_orders.SetSize(p+1, NULL);
+   }
+   var_orders[p] = Clone(p);
+}
+
+FiniteElementCollection::~FiniteElementCollection()
+{
+   for (int i = 0; i < var_orders.Size(); i++)
+   {
+      delete var_orders[i];
+   }
 }
 
 template <Geometry::Type geom>
@@ -1509,6 +1533,8 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
+   : FiniteElementCollection(p)
+   , dim(dim)
 {
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
@@ -1876,6 +1902,13 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
    return dof_map;
 }
 
+const int *H1_FECollection::GetDofMap(Geometry::Type GeomType, int p) const
+{
+   if (p == base_p) { return GetDofMap(GeomType); }
+   if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
+   return ((H1_FECollection*) var_orders[p])->GetDofMap(GeomType);
+}
+
 H1_FECollection::~H1_FECollection()
 {
    delete [] SegDofOrd[0];
@@ -1911,6 +1944,9 @@ H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
 
 L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
                                  const int map_type)
+   : FiniteElementCollection(p)
+   , dim(dim)
+   , m_type(map_type)
 {
    MFEM_VERIFY(p >= 0, "L2_FECollection requires order >= 0.");
 
@@ -2206,10 +2242,14 @@ L2_FECollection::~L2_FECollection()
 }
 
 
-RT_FECollection::RT_FECollection(const int p, const int dim,
+RT_FECollection::RT_FECollection(const int order, const int dim,
                                  const int cb_type, const int ob_type)
-   : ob_type(ob_type)
+   : FiniteElementCollection(order + 1)
+   , dim(dim)
+   , cb_type(cb_type)
+   , ob_type(ob_type)
 {
+   int p = order;
    MFEM_VERIFY(p >= 0, "RT_FECollection requires order >= 0.");
 
    int cp_type = BasisType::GetQuadrature1D(cb_type);
@@ -2220,7 +2260,8 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
       const char *cb_name = BasisType::Name(cb_type); // this may abort
       MFEM_ABORT("unknown closed BasisType: " << cb_name);
    }
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::IntegratedGLL)
    {
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("unknown open BasisType: " << ob_name);
@@ -2268,9 +2309,11 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
 
 // This is a special protected constructor only used by RT_Trace_FECollection
 // and DG_Interface_FECollection
-RT_FECollection::RT_FECollection(const int p, const int dim, const int map_type,
-                                 const bool signs, const int ob_type)
-   : ob_type(ob_type)
+RT_FECollection::RT_FECollection(const int p, const int dim,
+                                 const int map_type, const bool signs,
+                                 const int ob_type)
+   : FiniteElementCollection(p + 1)
+   , ob_type(ob_type)
 {
    if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
        Quadrature1D::Invalid)
@@ -2281,7 +2324,8 @@ RT_FECollection::RT_FECollection(const int p, const int dim, const int map_type,
    InitFaces(p, dim, map_type, signs);
 }
 
-void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
+void RT_FECollection::InitFaces(const int p, const int dim,
+                                const int map_type,
                                 const bool signs)
 {
    int op_type = BasisType::GetQuadrature1D(ob_type);
@@ -2487,6 +2531,10 @@ DG_Interface_FECollection::DG_Interface_FECollection(const int p, const int dim,
 
 ND_FECollection::ND_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
+   : FiniteElementCollection(dim > 1 ? p : p - 1)
+   , dim(dim)
+   , cb_type(cb_type)
+   , ob_type(ob_type)
 {
    MFEM_VERIFY(p >= 1, "ND_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 1 && dim <= 3, "ND_FECollection requires 1 <= dim <= 3.");
@@ -2526,7 +2574,8 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
    int cp_type = BasisType::GetQuadrature1D(cb_type);
 
    // Error checking
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::IntegratedGLL)
    {
       const char *ob_name = BasisType::Name(ob_type);
       MFEM_ABORT("Invalid open basis point type: " << ob_name);
@@ -2769,6 +2818,7 @@ Local_FECollection::Local_FECollection(const char *fe_name)
 
 
 NURBSFECollection::NURBSFECollection(int Order)
+   : FiniteElementCollection((Order == VariableOrder) ? 1 : Order)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
    SegmentFE        = new NURBS1DFiniteElement(order);
