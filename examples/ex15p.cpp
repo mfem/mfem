@@ -76,6 +76,16 @@ void UpdateAndRebalance(ParMesh &pmesh, ParFiniteElementSpace &fespace,
                         ParGridFunction &x, ParBilinearForm &a,
                         ParLinearForm &b);
 
+void UpdateAttributes(Mesh &mesh)
+{
+   Vector center;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      mesh.GetElementCenter(i, center);
+      mesh.SetAttribute(i, (center(0) < 0.0) ? 1 : 2);
+   }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -277,6 +287,7 @@ int main(int argc, char *argv[])
    ThresholdDerefiner derefiner(*estimator);
    derefiner.SetThreshold(hysteresis * max_elem_error);
    derefiner.SetNCLimit(nc_limit);
+   derefiner.SetSameAttributeOnly(true);
 
    // 13. The outer time loop. In each iteration we update the right hand side,
    //     solve the problem on the current mesh, visualize the solution and
@@ -359,6 +370,8 @@ int main(int argc, char *argv[])
          {
             cout << ", total error: " << estimator->GetTotalError() << endl;
          }
+
+         UpdateAttributes(pmesh);
 
          // 21. Quit the AMR loop if the termination criterion has been met
          if (refiner.Stop())

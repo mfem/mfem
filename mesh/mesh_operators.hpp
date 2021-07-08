@@ -272,6 +272,7 @@ protected:
 
    double threshold;
    int nc_limit, op;
+   bool same_attr_only;
 
    /** @brief Apply the operator to the mesh.
        @return DEREFINED + CONTINUE if some elements were de-refined; NONE
@@ -286,6 +287,7 @@ public:
       threshold = 0.0;
       nc_limit = 0;
       op = 1;
+      same_attr_only = false;
    }
 
    // default destructor (virtual)
@@ -301,6 +303,12 @@ public:
    {
       MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
       this->nc_limit = nc_limit;
+   }
+
+   /// Only derefine groups of elements with the same attribute.
+   void SetSameAttributeOnly(bool same_attr_only = true)
+   {
+      this->same_attr_only = same_attr_only;
    }
 
    /// Reset the associated estimator.
