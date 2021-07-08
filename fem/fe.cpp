@@ -3271,6 +3271,79 @@ const
 }
 
 
+LinearWedgeFiniteElement::LinearWedgeFiniteElement()
+   : NodalFiniteElement(3, Geometry::PRISM, 6, 1)
+{
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.0;
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.0;
+   Nodes.IntPoint(3).z = 1.0;
+   Nodes.IntPoint(4).x = 1.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 1.0;
+   Nodes.IntPoint(5).x = 0.0;
+   Nodes.IntPoint(5).y = 1.0;
+   Nodes.IntPoint(5).z = 1.0;
+}
+
+void LinearWedgeFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                         Vector &shape) const
+{
+   shape(0) = (1. - ip.x - ip.y) * (1. - ip.z);
+   shape(1) = ip.x * (1. - ip.z);
+   shape(2) = ip.y * (1. - ip.z);
+   shape(3) = (1. - ip.x - ip.y) * ip.z;
+   shape(4) = ip.x * ip.z;
+   shape(5) = ip.y * ip.z;
+}
+
+void LinearWedgeFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                          DenseMatrix &dshape) const
+{
+   dshape(0,0) = -1. + ip.z;
+   dshape(0,1) = -1. + ip.z;
+   dshape(0,2) = -1. + ip.x + ip.y;
+
+   dshape(1,0) =  1. - ip.z;
+   dshape(1,1) =  0.;
+   dshape(1,2) = -ip.x;
+
+   dshape(2,0) =  0.;
+   dshape(2,1) =  1. - ip.z;
+   dshape(2,2) = -ip.y;
+
+   dshape(3,0) = -ip.z;
+   dshape(3,1) = -ip.z;
+   dshape(3,2) =  1. - ip.x - ip.y;
+
+   dshape(4,0) =  ip.z;
+   dshape(4,1) =  0.;
+   dshape(4,2) =  ip.x;
+
+   dshape(5,0) =  0.;
+   dshape(5,1) =  ip.z;
+   dshape(5,2) =  ip.y;
+}
+
+void LinearWedgeFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
+const
+{
+   static int face_dofs[5][4] =
+   {{0, 2, 1, -1}, {3, 4, 5, -1}, {0, 1, 4, 3}, {1, 2, 5, 4}, {2, 0, 3, 5}};
+
+   *ndofs = (face < 2) ? 3 : 4;
+   *dofs  = face_dofs[face];
+}
+
+
 LinearPyramidFiniteElement::LinearPyramidFiniteElement()
    : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1)
 {
@@ -13563,17 +13636,8 @@ Linear2DFiniteElement TriangleFE;
 // Defined here to ensure it is constructed before 'Geometries'.
 Linear3DFiniteElement TetrahedronFE;
 
-// Object declared in mesh/wedge.hpp.
-// Defined here to ensure it is constructed after 'poly1d' and before
-// 'Geometries'.
-// TODO: define as thread_local to prevent race conditions in GLVis, because
-// there is no "LinearWedgeFiniteElement" and WedgeFE is in turn used from two
-// different threads for different things in GLVis. We also don't want to turn
-// MFEM_THREAD_SAFE on globally. (See PR #731)
-H1_WedgeElement WedgeFE(1);
-
 // Object declared in geom.hpp.
-// Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', and 'WedgeFE'.
+// Construct 'Geometries' after 'TriangleFE' and 'TetrahedronFE'.
 Geometry Geometries;
 
 }
