@@ -33,6 +33,9 @@ int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
       case Geometry::PRISM:
          return max(GetNumDof(Geometry::TRIANGLE, p),
                     GetNumDof(Geometry::SQUARE, p));
+      case Geometry::PYRAMID:
+         return max(GetNumDof(Geometry::TRIANGLE, p),
+                    GetNumDof(Geometry::SQUARE, p));
       default:
          MFEM_ABORT("unknown geometry type");
    }
@@ -574,6 +577,7 @@ LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
@@ -591,6 +595,7 @@ int LinearFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
       case Geometry::PRISM:       return 0;
+      case Geometry::PYRAMID:     return 0;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }

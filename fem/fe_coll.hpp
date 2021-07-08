@@ -530,6 +530,7 @@ private:
    const Linear3DFiniteElement TetrahedronFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
    const H1_WedgeElement WedgeFE;
+   const LinearPyramidFiniteElement PyramidFE;
 public:
    LinearFECollection() : FiniteElementCollection(1), WedgeFE(1) { }
 
