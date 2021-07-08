@@ -2149,6 +2149,7 @@ void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
       int r = ess_dof_list[i];
       B(r) = data[I[r]] * X(r);
 #ifdef MFEM_DEBUG
+      MFEM_ASSERT(I[r] < I[r+1], "empty row found!");
       // Check that in the rows specified by the ess_dof_list, the matrix A has
       // only one entry -- the diagonal.
       // if (I[r+1] != I[r]+1 || J[I[r]] != r || I_offd[r] != I_offd[r+1])
