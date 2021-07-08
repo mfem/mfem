@@ -12,7 +12,7 @@
 // Raviart-Thomas Finite Element classes
 
 #include "fe_rt.hpp"
-#include "coefficient.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {

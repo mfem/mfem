@@ -12,7 +12,7 @@
 // Finite Element Base classes
 
 #include "fe_base.hpp"
-#include "coefficient.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {
