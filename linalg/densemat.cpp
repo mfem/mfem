@@ -70,10 +70,7 @@ namespace mfem
 
 using namespace std;
 
-DenseMatrix::DenseMatrix() : Matrix(0)
-{
-   data.Reset();
-}
+DenseMatrix::DenseMatrix() : Matrix(0) { }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
 {
@@ -84,10 +81,6 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
       data.New(hw);
       std::memcpy(data, m.data, sizeof(double)*hw);
    }
-   else
-   {
-      data.Reset();
-   }
 }
 
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
@@ -97,10 +90,6 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    {
       data.New(s*s);
       *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
    }
 }
 
@@ -113,10 +102,6 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    {
       data.New(capacity);
       *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
    }
 }
 
@@ -136,10 +121,6 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
             (*this)(i,j) = mat(j,i);
          }
       }
-   }
-   else
-   {
-      data.Reset();
    }
 }
 

@@ -53,7 +53,7 @@ protected:
 
 public:
    /// Creates an empty table
-   Table() { size = -1; I.Reset(); J.Reset(); }
+   Table() { size = -1; }
 
    /// Copy constructor
    Table(const Table &);
@@ -66,7 +66,7 @@ public:
 
    /** Create a table from a list of connections, see MakeFromList(). */
    Table(int nrows, Array<Connection> &list) : size(-1)
-   { I.Reset(); J.Reset(); MakeFromList(nrows, list); }
+   { MakeFromList(nrows, list); }
 
    /** Create a table with one entry per row with column indices given
        by 'partitioning'. */

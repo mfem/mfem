@@ -17,10 +17,7 @@
 namespace mfem
 {
 
-DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0)
-{
-   data.Reset();
-}
+DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0) { }
 
 DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
 {
@@ -29,10 +26,6 @@ DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
    {
       data.New((s*(s+1))/2);
       *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
    }
 }
 
