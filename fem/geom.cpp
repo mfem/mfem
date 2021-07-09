@@ -11,6 +11,7 @@
 
 #include "fem.hpp"
 #include "../mesh/wedge.hpp"
+#include "../mesh/pyramid.hpp"
 
 namespace mfem
 {
@@ -240,6 +241,14 @@ Geometry::Geometry()
       pri_T.SetIntPoint(&GeomCenter[PRISM]);
       *GeomToPerfGeomJac[PRISM] = pri_T.Jacobian();
       CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
+   }
+   {
+      IsoparametricTransformation pyr_T;
+      pyr_T.SetFE(&PyramidFE);
+      GetPerfPointMat (PYRAMID, pyr_T.GetPointMat());
+      pyr_T.SetIntPoint(&GeomCenter[PYRAMID]);
+      *GeomToPerfGeomJac[PYRAMID] = pyr_T.Jacobian();
+      CalcInverse(pyr_T.Jacobian(), *PerfGeomToGeomJac[PYRAMID]);
    }
 }
 
