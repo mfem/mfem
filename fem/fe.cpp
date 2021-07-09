@@ -3368,40 +3368,89 @@ void LinearPyramidFiniteElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
-   double ox = 1.-x, oy = 1.-y, oz = 1.-z;
+   double ox = 1.-x-z, oy = 1.-y-z, oz = 1.-z;
 
-   shape(0) = ox * oy * oz;
-   shape(1) =  x * oy * oz;
-   shape(2) =  x *  y * oz;
-   shape(3) = ox *  y * oz;
-   shape(4) = ox * oy *  z;
+   double tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis functions as z->1.  In
+      // order to remain inside the pyramid in this limit the x and y
+      // coordinates must be approaching 0. The resulting limiting
+      // basis function values are:
+      shape(0) = 0.;
+      shape(1) = 0.;
+      shape(2) = 0.;
+      shape(3) = 0.;
+      shape(4) = 1.;
+      return;
+   }
+
+   shape(0) = ox * oy / oz;
+   shape(1) =  x * oy / oz;
+   shape(2) =  x *  y / oz;
+   shape(3) = ox *  y / oz;
+   shape(4) = z;
 }
 
 void LinearPyramidFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                             DenseMatrix &dshape) const
 {
    double x = ip.x, y = ip.y, z = ip.z;
-   double ox = 1.-x, oy = 1.-y, oz = 1.-z;
+   double ox = 1.-x-z, oy = 1.-y-z, oz = 1.-z;
 
-   dshape(0,0) = - oy * oz;
-   dshape(0,1) = - ox * oz;
-   dshape(0,2) = - ox * oy;
+   double tol = 1e-6;
 
-   dshape(1,0) =   oy * oz;
-   dshape(1,1) = -  x * oz;
-   dshape(1,2) = -  x * oy;
+   if (oz <= tol)
+   {
+      // At the apex of the pyramid the gradients of the basis
+      // functions are multivalued and depend on the direction from
+      // which the limit is taken. The following values correspond to
+      // the average of the gradients taken over all possible
+      // directions approaching the apex of the pyramid from within
+      // its interior.
+      dshape(0,0) = - 0.5;
+      dshape(0,1) = - 0.5;
+      dshape(0,2) = - 0.75;
 
-   dshape(2,0) =    y * oz;
-   dshape(2,1) =    x * oz;
-   dshape(2,2) = -  x *  y;
+      dshape(1,0) =   0.5;
+      dshape(1,1) = - 0.5;
+      dshape(1,2) = - 0.25;
 
-   dshape(3,0) = -  y * oz;
-   dshape(3,1) =   ox * oz;
-   dshape(3,2) = - ox *  y;
+      dshape(2,0) =   0.5;
+      dshape(2,1) =   0.5;
+      dshape(2,2) =   0.25;
 
-   dshape(4,0) = - oy *  z;
-   dshape(4,1) = - ox *  z;
-   dshape(4,2) =   ox * oy;
+      dshape(3,0) = - 0.5;
+      dshape(3,1) =   0.5;
+      dshape(3,2) = - 0.25;
+
+      dshape(4,0) =   0.;
+      dshape(4,1) =   0.;
+      dshape(4,2) =   1.;
+
+      return;
+   }
+
+   dshape(0,0) = - oy / oz;
+   dshape(0,1) = - ox / oz;
+   dshape(0,2) =   x * y / (oz * oz) - 1.;
+
+   dshape(1,0) =   oy / oz;
+   dshape(1,1) = -  x / oz;
+   dshape(1,2) = -  x * y / (oz * oz);
+
+   dshape(2,0) =    y / oz;
+   dshape(2,1) =    x / oz;
+   dshape(2,2) =    x *  y / (oz * oz);
+
+   dshape(3,0) = -  y / oz;
+   dshape(3,1) =   ox / oz;
+   dshape(3,2) = -  x *  y / (oz * oz);
+
+   dshape(4,0) =   0.;
+   dshape(4,1) =   0.;
+   dshape(4,2) =   1.;
 }
 
 void LinearPyramidFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
