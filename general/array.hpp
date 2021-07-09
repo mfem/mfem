@@ -863,7 +863,7 @@ template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the device flag
+   data = master.data;
    size = master.size;
    data.ClearOwnerFlags();
 }

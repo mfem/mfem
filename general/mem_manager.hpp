@@ -172,14 +172,21 @@ public:
    /// Default constructor: no initialization.
    Memory() { }
 
-   /// Copy constructor: default.
-   Memory(const Memory &orig) = default;
+   /// Copy constructor, does not take ownership.
+   Memory(const Memory &orig)
+   {
+      MakeAlias(orig, 0, orig.capacity);
+   }
 
    /// Move constructor: default.
    Memory(Memory &&orig) = default;
 
-   /// Copy-assignment operator: default.
-   Memory &operator=(const Memory &orig) = default;
+   /// Copy-assignment operator, does not take ownership.
+   Memory &operator=(const Memory &orig)
+   {
+      MakeAlias(orig, 0, orig.capacity);
+      return *this;
+   }
 
    /// Move-assignment operator: default.
    Memory &operator=(Memory &&orig) = default;
