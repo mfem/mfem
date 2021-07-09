@@ -937,10 +937,11 @@ class Const3DFECollection : public FiniteElementCollection
 private:
    const P0TetFiniteElement TetrahedronFE;
    const P0HexFiniteElement ParallelepipedFE;
-   const L2_WedgeElement WedgeFE;
+   const P0WdgFiniteElement WedgeFE;
+   const P0PyrFiniteElement PyramidFE;
 
 public:
-   Const3DFECollection() : FiniteElementCollection(0), WedgeFE(0) { }
+   Const3DFECollection() : FiniteElementCollection(0) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
