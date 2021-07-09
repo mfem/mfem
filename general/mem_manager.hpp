@@ -175,14 +175,25 @@ public:
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
 
-   /// Move constructor: default.
-   Memory(Memory &&orig) = default;
+   /** Move constructor. Sets the pointers and associated ownership of validity
+       flags of @a *this to those of @a other. Invalidates @a other. */
+   Memory(Memory &&orig)
+   {
+      *this = orig;
+      orig.Reset();
+   }
 
    /// Copy-assignment operator: default.
    Memory &operator=(const Memory &orig) = default;
 
-   /// Move-assignment operator: default.
-   Memory &operator=(Memory &&orig) = default;
+   /** Move assignment operator. Sets the pointers and associated ownership of
+       validity flags of @a *this to those of @a other. Invalidates @a other. */
+   Memory &operator=(Memory &&orig)
+   {
+      *this = orig;
+      orig.Reset();
+      return *this;
+   }
 
    /// Allocate host memory for @a size entries.
    /** The allocation uses the current host memory type returned by
