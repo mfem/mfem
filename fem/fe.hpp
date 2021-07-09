@@ -1748,6 +1748,32 @@ public:
    { dofs(0) = 1.0; }
 };
 
+/// A 3D constant element on a wedge
+class P0WdgFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the P0WdgFiniteElement
+   P0WdgFiniteElement ();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs(0) = 1.0; }
+};
+
+/// A 3D constant element on a pyramid
+class P0PyrFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the P0PyrFiniteElement
+   P0PyrFiniteElement ();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs(0) = 1.0; }
+};
+
 /** @brief Tensor products of 1D Lagrange1DFiniteElement
     (only degree 2 is functional) */
 class LagrangeHexFiniteElement : public NodalFiniteElement
