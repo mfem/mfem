@@ -35,10 +35,6 @@ Table::Table(const Table &table)
       I.CopyFrom(table.I, size+1);
       J.CopyFrom(table.J, nnz);
    }
-   else
-   {
-      I.Reset(); J.Reset();
-   }
 }
 
 Table& Table::operator=(const Table &rhs)

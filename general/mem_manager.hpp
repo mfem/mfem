@@ -169,8 +169,8 @@ protected:
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
-   /// Default constructor: no initialization.
-   Memory() { }
+   /// Default constructor.
+   Memory() { Reset(); }
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
@@ -205,7 +205,7 @@ public:
        host memory type returned by MemoryManager::GetHostMemoryType(). */
    /** The parameter @a own determines whether @a ptr will be deleted when the
        method Delete() is called. */
-   explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
+   Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
@@ -820,8 +820,15 @@ inline void Memory<T>::New(int size)
    capacity = size;
    flags = OWNS_HOST | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
-   h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) :
-           (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
+   if (size > 0)
+   {
+      h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) :
+              (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
+   }
+   else
+   {
+      h_ptr = nullptr;
+   }
 }
 
 template <typename T>
@@ -833,7 +840,16 @@ inline void Memory<T>::New(int size, MemoryType mt)
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType(mt);
    T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
-   h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
+   if (size > 0)
+   {
+      h_ptr = (mt_host) ?
+              h_tmp :
+              (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
+   }
+   else
+   {
+      h_ptr = nullptr;
+   }
 }
 
 template <typename T>
@@ -842,8 +858,16 @@ inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
    capacity = size;
    const size_t bytes = size*sizeof(T);
    this->h_mt = h_mt;
-   T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
-   h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt, VALID_HOST, flags);
+   if (size > 0)
+   {
+      T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+      h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt, VALID_HOST,
+                                      flags);
+   }
+   else
+   {
+      h_ptr = nullptr;
+   }
 }
 
 template <typename T>

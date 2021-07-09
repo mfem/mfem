@@ -40,8 +40,6 @@ StaticCondensation::StaticCondensation(FiniteElementSpace *fespace)
 #endif
    S = S_e = NULL;
    symm = false;
-   A_data.Reset();
-   A_ipiv.Reset();
 
    Array<int> vdofs;
    const int NE = fes->GetNE();
