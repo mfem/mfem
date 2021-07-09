@@ -693,11 +693,10 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
 
 #ifdef MFEM_USE_MPI
 
-   // If the underlying finite element space is parallel, ensure the face neighbor information is generated.
-   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>
-                                       (&fes);
-
-   if (pfes != NULL)
+   // If the underlying finite element space is parallel, ensure the face
+   // neighbor information is generated.
+   if (const ParFiniteElementSpace *pfes
+       = dynamic_cast<const ParFiniteElementSpace*>(&fes))
    {
       pfes->GetParMesh()->ExchangeFaceNbrData();
    }
