@@ -4109,12 +4109,6 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
       }
    }
 
-   if (Dim > 2)
-   {
-      GetElementToFaceTable(false);
-      GenerateFaces();
-   }
-
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh.GetNBE(); el++)
    {
