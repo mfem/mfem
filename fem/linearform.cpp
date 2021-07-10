@@ -226,10 +226,12 @@ void LinearForm::Assemble()
             for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
                if (boundary_face_integs_marker[k] &&
-                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0)
+               { continue; }
 
-               boundary_face_integs[k]->AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
-                                                               *tr, elemvect);
+               boundary_face_integs[k]->
+               AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
+                                      *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }
@@ -252,9 +254,10 @@ void LinearForm::Assemble()
                Array<int> vdofs2;
                fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
                vdofs.Append(vdofs2);
-               interior_face_integs[k]->AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
-                                                               *fes->GetFE(tr -> Elem2No),
-                                                               *tr, elemvect);
+               interior_face_integs[k]->
+               AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
+                                      *fes->GetFE(tr->Elem2No),
+                                      *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }

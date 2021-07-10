@@ -414,7 +414,8 @@ void BilinearForm::Assemble(int skip_zeros)
       {
          if (domain_integs_marker[k] != NULL)
          {
-            MFEM_VERIFY(mesh->attributes.Size() == domain_integs_marker[k]->Size(),
+            MFEM_VERIFY(mesh->attributes.Size() ==
+                        domain_integs_marker[k]->Size(),
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }
@@ -553,9 +554,10 @@ void BilinearForm::Assemble(int skip_zeros)
             vdofs.Append (vdofs2);
             for (int k = 0; k < interior_face_integs.Size(); k++)
             {
-               interior_face_integs[k] -> AssembleFaceMatrix (*fes -> GetFE (tr -> Elem1No),
-                                                              *fes -> GetFE (tr -> Elem2No),
-                                                              *tr, elemmat);
+               interior_face_integs[k]->
+               AssembleFaceMatrix(*fes->GetFE(tr->Elem1No),
+                                  *fes->GetFE(tr->Elem2No),
+                                  *tr, elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
          }
@@ -605,7 +607,8 @@ void BilinearForm::Assemble(int skip_zeros)
             for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
                if (boundary_face_integs_marker[k] &&
-                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0)
+               { continue; }
 
                boundary_face_integs[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr,
                                                               elemmat);
@@ -1240,7 +1243,8 @@ MatrixInverse * MixedBilinearForm::Inverse() const
 {
    if (assembly != AssemblyLevel::LEGACY)
    {
-      MFEM_WARNING("MixedBilinearForm::Inverse not possible with this assembly level!");
+      MFEM_WARNING("MixedBilinearForm::Inverse not possible with this "
+                   "assembly level!");
       return NULL;
    }
    else
@@ -1700,10 +1704,10 @@ void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
       }
 }
 
-void MixedBilinearForm::FormRectangularSystemMatrix(const Array<int>
-                                                    &trial_tdof_list,
-                                                    const Array<int> &test_tdof_list,
-                                                    OperatorHandle &A)
+void MixedBilinearForm::FormRectangularSystemMatrix(
+   const Array<int> &trial_tdof_list,
+   const Array<int> &test_tdof_list,
+   OperatorHandle &A)
 
 {
    if (ext)
@@ -1741,17 +1745,17 @@ void MixedBilinearForm::FormRectangularSystemMatrix(const Array<int>
    A.Reset(mat, false);
 }
 
-void MixedBilinearForm::FormRectangularLinearSystem(const Array<int>
-                                                    &trial_tdof_list,
-                                                    const Array<int> &test_tdof_list,
-                                                    Vector &x, Vector &b,
-                                                    OperatorHandle &A,
-                                                    Vector &X, Vector &B)
+void MixedBilinearForm::FormRectangularLinearSystem(
+   const Array<int> &trial_tdof_list,
+   const Array<int> &test_tdof_list,
+   Vector &x, Vector &b,
+   OperatorHandle &A,
+   Vector &X, Vector &B)
 {
    if (ext)
    {
-      ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, A, X,
-                                       B);
+      ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list,
+                                       x, b, A, X, B);
       return;
    }
 
@@ -1790,8 +1794,10 @@ MixedBilinearForm::~MixedBilinearForm()
    {
       int i;
       for (i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
-      for (i = 0; i < boundary_integs.Size(); i++) { delete boundary_integs[i]; }
-      for (i = 0; i < trace_face_integs.Size(); i++) { delete trace_face_integs[i]; }
+      for (i = 0; i < boundary_integs.Size(); i++)
+      { delete boundary_integs[i]; }
+      for (i = 0; i < trace_face_integs.Size(); i++)
+      { delete trace_face_integs[i]; }
       for (i = 0; i < boundary_trace_face_integs.Size(); i++)
       { delete boundary_trace_face_integs[i]; }
    }

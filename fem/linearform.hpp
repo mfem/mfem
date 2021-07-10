@@ -44,7 +44,8 @@ protected:
 
    /// Set of Boundary Integrators to be applied.
    Array<LinearFormIntegrator*> boundary_integs;
-   Array<Array<int>*>           boundary_integs_marker; ///< Entries are not owned.
+   /// Entries are not owned.
+   Array<Array<int>*>           boundary_integs_marker;
 
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> boundary_face_integs;
@@ -60,7 +61,8 @@ protected:
    Array<IntegrationPoint> domain_delta_integs_ip;
 
    /// If true, the delta locations are not (re)computed during assembly.
-   bool HaveDeltaLocations() { return (domain_delta_integs_elem_id.Size() != 0); }
+   bool HaveDeltaLocations()
+   { return (domain_delta_integs_elem_id.Size() != 0); }
 
    /// Force (re)computation of delta locations.
    void ResetDeltaLocations() { domain_delta_integs_elem_id.SetSize(0); }

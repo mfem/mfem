@@ -73,9 +73,10 @@ void ParLinearForm::AssembleSharedFaces()
             {
                int Elem2Nbr = tr->Elem2No - pmesh->GetNE();
                fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-               interior_face_integs[k]->AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
-                                                               *pfes->GetFaceNbrFE(Elem2Nbr),
-                                                               *tr, elemvect);
+               interior_face_integs[k]->
+               AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
+                                      *pfes->GetFaceNbrFE(Elem2Nbr),
+                                      *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }

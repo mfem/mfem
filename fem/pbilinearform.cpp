@@ -216,9 +216,10 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
       vdofs_all.Append(vdofs2);
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
-         interior_face_integs[k]->AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
-                                                     *pfes->GetFaceNbrFE(Elem2NbrNo),
-                                                     *T, elemmat);
+         interior_face_integs[k]->
+         AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
+                            *pfes->GetFaceNbrFE(Elem2NbrNo),
+                            *T, elemmat);
          if (keep_nbr_block)
          {
             mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
