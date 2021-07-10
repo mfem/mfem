@@ -6394,6 +6394,20 @@ STable3D *Mesh::GetFacesTable()
             }
             break;
          }
+         case Element::PYRAMID:
+         {
+            for (int j = 0; j < 1; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+            }
+            for (int j = 1; j < 5; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]);
+            }
+            break;
+         }
          case Element::WEDGE:
          {
             for (int j = 0; j < 2; j++)
