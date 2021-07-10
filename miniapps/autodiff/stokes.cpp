@@ -99,9 +99,9 @@ void StokesSolver::FSolve()
     if(nfin==nullptr)
     {
         nfin=new StokesIntegratorTH(viscosity,bpenal,load);
+        nf->AddDomainIntegrator(nfin);
+        nf->SetGradientType(mfem::Operator::Type::Hypre_ParCSR);
     }
-    nf->AddDomainIntegrator(nfin);
-    nf->SetGradientType(mfem::Operator::Type::Hypre_ParCSR);
     // set the RHS
     nf->Mult(sol,rhs);
     rhs.Neg();
