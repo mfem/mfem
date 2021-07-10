@@ -664,15 +664,15 @@ protected:
 
    /// Boundary integrators.
    Array<BilinearFormIntegrator*> boundary_integs;
-   Array<Array<int>*>
-   boundary_integs_marker;///< Entries are not owned.
+   Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
 
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> trace_face_integs;
 
    /// Boundary trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> boundary_trace_face_integs;
-   Array<Array<int>*> boundary_trace_face_integs_marker;///< Entries are not owned.
+   /// Entries are not owned.
+   Array<Array<int>*> boundary_trace_face_integs_marker;
 
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
