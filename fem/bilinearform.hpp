@@ -90,6 +90,11 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
@@ -175,6 +180,8 @@ public:
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
+
+   Hybridization *GetHybridization() const { return hybridization; }
 
    /** @brief Enable the use of static condensation. For details see the
        description for class StaticCondensation in fem/staticcond.hpp This method
@@ -330,6 +337,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -366,13 +377,16 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
-   /** @brief Assemble the diagonal of the bilinear form into diag
+   /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
+       @a diag is a tdof Vector.
 
-       For adaptively refined meshes, this returns P^T d_e, where d_e is the
-       locally assembled diagonal on each element and P^T is the transpose of
-       the conforming prolongation. In general this is not the correct diagonal
-       for an AMR mesh. */
-   void AssembleDiagonal(Vector &diag) const;
+       When the AssemblyLevel is not LEGACY, and the mesh has hanging nodes,
+       this method returns |P^T| d_l, where d_l is the diagonal of the form
+       before applying conforming assembly, P^T is the transpose of the
+       conforming prolongation, and |.| denotes the entry-wise absolute value.
+       In general, this is just an approximation of the exact diagonal for this
+       case. */
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /// Get the finite element space prolongation operator.
    virtual const Operator *GetProlongation() const
@@ -600,7 +614,7 @@ public:
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
    /// Indicate that integrators are not owned by the BilinearForm
-   void UseExternalIntegrators() { extern_bfs = 1; };
+   void UseExternalIntegrators() { extern_bfs = 1; }
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();

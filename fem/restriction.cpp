@@ -847,7 +847,7 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -856,7 +856,7 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -1062,8 +1062,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
-   int face_id1, face_id2;
-   int orientation;
+   int face_id1 = -1, face_id2 = -1;
+   int orientation = -1;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
@@ -1267,7 +1267,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -1280,7 +1280,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    if (m == L2FaceValues::DoubleValued)
    {
       auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
@@ -1304,7 +1304,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    else
    {
       auto d_x = Reshape(x.Read(), nd, vd, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];

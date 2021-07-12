@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll);
 
-   int fe_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt fe_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of temperature unknowns: " << fe_size << endl;

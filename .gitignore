@@ -26,6 +26,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
@@ -104,6 +105,7 @@ examples/ex25-*.gf
 examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
+examples/flux.*
 
 examples/amgx/ex1
 examples/amgx/ex1p
@@ -216,6 +218,11 @@ miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
 
+miniapps/mtop/parheat
+miniapps/mtop/ParHeat*
+miniapps/mtop/seqheat
+miniapps/mtop/SeqHeat*
+
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
 miniapps/navier/navier_kovasznay_vs
@@ -242,6 +249,9 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/diffusion
+miniapps/shifted/diffusion.mesh
+miniapps/shifted/diffusion.gf
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
@@ -271,6 +281,11 @@ miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
 miniapps/solvers/block-solvers
+miniapps/solvers/lor_solvers
+miniapps/solvers/plor_solvers
+miniapps/solvers/ParaView
+miniapps/solvers/mesh.*
+miniapps/solvers/sol.*
 
 # Unit test binary and outputs
 tests/unit/output_meshes
@@ -278,6 +293,8 @@ tests/unit/unit_tests
 tests/unit/punit_tests
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
+tests/unit/tmop_pa_tests_*
+tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 
 # Test script output
@@ -292,3 +309,7 @@ tests/par-mesh-format/ex1p
 
 # VPATH builds
 build-*/*
+
+# PETSc automated build
+petsc-build/*
+pkg.gitcommit

@@ -21,6 +21,13 @@
 
 #include "_hypre_parcsr_mv.h"
 
+// Older hypre versions do not define HYPRE_BigInt and HYPRE_MPI_BIG_INT, so we
+// define them here for backward compatibility.
+#if MFEM_HYPRE_VERSION < 21600
+typedef HYPRE_Int HYPRE_BigInt;
+#define HYPRE_MPI_BIG_INT HYPRE_MPI_INT
+#endif
+
 // Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
 // mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
 // Note: these macros are used in hypre.cpp, hypre_parcsr.cpp, and perhaps
@@ -190,6 +197,16 @@ HYPRE_Int
 hypre_CSRMatrixSum(hypre_CSRMatrix *A,
                    HYPRE_Complex    beta,
                    hypre_CSRMatrix *B);
+
+#if MFEM_HYPRE_VERSION >= 22200
+/** Provide an overloaded function for code consistency between HYPRE API
+    versions. */
+inline hypre_CSRMatrix *hypre_CSRMatrixAdd(hypre_CSRMatrix *A,
+                                           hypre_CSRMatrix *B)
+{
+   return ::hypre_CSRMatrixAdd(1.0, A, 1.0, B);
+}
+#endif
 
 /** Return a new matrix containing the sum of A and B, assuming that both
     matrices use the same row and column partitions. The col_map_offd do not

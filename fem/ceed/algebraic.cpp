@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -143,7 +143,7 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
    if (chebyshev)
    {
       const int cheb_order = 3;
-      out = new OperatorChebyshevSmoother(&op, t_diag, ess_tdofs, cheb_order);
+      out = new OperatorChebyshevSmoother(op, t_diag, ess_tdofs, cheb_order);
    }
    else
    {
@@ -875,7 +875,7 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       }
       else
       {
-         HYPRE_Int global_tdof_number;
+         HYPRE_BigInt global_tdof_number;
          int g = ldof_group[i_ldof];
          if (HYPRE_AssumedPartitionCheck())
          {

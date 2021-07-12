@@ -21,7 +21,11 @@ namespace mfem
 
 // Local maximum size of dofs and quads in 1D
 constexpr int HCURL_MAX_D1D = 5;
+#ifdef MFEM_USE_HIP
+constexpr int HCURL_MAX_Q1D = 5;
+#else
 constexpr int HCURL_MAX_Q1D = 6;
+#endif
 
 constexpr int HDIV_MAX_D1D = 5;
 constexpr int HDIV_MAX_Q1D = 6;
@@ -254,8 +258,10 @@ private:
    DenseMatrix bfi_elmat;
 
 public:
-   TransposeIntegrator (BilinearFormIntegrator *_bfi, int _own_bfi = 1)
-   { bfi = _bfi; own_bfi = _own_bfi; }
+   TransposeIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
+   { bfi = bfi_; own_bfi = own_bfi_; }
+
+   virtual void SetIntRule(const IntegrationRule *ir);
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -321,8 +327,10 @@ private:
    BilinearFormIntegrator *bfi;
 
 public:
-   LumpedIntegrator (BilinearFormIntegrator *_bfi, int _own_bfi = 1)
-   { bfi = _bfi; own_bfi = _own_bfi; }
+   LumpedIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
+   { bfi = bfi_; own_bfi = own_bfi_; }
+
+   virtual void SetIntRule(const IntegrationRule *ir);
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -342,6 +350,8 @@ public:
    InverseIntegrator(BilinearFormIntegrator *integ, int own_integ = 1)
    { integrator = integ; own_integrator = own_integ; }
 
+   virtual void SetIntRule(const IntegrationRule *ir);
+
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -359,6 +369,8 @@ private:
 
 public:
    SumIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   virtual void SetIntRule(const IntegrationRule *ir);
 
    void AddIntegrator(BilinearFormIntegrator *integ)
    { integrators.Append(integ); }
@@ -591,9 +603,9 @@ public:
 
 protected:
 
-   MixedScalarVectorIntegrator(VectorCoefficient &vq, bool _transpose = false,
-                               bool _cross_2d = false)
-      : VQ(&vq), transpose(_transpose), cross_2d(_cross_2d) {}
+   MixedScalarVectorIntegrator(VectorCoefficient &vq, bool transpose_ = false,
+                               bool cross_2d_ = false)
+      : VQ(&vq), transpose(transpose_), cross_2d(cross_2d_) {}
 
    inline virtual bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
@@ -1918,8 +1930,8 @@ public:
    GradientIntegrator() :
       Q{NULL}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
    { }
-   GradientIntegrator(Coefficient *_q) :
-      Q{_q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   GradientIntegrator(Coefficient *q_) :
+      Q{q_}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
    { }
    GradientIntegrator(Coefficient &q) :
       Q{&q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
@@ -1953,9 +1965,9 @@ protected:
    SymmetricMatrixCoefficient *SMQ;
 
 private:
-   Vector vec, pointflux, shape;
+   Vector vec, vecdxt, pointflux, shape;
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix dshape, dshapedxt, invdfdx, M, dshapedxt_m;
    DenseMatrix te_dshape, te_dshapedxt;
    Vector D;
 #endif
@@ -2505,11 +2517,11 @@ protected:
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient *q_) { Init(q_, NULL, NULL, NULL); }
    VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(DiagonalMatrixCoefficient *_dq) { Init(NULL, _dq, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL, NULL); }
    VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_, NULL); }
    VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
    VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }
    VectorFEMassIntegrator(SymmetricMatrixCoefficient *smq) { Init(NULL, NULL, NULL, smq); }
@@ -2554,8 +2566,8 @@ public:
    VectorDivergenceIntegrator() :
       Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
    {  }
-   VectorDivergenceIntegrator(Coefficient *_q) :
-      Q(_q), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   VectorDivergenceIntegrator(Coefficient *q_) :
+      Q(q_), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
    VectorDivergenceIntegrator(Coefficient &q) :
       Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
@@ -2814,9 +2826,9 @@ public:
    DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
    { rho = NULL; u = &u_; alpha = a; beta = b; }
 
-   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &u_,
+   DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
                      double a, double b)
-   { rho = &_rho; u = &u_; alpha = a; beta = b; }
+   { rho = &rho_; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
