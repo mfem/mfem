@@ -232,7 +232,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_FORALL(i, height, Y[i] += DI[i] * R[i]; );
 }
 
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, double max_eig_estimate_)
@@ -246,15 +246,15 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
    coeffs(order),
    ess_tdof_list(ess_tdofs),
    residual(N),
-   oper(oper_) { Setup(); }
+   oper(&oper_) { Setup(); }
 
 #ifdef MFEM_USE_MPI
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
 #else
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, int power_iterations, double power_tolerance)
@@ -267,7 +267,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
      coeffs(order),
      ess_tdof_list(ess_tdofs),
      residual(N),
-     oper(oper_)
+     oper(&oper_)
 {
    OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
    ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
@@ -283,6 +283,28 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
 
    Setup();
 }
+
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, double max_eig_estimate_)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
+
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
+                               power_iterations, power_tolerance) { }
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, int power_iterations, double power_tolerance)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
+                               power_tolerance) { }
+#endif
 
 void OperatorChebyshevSmoother::Setup()
 {
@@ -1621,7 +1643,6 @@ void NewtonSolver::SetOperator(const Operator &op)
    width = op.Width();
    MFEM_ASSERT(height == width, "square Operator is required.");
 
-   xcur.SetSize(width);
    r.SetSize(width);
    c.SetSize(width);
 }
@@ -1635,12 +1656,12 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
-   ProcessNewState(x);
-
    if (!iterative_mode)
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    oper->Mult(x, r);
    if (have_b)
@@ -1822,6 +1843,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    // r = F(x)-b
    oper->Mult(x, r);
@@ -2532,7 +2555,7 @@ BlockILU::BlockILU(int block_size_,
      reordering(reordering_)
 { }
 
-BlockILU::BlockILU(Operator &op,
+BlockILU::BlockILU(const Operator &op,
                    int block_size_,
                    Reordering reordering_,
                    int k_fill_)
