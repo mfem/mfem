@@ -2,8 +2,7 @@
 
 #include "../fem/bilinearform.hpp"
 
-namespace mfem
-{
+namespace mfem {
     SpectraEigenSolver::SpectraEigenSolver()
     {
         // Init params
@@ -55,8 +54,8 @@ namespace mfem
     SpectraEigenSolver& SpectraEigenSolver::SetOperator(const Operator& A)
     {
         // Set EIGEN operators
-        _A_e = SparseMatrixConverter<double>::to(static_cast<const mfem::BilinearForm&>(A).SpMat());
-        
+        _A_e = SparseMatrixConverter<double>::to(static_cast<const BilinearForm&>(A).SpMat());
+
         // Set SPECTRA operators
         _A_s = new SparseSymMatProd<double>(_A_e);
 
@@ -67,9 +66,9 @@ namespace mfem
     SpectraEigenSolver& SpectraEigenSolver::SetOperators(const Operator& A, const Operator& B)
     {
         // Set EIGEN operators
-        _A_e = SparseMatrixConverter<double>::to(static_cast<const mfem::BilinearForm&>(A).SpMat());
-        _B_e = SparseMatrixConverter<double>::to(static_cast<const mfem::BilinearForm&>(B).SpMat());
-        
+        _A_e = SparseMatrixConverter<double>::to(static_cast<const BilinearForm&>(A).SpMat());
+        _B_e = SparseMatrixConverter<double>::to(static_cast<const BilinearForm&>(B).SpMat());
+
         // Set SPECTRA operators
         _A_s = new SparseSymMatProd<double>(_A_e);
         _B_s = new SparseCholesky<double>(_B_e);
@@ -155,4 +154,4 @@ namespace mfem
                 return _G->eigenvectors().topRows(i);
         }
     }
-}
+} // namespace mfem
