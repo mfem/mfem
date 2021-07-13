@@ -718,6 +718,12 @@ protected:
    /// Parameters for windowing function of FIR filter
    double window_params[3];
 
+   /// Coefficients of the smoothing polynomial
+   double *poly_coefs;
+
+   /// Used to store diagonal of the matrix (Chebyshev Smoothing)
+   double* diag;
+
    /// Combined coefficients for windowing and Chebyshev polynomials.
    double* fir_coeffs;
 

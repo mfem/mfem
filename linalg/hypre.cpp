@@ -2381,7 +2381,7 @@ HypreSmoother::HypreSmoother() : Solver()
    l1_norms = NULL;
    pos_l1_norms = false;
    eig_est_cg_iter = 10;
-   B = X = V = Z = NULL;
+   B = X = V = Z = P = R = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
    A_is_symmetric = false;
@@ -2401,7 +2401,7 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
 
    l1_norms = NULL;
    pos_l1_norms = false;
-   B = X = V = Z = NULL;
+   B = X = V = Z = P = R = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
    A_is_symmetric = false;
@@ -2474,6 +2474,8 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (X) { delete X; }
    if (V) { delete V; }
    if (Z) { delete Z; }
+   if (P) { delete P; }
+   if (R) { delete R; }
    if (l1_norms)
    {
       mfem_hypre_TFree(l1_norms);
@@ -2481,7 +2483,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    delete X0;
    delete X1;
 
-   X1 = X0 = Z = V = B = X = NULL;
+   X1 = X0 = Z = V = B = X = P = R = NULL;
 
    if (type >= 1 && type <= 4)
    {
@@ -2521,7 +2523,13 @@ void HypreSmoother::SetOperator(const Operator &op)
          min_eig_est = 0;
          hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est);
       }
+
       Z = new HypreParVector(*A);
+      P = new HypreParVector(*A);
+      R = new HypreParVector(*A);
+
+      hypre_ParCSRRelax_Cheby_Setup(*A, max_eig_est, min_eig_est, poly_fraction, poly_order, 1, 0, poly_coeffs, diags);
+
    }
    else if (type == 1001 || type == 1002)
    {
@@ -2654,12 +2662,12 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
-                           x, *V, NULL);
+                           x, *V, NULL, (P?*P:NULL), (R?*R:NULL), poly_coeffs, diags);
       else
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
-                           x, *V, *Z);
+                           x, *V, *Z, (P?*P:NULL), (R?*R:NULL), poly_coeffs, diags);
    }
 }
 
@@ -2710,6 +2718,8 @@ HypreSmoother::~HypreSmoother()
    if (X) { delete X; }
    if (V) { delete V; }
    if (Z) { delete Z; }
+   if (P) { delete P; }
+   if (R) { delete R; }
    if (l1_norms)
    {
       mfem_hypre_TFree(l1_norms);
@@ -2720,6 +2730,8 @@ HypreSmoother::~HypreSmoother()
    }
    if (X0) { delete X0; }
    if (X1) { delete X1; }
+   if (poly_coeffs) { mfem_hypre_TFree(poly_coeffs); };
+   if (diags) { mfem_hypre_TFree(diags); };
 }
 
 
