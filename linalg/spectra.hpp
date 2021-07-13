@@ -58,7 +58,7 @@ namespace mfem {
         double _tol;
 
         // EIGEN Operators
-        Eigen::SparseMatrix<double>_A_e, _B_e;
+        Eigen::SparseMatrix<double> _A_e, _B_e;
 
         // Spectra Operators
         SparseSymMatProd<double>* _A_s = nullptr;
@@ -72,6 +72,6 @@ namespace mfem {
         // Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd>* _S = nullptr;
         // Eigen::GeneralizedSelfAdjointEigenSolver<Eigen::MatrixXd>* _G = nullptr;
     };
-} // namespace gp_manifold
+} // namespace mfem
 
 #endif // MFEM_SPECTRA_HPP
