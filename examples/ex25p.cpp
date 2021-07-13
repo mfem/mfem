@@ -316,9 +316,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7a. Reorient mesh in case of a tet mesh
-   pmesh->ReorientTetMesh();
-
    // 8. Set element attributes in order to distinguish elements in the PML
    pml->SetAttributes(pmesh);
 

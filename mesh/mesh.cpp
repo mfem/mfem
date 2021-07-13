@@ -3972,6 +3972,12 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
       }
    }
 
+   if (Dim > 2)
+   {
+      GetElementToFaceTable(false);
+      GenerateFaces();
+   }
+
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh.GetNBE(); el++)
    {
@@ -6343,6 +6349,7 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    return NULL;
 }
 
+/*
 // shift cyclically 3 integers so that the smallest is first
 static inline
 void Rotate3(int &a, int &b, int &c)
@@ -6428,7 +6435,7 @@ void Mesh::ReorientTetMesh()
       delete old_v_to_v;
    }
 }
-
+*/
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
