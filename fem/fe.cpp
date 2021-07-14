@@ -12,8 +12,7 @@
 // Finite Element classes
 
 #include "fe.hpp"
-#include "fe_coll.hpp"
-#include "bilininteg.hpp"
+
 #include <cmath>
 
 namespace mfem
