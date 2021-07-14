@@ -1566,13 +1566,13 @@ void FiniteElementSpace::RefinementOperator
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
+      subY.SetSize(lP.Height());
+
       DofTransformation *doftrans = fespace->GetElementDofs(k, dofs);
       old_elem_dof->GetRow(emb.parent, old_dofs);
 
       if (!doftrans)
       {
-         subY.SetSize(lP.Height());
-
          for (int vd = 0; vd < vdim; vd++)
          {
             dofs.Copy(vdofs);
