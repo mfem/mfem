@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-/// Arbitrary H1 elements in 1D
+/// Arbitrary order H1 elements in 1D
 class H1_SegmentElement : public NodalTensorFiniteElement
 {
 private:
@@ -37,7 +37,7 @@ public:
 };
 
 
-/// Arbitrary H1 elements in 2D on a square
+/// Arbitrary order H1 elements in 2D on a square
 class H1_QuadrilateralElement : public NodalTensorFiniteElement
 {
 private:
@@ -58,7 +58,7 @@ public:
 };
 
 
-/// Arbitrary H1 elements in 3D on a cube
+/// Arbitrary order H1 elements in 3D on a cube
 class H1_HexahedronElement : public NodalTensorFiniteElement
 {
 private:
