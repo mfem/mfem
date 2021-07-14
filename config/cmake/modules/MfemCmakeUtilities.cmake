@@ -101,7 +101,7 @@ macro(add_mfem_examples EXE_SRCS)
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
     mfem_add_executable(${EXE_NAME} ${SRC_FILE})
     install(TARGETS ${EXE_NAME}
-            DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+            RUNTIME DESTINATION bin)
     add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
     if (EXE_NEEDED_BY)
       add_dependencies(${EXE_NEEDED_BY} ${EXE_NAME})
