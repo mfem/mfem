@@ -141,7 +141,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v3
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v4
 
     - name: get hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -159,7 +159,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v3
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v4
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
@@ -178,7 +178,6 @@ jobs:
         mpi: ${{ matrix.mpi }}
         build-system: ${{ matrix.build-system }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
-        hypre-target: ${{ matrix.hypre-target }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
 
