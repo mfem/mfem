@@ -21,11 +21,11 @@ namespace mfem
 template<int D1D, int Q1D>
 void AMD_SmemPAMassApply3D(const int ndofs,
                            const int NE,
-                           const int * __restrict__ m_,
-                           const double* __restrict__ b_,
-                           const double* __restrict__ d_,
-                           const double* __restrict__ x_,
-                           double* __restrict__ y_)
+                           const int *m_,
+                           const double *b_,
+                           const double *d_,
+                           const double *x_,
+                           double *y_)
 {
    const auto MAP = Reshape(m_, D1D,D1D,D1D, NE);
    const auto b = Reshape(b_, Q1D, D1D);
