@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-/// Arbitrary L2 elements in 1D on a segment
+/// Arbitrary order L2 elements in 1D on a segment
 class L2_SegmentElement : public NodalTensorFiniteElement
 {
 private:
