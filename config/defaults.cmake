@@ -220,7 +220,7 @@ set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
 set(LAPACK_INCLUDE_DIRS "" CACHE STRING "Path to LAPACK headers.")
 set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
 
-set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/inlude" CACHE STRING "Path to CoDoPack headers.")
+set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/inlude" CACHE STRING "Path to CoDiPack headers.")
 set(CODIPACK_LIBRARIES "")
 
 # Some useful variables:

@@ -16,7 +16,6 @@ list(APPEND SEQADIFF_COMMON_HEADERS
         fdual.hpp
 	tadvector.hpp
 	taddensemat.hpp
-	adnonlininteg.hpp
 	admfem.hpp)
 
 
