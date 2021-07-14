@@ -29,6 +29,7 @@ set(SRCS
   bilininteg_gradient.cpp
   bilininteg_mass_mf.cpp
   bilininteg_mass_pa.cpp
+  bilininteg_mass_pa_amd.cpp
   bilininteg_mass_ea.cpp
   bilininteg_transpose_ea.cpp
   bilininteg_vecdiffusion.cpp
