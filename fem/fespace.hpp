@@ -120,11 +120,16 @@ protected:
    /** Variable order spaces only: DOF assignments for edges and faces, see
        docs in MakeDofTable. For constant order spaces the tables are empty. */
    Table var_edge_dofs;
-   Table var_face_dofs; ///< NOTE: also used for spaces with mixed faces
+   Table var_face_dofs; ///< NOTE: also used for spaces with mixed/double faces
 
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
+
+   /** List of faces with two sets of DOFs. This is a special feature for
+       triangular Nedelec faces with orientations 1-4 and order >= 2, that we
+       disconnect and constrain with the P matrix. Normally the list is empty. */
+   Array<int> nd_double_faces;
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
@@ -274,8 +279,15 @@ protected:
                                 Array<int> &slave_dofs, int slave_face,
                                 const DenseMatrix *pm) const;
 
+   void AddVarOrderDependencies(SparseMatrix &deps) const;
+
+   void AddDoubleFaceDependencies(SparseMatrix &deps) const;
+
    /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
+
+   void GetDoubleFaces(Array<int> &double_faces) const;
+   bool IsDoubleFace(int face) const;
 
    /// GridFunction interpolation operator applicable after mesh refinement.
    class RefinementOperator : public Operator

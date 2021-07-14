@@ -1328,7 +1328,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       //     +                         Faces: 0 back (1, 2, 3)
       //     |\\_                             1 left (0, 3, 2)
       //     ||  \_                           2 front (0, 1, 3)
-      //     | \   \_                         3 bottom (0, 1, 2)
+      //     | \   \_                         3 bottom (0, 2, 1)
       //     |  +__  \_
       //     | /2  \__ \_       Z  Y
       //     |/       \__\      | /
