@@ -169,20 +169,37 @@ int main(int argc, char *argv[])
    // corresponding to pfespace.
    ParGridFunction x(&pfespace);
    // ParGridFunction for level_set_value.
-   ParGridFunction level_set_val(&pfespace);
+   ParGridFunction dirichlet_level_set_val(&pfespace);
+   ParGridFunction neumann_level_set_val(&pfespace);
+   ParGridFunction combo_level_set_val(&pfespace);
+
+   int dirichlet_level_set_type = level_set_type == 5 ? 1 : level_set_type;
 
    // Determine if each element in the ParMesh is inside the actual domain,
    // partially cut by its boundary, or completely outside the domain.
-   Dist_Level_Set_Coefficient dist_fun_level_coef(level_set_type);
-   level_set_val.ProjectCoefficient(dist_fun_level_coef);
+   Dist_Level_Set_Coefficient dirichlet_dist_coef(dirichlet_level_set_type);
+   dirichlet_level_set_val.ProjectCoefficient(dirichlet_dist_coef);
    // Exchange information for ghost elements i.e. elements that share a face
    // with element on the current processor, but belong to another processor.
-   level_set_val.ExchangeFaceNbrData();
+   dirichlet_level_set_val.ExchangeFaceNbrData();
    // Setup the class to mark all elements based on whether they are located
    // inside or outside the true domain, or intersected by the true boundary.
-   ShiftedFaceMarker marker(pmesh, level_set_val, pfespace, include_cut_cell);
+   ShiftedFaceMarker marker(pmesh, dirichlet_level_set_val, pfespace, include_cut_cell);
    Array<int> elem_marker;
    marker.MarkElements(elem_marker);
+
+   // Setup the Neumann level set grid function
+   Dist_Level_Set_Coefficient neumann_dist_coef(level_set_type);
+   neumann_level_set_val.ProjectCoefficient(neumann_dist_coef);
+   neumann_level_set_val.ExchangeFaceNbrData();
+   marker.SetLevelSetFunction(neumann_level_set_val);
+   marker.MarkElements(elem_marker);
+
+   // Create a Combo level set coefficient
+   Combo_Level_Set_Coefficient combo_dist_coef;
+   combo_dist_coef.Add_Level_Set_Coefficient(dirichlet_dist_coef);
+   combo_dist_coef.Add_Level_Set_Coefficient(neumann_dist_coef);
+
 
    // Visualize the element markers.
    if (visualization)
@@ -237,13 +254,18 @@ int main(int argc, char *argv[])
    VectorCoefficient *dist_vec = NULL;
    // Compute the distance field using the HeatDistanceSolver for
    // level_set_type == 4 or analytically for all other level set types.
-   if (level_set_type == 4)
+   if (level_set_type == 4 || level_set_type == 5)
    {
       // Discrete distance vector.
       double dx = AvgElementSize(pmesh);
       ParGridFunction filt_gf(&pfespace);
       PDEFilter *filter = new PDEFilter(pmesh, 2.0 * dx);
-      filter->Filter(dist_fun_level_coef, filt_gf);
+      if (level_set_type == 4) {
+          filter->Filter(dirichlet_dist_coef, filt_gf);
+      }
+      else {
+          filter->Filter(combo_dist_coef, filt_gf);
+      }
       delete filter;
       GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
@@ -279,6 +301,7 @@ int main(int argc, char *argv[])
                              "Distance Vector", s, s, s, s, "Rjmmpcvv", 1);
    }
 
+
    // Set up a list to indicate element attributes to be included in assembly,
    // so that inactive elements are excluded.
    const int max_elem_attr = pmesh.attributes.Max();
@@ -289,7 +312,7 @@ int main(int argc, char *argv[])
    {
       if (!include_cut_cell &&
           (elem_marker[i] == ShiftedFaceMarker::SBElementType::OUTSIDE ||
-           elem_marker[i] == ShiftedFaceMarker::SBElementType::CUT))
+           elem_marker[i] >= ShiftedFaceMarker::SBElementType::CUT))
       {
          pmesh.SetAttribute(i, max_elem_attr+1);
          inactive_elements = true;
