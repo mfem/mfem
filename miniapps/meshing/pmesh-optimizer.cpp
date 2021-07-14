@@ -31,67 +31,10 @@
 //
 // Compile with: make pmesh-optimizer
 //
-// Sample runs:
-//   Adapted analytic shape:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -fd
-//   Adapted analytic shape+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
-//
-//   Adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
-//   Adapted discrete size 3D with PA:
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA).
-//   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
-//   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
-//   Adapted discrete size+aspect_ratio:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
-//   Adapted discrete aspect_ratio+orientation (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect ratio (3D):
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
-//
-//   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
-//   Adaptive limiting through the L-BFGS solver:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
-//   Adaptive limiting through FD (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
-//
-//   Blade shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
-//   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
-//   Blade limited shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
-//   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
-//   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
-//   ICF shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
-//   ICF limited shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10
-//   ICF combo shape + size (rings, slow convergence):
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1
-//   Mixed tet / cube / hex mesh with limiting:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
-//   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd
-//   2D non-conforming shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
-//
-//   2D untangling:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
-//   3D untangling (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
-//
+// Try 1 - untangling metric = 311
+// mpirun -np 4 pmesh-optimizer -m meshname -tid 1 -o 2 -fix-bnd -qt 1 -qo 8 -mid 311 -vl 2
+// Untangling metric = 352
+// mpirun -np 4 pmesh-optimizer -m meshname -tid 1 -o 2 -fix-bnd -qt 1 -qo 8 -mid 352 -vl 2
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -112,11 +55,11 @@ int main (int argc, char *argv[])
 
    // 1. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
-   int mesh_poly_deg     = 1;
+   int mesh_poly_deg     = 2;
    int rs_levels         = 0;
    int rp_levels         = 0;
    double jitter         = 0.0;
-   int metric_id         = 1;
+   int metric_id         = 311;
    int target_id         = 1;
    double lim_const      = 0.0;
    double adapt_lim_const = 0.0;
@@ -173,12 +116,12 @@ int main (int argc, char *argv[])
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
                   "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
-                  // "311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
+                  "311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
                   "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
                   "315: (tau-1)^2                    -- 3D size\n\t"
                   "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-                  // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
@@ -407,12 +350,12 @@ int main (int argc, char *argv[])
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
-      // case 311: metric = new TMOP_Metric_311; break;
+      case 311: metric = new TMOP_Metric_311; break;
       case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
-      // case 352: metric = new TMOP_Metric_352(tauval); break;
+      case 352: metric = new TMOP_Metric_352(tauval); break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
@@ -439,206 +382,6 @@ int main (int argc, char *argv[])
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      case 4:
-      {
-         target_t = TargetConstructor::GIVEN_FULL;
-         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficient(dim, metric_id);
-         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
-         target_c = tc;
-         break;
-      }
-      case 5: // Discrete size 2D or 3D
-      {
-         target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         if (adapt_eval == 0)
-         {
-            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         }
-         else
-         {
-#ifdef MFEM_USE_GSLIB
-            tc->SetAdaptivityEvaluator(new InterpolatorFP);
-#else
-            MFEM_ABORT("MFEM is not built with GSLIB.");
-#endif
-         }
-         if (dim == 2)
-         {
-            FunctionCoefficient ind_coeff(discrete_size_2d);
-            size.ProjectCoefficient(ind_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient ind_coeff(discrete_size_3d);
-            size.ProjectCoefficient(ind_coeff);
-         }
-         tc->SetParDiscreteTargetSize(size);
-         target_c = tc;
-         break;
-      }
-      case 6: // material indicator 2D
-      {
-         ParGridFunction d_x(&ind_fes), d_y(&ind_fes);
-
-         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         FunctionCoefficient ind_coeff(material_indicator_2d);
-         disc.ProjectCoefficient(ind_coeff);
-         if (adapt_eval == 0)
-         {
-            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         }
-         else
-         {
-#ifdef MFEM_USE_GSLIB
-            tc->SetAdaptivityEvaluator(new InterpolatorFP);
-#else
-            MFEM_ABORT("MFEM is not built with GSLIB.");
-#endif
-         }
-         // Diffuse the interface
-         DiffuseField(disc,2);
-
-         // Get  partials with respect to x and y of the grid function
-         disc.GetDerivative(1,0,d_x);
-         disc.GetDerivative(1,1,d_y);
-
-         // Compute the squared magnitude of the gradient
-         for (int i = 0; i < size.Size(); i++)
-         {
-            size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
-         }
-         const double max = size.Max();
-         double max_all;
-         MPI_Allreduce(&max, &max_all, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-
-         for (int i = 0; i < d_x.Size(); i++)
-         {
-            d_x(i) = std::abs(d_x(i));
-            d_y(i) = std::abs(d_y(i));
-         }
-         const double eps = 0.01;
-         const double aspr_ratio = 20.0;
-         const double size_ratio = 40.0;
-
-         for (int i = 0; i < size.Size(); i++)
-         {
-            size(i) = (size(i)/max_all);
-            aspr(i) = (d_x(i)+eps)/(d_y(i)+eps);
-            aspr(i) = 0.1 + 0.9*(1-size(i))*(1-size(i));
-            if (aspr(i) > aspr_ratio) {aspr(i) = aspr_ratio;}
-            if (aspr(i) < 1.0/aspr_ratio) {aspr(i) = 1.0/aspr_ratio;}
-         }
-         Vector vals;
-         const int NE = pmesh->GetNE();
-         double volume = 0.0, volume_ind = 0.0;
-
-         for (int i = 0; i < NE; i++)
-         {
-            ElementTransformation *Tr = pmesh->GetElementTransformation(i);
-            const IntegrationRule &ir =
-               IntRules.Get(pmesh->GetElementBaseGeometry(i), Tr->OrderJ());
-            size.GetValues(i, ir, vals);
-            for (int j = 0; j < ir.GetNPoints(); j++)
-            {
-               const IntegrationPoint &ip = ir.IntPoint(j);
-               Tr->SetIntPoint(&ip);
-               volume     += ip.weight * Tr->Weight();
-               volume_ind += vals(j) * ip.weight * Tr->Weight();
-            }
-         }
-         double volume_all, volume_ind_all;
-         MPI_Allreduce(&volume, &volume_all, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-         MPI_Allreduce(&volume_ind, &volume_ind_all, 1, MPI_DOUBLE, MPI_SUM,
-                       MPI_COMM_WORLD);
-         const int NE_ALL = pmesh->GetGlobalNE();
-
-         const double avg_zone_size = volume_all / NE_ALL;
-
-         const double small_avg_ratio =
-            (volume_ind_all + (volume_all - volume_ind_all) / size_ratio)
-            / volume_all;
-
-         const double small_zone_size = small_avg_ratio * avg_zone_size;
-         const double big_zone_size   = size_ratio * small_zone_size;
-
-         for (int i = 0; i < size.Size(); i++)
-         {
-            const double val = size(i);
-            const double a = (big_zone_size - small_zone_size) / small_zone_size;
-            size(i) = big_zone_size / (1.0+a*val);
-         }
-
-         DiffuseField(size, 2);
-         DiffuseField(aspr, 2);
-
-         tc->SetParDiscreteTargetSize(size);
-         tc->SetParDiscreteTargetAspectRatio(aspr);
-         target_c = tc;
-         break;
-      }
-      case 7: // Discrete aspect ratio 3D
-      {
-         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         if (adapt_eval == 0)
-         {
-            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         }
-         else
-         {
-#ifdef MFEM_USE_GSLIB
-            tc->SetAdaptivityEvaluator(new InterpolatorFP);
-#else
-            MFEM_ABORT("MFEM is not built with GSLIB.");
-#endif
-         }
-         VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
-         aspr3d.ProjectCoefficient(fd_aspr3d);
-         tc->SetParDiscreteTargetAspectRatio(aspr3d);
-         target_c = tc;
-         break;
-      }
-      case 8: // shape/size + orientation 2D
-      {
-         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         if (adapt_eval == 0)
-         {
-            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         }
-         else
-         {
-#ifdef MFEM_USE_GSLIB
-            tc->SetAdaptivityEvaluator(new InterpolatorFP);
-#else
-            MFEM_ABORT("MFEM is not built with GSLIB.");
-#endif
-         }
-
-         if (metric_id == 14 || metric_id == 36)
-         {
-            ConstantCoefficient ind_coeff(0.1*0.1);
-            size.ProjectCoefficient(ind_coeff);
-            tc->SetParDiscreteTargetSize(size);
-         }
-
-         if (metric_id == 85)
-         {
-            FunctionCoefficient aspr_coeff(discrete_aspr_2d);
-            aspr.ProjectCoefficient(aspr_coeff);
-            DiffuseField(aspr,2);
-            tc->SetParDiscreteTargetAspectRatio(aspr);
-         }
-
-         FunctionCoefficient ori_coeff(discrete_ori_2d);
-         ori.ProjectCoefficient(ori_coeff);
-         tc->SetParDiscreteTargetOrientation(ori);
-         target_c = tc;
-         break;
-      }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
