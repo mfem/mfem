@@ -65,6 +65,19 @@ double dist_value(const Vector &x, const int type)
       if (0.3 <= xc && xc <= 0.8 && 0.15 <= yc && yc <= 0.2) { return 1.0; }
       return -1.0;
    }
+   if (type == 5) // circle of radius 0.2 - centered at 1.5, 0.5
+   {
+      double dx = x(0) - 1.5,
+             dy = x(1) - 0.5,
+             rv = dx*dx + dy*dy;
+      if (x.Size() == 3)
+      {
+         double dz = x(2) - 0.5;
+         rv += dz*dz;
+      }
+      rv = rv > 0 ? pow(rv, 0.5) : 0;
+      return rv - ring_radius; // positive is the domain
+   }
    else
    {
       MFEM_ABORT(" Function type not implement yet.");
@@ -87,6 +100,31 @@ public:
       Vector x(3);
       T.Transform(ip, x);
       double dist = dist_value(x, type);
+      if (dist >= 0.) { return 1.; }
+      else { return -1.; }
+   }
+};
+
+/// Level set coefficient - +1 inside the domain, -1 outside, 0 at the boundary.
+class Combo_Level_Set_Coefficient : public Coefficient
+{
+private:
+   Array<Dist_Level_Set_Coefficient *> dls;
+
+public:
+   Combo_Level_Set_Coefficient() : Coefficient() { }
+
+   virtual void Add_Level_Set_Coefficient(Dist_Level_Set_Coefficient &dls_)
+   { dls.Append(&dls_); }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      MFEM_VERIFY(dls.Size() > 0, "Add at-least 1 Dist_level_Set_Coefficient to"
+                                  " the Combo.");
+      double dist = dls[0]->Eval(T, ip);
+      for (int j = 1; j < dls.Size(); j++) {
+          dist = min(dist, dls[j]->Eval(T, ip));
+      }
       if (dist >= 0.) { return 1.; }
       else { return -1.; }
    }
@@ -125,7 +163,7 @@ public:
    }
 };
 
-/// Boundary conditions
+/// Boundary conditions - Dirichlet
 double dirichlet_velocity_circle(const Vector &x)
 {
    return 0.;
@@ -140,6 +178,12 @@ double dirichlet_velocity_xy_exponent(const Vector &x)
 double dirichlet_velocity_xy_sinusoidal(const Vector &x)
 {
    return 1./(M_PI*M_PI)*std::sin(M_PI*x(0)*x(1));
+}
+
+/// Boundary conditions - Neumann
+double neumann_velocity_circle(const Vector &x)
+{
+   return 0.;
 }
 
 
