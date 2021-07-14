@@ -13,6 +13,8 @@
 #define MFEM_FE_FIXED_ORDER
 
 #include "fe_base.hpp"
+#include "fe_h1.hpp"
+#include "fe_l2.hpp"
 
 namespace mfem
 {
@@ -786,7 +788,6 @@ public:
 };
 
 
-/*
 /// Class for linear FE on wedge
 class BiLinear3DFiniteElement : public H1_WedgeElement
 {
@@ -819,7 +820,7 @@ public:
    /// Construct the P0WedgeFiniteElement
    P0WedgeFiniteElement () : L2_WedgeElement(0) {}
 };
-*/
+
 
 /// A 3D 1st order Nedelec element on a cube
 class Nedelec1HexFiniteElement : public VectorFiniteElement
