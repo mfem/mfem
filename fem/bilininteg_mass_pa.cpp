@@ -1233,7 +1233,24 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+      static bool amd = std::getenv("AMD");
+      if (amd)
+      {
+         extern void AMD_PAMassApply(const int dim,
+                                     const int D1D,
+                                     const int Q1D,
+                                     const int NE,
+                                     const FiniteElementSpace *fes,
+                                     const DofToQuad *maps,
+                                     const Vector &D,
+                                     const Vector &X,
+                                     Vector &Y);
+         AMD_PAMassApply(dim, dofs1D, quad1D, ne, fespace, maps, pa_data, x, y);
+      }
+      else
+      {
+         PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+      }
    }
 }
 

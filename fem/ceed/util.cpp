@@ -28,6 +28,12 @@ typedef struct _stat struct_stat;
 namespace mfem
 {
 
+bool DeviceCanUseAMD()
+{
+   static bool amd = std::getenv("AMD");
+   return amd;
+}
+
 bool DeviceCanUseCeed()
 {
    return Device::Allows(Backend::CEED_MASK);

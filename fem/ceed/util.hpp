@@ -29,6 +29,10 @@ class FiniteElementSpace;
 class IntegrationRule;
 class Vector;
 
+/** @brief Function that determines if an AMD kernel should be used, based on
+    the getenv "AMD" configuration. */
+bool DeviceCanUseAMD();
+
 /** @brief Function that determines if a CEED kernel should be used, based on
     the current mfem::Device configuration. */
 bool DeviceCanUseCeed();
