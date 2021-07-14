@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 
 uberenv_url="https://github.com/mfem/mfem-uberenv.git"
-uberenv_ref="fb2ddf28fa51478ec13f2ad4cf825b5973349218"
+uberenv_ref="ca03aa1c7359e0ad833fabb06d69640f6d302336"
 
 [[ ! -d tests/uberenv ]] && git clone ${uberenv_url} tests/uberenv
 cd tests/uberenv
