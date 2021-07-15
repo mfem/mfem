@@ -36,6 +36,8 @@ MFEM makefile targets:
    make clean
    make distclean
    make style
+   make tags
+   make hooks
 
 Examples:
 
@@ -92,7 +94,11 @@ make distclean
    installation directory.
 make style
    Format the MFEM C++ source files using Artistic Style (astyle).
-
+make tags
+   Generate a vi or Emacs compatible TAGS file in ${MFEM_DIR}/TAGS. Requires
+   functional "etags" and "egrep" in the user ${PATH}.
+make hooks
+   Creates symlinks to the hooks in the `.git/hooks` directory.
 endef
 
 # Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
@@ -741,6 +747,30 @@ style:
 	      grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
 	   "No use of std::cerr found", "Use mfem::err instead of std::cerr");\
 	exit $$err_code
+
+# Generate a TAGS table in $MFEM_DIR from all the tracked files
+.PHONY: tags
+tags:
+ifndef ETAGS_BIN
+	$(error Error could not find suitable 'etags', please install one \
+	using your package manager)
+else ifndef EGREP_BIN
+	$(error Error could not find suitable 'egrep', please install one \
+	using your package manager)
+endif
+	$(eval MFEM_TRACKED_SOURCE = $(shell git -C $(MFEM_REAL_DIR) ls-files |\
+	$(EGREP_BIN) '(\.[hc](pp)?)$$'))
+	@cd $(MFEM_REAL_DIR) && $(ETAGS_BIN) --class-qualify \
+	--declarations -o $(MFEM_REAL_DIR)/TAGS $(MFEM_TRACKED_SOURCE)
+
+# Creates symlinks to the hooks in the `.git/hooks` directory. Individual
+# hooks can be enabled by manually creating symlinks. Hooks can be customized
+# using hard copies (trading off with automated updates).
+.PHONY: hooks
+hooks:
+	@cd $(MFEM_DIR)/.git/hooks && \
+	ln -s ../../config/githooks/pre-commit pre-commit; \
+	ln -s ../../config/githooks/pre-push pre-push;
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:

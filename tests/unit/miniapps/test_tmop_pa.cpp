@@ -186,10 +186,12 @@ int tmop(int id, Req &res, int argc, char *argv[])
       case   2: metric = new TMOP_Metric_002; break;
       case   7: metric = new TMOP_Metric_007; break;
       case  77: metric = new TMOP_Metric_077; break;
+      case  80: metric = new TMOP_Metric_080(0.5); break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 315: metric = new TMOP_Metric_315; break;
       case 321: metric = new TMOP_Metric_321; break;
+      case 332: metric = new TMOP_Metric_332(0.5); break;
       default:
       {
          if (id == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -740,6 +742,13 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({2,4}).
           TID({4}).MID({1,2})).Run(id,all);
 
+   Launch(Launch::Args("Square01 + Adapted discrete size").
+          MESH("../../miniapps/meshing/square01.mesh").REFINE(1).
+          NORMALIZATION(true).
+          POR({1,2}).QOR({4,6}).
+          LINEAR_ITERATIONS(150).
+          TID({5}).MID({80}).LS({3})).Run(id,all);
+
    Launch(Launch::Args("Blade").
           MESH("../../miniapps/meshing/blade.mesh").
           POR({1,2}).QOR({2,4}).
@@ -767,6 +776,12 @@ static void tmop_tests(int id = 0, bool all = false)
           NORMALIZATION(true).LIMITING(M_PI).
           POR({1,2}).QOR({4,2}).
           TID({7}).MID({302,321})).Run(id,all);
+
+   Launch(Launch::Args("Cube + Discrete size + normalization").
+          MESH("../../miniapps/meshing/cube.mesh").
+          NORMALIZATION(true).
+          POR({1,2}).QOR({4,2}).
+          TID({5}).MID({332})).Run(id,all);
 
    // Note: order 1 has no interior nodes, so all residuals are zero and the
    // Newton iteration exits immediately.
