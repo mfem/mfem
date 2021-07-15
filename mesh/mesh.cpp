@@ -11493,7 +11493,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NF);
+      J.SetSize(NQ*vdim*(vdim-1)*NF);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)
