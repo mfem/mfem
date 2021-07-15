@@ -258,17 +258,14 @@ void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
          switch (i+1)
          {
             case 1:
-	      mfem::out<<"pack size 1"<<std::endl;
 	      forAllDispatch<1>(cpackSize,scale,devC,devDG,devB,devX);
 	      totalSize += cpackSize; // no interleaving
 	      break;
             case 2:
-	      mfem::out<<"pack size 2"<<std::endl;
 	      forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
 	      totalSize += 2*cpackSize;
 	      break;
             case 3:
-	      mfem::out<<"pack size 3"<<std::endl;
 	      forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
 	      totalSize += 2*cpackSize;
 	      break;
@@ -278,6 +275,7 @@ void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
          }
       }
    }
+   b.PrintHash(mfem::out);
    return;
 }
 
@@ -449,6 +447,211 @@ LORInfo::LORInfo(const Mesh &lor_mesh, Mesh &ho_mesh, int p)
 namespace kernels
 {
 
+// convert i,j to row-major
+#define MFEM_MAT_ROW_MAJOR(_mat,_lda,_i,_j) (_mat)[((_lda)*(_i))+(_j)]
+// convert i,j to column-major
+#define MFEM_MAT_COL_MAJOR(_mat,_lda,_i,_j) MFEM_MAT_ROW_MAJOR(_mat,_lda,_j,_i)
+//#define MFEM_MAT_COL_MAJOR(_mat,_lda,_i,_j) (_mat)[((_lda)*(_j))+(_i)]
+//#define MFEM_MAT_ROW_MAJOR(_mat,_lda,_i,_j) (_mat)[((_lda)*(_i))+(_j)]
+
+
+enum class MATRIX_LAYOUT {ROW_MAJOR,COLUMN_MAJOR};
+enum class MATRIX_FACTOR_TYPE {CHOLESKY};
+
+#if 0
+template <typename T_, int size_>
+class DataArray
+{
+  typedef T_ value_type;
+
+  value_type _data[size_];
+
+};
+
+template <typename T_, int dim_, MATRIX_LAYOUT layout_ = MATRIX_LAYOUT::COLUMN_MAJOR>
+struct Tensor
+{
+public:
+  typedef T_               value_type;
+  typedef MATRIX_LAYOUT    layout_type;
+  static const layout_type _layout = layout_;
+
+
+  static const int _dim = dim_;
+
+private:
+  value_type _data[_dim*_dim];
+
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE value_type rvalueHelper(const int i, const int j)
+  {
+    if (_layout == layout_type::COLUMN_MAJOR) {
+      return  MFEM_MAT_COL_MAJOR(_data,_dim,i,j);
+    } else if (_layout == layout_type::ROW_MAJOR) {
+      return MFEM_MAT_ROW_MAJOR(_data,_dim,i,j);
+    }
+  }
+
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE void lvalueHelper(value_type &&other, const int i, const int j)
+  {
+    if (_layout == layout_type::COLUMN_MAJOR) {
+      MFEM_MAT_COL_MAJOR(_data,_dim,i,j) = other;
+    } else if (_layout == layout_type::ROW_MAJOR) {
+      MFEM_MAT_ROW_MAJOR(_data,_dim,i,j) = other;
+    }
+    return;
+  }
+
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE value_type scratchVecDot(const double *__restrict__ a, const double *__restrict__ b)
+  {
+    double ret = a[0]*b[0];
+
+    MFEM_UNROLL(_dim)
+    for (int i = 1; i < _dim; ++i) ret += a[i]*b[i];
+
+    return ret;
+  }
+
+public:
+  MFEM_HOST_DEVICE Tensor() {}
+  MFEM_HOST_DEVICE ~Tensor() {}
+
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE value_type operator()(const int _i, const int _j)
+  {
+    return rvalueHelper(_i,_j);
+  }
+
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE const value_type& operator()(const int _i, const int _j) const
+  {
+    if (_layout == layout_type::COLUMN_MAJOR) {
+      return MFEM_MAT_COL_MAJOR(_data,_dim,_i,_j);
+    } else if (_layout == layout_type::ROW_MAJOR) {
+      return MFEM_MAT_ROW_MAJOR(_data,_dim,_i,_j);
+    }
+  }
+
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE void load(const int *__restrict__ I,
+					       const int *__restrict__ J,
+					       const double *__restrict__ data,
+					       const int *__restrict__ clusters)
+  {
+   MFEM_UNROLL(_dim)
+   for (int i = 0; i < _dim; ++i)
+   {
+      const int dof_i = MFEM_LDG(clusters+i);
+      const int dofLo = MFEM_LDG(I+dof_i);
+      const int dofHi = MFEM_LDG(I+dof_i+1);
+      // shouldn't unroll here, we don't know trip count and nvcc is kinda terrible at
+      // guessing it
+      for (int j = dofLo; j < dofHi; ++j)
+      {
+         const int dof_j = MFEM_LDG(J+j);
+
+         MFEM_UNROLL(_dim)
+         for (int k = 0; k < _dim; ++k)
+         {
+            if (dof_j == MFEM_LDG(clusters+k))
+            {
+	      //_assignHelper(MFEM_LDG(data+j),i,k);
+               break;
+            }
+         }
+      }
+   }
+   return;
+  }
+
+  // SFINAE for factorization
+  template <MATRIX_FACTOR_TYPE F, std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 0>
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE void factor(void)
+  {
+    // compute in-place lower cholesky using Cholesky-Crout algorithm for matrix A = LL^T
+    MFEM_UNROLL(_dim)
+    for (int j = 0; j < _dim; ++j) {
+      double x = rvalueHelper(j,j);
+
+      // trip count is known at compile time
+      for (int k = 0; k < j; ++k) x -= rvalueHelper(j,k)*rvalueHelper(j,k);
+
+      x = sqrt(x);
+      lvalueHelper(j,j) = x;
+
+      const double r = 1.0/x;
+
+      MFEM_UNROLL(LDA)
+      for (int i = j+1; i < _dim; ++i) {
+	x = rvalueHelper(i,j);
+
+	// trip count also known at compile time
+	for (int k = 0; k < j; ++k) x -= rvalueHelper(i,k)*rvalueHelper(j,k);
+	lvalueHelper(i,j) = x*r;
+      }
+    }
+    return;
+  }
+
+  // Solves Ax = b assuming that A is in cholesky factorized, i.e. A = L L^T. This routine
+  // is also the equivalent of computing x = A^-1 b
+  template <MATRIX_FACTOR_TYPE F, std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 0>
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matMultInv(const double *__restrict__ b, double *__restrict__ x)
+  {
+    // scratch space to hold the intermediate soln
+    double y[_dim];
+
+    MFEM_UNROLL(_dim)
+    for (int i = 0; i < _dim; ++i) {y[i] = 0.0;}
+
+    // forward substitution
+    MFEM_UNROLL(_dim)
+    for (int i = 0; i < _dim; ++i) {
+      double tmp = b[i];
+
+      for (int j = 0; j < i-1; ++j) tmp -= rvalueHelper(i,j)*y[j];
+      y[i] = tmp/rvalueHelper(i,i);
+    }
+
+    // backward substitution
+    MFEM_UNROLL(_dim)
+    for (int i = _dim-1; i > -1; --i) {
+      double tmp = y[i];
+
+      // indices are flipped here for transpose
+      for (int j = i+1; j < _dim; ++j) tmp -= rvalueHelper(j,i)*x[j];
+      x[i] = tmp/rvalueHelper(i,i);
+    }
+    return;
+  }
+
+  template <MATRIX_FACTOR_TYPE F>
+  MFEM_HOST_DEVICE MFEM_FORCE_INLINE void lowestEigenPair(double *__restrict__ eigVec, double &eigVal)
+  {
+    double eigVecTmp[_dim],scratch[_dim];
+    double eigTmp;
+
+    constexpr double LDA_d   = static_cast<double>(_dim);
+    constexpr double initVal = LDA_d/constexprSqrt(LDA_d);
+
+    MFEM_UNROLL(_dim)
+    for (int i = 0; i < _dim; ++i) eigVecTmp[i] = initVal;
+
+    // factor ourselves
+    factor<F>();
+
+    matMultInv<F>(eigVec,scratch);
+    eigTmp = scratchVecDot(eigVec,scratch);
+
+    int iter = 0;
+    do {
+      // scratch already contains valid vector in first iteration
+      if (iter) matMultInv<F>(mat,eigVec,scratch);
+
+      vecNormalize<LDA>(scratch,eigVecTmp);
+      ++iter;
+    } while (1);
+    return;
+  }
+};
+#endif
+
 // Load a dense submatrix from global memory into local memory using efficient RO data
 // cache loads
 template <int LDA>
@@ -473,7 +676,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
          {
             if (dof_j == MFEM_LDG(clusters+k))
             {
-               subMat[i+(LDA*k)] = MFEM_LDG(data+j);
+	       MFEM_MAT_COL_MAJOR(subMat,LDA,i,k) = MFEM_LDG(data+j);
                break;
             }
          }
@@ -482,141 +685,137 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
    return;
 }
 
-// compute diag(g^T x A x g) for set sizes
+// compute diag(g^T x A x g) for generic sizes
 template <int LDA>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag(const double G[LDA],
                                                  const double A[LDA*LDA], double result[LDA])
 {
-  // declare empty function so sizes greater than 3 compile
-  MFEM_ABORT_KERNEL("Do not use");
+  result[0] = 0;
+  MFEM_UNROLL(LDA-1)
+  for (int i = 1; i < LDA; ++i) result[i] = MFEM_MAT_COL_MAJOR(A,LDA,i,i);
+
+  MFEM_UNROLL(LDA)
+  for (int i = 0; i < LDA; ++i) {
+    const double gi = G[i];
+
+    MFEM_UNROLL(LDA)
+    for (int j = 0; j < LDA; ++j) {
+      result[0] += MFEM_MAT_COL_MAJOR(A,LDA,j,i)*G[j]*gi; // let the gods decide double
+							  // precision round-off error
+    }
+  }
+  return;
 }
 
-// convert i,j to column-major
-#define MFEM_MAT_IDX(_mat,_lda,_i,_j) (_mat)[((_lda)*(_j))+(_i)]
-
-template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag<1>(const double G[1],
-                                                    const double A[1], double result[1])
-{
-   result[0] = A[0];
-   return;
-}
-
-template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag<2>(const double G[2],
-                                                    const double A[4], double result[2])
-{
-   const double a00 = MFEM_MAT_IDX(A,2,0,0), a01 = MFEM_MAT_IDX(A,2,0,1);
-   const double a10 = MFEM_MAT_IDX(A,2,1,0), a11 = MFEM_MAT_IDX(A,2,1,1);
-   const double g0  = G[0], g1 = G[1];
-
-   result[0] = (a00*g0*g0)+(a01*g0*g1)+(a10*g0*g1)+(a11*g1*g1);
-   result[1] = a11;
-   return;
-}
-
-template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag<3>(const double G[3],
-                                                    const double A[9], double result[3])
-{
-   const double a00 = MFEM_MAT_IDX(A,3,0,0),a01 = MFEM_MAT_IDX(A,3,0,1),
-                a02 = MFEM_MAT_IDX(A,3,0,2);
-   const double a10 = MFEM_MAT_IDX(A,3,1,0),a11 = MFEM_MAT_IDX(A,3,1,1),
-                a12 = MFEM_MAT_IDX(A,3,1,2);
-   const double a20 = MFEM_MAT_IDX(A,3,2,0),a21 = MFEM_MAT_IDX(A,3,2,1),
-                a22 = MFEM_MAT_IDX(A,3,2,2);
-   const double g0  = G[0], g1 = G[1], g2 = G[2];
-
-   const double sum1 = g0*((a00*g0)+(a10*g1)+(a20*g2));
-   const double sum2 = g1*((a01*g0)+(a11*g1)+(a21*g2));
-   const double sum3 = g2*((a02*g0)+(a12*g1)+(a22*g2));
-
-   result[0] = sum1+sum2+sum3;
-   result[1] = a11;
-   result[2] = a22;
-   return;
-}
-
-enum class MATRIX_FACTOR_TYPE {CHOLESKY};
+// declare generic template so size 4+ compiles. Sadly constexpr if is c++17...
+template <int d> void CalcEigenvalues(const double *data, double *lambda, double *vec) {}
 
 // Solves Ax = b assuming that A is in cholesky factorized, i.e. A = L L^T. This routine
 // is also the equivalent of computing x = A^-1 b
-template <int LDA, MATRIX_FACTOR_TYPE F>
+template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInv(const double *__restrict__ mat, const double *__restrict__ b, double *__restrict__ x)
 {
-  if (F == MATRIX_FACTOR_TYPE::CHOLESKY) {
-    // scratch space to hold the intermediate soln
-    double y[LDA];
+  // scratch space to hold the intermediate soln
+  double y[LDA];
 
-    MFEM_UNROLL(LDA)
-    for (int i = 0; i < LDA; ++i) {y[i] = 0.0;}
+  // forward substitution
+  MFEM_UNROLL(LDA)
+  for (int i = 0; i < LDA; ++i) {
+    double tmp = b[i];
 
-    // forward substitution
-    MFEM_UNROLL(LDA)
-    for (int i = 0; i < LDA; ++i) {
-      double tmp = b[i];
+    for (int j = 0; j < i; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j];
+    y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+  }
 
-      for (int j = 0; j < i-1; ++j) tmp -= MFEM_MAT_IDX(mat,LDA,i,j)*y[j];
-      y[i] = tmp/MFEM_MAT_IDX(mat,LDA,i,i);
-    }
+  // backward substitution
+  MFEM_UNROLL(LDA)
+  for (int i = LDA-1; i > -1; --i) {
+    double tmp = y[i];
 
-    // backward substitution
-    MFEM_UNROLL(LDA)
-    for (int i = LDA-1; i > -1; --i) {
-      double tmp = y[i];
-
-      // indices are flipped here for transpose
-      for (int j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_IDX(mat,LDA,j,i)*x[j];
-      x[i] = tmp/MFEM_MAT_IDX(mat,LDA,i,i);
-    }
-  } else {
-    MFEM_ABORT_KERNEL("Not Implemented");
+    // indices are flipped here for transpose
+    for (int j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*x[j];
+    x[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
   }
   return;
 }
 
-template <int LDA, MATRIX_FACTOR_TYPE F>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void factor(double *__restrict__ mat)
+// Does matmultinv inplace on the input vector
+template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInvInPlace(const double *__restrict__ mat, double *__restrict__ b)
 {
-  // only option for now
-  if (F == MATRIX_FACTOR_TYPE::CHOLESKY) {
-    // compute in-place lower cholesky using Cholesky-Crout algorithm for matrix A = LL^T
+  // scratch space to hold the intermediate soln
+  double y[LDA];
+
+  // forward substitution
+  MFEM_UNROLL(LDA)
+  for (int i = 0; i < LDA; ++i) {
+    double tmp = b[i];
+
+    for (int j = 0; j < i; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j];
+    y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+  }
+
+  // backward substitution
+  MFEM_UNROLL(LDA)
+  for (int i = LDA-1; i > -1; --i) {
+    double tmp = y[i];
+
+    // indices are flipped here for transpose
+    for (int j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*b[j];
+    b[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+  }
+  return;
+}
+
+template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactorInPlace(double *__restrict__ mat)
+{
+  // compute in-place lower cholesky using Cholesky-Crout algorithm for matrix A = LL^T
+  MFEM_UNROLL(LDA)
+  for (int j = 0; j < LDA; ++j) {
+    double x = MFEM_MAT_COL_MAJOR(mat,LDA,j,j);
+
+    // trip count is known at compile time
+    for (int k = 0; k < j; ++k) x -= MFEM_MAT_COL_MAJOR(mat,LDA,j,k)*MFEM_MAT_COL_MAJOR(mat,LDA,j,k);
+
+    x = sqrt(x);
+    MFEM_MAT_COL_MAJOR(mat,LDA,j,j) = x;
+
+    const double r = 1.0/x;
+
     MFEM_UNROLL(LDA)
-    for (int j = 0; j < LDA; ++j) {
-      double x = MFEM_MAT_IDX(mat,LDA,j,j);
+    for (int i = j+1; i < LDA; ++i) {
+      x = MFEM_MAT_COL_MAJOR(mat,LDA,i,j);
 
-      // trip count is known at compile time
-      for (int k = 0; k < j; ++k) x -= MFEM_MAT_IDX(mat,LDA,j,k)*MFEM_MAT_IDX(mat,LDA,j,k);
+      // trip count also known at compile time
+      for (int k = 0; k < j; ++k) x -= MFEM_MAT_COL_MAJOR(mat,LDA,i,k)*MFEM_MAT_COL_MAJOR(mat,LDA,j,k);
+      MFEM_MAT_COL_MAJOR(mat,LDA,i,j) = x*r;
+    }
+  }
+  return;
+}
 
-      x = sqrt(x);
-      MFEM_MAT_IDX(mat,LDA,j,j) = x;
+template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactor(const double *__restrict__ mat, double *__restrict__ factored)
+{
+  MFEM_UNROLL(LDA)
+  for (int i = 0; i < LDA; ++i) {
+    for (int k = 0; k < i; ++k) {
+      double tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,k);
 
-      const double r = 1.0/x;
-
-      MFEM_UNROLL(LDA)
-      for (int i = j+1; i < LDA; ++i) {
-	x = MFEM_MAT_IDX(mat,LDA,i,j);
-
-	// trip count also known at compile time
-	for (int k = 0; k < j; ++k) x -= MFEM_MAT_IDX(mat,LDA,i,k)*MFEM_MAT_IDX(mat,LDA,j,k);
-	MFEM_MAT_IDX(mat,LDA,i,j) = x*r;
+      for (int j = 0; j < k; ++j) {
+	tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,k,j);
       }
+      MFEM_MAT_COL_MAJOR(factored,LDA,i,k) = tmp/MFEM_MAT_COL_MAJOR(factored,LDA,k,k);
     }
-  } else {
-    MFEM_ABORT_KERNEL("Not Implemented");
+
+    double tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+    for (int j = 0; j < i; ++j) {
+      tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,i,j);
+    }
+    MFEM_MAT_COL_MAJOR(factored,LDA,i,i) = sqrt(tmp);
   }
   return;
-}
-
-// constexpr square root for doubles using the newton-raphson method
-MFEM_HOST_DEVICE double constexpr sqrtNewtonRaphson(double x, double curr, double prev)
-{
-  return curr == prev ? curr : sqrtNewtonRaphson(x,0.5*(curr+x/curr),curr);
-}
-
-MFEM_HOST_DEVICE double constexpr constexprSqrt(double x)
-{
-  return x >= 0 && x < 999999999999999.9 ? sqrtNewtonRaphson(x,x,0) : std::nan("1");
 }
 
 template <int LDA>
@@ -631,58 +830,80 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE double vecDot(const double *__restrict__ v1, 
 }
 
 template <int LDA>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void vecNormalize(const double *__restrict__ vi, double *__restrict__ vo)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void vecNormalize(double *v)
 {
-  double mod = vi[0]*vi[0];
+  double mod = v[0]*v[0];
 
-  MFEM_UNROLL(LDA)
-  for (int i = 1; i < LDA; ++i) mod += vi[i]*vi[i];
+  MFEM_UNROLL(LDA-1)
+  for (int i = 1; i < LDA; ++i) mod += v[i]*v[i];
 
   mod = 1.0/sqrt(mod);
 
-  // modify in-place to save precious registers
   MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i) { eigVec[minEigIdx+i] *= mod; }
+  for (int i = 0; i < LDA; ++i) { v[i] *= mod; }
   return;
 }
 
-template <int LDA, MATRIX_FACTOR_TYPE F>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenvalues(const double *__restrict__ mat, double *__restrict__ eigVec, double &eigVal)
+template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE double matVAV(const double *__restrict__ mat, const double *__restrict__ v)
 {
-  double eigVecTmp[LDA],scratch[LDA];
-  double eigTmp;
+  double scratch[LDA];
 
-  constexpr double LDA_d   = static_cast<double>(LDA);
-  constexpr double initVal = LDA_d/constexprSqrt(LDA_d);
+  matMultInv<LDA,F>(mat,v,scratch);
+  return vecDot<LDA>(v,scratch);
+}
 
+template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE double matVAVInPlace(const double *__restrict__ mat, double *__restrict__ v)
+{
+  double scratch[LDA];
+
+  matMultInv<LDA,F>(mat,v,scratch);
+  double ret = vecDot<LDA>(v,scratch);
   MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i)	eigVecTmp[i] = initVal;
-
-  matMultInv<LDA,F>(mat,eigVec,scratch);
-  eigTmp = vecDot<LDA>(eigVec,scratch);
-
-  int iter = 0;
-  do {
-    // scratch already contains valid vector in first iteration
-    if (iter) matMultInv<LDA,F>(mat,eigVec,scratch);
-
-    vecNormalize<LDA>(scratch,eigVecTmp);
-    ++iter;
-  } while (1);
+  for (int i = 0; i < LDA; ++i) v[i] = scratch[i];
+  return ret;
 }
-#undef MFEM_MAT_IDX
 
-template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void CalcEigenvalues<1>(const double *data, double *lambda,
-					 double *vec)
+// constexpr square root for doubles using the newton-raphson method
+MFEM_HOST_DEVICE double constexpr sqrtNewtonRaphson(double x, double curr, double prev)
 {
-   lambda[0] = data[0];
-   vec[0]    = data[0];
-   return;
+  return curr == prev ? curr : sqrtNewtonRaphson(x,0.5*(curr+x/curr),curr);
 }
 
-// declare generic template so size 4+ compiles. Sadly constexpr if is c++17...
-template <int d> void CalcEigenvalues(const double *data, double *lambda, double *vec) {}
+MFEM_HOST_DEVICE double constexpr constexprSqrt(double x)
+{
+  return x >= 0 && x < 99999999999999.9 ? sqrtNewtonRaphson(x,x,0) : std::nan("1");
+}
+
+template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *__restrict__ mat, double *__restrict__ vec)
+{
+  MFEM_UNROLL(LDA)
+  for (int i = 0; i < LDA; ++i)	vec[i] = 1.0/constexprSqrt(static_cast<double>(LDA));
+
+  double matfactored[LDA*LDA];
+  matFactor<LDA,MATRIX_FACTOR_TYPE::CHOLESKY>(mat,matfactored);
+
+  double val = matVAVInPlace<LDA,F>(matfactored,vec); // val <- vec @ A @ vec, vec <- A @ vec
+
+  int  iter = 0;
+  bool skipMatMul = true;
+  do {
+    if (skipMatMul) {
+      matMultInvInPlace<LDA,F>(matfactored,vec);    // vec <- A @ vec
+      skipMatMul = false;
+    }
+    vecNormalize<LDA>(vec);                         // vec <- vec/norm(vec)
+    double valTmp = matVAV<LDA,F>(matfactored,vec); // valTmp <- vec @ A @ vec
+    if (fabs(val-valTmp) < 0.00001) break;
+    val = valTmp;
+  } while (++iter < 30); // can't just use while (true) as nvcc has ICE when using debug
+			 // flag with pseudo-infinite inlined loops
+  return;
+}
+#undef MFEM_MAT_COL_MAJOR
+#undef MFEM_MAT_ROW_MAJOR
 
 } // namespace kernels
 
@@ -694,68 +915,85 @@ static void forAllDispatchCoeffs(const int size,
 				 const int *__restrict__ clusters,
 				 double *__restrict__ ret)
 {
-  if (LDA <= 3) {
+  if (LDA <= 2) {
+#define SUBMAT membuf
+#define EIGVAL (SUBMAT+(LDA*LDA))
+#define EIGVEC (EIGVAL+LDA)
    MFEM_FORALL(group, size,
    {
-      double subMat[LDA*LDA],eigVal[LDA],eigVec[LDA*LDA];
+      using namespace kernels;
+
+      double membuf[(LDA+LDA+1)*LDA]; // unified memory buffer
       int    minEigIdx = 0;
 
       // must zero the submatrix, theres no guarantee the super-matrix has a full NxN's
       // worth of stuff.
       MFEM_UNROLL(LDA*LDA)
-      for (int i = 0; i < LDA*LDA; ++i) subMat[i] = 0.0;
+      for (int i = 0; i < LDA*LDA; ++i) SUBMAT[i] = 0.0;
 
-      kernels::loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,subMat);
-      kernels::CalcEigenvalues<LDA>(subMat,eigVal,eigVec);
+      loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,SUBMAT);
+      CalcEigenvalues<LDA>(SUBMAT,EIGVAL,EIGVEC);
       {
          // search the eigenvalues for the smallest eigenvalue, note the "index" here is
          // just multiples of LDA to make indexing easier
-         double smallestEigVal = eigVal[0];
-         MFEM_UNROLL(LDA)
+         double smallestEigVal = EIGVAL[0];
+         MFEM_UNROLL(LDA-1)
          for (int i = 1; i < LDA; ++i)
          {
-            if (eigVal[i] < smallestEigVal)
+            if (EIGVAL[i] < smallestEigVal)
             {
-               smallestEigVal = eigVal[i];
+               smallestEigVal = EIGVAL[i];
                minEigIdx += LDA;
             }
          }
       }
-      {
-         double mod = eigVec[minEigIdx]*eigVec[minEigIdx];
-         MFEM_UNROLL(LDA)
-         for (int i = 1; i < LDA; ++i) { mod += eigVec[minEigIdx+i]*eigVec[minEigIdx+i]; }
-
-         mod = 1.0/sqrt(mod);
-
-         // modify in-place to save precious registers
-         MFEM_UNROLL(LDA)
-         for (int i = 0; i < LDA; ++i) { eigVec[minEigIdx+i] *= mod; }
-      }
+      vecNormalize<LDA>(EIGVEC+minEigIdx);
 
       // compute g^T A g, reusing eigVal in place of results
-      kernels::GTAGDiag<LDA>(eigVec+minEigIdx,subMat,eigVal);
+      GTAGDiag<LDA>(EIGVEC+minEigIdx,SUBMAT,EIGVAL);
 
       // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
       // [LDA,2*LDA)
       MFEM_UNROLL(LDA)
-      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/eigVal[i];
+      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/(EIGVAL[i]);
 
       MFEM_UNROLL(LDA)
-      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = eigVec[minEigIdx+i];
+      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = EIGVEC[minEigIdx+i];
    });
+#undef SUBMAT
+#undef EIGVEC
+#undef EIGVAL
   } else {
+#define SUBMAT membuf
+#define	EIGVEC (SUBMAT+(LDA*LDA))
+#define DIAGS  (EIGVEC+LDA)
    MFEM_FORALL(group, size,
    {
-     double subMat[LDA*LDA],eigVal,eigVec[LDA];
+     using namespace kernels;
+
+     double membuf[(LDA+2)*LDA]; // unified memory buffer
 
      MFEM_UNROLL(LDA*LDA)
-     for (int i = 0; i < LDA*LDA; ++i) subMat[i] = 0.0;
+     for (int i = 0; i < LDA*LDA; ++i) SUBMAT[i] = 0.0;
 
-     kernels::loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,subMat);
-     kernels::factor<LDA,kernels::MATRIX_FACTOR_TYPE::CHOLESKY>(subMat);
-     kernels::computeLowestEigenvalues<LDA,kernels::MATRIX_FACTOR_TYPE::CHOLESKY>(subMat,eigVec,eigVal);
+     loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,SUBMAT);
+     computeLowestEigenVector<LDA,MATRIX_FACTOR_TYPE::CHOLESKY>(SUBMAT,EIGVEC);
+     vecNormalize<LDA>(EIGVEC);
+
+     // compute g^T A g
+     GTAGDiag<LDA>(EIGVEC,SUBMAT,DIAGS);
+
+     // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
+     // [LDA,2*LDA), same as above
+     MFEM_UNROLL(LDA)
+     for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/(DIAGS[i]);
+
+     MFEM_UNROLL(LDA)
+     for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = EIGVEC[i];
    });
+#undef SUBMAT
+#undef EIGVEC
+#undef DIAGS
   }
   MFEM_DEVICE_SYNC;
   return;
