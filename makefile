@@ -425,7 +425,7 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) xfl
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -435,7 +435,9 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-all: examples miniapps $(TEST_DIRS)
+all: examples miniapps $(TEST_DIRS) xfl
+xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfl_mfem.o general/xfl_mid.o general/xfl_ker.o general/xfl_ker_ceed.o general/xfl_ker_simd.o general/xfl_ker_libP.o $(BLD)libmfem.a
+	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_BUILD_FLAGS)) -o $(@) $(^) $(MFEM_LIBS)
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)
@@ -538,6 +540,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
 	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)
+	rm -rf $(addprefix $(BLD),xfl)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -698,7 +701,8 @@ FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_LIST = $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp' \
+						  '^general/xf[cml].[\.Y|\.L]*[ch]pp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
