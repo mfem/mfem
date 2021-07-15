@@ -53,7 +53,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2.0
 
     - name: Get Hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
@@ -68,7 +68,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.0
 
     - name: Install Metis
       if: steps.metis-cache.outputs.cache-hit != 'true'
