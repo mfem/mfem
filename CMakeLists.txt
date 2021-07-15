@@ -484,8 +484,48 @@ set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
 set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
+if (MFEM_USE_JIT)
+message(STATUS "MFEM uses JIT")
+include_directories("${MFEM_SOURCE_DIR}")
+add_executable(mpp general/mpp.cpp)
+set_target_properties(mpp PROPERTIES
+                      CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+set(MFEM_JIT_FLAGS "-O3 -Wall -fPIC")
+target_compile_options(mpp PRIVATE -DMFEM_CXX=${CMAKE_CXX_COMPILER}
+                       -DMFEM_INSTALL_DIR=${MFEM_INSTALL_DIR}
+                       -DMFEM_BUILD_FLAGS=${MFEM_JIT_FLAGS})
+set(KERNELS "")
+add_custom_target(MFEM_KERNELS)
+foreach(kernel IN LISTS SOURCES)
+   get_filename_component(kername ${kernel} NAME_WE)
+   get_filename_component(dirname ${kernel} DIRECTORY)
+   file(RELATIVE_PATH relpath ${CMAKE_CURRENT_SOURCE_DIR} ${dirname})
+   set(KER_RELPATH ${CMAKE_CURRENT_BINARY_DIR}/${relpath})
+   set(kernel_cpp ${CMAKE_CURRENT_BINARY_DIR}/${relpath}/${kername}.cpp)
+   add_custom_command(
+       OUTPUT ${kernel_cpp}
+       COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
+       COMMAND mpp ${kernel} -o ${kernel_cpp}
+       DEPENDS mpp ${kernel}
+   )
+   set(KERNELS ${KERNELS} ${kernel_cpp})
+   string(REPLACE " " "_" kernel_d ${relpath}/${kername})
+   string(REPLACE "/" "_" kernel_d ${kernel_d})   
+   add_custom_target(${kernel_d} DEPENDS ${kernel_cpp})
+   add_dependencies(MFEM_KERNELS ${kernel_d})
+   set_source_files_properties(${kernel_cpp} PROPERTIES
+                               COMPILE_OPTIONS -I${dirname} COMPILE_FLAGS -fPIC)
+endforeach()
+set(SOURCES ${KERNELS})
+endif() # MFEM_USE_JIT
+
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+if (MFEM_USE_JIT)
+   add_dependencies(mfem MFEM_KERNELS)
+   target_link_libraries(mfem -ldl)
+endif() # MFEM_USE_JIT
+
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})

@@ -16,11 +16,16 @@
 #include "error.hpp"
 #include "backends.hpp"
 #include "device.hpp"
-#include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
 
 namespace mfem
 {
+
+// MFEM kernel attributes used by the mpp preprocessor
+#define MFEM_JIT
+#define MFEM_EMBED
+#define MFEM_TEMPLATE
+#define MFEM_RANGE(...)
 
 // Maximum size of dofs and quads in 1D.
 #ifdef MFEM_USE_HIP

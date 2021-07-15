@@ -198,6 +198,7 @@ MFEM_STATIC ?= $(STATIC)
 MFEM_SHARED ?= $(SHARED)
 
 # Internal shortcuts
+override jit = $(if $(MFEM_USE_JIT:YES=),,YES)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
@@ -238,6 +239,8 @@ ifeq ($(MFEM_USE_CUDA),YES)
    ifeq ($(MFEM_USE_HIP),YES)
       $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
    endif
+else
+   JIT_LANG = -x c++
 endif
 
 # HIP configuration
@@ -256,6 +259,12 @@ ifeq ($(MFEM_USE_HIP),YES)
    ifeq ($(MFEM_USE_CUDA),YES)
       $(error Incompatible config: MFEM_USE_HIP can not be combined with MFEM_USE_CUDA)
    endif
+endif
+
+# JIT configuration
+MFEM_JIT = mjit
+ifeq ($(MFEM_USE_JIT),YES)
+	LDFLAGS += -ldl
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -339,7 +348,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_OCCA\
  MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2\
  MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS MFEM_USE_CALIPER\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_JIT MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -361,6 +370,7 @@ MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
+MFEM_BIN_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
@@ -383,6 +393,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
+   PREFIX_BIN   := $(PREFIX)/bin
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
@@ -398,6 +409,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
       endif
    endif
    MFEM_PREFIX := $(abspath $(PREFIX))
+   MFEM_BIN_DIR = $(abspath $(PREFIX_BIN))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
    MFEM_TEST_MK = $(abspath $(PREFIX_SHARE)/test.mk)
@@ -425,15 +437,46 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+     $(if $(jit),$(BLD)$(MFEM_JIT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
+ifneq ($(MFEM_USE_JIT),YES)
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+else
+# JIT compilation rules
+# Files that will be preprocessed
+JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
+                   $(SRC)fem/bilininteg_mass_pa.cpp
+
+# Definitions to compile the preprocessor and grab the MFEM compiler
+ifeq ($(shell uname -s),Linux)
+JIT_LIB = -lrt
+endif
+JIT_DEFINES  = -DMFEM_JIT_MAIN
+JIT_DEFINES += -DMFEM_CXX="$(MFEM_CXX)"
+JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
+$(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
+                   $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(<) $(JIT_DEFINES) $(JIT_LIB)
+
+# Filtering out the objects that will be compiled through the preprocessor
+JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
+STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES),$(OBJECT_FILES))
+
+$(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+
+JIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
+JIT_BUILD_FLAGS += $(JIT_LANG) -I. -I$(patsubst %/,%,$(<D))
+$(JIT_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
+	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(JIT_BUILD_FLAGS) -c -o $(@) -
+endif
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -537,7 +580,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk $(MFEM_JIT))
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -546,7 +589,11 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
-install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+			$(if $(jit),$(BLD)$(MFEM_JIT))
+# install binaries
+	mkdir -p $(PREFIX_BIN)
+	$(if $(jit),$(INSTALL) -m 750 $(MFEM_JIT) $(PREFIX_BIN))
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
@@ -661,6 +708,7 @@ status info:
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
+	$(info MFEM_USE_JIT           = $(MFEM_USE_JIT))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
@@ -678,6 +726,7 @@ status info:
 	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
 	$(info MFEM_BUILD_TAG         = $(value MFEM_BUILD_TAG))
 	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
+	$(info MFEM_BIN_DIR           = $(value MFEM_BIN_DIR))
 	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
 	$(info MFEM_STATIC            = $(MFEM_STATIC))
@@ -698,7 +747,8 @@ FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_LIST = $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
+ '^general/$(MFEM_JIT)\.[ch]pp' '^general/debug\.hpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

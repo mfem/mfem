@@ -28,6 +28,19 @@
 
 #include <iostream>
 #include <map>
+#include <thread>
+
+#ifdef MFEM_USE_JIT
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#endif
+
+#define MFEM_DEBUG_COLOR 206
+#include "debug.hpp"
+
+#include <functional>
 
 using namespace std;
 
@@ -40,6 +53,99 @@ void MPI_Session::GetRankAndSize()
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 }
 
+#ifdef MFEM_USE_JIT
+
+template <typename Op>
+bool MPI_JIT_Session::Acknowledge(const int check)
+{
+   const long ms = 100L;
+   const struct timespec rqtp = {0, ms*1000000L};
+   while (Op()(*state, check)) { ::nanosleep(&rqtp, nullptr); }
+   return true;
+}
+
+bool MPI_JIT_Session::AcknowledgeEQ(const int check)
+{
+   return Acknowledge<std::equal_to<int>>(check);
+}
+
+bool MPI_JIT_Session::AcknowledgeNE(const int check)
+{
+   return Acknowledge<std::not_equal_to<int>>(check);
+}
+
+
+MPI_JIT_Session::MPI_JIT_Session()
+{
+   constexpr int prot = PROT_READ | PROT_WRITE;
+   constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
+
+   // One integer in memory to exchange the status
+   state = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
+   MFEM_VERIFY(state, "");
+
+   *state = NOP;
+
+   if ((jit_compiler_pid = fork()) != 0) // parent
+   {
+      MPI_Init(nullptr, nullptr);//&argc, &argv);
+      GetRankAndSize();
+      *state = world_rank; // set world_rank
+      AcknowledgeNE(); // wait for the jit_compiler to acknowledge
+   }
+   else // JIT compiler child
+   {
+      MFEM_VERIFY(*state == NOP, "Child init error!");
+      AcknowledgeEQ();// get world_rank
+      const int world_rank = *state;
+      *state = NOP;
+      dbg("\033[33m[child] rank %d\033[m", world_rank);
+
+      auto work = [&]()
+      {
+         dbg("\033[33mwait...\033[m");
+         AcknowledgeEQ();
+         dbg("\033[33mdone\033[m");
+         *state = NOP;
+      };
+
+      // only rank 0 is kept for compilation
+      if (world_rank == 0)
+      {
+         dbg("\033[33m[child] WORK %d\033[m", world_rank);
+         std::thread thread(work);
+         thread.join();
+      }
+      dbg("\033[33m[child] exit %d\033[m", world_rank);
+      exit(0);
+   }
+}
+
+void MPI_JIT_Session::GetRankAndSize()
+{
+   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+}
+
+MPI_JIT_Session::~MPI_JIT_Session()
+{
+#ifdef MFEM_USE_JIT
+   MFEM_VERIFY(*state == ~0, "Parent finalize error!");
+   if (world_rank == 0)
+   {
+      int status;
+      *state = 0;
+      AcknowledgeNE();
+      ::waitpid(jit_compiler_pid, &status, WUNTRACED | WCONTINUED);
+      dbg("status: %d", status);
+      MFEM_VERIFY(status == 0, "Error waiting for JIT compiler!")
+   }
+   if (::munmap(state, sizeof(int)) != 0) { MFEM_ABORT("munmap error!"); }
+#endif
+   MPI_Finalize();
+}
+
+#endif // MFEM_USE_JIT
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
