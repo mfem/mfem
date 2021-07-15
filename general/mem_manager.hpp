@@ -30,15 +30,21 @@ enum class MemoryType
    HOST,           ///< Host memory; using new[] and delete[]
    HOST_32,        ///< Host memory; aligned at 32 bytes
    HOST_64,        ///< Host memory; aligned at 64 bytes
+   HOST_POOL,      ///< Host memory; using MemoryType::HOST with a pool
+   HOST_ARENA,     ///< Host memory; using MemoryType::HOST with an arena
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
+   HOST_DEBUG_POOL,///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    /**< Host memory; using an Umpire allocator which can be set
                         with MemoryManager::SetUmpireHostAllocatorName */
    HOST_PINNED,    ///< Host memory: pinned (page-locked)
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
+   DEVICE_POOL,
+   DEVICE_ARENA,
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
+   DEVICE_DEBUG_POOL,
    DEVICE_UMPIRE,  /**< Device memory; using an Umpire allocator which can be
                         set with MemoryManager::SetUmpireDeviceAllocatorName */
    DEVICE_UMPIRE_2, /**< Device memory; using a second Umpire allocator settable
@@ -641,7 +647,7 @@ private: // Static methods used by the Memory<T> class
    static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
-   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
+   static bool CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
 
    /// Copy entries from valid memory type to valid memory type.
    ///  Both dest_h_ptr and src_h_ptr are registered host pointers.
@@ -793,6 +799,25 @@ public:
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+static const uintptr_t ARENA_MEM_SIZE = 1ul << 30ul; // 1 GB
+static const uintptr_t ARENA_ARN_SIZE = 16ul << 20ul; // 16 MB per FOREACH
+
+///////////////////////////////////////////////////////////////////////////////
+class ArenaMemorySpace
+{
+   uintptr_t *mem, *dev, shift;
+   struct Buckets *buckets;
+public:
+   ArenaMemorySpace();
+   ~ArenaMemorySpace();
+   void *alloc(size_t bytes);
+   void free(void *ptr, size_t bytes);
+   uintptr_t Shift() const { return shift; }
+};
+
+void *AAlloc(size_t bytes);
+void ADealloc(void *ptr);
 
 // Inline methods
 
@@ -820,7 +845,8 @@ inline void Memory<T>::New(int size)
    capacity = size;
    flags = OWNS_HOST | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
-   h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) :
+   h_ptr = (h_mt == MemoryType::HOST) ?  NewHOST(size) :
+           (h_mt == MemoryType::HOST_ARENA) ? (T*)AAlloc(size*sizeof(T)) :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
 }
 
@@ -829,10 +855,11 @@ inline void Memory<T>::New(int size, MemoryType mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
-   const bool mt_host = mt == MemoryType::HOST;
+   const bool mt_host = mt == MemoryType::HOST || mt == MemoryType::HOST_ARENA;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType(mt);
-   T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   T *h_tmp = (h_mt == MemoryType::HOST) ?  NewHOST(size) :
+              (h_mt == MemoryType::HOST_ARENA) ? (T*) AAlloc(bytes) : nullptr;
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
 }
 
@@ -858,7 +885,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    if (own && MemoryManager::Exists())
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
 #endif
-   if (own && h_mt != MemoryType::HOST)
+   if (own && h_mt != MemoryType::HOST && h_mt != MemoryType::HOST_ARENA)
    { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
 }
 
@@ -870,7 +897,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    {
       h_mt = mt;
       h_ptr = ptr;
-      if (mt == MemoryType::HOST || !own)
+      if ((mt == MemoryType::HOST || mt == MemoryType::HOST_ARENA) || !own)
       {
          // Skip registration
          flags = (own ? OWNS_HOST : 0) | VALID_HOST;
@@ -880,7 +907,8 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    else
    {
       h_mt = MemoryManager::GetDualMemoryType(mt);
-      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
+      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] :
+              (h_mt == MemoryType::HOST_ARENA) ? AAlloc(size) : nullptr;
    }
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
@@ -936,7 +964,7 @@ inline void Memory<T>::Delete()
    const bool std_delete = !registered && mt_host;
 
    if (std_delete ||
-       MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
+       (MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST) )
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }

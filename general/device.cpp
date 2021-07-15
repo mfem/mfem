@@ -78,6 +78,12 @@ Device::Device()
          host_mem_type = MemoryType::HOST;
          device_mem_type = MemoryType::HOST;
       }
+      else if (mem_backend == "host_pool")
+      {
+         mem_host_env = true;
+         host_mem_type = MemoryType::HOST_POOL;
+         device_mem_type = MemoryType::HOST_POOL;
+      }
       else if (mem_backend == "host32")
       {
          mem_host_env = true;
@@ -98,6 +104,15 @@ Device::Device()
          // when an actual device is configured -- this is done later in
          // Device::UpdateMemoryTypeAndClass().
          device_mem_type = MemoryType::HOST_UMPIRE;
+      }
+      else if (mem_backend == "debug_pool")
+      {
+         mem_host_env = true;
+         host_mem_type = MemoryType::HOST_DEBUG_POOL;
+         // Note: device_mem_type will be set to MemoryType::DEVICE_DEBUG_POOL
+         // only when an actual device is configured -- this is done later in
+         // Device::UpdateMemoryTypeAndClass().
+         device_mem_type = MemoryType::HOST_DEBUG_POOL;
       }
       else if (mem_backend == "debug")
       {
@@ -363,11 +378,53 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::MANAGED;
    }
 
+   // Enable the DEVICE Pool shortcut when requested
+   if (device && device_option && !strcmp(device_option, "pool"))
+   {
+      //host_mem_type = MemoryType::HOST_POOL;
+      device_mem_type = MemoryType::DEVICE_POOL;
+   }
+
+   // Enable the DEVICE Arena shortcut when requested
+   if (device && device_option && !strcmp(device_option, "arena"))
+   {
+      host_mem_type = MemoryType::HOST_ARENA;
+      device_mem_type = MemoryType::DEVICE_ARENA;
+   }
+
    // Enable the DEBUG mode when requested
    if (debug)
    {
       host_mem_type = MemoryType::HOST_DEBUG;
       device_mem_type = MemoryType::DEVICE_DEBUG;
+   }
+
+   // Enable the DEBUG pool mode when requested
+   if (debug && device_option && !strcmp(device_option, "pool"))
+   {
+      host_mem_type = MemoryType::HOST_DEBUG_POOL;
+      device_mem_type = MemoryType::DEVICE_DEBUG_POOL;
+   }
+
+   // Enable the non-device pool shortcut when requested
+   if (!device && device_option && !strcmp(device_option, "pool"))
+   {
+      if (host_mem_type == MemoryType::HOST)
+      {
+         host_mem_type = MemoryType::HOST_POOL;
+         device_mem_type = MemoryType::HOST_POOL;
+      }
+   }
+
+   // Enable the non-device arena shortcut when requested
+   if (!device && device_option && !strcmp(device_option, "arena"))
+   {
+      printf("\033[31m[Device::ARENA]\033[m\n"); fflush(0);
+      if (host_mem_type == MemoryType::HOST)
+      {
+         host_mem_type = MemoryType::HOST_ARENA;
+         device_mem_type = MemoryType::HOST_ARENA;
+      }
    }
 
    MFEM_VERIFY(!device || IsDeviceMemory(device_mem_type),

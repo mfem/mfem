@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DEBUG_COLOR 79
+#include "debug.hpp"
+
 #include "forall.hpp"
 #include "mem_manager.hpp"
 
@@ -62,7 +65,6 @@ MemoryType GetMemoryType(MemoryClass mc)
    return MemoryType::HOST;
 }
 
-
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_VERIFY(IsHostMemory(h_mt), "h_mt = " << (int)h_mt);
@@ -85,8 +87,15 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
       (h_mt == MemoryType::HOST_PINNED && d_mt == MemoryType::DEVICE_UMPIRE_2) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST_DEBUG_POOL &&
+       d_mt == MemoryType::DEVICE_DEBUG_POOL) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE_2) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
+      (h_mt == MemoryType::HOST_POOL && d_mt == MemoryType::DEVICE_POOL) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_POOL) ||
+      (h_mt == MemoryType::HOST_POOL && d_mt == MemoryType::DEVICE) ||
+      (h_mt == MemoryType::HOST_ARENA && d_mt == MemoryType::DEVICE) ||
+      (h_mt == MemoryType::HOST_ARENA && d_mt == MemoryType::DEVICE_ARENA) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
@@ -202,8 +211,224 @@ public:
    { return std::memcpy(dst, src, bytes); }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+template <typename MemorySpace> class Pool
+{
+   struct Bucket
+   {
+      // Metadata of one block of memory
+      struct alignas(uintptr_t) Block
+      {
+         Block *next;
+         size_t bytes; // used to test if the block is used and for the free
+         uintptr_t *ptr;
+      };
+
+      // Arena struct
+      struct Arena
+      {
+         uintptr_t *ptr;
+         MemorySpace &MemSpace;
+         const size_t asize, pages, psize;
+         std::unique_ptr<Arena> next;
+         std::unique_ptr<Block[]> blocks;
+
+         Arena(MemorySpace &ms, size_t asize, size_t pages, size_t psize):
+            MemSpace(ms), asize(asize), pages(pages), psize(psize),
+            blocks(new Block[asize])
+         {
+            // Allocate the block of memory for this arena
+            MemSpace.Alloc((void**)&ptr, asize*pages*psize);
+            // Metadata flush & setup
+            //memset(blocks.get(), 0, asize*sizeof(Block));
+            const uintptr_t offset = pages*psize/sizeof(uintptr_t);
+            for (size_t i = 1; i < asize; i++)
+            {
+               blocks[i-1].bytes = 0;
+               blocks[i-1].next = &blocks[i];
+               blocks[i-1].ptr = ptr + (i-1)*offset;
+            }
+            blocks[asize-1].bytes = 0;
+            blocks[asize-1].next = nullptr;
+            blocks[asize-1].ptr = ptr + (asize-1)*offset;
+         }
+
+         ~Arena()
+         {
+            MemSpace.Dealloc(ptr);
+            for (size_t i = 0; i < asize; i++) { blocks[i].ptr = nullptr; }
+         }
+
+         // Get/Set next block
+         Block *Next() const { return blocks.get(); }
+
+         void Next(std::unique_ptr<Arena> &&n) { next.reset(n.release()); }
+
+         void Dump()
+         {
+            for (size_t i = asize; i > 0; i--)
+            {
+               Block &block = blocks[i-1];
+               const bool used = block.bytes > 0;
+               const uintptr_t *ptr = block.ptr;
+               printf("%s\033[m",
+                      ptr ? used ? "\033[32mX" : "\033[33mx" : "\033[37m.");
+            }
+            printf(" ");
+            if (!next) { return; }
+            next->Dump();
+         }
+      };
+
+      inline size_t Align(const size_t bytes, const size_t N = 1)
+      {
+         const size_t mask = N * sizeof(uintptr_t) - 1;
+         return (bytes + mask) & ~(mask);
+      }
+
+      MemorySpace &ms;
+      const size_t pages, asize, psize, align;
+      std::unique_ptr<Arena> arena;
+      Block *next;
+      using ptrs_t = std::pair<Bucket*, Block*>;
+      using PointersMap = std::unordered_map<uintptr_t const*, ptrs_t>;
+
+   public:
+      Bucket(MemorySpace &ms,
+             size_t pages, size_t asize, size_t psize, size_t align):
+         ms(ms), pages(pages), asize(asize), psize(psize), align(align),
+         arena(new Arena(ms, asize, pages, psize)), next(arena->Next()) { }
+
+      /// Allocate bytes from the arena of this bucket
+      void *alloc(size_t bytes, PointersMap &map)
+      {
+         bytes = Align(bytes, align);
+         if (next == nullptr)
+         {
+            std::unique_ptr<Arena> new_arena(new Arena(ms,asize,pages,psize));
+            new_arena->Next(move(arena));
+            arena.reset(new_arena.release());
+            next = arena->Next();
+         }
+         Block *block = next;
+         next = block->next;
+         map.emplace(block->ptr, std::make_pair(this, block));
+         block->bytes = bytes;
+         return block->ptr;
+      }
+
+      /// Free the block
+      void free(Block *block)
+      {
+         block->bytes = 0;
+         block->next = next;
+         next = block;
+      }
+   };
+
+   MemorySpace ms;
+   const size_t asize, psize, align;
+   std::unordered_map<size_t, Bucket> Buckets;
+   using Block = typename Pool<MemorySpace>::Bucket::Block;
+   using ptrs_t = std::pair<Bucket*, Block*>;
+   using PointersMap = std::unordered_map<uintptr_t const*, ptrs_t>;
+   PointersMap map;
+
+public:
+   Pool(size_t asize = 32, size_t psize = 0, size_t align = 8): asize(asize),
+      psize(psize > 0 ? psize :
+#ifdef _WIN32
+            0x1000
+#else
+            sysconf(_SC_PAGE_SIZE)
+#endif
+           ), align(align) { }
+
+   uintptr_t PageSize() const { return psize; }
+
+   void *alloc(size_t bytes)
+   {
+      // number of pages needed for this amount of bytes
+      const size_t pages = bytes > 0 ? (psize + bytes - 1) / psize : 1;
+
+      auto bucket_i = Buckets.find(pages);
+      // If not already in the bucket map, add it
+      if (bucket_i == Buckets.end())
+      {
+         auto res = Buckets.emplace(pages,Bucket(ms,pages,asize,psize,align));
+         bucket_i = Buckets.find(pages);
+         MFEM_ASSERT(res.second, ""); MFEM_CONTRACT_VAR(res);
+         MFEM_ASSERT(bucket_i != Buckets.end(), "");
+      }
+      // Allocate from the bucket
+      return bucket_i->second.alloc(bytes, map);
+   }
+
+   void free(void *ptr)
+   {
+      MFEM_ASSERT(ptr, "");
+      // From the input pointer, get back the block & bucket addresses
+      const uintptr_t *uintptr = reinterpret_cast<uintptr_t*>(ptr);
+      const auto ptrs_i = map.find(uintptr);
+      MFEM_ASSERT(ptrs_i != map.end(), "");
+      const ptrs_t ptrs = ptrs_i->second;
+      Bucket * const bucket = ptrs.first;
+      Block * const block = ptrs.second;
+      MFEM_ASSERT(uintptr == block->ptr, "");
+      // Free the block of this bucket
+      bucket->free(block);
+   }
+
+   void Dump()
+   {
+      int k = 0;
+      for (auto &it : Buckets)
+      {
+         Bucket &bs = it.second;
+         printf("\033[37m[#%2d:%2ldx%2ld] ", k++, bs.asize, bs.pages);
+         bs.arena->Dump();
+         printf("\n");
+         fflush(0);
+      }
+   }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 /// The default std:: host memory space
 class StdHostMemorySpace : public HostMemorySpace { };
+
+/// The arena std:: host memory space
+class PoolStdHostMemorySpace : public HostMemorySpace
+{
+   Pool<HostMemorySpace> pool;
+public:
+   PoolStdHostMemorySpace(): HostMemorySpace()
+   {
+      dbg();
+   }
+   void Alloc(void **ptr, size_t bytes) { *ptr = pool.alloc(bytes); }
+   void Dealloc(void *ptr) { pool.free(ptr); }
+};
+
+class ArenaHostMemorySpace : public HostMemorySpace
+{
+public:
+   ArenaHostMemorySpace(): HostMemorySpace()
+   {
+      dbg("Fake void ArenaHostMemorySpace");
+   }
+   void Alloc(void **ptr, size_t bytes) override
+   {
+      dbg("");
+      MFEM_ABORT("");
+      // not used here, we are short-circuiting it like MemoryType::HOST
+   }
+   void Dealloc(void *ptr) override
+   {
+      dbg("");
+      MFEM_ABORT("");
+   }
+};
 
 /// The No host memory space
 struct NoHostMemorySpace : public HostMemorySpace
@@ -356,18 +581,29 @@ class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
-   void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
-   void Dealloc(void *ptr) { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
-   void Protect(const Memory& mem, size_t bytes)
+   virtual void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
+   virtual void Dealloc(void *ptr) { MmuDealloc(ptr, maps ? maps->memories.at(ptr).bytes : 0); }
+   virtual void Protect(const Memory& mem, size_t bytes)
    { if (mem.h_rw) { mem.h_rw = false; MmuProtect(mem.h_ptr, bytes); } }
-   void Unprotect(const Memory &mem, size_t bytes)
+   virtual void Unprotect(const Memory &mem, size_t bytes)
    { if (!mem.h_rw) { mem.h_rw = true; MmuAllow(mem.h_ptr, bytes); } }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes)
+   virtual void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes)
+   virtual void AliasUnprotect(const void *ptr, size_t bytes)
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
+};
+
+/// The MMU host host memory pool space
+class PoolMmuHostMemorySpace : public MmuHostMemorySpace
+{
+   Pool<MmuHostMemorySpace> pool;
+public:
+   PoolMmuHostMemorySpace(): MmuHostMemorySpace() { }
+   void Alloc(void **ptr, size_t bytes) override
+   { MmuAllow(*ptr = pool.alloc(bytes), bytes); }
+   void Dealloc(void *ptr) override { pool.free(ptr); }
 };
 
 /// The UVM host memory space
@@ -398,14 +634,26 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(void **ptr, size_t bytes) { CuMemAlloc(ptr, bytes); }
+   void Dealloc(void *ptr) { CuMemFree(ptr);  }
+   virtual void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
+   virtual void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
+   virtual void *HtoD(void *dst, const void *src, size_t bytes)
    { return CuMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   virtual void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   virtual void *DtoH(void *dst, const void *src, size_t bytes)
    { return CuMemcpyDtoH(dst, src, bytes); }
+};
+
+/// The POOL CUDA device memory space
+class PoolCudaDeviceMemorySpace: public CudaDeviceMemorySpace
+{
+   mutable Pool<CudaDeviceMemorySpace> pool;
+public:
+   PoolCudaDeviceMemorySpace(): CudaDeviceMemorySpace(), pool(32, 0x100000) { }
+   void Alloc(Memory &m) override { m.d_ptr = pool.alloc(m.bytes); }
+   void Dealloc(Memory &m) override { pool.free(m.d_ptr); }
 };
 
 /// The CUDA/HIP page-locked host memory space
@@ -473,27 +721,75 @@ class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    MmuDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
-   void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
-   void Protect(const Memory &m)
+   void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
+   void Dealloc(void *ptr)
+   { MmuDealloc(ptr, maps ? maps->memories.at(ptr).bytes : 0); }
+   virtual void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
+   virtual void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
+   virtual void Protect(const Memory &m)
    { if (m.d_rw) { m.d_rw = false; MmuProtect(m.d_ptr, m.bytes); } }
-   void Unprotect(const Memory &m)
+   virtual void Unprotect(const Memory &m)
    { if (!m.d_rw) { m.d_rw = true; MmuAllow(m.d_ptr, m.bytes); } }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes)
+   virtual void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes)
+   virtual void AliasUnprotect(const void *ptr, size_t bytes)
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   virtual void *HtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
-   void *DtoD(void *dst, const void *src, size_t bytes)
+   virtual void *DtoD(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   virtual void *DtoH(void *dst, const void *src, size_t bytes)
    { return std::memcpy(dst, src, bytes); }
 };
 
-#ifdef MFEM_USE_UMPIRE
+/// The MMU device memory pool space
+class PoolMmuDeviceMemorySpace : public MmuDeviceMemorySpace
+{
+   mutable Pool<MmuDeviceMemorySpace> pool;
+public:
+   PoolMmuDeviceMemorySpace(): MmuDeviceMemorySpace() { }
+   void Alloc(Memory &m) override
+   { MmuAllow(m.d_ptr = pool.alloc(m.bytes), m.bytes); }
+   void Dealloc(Memory &m) override { pool.free(m.d_ptr); }
+};
+class ArenaMmuDeviceMemorySpace : public MmuDeviceMemorySpace
+{
+   mutable ArenaMemorySpace pool;
+public:
+   ArenaMmuDeviceMemorySpace(): MmuDeviceMemorySpace() { }
+   void Alloc(Memory &m) override
+   { MmuAllow(m.d_ptr = pool.alloc(m.bytes), m.bytes); }
+   void Dealloc(Memory &m) override { pool.free(m.d_ptr, m.bytes); }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+static ArenaMemorySpace *arena = nullptr;
+
+/// The ARENA CUDA device memory space
+class ArenaCudaDeviceMemorySpace: public CudaDeviceMemorySpace
+{
+public:
+   ArenaCudaDeviceMemorySpace(): CudaDeviceMemorySpace()
+   {  dbg("SHIFT: 0x%x", arena->Shift()); }
+   void Alloc(Memory &m) override
+   {
+      uintptr_t dev_shift = arena->Shift();
+      m.d_ptr =  (uintptr_t*) m.h_ptr - (dev_shift>>3);
+      dbg("h_ptr:%p == 0x%x => d_ptr:%p", m.h_ptr, dev_shift, m.d_ptr);
+   }
+   void Dealloc(Memory &m) override
+   {
+      //dbg("");
+   }
+};
+
+#ifndef MFEM_USE_UMPIRE
+class UmpireHostMemorySpace : public NoHostMemorySpace { };
+class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
+#else
+//#ifdef MFEM_USE_UMPIRE
 class UmpireMemorySpace
 {
 protected:
@@ -615,8 +911,13 @@ public:
       host[static_cast<int>(MT::HOST)] = new StdHostMemorySpace();
       host[static_cast<int>(MT::HOST_32)] = new Aligned32HostMemorySpace();
       host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
+      host[static_cast<int>(MT::HOST_POOL)] = new PoolStdHostMemorySpace();
+      //host[static_cast<int>(MT::HOST_ARENA)] = new ArenaHostMemorySpace();
+      host[static_cast<int>(MT::HOST_ARENA)] = nullptr;
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
+      host[static_cast<int>(MT::HOST_DEBUG_POOL)] = nullptr;
+      //host[static_cast<int>(MT::HOST_UMPIRE)] = new UmpireHostMemorySpace();
       host[static_cast<int>(MT::HOST_UMPIRE)] = nullptr;
       host[static_cast<int>(MT::MANAGED)] = new UvmHostMemorySpace();
 
@@ -625,6 +926,8 @@ public:
       device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
       // All other devices controllers are delayed
       device[static_cast<int>(MemoryType::DEVICE)-shift] = nullptr;
+      device[static_cast<int>(MemoryType::DEVICE_POOL)-shift] = nullptr;
+      device[static_cast<int>(MemoryType::DEVICE_ARENA)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_UMPIRE)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_UMPIRE_2)-shift] = nullptr;
@@ -662,7 +965,9 @@ private:
    {
       switch (mt)
       {
+         case MT::HOST_ARENA: return new ArenaHostMemorySpace();
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
+         case MT::HOST_DEBUG_POOL: return new PoolMmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
          case MT::HOST_UMPIRE:
             return new UmpireHostMemorySpace(
@@ -678,6 +983,7 @@ private:
 
    DeviceMemorySpace* NewDeviceCtrl(const MemoryType mt)
    {
+      static const bool ARENA = getenv("ARENA");
       switch (mt)
       {
 #ifdef MFEM_USE_UMPIRE
@@ -692,6 +998,19 @@ private:
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
          case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+         case MT::DEVICE_DEBUG_POOL:
+         {
+            printf("\033[33m[DEVICE_DEBUG_POOL]\033[m\n"); fflush(0);
+            if (ARENA)
+            {
+               printf("\033[33m[ARENA]\033[m\n"); fflush(0);
+               return new ArenaMmuDeviceMemorySpace();
+            }
+            printf("\033[33m[POOL]\033[m\n"); fflush(0);
+            return new PoolMmuDeviceMemorySpace();
+         }
+         case MT::DEVICE_POOL: return new PoolCudaDeviceMemorySpace();
+         case MT::DEVICE_ARENA: return new ArenaCudaDeviceMemorySpace();
          case MT::DEVICE:
          {
 #if defined(MFEM_USE_CUDA)
@@ -711,6 +1030,359 @@ private:
 
 } // namespace mfem::internal
 
+
+// /////////////////////////////////////////////////////////////////////////////
+#define MAX_FOREACH 26
+#define FOREACH(def)\
+    def(0) \
+    def(1) \
+    def(2) \
+    def(3) \
+    def(4) \
+    def(5) \
+    def(6) \
+    def(7) \
+    def(8) \
+    def(9) \
+    def(10) \
+    def(11) \
+    def(12) \
+    def(13) \
+    def(14) \
+    def(15) \
+    def(16) \
+    def(17) \
+    def(18) \
+    def(19) \
+    def(20) \
+    def(21) \
+    def(22) \
+    def(23) \
+    def(24) \
+    def(25) \
+    def(MAX_FOREACH)
+
+////////////////////////////////////////////////////////////////////////////////
+/// http://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightMultLookup
+inline uint32_t ctz(const uint32_t v)
+{
+   static constexpr int MultiplyDeBruijnBitPosition[32] =
+   {
+      0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+      31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+   };
+   return MultiplyDeBruijnBitPosition[((uint32_t)((v & -v) * 0x077CB531U)) >> 27];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+namespace map
+{
+#ifndef assert
+#define assert(...) MFEM_ASSERT(__VA_ARGS__,"")
+#endif
+inline void *malloc(const size_t bytes)
+{
+   /*#ifdef MFEM_USE_CUDA
+      void *ptr;
+      cudaMallocHost(&ptr,bytes);
+      assert(ptr);
+   #else*/
+   void *ptr = nullptr;
+#ifndef _WIN32
+   const size_t length = bytes == 0 ? 8 : bytes;
+   const int prot = PROT_READ | PROT_WRITE;
+   const int flags = MAP_ANON | MAP_PRIVATE;
+   ptr = ::mmap(NULL, length, prot, flags, -1, 0);
+#endif // _WIN32
+   assert(ptr);
+   //#endif
+   printf("\033[31m @ %p\033[m",ptr);
+   return ptr;
+}
+
+inline void free(void *ptr, const size_t bytes)
+{
+   dbg("\033[32m @ %p",ptr);
+   /*#ifdef MFEM_USE_CUDA
+      cudaFreeHost(ptr);
+   #else*/
+   const size_t length = bytes == 0 ? 8 : bytes;
+#ifndef _WIN32
+   if (::munmap(ptr, length) == -1) { assert(false); }
+#endif // _WIN32
+   //#endif
+}
+
+} // namespace map
+
+////////////////////////////////////////////////////////////////////////////////
+inline size_t next_pow2(size_t value)
+{
+   --value;
+   value |= value >> 1;
+   value |= value >> 2;
+   value |= value >> 4;
+   value |= value >> 8;
+   value |= value >> 16;
+   value |= value >> 32;
+   ++value;
+   return value;
+}
+
+/// Block //////////////////////////////////////////////////////////////////////
+template<size_t N> union alignas(uintptr_t) Block
+{
+   Block<N> *next;
+   char data[1ul<<N];
+};
+
+/// Arena //////////////////////////////////////////////////////////////////////
+template<size_t N> struct Arena
+{
+   const size_t asize;
+   Arena *next;
+   Block<N> *blocks;
+
+   Arena(uintptr_t *host, size_t asize):
+      asize(asize),
+      blocks((Block<N>*) host)
+   {
+      for (size_t i = 1; i < asize; i++) { blocks[i-1].next = &blocks[i]; }
+      blocks[asize-1].next = nullptr;
+   }
+   inline Block<N> *Get() const { return blocks; }
+   inline void Set(Arena *n) { next = n; }
+};
+
+/// Allocation//////////////////////////////////////////////////////////////////
+static uintptr_t *MEM = nullptr;
+static uintptr_t *BKP = nullptr;
+uintptr_t *MEMalloc(size_t bytes)
+{
+   //dbg("MEM %p 0x%x", MEM, bytes);
+   uintptr_t *ptr = MEM;
+   MEM += bytes>>3;
+   MFEM_CONTRACT_VAR(BKP);
+   assert(MEM < (BKP + (ARENA_MEM_SIZE>>3)));
+   return ptr;
+}
+static uintptr_t *ARN = nullptr;
+uintptr_t *ARNalloc(size_t bytes)
+{
+   //dbg("ARN %p 0x%x", ARN, bytes);
+   uintptr_t *ptr = ARN;
+   ARN += bytes>>3;
+   return ptr;
+}
+static uintptr_t *DEV = nullptr;
+uintptr_t *DEValloc(size_t bytes)
+{
+   //dbg("DEV %p 0x%x", ARN, bytes);
+   uintptr_t *ptr = DEV;
+   DEV += bytes>>3;
+   return ptr;
+}
+
+// Bucket //////////////////////////////////////////////////////////////////////
+#define DEFAULT_ASIZE (32)
+#define MEM_SIZE (ARENA_MEM_SIZE - ARENA_ARN_SIZE)
+#define BUCKT_MEM (MEM_SIZE/(1+MAX_FOREACH))
+#define BLOCK_MEM (sizeof(Block<N>))
+#define BUCKT_MXS_ASIZE (BUCKT_MEM/(DEFAULT_ASIZE*BLOCK_MEM))
+#define BUCKT_MXS(ASZ) (BUCKT_MEM/((ASZ)*BLOCK_MEM))
+template <size_t N> struct Bucket
+{
+   static const int ASIZE =
+      BUCKT_MXS_ASIZE > 0 ? DEFAULT_ASIZE :
+      BUCKT_MXS(DEFAULT_ASIZE >> 1) > 0 ? DEFAULT_ASIZE >> 1 :
+      BUCKT_MXS(DEFAULT_ASIZE >> 2) > 0 ? DEFAULT_ASIZE >> 2 :
+      BUCKT_MXS(DEFAULT_ASIZE >> 3) > 0 ? DEFAULT_ASIZE >> 3 :
+      BUCKT_MXS(DEFAULT_ASIZE >> 4) > 0 ? DEFAULT_ASIZE >> 4 :
+      BUCKT_MXS(DEFAULT_ASIZE >> 5) > 0 ? DEFAULT_ASIZE >> 5 :
+      1;
+
+   static constexpr int MAX_SHIFT = BUCKT_MXS(ASIZE);
+   static const size_t SIZEOF_BLOCK = sizeof(Block<N>);
+   static const size_t SIZEOF_ARENA = sizeof(Arena<N>);
+#undef MEM_SIZE
+   //static const size_t MEM_SIZE = ARENA_MEM_SIZE;
+   //static const size_t ARN_SIZE = ARENA_ARN_SIZE;
+
+   const size_t asize;
+   uintptr_t *base_blocks, *host_blocks, num_shift;
+   uintptr_t *base_arena, *host_arena;
+   bool dev; uintptr_t *device;
+   Arena<N> *arena;
+   uintptr_t dev_shift;
+   Block<N> *next;
+
+public:
+   Bucket(uintptr_t *mem, uintptr_t *dev_mem):
+      //asize((dbg("<%d> ASIZE:%d, MAX_SHIFT:%ld", N, ASIZE, MAX_SHIFT), ASIZE)),
+      asize((/*dbg("<%d> DEFAULT_ASIZE:%d", N, DEFAULT_ASIZE),*/ DEFAULT_ASIZE)),
+      base_blocks(MEMalloc(asize*SIZEOF_BLOCK)), // mem + ((N*BUCKT_MEM)>>3)),
+      //base_blocks(uintptr_t*)map::malloc(MAX_SHIFT*asize*SIZEOF_BLOCK)),
+      host_blocks((/*dbg("%p",base_blocks),*/base_blocks)),
+      num_shift(0),
+      /*base_arena((dbg("base_arena size:%ld",MAX_SHIFT*SIZEOF_ARENA),
+                  (uintptr_t*)map::malloc(MAX_SHIFT*SIZEOF_ARENA))),*/
+      base_arena(ARNalloc(SIZEOF_ARENA)), //  mem + ((MEM_SIZE + N*ARN_SIZE)>>3)),
+      host_arena(base_arena),
+      dev(getenv("DEV") ? true : false),
+      //device(dev?(uintptr_t*)std::malloc(MAX_SHIFT*asize*SIZEOF_BLOCK):nullptr),
+      device(dev ? dev_mem : nullptr),
+      arena(new (host_arena) Arena<N>(host_blocks, asize)),
+      dev_shift(((uintptr_t)base_arena) - (uintptr_t) (device)),
+      next(arena->Get())
+   {
+      //assert(ArenaMemorySpace::ARN_SIZE > MAX_SHIFT*SIZEOF_ARENA);
+      if (dev)
+      {
+         dbg("New Bucket<%d> host:%p device:%p, shift:0x%lx",
+             N, host_arena, device, dev_shift);
+         assert(dev_shift > 0);
+         assert(dev_shift == ((uintptr_t)base_arena - (uintptr_t)device));
+         assert(base_blocks);
+         assert(base_arena);
+      }
+   }
+
+   ~Bucket()
+   {
+      //map::free(base_blocks, MAX_SHIFT*asize*SIZEOF_BLOCK);
+      //map::free(base_arena, MAX_SHIFT*SIZEOF_ARENA);
+      if (dev)
+      {
+         std::free(device);//, MAX_SHIFT*asize*SIZEOF_BLOCK);
+      }
+   }
+
+   /// Allocate bytes from the arena of this bucket
+   void *alloc(size_t bytes)
+   {
+      if (next == nullptr)
+      {
+         //dbg("\033[33;1m<%d>(%d): 0x%lx bytes", N, asize, bytes);
+         num_shift += 1;
+         //const uintptr_t delta_blocks = (asize*SIZEOF_BLOCK) >> 3;
+         //host_blocks += delta_blocks;
+         host_blocks = MEMalloc(asize*SIZEOF_BLOCK);
+         //const uintptr_t delta_arena = SIZEOF_ARENA >> 3;
+         //host_arena += delta_arena;
+         host_arena = ARNalloc(SIZEOF_ARENA);
+         //assert(num_shift <= MAX_SHIFT);
+         Arena<N> *new_arena = new (host_arena) Arena<N>(host_blocks, asize);
+         new_arena->Set(arena);
+         arena = new_arena;
+         next = arena->Get();
+      }
+      Block<N> *block = next;
+      next = block->next;
+      if (dev)
+      {
+         const uintptr_t *device = (uintptr_t*) block - (dev_shift>>3);
+         dbg("block:%p, shift: 0x%lx => %p", (uintptr_t*)&block[0], dev_shift, device);
+
+         return (void*) device;
+      }
+      return (void*) block;
+   }
+
+   /// Free the pointer
+   void free(void *device)
+   {
+      const uintptr_t *ptr = (uintptr_t*) device + (dev ? (dev_shift>>3) : 0ul);
+      if (dev) {dbg("shadow:%p, shift: 0x%lx => %p", device, dev_shift, ptr);}
+      // Get back the block from ptr
+      Block<N> *block = (Block<N>*) ptr;
+      block->next = next;
+      next = block;
+   }
+};
+
+/// MemorySpace/////////////////////////////////////////////////////////////////
+struct Buckets
+{
+#define DEFINE_PTR(N) Bucket<N> *b##N;
+   FOREACH(DEFINE_PTR)
+   const int last;
+   Buckets(uintptr_t *mem, uintptr_t *dev):
+#define CONSTRUCTOR(N) b##N(nullptr),
+      FOREACH(CONSTRUCTOR)
+      last()
+   {}
+   ~Buckets()
+   {
+#define DECONSTRUCTOR(N) delete b##N;
+      FOREACH(DECONSTRUCTOR);
+   }
+};
+
+ArenaMemorySpace::ArenaMemorySpace():
+   mem((dbg("MEM_SIZE:0x%x (%dMo)", ARENA_MEM_SIZE, ARENA_MEM_SIZE>>20),
+        (uintptr_t*) map::malloc(ARENA_MEM_SIZE + (1+MAX_FOREACH)*ARENA_ARN_SIZE)))
+   //dev((CuMemAlloc((void**)&dev, MEM_SIZE), dbg("dev:%p",dev), dev)),
+   //shift((uintptr_t)mem - (uintptr_t) dev),
+   //buckets((MEM = BKP = mem, ARN = mem + (MEM_SIZE>>3), new Buckets(mem,dev)))
+{
+   CuMemAlloc((void**)&dev, ARENA_MEM_SIZE);
+   dbg("dev:%p",dev);
+   shift = (uintptr_t)mem - (uintptr_t) dev;
+   MEM = BKP = mem;
+   ARN = mem + (ARENA_MEM_SIZE>>3);
+   buckets = new Buckets(mem,dev);
+}
+
+ArenaMemorySpace::~ArenaMemorySpace()
+{
+   map::free(mem, ARENA_MEM_SIZE);
+   CuMemFree(dev);
+   delete buckets;
+}
+
+void *ArenaMemorySpace::alloc(size_t bytes)
+{
+   // number of pages needed for this amount of bytes
+   const size_t key = next_pow2(bytes);
+   const int n = ctz(key);
+   //dbg("0x%lx key:0x%lx, n:%d", bytes, key, n);
+   assert(n <= MAX_FOREACH);
+#define ALLOC_KEY(N){\
+      if (n == N) { \
+        if (!buckets->b##N){ buckets->b##N = new Bucket<N>(mem,dev);}\
+        return buckets->b##N->alloc(bytes);}}
+   FOREACH(ALLOC_KEY);
+   assert(false);
+   return nullptr;
+}
+
+void ArenaMemorySpace::free(void *ptr, size_t bytes)
+{
+   const size_t key = next_pow2(bytes);
+   const int n = ctz(key);
+#define FREE_KEY(N) {\
+        if (n == N) {\
+         assert(buckets->b##N);\
+         return buckets->b##N->free(ptr);}}
+   FOREACH(FREE_KEY);
+   assert(false);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+void *AAlloc(size_t bytes)
+{
+   if (!internal::arena) { internal::arena = new ArenaMemorySpace(); }
+   return internal::arena->alloc(bytes);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void ADealloc(void *ptr)
+{
+   internal::arena->free(ptr, maps->memories.at(ptr).bytes);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 static internal::Ctrl *ctrl;
 
 void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
@@ -751,6 +1423,14 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType h_mt,
                "Internal error");
    void *h_ptr;
    if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
+   /*
+      flags = Mem::REGISTERED;
+      flags |= Mem::OWNS_INTERNAL | Mem::OWNS_HOST | Mem::OWNS_DEVICE;
+      flags |= is_host_mem ? Mem::VALID_HOST : Mem::VALID_DEVICE;
+      if (is_host_mem) { mm.Insert(h_ptr, bytes, h_mt, d_mt); }
+      else { mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt); }
+      MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr), "");
+   */
    else { h_ptr = h_tmp; }
    flags = Mem::REGISTERED | Mem::OWNS_INTERNAL | Mem::OWNS_HOST |
            Mem::OWNS_DEVICE | valid_flags;
@@ -805,7 +1485,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       flags = own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE;
       flags |= (Mem::OWNS_HOST | Mem::VALID_DEVICE);
    }
-   CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr),"");
    return h_ptr;
 }
 
@@ -881,6 +1561,13 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
    MFEM_ASSERT(registered || IsHostMemory(mt),"");
    MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
    if (!mm.exists || !registered) { return mt; }
+
+   if (owns_host && (mt == MemoryType::HOST_ARENA))
+   {
+      ADealloc(h_ptr);
+      return mt;
+   }
+
    if (alias)
    {
       if (owns_internal)
@@ -896,9 +1583,11 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
       const MemoryType h_mt = mt;
       MFEM_ASSERT(!owns_internal ||
                   mt == maps->memories.at(h_ptr).h_mt,"");
-      if (owns_host && (h_mt != MemoryType::HOST))
+      if (owns_host
+          && (h_mt != MemoryType::HOST) && (h_mt != MemoryType::HOST_ARENA))
       { ctrl->Host(h_mt)->Dealloc(h_ptr); }
       if (owns_internal) { mm.Erase(h_ptr, owns_device); }
+      //if (owns_host && (h_mt == MemoryType::HOST_ARENA)) { ADealloc(h_ptr); }
       return h_mt;
    }
    return mt;
@@ -949,7 +1638,9 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       case MemoryClass::DEVICE:
       {
          MFEM_VERIFY(d_mt == MemoryType::DEVICE ||
+                     d_mt == MemoryType::DEVICE_POOL ||
                      d_mt == MemoryType::DEVICE_DEBUG ||
+                     d_mt == MemoryType::DEVICE_DEBUG_POOL ||
                      d_mt == MemoryType::DEVICE_UMPIRE ||
                      d_mt == MemoryType::DEVICE_UMPIRE_2 ||
                      d_mt == MemoryType::MANAGED,"");
@@ -969,7 +1660,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
 void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(MemoryManager::CheckHostMemoryType_(h_mt, h_ptr),"");
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -993,7 +1684,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr),"");
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -1017,7 +1708,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
-   CheckHostMemoryType_(h_mt, h_ptr);
+   MFEM_ASSERT(CheckHostMemoryType_(h_mt, h_ptr),"");
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
@@ -1591,13 +2282,14 @@ void MemoryPrintFlags(unsigned flags)
          << std::endl;
 }
 
-void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
+bool MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
 {
-   if (!mm.exists) {return;}
+   if (!mm.exists) { return true; }
    const bool known = mm.IsKnown(h_ptr);
    const bool alias = mm.IsAlias(h_ptr);
    if (known) { MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,""); }
    if (alias) { MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,""); }
+   return true;
 }
 
 MemoryManager mm;
@@ -1610,17 +2302,23 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 {
-   /* HOST            */  MemoryType::DEVICE,
-   /* HOST_32         */  MemoryType::DEVICE,
-   /* HOST_64         */  MemoryType::DEVICE,
-   /* HOST_DEBUG      */  MemoryType::DEVICE_DEBUG,
-   /* HOST_UMPIRE     */  MemoryType::DEVICE_UMPIRE,
-   /* HOST_PINNED     */  MemoryType::DEVICE,
-   /* MANAGED         */  MemoryType::MANAGED,
-   /* DEVICE          */  MemoryType::HOST,
-   /* DEVICE_DEBUG    */  MemoryType::HOST_DEBUG,
-   /* DEVICE_UMPIRE   */  MemoryType::HOST_UMPIRE,
-   /* DEVICE_UMPIRE_2 */  MemoryType::HOST_UMPIRE
+   /* HOST              */  MemoryType::DEVICE,
+   /* HOST_32           */  MemoryType::DEVICE,
+   /* HOST_64           */  MemoryType::DEVICE,
+   /* HOST_POOL         */  MemoryType::DEVICE_POOL,
+   /* HOST_ARENA        */  MemoryType::DEVICE_ARENA,
+   /* HOST_DEBUG        */  MemoryType::DEVICE_DEBUG,
+   /* HOST_DEBUG_POOL   */  MemoryType::DEVICE_DEBUG_POOL,
+   /* HOST_UMPIRE       */  MemoryType::DEVICE_UMPIRE,
+   /* HOST_PINNED       */  MemoryType::DEVICE,
+   /* MANAGED           */  MemoryType::MANAGED,
+   /* DEVICE            */  MemoryType::HOST,
+   /* DEVICE_POOL       */  MemoryType::HOST_POOL,
+   /* DEVICE_ARENA      */  MemoryType::HOST_ARENA,
+   /* DEVICE_DEBUG      */  MemoryType::HOST_DEBUG,
+   /* DEVICE_DEBUG_POOL */  MemoryType::HOST_DEBUG_POOL,
+   /* DEVICE_UMPIRE     */  MemoryType::HOST_UMPIRE,
+   /* DEVICE_UMPIRE_2   */  MemoryType::HOST_UMPIRE
 };
 
 #ifdef MFEM_USE_UMPIRE
@@ -1632,18 +2330,26 @@ const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
-   "host-std", "host-32", "host-64", "host-debug", "host-umpire", "host-pinned",
+   "host-std", "host-32", "host-64", "host-pool", "host-arena",
+   "host-debug", "host-debug-pool", "host-umpire", "host-pinned",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
    "cuda",
+   "cuda-pool",
+   "cuda-arena",
 #elif defined(MFEM_USE_HIP)
    "hip-uvm",
    "hip",
+   "hip-pool",
+   "hip-arena",
 #else
    "managed",
    "device",
+   "device-pool",
+   "device-arena",
 #endif
    "device-debug",
+   "device-debug-pool",
 #if defined(MFEM_USE_CUDA)
    "cuda-umpire",
    "cuda-umpire-2",
