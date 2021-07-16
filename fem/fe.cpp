@@ -6334,10 +6334,10 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
 #endif
 
 #ifdef MFEM_DEBUG
-   for (k = 0; k < 12; k++)
+   for (k = 0; k < dof; k++)
    {
       CalcVShape (Nodes.IntPoint(k), vshape);
-      for (j = 0; j < 12; j++)
+      for (j = 0; j < dof; j++)
       {
          double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
                       vshape(j,2)*tk[k][2] );
@@ -6360,7 +6360,7 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
    double vk[3];
    Vector xk (vk, 3);
 
-   for (k = 0; k < 12; k++)
+   for (k = 0; k < dof; k++)
    {
       Trans.Transform (Nodes.IntPoint (k), xk);
       ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
@@ -6369,7 +6369,7 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
       vk[0] = J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2];
       vk[1] = J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2];
       vk[2] = J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2];
-      for (j = 0; j < 12; j++)
+      for (j = 0; j < dof; j++)
          if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
                              vshape(j,2)*vk[2])) < 1.0e-12)
          {
@@ -6385,7 +6385,7 @@ void Nedelec1HexFiniteElement::Project (
    double vk[3];
    Vector xk (vk, 3);
 
-   for (int k = 0; k < 12; k++)
+   for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       const DenseMatrix &J = Trans.Jacobian();
@@ -6396,6 +6396,25 @@ void Nedelec1HexFiniteElement::Project (
          vk[0] * ( J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2] ) +
          vk[1] * ( J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2] ) +
          vk[2] * ( J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2] );
+   }
+}
+
+void Nedelec1HexFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &grad) const
+{
+   DenseMatrix dshape(fe.GetDof(), 3);
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      dshape.Mult(tk[k], grad_k);
+      for (int j = 0; j < grad_k.Size(); j++)
+      {
+         grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
+      }
    }
 }
 
@@ -6500,10 +6519,10 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
 #endif
 
 #ifdef MFEM_DEBUG
-   for (k = 0; k < 6; k++)
+   for (k = 0; k < dof; k++)
    {
       CalcVShape (Nodes.IntPoint(k), vshape);
-      for (j = 0; j < 6; j++)
+      for (j = 0; j < dof; j++)
       {
          double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
                       vshape(j,2)*tk[k][2] );
@@ -6526,7 +6545,7 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
    double vk[3];
    Vector xk (vk, 3);
 
-   for (k = 0; k < 6; k++)
+   for (k = 0; k < dof; k++)
    {
       Trans.Transform (Nodes.IntPoint (k), xk);
       ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
@@ -6535,7 +6554,7 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
       vk[0] = J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2];
       vk[1] = J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2];
       vk[2] = J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2];
-      for (j = 0; j < 6; j++)
+      for (j = 0; j < dof; j++)
          if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
                              vshape(j,2)*vk[2])) < 1.0e-12)
          {
@@ -6551,7 +6570,40 @@ void Nedelec1TetFiniteElement::Project (
    double vk[3];
    Vector xk (vk, 3);
 
-   for (int k = 0; k < 6; k++)
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      const DenseMatrix &J = Trans.Jacobian();
+
+      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      //  xk^t J tk
+      dofs(k) =
+         vk[0] * ( J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2] ) +
+         vk[1] * ( J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2] ) +
+         vk[2] * ( J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2] );
+   }
+}
+
+void Nedelec1TetFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &grad) const
+{
+   DenseMatrix dshape(fe.GetDof(), 3);
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      dshape.Mult(tk[k], grad_k);
+      for (int j = 0; j < grad_k.Size(); j++)
+      {
+         grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
+      }
+   }
+}
+
+
 Nedelec1WdgFiniteElement::Nedelec1WdgFiniteElement()
    : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL)
 {
