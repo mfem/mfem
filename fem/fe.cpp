@@ -3386,10 +3386,12 @@ void LinearPyramidFiniteElement::CalcShape(const IntegrationPoint &ip,
       return;
    }
 
-   shape(0) = ox * oy / oz;
-   shape(1) =  x * oy / oz;
-   shape(2) =  x *  y / oz;
-   shape(3) = ox *  y / oz;
+   double ozi = 1. / oz;
+
+   shape(0) = ox * oy * ozi;
+   shape(1) =  x * oy * ozi;
+   shape(2) =  x *  y * ozi;
+   shape(3) = ox *  y * ozi;
    shape(4) = z;
 }
 
@@ -3432,21 +3434,23 @@ void LinearPyramidFiniteElement::CalcDShape(const IntegrationPoint &ip,
       return;
    }
 
-   dshape(0,0) = - oy / oz;
-   dshape(0,1) = - ox / oz;
-   dshape(0,2) =   x * y / (oz * oz) - 1.;
+   double ozi = 1. / oz;
 
-   dshape(1,0) =   oy / oz;
-   dshape(1,1) = -  x / oz;
-   dshape(1,2) = -  x * y / (oz * oz);
+   dshape(0,0) = - oy * ozi;
+   dshape(0,1) = - ox * ozi;
+   dshape(0,2) =   x * y * ozi * ozi - 1.;
 
-   dshape(2,0) =    y / oz;
-   dshape(2,1) =    x / oz;
-   dshape(2,2) =    x *  y / (oz * oz);
+   dshape(1,0) =   oy * ozi;
+   dshape(1,1) = -  x * ozi;
+   dshape(1,2) = -  x * y * ozi * ozi;
 
-   dshape(3,0) = -  y / oz;
-   dshape(3,1) =   ox / oz;
-   dshape(3,2) = -  x *  y / (oz * oz);
+   dshape(2,0) =    y * ozi;
+   dshape(2,1) =    x * ozi;
+   dshape(2,2) =    x *  y * ozi * ozi;
+
+   dshape(3,0) = -  y * ozi;
+   dshape(3,1) =   ox * ozi;
+   dshape(3,2) = -  x *  y * ozi * ozi;
 
    dshape(4,0) =   0.;
    dshape(4,1) =   0.;
@@ -6548,6 +6552,199 @@ void Nedelec1TetFiniteElement::Project (
    Vector xk (vk, 3);
 
    for (int k = 0; k < 6; k++)
+Nedelec1WdgFiniteElement::Nedelec1WdgFiniteElement()
+   : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL)
+{
+   // not real nodes ...
+   Nodes.IntPoint(0).x = 0.5;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+
+   Nodes.IntPoint(1).x = 0.5;
+   Nodes.IntPoint(1).y = 0.5;
+   Nodes.IntPoint(1).z = 0.0;
+
+   Nodes.IntPoint(2).x = 0.0;
+   Nodes.IntPoint(2).y = 0.5;
+   Nodes.IntPoint(2).z = 0.0;
+
+   Nodes.IntPoint(3).x = 0.5;
+   Nodes.IntPoint(3).y = 0.0;
+   Nodes.IntPoint(3).z = 1.0;
+
+   Nodes.IntPoint(4).x = 0.5;
+   Nodes.IntPoint(4).y = 0.5;
+   Nodes.IntPoint(4).z = 1.0;
+
+   Nodes.IntPoint(5).x = 0.0;
+   Nodes.IntPoint(5).y = 0.5;
+   Nodes.IntPoint(5).z = 1.0;
+
+   Nodes.IntPoint(6).x = 0.0;
+   Nodes.IntPoint(6).y = 0.0;
+   Nodes.IntPoint(6).z = 0.5;
+
+   Nodes.IntPoint(7).x = 1.0;
+   Nodes.IntPoint(7).y = 0.0;
+   Nodes.IntPoint(7).z = 0.5;
+
+   Nodes.IntPoint(8).x = 0.0;
+   Nodes.IntPoint(8).y = 1.0;
+   Nodes.IntPoint(8).z = 0.5;
+}
+
+void Nedelec1WdgFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+
+   shape(0,0) = (1. - y) * (1. - z);
+   shape(0,1) = x * (1. - z);
+   shape(0,2) = 0.;
+
+   shape(1,0) = - y * (1. - z);
+   shape(1,1) = x * (1. - z);
+   shape(1,2) = 0.;
+
+   shape(2,0) = - y * (1. - z);
+   shape(2,1) = - (1. - x) * (1. - z);
+   shape(2,2) = 0.;
+
+   shape(3,0) = (1. - y) * z;
+   shape(3,1) = x * z;
+   shape(3,2) = 0.;
+
+   shape(4,0) = - y * z;
+   shape(4,1) = x * z;
+   shape(4,2) = 0.;
+
+   shape(5,0) = - y * z;
+   shape(5,1) = - (1. - x) * z;
+   shape(5,2) = 0.;
+
+   shape(6,0) = 0.;
+   shape(6,1) = 0.;
+   shape(6,2) = 1. - x - y;
+
+   shape(7,0) = 0.;
+   shape(7,1) = 0.;
+   shape(7,2) = x;
+
+   shape(8,0) = 0.;
+   shape(8,1) = 0.;
+   shape(8,2) = y;
+}
+
+void Nedelec1WdgFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape)
+const
+{
+   double x = ip.x, y = ip.y, z2 = 2. * ip.z;
+
+   curl_shape(0,0) =   x;
+   curl_shape(0,1) = - 1. + y;
+   curl_shape(0,2) =   2. - z2;
+
+   curl_shape(1,0) =   x;
+   curl_shape(1,1) =   y;
+   curl_shape(1,2) =   2. - z2;
+
+   curl_shape(2,0) = - 1. + x;
+   curl_shape(2,1) =   y;
+   curl_shape(2,2) =   2. - z2;
+
+   curl_shape(3,0) = - x;
+   curl_shape(3,1) =   1. - y;
+   curl_shape(3,2) =   z2;
+
+   curl_shape(4,0) = - x;
+   curl_shape(4,1) = - y;
+   curl_shape(4,2) =   z2;
+
+   curl_shape(5,0) =   1. - x;
+   curl_shape(5,1) = - y;
+   curl_shape(5,2) =   z2;
+
+   curl_shape(6,0) = - 1.;
+   curl_shape(6,1) =   1.;
+   curl_shape(6,2) =   0.;
+
+   curl_shape(7,0) =   0.;
+   curl_shape(7,1) = - 1.;
+   curl_shape(7,2) =   0.;
+
+   curl_shape(8,0) =   1.;
+   curl_shape(8,1) =   0.;
+   curl_shape(8,2) =   0.;
+}
+
+const double Nedelec1WdgFiniteElement::tk[9][3] =
+{
+   {1,0,0}, {-1,1,0}, {0,-1,0}, {1,0,0}, {-1,1,0}, {0,-1,0},
+   {0,0,1}, {0,0,1}, {0,0,1}
+};
+
+void Nedelec1WdgFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+#endif
+
+#ifdef MFEM_DEBUG
+   for (k = 0; k < dof; k++)
+   {
+      CalcVShape (Nodes.IntPoint(k), vshape);
+      for (j = 0; j < dof; j++)
+      {
+         double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+                      vshape(j,2)*tk[k][2] );
+         if (j == k) { d -= 1.0; }
+         if (fabs(d) > 1.0e-12)
+         {
+            mfem::err << "Nedelec1WdgFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem_error();
+         }
+      }
+   }
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   const DenseMatrix &J = Trans.Jacobian();
+   double vk[3];
+   Vector xk (vk, 3);
+
+   for (k = 0; k < dof; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
+      CalcVShape (ip, vshape);
+      //  vk = J tk
+      vk[0] = J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2];
+      vk[1] = J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2];
+      vk[2] = J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2];
+      for (j = 0; j < dof; j++)
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
+                             vshape(j,2)*vk[2])) < 1.0e-12)
+         {
+            I(k,j) = 0.0;
+         }
+   }
+}
+
+void Nedelec1WdgFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   double vk[3];
+   Vector xk (vk, 3);
+
+   for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       const DenseMatrix &J = Trans.Jacobian();
@@ -6560,6 +6757,329 @@ void Nedelec1TetFiniteElement::Project (
          vk[2] * ( J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2] );
    }
 }
+
+void Nedelec1WdgFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &grad) const
+{
+   DenseMatrix dshape(fe.GetDof(), 3);
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      dshape.Mult(tk[k], grad_k);
+      for (int j = 0; j < grad_k.Size(); j++)
+      {
+         grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
+      }
+   }
+}
+
+
+Nedelec1PyrFiniteElement::Nedelec1PyrFiniteElement()
+   : VectorFiniteElement(3, Geometry::PYRAMID, 8, 1, H_CURL)
+{
+   // not real nodes ...
+   Nodes.IntPoint(0).x = 0.5;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.5;
+   Nodes.IntPoint(1).z = 0.0;
+
+   Nodes.IntPoint(2).x = 0.5;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(2).z = 0.0;
+
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 0.5;
+   Nodes.IntPoint(3).z = 0.0;
+
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(4).z = 0.5;
+
+   Nodes.IntPoint(5).x = 0.5;
+   Nodes.IntPoint(5).y = 0.0;
+   Nodes.IntPoint(5).z = 0.5;
+
+   Nodes.IntPoint(6).x = 0.5;
+   Nodes.IntPoint(6).y = 0.5;
+   Nodes.IntPoint(6).z = 0.5;
+
+   Nodes.IntPoint(7).x = 0.0;
+   Nodes.IntPoint(7).y = 0.5;
+   Nodes.IntPoint(7).z = 0.5;
+}
+
+void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z, z2 = 2. * ip.z;
+   double ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+
+   double tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis functions as z->1.  In
+      // order to remain inside the pyramid in this limit the x and y
+      // coordinates must be approaching 0. The resulting limiting
+      // basis function values are:
+      shape(0,0) =   0.;
+      shape(0,1) =   0.;
+      shape(0,2) =   0.;
+
+      shape(1,0) =   0.;
+      shape(1,1) =   0.;
+      shape(1,2) =   0.;
+
+      shape(2,0) =   0.;
+      shape(2,1) =   0.;
+      shape(2,2) =   0.;
+
+      shape(3,0) =   0.;
+      shape(3,1) =   0.;
+      shape(3,2) =   0.;
+
+      shape(4,0) =   1.;
+      shape(4,1) =   1.;
+      shape(4,2) =   1.;
+
+      shape(5,0) = - 1.;
+      shape(5,1) =   0.;
+      shape(5,2) =   0.;
+
+      shape(6,0) =   0.;
+      shape(6,1) =   0.;
+      shape(6,2) =   0.;
+
+      shape(7,0) =   0.;
+      shape(7,1) = - 1.;
+      shape(7,2) =   0.;
+   }
+   else
+   {
+      double ozi = 1.0 / oz;
+
+      shape(0,0) =   oy;
+      shape(0,1) =   0.;
+      shape(0,2) =   x * oy * ozi;
+
+      shape(1,0) =   0.;
+      shape(1,1) =   x;
+      shape(1,2) =   x * y * ozi;
+
+      shape(2,0) =   y;
+      shape(2,1) =   0.;
+      shape(2,2) =   x * ozi;
+
+      shape(3,0) =   0.;
+      shape(3,1) =   ox;
+      shape(3,2) =   ox * y * ozi;
+
+      shape(4,0) =   oy * z * ozi;
+      shape(4,1) =   ox * z * ozi;
+      shape(4,2) =   1. - x - y + x * y * (1. - z2) * ozi * ozi;
+
+      shape(5,0) = - oy * z * ozi;
+      shape(5,1) =   x * z * ozi;
+      shape(5,2) =   x * (1. - y * (1. - z2) * ozi * ozi);
+
+      shape(6,0) = - y * z * ozi;
+      shape(6,1) = - x * z * ozi;
+      shape(6,2) =   x * y * (1. - z2) * ozi * ozi;
+
+      shape(7,0) =   y * z * ozi;
+      shape(7,1) = - ox * z * ozi;
+      shape(7,2) =   y * (1. - x * (1. - z2) * ozi * ozi);
+   }
+}
+
+void Nedelec1PyrFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape)
+const
+{
+   double x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
+   double ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+
+   double tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis function derivatives as
+      // z->1.  In order to remain inside the pyramid in this limit
+      // the x and y coordinates must be approaching 0. The resulting
+      // limiting basis function values are:
+      curl_shape(0,0) =   0.;
+      curl_shape(0,1) = - 2.;
+      curl_shape(0,2) =   1.;
+
+      curl_shape(1,0) =   0.;
+      curl_shape(1,1) =   0.;
+      curl_shape(1,2) =   1.;
+
+      curl_shape(2,0) =   0.;
+      curl_shape(2,1) =   0.;
+      curl_shape(2,2) = - 1.;
+
+      curl_shape(3,0) =   2.;
+      curl_shape(3,1) =   0.;
+      curl_shape(3,2) = - 1.;
+
+      curl_shape(4,0) = - 2.;
+      curl_shape(4,1) =   2.;
+      curl_shape(4,2) =   0.;
+
+      curl_shape(5,0) =   0.;
+      curl_shape(5,1) = - 2.;
+      curl_shape(5,2) =   0.;
+
+      curl_shape(6,0) =   0.;
+      curl_shape(6,1) =   0.;
+      curl_shape(6,2) =   0.;
+
+      curl_shape(7,0) =   2.;
+      curl_shape(7,1) =   0.;
+      curl_shape(7,2) =   0.;
+   }
+   else
+   {
+      double ozi = 1. / oz;
+
+      curl_shape(0,0) = - x * ozi;
+      curl_shape(0,1) = - 2. + y * ozi;
+      curl_shape(0,2) =   1.;
+
+      curl_shape(1,0) =   x * ozi;
+      curl_shape(1,1) = - y * ozi;
+      curl_shape(1,2) =   1.;
+
+      curl_shape(2,0) =   x * ozi;
+      curl_shape(2,1) = - y * ozi;
+      curl_shape(2,2) = - 1.;
+
+      curl_shape(3,0) =   (2. - x  - z2) * ozi;
+      curl_shape(3,1) =   y * ozi;
+      curl_shape(3,2) = - 1.;
+
+      curl_shape(4,0) = - 2. * ox * ozi;
+      curl_shape(4,1) =   2. * oy * ozi;
+      curl_shape(4,2) =   0.;
+
+      curl_shape(5,0) = - 2. * x * ozi;
+      curl_shape(5,1) = - 2. * oy * ozi;
+      curl_shape(5,2) =   0.;
+
+      curl_shape(6,0) =   2. * x * ozi;
+      curl_shape(6,1) = - 2. * y * ozi;
+      curl_shape(6,2) =   0.;
+
+      curl_shape(7,0) =   2. * ox * ozi;
+      curl_shape(7,1) =   2. * y * ozi;
+      curl_shape(7,2) =   0.;
+   }
+}
+
+const double Nedelec1PyrFiniteElement::tk[8][3] =
+{{1,0,0}, {0,1,0}, {1,0,0}, {0,1,0}, {0,0,1}, {-1,0,1}, {-1,-1,1}, {0,-1,1}};
+
+void Nedelec1PyrFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+#endif
+
+#ifdef MFEM_DEBUG
+   for (k = 0; k < dof; k++)
+   {
+      CalcVShape (Nodes.IntPoint(k), vshape);
+      for (j = 0; j < dof; j++)
+      {
+         double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+                      vshape(j,2)*tk[k][2] );
+         if (j == k) { d -= 1.0; }
+         if (fabs(d) > 1.0e-12)
+         {
+            mfem::err << "Nedelec1PyrFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem_error();
+         }
+      }
+   }
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   const DenseMatrix &J = Trans.Jacobian();
+   double vk[3];
+   Vector xk (vk, 3);
+
+   for (k = 0; k < dof; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
+      CalcVShape (ip, vshape);
+      //  vk = J tk
+      vk[0] = J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2];
+      vk[1] = J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2];
+      vk[2] = J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2];
+      for (j = 0; j < dof; j++)
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
+                             vshape(j,2)*vk[2])) < 1.0e-12)
+         {
+            I(k,j) = 0.0;
+         }
+   }
+}
+
+void Nedelec1PyrFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   double vk[3];
+   Vector xk (vk, 3);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      const DenseMatrix &J = Trans.Jacobian();
+
+      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      //  xk^t J tk
+      dofs(k) =
+         vk[0] * ( J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2] ) +
+         vk[1] * ( J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2] ) +
+         vk[2] * ( J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2] );
+   }
+}
+
+void Nedelec1PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &grad) const
+{
+   DenseMatrix dshape(fe.GetDof(), 3);
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      dshape.Mult(tk[k], grad_k);
+      for (int j = 0; j < grad_k.Size(); j++)
+      {
+         grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
+      }
+   }
+}
+
 
 RT0HexFiniteElement::RT0HexFiniteElement()
    : VectorFiniteElement(3, Geometry::CUBE, 6, 1, H_DIV, FunctionSpace::Qk)

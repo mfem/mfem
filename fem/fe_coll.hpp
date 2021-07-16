@@ -1038,6 +1038,8 @@ class ND1_3DFECollection : public FiniteElementCollection
 private:
    const Nedelec1HexFiniteElement HexahedronFE;
    const Nedelec1TetFiniteElement TetrahedronFE;
+   const Nedelec1WdgFiniteElement WedgeFE;
+   const Nedelec1PyrFiniteElement PyramidFE;
 
 public:
    ND1_3DFECollection() : FiniteElementCollection(1) { }
