@@ -320,7 +320,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (elem_restrict && !DeviceCanUseCeed())
+   if (elem_restrict && !(DeviceCanUseCeed() || DeviceCanUseAMD()))
    {
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -385,7 +385,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (DeviceCanUseCeed() || !elem_restrict)
+   if (DeviceCanUseAMD() || DeviceCanUseCeed() || !elem_restrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
