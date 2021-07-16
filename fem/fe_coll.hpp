@@ -1063,6 +1063,8 @@ private:
    const P0QuadFiniteElement QuadrilateralFE;
    const RT0HexFiniteElement HexahedronFE;
    const RT0TetFiniteElement TetrahedronFE;
+   const RT0WdgFiniteElement WedgeFE;
+   const RT0PyrFiniteElement PyramidFE;
 public:
    RT0_3DFECollection() : FiniteElementCollection(1) { }
 

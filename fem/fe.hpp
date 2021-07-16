@@ -2029,6 +2029,66 @@ public:
 };
 
 
+/// A 3D 0th order Raviert-Thomas element on a wedge
+class RT0WdgFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[5][3];
+
+public:
+   /// Construct the RT0WedgeFiniteElement
+   RT0WdgFiniteElement();
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+};
+
+
+/// A 3D 0th order Raviert-Thomas element on a pyramid
+class RT0PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[5][3];
+
+public:
+   /// Construct the RT0PyrFiniteElement
+   RT0PyrFiniteElement();
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+};
+
+
 class RotTriLinearHexFiniteElement : public NodalFiniteElement
 {
 public:
