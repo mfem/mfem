@@ -29,6 +29,15 @@ void AMD_PAMassApply(const int dim,
                      const Vector &X,
                      Vector &Y);
 
+void AMD_PAMassAssembleDiagonal(const int dim,
+                                const int D1D,
+                                const int Q1D,
+                                const int NE,
+                                const FiniteElementSpace *fes,
+                                const DofToQuad *maps,
+                                const Vector &D,
+                                Vector &Y);
+
 // PA Mass Integrator
 
 // PA Mass Assemble kernel
@@ -359,8 +368,8 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -478,6 +487,12 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
+   }
+   else if (DeviceCanUseAMD())
+   {
+      AMD_PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne,
+                                 fespace, maps,
+                                 pa_data, diag);
    }
    else
    {
@@ -1241,17 +1256,15 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       ceedOp->AddMult(x, y);
    }
+   else if (DeviceCanUseAMD())
+   {
+      AMD_PAMassApply(dim, dofs1D, quad1D, ne,
+                      fespace, maps,
+                      pa_data, x, y);
+   }
    else
    {
-      static bool amd = std::getenv("AMD");
-      if (amd)
-      {
-         AMD_PAMassApply(dim, dofs1D, quad1D, ne, fespace, maps, pa_data, x, y);
-      }
-      else
-      {
-         PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
-      }
+      PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
    }
 }
 

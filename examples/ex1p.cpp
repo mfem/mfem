@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -208,7 +208,8 @@ int main(int argc, char *argv[])
    //     domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   //a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -243,13 +244,57 @@ int main(int argc, char *argv[])
    {
       prec = new HypreBoomerAMG;
    }
+
+   const int max_it = 50;
+   const int print_lvl = -1;
+   const double rtol = 1e-12;
+
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
+   cg.SetRelTol(rtol);
+   //cg.SetMaxIter(max_it);
+   //cg.SetPrintLevel(print_lvl);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
-   cg.Mult(B, X);
+
+   // Warm-up CG solve (in case of JIT to avoid timing it)
+   {
+      Vector Y(X);
+      cg.SetMaxIter(2);
+      cg.SetPrintLevel(-1);
+      cg.Mult(B, Y);
+   }
+
+   // benchmark this problem
+   {
+      tic_toc.Clear();
+      cg.SetMaxIter(max_it);
+      cg.SetPrintLevel(print_lvl);
+      {
+         tic_toc.Start();
+         cg.Mult(B, X);
+         tic_toc.Stop();
+      }
+   }
+   MFEM_VERIFY(cg.GetNumIterations() <= max_it, "");
+   const double rt = tic_toc.RealTime();
+   const double rt_min = rt, rt_max = rt;
+   HYPRE_BigInt dofs = fespace.GlobalTrueVSize();
+   const int cg_iter = cg.GetNumIterations();
+   const double mdofs_max = ((1e-6 * dofs) * cg_iter) / rt_max;
+   const double mdofs_min = ((1e-6 * dofs) * cg_iter) / rt_min;
+   if (myid == 0)
+   {
+      mfem::out << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
+                << std::endl;
+      mfem::out << "Time per CG step: "
+                << rt_max / cg_iter << " ("
+                << rt_min / cg_iter << ") sec." << std::endl;
+      mfem::out << "\033[32m";
+      mfem::out << "\"DOFs/sec\" in CG: " << mdofs_max << " ("
+                << mdofs_min << ") million.";
+      mfem::out << "\033[m" << std::endl;
+   }
+   //cg.Mult(B, X);
    delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the

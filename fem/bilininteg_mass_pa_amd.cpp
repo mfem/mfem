@@ -21,17 +21,19 @@ namespace mfem
 template<int D1D, int Q1D>
 void AMD_SmemPAMassApply3D(const int ndofs,
                            const int NE,
-                           const int *m_,
+                           const int *map,
                            const double *b_,
                            const double *d_,
                            const double *x_,
                            double *y_)
 {
-   const auto MAP = Reshape(m_, D1D,D1D,D1D, NE);
+   const auto MAP = Reshape(map, D1D,D1D,D1D, NE);
    const auto b = Reshape(b_, Q1D, D1D);
    const auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
    const auto X = Reshape(x_, ndofs);
+   const auto X1 = Reshape(x_, D1D,D1D,D1D, NE);
    auto Y = Reshape(y_, ndofs);
+   auto Y1 = Reshape(y_, D1D,D1D,D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
       MFEM_SHARED double sDQ[Q1D*Q1D];
@@ -68,9 +70,16 @@ void AMD_SmemPAMassApply3D(const int ndofs,
                MFEM_UNROLL(D1D)
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const int gid = MAP(dx, dy, dz, e);
-                  const int idx = gid >= 0 ? gid : -1 - gid;
-                  u[dz] += X(idx) * B[qx][dx];
+                  if (map)
+                  {
+                     const int gid = MAP(dx, dy, dz, e);
+                     const int idx = gid >= 0 ? gid : -1 - gid;
+                     u[dz] += X(idx) * B[qx][dx];
+                  }
+                  else
+                  {
+                     u[dz] += X1(dx,dy,dz,e) * B[qx][dx];
+                  }
                }
             }
             MFEM_UNROLL(D1D)
@@ -219,22 +228,21 @@ void AMD_SmemPAMassApply3D(const int ndofs,
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               const int gid = MAP(dx, dy, dz, e);
-               const int idx = gid >= 0 ? gid : -1 - gid;
-               AtomicAdd(Y(idx), u[dz]);
+               if (map)
+               {
+                  const int gid = MAP(dx, dy, dz, e);
+                  const int idx = gid >= 0 ? gid : -1 - gid;
+                  AtomicAdd(Y(idx), u[dz]);
+               }
+               else
+               {
+                  Y1(dx,dy,dz,e) += u[dz];
+               }
             }
          }
       }
    });
 }
-
-struct XElementRestriction : public ElementRestriction
-{
-   XElementRestriction(const FiniteElementSpace *fes,
-                       ElementDofOrdering ordering)
-      : ElementRestriction(*fes, ordering) { }
-   const Array<int> &GatherMap() const { return gatherMap; }
-};
 
 void AMD_PAMassApply(const int dim,
                      const int D1D,
@@ -247,8 +255,10 @@ void AMD_PAMassApply(const int dim,
                      Vector &Y)
 {
    const int ndofs = fes->GetNDofs();
-   static XElementRestriction ER(fes, ElementDofOrdering::LEXICOGRAPHIC);
-   const int *map = ER.GatherMap().Read();
+   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *ERop = fes->GetElementRestriction(ordering);
+   const ElementRestriction* ER = dynamic_cast<const ElementRestriction*>(ERop);
+   const int *map = ER ? ER->GatherMap().Read() : nullptr;
    const double *b = maps->B.Read();
    const double *d = D.Read();
    const double *x = X.Read();
@@ -260,6 +270,7 @@ void AMD_PAMassApply(const int dim,
    switch (id) // orders 1~6
    {
       case 0x23: return AMD_SmemPAMassApply3D<2,3>(ndofs,NE,map,b,d,x,y);
+      case 0x24: return AMD_SmemPAMassApply3D<2,4>(ndofs,NE,map,b,d,x,y);
       case 0x34: return AMD_SmemPAMassApply3D<3,4>(ndofs,NE,map,b,d,x,y);
       case 0x45: return AMD_SmemPAMassApply3D<4,5>(ndofs,NE,map,b,d,x,y);
       case 0x56: return AMD_SmemPAMassApply3D<5,6>(ndofs,NE,map,b,d,x,y);
