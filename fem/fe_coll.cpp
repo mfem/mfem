@@ -1446,6 +1446,8 @@ RT0_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::CUBE:        return &HexahedronFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
       default:
          mfem_error ("RT0_3DFECollection: unknown geometry type.");
    }
@@ -1462,6 +1464,8 @@ int RT0_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::SQUARE:      return 1;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
+      case Geometry::PRISM:       return 0;
+      case Geometry::PYRAMID:     return 0;
       default:
          mfem_error ("RT0_3DFECollection: unknown geometry type.");
    }

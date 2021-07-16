@@ -7239,6 +7239,295 @@ void RT0TetFiniteElement::Project (
    }
 }
 
+RT0WdgFiniteElement::RT0WdgFiniteElement()
+   : VectorFiniteElement(3, Geometry::PRISM, 5, 1, H_DIV)
+{
+   // not real nodes ...
+   Nodes.IntPoint(0).x = 0.33333333333333333333;
+   Nodes.IntPoint(0).y = 0.33333333333333333333;
+   Nodes.IntPoint(0).z = 0.0;
+
+   Nodes.IntPoint(1).x = 0.33333333333333333333;
+   Nodes.IntPoint(1).y = 0.33333333333333333333;
+   Nodes.IntPoint(1).z = 1.0;
+
+   Nodes.IntPoint(2).x = 0.5;
+   Nodes.IntPoint(2).y = 0.0;
+   Nodes.IntPoint(2).z = 0.5;
+
+   Nodes.IntPoint(3).x = 0.5;
+   Nodes.IntPoint(3).y = 0.5;
+   Nodes.IntPoint(3).z = 0.5;
+
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.5;
+   Nodes.IntPoint(4).z = 0.5;
+}
+
+void RT0WdgFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                     DenseMatrix &shape) const
+{
+   double x = ip.x, y = ip.y, z2 = 2.0*ip.z;
+
+   shape(0,0) = 0.0;
+   shape(0,1) = 0.0;
+   shape(0,2) = z2 - 2.0;
+
+   shape(1,0) = 0.0;
+   shape(1,1) = 0.0;
+   shape(1,2) = z2;
+
+   shape(2,0) = x;
+   shape(2,1) = y - 1.0;
+   shape(2,2) = 0.0;
+
+   shape(3,0) = x;
+   shape(3,1) = y;
+   shape(3,2) = 0.0;
+
+   shape(4,0) = x - 1.0;
+   shape(4,1) = y;
+   shape(4,2) = 0.0;
+}
+
+void RT0WdgFiniteElement::CalcDivShape(const IntegrationPoint &ip,
+                                       Vector &divshape) const
+{
+   divshape(0) = 2.0;
+   divshape(1) = 2.0;
+   divshape(2) = 2.0;
+   divshape(3) = 2.0;
+   divshape(4) = 2.0;
+}
+
+const double RT0WdgFiniteElement::nk[5][3] =
+{{0.,0.,-.5}, {0.,0.,.5}, {0,-.5,0}, {.5,.5,0}, {0,0,-.5}};
+
+void RT0WdgFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
+#endif
+
+#ifdef MFEM_DEBUG
+   for (k = 0; k < 5; k++)
+   {
+      CalcVShape (Nodes.IntPoint(k), vshape);
+      for (j = 0; j < 5; j++)
+      {
+         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+                      vshape(j,2)*nk[k][2] );
+         if (j == k) { d -= 1.0; }
+         if (fabs(d) > 1.0e-12)
+         {
+            mfem::err << "RT0WdgFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem_error();
+         }
+      }
+   }
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   // set Jinv = |J| J^{-t} = adj(J)^t
+   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   double vk[3];
+   Vector xk (vk, 3);
+
+   for (k = 0; k < 5; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
+      CalcVShape (ip, vshape);
+      //  vk = |J| J^{-t} nk
+      vk[0] = Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2];
+      vk[1] = Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2];
+      vk[2] = Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2];
+      for (j = 0; j < 5; j++)
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
+                             vshape(j,2)*vk[2])) < 1.0e-12)
+         {
+            I(k,j) = 0.0;
+         }
+   }
+}
+
+void RT0WdgFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   double vk[3];
+   Vector xk (vk, 3);
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix Jinv(dim);
+#endif
+
+   for (int k = 0; k < 5; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      // set Jinv = |J| J^{-t} = adj(J)^t
+      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+
+      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      //  xk^t |J| J^{-t} nk
+      dofs(k) =
+         vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2] ) +
+         vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2] ) +
+         vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2] );
+   }
+}
+
+RT0PyrFiniteElement::RT0PyrFiniteElement()
+   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV)
+{
+   // not real nodes ...
+   Nodes.IntPoint(0).x = 0.5;
+   Nodes.IntPoint(0).y = 0.5;
+   Nodes.IntPoint(0).z = 0.0;
+
+   Nodes.IntPoint(1).x = 0.33333333333333333333;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(1).z = 0.33333333333333333333;
+
+   Nodes.IntPoint(2).x = 0.66666666666666666667;
+   Nodes.IntPoint(2).y = 0.33333333333333333333;
+   Nodes.IntPoint(2).z = 0.33333333333333333333;
+
+   Nodes.IntPoint(3).x = 0.33333333333333333333;
+   Nodes.IntPoint(3).y = 0.66666666666666666667;
+   Nodes.IntPoint(3).z = 0.33333333333333333333;
+
+   Nodes.IntPoint(4).x = 0.0;
+   Nodes.IntPoint(4).y = 0.33333333333333333333;
+   Nodes.IntPoint(4).z = 0.33333333333333333333;
+}
+
+void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                     DenseMatrix &shape) const
+{
+   double x = ip.x, y = ip.y, z = ip.z;
+   double x2 = 2.0*ip.x, y2 = 2.0*ip.y, z2 = 2.0*ip.z;
+   double zi = 1.0 / (1.0 - z);
+
+   shape(0,0) = x;
+   shape(0,1) = y;
+   shape(0,2) = z - 1.;
+
+   shape(1,0) = - x * z * zi;
+   shape(1,1) = (y2 + z2 - y * z - 2.0) * zi;
+   shape(1,2) = z;
+
+   shape(2,0) = x * (2.0 - z) * zi;
+   shape(2,1) = - y * z * zi;;
+   shape(2,2) = z;
+
+   shape(3,0) = - x * z * zi;
+   shape(3,1) = y * (2.0 - z) * zi;
+   shape(3,2) = z;
+
+   shape(4,0) = (x2 + z2 - x * z - 2.0) * zi;
+   shape(4,1) = - y * z * zi;
+   shape(4,2) = z;
+}
+
+void RT0PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
+                                       Vector &divshape) const
+{
+   divshape(0) = 3.0;
+   divshape(1) = 3.0;
+   divshape(2) = 3.0;
+   divshape(3) = 3.0;
+}
+
+const double RT0PyrFiniteElement::nk[5][3] =
+{{0.,0.,-1.}, {0,-.5,0}, {.5,0,.5}, {0,.5,.5}, {-.5,0,0}};
+
+void RT0PyrFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
+#endif
+
+#ifdef MFEM_DEBUG
+   for (k = 0; k < 5; k++)
+   {
+      CalcVShape (Nodes.IntPoint(k), vshape);
+      for (j = 0; j < 5; j++)
+      {
+         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+                      vshape(j,2)*nk[k][2] );
+         if (j == k) { d -= 1.0; }
+         if (fabs(d) > 1.0e-12)
+         {
+            mfem::err << "RT0PyrFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem_error();
+         }
+      }
+   }
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   // set Jinv = |J| J^{-t} = adj(J)^t
+   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   double vk[3];
+   Vector xk (vk, 3);
+
+   for (k = 0; k < 5; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
+      CalcVShape (ip, vshape);
+      //  vk = |J| J^{-t} nk
+      vk[0] = Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2];
+      vk[1] = Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2];
+      vk[2] = Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2];
+      for (j = 0; j < 5; j++)
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
+                             vshape(j,2)*vk[2])) < 1.0e-12)
+         {
+            I(k,j) = 0.0;
+         }
+   }
+}
+
+void RT0PyrFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   double vk[3];
+   Vector xk (vk, 3);
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix Jinv(dim);
+#endif
+
+   for (int k = 0; k < 5; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      // set Jinv = |J| J^{-t} = adj(J)^t
+      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+
+      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      //  xk^t |J| J^{-t} nk
+      dofs(k) =
+         vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2] ) +
+         vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2] ) +
+         vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2] );
+   }
+}
+
 RotTriLinearHexFiniteElement::RotTriLinearHexFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 6, 2, FunctionSpace::Qk)
 {
