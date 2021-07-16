@@ -57,7 +57,7 @@ void SparseMatrix::ClearCuSparse()
 #ifdef MFEM_USE_CUDA
    if (initBuffers)
    {
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 10010
       cusparseDestroySpMat(matA_descr);
       cusparseDestroyDnVec(vecX_descr);
       cusparseDestroyDnVec(vecY_descr);
@@ -554,9 +554,9 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   auto I = this->ReadI();
-   auto J = this->ReadJ();
-   auto A = this->ReadData();
+   const auto I = this->ReadI();
+   const auto J = this->ReadJ();
+   const auto A = this->ReadData();
    auto dd = d.Write();
 
    MFEM_FORALL(i, height,
@@ -664,7 +664,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Setup descriptors
       if (!initBuffers)
       {
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 10010
          // Setup matrix descriptor
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
                            const_cast<int *>(d_I),
@@ -687,7 +687,12 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
 
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 11020
+      cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
+                              matA_descr,
+                              vecX_descr, &beta, vecY_descr, CUDA_R_64F,
+                              CUSPARSE_SPMV_CSR_ALG1, &newBufferSize);
+#elif CUDA_VERSION >= 10010
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
@@ -702,7 +707,15 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          CuMemAlloc(&dBuffer, bufferSize);
       }
 
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 11020
+      // Update input/output vectors
+      cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
+      cusparseDnVecSetValues(vecY_descr, d_y);
+
+      // Y = alpha A * X + beta * Y
+      cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
+                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_SPMV_CSR_ALG1, dBuffer);
+#elif CUDA_VERSION >= 10010
       // Update input/output vectors
       cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
       cusparseDnVecSetValues(vecY_descr, d_y);
@@ -1919,6 +1932,8 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 
    if (Rows == NULL)
    {
+      const auto &I = this->I; // only use const access for I
+      const auto &J = this->J; // only use const access for J
       for (int j = I[rc]; j < I[rc+1]; j++)
       {
          const int col = J[j];
@@ -2413,21 +2428,20 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
+   const int H = height;
    const int nnz = J.Capacity();
-
    const bool use_dev = b.UseDevice() || x.UseDevice();
 
-   auto bp = b.Read(use_dev);
+   const auto Ap = Read(A, nnz, use_dev);
+   const auto Ip = Read(I, height+1, use_dev);
+   const auto Jp = Read(J, nnz, use_dev);
+
+   const auto bp = b.Read(use_dev);
    auto xp = x.Write(use_dev);
 
-   auto Ap = Read(A, nnz);
-   auto Ip = Read(I, height+1);
-   auto Jp = Read(J, nnz);
-
-   bool scale = (sc != 1.0);
-   MFEM_FORALL(i, height,
+   MFEM_FORALL_SWITCH(use_dev, i, H,
    {
-      int end = Ip[i+1];
+      const int end = Ip[i+1];
       for (int j = Ip[i]; true; j++)
       {
          if (j == end)
@@ -2440,20 +2454,11 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-
-            if (scale)
-            {
-               xp[i] = sc * bp[i] / Ap[j];
-            }
-            else
-            {
-               xp[i] = bp[i] / Ap[j];
-            }
+            xp[i] = sc * bp[i] / Ap[j];
             break;
          }
       }
    });
-   return;
 }
 
 void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
@@ -2509,6 +2514,13 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
 {
    int i, j, gi, gj, s, t;
    double a;
+
+   if (Finalized())
+   {
+      HostReadI();
+      HostReadJ();
+      HostReadWriteData();
+   }
 
    for (i = 0; i < rows.Size(); i++)
    {
@@ -3019,7 +3031,7 @@ SparseMatrix &SparseMatrix::operator*=(double a)
    return (*this);
 }
 
-void SparseMatrix::Print(std::ostream & out, int _width) const
+void SparseMatrix::Print(std::ostream & out, int width_) const
 {
    int i, j;
 
@@ -3032,12 +3044,12 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
          for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
          {
             out << " (" << nd->Column << "," << nd->Value << ")";
-            if ( !((j+1) % _width) )
+            if ( !((j+1) % width_) )
             {
                out << '\n';
             }
          }
-         if (j % _width)
+         if (j % width_)
          {
             out << '\n';
          }
@@ -3055,12 +3067,12 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
       for (j = I[i]; j < I[i+1]; j++)
       {
          out << " (" << J[j] << "," << A[j] << ")";
-         if ( !((j+1-I[i]) % _width) )
+         if ( !((j+1-I[i]) % width_) )
          {
             out << '\n';
          }
       }
-      if ((j-I[i]) % _width)
+      if ((j-I[i]) % width_)
       {
          out << '\n';
       }
@@ -3662,10 +3674,10 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
 {
    DenseMatrix R (P, 't'); // R = P^T
    DenseMatrix *AP   = Mult (A, P);
-   DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
-   Mult (R, *AP, *_RAP);
+   DenseMatrix *RAP_ = new DenseMatrix(R.Height(), AP->Width());
+   Mult (R, *AP, *RAP_);
    delete AP;
-   return _RAP;
+   return RAP_;
 }
 
 DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
@@ -3676,9 +3688,9 @@ DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
    delete RA;
    DenseMatrix  *RAtP = Mult(*R, AtP);
    delete R;
-   DenseMatrix * _RAP = new DenseMatrix(*RAtP, 't');
+   DenseMatrix * RAP_ = new DenseMatrix(*RAtP, 't');
    delete RAtP;
-   return _RAP;
+   return RAP_;
 }
 
 SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
@@ -3687,9 +3699,9 @@ SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
    SparseMatrix *P  = Transpose (R);
    SparseMatrix *AP = Mult (A, *P);
    delete P;
-   SparseMatrix *_RAP = Mult (R, *AP, ORAP);
+   SparseMatrix *RAP_ = Mult (R, *AP, ORAP);
    delete AP;
-   return _RAP;
+   return RAP_;
 }
 
 SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,

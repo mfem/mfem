@@ -20,7 +20,7 @@ void PADiffusionSetup3D(const int Q1D,
                         const int NE,
                         const Array<double> &w,
                         const Vector &j,
-                        const Vector &_coeff,
+                        const Vector &coeff_,
                         Vector &op);
 
 void PAHcurlMassAssembleDiagonal2D(const int D1D,
@@ -92,14 +92,14 @@ void PAHdivSetup2D(const int Q1D,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
-                   Vector &_coeff,
+                   Vector &coeff_,
                    Vector &op);
 
 void PAHdivSetup3D(const int Q1D,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
-                   Vector &_coeff,
+                   Vector &coeff_,
                    Vector &op);
 
 void PAHcurlH1Apply2D(const int D1D,
@@ -127,46 +127,46 @@ void PAHcurlH1Apply3D(const int D1D,
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
-                                  const Array<double> &_Bo,
-                                  const Array<double> &_Bc,
-                                  const Vector &_op,
-                                  Vector &_diag);
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Vector &op_,
+                                  Vector &diag_);
 
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
-                                  const Array<double> &_Bo,
-                                  const Array<double> &_Bc,
-                                  const Vector &_op,
-                                  Vector &_diag);
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Vector &op_,
+                                  Vector &diag_);
 
 void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &_Bo,
-                       const Array<double> &_Bc,
-                       const Array<double> &_Bot,
-                       const Array<double> &_Bct,
-                       const Vector &_op,
-                       const Vector &_x,
-                       Vector &_y);
+                       const Array<double> &Bo_,
+                       const Array<double> &Bc_,
+                       const Array<double> &Bot_,
+                       const Array<double> &Bct_,
+                       const Vector &op_,
+                       const Vector &x_,
+                       Vector &y_);
 
 void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
-                       const Array<double> &_Bo,
-                       const Array<double> &_Bc,
-                       const Array<double> &_Bot,
-                       const Array<double> &_Bct,
-                       const Vector &_op,
-                       const Vector &_x,
-                       Vector &_y);
+                       const Array<double> &Bo_,
+                       const Array<double> &Bc_,
+                       const Array<double> &Bot_,
+                       const Array<double> &Bct_,
+                       const Vector &op_,
+                       const Vector &x_,
+                       Vector &y_);
 
 void PAHcurlL2Setup(const int NQ,
                     const int coeffDim,
                     const int NE,
                     const Array<double> &w,
-                    Vector &_coeff,
+                    Vector &coeff_,
                     Vector &op);
 
 // PA H(curl) x H(div) mass assemble 3D kernel, with factor
@@ -176,15 +176,15 @@ void PAHcurlHdivSetup3D(const int Q1D,
                         const int coeffDim,
                         const int NE,
                         const bool transpose,
-                        const Array<double> &_w,
+                        const Array<double> &w_,
                         const Vector &j,
-                        Vector &_coeff,
+                        Vector &coeff_,
                         Vector &op)
 {
    const bool symmetric = (coeffDim != 9);
-   auto W = Reshape(_w.Read(), Q1D, Q1D, Q1D);
+   auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    auto J = Reshape(j.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
+   auto coeff = Reshape(coeff_.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
    auto y = Reshape(op.Write(), 9, Q1D, Q1D, Q1D, NE);
 
    const int i11 = 0;
@@ -292,15 +292,15 @@ void PAHcurlHdivSetup2D(const int Q1D,
                         const int coeffDim,
                         const int NE,
                         const bool transpose,
-                        const Array<double> &_w,
+                        const Array<double> &w_,
                         const Vector &j,
-                        Vector &_coeff,
+                        Vector &coeff_,
                         Vector &op)
 {
    const bool symmetric = (coeffDim != 4);
-   auto W = Reshape(_w.Read(), Q1D, Q1D);
+   auto W = Reshape(w_.Read(), Q1D, Q1D);
    auto J = Reshape(j.Read(), Q1D, Q1D, 2, 2, NE);
-   auto coeff = Reshape(_coeff.Read(), coeffDim, Q1D, Q1D, NE);
+   auto coeff = Reshape(coeff_.Read(), coeffDim, Q1D, Q1D, NE);
    auto y = Reshape(op.Write(), 4, Q1D, Q1D, NE);
 
    const int i11 = 0;
@@ -365,13 +365,13 @@ void PAHcurlHdivMassApply3D(const int D1D,
                             const int NE,
                             const bool scalarCoeff,
                             const bool trialHcurl,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Bc,
-                            const Array<double> &_Bot,
-                            const Array<double> &_Bct,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+                            const Array<double> &Bo_,
+                            const Array<double> &Bc_,
+                            const Array<double> &Bot_,
+                            const Array<double> &Bct_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -380,13 +380,13 @@ void PAHcurlHdivMassApply3D(const int D1D,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1Dtest-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1Dtest, Q1D);
-   auto op = Reshape(_op.Read(), scalarCoeff ? 1 : 9, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*(trialHcurl ? D1D : D1D-1), NE);
-   auto y = Reshape(_y.ReadWrite(), 3*(D1Dtest-1)*D1Dtest*
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1Dtest-1, Q1D);
+   auto Bct = Reshape(Bct_.Read(), D1Dtest, Q1D);
+   auto op = Reshape(op_.Read(), scalarCoeff ? 1 : 9, Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 3*(D1D-1)*D1D*(trialHcurl ? D1D : D1D-1), NE);
+   auto y = Reshape(y_.ReadWrite(), 3*(D1Dtest-1)*D1Dtest*
                     (trialHcurl ? D1Dtest-1 : D1Dtest), NE);
 
    MFEM_FORALL(e, NE,
@@ -577,13 +577,13 @@ void PAHcurlHdivMassApply2D(const int D1D,
                             const int NE,
                             const bool scalarCoeff,
                             const bool trialHcurl,
-                            const Array<double> &_Bo,
-                            const Array<double> &_Bc,
-                            const Array<double> &_Bot,
-                            const Array<double> &_Bct,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+                            const Array<double> &Bo_,
+                            const Array<double> &Bc_,
+                            const Array<double> &Bot_,
+                            const Array<double> &Bct_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -592,13 +592,13 @@ void PAHcurlHdivMassApply2D(const int D1D,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 2;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1Dtest-1, Q1D);
-   auto Bct = Reshape(_Bct.Read(), D1Dtest, Q1D);
-   auto op = Reshape(_op.Read(), scalarCoeff ? 1 : 4, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2*(D1Dtest-1)*D1Dtest, NE);
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1Dtest-1, Q1D);
+   auto Bct = Reshape(Bct_.Read(), D1Dtest, Q1D);
+   auto op = Reshape(op_.Read(), scalarCoeff ? 1 : 4, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2*(D1Dtest-1)*D1Dtest, NE);
 
    MFEM_FORALL(e, NE,
    {

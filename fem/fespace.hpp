@@ -89,6 +89,7 @@ class FiniteElementSpace
    friend class InterpolationGridTransfer;
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
+   friend class LORBase;
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -163,7 +164,7 @@ protected:
                 + 8 * (int)std::get<3>(k);
       }
    };
-   using map_L2F = std::unordered_map<const key_face,Operator*,key_hash>;
+   using map_L2F = std::unordered_map<const key_face,FaceRestriction*,key_hash>;
    mutable map_L2F L2F;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
@@ -361,6 +362,14 @@ protected:
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
 
+   /// @brief Copies the prolongation and restriction matrices from @a fes.
+   ///
+   /// Used for low order preconditioning on non-conforming meshes. If the DOFs
+   /// require a permutation, it will be supplied by non-NULL @a perm. NULL @a
+   /// perm indicates that no permutation is required.
+   virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
+                                               const Array<int> *perm);
+
 public:
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
@@ -404,8 +413,8 @@ public:
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
-   bool Conforming() const { return mesh->Conforming(); }
-   bool Nonconforming() const { return mesh->Nonconforming(); }
+   bool Conforming() const { return mesh->Conforming() && cP == NULL; }
+   bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
 
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
@@ -479,7 +488,7 @@ public:
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   virtual const Operator *GetFaceRestriction(
+   virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering e_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
@@ -637,6 +646,13 @@ public:
    int GetNumElementInteriorDofs(int i) const;
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
+
+   /** @brief Returns the indices of all of the VDofs for the specified
+       dimension 'vd'. */
+   /** The 'ndofs' parameter defines the number of Dofs in the
+       FiniteElementSpace. If 'ndofs' is -1 (the default value), then the
+       number of Dofs is determined by the FiniteElementSpace. */
+   void GetVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
 
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
 
