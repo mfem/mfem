@@ -36,6 +36,7 @@ list(APPEND HDRS
   complex_operator.hpp
   constraints.hpp
   densemat.hpp
+  dinvariants.hpp
   symmat.hpp
   dtensor.hpp
   handle.hpp

@@ -141,9 +141,9 @@ void PAConvectionApply2D(const int ne,
                          const Array<double> &g,
                          const Array<double> &bt,
                          const Array<double> &gt,
-                         const Vector &_op,
-                         const Vector &_x,
-                         Vector &_y,
+                         const Vector &op_,
+                         const Vector &x_,
+                         Vector &y_,
                          const int d1d = 0,
                          const int q1d = 0)
 {
@@ -155,9 +155,9 @@ void PAConvectionApply2D(const int ne,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 2, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -260,9 +260,9 @@ void SmemPAConvectionApply2D(const int ne,
                              const Array<double> &g,
                              const Array<double> &bt,
                              const Array<double> &gt,
-                             const Vector &_op,
-                             const Vector &_x,
-                             Vector &_y,
+                             const Vector &op_,
+                             const Vector &x_,
+                             Vector &y_,
                              const int d1d = 0,
                              const int q1d = 0)
 {
@@ -275,9 +275,9 @@ void SmemPAConvectionApply2D(const int ne,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, 2, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -388,9 +388,9 @@ void PAConvectionApply3D(const int ne,
                          const Array<double> &g,
                          const Array<double> &bt,
                          const Array<double> &gt,
-                         const Vector &_op,
-                         const Vector &_x,
-                         Vector &_y,
+                         const Vector &op_,
+                         const Vector &x_,
+                         Vector &y_,
                          const int d1d = 0,
                          const int q1d = 0)
 {
@@ -402,9 +402,9 @@ void PAConvectionApply3D(const int ne,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -569,9 +569,9 @@ void SmemPAConvectionApply3D(const int ne,
                              const Array<double> &g,
                              const Array<double> &bt,
                              const Array<double> &gt,
-                             const Vector &_op,
-                             const Vector &_x,
-                             Vector &_y,
+                             const Vector &op_,
+                             const Vector &x_,
+                             Vector &y_,
                              const int d1d = 0,
                              const int q1d = 0)
 {
@@ -583,9 +583,9 @@ void SmemPAConvectionApply3D(const int ne,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -768,6 +768,8 @@ void SmemPAConvectionApply3D(const int ne,
 
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFE(0);
@@ -784,11 +786,11 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, mt);
    Vector vel;
    if (VectorConstantCoefficient *cQ =
           dynamic_cast<VectorConstantCoefficient*>(Q))
@@ -798,7 +800,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else if (VectorGridFunctionCoefficient *vgfQ =
                dynamic_cast<VectorGridFunctionCoefficient*>(Q))
    {
-      vel.SetSize(dim * nq * ne);
+      vel.SetSize(dim * nq * ne, mt);
 
       const GridFunction *gf = vgfQ->GetGridFunction();
       const FiniteElementSpace &gf_fes = *gf->FESpace();
@@ -809,7 +811,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                                           ElementDofOrdering::NATIVE;
       const Operator *R = gf_fes.GetElementRestriction(ordering);
 
-      Vector xe(R->Height(), Device::GetMemoryType());
+      Vector xe(R->Height(), mt);
       xe.UseDevice(true);
 
       R->Mult(*gf, xe);
