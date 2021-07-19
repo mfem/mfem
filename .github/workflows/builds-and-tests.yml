@@ -51,9 +51,11 @@ jobs:
         mpi: [sequential, parallel]
         build-system: [make]
         hypre-target: [basic]
-        # 'include' allows us to
-        # - add a variable without creating a new matrix dimension.
-        # - add a new combination ('build-system: cmake' case here)
+        # 'include' allows us to:
+        # - Add a variable to all jobs without creating a new matrix dimension.
+        #   Codecov is defined that way.
+        # - Add a new combination.
+        #   'build-system: cmake' and 'hypre-target: bigint'
         #
         # note: we will gather coverage info for any non-debug run except the
         # CMake build.
@@ -67,12 +69,6 @@ jobs:
             codecov: NO
             mpi: parallel
             build-system: cmake
-            hypre-target: basic
-          - os: ubuntu-18.04
-            target: optim
-            codecov: YES
-            mpi: parallel
-            build-system: make
             hypre-target: basic
           - os: ubuntu-18.04
             target: optim
