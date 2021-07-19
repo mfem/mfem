@@ -6927,7 +6927,7 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
       shape(2,0) =   y;
       shape(2,1) =   0.;
-      shape(2,2) =   x * ozi;
+      shape(2,2) =   x * y * ozi;
 
       shape(3,0) =   0.;
       shape(3,1) =   ox;
