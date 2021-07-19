@@ -186,6 +186,15 @@ double neumann_velocity_circle(const Vector &x)
    return 0.;
 }
 
+/// Normal vector for level_set_type = 5. Circle centered at [0.5 , 0.5]
+void normal_vector(const Vector &x, Vector &p) {
+    p.SetSize(x.Size());
+    p(0) = x(0)-0.5;
+    p(1) = x(1)-0.5; //center of circle at [0.5, 0.5]
+    p /= p.Norml2();
+    p *= -1;
+}
+
 
 /// `f` for the Poisson problem (-nabla^2 u = f).
 double rhs_fun_circle(const Vector &x)
