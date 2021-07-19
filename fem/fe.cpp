@@ -8015,6 +8015,7 @@ void RT0PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(1) = 3.0;
    divshape(2) = 3.0;
    divshape(3) = 3.0;
+   divshape(4) = 3.0;
 }
 
 const double RT0PyrFiniteElement::nk[5][3] =
