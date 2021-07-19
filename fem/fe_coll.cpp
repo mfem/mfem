@@ -1284,6 +1284,8 @@ LinearDiscont3DFECollection::FiniteElementForGeometry(
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
+      case Geometry::PRISM:       return &WedgeFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("LinearDiscont3DFECollection: unknown geometry type.");
@@ -1300,6 +1302,8 @@ int LinearDiscont3DFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return 0;
       case Geometry::SQUARE:      return 0;
       case Geometry::TETRAHEDRON: return 4;
+      case Geometry::PYRAMID:     return 5;
+      case Geometry::PRISM:       return 6;
       case Geometry::CUBE:        return 8;
       default:
          mfem_error ("LinearDiscont3DFECollection: unknown geometry type.");

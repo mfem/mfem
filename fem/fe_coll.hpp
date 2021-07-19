@@ -962,6 +962,8 @@ class LinearDiscont3DFECollection : public FiniteElementCollection
 {
 private:
    const Linear3DFiniteElement TetrahedronFE;
+   const LinearPyramidFiniteElement PyramidFE;
+   const LinearWedgeFiniteElement WedgeFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
 
 public:
