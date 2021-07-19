@@ -7873,7 +7873,7 @@ void RT0WdgFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 }
 
 const double RT0WdgFiniteElement::nk[5][3] =
-{{0.,0.,-.5}, {0.,0.,.5}, {0,-.5,0}, {.5,.5,0}, {0,0,-.5}};
+{{0.,0.,-.5}, {0.,0.,.5}, {0,-1.,0}, {1.,1.,0}, {-1.,0,0}};
 
 void RT0WdgFiniteElement::GetLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I) const
