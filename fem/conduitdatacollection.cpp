@@ -18,6 +18,8 @@
 #include <conduit_relay.hpp>
 #include <conduit_blueprint.hpp>
 
+#include <algorithm>
+#include <cstring>
 #include <string>
 #include <sstream>
 
@@ -645,7 +647,8 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
                                            Node &n_mesh,
                                            const std::string &coordset_name,
                                            const std::string &main_topology_name,
-                                           const std::string &boundary_topology_name)
+                                           const std::string &boundary_topology_name,
+                                           const std::string &main_adjset_name)
 {
    int dim = mesh->SpaceDimension();
 
@@ -815,6 +818,61 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
          bndry_att_vals[i] = mesh->GetBdrAttribute(i);
       }
    }
+
+   ////////////////////////////////////////////
+   // Setup adjsets
+   ////////////////////////////////////////////
+
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   if (pmesh)
+   {
+      Node &n_adjset = n_mesh["adjsets"][main_adjset_name];
+
+      n_adjset["association"] = "vertex";
+      n_adjset["topology"] = main_topology_name;
+      n_adjset["groups"];
+
+      const GroupTopology &pmesh_gtopo = pmesh->gtopo;
+      const int num_groups = pmesh_gtopo.NGroups();
+      // NOTE: skip the first group since its the local-only group
+      for (int i = 1; i < num_groups; i++)
+      {
+         const int num_group_nbrs = pmesh_gtopo.GetGroupSize(i);
+         const int *group_nbrs = pmesh_gtopo.GetGroup(i);
+         const int num_group_verts = pmesh->GroupNVertices(i);
+
+         // FIXME: each group must have a unique name that matches across ranks,
+         // which is easiest to accomplish by using a sorted list of all neighbors
+         // involved in the rank; however, this may not be the preferred long-term
+         // solution
+         std::string group_name = "group";
+         {
+            int *group_nbrs_sorted = new int[num_group_nbrs];
+            std::memcpy(group_nbrs_sorted, group_nbrs, num_group_nbrs * sizeof(int));
+
+            std::sort(group_nbrs_sorted, group_nbrs_sorted + num_group_nbrs);
+            for (int j = 0; j < num_group_nbrs; j++)
+            {
+               group_name += "_" + std::to_string(group_nbrs_sorted[j]);
+            }
+
+            delete [] group_nbrs_sorted;
+         }
+         Node &n_group = n_adjset["groups"][group_name];
+
+         // NOTE: skip the first group item since it's the local processor
+         n_group["neighbors"].set(group_nbrs + 1, num_group_nbrs - 1);
+         n_group["values"].set(DataType::c_int(num_group_verts));
+
+         int_array group_vals = n_group["values"].value();
+         for (int j = 0; j < num_group_verts; j++)
+         {
+            group_vals[j] = pmesh->GroupVertex(i, j);
+         }
+      }
+   }
+#endif
 }
 
 //---------------------------------------------------------------------------//
