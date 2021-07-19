@@ -550,7 +550,11 @@ add_custom_target(${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 # Create a target for all examples and, optionally, enable it.
 set(MFEM_ALL_EXAMPLES_TARGET_NAME examples)
 add_mfem_target(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${MFEM_ENABLE_EXAMPLES})
-add_subdirectory(examples EXCLUDE_FROM_ALL)
+if (MFEM_ENABLE_EXAMPLES)
+  add_subdirectory(examples) #install examples if enabled
+else()
+  add_subdirectory(examples EXCLUDE_FROM_ALL)
+endif()
 
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
