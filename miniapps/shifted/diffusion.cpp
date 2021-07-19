@@ -57,6 +57,10 @@
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
 //     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
 
+// Problem 5: Circular hole of radius 0.2 at [0.5, 0.5] and [1.5, 0.5]
+//      Solves -nabla^2 u = 1 with homogeneous Dirichlet and Neumann boundary conditions.
+//      mpirun -np 1 diffusion -m quad.mesh -rs 3 -o 1 -vis -lst 5 -ho 1
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "sbm_aux.hpp"
@@ -334,7 +338,7 @@ int main(int argc, char *argv[])
    // the FEM linear system.
    ParLinearForm b(&pfespace);
    FunctionCoefficient *rhs_f = NULL;
-   if (level_set_type == 1 || level_set_type == 4)
+   if (level_set_type == 1 || level_set_type == 4 || level_set_type == 5)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_circle);
    }
@@ -351,7 +355,7 @@ int main(int argc, char *argv[])
 
    // Dirichlet BC that must be imposed on the true boundary.
    ShiftedFunctionCoefficient *dbcCoef = NULL;
-   if (level_set_type == 1 || level_set_type == 4)
+   if (level_set_type == 1 || level_set_type == 4 || level_set_type == 5)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_circle);
    }
@@ -367,17 +371,39 @@ int main(int argc, char *argv[])
    {
       MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
    }
-   // Add integrators corresponding to the shifted boundary method (SBM).
+
+   ShiftedFunctionCoefficient *nbcCoef = NULL;
+   ShiftedVectorFunctionCoefficient *normalbcCoef = NULL;
+   if (level_set_type == 5) {
+       nbcCoef = new ShiftedFunctionCoefficient(neumann_velocity_circle);
+       normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector);
+   }
+
+   // Add integrators corresponding to the shifted boundary method (SBM)
+   // for Dirichlet boundaries.
+   int dirichlet_cut_marker_offset = 0;
    b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
                                                              alpha, *dist_vec,
                                                              elem_marker,
                                                              include_cut_cell,
-                                                             ho_terms));
+                                                             ho_terms,
+                                                             dirichlet_cut_marker_offset));
    b.AddBdrFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
                                                         alpha, *dist_vec,
                                                         elem_marker,
                                                         include_cut_cell,
-                                                        ho_terms), ess_shift_bdr);
+                                                        ho_terms,
+                                                        dirichlet_cut_marker_offset), ess_shift_bdr);
+
+   // Add integrators corresponding to the shifted boundary method (SBM)
+   // for Neumann boundaries.
+   int neumann_cut_marker_offset = 1;
+   if (level_set_type == 5) {
+       b.AddInteriorFaceIntegrator(new SBM2NeumannLFIntegrator(
+           &pmesh, *nbcCoef, alpha, *dist_vec, *normalbcCoef,
+            elem_marker, include_cut_cell, ho_terms, neumann_cut_marker_offset));
+   }
+
    b.Assemble();
 
    // Set up the bilinear form a(.,.) on the finite element space corresponding
@@ -395,6 +421,15 @@ int main(int argc, char *argv[])
                                                       elem_marker,
                                                       include_cut_cell,
                                                       ho_terms), ess_shift_bdr);
+
+   // Add neumann bilinearform integrator
+   a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh, alpha,
+                                                         *dist_vec,
+                                                         *normalbcCoef,
+                                                         elem_marker,
+                                                         include_cut_cell,
+                                                         ho_terms,
+                                                         neumann_cut_marker_offset));
 
    // Assemble the bilinear form and the corresponding linear system,
    // applying any necessary transformations.

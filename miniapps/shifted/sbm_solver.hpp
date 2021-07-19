@@ -12,6 +12,7 @@
 #ifndef MFEM_SBM_SOLVER_HPP
 #define MFEM_SBM_SOLVER_HPP
 
+#include "marking.hpp"
 #include "mfem.hpp"
 
 namespace mfem
@@ -42,6 +43,32 @@ public:
                const Vector &D);
 };
 
+class ShiftedVectorFunctionCoefficient : public VectorCoefficient
+{
+protected:
+   std::function<void(const Vector &, Vector &)> Function;
+
+public:
+   ShiftedVectorFunctionCoefficient(int dim,
+                                    std::function<void(const Vector &, Vector &)> F)
+      : VectorCoefficient(dim), Function(std::move(F)) { }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector D(vdim);
+      D = 0.;
+      return (this)->Eval(V, T, ip, D);
+   }
+
+   /// Evaluate the coefficient at @a ip + @a D.
+   void Eval(Vector &V,
+             ElementTransformation &T,
+             const IntegrationPoint &ip,
+             const Vector &D);
+};
+
 /// BilinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
 /// A(u, w) = -<nabla u.n, w>
@@ -66,6 +93,8 @@ protected:
    int NEproc;                //Number of elements on the current MPI rank
    int par_shared_face_count; //
 
+   int cut_cell_marker_offset;
+
    // these are not thread-safe!
    Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
    DenseMatrix jmat, dshape, dshapephys, adjJ;
@@ -77,13 +106,15 @@ public:
                            VectorCoefficient &vD_,
                            Array<int> &elem_marker_,
                            bool include_cut_cell_ = false,
-                           int nterms_ = 0)
+                           int nterms_ = 0,
+                           int cut_cell_marker_offset_ = 0)
       : alpha(a), vD(&vD_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
         nterms(nterms_),
         NEproc(pmesh->GetNE()),
-        par_shared_face_count(0) { }
+        par_shared_face_count(0),
+        cut_cell_marker_offset(cut_cell_marker_offset_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -123,6 +154,8 @@ protected:
    int NEproc;                //Number of elements on the current MPI rank
    int par_shared_face_count; //
 
+   int cut_cell_marker_offset;
+
    // these are not thread-safe!
    Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
@@ -130,17 +163,19 @@ protected:
 public:
    SBM2DirichletLFIntegrator(const ParMesh *pmesh,
                              ShiftedFunctionCoefficient &u,
-                             const double a,
+                             const double alpha_,
                              VectorCoefficient &vD_,
                              Array<int> &elem_marker_,
                              bool include_cut_cell_ = false,
-                             int nterms_ = 0)
-      : uD(&u), alpha(a), vD(&vD_),
+                             int nterms_ = 0,
+                             int cut_cell_marker_offset_ = 0)
+      : uD(&u), alpha(alpha_), vD(&vD_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
         nterms(nterms_),
         NEproc(pmesh->GetNE()),
-        par_shared_face_count(0) { }
+        par_shared_face_count(0),
+        cut_cell_marker_offset(cut_cell_marker_offset_) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -152,6 +187,108 @@ public:
                                        const FiniteElement &el2,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+};
+
+
+// <grad u. d, grad w .n>
+class SBM2NeumannIntegrator : public BilinearFormIntegrator
+{
+protected:
+   double alpha;
+   VectorCoefficient *vD; // Distance function coefficient
+   ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
+   Array<int> *elem_marker;   //marker indicating whether element is inside,
+   //cut, or outside the domain.
+   bool include_cut_cell;
+   int nterms;                // Number of terms in addition to the gradient
+   // term from Taylor expansion that should be included. (0 by default).
+   int NEproc;                //Number of elements on the current MPI rank
+   int par_shared_face_count; //
+
+   int cut_cell_marker_offset;
+
+
+   // these are not thread-safe!
+   Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
+   DenseMatrix jmat, dshape, dshapephys, adjJ;
+
+
+public:
+   SBM2NeumannIntegrator(const ParMesh *pmesh,
+                         const double alpha_,
+                         VectorCoefficient &vD_,
+                         ShiftedVectorFunctionCoefficient &vN_,
+                         Array<int> &elem_marker_,
+                         bool include_cut_cell_ = false,
+                         int nterms_ = 0,
+                         int cut_cell_marker_offset_ = 0)
+      : alpha(alpha_), vD(&vD_), vN(&vN_),
+        elem_marker(&elem_marker_),
+        include_cut_cell(include_cut_cell_),
+        nterms(nterms_),
+        NEproc(pmesh->GetNE()),
+        par_shared_face_count(0),
+        cut_cell_marker_offset(cut_cell_marker_offset_) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   bool GetTrimFlag() { return include_cut_cell; }
+
+   virtual ~SBM2NeumannIntegrator() { }
+};
+
+class SBM2NeumannLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   ShiftedFunctionCoefficient *uN; //Neumann condition on true boundary
+   VectorCoefficient *vD; // Distance function coefficient
+   ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
+   Array<int> *elem_marker;   //marker indicating whether element is inside,
+   double alpha; // Nitsche parameter
+   int nterms;  //Number of terms in addition to the gradient term from Taylor
+   //expansion that should be included. (0 by default).
+   bool include_cut_cell;
+   int NEproc;                //Number of elements on the current MPI rank
+   int par_shared_face_count; //
+   int cut_cell_marker_offset;
+
+   // these are not thread-safe!
+   Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
+   DenseMatrix dshape, mq, adjJ;
+
+public:
+   SBM2NeumannLFIntegrator(const ParMesh *pmesh,
+                           ShiftedFunctionCoefficient &u,
+                           const double alpha_,
+                           VectorCoefficient &vD_,
+                           ShiftedVectorFunctionCoefficient &vN_,
+                           Array<int> &elem_marker_,
+                           int nterms_ = 0,
+                           bool include_cut_cell_ = true,
+                           int cut_cell_marker_offset_ = 0)
+      : uN(&u), vD(&vD_), vN(&vN_),
+        elem_marker(&elem_marker_),
+        alpha(alpha_), nterms(nterms_),
+        include_cut_cell(include_cut_cell_),
+        NEproc(pmesh->GetNE()),
+        par_shared_face_count(0),
+        cut_cell_marker_offset(cut_cell_marker_offset_) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el1,
+                                       const FiniteElement &el2,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+   bool GetTrimFlag() { return include_cut_cell; }
 };
 
 } // namespace mfem
