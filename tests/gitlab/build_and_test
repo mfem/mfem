@@ -110,6 +110,7 @@ then
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
     cp ${hostconfig_path} ${project_dir}/config/
+    ln -sf ${build_root}/data ${project_dir}/../
 
     make all -j ${threads}
 fi
