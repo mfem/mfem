@@ -5,8 +5,8 @@
 <p align="center">
 <a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-brightgreen.svg"></a>
 <a href="https://github.com/mfem/mfem/actions?query=workflow%3Arepo-check+branch%3Amaster"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/repo-check.yml/badge.svg?branch=master"></a>
-<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuild-analysis+branch%3Amaster"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/build-analysis.yml/badge.svg?branch=master"></a>
-<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuilds-and-tests+branch%3Amaster"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=master"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuild-analysis+branch%3Amaster"><img alt="Build Analysis" src="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml/badge.svg?branch=master"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuilds-and-tests+branch%3Amaster"><img alt="Builds and Tests" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="https://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
 </p>
