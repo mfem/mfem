@@ -1671,7 +1671,8 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
       ipp.x = ipc.x * (1.0 - ipc.z);
       ipp.y = ipc.y * (1.0 - ipc.z);
       ipp.z = ipc.z;
-      ipp.weight = ipc.weight * pow(1.0 - ipc.z, 2);
+      // ipp.weight = ipc.weight * pow(1.0 - ipc.z, 2);
+      ipp.weight = ipc.weight / 3.0;
    }
    return PyramidIntRules[Order];
 }
