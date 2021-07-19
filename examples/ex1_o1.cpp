@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
    kappa = freq * M_PI;
-   
+
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -263,10 +263,11 @@ int main(int argc, char *argv[])
 
 double u_exact(const Vector &x)
 {
-  return sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
+   return sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
 }
 
 double f_exact(const Vector &x)
 {
-  return 3.0 * kappa * kappa * sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
+   return 3.0 * kappa * kappa * sin(kappa * x(0)) * sin(kappa * x(1)) * sin(
+             kappa * x(2));
 }
