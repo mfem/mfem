@@ -7885,10 +7885,10 @@ void RT0WdgFiniteElement::GetLocalInterpolation (
 #endif
 
 #ifdef MFEM_DEBUG
-   for (k = 0; k < 5; k++)
+   for (k = 0; k < dof; k++)
    {
       CalcVShape (Nodes.IntPoint(k), vshape);
-      for (j = 0; j < 5; j++)
+      for (j = 0; j < dof; j++)
       {
          double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
@@ -7912,7 +7912,7 @@ void RT0WdgFiniteElement::GetLocalInterpolation (
    double vk[3];
    Vector xk (vk, 3);
 
-   for (k = 0; k < 5; k++)
+   for (k = 0; k < dof; k++)
    {
       Trans.Transform (Nodes.IntPoint (k), xk);
       ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
@@ -7921,7 +7921,7 @@ void RT0WdgFiniteElement::GetLocalInterpolation (
       vk[0] = Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2];
       vk[1] = Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2];
       vk[2] = Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2];
-      for (j = 0; j < 5; j++)
+      for (j = 0; j < dof; j++)
          if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
                              vshape(j,2)*vk[2])) < 1.0e-12)
          {
@@ -8031,10 +8031,10 @@ void RT0PyrFiniteElement::GetLocalInterpolation (
 #endif
 
 #ifdef MFEM_DEBUG
-   for (k = 0; k < 5; k++)
+   for (k = 0; k < dof; k++)
    {
       CalcVShape (Nodes.IntPoint(k), vshape);
-      for (j = 0; j < 5; j++)
+      for (j = 0; j < dof; j++)
       {
          double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
@@ -8058,7 +8058,7 @@ void RT0PyrFiniteElement::GetLocalInterpolation (
    double vk[3];
    Vector xk (vk, 3);
 
-   for (k = 0; k < 5; k++)
+   for (k = 0; k < dof; k++)
    {
       Trans.Transform (Nodes.IntPoint (k), xk);
       ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
@@ -8067,7 +8067,7 @@ void RT0PyrFiniteElement::GetLocalInterpolation (
       vk[0] = Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2];
       vk[1] = Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2];
       vk[2] = Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2];
-      for (j = 0; j < 5; j++)
+      for (j = 0; j < dof; j++)
          if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
                              vshape(j,2)*vk[2])) < 1.0e-12)
          {
@@ -8086,7 +8086,7 @@ void RT0PyrFiniteElement::Project (
    DenseMatrix Jinv(dim);
 #endif
 
-   for (int k = 0; k < 5; k++)
+   for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
