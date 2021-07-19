@@ -1317,7 +1317,7 @@ public:
 class LinearWedgeFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the Linear3DFiniteElement
+   /// Construct the LinearWedgeFiniteElement
    LinearWedgeFiniteElement();
 
    /** @brief virtual function which evaluates the values of all
@@ -1346,7 +1346,7 @@ public:
 class LinearPyramidFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the Linear3DFiniteElement
+   /// Construct the LinearPyramidFiniteElement
    LinearPyramidFiniteElement();
 
    /** @brief virtual function which evaluates the values of all
@@ -2100,7 +2100,7 @@ private:
    static const double nk[5][3];
 
 public:
-   /// Construct the RT0WedgeFiniteElement
+   /// Construct the RT0WdgFiniteElement
    RT0WdgFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
