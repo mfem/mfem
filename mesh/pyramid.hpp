@@ -29,10 +29,10 @@ public:
 
    Pyramid() : Element(Geometry::PYRAMID) { }
 
-   /// Constructs wedge by specifying the indices and the attribute.
+   /// Constructs pyramid by specifying the indices and the attribute.
    Pyramid(const int *ind, int attr = 1);
 
-   /// Constructs wedge by specifying the indices and the attribute.
+   /// Constructs pyramid by specifying the indices and the attribute.
    Pyramid(int ind1, int ind2, int ind3, int ind4, int ind5,
            int attr = 1);
 
