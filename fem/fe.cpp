@@ -6912,43 +6912,43 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       shape(7,0) =   0.;
       shape(7,1) = - 1.;
       shape(7,2) =   0.;
+
+      return;
    }
-   else
-   {
-      double ozi = 1.0 / oz;
 
-      shape(0,0) =   oy;
-      shape(0,1) =   0.;
-      shape(0,2) =   x * oy * ozi;
+   double ozi = 1.0 / oz;
 
-      shape(1,0) =   0.;
-      shape(1,1) =   x;
-      shape(1,2) =   x * y * ozi;
+   shape(0,0) =   oy;
+   shape(0,1) =   0.;
+   shape(0,2) =   x * oy * ozi;
 
-      shape(2,0) =   y;
-      shape(2,1) =   0.;
-      shape(2,2) =   x * y * ozi;
+   shape(1,0) =   0.;
+   shape(1,1) =   x;
+   shape(1,2) =   x * y * ozi;
 
-      shape(3,0) =   0.;
-      shape(3,1) =   ox;
-      shape(3,2) =   ox * y * ozi;
+   shape(2,0) =   y;
+   shape(2,1) =   0.;
+   shape(2,2) =   x * y * ozi;
 
-      shape(4,0) =   oy * z * ozi;
-      shape(4,1) =   ox * z * ozi;
-      shape(4,2) =   1. - x - y + x * y * (1. - z2) * ozi * ozi;
+   shape(3,0) =   0.;
+   shape(3,1) =   ox;
+   shape(3,2) =   ox * y * ozi;
 
-      shape(5,0) = - oy * z * ozi;
-      shape(5,1) =   x * z * ozi;
-      shape(5,2) =   x * (1. - y * (1. - z2) * ozi * ozi);
+   shape(4,0) =   oy * z * ozi;
+   shape(4,1) =   ox * z * ozi;
+   shape(4,2) =   1. - x - y + x * y * (1. - z2) * ozi * ozi;
 
-      shape(6,0) = - y * z * ozi;
-      shape(6,1) = - x * z * ozi;
-      shape(6,2) =   x * y * (1. - z2) * ozi * ozi;
+   shape(5,0) = - oy * z * ozi;
+   shape(5,1) =   x * z * ozi;
+   shape(5,2) =   x * (1. - y * (1. - z2) * ozi * ozi);
 
-      shape(7,0) =   y * z * ozi;
-      shape(7,1) = - ox * z * ozi;
-      shape(7,2) =   y * (1. - x * (1. - z2) * ozi * ozi);
-   }
+   shape(6,0) = - y * z * ozi;
+   shape(6,1) = - x * z * ozi;
+   shape(6,2) =   x * y * (1. - z2) * ozi * ozi;
+
+   shape(7,0) =   y * z * ozi;
+   shape(7,1) = - ox * z * ozi;
+   shape(7,2) =   y * (1. - x * (1. - z2) * ozi * ozi);
 }
 
 void Nedelec1PyrFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
@@ -6997,43 +6997,43 @@ const
       curl_shape(7,0) =   2.;
       curl_shape(7,1) =   0.;
       curl_shape(7,2) =   0.;
+
+      return;
    }
-   else
-   {
-      double ozi = 1. / oz;
 
-      curl_shape(0,0) = - x * ozi;
-      curl_shape(0,1) = - 2. + y * ozi;
-      curl_shape(0,2) =   1.;
+   double ozi = 1. / oz;
 
-      curl_shape(1,0) =   x * ozi;
-      curl_shape(1,1) = - y * ozi;
-      curl_shape(1,2) =   1.;
+   curl_shape(0,0) = - x * ozi;
+   curl_shape(0,1) = - 2. + y * ozi;
+   curl_shape(0,2) =   1.;
 
-      curl_shape(2,0) =   x * ozi;
-      curl_shape(2,1) = - y * ozi;
-      curl_shape(2,2) = - 1.;
+   curl_shape(1,0) =   x * ozi;
+   curl_shape(1,1) = - y * ozi;
+   curl_shape(1,2) =   1.;
 
-      curl_shape(3,0) =   (2. - x  - z2) * ozi;
-      curl_shape(3,1) =   y * ozi;
-      curl_shape(3,2) = - 1.;
+   curl_shape(2,0) =   x * ozi;
+   curl_shape(2,1) = - y * ozi;
+   curl_shape(2,2) = - 1.;
 
-      curl_shape(4,0) = - 2. * ox * ozi;
-      curl_shape(4,1) =   2. * oy * ozi;
-      curl_shape(4,2) =   0.;
+   curl_shape(3,0) =   (2. - x  - z2) * ozi;
+   curl_shape(3,1) =   y * ozi;
+   curl_shape(3,2) = - 1.;
 
-      curl_shape(5,0) = - 2. * x * ozi;
-      curl_shape(5,1) = - 2. * oy * ozi;
-      curl_shape(5,2) =   0.;
+   curl_shape(4,0) = - 2. * ox * ozi;
+   curl_shape(4,1) =   2. * oy * ozi;
+   curl_shape(4,2) =   0.;
 
-      curl_shape(6,0) =   2. * x * ozi;
-      curl_shape(6,1) = - 2. * y * ozi;
-      curl_shape(6,2) =   0.;
+   curl_shape(5,0) = - 2. * x * ozi;
+   curl_shape(5,1) = - 2. * oy * ozi;
+   curl_shape(5,2) =   0.;
 
-      curl_shape(7,0) =   2. * ox * ozi;
-      curl_shape(7,1) =   2. * y * ozi;
-      curl_shape(7,2) =   0.;
-   }
+   curl_shape(6,0) =   2. * x * ozi;
+   curl_shape(6,1) = - 2. * y * ozi;
+   curl_shape(6,2) =   0.;
+
+   curl_shape(7,0) =   2. * ox * ozi;
+   curl_shape(7,1) =   2. * y * ozi;
+   curl_shape(7,2) =   0.;
 }
 
 const double Nedelec1PyrFiniteElement::tk[8][3] =
@@ -7983,28 +7983,63 @@ RT0PyrFiniteElement::RT0PyrFiniteElement()
 void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                      DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   double x = ip.x, y = ip.y, z = ip.z, oz = 1.0 - z;
    double x2 = 2.0*ip.x, y2 = 2.0*ip.y, z2 = 2.0*ip.z;
-   double zi = 1.0 / (1.0 - z);
+
+   double tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis functions as z->1.  In
+      // order to remain inside the pyramid in this limit the x and y
+      // coordinates must be approaching 0. Unfortunately we obtain
+      // different limits if we approach (0,0,1) from different
+      // directions. The values provided below are the limits of the
+      // average over the square cross section [0,epsilon]x[0,epsilon]
+      // at the height z = 1-epsilon as epsilon -> 0.
+      shape(0,0) =   0.0;
+      shape(0,1) =   0.0;
+      shape(0,2) =   0.0;
+
+      shape(1,0) = - 0.5;
+      shape(1,1) = - 1.5;
+      shape(1,2) =   1.;
+
+      shape(2,0) =   0.5;
+      shape(2,1) = - 0.5;
+      shape(2,2) =   1.0;
+
+      shape(3,0) = - 0.5;
+      shape(3,1) =   0.5;
+      shape(3,2) =   1.0;
+
+      shape(4,0) = - 1.5;
+      shape(4,1) = - 0.5;
+      shape(4,2) =   1.0;
+
+      return;
+   }
+
+   double ozi = 1.0 / oz;
 
    shape(0,0) = x;
    shape(0,1) = y;
    shape(0,2) = z - 1.;
 
-   shape(1,0) = - x * z * zi;
-   shape(1,1) = (y2 + z2 - y * z - 2.0) * zi;
+   shape(1,0) = - x * z * ozi;
+   shape(1,1) = (y2 + z2 - y * z - 2.0) * ozi;
    shape(1,2) = z;
 
-   shape(2,0) = x * (2.0 - z) * zi;
-   shape(2,1) = - y * z * zi;;
+   shape(2,0) = x * (2.0 - z) * ozi;
+   shape(2,1) = - y * z * ozi;;
    shape(2,2) = z;
 
-   shape(3,0) = - x * z * zi;
-   shape(3,1) = y * (2.0 - z) * zi;
+   shape(3,0) = - x * z * ozi;
+   shape(3,1) = y * (2.0 - z) * ozi;
    shape(3,2) = z;
 
-   shape(4,0) = (x2 + z2 - x * z - 2.0) * zi;
-   shape(4,1) = - y * z * zi;
+   shape(4,0) = (x2 + z2 - x * z - 2.0) * ozi;
+   shape(4,1) = - y * z * ozi;
    shape(4,2) = z;
 }
 
