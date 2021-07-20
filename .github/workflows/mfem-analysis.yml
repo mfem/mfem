@@ -61,7 +61,7 @@ jobs:
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
-        target: basic
+        target: int32
 
     - name: Cache Metis Install
       id: metis-cache
