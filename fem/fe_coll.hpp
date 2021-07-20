@@ -529,9 +529,10 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
    const Linear3DFiniteElement TetrahedronFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
-   const H1_WedgeElement WedgeFE;
+   const LinearWedgeFiniteElement WedgeFE;
+   const LinearPyramidFiniteElement PyramidFE;
 public:
-   LinearFECollection() : FiniteElementCollection(1), WedgeFE(1) { }
+   LinearFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -936,10 +937,11 @@ class Const3DFECollection : public FiniteElementCollection
 private:
    const P0TetFiniteElement TetrahedronFE;
    const P0HexFiniteElement ParallelepipedFE;
-   const L2_WedgeElement WedgeFE;
+   const P0WdgFiniteElement WedgeFE;
+   const P0PyrFiniteElement PyramidFE;
 
 public:
-   Const3DFECollection() : FiniteElementCollection(0), WedgeFE(0) { }
+   Const3DFECollection() : FiniteElementCollection(0) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -960,6 +962,8 @@ class LinearDiscont3DFECollection : public FiniteElementCollection
 {
 private:
    const Linear3DFiniteElement TetrahedronFE;
+   const LinearPyramidFiniteElement PyramidFE;
+   const LinearWedgeFiniteElement WedgeFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
 
 public:
@@ -1036,6 +1040,8 @@ class ND1_3DFECollection : public FiniteElementCollection
 private:
    const Nedelec1HexFiniteElement HexahedronFE;
    const Nedelec1TetFiniteElement TetrahedronFE;
+   const Nedelec1WdgFiniteElement WedgeFE;
+   const Nedelec1PyrFiniteElement PyramidFE;
 
 public:
    ND1_3DFECollection() : FiniteElementCollection(1) { }
@@ -1061,6 +1067,8 @@ private:
    const P0QuadFiniteElement QuadrilateralFE;
    const RT0HexFiniteElement HexahedronFE;
    const RT0TetFiniteElement TetrahedronFE;
+   const RT0WdgFiniteElement WedgeFE;
+   const RT0PyrFiniteElement PyramidFE;
 public:
    RT0_3DFECollection() : FiniteElementCollection(1) { }
 

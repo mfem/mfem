@@ -27,6 +27,7 @@ namespace mfem
     Geometry::TETRAHEDRON - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1)
     Geometry::CUBE - the unit cube
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
+    Geometry::PYRAMID - w/ vert. (0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1)
 */
 class Geometry
 {
@@ -34,7 +35,7 @@ public:
    enum Type
    {
       INVALID = -1,
-      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM,
+      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PYRAMID,
       NUM_GEOMETRIES
    };
 
@@ -251,7 +252,26 @@ template <> struct Geometry::Constants<Geometry::PRISM>
    };
 };
 
-// Defined in fe.cpp to ensure construction after 'mfem::WedgeFE'.
+template <> struct Geometry::Constants<Geometry::PYRAMID>
+{
+   static const int Dimension = 3;
+   static const int NumVert = 5;
+   static const int NumEdges = 8;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 5;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 4;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   // Upper-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+// Defined in fe.cpp to ensure construction after 'mfem::TriangleFE' and
+// `mfem::TetrahedronFE`.
 extern Geometry Geometries;
 
 
