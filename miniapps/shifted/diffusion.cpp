@@ -109,15 +109,19 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0) { args.PrintOptions(cout); }
 
    // Enable hardware devices such as GPUs, and programming models such as CUDA,
    // OCCA, RAJA and OpenMP based on command line options.
    Device device("cpu");
-   device.Print();
+   if (myid == 0) { device.Print(); }
 
    // Refine the mesh.
    Mesh mesh(mesh_file, 1, 1);
