@@ -173,7 +173,11 @@ Version 4.2.1 (development)
   mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
   supports meshes with any element geometry.
 
-- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
+- Testing improvements:
+  * Transitioned from Travis to GitHub Action for testing/CI on GitHub.
+  * Effectively remove Travis from CI.
+  * Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
+  * Added a set of suggested git hooks for developers in config/githooks.
 
 - Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
   see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
@@ -210,6 +214,11 @@ Version 4.2.1 (development)
   --enable-mixedint option. Note that this option is currently tested only in
   ex1p and may not work in more general settings.
 
+- Added support for transferring fields (primary and dual) between high-order
+  and low-order refined H1 finite element spaces using the
+  L2ProjectionH1GridTransfer operators. This functionality is demonstrated
+  through the lor-transfer miniapp when run with the -h1 option.
+
 - Added new functionality for constructing low-order refined discretizations and
   solvers, see the LORDiscretization and LORSolver classes. A new basis type for
   H(curl) and H(div) spaces is introduced to give spectral equivalence. This
@@ -225,6 +234,15 @@ Version 4.2.1 (development)
   miniapp, see miniapps/shifted/diffusion.cpp.
 
 - Added makefile rule to generate TAGS table for vi or Emacs users.
+
+API changes
+-----------
+- Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
+  and `L2FaceRestriction`.
+  In order to conform with the semantic of `MultTranspose` in `mfem::Operator`,
+  `mfem::FaceRestriction::MultTranspose` now sets instead of adding values, and
+  `mfem::FaceRestriction::AddMultTranspose` should replace previous calls to
+  `mfem::FaceRestriction::MultTranspose`.
 
 libCEED integration improvements
 --------------------------------
