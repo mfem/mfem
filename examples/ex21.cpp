@@ -40,7 +40,9 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
+   int ref_levels = 2;
    int order = 1;
+   int max_dofs = 50000;
    bool static_cond = false;
    int flux_averaging = 0;
    bool visualization = 1;
@@ -48,8 +50,12 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the NURBS mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Maximum number of degrees of freedom for the AMR loop.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&flux_averaging, "-f", "--flux-averaging",
@@ -84,7 +90,7 @@ int main(int argc, char *argv[])
    //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
    if (mesh.NURBSext)
    {
-      for (int i = 0; i < 2; i++)
+      for (int i = 0; i < ref_levels; i++)
       {
          mesh.UniformRefinement();
       }
@@ -187,7 +193,6 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
    const int max_amr_itr = 20;
    for (int it = 0; it <= max_amr_itr; it++)
    {

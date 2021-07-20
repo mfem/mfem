@@ -60,12 +60,14 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int ser_ref_levels = 1;
+   int par_ref_levels = 0;
    int order = 1;
    bool pa = false;
+   int max_dofs = 100000;
    const char *device_config = "cpu";
    bool nc_simplices = true;
    int reorder_mesh = 0;
-   int max_dofs = 100000;
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
@@ -73,8 +75,14 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the NURBS mesh in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Maximum number of degrees of freedom for the AMR loop.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -122,6 +130,7 @@ int main(int argc, char *argv[])
       //    We can handle triangular, quadrilateral, tetrahedral, hexahedral,
       //    surface and volume meshes with the same code.
       Mesh mesh(mesh_file, 1, 1);
+      for (int l = 0; l < ser_ref_levels; l++) { mesh.UniformRefinement(); }
 
       // 5. A NURBS mesh cannot be refined locally so we refine it uniformly
       //    and project it to a standard curvilinear mesh of order 2.
@@ -162,6 +171,7 @@ int main(int argc, char *argv[])
       // 8. Define a parallel mesh by partitioning the serial mesh.
       //    Once the parallel mesh is defined, the serial mesh can be deleted.
       pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      for (int l = 0; l < par_ref_levels; l++) { pmesh->UniformRefinement(); }
    }
    else
    {

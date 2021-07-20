@@ -64,7 +64,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int ref_levels = -1;
+   int ser_ref_levels = -1;
+   int par_ref_levels = 2;
    int order = 1;
    bool par_format = false;
    bool pa = false;
@@ -75,8 +76,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial;");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
@@ -121,13 +124,11 @@ int main(int argc, char *argv[])
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements, unless the user specifies it as input.
+   //    more than 10,000 elements, or as specified on the command line with the
+   //    option '--refine-serial'.
    {
-      if (ref_levels == -1)
-      {
-         ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      }
-
+      int ref_levels = (ser_ref_levels != -1) ? ser_ref_levels :
+                       (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -140,7 +141,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();

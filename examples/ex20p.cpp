@@ -104,6 +104,8 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(comm, &myid);
 
    // 2. Parse command-line options.
+   int ser_ref_levels = 0;
+   int par_ref_levels = 0;
    int order  = 1;
    int nsteps = 100;
    double dt  = 0.1;
@@ -111,6 +113,10 @@ int main(int argc, char *argv[])
    bool gnuplot = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Time integration order.");
    args.AddOption(&prob_, "-p", "--problem-type",
@@ -175,6 +181,10 @@ int main(int argc, char *argv[])
    int nverts = (visualization) ? 2*num_procs*(nsteps+1) : 0;
    int nelems = (visualization) ? (nsteps * num_procs) : 0;
    Mesh mesh(2, nverts, nelems, 0, 3);
+   for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
+      mesh.UniformRefinement();
+   }
 
    int   *part = (visualization) ? (new int[nelems]) : NULL;
    int    v[4];
@@ -297,6 +307,7 @@ int main(int argc, char *argv[])
       mesh.FinalizeQuadMesh(1);
       ParMesh pmesh(comm, mesh, part);
       delete [] part;
+      for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
       H1_FECollection fec(order = 1, 2);
       ParFiniteElementSpace fespace(&pmesh, &fec);

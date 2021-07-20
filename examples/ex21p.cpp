@@ -45,19 +45,25 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
-   int serial_ref_levels = 0;
+   int ser_ref_levels = 0;
+   int par_ref_levels = 0;
    int order = 1;
+   int max_dofs = 50000;
    bool static_cond = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&serial_ref_levels, "-rs", "--refine-serial",
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of uniform serial refinements (before parallel"
                   " partitioning)");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Maximum number of degrees of freedom for the AMR loop.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -97,11 +103,11 @@ int main(int argc, char *argv[])
    //    currently only be refined uniformly, we need to convert it to a
    //    piecewise-polynomial curved mesh. First we refine the NURBS mesh a bit
    //    more and then project the curvature to quadratic Nodes.
-   if (mesh.NURBSext && serial_ref_levels == 0)
+   if (mesh.NURBSext && ser_ref_levels == 0)
    {
-      serial_ref_levels = 2;
+      ser_ref_levels = 2;
    }
-   for (int i = 0; i < serial_ref_levels; i++)
+   for (int i = 0; i < ser_ref_levels; i++)
    {
       mesh.UniformRefinement();
    }
@@ -113,6 +119,7 @@ int main(int argc, char *argv[])
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
    // 4. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
@@ -207,7 +214,6 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
    const int max_amr_itr = 20;
    for (int it = 0; it <= max_amr_itr; it++)
    {
