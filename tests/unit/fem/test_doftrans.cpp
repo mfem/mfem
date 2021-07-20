@@ -17,7 +17,7 @@ using namespace mfem;
 namespace doftrans
 {
 
-TEST_CASE("DoF Transformation Classes"
+TEST_CASE("DoF Transformation Classes",
           "[DofTransformation]"
           "[ND_TetDofTransformation]")
 {
@@ -126,10 +126,10 @@ TEST_CASE("DoF Transformation Classes"
    }
 }
 
-TEST_CASE("DoF Transformation Functions"
+TEST_CASE("DoF Transformation Functions",
           "[DofTransformation]"
-          "TransformPrimal"
-          "TransformDual")
+          "[TransformPrimal]"
+          "[TransformDual]")
 {
    int p = 3, q = 4;
    int seed = 123;
@@ -226,7 +226,7 @@ TEST_CASE("DoF Transformation Functions"
    }
 }
 
-TEST_CASE("VDoF Transformation Class"
+TEST_CASE("VDoF Transformation Class",
           "[DofTransformation]"
           "[VDofTransformation]")
 {
