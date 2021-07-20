@@ -141,7 +141,7 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@compact-names
+      uses: mfem/github-actions/build-hypre@v2.0
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -159,14 +159,14 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@compact-names
+      uses: mfem/github-actions/build-metis@v2.0
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@compact-names
+      uses: mfem/github-actions/build-mfem@v2.0
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -201,7 +201,7 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@compact-names
+      uses: mfem/github-actions/upload-coverage@v2.0
       with:
         name: ${{ matrix.os }}-${{ matrix.mpi }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
