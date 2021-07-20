@@ -130,6 +130,7 @@ public:
    ~NURBSPatch();
 
    void Print(std::ostream &out) const;
+   void PrintKnotvectors() const;
    void PrintMesh(const char* mesh_file) const;
 
    void DegreeElevate(int dir, int t);

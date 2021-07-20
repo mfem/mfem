@@ -779,6 +779,16 @@ void NURBSPatch::Print(std::ostream &out) const
 }
 
 
+void NURBSPatch::PrintKnotvectors() const
+{
+   out << "knotvectors\n" << kv.Size() << '\n';
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      kv[i]->Print(mfem::out);
+   }
+}
+
+
 void NURBSPatch::PrintMesh(const char* mesh_file) const
 {
    // Save Mesh by closing file
@@ -2699,6 +2709,7 @@ void NURBSExtension::UpdateKVRed()
 
    ifupdated.SetSize(NumOfKnotVectors);
 
+
    for (int p = 0; p < GetNP(); p++)
    {
       patchTopo->GetElementEdges(p, edges, orient);
@@ -3566,6 +3577,8 @@ void NURBSExtension::SetCoordsFromPatches(Vector &Nodes)
    if (patches.Size() == 0) { return; }
 
    SetSolutionVector(Nodes, Dimension());
+
+
    patches.SetSize(0);
 }
 
@@ -3579,6 +3592,7 @@ void NURBSExtension::SetKnotsFromPatches()
 
    Array<KnotVector *> kv;
 
+
    for (int p = 0; p < patches.Size(); p++)
    {
       GetPatchKnotVectors(p, kv);
@@ -3588,6 +3602,7 @@ void NURBSExtension::SetKnotsFromPatches()
          *kv[i] = *patches[p]->GetKV(i);
       }
    }
+
 
    UpdateKVRed();
 
@@ -3700,16 +3715,15 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
          }
       }
    }
-   UpdateKVRed();
 }
 
 void NURBSExtension::UniformRefinement()
 {
    for (int p = 0; p < patches.Size(); p++)
    {
+      patches[p]->PrintKnotvectors();
       patches[p]->UniformRefinement();
    }
-   UpdateKVRed();
 }
 
 
@@ -3762,7 +3776,6 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
       // Actually insert knots
       patches[p]->KnotInsert(pkv);
    }
-   UpdateKVRed();
 }
 
 void NURBSExtension::KnotInsert(Array<Vector *> &kv)
@@ -3814,8 +3827,6 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
       // Actually insert knots
       patches[p]->KnotInsert(pkvc);
    }
-
-   UpdateKVRed();
 }
 
 
@@ -3867,6 +3878,7 @@ void NURBSExtension::Get3DPatchNets(const Vector &coords, int vdim)
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
+
       patches[p] = new NURBSPatch(kv, vdim+1);
       NURBSPatch &Patch = *patches[p];
 
@@ -3949,6 +3961,10 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
                const int l = p2g(i,j,k);
                for (int d = 0; d < vdim; d++)
                {
+                  coords(l*vdim + d);
+                  Patch(i,j,k,d);
+                  Patch(i,j,k,vdim);
+
                   coords(l*vdim + d) = Patch(i,j,k,d)/Patch(i,j,k,vdim);
                }
                weights(l) = Patch(i,j,k,vdim);
@@ -4332,21 +4348,23 @@ void ParNURBSExtension::BuildGroups(const int *_partitioning,
 
 void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
 {
+   cout << "NURBSPatchMap::GetPatchKnotVectors" << endl;
    Ext->patchTopo->GetElementVertices(p, verts);
    Ext->patchTopo->GetElementEdges(p, edges, oedge);
+
    if (Ext->Dimension() == 2)
    {
-      kv[0] = Ext->KnotVecRed(edges[0]);
-      kv[1] = Ext->KnotVecRed(edges[1]);
+      kv[0] = Ext->knotVectorsExt[Ext->Dimension()*p];
+      kv[1] = Ext->knotVectorsExt[Ext->Dimension()*p + 1];
    }
    else
-   {
+   {  
       Ext->patchTopo->GetElementFaces(p, faces, oface);
-
-      kv[0] = Ext->KnotVecRed(edges[0]);
-      kv[1] = Ext->KnotVecRed(edges[3]);
-      kv[2] = Ext->KnotVecRed(edges[8]);
+      kv[0] = Ext->knotVectorsExt[Ext->Dimension()*p];
+      kv[1] = Ext->knotVectorsExt[Ext->Dimension()*p + 1];
+      kv[2] = Ext->knotVectorsExt[Ext->Dimension()*p + 2];
    }
+
    opatch = 0;
 }
 
@@ -4402,6 +4420,11 @@ void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
 void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
 {
    GetPatchKnotVectors(p, kv);
+
+   for (int ii = 0; ii<3;ii++)
+   {
+      kv[ii]->Print(cout);
+   }
 
    I = kv[0]->GetNCP() - 2;
    J = kv[1]->GetNCP() - 2;
