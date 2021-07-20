@@ -19,7 +19,7 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-namespace gslib_h
+namespace gslib
 {
 #include "gslib.h"
 }
@@ -37,8 +37,8 @@ FindPointsGSLIB::FindPointsGSLIB()
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
 {
-   gsl_comm = new gslib_h::comm;
-   cr       = new gslib_h::crystal;
+   gsl_comm = new gslib::comm;
+   cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
    int initialized;
    MPI_Initialized(&initialized);
@@ -65,8 +65,8 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
 {
-   gsl_comm = new gslib_h::comm;
-   cr      = new gslib_h::crystal;
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
    comm_init(gsl_comm, comm_);
 }
 #endif
@@ -731,7 +731,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       }
 
       // Pack data to send via crystal router
-      struct gslib_h::array *outpt = new gslib_h::array;
+      struct gslib::array *outpt = new gslib::array;
       struct out_pt { double r[3], ival; uint index, el, proc; };
       struct out_pt *pt;
       array_init(struct out_pt, outpt, nptsend);
@@ -791,7 +791,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          }
 
          // Save index and proc data in a struct
-         struct gslib_h::array *savpt = new gslib_h::array;
+         struct gslib::array *savpt = new gslib::array;
          struct sav_pt { uint index, proc; };
          struct sav_pt *spt;
          array_init(struct sav_pt, savpt, npt);
@@ -809,7 +809,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          delete outpt;
 
          // Copy data from save struct to send struct and send component wise
-         struct gslib_h::array *sendpt = new gslib_h::array;
+         struct gslib::array *sendpt = new gslib::array;
          struct send_pt { double ival; uint index, proc; };
          struct send_pt *sdpt;
          for (int j = 0; j < ncomp; j++)
