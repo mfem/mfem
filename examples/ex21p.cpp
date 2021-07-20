@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    const int max_amr_itr = 20;
    for (int it = 0; it <= max_amr_itr; it++)
    {
-      HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+      HYPRE_BigInt global_dofs = fespace.GlobalTrueVSize();
       if (myid == 0)
       {
          cout << "\nAMR iteration " << it << endl;

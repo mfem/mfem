@@ -68,12 +68,18 @@ struct CoarseFineTransformations
                            Table &coarse_to_fine,
                            Array<int> &coarse_to_ref_type,
                            Table &ref_type_to_matrix,
-                           Array<Geometry::Type> &ref_type_to_geom) const;
+                           Array<Geometry::Type> &ref_type_to_geom,
+                           bool get_coarse_to_fine_only = false) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine) const;
 
    void Clear();
    bool IsInitialized() const;
    long MemoryUsage() const;
 };
+
+void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
 
@@ -106,8 +112,13 @@ public:
    //// Initialize with elements from an existing 'mesh'.
    explicit NCMesh(const Mesh *mesh);
 
-   /// Load from a stream. The id header is assumed to have been read already.
-   NCMesh(std::istream &input, int version, int &curved);
+   /** Load from a stream. The id header is assumed to have been read already
+       from \param[in] input . \param[in] version is 10 for the v1.0 NC format,
+       or 1 for the legacy v1.1 format. \param[out] curved is set to 1 if the
+       curvature GridFunction follows after mesh data. \param[out] is_nc (again
+       treated as a boolean) is set to 0 if the legacy v1.1 format in fact
+       defines a conforming mesh. See Mesh::Loader for details. */
+   NCMesh(std::istream &input, int version, int &curved, int &is_nc);
 
    /// Deep copy of another instance.
    NCMesh(const NCMesh &other);
@@ -162,7 +173,8 @@ public:
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
 
-      MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
+      MeshId() = default;
+      MeshId(int index, int element, int local, int geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
    };
 
@@ -878,7 +890,7 @@ protected: // implementation
    void LoadCoarseElements(std::istream &input);
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
-   void LoadLegacyFormat(std::istream &input, int &curved);
+   void LoadLegacyFormat(std::istream &input, int &curved, int &is_nc);
 
 
    // geometry

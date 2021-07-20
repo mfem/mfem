@@ -106,11 +106,11 @@ void AmgXSolver::InitSerial()
       AMGX_SAFE_CALL(AMGX_config_create(&cfg, amgx_config.c_str()));
    }
 
-   AMGX_resources_create_simple(&rsrc, cfg);
-   AMGX_solver_create(&solver, rsrc, precision_mode, cfg);
-   AMGX_matrix_create(&AmgXA, rsrc, precision_mode);
-   AMGX_vector_create(&AmgXP, rsrc, precision_mode);
-   AMGX_vector_create(&AmgXRHS, rsrc, precision_mode);
+   AMGX_SAFE_CALL(AMGX_resources_create_simple(&rsrc, cfg));
+   AMGX_SAFE_CALL(AMGX_solver_create(&solver, rsrc, precision_mode, cfg));
+   AMGX_SAFE_CALL(AMGX_matrix_create(&AmgXA, rsrc, precision_mode));
+   AMGX_SAFE_CALL(AMGX_vector_create(&AmgXP, rsrc, precision_mode));
+   AMGX_SAFE_CALL(AMGX_vector_create(&AmgXRHS, rsrc, precision_mode));
 
    isInitialized = true;
 }
@@ -208,11 +208,14 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     " \"config_version\": 2, \n"
                     " \"solver\": { \n"
                     "   \"solver\": \"AMG\", \n"
+                    "   \"scope\": \"main\", \n"
+                    "   \"smoother\": \"JACOBI_L1\", \n"
                     "   \"presweeps\": 1, \n"
-                    "   \"postsweeps\": 1, \n"
                     "   \"interpolator\": \"D2\", \n"
-                    "   \"max_iters\": 2, \n"
-                    "   \"convergence\": \"ABSOLUTE\", \n"
+                    "   \"max_row_sum\" : 0.9, \n"
+                    "   \"strength_threshold\" : 0.25, \n"
+                    "   \"postsweeps\": 1, \n"
+                    "   \"max_iters\": 1, \n"
                     "   \"cycle\": \"V\"";
       if (verbose)
       {
@@ -227,6 +230,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + " }\n" + "}\n";
+      // use a zero initial guess in Mult()
+      iterative_mode = false;
    }
    else if (amgxMode == AMGX_MODE::SOLVER)
    {
@@ -237,22 +242,21 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "     \"solver\": \"AMG\", \n"
                     "     \"smoother\": { \n"
                     "     \"scope\": \"jacobi\", \n"
-                    "     \"solver\": \"BLOCK_JACOBI\", \n"
-                    "     \"relaxation_factor\": 0.7 \n"
+                    "     \"solver\": \"JACOBI_L1\" \n"
                     "       }, \n"
                     "     \"presweeps\": 1, \n"
                     "     \"interpolator\": \"D2\", \n"
                     "     \"max_row_sum\" : 0.9, \n"
                     "     \"strength_threshold\" : 0.25, \n"
-                    "     \"max_iters\": 2, \n"
+                    "     \"max_iters\": 1, \n"
                     "     \"scope\": \"amg\", \n"
                     "     \"max_levels\": 100, \n"
                     "     \"cycle\": \"V\", \n"
                     "     \"postsweeps\": 1 \n"
                     "    }, \n"
                     "  \"solver\": \"PCG\", \n"
-                    "  \"max_iters\": 100, \n"
-                    "  \"convergence\": \"RELATIVE_MAX\", \n"
+                    "  \"max_iters\": 150, \n"
+                    "  \"convergence\": \"RELATIVE_INI_CORE\", \n"
                     "  \"scope\": \"main\", \n"
                     "  \"tolerance\": 1e-12, \n"
                     "  \"monitor_residual\": 1, \n"
@@ -269,6 +273,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + "   } \n" + "} \n";
+      // use the user-specified vector as an initial guess in Mult()
+      iterative_mode = true;
    }
    else
    {
@@ -313,20 +319,20 @@ void AmgXSolver::InitAmgX()
 
    // Create an AmgX resource object, only the first instance needs to create
    // the resource object.
-   if (count == 1) { AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID); }
+   if (count == 1) { AMGX_SAFE_CALL(AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID)); }
 
    // Create AmgX vector object for unknowns and RHS
-   AMGX_vector_create(&AmgXP, rsrc, precision_mode);
-   AMGX_vector_create(&AmgXRHS, rsrc, precision_mode);
+   AMGX_SAFE_CALL(AMGX_vector_create(&AmgXP, rsrc, precision_mode));
+   AMGX_SAFE_CALL(AMGX_vector_create(&AmgXRHS, rsrc, precision_mode));
 
    // Create AmgX matrix object for unknowns and RHS
-   AMGX_matrix_create(&AmgXA, rsrc, precision_mode);
+   AMGX_SAFE_CALL(AMGX_matrix_create(&AmgXA, rsrc, precision_mode));
 
    // Create an AmgX solver object
-   AMGX_solver_create(&solver, rsrc, precision_mode, cfg);
+   AMGX_SAFE_CALL(AMGX_solver_create(&solver, rsrc, precision_mode, cfg));
 
    // Obtain the default number of rings based on current configuration
-   AMGX_config_get_default_number_of_rings(cfg, &ring);
+   AMGX_SAFE_CALL(AMGX_config_get_default_number_of_rings(cfg, &ring));
 }
 
 // Groups MPI ranks into teams and assigns the roots to talk to GPUs
@@ -569,23 +575,23 @@ void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
 {
    if (update_mat == false)
    {
-      AMGX_matrix_upload_all(AmgXA, in_A.Height(),
-                             in_A.NumNonZeroElems(),
-                             1, 1,
-                             in_A.ReadI(),
-                             in_A.ReadJ(),
-                             in_A.ReadData(), NULL);
+      AMGX_SAFE_CALL(AMGX_matrix_upload_all(AmgXA, in_A.Height(),
+                                            in_A.NumNonZeroElems(),
+                                            1, 1,
+                                            in_A.ReadI(),
+                                            in_A.ReadJ(),
+                                            in_A.ReadData(), NULL));
 
-      AMGX_solver_setup(solver, AmgXA);
-      AMGX_vector_bind(AmgXP, AmgXA);
-      AMGX_vector_bind(AmgXRHS, AmgXA);
+      AMGX_SAFE_CALL(AMGX_solver_setup(solver, AmgXA));
+      AMGX_SAFE_CALL(AMGX_vector_bind(AmgXP, AmgXA));
+      AMGX_SAFE_CALL(AMGX_vector_bind(AmgXRHS, AmgXA));
    }
    else
    {
-      AMGX_matrix_replace_coefficients(AmgXA,
-                                       in_A.Height(),
-                                       in_A.NumNonZeroElems(),
-                                       in_A.ReadData(), NULL);
+      AMGX_SAFE_CALL(AMGX_matrix_replace_coefficients(AmgXA,
+                                                      in_A.Height(),
+                                                      in_A.NumNonZeroElems(),
+                                                      in_A.ReadData(), NULL));
    }
 }
 
@@ -604,7 +610,7 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
 
    Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
-   const Array<int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
+   const Array<HYPRE_Int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
 
    // Column index must be int64_t so we must promote here
    Array<int64_t> loc_J((int)A_csr->num_nonzeros);
@@ -659,27 +665,29 @@ void AmgXSolver::SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
    if (update_mat == false)
    {
       AMGX_distribution_handle dist;
-      AMGX_distribution_create(&dist, cfg);
-      AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
-                                           rowPart.GetData());
+      AMGX_SAFE_CALL(AMGX_distribution_create(&dist, cfg));
+      AMGX_SAFE_CALL(AMGX_distribution_set_partition_data(dist,
+                                                          AMGX_DIST_PARTITION_OFFSETS,
+                                                          rowPart.GetData()));
 
-      AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                     num_nnz, 1, 1, loc_I.Read(),
-                                     loc_J.Read(), loc_A.Read(),
-                                     NULL, dist);
+      AMGX_SAFE_CALL(AMGX_matrix_upload_distributed(AmgXA, nGlobalRows,
+                                                    local_rows, num_nnz, 1, 1,
+                                                    loc_I.Read(), loc_J.Read(),
+                                                    loc_A.Read(), NULL, dist));
 
-      AMGX_distribution_destroy(dist);
+      AMGX_SAFE_CALL(AMGX_distribution_destroy(dist));
 
       MPI_Barrier(gpuWorld);
 
-      AMGX_solver_setup(solver, AmgXA);
+      AMGX_SAFE_CALL(AMGX_solver_setup(solver, AmgXA));
 
-      AMGX_vector_bind(AmgXP, AmgXA);
-      AMGX_vector_bind(AmgXRHS, AmgXA);
+      AMGX_SAFE_CALL(AMGX_vector_bind(AmgXP, AmgXA));
+      AMGX_SAFE_CALL(AMGX_vector_bind(AmgXRHS, AmgXA));
    }
    else
    {
-      AMGX_matrix_replace_coefficients(AmgXA,nGlobalRows,num_nnz,loc_A, NULL);
+      AMGX_SAFE_CALL(AMGX_matrix_replace_coefficients(AmgXA, nGlobalRows,
+                                                      num_nnz, loc_A, NULL));
    }
 }
 
@@ -812,29 +820,31 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
       if (update_mat == false)
       {
          AMGX_distribution_handle dist;
-         AMGX_distribution_create(&dist, cfg);
-         AMGX_distribution_set_partition_data(dist, AMGX_DIST_PARTITION_OFFSETS,
-                                              rowPart.GetData());
+         AMGX_SAFE_CALL(AMGX_distribution_create(&dist, cfg));
+         AMGX_SAFE_CALL(AMGX_distribution_set_partition_data(dist,
+                                                             AMGX_DIST_PARTITION_OFFSETS,
+                                                             rowPart.GetData()));
 
-         AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, local_rows,
-                                        local_nnz,
-                                        1, 1, all_I.ReadWrite(),
-                                        all_J.Read(),
-                                        all_A.Read(),
-                                        nullptr, dist);
+         AMGX_SAFE_CALL(AMGX_matrix_upload_distributed(AmgXA, nGlobalRows,
+                                                       local_rows, local_nnz,
+                                                       1, 1, all_I.ReadWrite(),
+                                                       all_J.Read(),
+                                                       all_A.Read(),
+                                                       nullptr, dist));
 
-         AMGX_distribution_destroy(dist);
+         AMGX_SAFE_CALL(AMGX_distribution_destroy(dist));
          MPI_Barrier(gpuWorld);
 
-         AMGX_solver_setup(solver, AmgXA);
+         AMGX_SAFE_CALL(AMGX_solver_setup(solver, AmgXA));
 
          // Bind vectors to A
-         AMGX_vector_bind(AmgXP, AmgXA);
-         AMGX_vector_bind(AmgXRHS, AmgXA);
+         AMGX_SAFE_CALL(AMGX_vector_bind(AmgXP, AmgXA));
+         AMGX_SAFE_CALL(AMGX_vector_bind(AmgXRHS, AmgXA));
       }
       else
       {
-         AMGX_matrix_replace_coefficients(AmgXA,nGlobalRows,local_nnz,all_A,NULL);
+         AMGX_SAFE_CALL(AMGX_matrix_replace_coefficients(AmgXA, nGlobalRows,
+                                                         local_nnz, all_A, NULL));
       }
    }
 }
@@ -888,13 +898,13 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
    // Set initial guess to zero
    X.UseDevice(true);
-   X = 0.0;
+   if (!iterative_mode) { X = 0.0; }
 
    // Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
    {
-      AMGX_vector_upload(AmgXP, X.Size(), 1, X.ReadWrite());
-      AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.Read());
+      AMGX_SAFE_CALL(AMGX_vector_upload(AmgXP, X.Size(), 1, X.ReadWrite()));
+      AMGX_SAFE_CALL(AMGX_vector_upload(AmgXRHS, B.Size(), 1, B.Read()));
 
       if (mpi_gpu_mode != "serial")
       {
@@ -903,23 +913,23 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 #endif
       }
 
-      AMGX_solver_solve(solver,AmgXRHS, AmgXP);
+      AMGX_SAFE_CALL(AMGX_solver_solve(solver,AmgXRHS, AmgXP));
 
       AMGX_SOLVE_STATUS   status;
-      AMGX_solver_get_status(solver, &status);
+      AMGX_SAFE_CALL(AMGX_solver_get_status(solver, &status));
       if (status != AMGX_SOLVE_SUCCESS && ConvergenceCheck)
       {
          if (status == AMGX_SOLVE_DIVERGED)
          {
-            mfem_error("AmgX solver failed to solve system \n");
+            mfem_error("AmgX solver diverged \n");
          }
          else
          {
-            mfem_error("AmgX solver diverged \n");
+            mfem_error("AmgX solver failed to solve system \n");
          }
       }
 
-      AMGX_vector_download(AmgXP, X.Write());
+      AMGX_SAFE_CALL(AMGX_vector_download(AmgXP, X.Write()));
       return;
    }
 
@@ -937,28 +947,28 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
    if (gpuWorld != MPI_COMM_NULL)
    {
-      AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.ReadWrite());
-      AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.ReadWrite());
+      AMGX_SAFE_CALL(AMGX_vector_upload(AmgXP, all_X.Size(), 1, all_X.ReadWrite()));
+      AMGX_SAFE_CALL(AMGX_vector_upload(AmgXRHS, all_B.Size(), 1, all_B.ReadWrite()));
 
       MPI_Barrier(gpuWorld);
 
-      AMGX_solver_solve(solver,AmgXRHS, AmgXP);
+      AMGX_SAFE_CALL(AMGX_solver_solve(solver,AmgXRHS, AmgXP));
 
       AMGX_SOLVE_STATUS   status;
-      AMGX_solver_get_status(solver, &status);
+      AMGX_SAFE_CALL(AMGX_solver_get_status(solver, &status));
       if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
       {
          if (status == AMGX_SOLVE_DIVERGED)
          {
-            mfem_error("AmgX solver failed to solve system \n");
+            mfem_error("AmgX solver diverged \n");
          }
          else
          {
-            mfem_error("AmgX solver diverged \n");
+            mfem_error("AmgX solver failed to solve system \n");
          }
       }
 
-      AMGX_vector_download(AmgXP, all_X.Write());
+      AMGX_SAFE_CALL(AMGX_vector_download(AmgXP, all_X.Write()));
    }
 
    ScatterArray(all_X, X, devWorldSize, devWorld, Apart_X, Adisp_X);
@@ -968,7 +978,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 int AmgXSolver::GetNumIterations()
 {
    int getIters;
-   AMGX_solver_get_iterations_number(solver, &getIters);
+   AMGX_SAFE_CALL(AMGX_solver_get_iterations_number(solver, &getIters));
    return getIters;
 }
 
@@ -988,19 +998,19 @@ void AmgXSolver::Finalize()
 #endif
    {
       // Destroy solver instance
-      AMGX_solver_destroy(solver);
+      AMGX_SAFE_CALL(AMGX_solver_destroy(solver));
 
       // Destroy matrix instance
-      AMGX_matrix_destroy(AmgXA);
+      AMGX_SAFE_CALL(AMGX_matrix_destroy(AmgXA));
 
       // Destroy RHS and unknown vectors
-      AMGX_vector_destroy(AmgXP);
-      AMGX_vector_destroy(AmgXRHS);
+      AMGX_SAFE_CALL(AMGX_vector_destroy(AmgXP));
+      AMGX_SAFE_CALL(AMGX_vector_destroy(AmgXRHS));
 
       // Only the last instance need to destroy resource and finalizing AmgX
       if (count == 1)
       {
-         AMGX_resources_destroy(rsrc);
+         AMGX_SAFE_CALL(AMGX_resources_destroy(rsrc));
          AMGX_SAFE_CALL(AMGX_config_destroy(cfg));
 
          AMGX_SAFE_CALL(AMGX_finalize_plugins());
@@ -1008,7 +1018,7 @@ void AmgXSolver::Finalize()
       }
       else
       {
-         AMGX_config_destroy(cfg);
+         AMGX_SAFE_CALL(AMGX_config_destroy(cfg));
       }
 #ifdef MFEM_USE_MPI
       // destroy gpuWorld

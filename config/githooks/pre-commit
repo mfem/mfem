@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# Apply automated code formatting
+make -C $(git rev-parse --show-toplevel) style

@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CUDA
+#include <cusparse.h>
+#include <library_types.h>
 #include <cuda_runtime.h>
 #include <cuda.h>
 #endif
@@ -50,6 +52,7 @@
       (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
+#define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)

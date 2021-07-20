@@ -4321,7 +4321,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
    if (!transforms.embeddings.Size())
    {
       transforms.Clear();
-      transforms.embeddings.SetSize(leaf_elements.Size());
+      transforms.embeddings.SetSize(NElements);
 
       std::string ref_path;
       ref_path.reserve(100);
@@ -4455,7 +4455,8 @@ struct RefType
 void CoarseFineTransformations::GetCoarseToFineMap(
    const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
    Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
-   Array<mfem::Geometry::Type> &ref_type_to_geom) const
+   Array<mfem::Geometry::Type> &ref_type_to_geom,
+   bool get_coarse_to_fine_only) const
 {
    const int fine_ne = embeddings.Size();
    int coarse_ne = -1;
@@ -4494,6 +4495,11 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    {
       coarse_to_fine.GetJ()[i] = cf_j[i].two;
    }
+
+   if (get_coarse_to_fine_only) { return; }
+   MFEM_VERIFY(fine_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
+               "GetCoarseToFineMap is not fully supported for derefined meshes."
+               " Set 'get_coarse_to_fine_only=true'.")
 
    using internal::RefType;
    using std::map;
@@ -4536,6 +4542,18 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    ref_type_to_matrix.ShiftUpI();
 }
 
+void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &fine_mesh,
+                                                   Table &coarse_to_fine) const
+{
+   Array<int> coarse_to_ref_type;
+   Table ref_type_to_matrix;
+   Array<mfem::Geometry::Type> ref_type_to_geom;
+   bool get_coarse_to_fine_only = true;
+   GetCoarseToFineMap(fine_mesh, coarse_to_fine, coarse_to_ref_type,
+                      ref_type_to_matrix, ref_type_to_geom,
+                      get_coarse_to_fine_only);
+}
+
 void NCMesh::ClearTransforms()
 {
    coarse_elements.DeleteAll();
@@ -4559,6 +4577,15 @@ bool CoarseFineTransformations::IsInitialized() const
       if (point_matrices[i].SizeK()) { return true; }
    }
    return false;
+}
+
+void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b)
+{
+   for (int g=0; g<Geometry::NumGeom; ++g)
+   {
+      a.point_matrices[g].Swap(b.point_matrices[g]);
+   }
+   Swap(a.embeddings, b.embeddings);
 }
 
 
@@ -5575,12 +5602,13 @@ int NCMesh::CountTopLevelNodes() const
    return ntop;
 }
 
-NCMesh::NCMesh(std::istream &input, int version, int &curved)
+NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
 {
+   is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
    {
-      LoadLegacyFormat(input, curved);
+      LoadLegacyFormat(input, curved, is_nc);
       Legacy = true;
       return;
    }
@@ -5718,6 +5746,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
                   "Invalid mesh file: not all top-level nodes are covered by "
                   "the 'coordinates' section of the mesh file.");
+      curved = 0;
    }
    else if (ident == "nodes")
    {
@@ -5836,7 +5865,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    InitRootState(root_count);
 }
 
-void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
+void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
 {
    MFEM_ASSERT(elements.Size() == 0, "");
    MFEM_ASSERT(nodes.Size() == 0, "");
@@ -5892,9 +5921,16 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    if (ident == "vertex_parents")
    {
       LoadVertexParents(input);
+      is_nc = 1;
 
       skip_comment_lines(input, '#');
       input >> ident;
+   }
+   else
+   {
+      // no "vertex_parents" section: this file needs to be treated as a
+      // conforming mesh for complete backward compatibility with MFEM 4.2
+      is_nc = 0;
    }
 
    // load element hierarchy
@@ -5914,16 +5950,17 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // load vertices
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-   input >> count;
+   int nvert;
+   input >> nvert;
    input >> std::ws >> ident;
    if (ident != "nodes")
    {
       spaceDim = atoi(ident.c_str());
 
-      coordinates.SetSize(3*count);
+      coordinates.SetSize(3*nvert);
       coordinates = 0.0;
 
-      for (int i = 0; i < count; i++)
+      for (int i = 0; i < nvert; i++)
       {
          for (int j = 0; j < spaceDim; j++)
          {
@@ -5977,6 +6014,13 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // force file leaf order
    Swap(leaf_elements, file_leaf_elements);
+
+   // make sure Mesh::NVertices is equal to "nvert" from the file (in case of
+   // unused vertices), see also GetMeshComponents
+   if (nvert > vertex_nodeId.Size())
+   {
+      vertex_nodeId.SetSize(nvert, -1);
+   }
 }
 
 void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const

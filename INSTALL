@@ -58,6 +58,7 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
+- Conda-forge, https://conda-forge.org (pre-built binaries linked with OpenMPI/MPICH, hypre, and METIS)
 - Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
@@ -507,6 +508,14 @@ MFEM_USE_MKL_CPARDISO = YES/NO
    MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
    OpenMP capabilities are disabled at link time.
 
+MFEM_USE_CALIPER = YES/NO
+   Enables the interface to Caliper. Caliper is a library to integrate
+   performance profiling capabilities into applications. To use Caliper,
+   developers mark code regions of interest using either Caliper's annotation
+   API or their equivalent in MFEM. Applications can then enable performance
+   profiling at runtime with Caliper's configuration API. Alternatively, one
+   can configure Caliper through environment variables or config files.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -528,9 +537,11 @@ directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
 The specific libraries and their options are:
 
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
+  See also the "Specific options for hypre" section at the end of this file.
   URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
-  Versions: HYPRE >= 2.10.0b.
+  Versions: HYPRE >= 2.10.0b,
+            HYPRE >= 2.20.0 for '--enable-mixedint' support.
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
@@ -600,10 +611,11 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
-  C++ compiler that supports the C++-11 standard. For additional requirements
-  and dependencies of specific modules see the Ginkgo webpage below.
+  C++ compiler that supports the C++-14 standard. For additional requirements
+  and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
-  Options: GINKGO_OPT (Not used), GINKGO_LIB.
+  Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or Debug).
+  Versions: Ginkgo >= 1.4.0. 
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
@@ -635,7 +647,8 @@ The specific libraries and their options are:
                 --with-shared-libraries=0
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
-  Versions: PETSc >= 3.8.0.
+  Versions: PETSc >= 3.8.0   (PETSc build without CUDA)
+            PETSc >= 3.15.0  (PETSc built with CUDA)
 
 - SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
   uses some of the PETSc options when compiled.
@@ -671,17 +684,17 @@ The specific libraries and their options are:
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
-  Versions: HIOP >= 0.1.
+  Versions: HIOP >= 0.4.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
+  built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+  URL: https://github.com/gslib/gslib/archive/v1.0.7.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
-  Versions: GSLIB >= 1.0.5.
+  Versions: GSLIB >= 1.0.7.
 
 - MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
   URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
@@ -706,13 +719,18 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.7.
+  Versions: libCEED >= 0.8.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.3, only RAJA v0.13.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
   Versions: RAJA >= 0.13.0.
+
+- Caliper (optional), used when MFEM_USE_CALIPER = YES.
+  URL: https://github.com/LLNL/Caliper
+  Options: CALIPER_DIR
+  Versions: CALIPER >= 2.5.0, older versions may work too.
 
 - Umpire, used when MFEM_USE_UMPIRE = YES.
   Umpire requires camp when the Umpire version is >= 3.0.0.
@@ -865,6 +883,7 @@ MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
+MFEM_USE_CALIPER
 
 The following options are CMake specific:
 
@@ -918,6 +937,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - RAJA
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
+ - CALIPER
 
 The following built-in CMake packages are also used:
 
@@ -953,3 +973,19 @@ MFEM_MPIEXEC    = mpirun # default
 MFEM_MPIEXEC_NP = -np    # default
 MFEM_MPIEXEC    = srun   # example for platforms using SLURM
 MFEM_MPIEXEC_NP = -n     # example for platforms using SLURM
+
+
+Specific options for hypre
+==========================
+The hypre library has multiple options to define local and global index storage
+sizes. By default, all indices are stored as an architecture aware integer. For
+most platforms, this will be 32-bit. This limits the maximum number of global
+degrees of freedom in a vector or matrix to about 2 billion. In order to solve
+larger problems, there are two options:
+
+1. Building hypre with '--enable-bigint' defines the local and global indices to
+   be 64-bit. This is convenient, but requires more memory than necessary.
+
+2. Building hypre with '--enable-mixedint' defines the local indiced to be
+   32-bit, while using a 64-bit storage for global indices. This option is
+   currently tested only in ex1p, and may not work in more general settings.

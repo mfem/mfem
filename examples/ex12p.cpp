@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order, dim);
       fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
    }
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl
