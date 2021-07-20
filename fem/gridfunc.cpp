@@ -1933,9 +1933,6 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
    {
       doftrans->InvTransformPrimal(vals);
    }
-   else
-   {
-   }
 
    double max_val = vals.Max();
    double min_val = vals.Min();
