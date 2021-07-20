@@ -57,7 +57,7 @@ jobs:
 
     - name: Get Hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@compact-names
+      uses: mfem/github-actions/build-hypre@v2.0
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -72,14 +72,14 @@ jobs:
 
     - name: Install Metis
       if: steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@compact-names
+      uses: mfem/github-actions/build-metis@v2.0
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build-mfem
-      uses: mfem/github-actions/build-mfem@compact-names
+      uses: mfem/github-actions/build-mfem@v2.0
       with:
         os: ${{ runner.os }}
         target: optim
