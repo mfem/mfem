@@ -1204,17 +1204,28 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       });
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      ess_tdof_list.HostRead();
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
+#ifndef HYPRE_USING_CUDA
+         ess_tdof_list.HostRead();
          for (int k = 0; k < n; k++)
          {
             const int j = ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
+#else
+         // FIXME: need Ah->HypreReadWrite() since Ah will be modified.
+         const int *d_ess_tdof_list =
+            ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
+         CuWrap1D(n, [=] MFEM_DEVICE (int k)
+         {
+            const int j = d_ess_tdof_list[k];
+            Aih->diag->data[Aih->diag->i[j]] = 0.0;
+         });
+#endif
       }
       else
       {

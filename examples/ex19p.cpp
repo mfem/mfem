@@ -473,7 +473,10 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
       if (!spaces[0]->GetParMesh()->Nonconforming())
       {
+#ifndef HYPRE_USING_CUDA
+         // Not available yet when hypre is built with CUDA
          stiff_prec_amg->SetElasticityOptions(spaces[0]);
+#endif
       }
 
       stiff_prec = stiff_prec_amg;

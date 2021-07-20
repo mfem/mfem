@@ -599,6 +599,8 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
    else
    {
       const FiniteElement *edge_el = Nodes->FESpace()->GetEdgeElement(EdgeNo);
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       if (edge_el)
       {
          Array<int> vdofs;
@@ -609,7 +611,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
          {
             for (int j = 0; j < n; j++)
             {
-               pm(i, j) = (*Nodes)(vdofs[n*i+j]);
+               pm(i, j) = nodes(vdofs[n*i+j]);
             }
          }
          EdTr->SetFE(edge_el);

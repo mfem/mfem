@@ -209,27 +209,28 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
-   MFEM_HOST_CXX = $(CXX)
+   HOST_CXX = $(CXX)
    PKGS_NEED_MPI = SUPERLU MUMPS STRUMPACK PETSC PUMI SLEPC MKL_CPARDISO
    $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
-   MFEM_HOST_CXX = $(MPICXX)
+   HOST_CXX = $(MPICXX)
    INCFLAGS += $(HYPRE_OPT)
    ALL_LIBS += $(HYPRE_LIB)
 endif
 
 # Default configuration
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
-   MFEM_CXX ?= $(MFEM_HOST_CXX)
-   MFEM_HOST_CXX := $(MFEM_CXX)
+   MFEM_CXX ?= $(HOST_CXX)
+   MFEM_HOST_CXX ?= $(MFEM_CXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
+   MFEM_HOST_CXX ?= $(HOST_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(MFEM_HOST_CXX)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
@@ -247,7 +248,7 @@ ifeq ($(MFEM_USE_HIP),YES)
       ALL_LIBS += $(MPI_LIB)
    endif
    MFEM_CXX ?= $(HIP_CXX)
-   MFEM_HOST_CXX := $(MFEM_CXX)
+   MFEM_HOST_CXX ?= $(MFEM_CXX)
    CXXFLAGS += $(HIP_FLAGS)
    XLINKER   = $(HIP_XLINKER)
    XCOMPILER = $(HIP_XCOMPILER)
@@ -518,6 +519,17 @@ test test-noclean:
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
+
+.PHONY: test-miniapps
+test-miniapps:
+	@echo "Building all miniapps ..."
+	@$(MAKE) $(MAKEOVERRIDES_SAVE) miniapps
+	@ERR=0; for dir in $(MINIAPP_TEST_DIRS); do \
+	   echo "Running tests in $${dir} ..."; \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   ERR=1; fi; done; \
+	   if [ 0 -ne $${ERR} ]; then echo "Some miniapp tests failed."; \
+	   exit 1; else echo "All miniapp tests passed."; fi
 
 unittest: lib
 	$(MAKE) -C $(BLD)tests/unit test

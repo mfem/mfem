@@ -90,6 +90,9 @@ inline bool IsDeviceMemory(MemoryType mt)
 /// Return a suitable MemoryType for a given MemoryClass.
 MemoryType GetMemoryType(MemoryClass mc);
 
+/// Return true iff the MemoryType @a mt is contained in the MemoryClass @a mc.
+bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
+
 /// Return a suitable MemoryClass from a pair of MemoryClass%es.
 /** Note: this operation is commutative, i.e. a*b = b*a, associative, i.e.
     (a*b)*c = a*(b*c), and has an identity element: MemoryClass::HOST.
@@ -463,6 +466,13 @@ public:
        returned. */
    inline MemoryType GetMemoryType() const;
 
+   /// Return the host MemoryType of the Memory object.
+   inline MemoryType GetHostMemoryType() const { return h_mt; }
+
+   /** @brief Return the device MemoryType of the Memory object. If the device
+       MemoryType is not set, return MemoryType::DEFAULT. */
+   inline MemoryType GetDeviceMemoryType() const;
+
    /** @brief Return true if host pointer is valid */
    inline bool HostIsValid() const;
 
@@ -635,13 +645,13 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
-   static MemoryType GetDeviceMemoryType_(void *h_ptr);
+   static MemoryType GetDeviceMemoryType_(void *h_ptr, bool alias);
 
    /// Return the type the of the host memory.
    static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
-   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
+   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr, bool alias);
 
    /// Copy entries from valid memory type to valid memory type.
    ///  Both dest_h_ptr and src_h_ptr are registered host pointers.
@@ -851,7 +861,6 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
    h_ptr = ptr;
    capacity = size;
-   const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
 #ifdef MFEM_DEBUG
@@ -859,7 +868,10 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
 #endif
    if (own && h_mt != MemoryType::HOST)
-   { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
+   {
+      const size_t bytes = size*sizeof(T);
+      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
+   }
 }
 
 template <typename T>
@@ -880,7 +892,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    else
    {
       h_mt = MemoryManager::GetDualMemoryType(mt);
-      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
+      h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
    }
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
@@ -1069,7 +1081,14 @@ template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & VALID_DEVICE)) { return h_mt; }
-   return MemoryManager::GetDeviceMemoryType_(h_ptr);
+   return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
+}
+
+template <typename T>
+inline MemoryType Memory<T>::GetDeviceMemoryType() const
+{
+   if (!(flags & REGISTERED)) { return MemoryType::DEFAULT; }
+   return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 
 template <typename T>

@@ -584,10 +584,10 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            global_num_cols_i);
 
    int row_starts_size = (HYPRE_AssumedPartitionCheck()) ? 2 : nranks_ + 1;
-   HYPRE_BigInt * row_starts = mfem_hypre_CTAlloc(HYPRE_BigInt,
-                                                  row_starts_size);
-   HYPRE_BigInt * col_starts = mfem_hypre_CTAlloc(HYPRE_BigInt,
-                                                  row_starts_size);
+   HYPRE_BigInt * row_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
+                                                       row_starts_size);
+   HYPRE_BigInt * col_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
+                                                       row_starts_size);
 
    const HYPRE_BigInt * row_starts_z = (A_r) ? A_r->RowPart() :
                                        ((A_i) ? A_i->RowPart() : NULL);
@@ -665,14 +665,15 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
 
    // Allocate CSR arrays for the combined matrix
-   HYPRE_Int * diag_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * diag_J = mfem_hypre_CTAlloc(HYPRE_Int, diag_nnz);
-   double    * diag_D = mfem_hypre_CTAlloc(double, diag_nnz);
+   HYPRE_Int * diag_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * diag_J = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nnz);
+   double    * diag_D = mfem_hypre_CTAlloc_host(double, diag_nnz);
 
-   HYPRE_Int * offd_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * offd_J = mfem_hypre_CTAlloc(HYPRE_Int, offd_nnz);
-   double    * offd_D = mfem_hypre_CTAlloc(double, offd_nnz);
-   HYPRE_BigInt * cmap   = mfem_hypre_CTAlloc(HYPRE_BigInt, 2 * num_cols_offd);
+   HYPRE_Int * offd_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * offd_J = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_nnz);
+   double    * offd_D = mfem_hypre_CTAlloc_host(double, offd_nnz);
+   HYPRE_BigInt * cmap = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
+                                                 2 * num_cols_offd);
 
    // Fill the CSR arrays for the diagonal portion of the matrix
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
@@ -797,14 +798,13 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            row_starts, col_starts,
                                            diag_I, diag_J, diag_D,
                                            offd_I, offd_J, offd_D,
-                                           2 * num_cols_offd, cmap);
+                                           2 * num_cols_offd, cmap,
+                                           true);
 
-   // Give the new matrix ownership of its internal arrays
-   A->SetOwnerFlags(-1,-1,-1);
-   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
-   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
-   hypre_ParCSRMatrixSetRowStartsOwner((hypre_ParCSRMatrix*)(*A),1);
-   hypre_ParCSRMatrixSetColStartsOwner((hypre_ParCSRMatrix*)(*A),1);
+   // Give the new matrix ownership of row_starts and col_starts
+   hypre_ParCSRMatrix *hA = (hypre_ParCSRMatrix*)(*A);
+   hypre_ParCSRMatrixSetRowStartsOwner(hA,1);
+   hypre_ParCSRMatrixSetColStartsOwner(hA,1);
 
    return A;
 }

@@ -63,6 +63,10 @@ Version 4.2.1 (development)
 - Added a new miniapp for computing (signed) distance functions to a point
   source or zero level set. See miniapps/shifted/distance.cpp.
 
+- Added support for some examples (ex1p, ex2p, ex7p) to use hypre built with
+  CUDA and unified memory, when MFEM is built with `make pcuda` and run with
+  `-d cuda:uvm` as a command-line option.
+
 - Added matrix-free GPU-enabled implementations of GradientInterpolator and
   IdentityInterpolator.
 
