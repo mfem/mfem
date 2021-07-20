@@ -7641,6 +7641,8 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
    // Map from edge-index to vertex-index, needed for ReorientTetMesh() for
    // parallel meshes.
+   // Note: with the removal of ReorientTetMesh() this may no longer
+   // be needed.  Unfortunately, it's hard to be sure.
    Array<int> e2v;
    if (HasGeometry(Geometry::TETRAHEDRON))
    {
