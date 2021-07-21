@@ -217,7 +217,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto J = Reshape(j.Read(), NQ, SDIM, DIM, ne);
       auto D = Reshape(d.Write(), NQ, SDIM, ne);
 
-      auto C = Reshape(coeff.HostWrite(), NQ, ne);
+      const bool const_c = coeff.Size() == 1;
+      const auto C = const_c ? Reshape(coeff.Read(), 1,1) :
+                     Reshape(coeff.Read(), NQ,ne);
 
       MFEM_FORALL(e, ne,
       {
@@ -234,7 +236,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double G = J12*J12 + J22*J22 + J32*J32;
             const double F = J11*J12 + J21*J22 + J31*J32;
             const double iw = 1.0 / sqrt(E*G - F*F);
-            const double alpha = wq * C(q, e) * iw;
+            const double C1 = const_c ? C(0,0) : C(q,e);
+            const double alpha = wq * C1 * iw;
             D(q,0,e) =  alpha * G; // 1,1
             D(q,1,e) = -alpha * F; // 1,2
             D(q,2,e) =  alpha * E; // 2,2
@@ -377,9 +380,9 @@ void PAVectorDiffusionApply3D(const int NE,
                               const Array<double> &g,
                               const Array<double> &bt,
                               const Array<double> &gt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               int d1d = 0, int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -391,9 +394,9 @@ void PAVectorDiffusionApply3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;

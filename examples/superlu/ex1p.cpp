@@ -283,6 +283,9 @@ int main(int argc, char *argv[])
    superlu->SetPrintStatistics(true);
    superlu->Mult(B, X);
 
+   delete SLU_A;
+   delete superlu;
+
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
