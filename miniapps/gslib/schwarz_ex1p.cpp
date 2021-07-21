@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
       {
          bnd(i+d*number_boundary) = vxyz(idx + d*number_true);
       }
-      n      colorv[i] = (unsigned int)color;
+      colorv[i] = (unsigned int)color;
    }
    Vector interp_vals1(number_boundary);
    finder.Interpolate(bnd, colorv, x, interp_vals1);
