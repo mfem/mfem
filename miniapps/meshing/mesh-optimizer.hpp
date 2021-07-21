@@ -225,10 +225,10 @@ class HRHessianCoefficient : public TMOPMatrixCoefficient
 {
 private:
    int dim;
-   int hr_target_type; // Targets for hr-adaptivity/
-   // 1 - size target in an annular region,
-   // 2 - size+aspect-ratio in an annular region,
-   // 3 - size+aspect-ratio target for a rotate sine wave.
+   // 0 - size target in an annular region,
+   // 1 - size+aspect-ratio in an annular region,
+   // 2 - size+aspect-ratio target for a rotate sine wave.
+   int hr_target_type;
 
 public:
    HRHessianCoefficient(int dim_, int hr_target_type_ = 0)
@@ -240,7 +240,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (hr_target_type==1) //size only circle
+      if (hr_target_type == 0) //size only circle
       {
          double small = 0.001, big = 0.01;
          if (dim == 3) { small = 0.005, big = 0.1; }
@@ -267,7 +267,7 @@ public:
          K(1, 1) *= pow(val,0.5);
          if (dim == 3) { K(2, 2) = pow(val,0.5); }
       }
-      else if (hr_target_type==2) //circle with size and AR
+      else if (hr_target_type == 1) //circle with size and AR
       {
          const double small = 0.001, big = 0.01;
          const double xc = pos(0)-0.5, yc = pos(1)-0.5;
@@ -312,7 +312,7 @@ public:
          K(0,0) *= pow(szval,0.5);
          K(1,1) *= pow(szval,0.5);
       }
-      else if (hr_target_type == 3) //sharp rotated sine wave
+      else if (hr_target_type == 2) //sharp rotated sine wave
       {
          double xc = pos(0)-0.5, yc = pos(1)-0.5;
          double th = 15.5*M_PI/180.;
@@ -339,6 +339,7 @@ public:
          K(0,1) = 0.0;
          K(1,0) = 0.0;
       }
+      else { MFEM_ABORT("Unsupported option / wrong input."); }
    }
 
    virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,

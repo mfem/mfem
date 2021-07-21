@@ -40,9 +40,9 @@
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
 //   Adapted analytc shape and/or size with hr-adaptivity:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 9 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 1 -hr
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 9 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hrt 2 -hr
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 9 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 2 -mid 2 -hrt 3 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 9  -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 10 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 11 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 58 -mid 7 -hr
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
@@ -133,7 +133,6 @@ int main(int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int hr_target_type    = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
@@ -237,12 +236,6 @@ int main(int argc, char *argv[])
    args.AddOption(&h_metric_id, "-hmid", "--h-metric",
                   "Same options as metric_id. Used to determine refinement"
                   " type for each element if h-adaptivity is enabled.");
-   args.AddOption(&hr_target_type, "-hrt", "--hr-target-type",
-                  "Different analytic targets (target_id = 9) for hr-adaptivity"
-                  "0 - (default) original targets used for r-adaptivity\n\t"
-                  "1 - size target in an annular region\n\t"
-                  "2 - size+aspect-ratio in an annular region\n\t"
-                  "3 - size+aspect-ratio target for a rotate sine wave\n\t");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -667,11 +660,14 @@ int main(int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 9: // Analytic hr-adaptivity
+      // Targets used for hr-adaptivity tests.
+      case 9:  // size target in an annular region.
+      case 10: // size+aspect-ratio in an annular region.
+      case 11: // size+aspect-ratio target for a rotate sine wave
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         hr_adapt_coeff = new HRHessianCoefficient(dim, hr_target_type);
+         hr_adapt_coeff = new HRHessianCoefficient(dim, target_id - 9);
          tc->SetAnalyticTargetSpec(NULL, NULL, hr_adapt_coeff);
          target_c = tc;
          break;
