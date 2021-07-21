@@ -16,10 +16,25 @@
     - shell
     - quartz
   rules:
-    - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"' #run except if ...
+    # Don’t run quartz jobs if...
+    - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"'
       when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /update_autotest/ && $AUTOTEST != "YES"'
+      when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /q_report/ && $AUTOTEST != "YES"'
+      when: never
+    # Report success on success status
+    - if: '$CI_JOB_NAME =~ /q_report_success/ && $AUTOTEST == "YES"'
+      when: on_success
+    # Report failure on failure status
+    - if: '$CI_JOB_NAME =~ /q_report_failure/ && $AUTOTEST == "YES"'
+      when: on_failure
+    # Always release resources
     - if: '$CI_JOB_NAME =~ /release_resources/'
       when: always
+    # Default is to run if previous stage succeeded
     - when: on_success
 
 # Allocate
@@ -42,11 +57,44 @@ q_release_resources:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
 
+# Release
+q_report_success:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Can only run if all the quartz jobs passed"
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - mkdir -p ${rundir}
+    - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
+q_report_failure:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Runs if there was at least one failure on quartz"
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - mkdir -p ${rundir}
+    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
 # Spack helped builds
 # Generic quartz build job, extending build script
 .build_and_test_on_quartz:
   extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
   stage: q_build_and_test
+  needs: [setup]
 
 # Build MFEM
 debug_ser_gcc_4_9_3:
@@ -92,7 +140,26 @@ opt_par_gcc_6_1_0_pumi:
 # Baseline
 baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
-  needs: [setup]
+  needs: [setup_baseline]
+
+update_autotest:
+  extends: [.on_quartz]
+  needs: [baselinecheck_mfem_intel_quartz]
+  stage: baseline_to_autotest
+  script:
+    - rundir="quartz/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - mkdir -p ${rundir}
+    - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
+    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
+    - |
+      if [[ -f ${rundir}/*.err ]]
+      then
+        cp ${rundir}/*.err ${rundir}/autotest-email.html
+      fi
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
 
 baselinepublish_mfem_quartz:
   extends: [.on_quartz, .rebaseline_mfem]
