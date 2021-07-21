@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
    superlu->SetPrintStatistics(true);
    superlu->Mult(B, X);
    superlu->DismantleGrid();
-   
+
    delete SLU_A;
    delete superlu;
 
