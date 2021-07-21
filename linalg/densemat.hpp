@@ -523,6 +523,22 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 /// VVt += a * v v^t
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
+/// C = A ⊗ B
+void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C);
+
+/// z = (A ⊗ B) r  = vec(B R A^T), where R := vec^-1 (r)
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r,
+              Vector & z);
+
+/// z = (A ⊗ B) R
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
+              DenseMatrix & Z);
+
+/// z = ( A ⊗ B ⊗ C ) r
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
+              const Vector &r, Vector & z);
+
+void KronMult(const Array<DenseMatrix *> & A, const Vector & r, Vector & z);
 
 /** Class that can compute LU factorization of external data and perform various
     operations with the factored data. */
@@ -685,16 +701,33 @@ public:
    virtual ~DenseMatrixInverse();
 };
 
+/// z = (A^-1 ⊗ B^-1) r  = vec(B^-1 R A^-T), where R := vec^-1 (r)
+void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
+              const Vector &r, Vector & z);
+
+/// z = (A^-1 ⊗ B^-1) R
+void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
+              const DenseMatrix &R, DenseMatrix & Z);
+
+/// z = ( A^-1 ⊗ B^-1 ⊗ C^-1 ) r
+void KronMult(const DenseMatrixInverse &Ainv, const DenseMatrixInverse &Binv,
+              const DenseMatrixInverse &Cinv, const Vector &r, Vector & z);
+
+void KronMult(const Array<DenseMatrixInverse *> & A, const Vector & r,
+              Vector & z);
 
 class DenseMatrixEigensystem
 {
    DenseMatrix &mat;
    Vector      EVal;
+   // Possible non zero imaginary part of Eigenvalues
+   Vector      EVali;
    DenseMatrix EVect;
    Vector ev;
    int n;
 
 #ifdef MFEM_USE_LAPACK
+   bool sym;
    double *work;
    char jobz, uplo;
    int lwork, info;
@@ -702,10 +735,10 @@ class DenseMatrixEigensystem
 
 public:
 
-   DenseMatrixEigensystem(DenseMatrix &m);
+   DenseMatrixEigensystem(DenseMatrix &m, bool sym_ = false);
    DenseMatrixEigensystem(const DenseMatrixEigensystem &other);
    void Eval();
-   Vector &Eigenvalues() { return EVal; }
+   Vector &Eigenvalues(bool imag = false) { return imag ? EVali : EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }
    double Eigenvalue(int i) { return EVal(i); }
    const Vector &Eigenvector(int i)

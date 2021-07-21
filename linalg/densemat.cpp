@@ -50,6 +50,10 @@ dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
         double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
         int *IWORK, int *LIWORK, int *INFO);
 extern "C" void
+dgeev_(const char * jobvl, const char * jobvr, int *n, double * A, int * lda,
+       double * wr, double * wl, double * vl, int * ldvl, double * vr, int * ldvr,
+       double * work, int * lwork, int * info);
+extern "C" void
 dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
        double *WORK, int *LWORK, int *INFO);
 extern "C" void
@@ -2859,6 +2863,101 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
    }
 }
 
+void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C)
+{
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bh = B.Height();
+   const int bw = B.Width();
+
+   C.SetSize(ah*bh,aw*bw);
+   const double * ad = A.Data();
+   const double * bd = B.Data();
+   double * cd = C.Data();
+
+   for (int ja = 0; ja<aw; ++ja)
+      for (int jb = 0; jb<bw; ++jb)
+         for (int ia = 0; ia<ah; ++ia)
+            for (int ib = 0; ib<bh; ++ib)
+               cd[bh*ia + ib + ah*bh*(bw*ja + jb)]
+                  = ad[ia + ja * ah] * bd[ib + jb*bh];
+}
+
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r,
+              Vector & z)
+{
+   const int nA = A.Height();
+   const int mA = A.Width();
+   const int nB = B.Height();
+   const int mB = B.Width();
+   const int nr = r.Size();
+   MFEM_VERIFY(nr == mA*mB, "Wrong size of Vector r");
+   z.SetSize(nA*nB);
+   DenseMatrix R(r.GetData(),mB,mA);
+   DenseMatrix X(nB,mA);
+   DenseMatrix Y(z.GetData(),nB,nA);
+   Mult(B,R,X);
+   MultABt(X,A,Y);
+}
+
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
+              DenseMatrix & Z)
+{
+   const int nA = A.Height();
+   const int nB = B.Height();
+   const int nR = R.Height();
+   const int mR = R.Width();
+   Z.SetSize(nA*nB,mR);
+
+   Vector r,z;
+   double * dataR = R.Data();
+   for (int i = 0; i<mR; i++)
+   {
+      r.SetDataAndSize(&dataR[i*nR],nR);
+      KronMult(A,B,r,z);
+      Z.SetCol(i,z);
+   }
+}
+
+void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
+              const Vector &r, Vector &z)
+{
+   const int nA = A.Height();
+   const int mA = A.Width();
+   const int nB = B.Height();
+   const int mB = B.Width();
+   const int nC = C.Height();
+   const int mC = C.Width();
+   const int nr = r.Size();
+   MFEM_VERIFY(nr == mA*mB*mC, "Wrong size of Vector r");
+   z.SetSize(nA*nB*nC);
+
+   double * dataR = r.GetData();
+   DenseMatrix R(dataR,mC,mA*mB);
+   DenseMatrix X(nC,mA*mB);
+   Mult(C,R,X);
+   X.Transpose();
+   DenseMatrix Z(z.GetData(),mA*mB,nC);
+   KronMult(A,B,X,Z);
+   Z.Transpose();
+}
+
+void KronMult(const Array<DenseMatrix *> & A, const Vector & r, Vector & z)
+{
+   int dim = A.Size();
+   if (dim == 2)
+   {
+      KronMult(*A[0],*A[1],r,z);
+   }
+   else if (dim == 3)
+   {
+      KronMult(*A[0],*A[1],*A[2], r,z);
+   }
+   else
+   {
+      MFEM_ABORT("KronMult::Wrong dimension");
+   }
+}
 
 bool LUFactors::Factor(int m, double TOL)
 {
@@ -3310,23 +3409,105 @@ DenseMatrixInverse::~DenseMatrixInverse()
    delete [] lu.ipiv;
 }
 
+void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
+              const Vector &r, Vector & z)
+{
+   // A and B are square matrices
+   z.SetSize(r.Size());
+   int nA = A.Height();
+   int nB = B.Height();
+   DenseMatrix R(r.GetData(),nB,nA);
+   DenseMatrix X(nB,nA);
+   B.Mult(R,X);
+   X.Transpose();
+   DenseMatrix Y(z.GetData(),nA,nB);
+   A.Mult(X,Y);
+   Y.Transpose();
+}
 
-DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
+void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
+              const DenseMatrix &R, DenseMatrix & Z)
+{
+   // A and B are square matrices
+   int nR = R.Height();
+   int mR = R.Width();
+   Z.SetSize(nR,mR);
+   Vector r(nR);
+   Vector z(nR);
+   double * dataR = R.GetData();
+   double * dataZ = Z.GetData();
+   for (int i = 0; i<mR; i++)
+   {
+      r.SetData(&dataR[i*nR]);
+      z.SetData(&dataZ[i*nR]);
+      KronMult(A,B,r,z);
+   }
+}
+
+void KronMult(const DenseMatrixInverse &A, const DenseMatrixInverse &B,
+              const DenseMatrixInverse &C, const Vector &r, Vector & z)
+{
+   // A, B and C are square matrices
+   int n = r.Size();
+   z.SetSize(n);
+   int nA = A.Height();
+   int nB = B.Height();
+   int nC = C.Height();
+   double * dataR = r.GetData();
+   DenseMatrix R(dataR,nC,nA*nB);
+   DenseMatrix X(nC,nA*nB);
+   C.Mult(R,X);
+   X.Transpose();
+   DenseMatrix Z(z.GetData(),nC,nA*nB);
+   KronMult(A,B,X,Z);
+   Z.Transpose();
+}
+
+void KronMult(const Array<DenseMatrixInverse *> & A, const Vector & r,
+              Vector & z)
+{
+   int dim = A.Size();
+   if (dim == 2)
+   {
+      KronMult(*A[0],*A[1],r,z);
+   }
+   else if (dim == 3)
+   {
+      KronMult(*A[0],*A[1],*A[2], r,z);
+   }
+   else
+   {
+      MFEM_ABORT("KronMult::Wrong dimension");
+   }
+}
+
+DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m, bool sym_)
    : mat(m)
 {
    n = mat.Width();
    EVal.SetSize(n);
+   EVali.SetSize(n);
    EVect.SetSize(n);
    ev.SetDataAndSize(NULL, n);
 
 #ifdef MFEM_USE_LAPACK
+   sym = sym_;
    jobz = 'V';
-   uplo = 'U';
    lwork = -1;
    double qwork;
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-          &qwork, &lwork, &info);
-
+   if (sym)
+   {
+      uplo = 'U';
+      dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+             &qwork, &lwork, &info);
+   }
+   else
+   {
+      char jobvl = 'N';
+      int ldvl = 1;
+      dgeev_(&jobvl,&jobz,&n, mat.GetData(), &n, EVal.GetData(), EVali.GetData(),
+             nullptr, &ldvl, EVect.GetData(), &n, &qwork, &lwork, &info);
+   }
    lwork = (int) qwork;
    work = new double[lwork];
 #endif
@@ -3338,6 +3519,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
      n(other.n)
 {
 #ifdef MFEM_USE_LAPACK
+   sym = other.sym;
    jobz = other.jobz;
    uplo = other.uplo;
    lwork = other.lwork;
@@ -3356,13 +3538,24 @@ void DenseMatrixEigensystem::Eval()
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   EVect = mat;
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-          work, &lwork, &info);
-
+   if (sym)
+   {
+      EVect = mat;
+      dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+             work, &lwork, &info);
+   }
+   else
+   {
+      char jobvl = 'N';
+      int ldvl = 1;
+      DenseMatrix T = mat; // mat is overwritten by dgeev
+      dgeev_(&jobvl,&jobz,&n, T.GetData(), &n, EVal.GetData(), EVali.GetData(),
+             nullptr, &ldvl, EVect.GetData(), &n, work, &lwork, &info);
+   }
    if (info != 0)
    {
-      mfem::err << "DenseMatrixEigensystem::Eval(): DSYEV error code: "
+      string lpck = (sym) ? "DSYEV" : "DGEEV";
+      mfem::err << "DenseMatrixEigensystem::Eval(): " << lpck << "error code: "
                 << info << endl;
       mfem_error();
    }
