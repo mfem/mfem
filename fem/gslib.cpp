@@ -19,6 +19,7 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
+// External GSLIB header (the MFEM header is gslib.hpp)
 namespace gslib
 {
 #include "gslib.h"
