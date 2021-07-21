@@ -3721,7 +3721,6 @@ void NURBSExtension::UniformRefinement()
 {
    for (int p = 0; p < patches.Size(); p++)
    {
-      patches[p]->PrintKnotvectors();
       patches[p]->UniformRefinement();
    }
 }
