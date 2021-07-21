@@ -641,7 +641,7 @@ private: // Static methods used by the Memory<T> class
    static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
-   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
+   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr, bool alias);
 
    /// Copy entries from valid memory type to valid memory type.
    ///  Both dest_h_ptr and src_h_ptr are registered host pointers.
