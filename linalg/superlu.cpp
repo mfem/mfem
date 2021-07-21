@@ -189,6 +189,9 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    dCreate_CompRowLoc_Matrix_dist(A, m, n, nnz_loc, m_loc, fst_row,
                                   nzval, colind, rowptr,
                                   SLU_NR_loc, SLU_D, SLU_GE);
+
+   // Save global number of columns (width) of the matrix
+   num_global_cols = m;
 }
 
 SuperLURowLocMatrix::~SuperLURowLocMatrix()
@@ -262,7 +265,7 @@ SuperLUSolver::~SuperLUSolver()
    if ( LUStructInitialized_ )
    {
       ScalePermstructFree(SPstruct);
-      Destroy_LU(width, grid, LUstruct);
+      Destroy_LU(APtr_->GetGlobalNumColumns(), grid, LUstruct);
       LUstructFree(LUstruct);
    }
 
