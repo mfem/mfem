@@ -191,7 +191,7 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
                                   SLU_NR_loc, SLU_D, SLU_GE);
 
    // Save global number of columns (width) of the matrix
-   num_global_cols = m;
+   num_global_cols = n;
 }
 
 SuperLURowLocMatrix::~SuperLURowLocMatrix()
