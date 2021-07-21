@@ -87,6 +87,12 @@ USE_CEED := $(MFEM_USE_CEED:NO=)
 CEED_OBJ = $(CEED_SOURCE_FILES:$(SRC)%.cpp=%.o)
 SEQ_UNIT_TESTS += $(if $(USE_CEED),ceed_tests)
 
+# Debug device tests
+DEBUG_DEVICE_FILE = $(SRC)miniapps/test_debug_device.cpp
+DEBUG_DEVICE_OBJ = $(DEBUG_DEVICE_FILE:$(SRC)%.cpp=%.o)
+DEBUG_DEVICE_TEST = debug_device_tests
+SEQ_UNIT_TESTS += $(DEBUG_DEVICE_TEST)
+
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
 else
@@ -114,10 +120,16 @@ pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+$(DEBUG_DEVICE_TEST): $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
+ $(CONFIG_MK)
+	$(CCC) $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
+	   $(MFEM_LIBS) -o $(@)
+
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OBJ): %.o: $(SRC)%.cpp \
- $(HEADER_FILES) $(CONFIG_MK)
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) \
+ $(PCUDA_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
+ $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
