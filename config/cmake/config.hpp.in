@@ -119,6 +119,9 @@
 // Enable the use of SIMD in the high performance templated classes
 #cmakedefine MFEM_USE_SIMD
 
+// Enable MFEM functionality based on the FMS library
+#cmakedefine MFEM_USE_FMS
+
 // Enable MFEM functionality based on Conduit
 #cmakedefine MFEM_USE_CONDUIT
 
