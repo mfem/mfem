@@ -466,7 +466,6 @@ int main (int argc, char *argv[])
       }
    }
 
-
    if (metric_id < 300 || h_metric_id < 300)
    {
       MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
@@ -716,7 +715,8 @@ int main (int argc, char *argv[])
       target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c, h_metric);
+   TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c,
+                                                      h_metric);
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -1029,17 +1029,17 @@ int main (int argc, char *argv[])
    // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
    // The solver terminates if an h-adaptivity iteration does not modify
    // any element in the mesh.
-   TMOPHRSolver TMOPHRSolver(*pmesh, a, solver,
-                             x, move_bnd, hradaptivity,
-                             mesh_poly_deg, h_metric_id,
-                             n_hr_iter, n_h_iter);
-   TMOPHRSolver.AddGridFunctionForUpdate(&x0);
+   TMOPHRSolver hr_solver(*pmesh, a, solver,
+                          x, move_bnd, hradaptivity,
+                          mesh_poly_deg, h_metric_id,
+                          n_hr_iter, n_h_iter);
+   hr_solver.AddGridFunctionForUpdate(&x0);
    if (adapt_lim_const > 0.)
    {
-      TMOPHRSolver.AddGridFunctionForUpdate(&zeta_0);
-      TMOPHRSolver.AddFESpaceForUpdate(&ind_fes);
+      hr_solver.AddGridFunctionForUpdate(&zeta_0);
+      hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
-   TMOPHRSolver.Mult();
+   hr_solver.Mult();
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
@@ -1121,6 +1121,7 @@ int main (int argc, char *argv[])
    delete target_c;
    delete hr_adapt_coeff;
    delete adapt_coeff;
+   delete h_metric;
    delete metric;
    delete pfespace;
    delete fec;
