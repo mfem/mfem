@@ -4348,7 +4348,6 @@ void ParNURBSExtension::BuildGroups(const int *_partitioning,
 
 void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
 {
-   cout << "NURBSPatchMap::GetPatchKnotVectors" << endl;
    Ext->patchTopo->GetElementVertices(p, verts);
    Ext->patchTopo->GetElementEdges(p, edges, oedge);
 
@@ -4420,11 +4419,6 @@ void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
 void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
 {
    GetPatchKnotVectors(p, kv);
-
-   for (int ii = 0; ii<3;ii++)
-   {
-      kv[ii]->Print(cout);
-   }
 
    I = kv[0]->GetNCP() - 2;
    J = kv[1]->GetNCP() - 2;
