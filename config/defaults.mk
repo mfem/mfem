@@ -149,6 +149,8 @@ MFEM_USE_CALIPER       = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
+MFEM_USE_CODIPACK      = NO
+MFEM_USE_ADFORWARD     = NO
 MFEM_USE_MKL_CPARDISO  = NO
 
 # MPI library compile and link flags
@@ -395,6 +397,11 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 HIOP_DIR = @MFEM_DIR@/../hiop/install
 HIOP_OPT = -I$(HIOP_DIR)/include
 HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
+
+# CoDiPack
+CODIPACK_DIR = @MFEM_DIR@/../CoDiPack
+CODIPACK_OPT = -I$(CODIPACK_DIR)
+CODIPACK_LIB = -L.
 
 # GSLIB library
 GSLIB_DIR = @MFEM_DIR@/../gslib/build
