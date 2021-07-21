@@ -160,11 +160,9 @@ public:
    /** If @a own_mem is false, the Vector will not own any of the pointers of
        @a mem.
 
-       This method should be considered to be for "expert" use only because it
-       may have hard to track implications for the new Vector object when
-       creating a non-owning Vector (i.e. @a own_mem == `false`) that points to
-       the memory of another Vector -- for such use cases we recommend the use
-       of the MakeRef() methods.
+       Note that when @a own_mem is true, the @a mem object can be destroyed
+       immediately by the caller but `mem.Delete()` should NOT be called since
+       the Vector object takes ownership of all pointers owned by @a mem.
 
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
@@ -566,8 +564,14 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 {
    data.Delete();
    size = s;
-   data = mem;
-   if (!own_mem) { data.ClearOwnerFlags(); }
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
 }
 
 inline void Vector::MakeRef(Vector &base, int offset, int s)

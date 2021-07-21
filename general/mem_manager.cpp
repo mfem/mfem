@@ -809,9 +809,9 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    return h_ptr;
 }
 
-void MemoryManager::Register_(void *h_ptr, void *d_ptr, size_t bytes,
-                              MemoryType h_mt, MemoryType d_mt,
-                              bool own, bool alias, unsigned &flags)
+void MemoryManager::Register2_(void *h_ptr, void *d_ptr, size_t bytes,
+                               MemoryType h_mt, MemoryType d_mt,
+                               bool own, bool alias, unsigned &flags)
 {
    MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
@@ -871,37 +871,40 @@ void MemoryManager::SetDeviceMemoryType_(void *h_ptr, unsigned flags,
    }
 }
 
-MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
+MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
 {
    const bool alias = flags & Mem::ALIAS;
    const bool registered = flags & Mem::REGISTERED;
    const bool owns_host = flags & Mem::OWNS_HOST;
    const bool owns_device = flags & Mem::OWNS_DEVICE;
    const bool owns_internal = flags & Mem::OWNS_INTERNAL;
-   MFEM_ASSERT(registered || IsHostMemory(mt),"");
+   MFEM_ASSERT(IsHostMemory(h_mt), "invalid h_mt = " << (int)h_mt);
+   // MFEM_ASSERT(registered || IsHostMemory(h_mt),"");
    MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
-   if (!mm.exists || !registered) { return mt; }
+   MFEM_ASSERT(registered || !(owns_host || owns_device || owns_internal),
+               "invalid Memory state");
+   if (!mm.exists || !registered) { return h_mt; }
    if (alias)
    {
       if (owns_internal)
       {
-         const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;
-         MFEM_ASSERT(mt == h_mt,"");
+         MFEM_ASSERT(mm.IsAlias(h_ptr), "");
+         MFEM_ASSERT(h_mt == maps->aliases.at(h_ptr).h_mt, "");
          mm.EraseAlias(h_ptr);
-         return h_mt;
       }
    }
    else // Known
    {
-      const MemoryType h_mt = mt;
-      MFEM_ASSERT(!owns_internal ||
-                  mt == maps->memories.at(h_ptr).h_mt,"");
       if (owns_host && (h_mt != MemoryType::HOST))
       { ctrl->Host(h_mt)->Dealloc(h_ptr); }
-      if (owns_internal) { mm.Erase(h_ptr, owns_device); }
-      return h_mt;
+      if (owns_internal)
+      {
+         MFEM_ASSERT(mm.IsKnown(h_ptr), "");
+         MFEM_ASSERT(h_mt == maps->memories.at(h_ptr).h_mt, "");
+         mm.Erase(h_ptr, owns_device);
+      }
    }
-   return mt;
+   return h_mt;
 }
 
 void MemoryManager::DeleteDevice_(void *h_ptr, unsigned & flags)
@@ -1504,6 +1507,14 @@ void MemoryManager::Configure(const MemoryType host_mt,
 void MemoryManager::Destroy()
 {
    MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
+   // Keep for debugging purposes:
+#if 0
+   mfem::out << "Destroying the MemoryManager ...\n"
+             << "remaining registered pointers : "
+             << maps->memories.size() << '\n'
+             << "remaining registered aliases  : "
+             << maps->aliases.size() << '\n';
+#endif
    for (auto& n : maps->memories)
    {
       internal::Memory &mem = n.second;
