@@ -282,7 +282,8 @@ int main(int argc, char *argv[])
    superlu->SetOperator(*SLU_A);
    superlu->SetPrintStatistics(true);
    superlu->Mult(B, X);
-
+   superlu->DismantleGrid();
+   
    delete SLU_A;
    delete superlu;
 
