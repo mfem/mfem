@@ -242,9 +242,9 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    max_eig_estimate(max_eig_estimate_),
    N(d.Size()),
    dinv(N),
-   diag(d),
+   diag(&d),
    coeffs(order),
-   ess_tdof_list(ess_tdofs),
+   ess_tdof_list(&ess_tdofs),
    residual(N),
    oper(&oper_) { Setup(); }
 
@@ -263,13 +263,13 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
      order(order_),
      N(d.Size()),
      dinv(N),
-     diag(d),
+     diag(&d),
      coeffs(order),
-     ess_tdof_list(ess_tdofs),
+     ess_tdof_list(&ess_tdofs),
      residual(N),
      oper(&oper_)
 {
-   OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
+   OperatorJacobiSmoother invDiagOperator(*diag, ess_tdofs, 1.0);
    ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
 
 #ifdef MFEM_USE_MPI
@@ -306,16 +306,52 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                power_tolerance) { }
 #endif
 
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Solver &prec_,
+                                                     int order_, MPI_Comm comm,
+                                                     int power_iterations, double power_tolerance)
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Solver &prec_,
+                                                     int order_, int power_iterations, double power_tolerance)
+#endif
+   : Solver(oper_.Height()),
+     order(order_),
+     diag(nullptr),
+     N(oper_.Height()),
+     coeffs(order),
+     ess_tdof_list(nullptr),
+     residual(N),
+     oper(&oper_),
+     prec(&prec_)
+{
+   ProductOperator Precond(prec, oper, false, false);
+
+#ifdef MFEM_USE_MPI
+   PowerMethod powerMethod(comm);
+#else
+   PowerMethod powerMethod;
+#endif
+   Vector ev(oper->Width());
+   max_eig_estimate = powerMethod.EstimateLargestEigenvalue(Precond, ev,
+                                                            power_iterations, power_tolerance);
+   Setup();
+}
+
+
 void OperatorChebyshevSmoother::Setup()
 {
-   // Invert diagonal
    residual.UseDevice(true);
-   auto D = diag.Read();
-   auto X = dinv.Write();
-   MFEM_FORALL(i, N, X[i] = 1.0 / D[i]; );
-   auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
-
+   // Invert diagonal
+   if (diag)
+   {
+      auto D = diag->Read();
+      auto X = dinv.Write();
+      auto I = ess_tdof_list->Read();
+      MFEM_FORALL(i, N, X[i] = 1.0 / D[i]; );
+      MFEM_FORALL(i, ess_tdof_list->Size(), X[I[i]] = 1.0; );
+   }
    // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
    // Gauss-Seidel by Adams et al.
@@ -410,11 +446,22 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
          residual = helperVector;
       }
 
-      // Scale residual by inverse diagonal
+      // Scale residual by inverse diagonal or apply the given preconditioner
       const int n = N;
-      auto Dinv = dinv.Read();
+
       auto R = residual.ReadWrite();
-      MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
+      if (prec)
+      {
+         // No device yet
+         Vector z(residual.Size()); z = 0.0;
+         prec->Mult(residual,z);
+         residual = z;
+      }
+      else
+      {
+         auto Dinv = dinv.Read();
+         MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
+      }
 
       // Add weighted contribution to y
       auto Y = y.ReadWrite();

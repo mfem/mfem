@@ -239,12 +239,25 @@ public:
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
                              double power_tolerance = 1e-8);
+
+   /** Chebyshev accelaration for the given preconditioner @a prec.
+       The largest eigenvalue of the  preconditoned operator
+       is estimated internally via a power method. The
+       accuracy of the estimated eigenvalue may be controlled via
+       power_iterations and power_tolerance. */
+   OperatorChebyshevSmoother(const Operator &oper_, const Solver &prec,
+                             int order, MPI_Comm comm = MPI_COMM_NULL,
+                             int power_iterations = 10,
+                             double power_tolerance = 1e-8);
 #else
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
                              double power_tolerance = 1e-8);
 
+   OperatorChebyshevSmoother(const Operator &oper_, const Solver &prec,
+                             int order, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
@@ -271,12 +284,13 @@ private:
    double max_eig_estimate;
    const int N;
    Vector dinv;
-   const Vector &diag;
+   const Vector * diag = nullptr;
    Array<double> coeffs;
-   const Array<int>& ess_tdof_list;
+   const Array<int> * ess_tdof_list = nullptr;
    mutable Vector residual;
    mutable Vector helperVector;
    const Operator* oper;
+   const Solver* prec=nullptr;
 };
 
 
