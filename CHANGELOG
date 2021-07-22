@@ -235,6 +235,11 @@ Version 4.2.1 (development)
 
 - Added makefile rule to generate TAGS table for vi or Emacs users.
 
+- Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
+  hierarchy of spaces created by the element-based AMG (AMGe) methodology in
+  ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
+  miniapps/parelag directory for more details.
+
 API changes
 -----------
 - Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
