@@ -8,6 +8,118 @@
 #include "element-smoother.hpp"
 using namespace std;
 using namespace mfem;
+
+class DiffusionMultigrid : public GeometricMultigrid
+{
+private:
+   Coefficient * cf = nullptr;
+   int smoother_kind = 0;
+   // 0: Jacobi, 1:Chebychev, 2: element-smoother(matrix-free)
+   HypreBoomerAMG* amg;
+
+public:
+   // Constructs a diffusion multigrid for the ParFiniteElementSpaceHierarchy
+   // and the array of essential boundaries
+   DiffusionMultigrid(ParFiniteElementSpaceHierarchy& fespaces,
+                      Array<int>& ess_bdr, Coefficient * cf_,int smoother_ = 0)
+      : GeometricMultigrid(fespaces), cf(cf_), smoother_kind(smoother_)
+   {
+      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr,cf);
+
+      for (int level = 1; level < fespaces.GetNumLevels(); ++level)
+      {
+         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), ess_bdr,cf);
+      }
+   }
+
+   virtual ~DiffusionMultigrid()
+   {
+      delete amg;
+   }
+
+private:
+   void ConstructBilinearForm(ParFiniteElementSpace& fespace, Array<int>& ess_bdr,
+                              bool partial_assembly, Coefficient * cf)
+   {
+      ParBilinearForm* form = new ParBilinearForm(&fespace);
+      if (partial_assembly)
+      {
+         form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
+      form->AddDomainIntegrator(new DiffusionIntegrator(*cf));
+      form->Assemble();
+      bfs.Append(form);
+
+      essentialTrueDofs.Append(new Array<int>());
+      fespace.GetEssentialTrueDofs(ess_bdr, *essentialTrueDofs.Last());
+   }
+
+   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace,
+                                         Array<int>& ess_bdr, 
+                                         Coefficient * cf)
+   {
+      ConstructBilinearForm(coarse_fespace, ess_bdr, false, cf);
+
+      HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
+      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
+
+      amg = new HypreBoomerAMG(*hypreCoarseMat);
+      amg->SetPrintLevel(-1);
+
+      CGSolver* pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg->SetPrintLevel(-1);
+      pcg->SetMaxIter(10);
+      pcg->SetRelTol(sqrt(1e-4));
+      pcg->SetAbsTol(0.0);
+      pcg->SetOperator(*hypreCoarseMat);
+      pcg->SetPreconditioner(*amg);
+
+      AddLevel(hypreCoarseMat, pcg, true, true);
+   }
+
+   void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace,
+                                     Array<int>& ess_bdr, Coefficient *cf)
+   {
+      ConstructBilinearForm(fespace, ess_bdr, true, cf);
+
+      OperatorPtr opr;
+      opr.SetType(Operator::ANY_TYPE);
+      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      opr.SetOperatorOwner(false);
+      Solver * smoother = nullptr;
+      Vector diag;
+      if (smoother_kind < 2 )
+      {
+         diag.SetSize(fespace.GetTrueVSize());
+         bfs.Last()->AssembleDiagonal(diag);
+      }
+
+      switch (smoother_kind)
+      {
+      case 0:
+         smoother = new OperatorJacobiSmoother(diag,*essentialTrueDofs.Last(),0.6667);
+         break;
+      case 1:
+         smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+                                       *essentialTrueDofs.Last(), 5);
+         break;   
+      case 2:
+         smoother = new ElementSmoother(&fespace,ess_bdr,cf);
+         break;      
+      case 3:
+         {
+            ElementSmoother * sm = new ElementSmoother(&fespace,ess_bdr,cf);
+            smoother = new OperatorChebyshevSmoother(*opr,*sm,5,fespace.GetComm());
+            break;      
+         }
+      default:
+         MFEM_ABORT("Wrong smoother choice");
+         break;
+      }
+      AddLevel(opr.Ptr(), smoother, true, true);
+   }
+};
+
 int dim;
 int  exact   = 0;
 bool tpcoeff = true;
@@ -224,7 +336,7 @@ int main(int argc, char *argv[])
    int max_iter = 2000;
    double rtol = 1e-8;
    StopWatch chrono;
-   for (int i = 3; i<=5; i++)
+   for (int i = 0; i<=6; i++)
    {
       OperatorPtr A;
       Vector B, X;
@@ -252,39 +364,44 @@ int main(int argc, char *argv[])
       x = 0.0;
       if (exact) x.ProjectCoefficient(u_ex);
 
-      if (i<3)
+      if (i<4)
       {
-   //       ParDiffusionMG M(fespaces, ess_bdr, cf,i);
-   //       M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
-   //       OperatorPtr A;
-   //       Vector B, X;
-   //       M.FormFineLinearSystem(x, *b, A, X, B);
-   //       // cout << "Size of linear system: " << A->Height() << endl;
-   //       chrono.Clear();
-   //       chrono.Start();
-   //       // 9. Solve the linear system A X = B.
-   //       CGSolver cg(MPI_COMM_WORLD);
-   //       cg.SetRelTol(rtol);
-   //       cg.SetMaxIter(max_iter);
-   //       cg.SetPrintLevel(print_level);
-   //       cg.SetOperator(*A);
-   //       cg.SetPreconditioner(M);
-   //       cg.Mult(B, X);
-   //       chrono.Stop();
-
-   //       if (i == 1)
-   //       {
-   //          if (myid == 0)
-   //             cout << "Chebychev MG PCG time   = " << chrono.RealTime() << endl;
-   //       }
-   //       else 
-   //       {
-   //          if (myid == 0)
-   //             cout << "FD smoother MG PCG time = " << chrono.RealTime() << endl;
-   //       }
-               
-   //       // 10. Recover the solution as a finite element grid function.
-   //       M.RecoverFineFEMSolution(X, *b, x);
+         prec = new DiffusionMultigrid(fespaces, ess_bdr, cf,i);
+         dynamic_cast<DiffusionMultigrid *>(prec)->
+                  SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+         dynamic_cast<DiffusionMultigrid *>(prec)->
+                  FormFineLinearSystem(x, *b, A, X, B);
+         if (i == 0)
+         {
+            if (myid == 0)
+               cout << "\nJacobi-MG " << endl;
+         }         
+         else if (i == 1)
+         {
+            if (myid == 0)
+               cout << "\nJacobi-Chebychev-MG " << endl;
+         }
+         else if (i == 2)
+         {
+            if (myid == 0)
+               cout << "\nElement-Smoother-MG " << endl;
+         }
+         else 
+         {
+            if (myid == 0)
+               cout << "\nElement-Chebychev-MG " << endl;
+         }
+         pcg.SetOperator(*A);
+         if (prec) { pcg.SetPreconditioner(*prec); }
+         chrono.Clear();
+         chrono.Start();         
+         pcg.Mult(B,X);
+         chrono.Stop();      
+         if (myid == 0)
+            cout<< "PCG::mult time = " << chrono.RealTime() << endl;       
+        // Recover the solution as a finite element grid function.
+        dynamic_cast<DiffusionMultigrid *>(prec)->RecoverFineFEMSolution(X, *b, x);
+        delete prec;
       }
       else
       {
@@ -308,7 +425,7 @@ int main(int argc, char *argv[])
             if (myid == 0)
                cout << "\nJacobi-Chebychev " << endl;
          }
-         else if (i==4)
+         else if (i==5)
          {
             prec = new ElementSmoother(&fespaces.GetFinestFESpace(),ess_bdr, cf); 
             if (myid == 0)
@@ -328,7 +445,9 @@ int main(int argc, char *argv[])
          pcg.Mult(B,X);
          chrono.Stop();
          if (myid == 0)
-            cout<< "PCG::mult time = " << chrono.RealTime() << endl;            
+            cout<< "PCG::mult time = " << chrono.RealTime() << endl;        
+         delete prec;
+
          a.RecoverFEMSolution(X,*b,x);
       }
       delete b;

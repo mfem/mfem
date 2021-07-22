@@ -239,7 +239,7 @@ Array<int> ess_bdr, Coefficient * cf_ )
          dmapt[dmap[i]] = i;
       }
 
-      // Eliminate indices correspoding to tmap from matrices Grad1D_A and Mass1D_A
+      // Eliminate indices corresponding to tmap from matrices Grad1D_A and Mass1D_A
       // construct Map;
       Array<int> tmap_marker(fe->GetDof());
       tmap_marker = 0;
