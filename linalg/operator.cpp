@@ -33,7 +33,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // B points to same data as b
-      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
+      B.MakeRef(b, 0, b.Size());
    }
    if (!IsIdentityProlongation(Pi))
    {
@@ -44,7 +44,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // X points to same data as x
-      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      X.MakeRef(x, 0, x.Size());
    }
 }
 
@@ -628,7 +628,10 @@ double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                               int numSteps, double tolerance, int seed)
 {
    v1.SetSize(v0.Size());
-   v0.Randomize(seed);
+   if (seed != 0)
+   {
+      v0.Randomize(seed);
+   }
 
    double eigenvalue = 1.0;
 

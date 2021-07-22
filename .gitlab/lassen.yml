@@ -25,7 +25,7 @@
 .build_and_test_on_lassen:
   extends: [.build_blueos_3_ppc64le_ib_script, .on_lassen]
   stage: l_build_and_test
-  needs: []
+  needs: [setup]
 
 opt_mpi_cuda_xl_16_1_1_8:
   variables:
