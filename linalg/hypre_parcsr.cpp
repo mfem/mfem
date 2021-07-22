@@ -1691,7 +1691,6 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
       if (A->offdT)
       {
          // offdT is optional. Used only if it's present.
-         MFEM_ABORT("TODO: is mem_offd the right argument?");
          hypre_CSRMatrixBooleanMatvec(A->offdT, alpha, x, 0, y_tmp);
       }
       else
@@ -1969,56 +1968,6 @@ hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
 
    return 0;
 }
-
-HYPRE_Int
-tmp_hypre_CSRMatrixSetRownnz(hypre_CSRMatrix *matrix, MemoryIJData & mem)
-{
-   HYPRE_Int  ierr = 0;
-   HYPRE_Int  num_rows = hypre_CSRMatrixNumRows(matrix);
-   // HYPRE_Int  *A_i = hypre_CSRMatrixI(matrix);
-   HYPRE_Int  *Arownnz;
-
-   HYPRE_Int i, adiag;
-   HYPRE_Int irownnz = 0;
-
-   const HYPRE_Int *A_i_read = mem.I.Read(Device::GetHostMemoryClass(),
-                                          num_rows + 1);
-
-   for (i = 0; i < num_rows; i++)
-   {
-      adiag = A_i_read[i+1] - A_i_read[i];
-      if (adiag > 0)
-      {
-         irownnz++;
-      }
-   }
-
-   hypre_CSRMatrixNumRownnz(matrix) = irownnz;
-
-   if (irownnz == 0 || irownnz == num_rows)
-   {
-      hypre_CSRMatrixRownnz(matrix) = NULL;
-   }
-   else
-   {
-      Arownnz = mfem_hypre_CTAlloc_host(HYPRE_Int, irownnz);
-
-      irownnz = 0;
-      for (i = 0; i < num_rows; i++)
-      {
-         adiag = A_i_read[i+1] - A_i_read[i];
-         if (adiag > 0)
-         {
-            Arownnz[irownnz++] = i;
-         }
-      }
-
-      hypre_CSRMatrixRownnz(matrix) = Arownnz;
-   }
-
-   return ierr;
-}
-
 
 } // namespace mfem::internal
 
