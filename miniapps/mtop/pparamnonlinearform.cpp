@@ -124,7 +124,7 @@ void ParParametricBNLForm::SetParamEssentialBC(const
 
 double ParParametricBNLForm::GetEnergy(const Vector &x) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
+   xs_true.Update(const_cast<Vector&>(x), block_trueOffsets);
    xs.Update(block_offsets);
 
    for (int s = 0; s < fes.Size(); ++s)
@@ -143,8 +143,8 @@ double ParParametricBNLForm::GetEnergy(const Vector &x) const
 
 void ParParametricBNLForm::Mult(const Vector &x, Vector &y) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
-   ys_true.Update(y.GetData(), block_trueOffsets);
+   xs_true.Update(const_cast<Vector&>(x), block_trueOffsets);
+   ys_true.Update(y, block_trueOffsets);
    xs.Update(block_offsets);
    ys.Update(block_offsets);
 
@@ -173,8 +173,8 @@ void ParParametricBNLForm::Mult(const Vector &x, Vector &y) const
 /// Block T-Vector to Block T-Vector
 void ParParametricBNLForm::ParamMult(const Vector &x, Vector &y) const
 {
-   xs_true.Update(x.GetData(), paramblock_trueOffsets);
-   ys_true.Update(y.GetData(), paramblock_trueOffsets);
+   xs_true.Update(const_cast<Vector&>(x), paramblock_trueOffsets);
+   ys_true.Update(y, paramblock_trueOffsets);
    prmxs.Update(paramblock_offsets);
    prmys.Update(paramblock_offsets);
 
@@ -205,7 +205,7 @@ void ParParametricBNLForm::ParamMult(const Vector &x, Vector &y) const
 const BlockOperator & ParParametricBNLForm::GetLocalGradient(
    const Vector &x) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
+   xs_true.Update(const_cast<Vector&>(x), block_trueOffsets);
    xs.Update(block_offsets);
 
    for (int s=0; s<fes.Size(); ++s)
@@ -325,7 +325,7 @@ ParParametricBNLForm::~ParParametricBNLForm()
 
 void ParParametricBNLForm::SetStateFields(const Vector &xv) const
 {
-   xs_true.Update(xv.GetData(), block_trueOffsets);
+   xs_true.Update(const_cast<Vector&>(xv), block_trueOffsets);
    xsv.Update(block_offsets);
    for (int s=0; s<fes.Size(); ++s)
    {
@@ -337,7 +337,7 @@ void ParParametricBNLForm::SetStateFields(const Vector &xv) const
 
 void ParParametricBNLForm::SetAdjointFields(const Vector &av) const
 {
-   xs_true.Update(av.GetData(), block_trueOffsets);
+   xs_true.Update(const_cast<Vector&>(av), block_trueOffsets);
    adv.Update(block_offsets);
    for (int s=0; s<fes.Size(); ++s)
    {
@@ -348,7 +348,7 @@ void ParParametricBNLForm::SetAdjointFields(const Vector &av) const
 
 void ParParametricBNLForm::SetParamFields(const Vector &dv) const
 {
-   xs_true.Update(dv.GetData(),paramblock_trueOffsets);
+   xs_true.Update(const_cast<Vector&>(dv),paramblock_trueOffsets);
    xdv.Update(paramblock_offsets);
    for (int s=0; s<paramfes.Size(); ++s)
    {

@@ -17,6 +17,9 @@
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
+#ifdef MFEM_USE_MPI
+#include <HYPRE_config.h> // HYPRE_USING_CUDA
+#endif
 
 namespace mfem
 {
@@ -865,7 +868,11 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    h_mt = MemoryManager::GetHostMemoryType();
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
-   { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
+   {
+      MemoryType h_ptr_mt = MemoryManager::GetHostMemoryType_(h_ptr);
+      MFEM_VERIFY(h_mt == h_ptr_mt,
+                  "h_mt = " << (int)h_mt << ", h_ptr_mt = " << (int)h_ptr_mt);
+   }
 #endif
    if (own && h_mt != MemoryType::HOST)
    {
@@ -921,12 +928,17 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
    {
-      // TODO: Always registering 'base' (if MemoryManager::Exists()) seems to
-      // create issues in some unit tests with errors:
-      //    "alias already exists with different base/offset!"
-      // which is probably due to dangling aliases.
-      // if (MemoryManager::Exists())
-      if (IsDeviceMemory(MemoryManager::GetDeviceMemoryType()))
+      if (
+#ifndef HYPRE_USING_CUDA
+         // If the following condiftion is true then MemoryManager::Exists()
+         // should also be true:
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
+#else
+         // When HYPRE_USING_CUDA is defined we always register the 'base' if
+         // the MemoryManager::Exists():
+         MemoryManager::Exists()
+#endif
+      )
       {
          // Register 'base':
          MemoryManager::Register_(base.h_ptr, nullptr, base.capacity*sizeof(T),

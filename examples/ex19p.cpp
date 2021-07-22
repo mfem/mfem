@@ -438,15 +438,19 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
    // Extract the blocks from the input and output vectors
-   Vector disp_in(k.GetData() + block_trueOffsets[0],
-                  block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_in(k.GetData() + block_trueOffsets[1],
-                  block_trueOffsets[2]-block_trueOffsets[1]);
-
-   Vector disp_out(y.GetData() + block_trueOffsets[0],
+   Vector disp_in;
+   disp_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[0],
                    block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_out(y.GetData() + block_trueOffsets[1],
+   Vector pres_in;
+   pres_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[1],
                    block_trueOffsets[2]-block_trueOffsets[1]);
+
+   Vector disp_out;
+   disp_out.MakeRef(y, block_trueOffsets[0],
+                    block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out;
+   pres_out.MakeRef(y, block_trueOffsets[1],
+                    block_trueOffsets[2]-block_trueOffsets[1]);
 
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
@@ -459,6 +463,9 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
+
+   disp_out.SyncAliasMemory(y);
+   pres_out.SyncAliasMemory(y);
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)

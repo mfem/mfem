@@ -72,7 +72,14 @@ inline void HypreParVector::_SetDataAndSize_()
    size = internal::to_int(hypre_VectorSize(x_loc));
    MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
                     ? MemoryType::HOST : GetHypreMemoryType());
-   data.Wrap(hypre_VectorData(x_loc), size, mt, false);
+   if (hypre_VectorData(x_loc) != NULL)
+   {
+      data.Wrap(hypre_VectorData(x_loc), size, mt, false);
+   }
+   else
+   {
+      data.Reset();
+   }
 #endif
 }
 
@@ -90,7 +97,9 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
-                               double *data_, HYPRE_BigInt *col) : Vector()
+                               double *data_, HYPRE_BigInt *col,
+                               bool is_device_ptr)
+   : Vector()
 {
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
@@ -100,7 +109,10 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    double tmp = 0.0;
    hypre_VectorData(x_loc) = &tmp;
 #ifdef HYPRE_USING_CUDA
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_HOST;
+   hypre_VectorMemoryLocation(x_loc) =
+      is_device_ptr ? HYPRE_MEMORY_DEVICE : HYPRE_MEMORY_HOST;
+#else
+   (void)is_device_ptr;
 #endif
    // If hypre_ParVectorLocalVector(x) and &tmp are non-NULL,
    // hypre_ParVectorInitialize(x) does not allocate memory!
@@ -671,7 +683,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, mem_diag, A->diag, false);
-   // TODO:
+   // TODO: always call, noop for gpu
    //hypre_CSRMatrixSetRownnz(A->diag);
    internal::tmp_hypre_CSRMatrixSetRownnz(A->diag, mem_diag);
 
@@ -687,12 +699,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   // TODO:
-#ifdef HYPRE_USING_CUDA
-   hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(A));
-#else
+   // TODO: memory location can be any
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#endif
 
    // FIXME:
 #ifdef HYPRE_BIGINT
@@ -900,7 +908,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 #endif
 
    // FIXME: does this call create a matrix on device when device support is
-   // enabled in hypre? Assuming NO for now.
+   // enabled in hypre? Answer: NO.
    hypre_ParCSRMatrix *new_A =
       hypre_CSRMatrixToParCSRMatrix(comm, csr_a, row_starts, col_starts);
 
@@ -1479,11 +1487,12 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
 HypreParMatrix * HypreParMatrix::Transpose() const
 {
    hypre_ParCSRMatrix * At;
+   // TODO:
    // hypre_ParCSRMatrixTranspose does not work correctly on device, at least
    // when num_proc > 1, so try to create the transpose on host:
-   HostRead();
+   // HostRead();
    hypre_ParCSRMatrixTranspose(A, &At, 1);
-   HypreRead();
+   // HypreRead();
    hypre_ParCSRMatrixSetNumNonzeros(At);
 
    hypre_MatvecCommPkgCreate(At);
@@ -2510,11 +2519,16 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
    //        from the sparsity pattern of the product which prevents
    //        EliminateZeroRows() from working correctly. This issue is observed
    //        in ex28p.
+   // Quick fix: add a diagonal matrix with 0 diagonal.
+   // Maybe use hypre_CSRMatrixCheckDiagFirst to see if we need the fix.
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       const bool keepTranspose = false;
       rap = hypre_ParCSRTMatMatKT(*P,Q,keepTranspose);
       hypre_ParCSRMatrixDestroy(Q);
+
+      // alternative:
+      // hypre_ParCSRMatrixRAPKT
    }
 #else
    hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
@@ -2523,6 +2537,7 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
    // hypre_MatvecCommPkgCreate(rap);
 
    // FIXME: Do we still need to do this when HYPRE_USING_CUDA?
+   // Answer: Do this just for hypre_BoomerAMGBuildCoarseOperator.
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
       from P (even if it does not own them)! */
    hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
@@ -3573,8 +3588,8 @@ void HyprePCG::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 void HyprePCG::SetTol(double tol)
@@ -3758,8 +3773,8 @@ void HypreGMRES::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 void HypreGMRES::SetTol(double tol)
@@ -3930,8 +3945,8 @@ void HypreFGMRES::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 void HypreFGMRES::SetTol(double tol)
@@ -4059,8 +4074,8 @@ void HypreDiagScale::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 
@@ -4148,8 +4163,8 @@ void HypreParaSails::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 void HypreParaSails::SetSymmetry(int sym)
@@ -4224,8 +4239,8 @@ void HypreEuclid::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 HypreEuclid::~HypreEuclid()
@@ -4303,8 +4318,8 @@ void HypreILU::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 HypreILU::~HypreILU()
@@ -4367,11 +4382,8 @@ void HypreBoomerAMG::SetDefaultOptions()
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
-   HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0);
-   if (relax_type == 7)
-   {
-      HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0); // this is the hypre default
-   }
+   // default in hypre is 1.0 with some exceptions, e.g. for relax_type = 7
+   // HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0);
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
    HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
@@ -4394,6 +4406,7 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_Int interp_type;
    HYPRE_Int Pmax;
    HYPRE_Int print_level;
+   HYPRE_Int max_levels;
    HYPRE_Int dim;
    HYPRE_Int nrbms = rbms.Size();
    HYPRE_Int nodal;
@@ -4410,11 +4423,13 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGGetCoarsenType(amg_precond, &coarsen_type);
    agg_levels = hypre_ParAMGDataAggNumLevels(amg_data);
    relax_type = hypre_ParAMGDataUserRelaxType(amg_data);
+   // TODO: HYPRE_BoomerAMGSetRelaxWt ?
    relax_sweeps = hypre_ParAMGDataUserNumSweeps(amg_data);
    HYPRE_BoomerAMGGetStrongThreshold(amg_precond, &theta);
    hypre_BoomerAMGGetInterpType(amg_precond, &interp_type);
    HYPRE_BoomerAMGGetPMaxElmts(amg_precond, &Pmax);
    HYPRE_BoomerAMGGetPrintLevel(amg_precond, &print_level);
+   HYPRE_BoomerAMGGetMaxLevels(amg_precond, &max_levels);
    HYPRE_BoomerAMGGetNumFunctions(amg_precond, &dim);
    if (nrbms) // elasticity solver options
    {
@@ -4433,8 +4448,9 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+   // TODO: HYPRE_BoomerAMGSetRelaxWt ?
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
-   HYPRE_BoomerAMGSetMaxLevels(amg_precond, 25);
+   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
    HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
    HYPRE_BoomerAMGSetMaxIter(amg_precond, 1); // one V-cycle
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
@@ -4471,8 +4487,8 @@ void HypreBoomerAMG::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
@@ -4971,8 +4987,8 @@ void HypreAMS::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 HypreAMS::~HypreAMS()
@@ -5256,8 +5272,8 @@ void HypreADS::SetOperator(const Operator &op)
    delete X;
    delete B;
    B = X = NULL;
-   auxB.Reset();
-   auxX.Reset();
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
 }
 
 HypreADS::~HypreADS()
@@ -5469,7 +5485,8 @@ HypreLOBPCG::SetOperator(Operator & A)
    }
 
    // Create a distributed vector without a data array.
-   x = new HypreParVector(comm,glbSize,NULL,part);
+   const bool is_device_ptr = true;
+   x = new HypreParVector(comm,glbSize,NULL,part,is_device_ptr);
 
    matvec_fn.MatvecCreate  = this->OperatorMatvecCreate;
    matvec_fn.Matvec        = this->OperatorMatvec;
