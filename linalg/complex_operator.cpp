@@ -81,13 +81,6 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
 
    y_r_.SyncAliasMemory(y);
    y_i_.SyncAliasMemory(y);
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   x_r_.Destroy();
-   x_i_.Destroy();
-   y_r_.Destroy();
-   y_i_.Destroy();
 }
 
 void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
@@ -137,13 +130,6 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 
    y_r_.SyncAliasMemory(y);
    y_i_.SyncAliasMemory(y);
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   x_r_.Destroy();
-   x_i_.Destroy();
-   y_r_.Destroy();
-   y_i_.Destroy();
 }
 
 void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,

@@ -606,9 +606,9 @@ private: // Static methods used by the Memory<T> class
                           bool own, bool alias, unsigned &flags);
 
    /// Register a pair of external host and device pointers
-   static void Register_(void *h_ptr, void *d_ptr, size_t bytes,
-                         MemoryType h_mt, MemoryType d_mt,
-                         bool own, bool alias, unsigned &flags);
+   static void Register2_(void *h_ptr, void *d_ptr, size_t bytes,
+                          MemoryType h_mt, MemoryType d_mt,
+                          bool own, bool alias, unsigned &flags);
 
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
@@ -909,7 +909,8 @@ inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
    MFEM_ASSERT(IsHostMemory(h_mt),"");
    const size_t bytes = size*sizeof(T);
    const MemoryType d_mt = MemoryManager::GetDualMemoryType(h_mt);
-   MemoryManager::Register_(h_ptr, d_ptr, bytes, h_mt, d_mt, own, false, flags);
+   MemoryManager::Register2_(h_ptr, d_ptr, bytes, h_mt, d_mt,
+                             own, false, flags);
 }
 
 template <typename T>
@@ -919,13 +920,30 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
-   { flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE); }
-   else
    {
-      const size_t s_bytes = size*sizeof(T);
-      const size_t o_bytes = offset*sizeof(T);
-      MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
+      // TODO: Always registering 'base' (if MemoryManager::Exists()) seems to
+      // create issues in some unit tests with errors:
+      //    "alias already exists with different base/offset!"
+      // which is probably due to dangling aliases.
+      // if (MemoryManager::Exists())
+      if (IsDeviceMemory(MemoryManager::GetDeviceMemoryType()))
+      {
+         // Register 'base':
+         MemoryManager::Register_(base.h_ptr, nullptr, base.capacity*sizeof(T),
+                                  base.h_mt, base.flags & OWNS_HOST,
+                                  base.flags & ALIAS, base.flags);
+      }
+      else
+      {
+         // Copy the flags from 'base', setting the ALIAS flag to true, and
+         // setting both OWNS_HOST and OWNS_DEVICE to false:
+         flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
+         return;
+      }
    }
+   const size_t s_bytes = size*sizeof(T);
+   const size_t o_bytes = offset*sizeof(T);
+   MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
 }
 
 template <typename T>

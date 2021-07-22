@@ -4,7 +4,9 @@
 
 <p align="center">
 <a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-brightgreen.svg"></a>
-<a href="https://travis-ci.org/mfem/mfem"><img alt="Build Status" src="https://travis-ci.org/mfem/mfem.svg?branch=master"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Arepo-check+branch%3Amaster"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/repo-check.yml/badge.svg?branch=master"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuild-analysis+branch%3Amaster"><img alt="Build Analysis" src="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml/badge.svg?branch=master"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuilds-and-tests+branch%3Amaster"><img alt="Builds and Tests" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="https://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
 </p>
@@ -63,6 +65,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   development branches off `mfem:master`.
 - Please follow the [developer guidelines](#developer-guidelines), in particular
   with regards to documentation and code styling.
+- Please do not commit large/binary files to the central repository (use a fork
+  instead).
 - Pull requests  should be issued toward `mfem:master`. Make sure
   to check the items off the [Pull Request Checklist](#pull-request-checklist).
 - When your contribution is fully working and ready to be reviewed, add
@@ -71,6 +75,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   reviewers to evaluate the changes.
 - The reviewers have 3 weeks to evaluate the PR and work with the author to
   fix issues and implement improvements.
+- During review there should be no force pushes/rewriting history in the branch.
 - After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
 - After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
 - We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
@@ -91,8 +96,9 @@ The MFEM source code has the following structure:
 ```
   .
   ├── config
-  │   └── cmake
-  │       └── ...
+  │   ├── cmake
+  │   │    └── ...
+  │   └── githooks
   ├── data
   ├── doc
   ├── examples
@@ -363,6 +369,10 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   two reviewers to evaluate the changes. The reviewers have 3 weeks to evaluate
   the PR and work with the author to implement improvements and fix issues.
 
+- Once the `ready-for-review` label has been applied and reviewers have been
+  assigned, the PR is considered under review. To help with the review process
+  there should be no force pushes/rewriting history in the branch.
+
 - After approval, the PR is [tested](#masternext-workflow) for a week with
   other approved PRs in the `mfem:next` branch.
 
@@ -370,16 +380,20 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   `mfem:next`, see the [README](tests/scripts/README) file in that directory
   for more details.
 
-- Track the Travis CI, Github Actions and Appveyor [continuous integration](#automated-testing)
+- Track the GitHub Actions and Appveyor [continuous integration](#automated-testing)
   builds at the end of the PR. These should generally run clean, so address any
   errors as soon as possible. Please ask if you are unsure how to do that.
 
-- Note that some tests, such as the `branch-history` check in Travis and Github
-  Actions are safeguards that are allowed to fail in certain cases.
+- Note that some tests, such as the `branch-history` check in GitHub Actions
+  are safeguards that are allowed to fail in certain cases.
 
 - Other tests, such as the `code-style`, `documentation` and `gitignore`
-  checks in Travis and Github Actions enforce MFEM-specific rules which are
-  explained in the error messages and the `tests/scripts` directory.
+  checks in GitHub Actions enforce MFEM-specific rules which are explained in
+  the error messages and the `tests/scripts` directory.
+
+- Also note that the tests `branch-history` and `repos-checks` found in GitHub
+  Actions can be triggered automatically before each push using git hooks. See
+  the [git hooks README](config/githooks/README.md) for a detailed explanation.
 
 - If triggered, track the status of the LLNL GitLab tests. If failing, ask
   one of the _LLNL developers_ for details.
@@ -399,7 +413,7 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
 - [ ] Update continuous integration server configurations if necessary (e.g. with new version requirements for each of MFEM's dependencies)
-    - [ ] `.travis.yml`
+    - [ ] `.github`
     - [ ] `.appveyor.yml`
 - [ ] Update `.gitignore`:
     - [ ] Check if `make distclean; git status` shows any files that were generated from the source by the project (not an IDE) but we don't want to track in the repository.
@@ -516,7 +530,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - [ ] `doc/CodeDocumentation.conf.in`
 - [ ] Check that version requirements for each of MFEM's dependencies are documented in `INSTALL` and up-to-date
 - [ ] Check that continuous integration server configurations reflect the dependency version requirements of the new release
-    - [ ] `.travis.yml`
+    - [ ] `.github`
     - [ ] `.appveyor.yml`
 - [ ] Update the `CHANGELOG` to organize all release contributions
 - [ ] Review the whole source code once over
@@ -578,14 +592,17 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 MFEM has several levels of automated testing running on GitHub, as well as on
 local Mac and Linux workstations, and Livermore Computing clusters at LLNL.
 
-### Linux and Mac smoke tests
-We use Travis CI and Github Actions to drive the default tests on the `master`
-and `next` branches. See the `.travis` file and the logs at
-[https://travis-ci.org/mfem/mfem](https://travis-ci.org/mfem/mfem).
+In addition, developers can set local git hooks to run some quick checks on
+commit or push, see the [README](config/githooks/README.md) in the `config/githooks`
+directory.
 
-Testing using Travis CI and Github Actions should be kept lightweight, as there
-is a time constraint on jobs. Two virtual machines are configured - Mac (OS X)
-and Linux.
+### Linux and Mac smoke tests
+We use GitHub Actions to drive the default tests on the `master` and `next`
+branches. See the `.github/workflows` files and the logs at
+[https://github.com/mfem/mfem/actions](https://github.com/mfem/mfem/actions).
+
+Testing using GitHub Actions should be kept lightweight, as there is a time
+constraint on jobs. Two virtual machines are configured - Mac (OS X) and Linux.
 
 - Tests on the `master` branch are triggered whenever a PR is issued on this branch.
 - Tests on the `next` branch are currently scheduled to run each night.

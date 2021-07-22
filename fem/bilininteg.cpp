@@ -1777,15 +1777,16 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
    int dim = trial_fe.GetDim();
    int trial_nd = trial_fe.GetDof();
    int test_nd = test_fe.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
 
    int i, l;
    double det;
 
    elmat.SetSize (test_nd,trial_nd);
    dshape.SetSize (trial_nd,dim);
-   dshapedxt.SetSize(trial_nd,dim);
+   dshapedxt.SetSize(trial_nd, spaceDim);
    dshapedxi.SetSize(trial_nd);
-   invdfdx.SetSize(dim);
+   invdfdx.SetSize(dim, spaceDim);
    shape.SetSize (test_nd);
 
    const IntegrationRule *ir = IntRule;
