@@ -207,8 +207,8 @@ public:
 // TMOPNewtonSolver.
 // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
 // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity iteration.
-// The solver terminates if an h-adaptivity iteration does not refine/derefine
-// any element in the mesh.
+// The solver terminates early if an h-adaptivity iteration does not
+// refine/derefine any element in the mesh.
 class TMOPHRSolver
 {
 protected:
@@ -256,23 +256,17 @@ public:
 
    void Mult();
 
-   void AddGridFunctionForUpdate(GridFunction *gf_)
-   {
-      gridfuncarr.Append(gf_);
-   }
+   /// These are used to update spaces and functions that are not owned by the
+   /// TMOPIntegrator or DiscreteAdaptTC. The owned ones are updated in the
+   /// functions UpdateAfterMeshTopologyChange() of both classes.
+   void AddGridFunctionForUpdate(GridFunction *gf) { gridfuncarr.Append(gf); }
+   void AddFESpaceForUpdate(FiniteElementSpace *fes) { fespacearr.Append(fes); }
+
 #ifdef MFEM_USE_MPI
    void AddGridFunctionForUpdate(ParGridFunction *pgf_)
    {
-
       pgridfuncarr.Append(pgf_);
    }
-#endif
-   void AddFESpaceForUpdate(FiniteElementSpace *fes_)
-   {
-
-      fespacearr.Append(fes_);
-   }
-#ifdef MFEM_USE_MPI
    void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_)
    {
       pfespacearr.Append(pfes_);
@@ -297,11 +291,10 @@ public:
    // Total number of hr-adaptivity iterations. At each iteration, we do an
    // r-adaptivity iteration followed by a certain number of h-adaptivity
    // iteration.
-   void SetHRAdaptivityIterations(int hr_iter_) { hr_iter = hr_iter_; }
+   void SetHRAdaptivityIterations(int iter) { hr_iter = iter; }
 
    // Total number of h-adaptivity iterations per r-adaptivity iteration.
-   void SetHAdaptivityIterations(int h_per_r_iter_)
-   { h_per_r_iter = h_per_r_iter_; }
+   void SetHAdaptivityIterations(int iter) { h_per_r_iter = iter; }
 };
 
 }
