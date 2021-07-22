@@ -139,9 +139,15 @@ References
 ParElag: Parallel Element Agglomeration Algebraic Multigrid Upscaling and
  Solvers, http://github.com/LLNL/parelag
 
+D. Z. Kalchev, P. S. Vassilevski, and U. Villa, “On ParELAG's Parallel Element-
+ based Algebraic Multigrid and its MFEM Miniapps for H(curl) and H(div)
+ Problems: a report including lowest and next to the lowest order numerical
+ results,” Technical report LLNL-TR-824455, Lawrence Livermore National
+ Laboratory, Livermore, CA, USA, 2021, http://doi.org/10.2172/1807757
+
 D. Z. Kalchev, P. S. Vassilevski, and U. Villa, “Parallel Element-based
  Algebraic Multigrid for H(curl) and H(div) Problems Using the ParELAG
- Library,” 2021
+ Library,” 2021, http://arxiv.org/abs/2107.05613
 
 T. V. Kolev and P. S. Vassilevski, “Parallel Auxiliary Space AMG for H(curl)
  Problems,” Journal of Computational Mathematics, vol. 27, no. 5, pp. 604–623,
