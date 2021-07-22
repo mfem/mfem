@@ -160,7 +160,7 @@ double Norml2(const int size, const T *data)
     data of the input and output vectors. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
+void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
 {
    if (width == 0)
    {
@@ -170,7 +170,7 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
       }
       return;
    }
-   TA *d_col = data;
+   const TA *d_col = data;
    TX x_col = x[0];
    for (int row = 0; row < height; row++)
    {
@@ -185,6 +185,35 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
          y[row] += x_col*d_col[row];
       }
       d_col += height;
+   }
+}
+
+/** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
+    is of size @a height x @a width with given @a data, while @a x and @a y
+    specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void MultT(const int height, const int width, const TA *data, const TX *x,
+           TY *y)
+{
+   if (width == 0)
+   {
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   TY *y_off = y;
+   for (int i = 0; i < width; ++i)
+   {
+      TY val = 0.0;
+      for (int j = 0; j < height; ++j)
+      {
+         val += x[j] * data[i * height + j];
+      }
+      *y_off = val;
+      y_off++;
    }
 }
 
@@ -350,6 +379,30 @@ void MultABt(const int Aheight, const int Awidth, const int Bheight,
       }
       Adata += Aheight;
       Bdata += Bheight;
+   }
+}
+
+/** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth
+    and data @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a
+    Bdata: At * B. Return the result in a matrix with data @a AtBdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
+             const TA *Adata, const TB *Bdata, TC *AtBdata)
+{
+   TC *c = AtBdata;
+   for (int i = 0; i < Bwidth; ++i)
+   {
+      for (int j = 0; j < Awidth; ++j)
+      {
+         TC val = 0.0;
+         for (int k = 0; k < Aheight; ++k)
+         {
+            val += Adata[j * Aheight + k] * Bdata[i * Aheight + k];
+         }
+         *c = val;
+         c++;
+      }
    }
 }
 
