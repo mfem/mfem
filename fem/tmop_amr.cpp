@@ -632,18 +632,17 @@ void TMOPHRSolver::Mult()
 
          for (int i_h = 0; i_h < h_per_r_iter; i_h++)
          {
-            NCMesh *ncmesh = mesh->ncmesh;
-            if (ncmesh) //derefinement
+            // Derefinement step.
+            if (mesh->ncmesh)
             {
                tmop_dr->Apply(*mesh);
                Update();
             }
-
             mfem::out << "TMOP energy after derefinement: " <<
                       nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
                       ", Elements: " << mesh->GetNE() << std::endl;
 
-            // Refiner
+            // Refinement step.
             tmop_r->Apply(*mesh);
             Update();
             mfem::out << "TMOP energy after   refinement: " <<
@@ -653,8 +652,7 @@ void TMOPHRSolver::Mult()
             if (!tmop_dr->Derefined() && tmop_r->Stop())
             {
                radaptivity = false;
-               mfem::out << "AMR stopping criterion satisfied. Stop h-refinement."
-                         << std::endl;
+               mfem::out << "AMR stopping criterion satisfied. Stop.\n";
                break;
             }
          } //n_h
@@ -677,18 +675,17 @@ void TMOPHRSolver::Mult()
          x->SetFromTrueVector();
 
          NEGlob = pmesh->GetGlobalNE();
-         tmopenergy = pnlf->GetParGridFunctionEnergy(*x);
+         tmopenergy = pnlf->GetParGridFunctionEnergy(*x) / NEGlob;
          if (myid == 0)
          {
-            mfem::out << "TMOP energy after r-adaptivity: " << tmopenergy/NEGlob <<
+            mfem::out << "TMOP energy after r-adaptivity: " << tmopenergy <<
                       ", Elements: " << NEGlob << std::endl;
          }
 
          for (int i_h = 0; i_h < h_per_r_iter; i_h++)
          {
-            ParNCMesh *pncmesh = pmesh->pncmesh;
-
-            if (pncmesh)   //derefinement
+            // Derefinement step.
+            if (pmesh->pncmesh)
             {
                RebalanceParNCMesh();
                ParUpdate();
@@ -697,22 +694,21 @@ void TMOPHRSolver::Mult()
                ParUpdate();
             }
             NEGlob = pmesh->GetGlobalNE();
-            tmopenergy = pnlf->GetParGridFunctionEnergy(*x);
+            tmopenergy = pnlf->GetParGridFunctionEnergy(*x) / NEGlob;
             if (myid == 0)
             {
-               mfem::out << "TMOP energy after derefinement: " << tmopenergy/NEGlob <<
+               mfem::out << "TMOP energy after derefinement: " << tmopenergy <<
                          ", Elements: " << NEGlob << std::endl;
             }
 
-
+            // Refinement step.
             tmop_r->Apply(*pmesh);
             ParUpdate();
-
             NEGlob = pmesh->GetGlobalNE();
-            tmopenergy = pnlf->GetParGridFunctionEnergy(*x);
+            tmopenergy = pnlf->GetParGridFunctionEnergy(*x) / NEGlob;
             if (myid == 0)
             {
-               mfem::out << "TMOP energy after   refinement: " << tmopenergy/NEGlob <<
+               mfem::out << "TMOP energy after   refinement: " << tmopenergy <<
                          ", Elements: " << NEGlob << std::endl;
             }
 
@@ -721,8 +717,7 @@ void TMOPHRSolver::Mult()
                radaptivity = false;
                if (myid == 0)
                {
-                  mfem::out << "AMR stopping criterion satisfied. Stop." <<
-                            std::endl;
+                  mfem::out << "AMR stopping criterion satisfied. Stop.\n";
                   break;
                }
             }
