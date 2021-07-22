@@ -58,9 +58,13 @@
 //     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
 
 // Problem 5: Circular hole of radius 0.2 at [0.5, 0.5] and [1.5, 0.5]
-//      Solves -nabla^2 u = 1 with homogeneous Dirichlet and Neumann boundary conditions.
-//      mpirun -np 1 diffusion -m quad.mesh -rs 3 -o 1 -vis -lst 5 -ho 1
+//      Solves -nabla^2 u = 1 with homogeneous Neumann boundary conditions.
+//      mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst -1 -ho 1 -nlst 1
 
+// Problem 6: Circular hole with homogeneous Neumann, triangular hole with
+//            inhomogeneous Dirichlet, and square hole with homogeneous Dirichlet
+//            boundary condition.
+// mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dlstc 6
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "sbm_aux.hpp"
@@ -84,7 +88,9 @@ int main(int argc, char *argv[])
    int order = 2;
    bool visualization = true;
    int ser_ref_levels = 0;
-   int level_set_type = 1;
+   int dirichlet_level_set_type = 1;
+   int dirichlet_level_set_type_combo = -1;
+   int neumann_level_set_type = -1;
    int ho_terms = 0;
    double alpha = 1;
    bool include_cut_cell = false;
@@ -100,8 +106,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&level_set_type, "-lst", "--level-set-type",
-                  "level-set-type:");
+   args.AddOption(&dirichlet_level_set_type, "-lst", "--level-set-type",
+                  "level-set-type.");
+   args.AddOption(&neumann_level_set_type, "-nlst", "--neumann-level-set-type",
+                  "neumann-level-set-type.");
    args.AddOption(&ho_terms, "-ho", "--high-order",
                   "Additional high-order terms to include");
    args.AddOption(&alpha, "-alpha", "--alpha",
@@ -109,6 +117,8 @@ int main(int argc, char *argv[])
    args.AddOption(&include_cut_cell, "-cut", "--cut", "-no-cut-cell",
                   "--no-cut-cell",
                   "Include or not include elements cut by true boundary.");
+   args.AddOption(&dirichlet_level_set_type_combo, "-dlstc",
+                  "--level-set-type-combo", "level-set-type-combo.");
 
    args.Parse();
    if (!args.Good())
@@ -145,7 +155,7 @@ int main(int argc, char *argv[])
    Vector vxyz;
 
    // Set the nodal grid function for the mesh, and modify the nodal positions
-   // for level_set_type = 3 such that some of the mesh elements are intersected
+   // for dirichlet_level_set_type = 3 such that some of the mesh elements are intersected
    // by the true boundary (y = 0).
    ParFiniteElementSpace pfespace_mesh(&pmesh, &fec, dim);
    pmesh.SetNodalFESpace(&pfespace_mesh);
@@ -153,7 +163,7 @@ int main(int argc, char *argv[])
    pmesh.SetNodalGridFunction(&x_mesh);
    vxyz = *pmesh.GetNodes();
    int nodes_cnt = vxyz.Size()/dim;
-   if (level_set_type == 3)
+   if (dirichlet_level_set_type == 3)
    {
       for (int i = 0; i < nodes_cnt; i++)
       {
@@ -172,38 +182,58 @@ int main(int argc, char *argv[])
    // Define the solution vector x as a finite element grid function
    // corresponding to pfespace.
    ParGridFunction x(&pfespace);
-   // ParGridFunction for level_set_value.
-   ParGridFunction dirichlet_level_set_val(&pfespace);
-   ParGridFunction neumann_level_set_val(&pfespace);
    ParGridFunction combo_level_set_val(&pfespace);
-
-   int dirichlet_level_set_type = level_set_type == 5 ? 1 : level_set_type;
 
    // Determine if each element in the ParMesh is inside the actual domain,
    // partially cut by its boundary, or completely outside the domain.
-   Dist_Level_Set_Coefficient dirichlet_dist_coef(dirichlet_level_set_type);
-   dirichlet_level_set_val.ProjectCoefficient(dirichlet_dist_coef);
-   // Exchange information for ghost elements i.e. elements that share a face
-   // with element on the current processor, but belong to another processor.
-   dirichlet_level_set_val.ExchangeFaceNbrData();
-   // Setup the class to mark all elements based on whether they are located
-   // inside or outside the true domain, or intersected by the true boundary.
-   ShiftedFaceMarker marker(pmesh, dirichlet_level_set_val, pfespace, include_cut_cell);
-   Array<int> elem_marker;
-   marker.MarkElements(elem_marker);
-
-   // Setup the Neumann level set grid function
-   Dist_Level_Set_Coefficient neumann_dist_coef(level_set_type);
-   neumann_level_set_val.ProjectCoefficient(neumann_dist_coef);
-   neumann_level_set_val.ExchangeFaceNbrData();
-   marker.SetLevelSetFunction(neumann_level_set_val);
-   marker.MarkElements(elem_marker);
-
+   Dist_Level_Set_Coefficient *dirichlet_dist_coef = NULL;
+   Dist_Level_Set_Coefficient *dirichlet_dist_coef_2 = NULL;
+   Dist_Level_Set_Coefficient *neumann_dist_coef = NULL;
    // Create a Combo level set coefficient
    Combo_Level_Set_Coefficient combo_dist_coef;
-   combo_dist_coef.Add_Level_Set_Coefficient(dirichlet_dist_coef);
-   combo_dist_coef.Add_Level_Set_Coefficient(neumann_dist_coef);
 
+   ShiftedFaceMarker marker(pmesh, pfespace, include_cut_cell);
+   Array<int> elem_marker;
+
+   if (dirichlet_level_set_type > 0)
+   {
+      // ParGridFunction for level_set_value.
+      ParGridFunction dirichlet_level_set_val(&pfespace);
+      dirichlet_dist_coef = new Dist_Level_Set_Coefficient(dirichlet_level_set_type);
+      dirichlet_level_set_val.ProjectCoefficient(*dirichlet_dist_coef);
+      // Exchange information for ghost elements i.e. elements that share a face
+      // with element on the current processor, but belong to another processor.
+      dirichlet_level_set_val.ExchangeFaceNbrData();
+      // Setup the class to mark all elements based on whether they are located
+      // inside or outside the true domain, or intersected by the true boundary.
+      marker.MarkElements(dirichlet_level_set_val, elem_marker);
+      combo_dist_coef.Add_Level_Set_Coefficient(*dirichlet_dist_coef);
+   }
+
+   if (dirichlet_level_set_type_combo == 6)
+   {
+      MFEM_VERIFY(dirichlet_level_set_type == 5,
+                  " The combo level set example has been only set for"
+                  " dirichlet_level_set_type == 5.");
+      ParGridFunction dirichlet_level_set_val(&pfespace);
+      dirichlet_dist_coef_2 = new Dist_Level_Set_Coefficient(
+         dirichlet_level_set_type_combo);
+      dirichlet_level_set_val.ProjectCoefficient(*dirichlet_dist_coef_2);
+      dirichlet_level_set_val.ExchangeFaceNbrData();
+      marker.MarkElements(dirichlet_level_set_val, elem_marker);
+      combo_dist_coef.Add_Level_Set_Coefficient(*dirichlet_dist_coef_2);
+   }
+
+   // Setup the Neumann level set grid function
+   if (neumann_level_set_type > 0)
+   {
+      ParGridFunction neumann_level_set_val(&pfespace);
+      neumann_dist_coef = new Dist_Level_Set_Coefficient(neumann_level_set_type);
+      neumann_level_set_val.ProjectCoefficient(*neumann_dist_coef);
+      neumann_level_set_val.ExchangeFaceNbrData();
+      marker.MarkElements(neumann_level_set_val, elem_marker);
+      combo_dist_coef.Add_Level_Set_Coefficient(*neumann_dist_coef);
+   }
 
    // Visualize the element markers.
    if (visualization)
@@ -258,17 +288,26 @@ int main(int argc, char *argv[])
    VectorCoefficient *dist_vec = NULL;
    // Compute the distance field using the HeatDistanceSolver for
    // level_set_type == 4 or analytically for all other level set types.
-   if (level_set_type == 4 || level_set_type == 5)
+   if (dirichlet_level_set_type == 1 || dirichlet_level_set_type == 2 ||
+       dirichlet_level_set_type == 3)
+   {
+      // Analytic distance vector.
+      dist_vec = new Dist_Vector_Coefficient(dim, dirichlet_level_set_type);
+      distance.ProjectDiscCoefficient(*dist_vec);
+   }
+   else
    {
       // Discrete distance vector.
       double dx = AvgElementSize(pmesh);
       ParGridFunction filt_gf(&pfespace);
       PDEFilter *filter = new PDEFilter(pmesh, 2.0 * dx);
-      if (level_set_type == 4) {
-          filter->Filter(dirichlet_dist_coef, filt_gf);
+      if (dirichlet_level_set_type == 4)
+      {
+         filter->Filter(*dirichlet_dist_coef, filt_gf);
       }
-      else {
-          filter->Filter(combo_dist_coef, filt_gf);
+      else
+      {
+         filter->Filter(combo_dist_coef, filt_gf);
       }
       delete filter;
       GridFunctionCoefficient ls_filt_coeff(&filt_gf);
@@ -287,12 +326,6 @@ int main(int argc, char *argv[])
       dist_func.smooth_steps = 1;
       dist_func.ComputeVectorDistance(ls_filt_coeff, distance);
       dist_vec = new VectorGridFunctionCoefficient(&distance);
-   }
-   else
-   {
-      // Analytic distance vector.
-      dist_vec = new Dist_Vector_Coefficient(dim, level_set_type);
-      distance.ProjectDiscCoefficient(*dist_vec);
    }
 
    // Visualize the distance vector.
@@ -338,15 +371,17 @@ int main(int argc, char *argv[])
    // the FEM linear system.
    ParLinearForm b(&pfespace);
    FunctionCoefficient *rhs_f = NULL;
-   if (level_set_type == 1 || level_set_type == 4 || level_set_type == 5)
+   if (dirichlet_level_set_type == 1 || dirichlet_level_set_type == 4 ||
+       dirichlet_level_set_type == 5 || dirichlet_level_set_type == 6 ||
+       neumann_level_set_type == 1 || neumann_level_set_type == 7)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_circle);
    }
-   else if (level_set_type == 2)
+   else if (dirichlet_level_set_type == 2)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_xy_exponent);
    }
-   else if (level_set_type == 3)
+   else if (dirichlet_level_set_type == 3)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_xy_sinusoidal);
    }
@@ -355,56 +390,96 @@ int main(int argc, char *argv[])
 
    // Dirichlet BC that must be imposed on the true boundary.
    ShiftedFunctionCoefficient *dbcCoef = NULL;
-   if (level_set_type == 1 || level_set_type == 4 || level_set_type == 5)
+   if (dirichlet_level_set_type == 1 || dirichlet_level_set_type >= 4)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_circle);
    }
-   else if (level_set_type == 2)
+   else if (dirichlet_level_set_type == 2)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_exponent);
    }
-   else if (level_set_type == 3)
+   else if (dirichlet_level_set_type == 3)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_sinusoidal);
    }
-   else
+
+   ShiftedFunctionCoefficient *dbcCoefCombo = NULL;
+   if (dirichlet_level_set_type_combo == 6)
    {
-      MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
+      dbcCoefCombo = new ShiftedFunctionCoefficient(unity);
    }
 
-   ShiftedFunctionCoefficient *nbcCoef = NULL;
+   // Homogeneous Neumann boundary condition coefficient
+   ShiftedFunctionCoefficient nbcCoef(neumann_velocity_circle);
    ShiftedVectorFunctionCoefficient *normalbcCoef = NULL;
-   if (level_set_type == 5) {
-       nbcCoef = new ShiftedFunctionCoefficient(neumann_velocity_circle);
-       normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector);
+   if (neumann_level_set_type == 1)
+   {
+      normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector);
    }
-
+   else if (neumann_level_set_type == 7)
+   {
+      normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector2);
+   }
+   else if (neumann_level_set_type > 0)
+   {
+      MFEM_ABORT(" Normal vector coefficient not implemented for level set.");
+   }
    // Add integrators corresponding to the shifted boundary method (SBM)
    // for Dirichlet boundaries.
-   int dirichlet_cut_marker_offset = 0;
-   b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
-                                                             alpha, *dist_vec,
-                                                             elem_marker,
-                                                             include_cut_cell,
-                                                             ho_terms,
-                                                             dirichlet_cut_marker_offset));
-   b.AddBdrFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
-                                                        alpha, *dist_vec,
-                                                        elem_marker,
-                                                        include_cut_cell,
-                                                        ho_terms,
-                                                        dirichlet_cut_marker_offset), ess_shift_bdr);
+   int cut_marker_offset = 0;
+   Array<int> bilinear_dirichlet_marker(0),
+         bilinear_neumann_marker(0);
+
+   if (dirichlet_level_set_type > 0)
+   {
+      b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
+                                                                alpha, *dist_vec,
+                                                                elem_marker,
+                                                                include_cut_cell,
+                                                                ho_terms,
+                                                                cut_marker_offset));
+      b.AddBdrFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
+                                                           alpha, *dist_vec,
+                                                           elem_marker,
+                                                           include_cut_cell,
+                                                           ho_terms,
+                                                           cut_marker_offset), ess_shift_bdr);
+      bilinear_dirichlet_marker.Append(ShiftedFaceMarker::SBElementType::CUT
+                                       +cut_marker_offset);
+      cut_marker_offset += 1;
+   }
+
+   if (dirichlet_level_set_type_combo == 6)
+   {
+      b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoefCombo,
+                                                                alpha, *dist_vec,
+                                                                elem_marker,
+                                                                include_cut_cell,
+                                                                ho_terms,
+                                                                cut_marker_offset));
+      bilinear_dirichlet_marker.Append(ShiftedFaceMarker::SBElementType::CUT
+                                       +cut_marker_offset);
+      cut_marker_offset += 1;
+   }
 
    // Add integrators corresponding to the shifted boundary method (SBM)
    // for Neumann boundaries.
-   int neumann_cut_marker_offset = 1;
-   if (level_set_type == 5) {
-       b.AddInteriorFaceIntegrator(new SBM2NeumannLFIntegrator(
-           &pmesh, *nbcCoef, alpha, *dist_vec, *normalbcCoef,
-            elem_marker, include_cut_cell, ho_terms, neumann_cut_marker_offset));
+   if (neumann_level_set_type > 0)
+   {
+      b.AddInteriorFaceIntegrator(new SBM2NeumannLFIntegrator(
+                                     &pmesh, nbcCoef, alpha, *dist_vec, *normalbcCoef,
+                                     elem_marker, include_cut_cell, ho_terms, cut_marker_offset));
+      bilinear_neumann_marker.Append(ShiftedFaceMarker::SBElementType::CUT
+                                     +cut_marker_offset);
+      cut_marker_offset += 1;
    }
 
    b.Assemble();
+
+   //   elem_marker.Print();
+   //   bilinear_dirichlet_marker.Print();
+   //   bilinear_neumann_marker.Print();
+   //   MFEM_ABORT(" ");
 
    // Set up the bilinear form a(.,.) on the finite element space corresponding
    // to the Laplacian operator -Delta, by adding the Diffusion domain
@@ -412,31 +487,57 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&pfespace);
    ConstantCoefficient one(1.);
    a.AddDomainIntegrator(new DiffusionIntegrator(one), ess_elem);
-   a.AddInteriorFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha,
-                                                           *dist_vec,
-                                                           elem_marker,
-                                                           include_cut_cell,
-                                                           ho_terms));
-   a.AddBdrFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha, *dist_vec,
-                                                      elem_marker,
-                                                      include_cut_cell,
-                                                      ho_terms), ess_shift_bdr);
+   if (dirichlet_level_set_type > 0)
+   {
+      a.AddInteriorFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha,
+                                                              *dist_vec,
+                                                              elem_marker,
+                                                              bilinear_dirichlet_marker,
+                                                              include_cut_cell,
+                                                              ho_terms));
+      a.AddBdrFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha, *dist_vec,
+                                                         elem_marker,
+                                                         bilinear_dirichlet_marker,
+                                                         include_cut_cell,
+                                                         ho_terms), ess_shift_bdr);
+   }
 
    // Add neumann bilinearform integrator
-   a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh, alpha,
-                                                         *dist_vec,
-                                                         *normalbcCoef,
-                                                         elem_marker,
-                                                         include_cut_cell,
-                                                         ho_terms,
-                                                         neumann_cut_marker_offset));
+   if (neumann_level_set_type > 0)
+   {
+      a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh, alpha,
+                                                            *dist_vec,
+                                                            *normalbcCoef,
+                                                            elem_marker,
+                                                            bilinear_neumann_marker,
+                                                            include_cut_cell,
+                                                            ho_terms));
+   }
 
    // Assemble the bilinear form and the corresponding linear system,
    // applying any necessary transformations.
    a.Assemble();
 
    // Project the exact solution as an initial condition for Dirichlet boundary.
-   x.ProjectCoefficient(*dbcCoef);
+   x = 0.0;
+   if (dirichlet_level_set_type > 0)
+   {
+      //x.ProjectCoefficient(*dbcCoef);
+      if (dirichlet_level_set_type_combo == 6)
+      {
+         x = 0.0;
+      }
+   }
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916, s = 350;
+      socketstream sol_sock;
+      common::VisualizeField(sol_sock, vishost, visport, x,
+                             "Solution", s, 0, s, s, "Rj");
+   }
+
 
    // Form the linear system and solve it.
    OperatorPtr A;
@@ -487,7 +588,7 @@ int main(int argc, char *argv[])
    }
 
    // Construct an error grid function if the exact solution is known.
-   if (level_set_type == 2 || level_set_type == 3)
+   if (dirichlet_level_set_type == 2 || dirichlet_level_set_type == 3)
    {
       ParGridFunction err(x);
       Vector pxyz(dim);
@@ -497,11 +598,11 @@ int main(int argc, char *argv[])
          pxyz(0) = vxyz(i);
          pxyz(1) = vxyz(i+nodes_cnt);
          double exact_val = 0.;
-         if (level_set_type == 2)
+         if (dirichlet_level_set_type == 2)
          {
             exact_val = dirichlet_velocity_xy_exponent(pxyz);
          }
-         else if (level_set_type == 3)
+         else if (dirichlet_level_set_type == 3)
          {
             exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
          }
