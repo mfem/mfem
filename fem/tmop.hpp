@@ -1570,9 +1570,9 @@ public:
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 
-   void Update();
+   void UpdateAfterMeshTopologyChange();
 #ifdef MFEM_USE_MPI
-   void ParUpdate();
+   void ParUpdateAfterMeshTopologyChange();
 #endif
 
    // PA extension

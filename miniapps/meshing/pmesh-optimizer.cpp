@@ -715,14 +715,13 @@ int main (int argc, char *argv[])
       target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c,
-                                                      h_metric);
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c,
+                                                       h_metric);
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
    {
       MFEM_VERIFY(pa == false, "PA for finite differences is not implemented.");
-
       he_nlf_integ->EnableFiniteDifferences(x);
    }
    he_nlf_integ->SetExactActionFlag(exactaction);
@@ -820,7 +819,8 @@ int main (int argc, char *argv[])
       he_nlf_integ->SetCoefficient(*coeff1);
 
       // Second metric.
-      metric2 = new TMOP_Metric_077;
+      if (dim == 2) { metric2 = new TMOP_Metric_077; }
+      else          { metric2 = new TMOP_Metric_315; }
       TMOP_Integrator *he_nlf_integ2 = NULL;
       if (combomet == 1)
       {
@@ -844,7 +844,10 @@ int main (int argc, char *argv[])
 
       a.AddDomainIntegrator(combo);
    }
-   else { a.AddDomainIntegrator(he_nlf_integ); }
+   else
+   {
+      a.AddDomainIntegrator(he_nlf_integ);
+   }
 
    if (pa) { a.Setup(); }
 

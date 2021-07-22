@@ -2412,7 +2412,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
 }
 #endif
 
-void TMOP_Integrator::Update()
+void TMOP_Integrator::UpdateAfterMeshTopologyChange()
 {
    if (zeta)
    {
@@ -2426,7 +2426,7 @@ void TMOP_Integrator::Update()
 }
 
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::ParUpdate()
+void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
 {
    if (zeta)
    {
