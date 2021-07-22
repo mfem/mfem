@@ -9,9 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/osockstream.hpp"
-#include <fstream>
-#include <iostream>
 #include "tmop_amr.hpp"
 
 namespace mfem
@@ -86,8 +83,6 @@ void TMOPRefinerEstimator::ComputeEstimates()
    error_estimates *= -1; //error = E(parent) - scaling_factor*mean(E(children))
    current_sequence = mesh->GetSequence();
 }
-
-
 
 void TMOPRefinerEstimator::GetTMOPRefinementEnergy(int reftype,
                                                    Vector &el_energy_vec)
@@ -363,8 +358,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
    TMOP_Integrator &tmopi,
    Vector &fine_energy)
 {
-   DiscreteAdaptTC *tcd = NULL;
-   tcd = tmopi.GetDiscreteAdaptTC();
+   DiscreteAdaptTC *tcd = tmopi.GetDiscreteAdaptTC();
    fine_energy.SetSize(mesh->GetNE());
 
    if (serial)
@@ -613,7 +607,6 @@ void TMOPHRSolver::Mult()
 
    tmop_dr->Reset();
    tmop_r->Reset();
-   std::cout << serial << " k10serialflag\n";
 
    if (serial)
    {
@@ -792,58 +785,8 @@ void TMOPHRSolver::Update()
       }
    }
 
-   // Update Nonlinear form and Set Essential BC
-   nlf->Update();
-   int dim = fespace->GetFE(0)->GetDim();
-   if (move_bnd == false)
-   {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      nlf->SetEssentialBC(ess_bdr);
-   }
-   else
-   {
-      const int nd  = fespace->GetBE(0)->GetDof();
-      int n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
-      {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         MFEM_VERIFY(!(dim == 2 && attr == 3),
-                     "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                     "components, rest for free nodes), or use -fix-bnd.");
-         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-         if (attr == 4) { n += nd * dim; }
-      }
-      Array<int> ess_vdofs(n), vdofs;
-      n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
-      {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         fespace->GetBdrElementVDofs(i, vdofs);
-         if (attr == 1) // Fix x components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-         else if (attr == 2) // Fix y components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
-         }
-         else if (attr == 3) // Fix z components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+2*nd]; }
-         }
-         else if (attr == 4) // Fix all components.
-         {
-            for (int j = 0; j < vdofs.Size(); j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-      }
-      nlf->SetEssentialVDofs(ess_vdofs);
-   }
+   // Update the Nonlinear form and set Essential BC.
+   UpdateNonlinearFormAndBC(*mesh, *nlf);
 }
 
 #ifdef MFEM_USE_MPI
@@ -889,24 +832,31 @@ void TMOPHRSolver::ParUpdate()
       }
    }
 
-   const FiniteElementSpace *pfespace = pmesh->GetNodalFESpace();
+   // Update the Nonlinear form and set Essential BC.
+   UpdateNonlinearFormAndBC(*pmesh, *pnlf);
+}
+#endif
+
+void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh &mesh, NonlinearForm &nlf)
+{
+   const FiniteElementSpace &fes = *mesh.GetNodalFESpace();
 
    // Update Nonlinear form and Set Essential BC
-   pnlf->Update();
-   int dim = pfespace->GetFE(0)->GetDim();
+   nlf.Update();
+   const int dim = fes.GetFE(0)->GetDim();
    if (move_bnd == false)
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
-      pnlf->SetEssentialBC(ess_bdr);
+      nlf.SetEssentialBC(ess_bdr);
    }
    else
    {
-      const int nd  = pfespace->GetBE(0)->GetDof();
+      const int nd  = fes.GetBE(0)->GetDof();
       int n = 0;
-      for (int i = 0; i < pmesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
@@ -916,10 +866,10 @@ void TMOPHRSolver::ParUpdate()
       }
       Array<int> ess_vdofs(n), vdofs;
       n = 0;
-      for (int i = 0; i < pmesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         pfespace->GetBdrElementVDofs(i, vdofs);
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         fes.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
@@ -941,10 +891,8 @@ void TMOPHRSolver::ParUpdate()
             { ess_vdofs[n++] = vdofs[j]; }
          }
       }
-      pnlf->SetEssentialVDofs(ess_vdofs);
+      nlf.SetEssentialVDofs(ess_vdofs);
    }
 }
-#endif
-
 
 }

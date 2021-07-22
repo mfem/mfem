@@ -17,8 +17,6 @@
 #include "pnonlinearform.hpp"
 #include "estimators.hpp"
 #include "../mesh/mesh_operators.hpp"
-#include <fstream>
-#include <iostream>
 
 namespace mfem
 {
@@ -34,8 +32,9 @@ protected:
    long current_sequence;
    Vector error_estimates;
    Array<int> aniso_flags;
-   double energy_scaling_factor; // an element is refined only if
+   // An element is refined only if
    // [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
+   double energy_scaling_factor;
    GridFunction *spat_gf;          // If specified, can be used to specify the
    double spat_gf_critical;        // the region where hr-adaptivity is done.
 
@@ -90,7 +89,6 @@ public:
       }
    }
 
-   /// Destructor
    ~TMOPRefinerEstimator()
    {
       for (int i = 0; i < QuadIntRule.Size(); i++) { delete QuadIntRule[i]; }
@@ -115,7 +113,7 @@ public:
 
    /// Scaling factor for the TMOP refinement energy. An element is refined if
    /// [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
-   void SetEnergyScalingFactor(double factor_) { energy_scaling_factor = factor_; }
+   void SetEnergyScalingFactor(double scale) { energy_scaling_factor = scale; }
 
    /// Spatial indicator function (eta) that can be used to prevent elements
    /// from being refined even if the energy criterion is met. Using this,
@@ -174,10 +172,7 @@ public:
       current_sequence(-1), error_estimates(), serial(false) { }
 #endif
 
-   // destructor
-   ~TMOPDeRefinerEstimator()
-   {
-   }
+   ~TMOPDeRefinerEstimator() { }
 
    virtual const Vector &GetLocalErrors()
    {
@@ -215,6 +210,7 @@ protected:
 #endif
    bool serial;
 
+   // All are owned.
    TMOPRefinerEstimator *tmop_r_est;
    ThresholdRefiner *tmop_r;
    TMOPDeRefinerEstimator *tmop_dr_est;
@@ -226,6 +222,7 @@ protected:
 #ifdef MFEM_USE_MPI
    void ParUpdate();
 #endif
+   void UpdateNonlinearFormAndBC(Mesh &mesh, NonlinearForm &nlf);
 
 #ifdef MFEM_USE_MPI
    // Rebalance ParMesh such that all the children elements are moved to the same
@@ -275,12 +272,11 @@ public:
       delete tmop_r_est;
    }
 
-   // Total number of hr-adaptivity iterations. At each iteration, we do an
-   // r-adaptivity iteration followed by a certain number of h-adaptivity
-   // iteration.
+   /// Total number of hr-adaptivity iterations. At each iteration, we do an
+   /// r-adaptivity iteration followed by a number of h-adaptivity iterations.
    void SetHRAdaptivityIterations(int iter) { hr_iter = iter; }
 
-   // Total number of h-adaptivity iterations per r-adaptivity iteration.
+   /// Total number of h-adaptivity iterations per r-adaptivity iteration.
    void SetHAdaptivityIterations(int iter) { h_per_r_iter = iter; }
 };
 
