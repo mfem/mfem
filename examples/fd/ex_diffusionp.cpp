@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int init_geometric_refinements = 0;
    int pinit_geometric_refinements = 0;
    int geometric_refinements = 0;
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element order.");
    args.AddOption(&init_geometric_refinements, "-ref", "--initial-geometric-refinements",
-                  "Number of geometric refinements defining the coarse mesh.");
+                  "Number of serial geometric refinements defining the coarse mesh.");
    args.AddOption(&pinit_geometric_refinements, "-pref", "--initial-geometric-refinements",
                   "Number of parallel geometric refinements defining the coarse mesh.");                  
    args.AddOption(&geometric_refinements, "-gr", "--geometric-refinements",
@@ -211,7 +211,6 @@ int main(int argc, char *argv[])
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
    }
-   StopWatch chrono;
    ParGridFunction x(&fespaces.GetFinestFESpace());
    // GridFunction gf_coeff(&fespaces.GetFinestFESpace());
    ParMesh * ref_mesh = fespaces.GetFinestFESpace().GetParMesh();
@@ -220,10 +219,25 @@ int main(int argc, char *argv[])
    ParGridFunction gf_coeff(l2fes);
    // gf_coeff.ProjectCoefficient(*cf);
    gf_coeff.ProjectDiscCoefficient(*cf,mfem::GridFunction::AvgType::ARITHMETIC);
-
-   // for (int i = 1; i<3; i++)
-   // for (int i = 1; i<5; i++)
-   // {
+   
+   int print_level = 3;
+   int max_iter = 2000;
+   double rtol = 1e-8;
+   StopWatch chrono;
+   for (int i = 3; i<=5; i++)
+   {
+      OperatorPtr A;
+      Vector B, X;
+      Solver * prec = nullptr;
+      CGSolver pcg(MPI_COMM_WORLD);
+      pcg.SetPrintLevel(print_level);
+      pcg.SetMaxIter(max_iter);
+      pcg.SetRelTol(rtol);
+      // i=1; Chebychev-Jacobi-MG
+      // i=2; Chebychev-Element-MG
+      // i=3; Chebychev-Jacobi-Smoother
+      // i=4; Element-Smoother 
+      // i=5; Chebychev-Element-Smoother 
       ParLinearForm *b = new ParLinearForm(&fespaces.GetFinestFESpace());
       if (exact)
       {
@@ -237,15 +251,9 @@ int main(int argc, char *argv[])
       FunctionCoefficient u_ex(u_exact);
       x = 0.0;
       if (exact) x.ProjectCoefficient(u_ex);
-   //    // i=1; Chebychev MG
-   //    // i=2; FDElementSmoother MG
-   //    // cout << "i = " << i << endl;
-      int print_level = 3;
-      int max_iter = 2000;
-      double rtol = 1e-8;
 
-   //    if (i<3)
-   //    {
+      if (i<3)
+      {
    //       ParDiffusionMG M(fespaces, ess_bdr, cf,i);
    //       M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
    //       OperatorPtr A;
@@ -277,9 +285,9 @@ int main(int argc, char *argv[])
                
    //       // 10. Recover the solution as a finite element grid function.
    //       M.RecoverFineFEMSolution(X, *b, x);
-   //    }
-   //    else
-   //    {
+      }
+      else
+      {
          ParBilinearForm a(&fespaces.GetFinestFESpace());
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          DiffusionIntegrator * aa = new DiffusionIntegrator(*cf);
@@ -288,44 +296,43 @@ int main(int argc, char *argv[])
          aa->SetIntegrationRule(*irs);
          a.AddDomainIntegrator(aa);
          a.Assemble();
-         OperatorPtr A;
-         Vector B, X;
+         
          Array<int> ess_tdof_list;
          fespaces.GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
          a.FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   //       if (i==3)
-   //       {
-   //          Vector diag(fespaces.GetFinestFESpace().GetTrueVSize());
-   //          a.AssembleDiagonal(diag);
-   //          OperatorChebyshevSmoother S(A.Ptr(), diag,ess_tdof_list, 1, MPI_COMM_WORLD);
-   //          CGSolver pcg(MPI_COMM_WORLD);
-   //          pcg.SetPrintLevel(print_level);
-   //          pcg.SetMaxIter(max_iter);
-   //          pcg.SetRelTol(rtol);
-   //          pcg.SetOperator(*A);
-   //          pcg.SetPreconditioner(S);
-   //          pcg.Mult(B,X);
-   //          if (myid == 0)
-   //             cout << "Chebychev 1 " << endl;
-   //       }
-   //       else 
-   //       {
-            ElementSmoother S(&fespaces.GetFinestFESpace(),ess_bdr, cf); 
-            CGSolver pcg(MPI_COMM_WORLD);
-            pcg.SetPrintLevel(print_level);
-            pcg.SetMaxIter(max_iter);
-            pcg.SetRelTol(rtol);
-            pcg.SetOperator(*A);
-            pcg.SetPreconditioner(S);
-            pcg.Mult(B,X);
+         if (i==3)
+         {
+            Vector diag(fespaces.GetFinestFESpace().GetTrueVSize());
+            a.AssembleDiagonal(diag);
+            prec = new OperatorChebyshevSmoother(A.Ptr(), diag,ess_tdof_list, 3, MPI_COMM_WORLD);
             if (myid == 0)
-               cout << "ParPAElementSmoother " << endl;
-   //       }
-   //       a.RecoverFEMSolution(X,*b,x);
-   //    }
-      
-   //    delete b;
-   // }
+               cout << "\nJacobi-Chebychev " << endl;
+         }
+         else if (i==4)
+         {
+            prec = new ElementSmoother(&fespaces.GetFinestFESpace(),ess_bdr, cf); 
+            if (myid == 0)
+               cout << "\nElementSmoother " << endl;
+         }
+         else
+         {
+            ElementSmoother *S = new ElementSmoother(&fespaces.GetFinestFESpace(),ess_bdr, cf); 
+            prec = new OperatorChebyshevSmoother(*A, *S, 1, MPI_COMM_WORLD);
+            if (myid == 0)
+               cout << "\nElement-Chebychev " << endl;
+         }
+         pcg.SetOperator(*A);
+         if (prec) { pcg.SetPreconditioner(*prec); }
+         chrono.Clear();
+         chrono.Start();         
+         pcg.Mult(B,X);
+         chrono.Stop();
+         if (myid == 0)
+            cout<< "PCG::mult time = " << chrono.RealTime() << endl;            
+         a.RecoverFEMSolution(X,*b,x);
+      }
+      delete b;
+   }
 
    // 12. Send the solution by socket to a GLVis server.
    if (visualization)
