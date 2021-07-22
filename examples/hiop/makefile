@@ -50,6 +50,13 @@ endif
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 
+# Testing: Parallel vs. serial runs
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
+%-test-seq: %
+	@$(call mfem-test,$<,, Serial example)
+
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
