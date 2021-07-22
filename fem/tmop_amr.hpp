@@ -129,19 +129,6 @@ public:
    virtual void Reset() { current_sequence = -1; }
 };
 
-
-
-// TMOPRefiner is ThresholdRefiner with total_error_fraction = 0.;
-class TMOPRefiner : public ThresholdRefiner
-{
-public:
-   /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPRefiner(TMOPRefinerEstimator &est) : ThresholdRefiner(est)
-   {
-      SetTotalErrorFraction(0.);
-   }
-};
-
 class TMOPDeRefinerEstimator : public ErrorEstimator
 {
 protected:
@@ -229,7 +216,7 @@ protected:
    bool serial;
 
    TMOPRefinerEstimator *tmop_r_est;
-   TMOPRefiner *tmop_r;
+   ThresholdRefiner *tmop_r;
    TMOPDeRefinerEstimator *tmop_dr_est;
    ThresholdDerefiner *tmop_dr;
 
@@ -238,6 +225,12 @@ protected:
    void Update();
 #ifdef MFEM_USE_MPI
    void ParUpdate();
+#endif
+
+#ifdef MFEM_USE_MPI
+   // Rebalance ParMesh such that all the children elements are moved to the same
+   // MPI rank where the parent will be if the mesh were to be derefined.
+   void RebalanceParNCMesh();
 #endif
 
 public:
@@ -271,12 +264,6 @@ public:
    {
       pfespacearr.Append(pfes_);
    }
-#endif
-
-#ifdef MFEM_USE_MPI
-   // Rebalance ParMesh such that all the children elements are moved to the same
-   // MPI rank where the parent will be if the mesh were to be derefined.
-   void RebalanceParNCMesh();
 #endif
 
    ~TMOPHRSolver()

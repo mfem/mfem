@@ -550,7 +550,8 @@ TMOPHRSolver::TMOPHRSolver(Mesh &mesh_, NonlinearForm &nlf_,
    if (!hradaptivity) { return; }
    tmop_r_est = new TMOPRefinerEstimator(*mesh, *nlf, mesh_poly_deg,
                                          amr_metric_id);
-   tmop_r = new TMOPRefiner(*tmop_r_est);
+   tmop_r = new ThresholdRefiner(*tmop_r_est);
+   tmop_r->SetTotalErrorFraction(0.0);
    tmop_r_est->SetEnergyScalingFactor(1.);
    tmop_dr_est= new TMOPDeRefinerEstimator(*mesh, *nlf);
    tmop_dr = new ThresholdDerefiner(*tmop_dr_est);
@@ -573,7 +574,8 @@ TMOPHRSolver::TMOPHRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
    if (!hradaptivity) { return; }
    tmop_r_est = new TMOPRefinerEstimator(*pmesh, *pnlf, mesh_poly_deg,
                                          amr_metric_id);
-   tmop_r = new TMOPRefiner(*tmop_r_est);
+   tmop_r = new ThresholdRefiner(*tmop_r_est);
+   tmop_r->SetTotalErrorFraction(0.0);
    tmop_r_est->SetEnergyScalingFactor(1.);
    tmop_dr_est= new TMOPDeRefinerEstimator(*pmesh, *pnlf);
    tmop_dr = new ThresholdDerefiner(*tmop_dr_est);
@@ -611,6 +613,7 @@ void TMOPHRSolver::Mult()
 
    tmop_dr->Reset();
    tmop_r->Reset();
+   std::cout << serial << " k10serialflag\n";
 
    if (serial)
    {
@@ -661,8 +664,8 @@ void TMOPHRSolver::Mult()
    else
    {
 #ifdef MFEM_USE_MPI
-      int NEGlob = pmesh->GetGlobalNE();
-      double tmopenergy = pnlf->GetParGridFunctionEnergy(*x);
+      int NEGlob;
+      double tmopenergy;
       for (int i_hr = 0; i_hr < hr_iter; i_hr++)
       {
          if (!radaptivity)
@@ -718,8 +721,8 @@ void TMOPHRSolver::Mult()
                if (myid == 0)
                {
                   mfem::out << "AMR stopping criterion satisfied. Stop.\n";
-                  break;
                }
+               break;
             }
          } //n_r limit
       } //n_hr
@@ -772,7 +775,7 @@ void TMOPHRSolver::Update()
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         ti->Update();
+         ti->UpdateAfterMeshTopologyChange();
          dtc = ti->GetDiscreteAdaptTC();
          if (dtc) { dtc->UpdateAfterMeshTopologyChange(); }
       }
@@ -782,7 +785,7 @@ void TMOPHRSolver::Update()
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            ati[j]->Update();
+            ati[j]->UpdateAfterMeshTopologyChange();
             dtc = ati[j]->GetDiscreteAdaptTC();
             if (dtc) { dtc->UpdateAfterMeshTopologyChange(); }
          }
@@ -869,7 +872,7 @@ void TMOPHRSolver::ParUpdate()
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         ti->ParUpdate();
+         ti->ParUpdateAfterMeshTopologyChange();
          dtc = ti->GetDiscreteAdaptTC();
          if (dtc) { dtc->ParUpdateAfterMeshTopologyChange(); }
       }
@@ -879,7 +882,7 @@ void TMOPHRSolver::ParUpdate()
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            ati[j]->ParUpdate();
+            ati[j]->ParUpdateAfterMeshTopologyChange();
             dtc = ati[j]->GetDiscreteAdaptTC();
             if (dtc) { dtc->ParUpdateAfterMeshTopologyChange(); }
          }
