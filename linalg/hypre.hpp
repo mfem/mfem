@@ -135,9 +135,12 @@ public:
        columns, and data. */
    /** The data must be allocated and destroyed outside. If @a data_ is NULL, a
        dummy vector without a valid data array will be created. See @ref
-       hypre_partitioning_descr "here" for a description of the @a col array. */
+       hypre_partitioning_descr "here" for a description of the @a col array.
+
+       If @a is_device_ptr is true, the pointer @a data_ is assumed to be
+       allocated in the memory location HYPRE_MEMORY_DEVICE. */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *data_,
-                  HYPRE_BigInt *col);
+                  HYPRE_BigInt *col, bool is_device_ptr = false);
    /// Creates vector compatible with y
    HypreParVector(const HypreParVector &y);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T

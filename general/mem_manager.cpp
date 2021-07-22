@@ -175,7 +175,7 @@ struct Alias
    size_t offset;
    size_t counter;
    // 'h_mt' is already stored in 'mem', however, we use this field for type
-   // checking and the alias may be dangling, i.e. 'mem' may be invalid.
+   // checking since the alias may be dangling, i.e. 'mem' may be invalid.
    MemoryType h_mt;
 };
 
@@ -1120,7 +1120,7 @@ MemoryType MemoryManager::GetHostMemoryType_(void *h_ptr)
 {
    if (!mm.exists) { return MemoryManager::host_mem_type; }
    if (mm.IsKnown(h_ptr)) { return maps->memories.at(h_ptr).h_mt; }
-   if (mm.IsAlias(h_ptr)) { return maps->aliases.at(h_ptr).mem->h_mt; }
+   if (mm.IsAlias(h_ptr)) { return maps->aliases.at(h_ptr).h_mt; }
    return MemoryManager::host_mem_type;
 }
 
@@ -1681,13 +1681,15 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
    if (!alias)
    {
       auto it = maps->memories.find(h_ptr);
-      MFEM_VERIFY(it != maps->memories.end(), "host pointer is not registered");
+      MFEM_VERIFY(it != maps->memories.end(),
+                  "host pointer is not registered: h_ptr = " << h_ptr);
       MFEM_VERIFY(h_mt == it->second.h_mt, "host pointer MemoryType mismatch");
    }
    else
    {
       auto it = maps->aliases.find(h_ptr);
-      MFEM_VERIFY(it != maps->aliases.end(), "alias pointer is not registered");
+      MFEM_VERIFY(it != maps->aliases.end(),
+                  "alias pointer is not registered: h_ptr = " << h_ptr);
       MFEM_VERIFY(h_mt == it->second.h_mt, "alias pointer MemoryType mismatch");
    }
 }

@@ -1220,10 +1220,12 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          // FIXME: need Ah->HypreReadWrite() since Ah will be modified.
          const int *d_ess_tdof_list =
             ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
+         const int *d_diag_i = Aih->diag->i;
+         double *d_diag_data = Aih->diag->data;
          CuWrap1D(n, [=] MFEM_DEVICE (int k)
          {
             const int j = d_ess_tdof_list[k];
-            Aih->diag->data[Aih->diag->i[j]] = 0.0;
+            d_diag_data[d_diag_i[j]] = 0.0;
          });
 #endif
       }
