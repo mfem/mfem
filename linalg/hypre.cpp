@@ -683,9 +683,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, mem_diag, A->diag, false);
-   // TODO: always call, noop for gpu
-   //hypre_CSRMatrixSetRownnz(A->diag);
-   internal::tmp_hypre_CSRMatrixSetRownnz(A->diag, mem_diag);
+   hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
    hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
@@ -699,7 +697,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   // TODO: memory location can be any
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
 
    // FIXME:
@@ -729,10 +726,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, mem_diag, A->diag, false);
-   // FIXME
-#ifndef HYPRE_USING_CUDA
    hypre_CSRMatrixSetRownnz(A->diag);
-#endif
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
    hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
@@ -743,7 +737,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
-      // FIXME:
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
       // FIXME:
 #ifdef HYPRE_BIGINT
@@ -778,18 +771,12 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, mem_diag, A->diag, own_diag_offd);
    if (own_diag_offd) { delete diag; }
-   // FIXME
-#ifndef HYPRE_USING_CUDA
    hypre_CSRMatrixSetRownnz(A->diag);
-#endif
 
    hypre_CSRMatrixSetDataOwner(A->offd,0);
    offdOwner = CopyCSR(offd, mem_offd, A->offd, own_diag_offd);
    if (own_diag_offd) { delete offd; }
-   // FIXME
-#ifndef HYPRE_USING_CUDA
    hypre_CSRMatrixSetRownnz(A->offd);
-#endif
 
    hypre_ParCSRMatrixColMapOffd(A) = cmap;
    // Prevent hypre from destroying A->col_map_offd
@@ -800,7 +787,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
-      // FIXME:
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
       // FIXME:
 #ifdef HYPRE_BIGINT
@@ -902,13 +888,10 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixSetDataOwner(csr_a,0);
    MemoryIJData mem_a;
    CopyCSR(sm_a, mem_a, csr_a, false);
-   // FIXME
-#ifndef HYPRE_USING_CUDA
    hypre_CSRMatrixSetRownnz(csr_a);
-#endif
 
-   // FIXME: does this call create a matrix on device when device support is
-   // enabled in hypre? Answer: NO.
+   // NOTE: this call creates a matrix on host even when device support is
+   // enabled in hypre.
    hypre_ParCSRMatrix *new_A =
       hypre_CSRMatrixToParCSRMatrix(comm, csr_a, row_starts, col_starts);
 
@@ -948,10 +931,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyBoolCSR(diag, mem_diag, A->diag);
-   // FIXME
-#ifndef HYPRE_USING_CUDA
    hypre_CSRMatrixSetRownnz(A->diag);
-#endif
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
    hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Size()+1);
@@ -962,7 +942,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
-      // FIXME:
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
       // FIXME:
 #ifdef HYPRE_BIGINT
@@ -1501,12 +1480,7 @@ HypreParMatrix * HypreParMatrix::Transpose() const
    {
       /* If the matrix is square, make sure that the first entry in each
          row is the diagonal one. */
-      // TODO
-      // #ifdef HYPRE_USING_CUDA
-      //       hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(At));
-      // #else
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
-      // #endif
    }
 
    return new HypreParMatrix(At);
@@ -2510,10 +2484,8 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
 
 HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 {
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
-
    hypre_ParCSRMatrix * rap;
+
 #ifdef HYPRE_USING_CUDA
    // FIXME: this way of computing Pt A P can completely eliminate zero rows
    //        from the sparsity pattern of the product which prevents
@@ -2531,22 +2503,23 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       // hypre_ParCSRMatrixRAPKT
    }
 #else
-   hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
-#endif
-   hypre_ParCSRMatrixSetNumNonzeros(rap);
-   // hypre_MatvecCommPkgCreate(rap);
+   HYPRE_Int P_owns_its_col_starts =
+      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
 
-   // FIXME: Do we still need to do this when HYPRE_USING_CUDA?
-   // Answer: Do this just for hypre_BoomerAMGBuildCoarseOperator.
+   hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
       from P (even if it does not own them)! */
    hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
    hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-
    if (P_owns_its_col_starts)
    {
       hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
    }
+#endif
+
+   hypre_ParCSRMatrixSetNumNonzeros(rap);
+   // hypre_MatvecCommPkgCreate(rap);
 
    return new HypreParMatrix(rap);
 }
@@ -2554,12 +2527,8 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
                      const HypreParMatrix *P)
 {
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
-   HYPRE_Int Rt_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
-
    hypre_ParCSRMatrix * rap;
+
 #ifdef HYPRE_USING_CUDA
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
@@ -2567,18 +2536,17 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
       hypre_ParCSRMatrixDestroy(Q);
    }
 #else
+   HYPRE_Int P_owns_its_col_starts =
+      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+   HYPRE_Int Rt_owns_its_col_starts =
+      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
+
    hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
-#endif
 
-   hypre_ParCSRMatrixSetNumNonzeros(rap);
-   // hypre_MatvecCommPkgCreate(rap);
-
-   // FIXME: Do we still need to do this when HYPRE_USING_CUDA?
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
       from Rt and P (even if they do not own them)! */
    hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
    hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-
    if (P_owns_its_col_starts)
    {
       hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
@@ -2587,6 +2555,10 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
    {
       hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
    }
+#endif
+
+   hypre_ParCSRMatrixSetNumNonzeros(rap);
+   // hypre_MatvecCommPkgCreate(rap);
 
    return new HypreParMatrix(rap);
 }
@@ -4423,7 +4395,6 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGGetCoarsenType(amg_precond, &coarsen_type);
    agg_levels = hypre_ParAMGDataAggNumLevels(amg_data);
    relax_type = hypre_ParAMGDataUserRelaxType(amg_data);
-   // TODO: HYPRE_BoomerAMGSetRelaxWt ?
    relax_sweeps = hypre_ParAMGDataUserNumSweeps(amg_data);
    HYPRE_BoomerAMGGetStrongThreshold(amg_precond, &theta);
    hypre_BoomerAMGGetInterpType(amg_precond, &interp_type);
@@ -4448,7 +4419,6 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
-   // TODO: HYPRE_BoomerAMGSetRelaxWt ?
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
    HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
    HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
