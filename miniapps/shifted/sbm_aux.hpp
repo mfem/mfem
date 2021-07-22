@@ -16,23 +16,36 @@
 using namespace std;
 using namespace mfem;
 
+double point_inside_trigon(const Vector px, Vector p1, Vector p2, Vector p3)
+{
+   Vector v0 = p1;
+   Vector v1 = p2; v1 -=p1;
+   Vector v2 = p3; v2 -=p1;
+   double p, q;
+   p = ((px(0)*v2(1)-px(1)*v2(0))-(v0(0)*v2(1)-v0(1)*v2(0)))/(v1(0)*v2(1)-v1(1)*v2(
+                                                                 0));
+   q = -((px(0)*v1(1)-px(1)*v1(0))-(v0(0)*v1(1)-v0(1)*v1(0)))/(v1(0)*v2(1)-v1(
+                                                                  1)*v2(0));
+
+   if (p > 0 && q > 0 && 1-p-q > 0)
+   {
+      return -1.0;
+   }
+   return 1.0;
+}
+
 /// Analytic distance to the 0 level set. Positive value if the point is inside
 /// the domain, and negative value if outside.
 double dist_value(const Vector &x, const int type)
 {
+
    double ring_radius = 0.2;
    if (type == 1 || type == 2) // circle of radius 0.2 - centered at 0.5, 0.5
    {
-      double dx = x(0) - 0.5,
-             dy = x(1) - 0.5,
-             rv = dx*dx + dy*dy;
-      if (x.Size() == 3)
-      {
-         double dz = x(2) - 0.5;
-         rv += dz*dz;
-      }
-      rv = rv > 0 ? pow(rv, 0.5) : 0;
-      return rv - ring_radius; // positive is the domain
+      Vector xc(x.Size());
+      xc = 0.5;
+      xc -= x;
+      return xc.Norml2() - ring_radius; // positive is the domain
    }
    else if (type == 3) // walls at y = 0.0
    {
@@ -65,18 +78,36 @@ double dist_value(const Vector &x, const int type)
       if (0.3 <= xc && xc <= 0.8 && 0.15 <= yc && yc <= 0.2) { return 1.0; }
       return -1.0;
    }
-   if (type == 5) // circle of radius 0.2 - centered at 1.5, 0.5
+   else if (type == 5) // square of side 0.2 centered at 0.75, 0.25
    {
-      double dx = x(0) - 1.5,
-             dy = x(1) - 0.5,
-             rv = dx*dx + dy*dy;
-      if (x.Size() == 3)
+      double square_side = 0.2;
+      Vector xc(x.Size());
+      xc = 0.75; xc(1) = 0.25;
+      xc -= x;
+      if (abs(xc(0)) > 0.5*square_side || abs(xc(1)) > 0.5*square_side)
       {
-         double dz = x(2) - 0.5;
-         rv += dz*dz;
+         return 1.0;
       }
-      rv = rv > 0 ? pow(rv, 0.5) : 0;
-      return rv - ring_radius; // positive is the domain
+      else
+      {
+         return -1.0;
+      }
+      return 0.0;
+   }
+   else if (type == 6) // Triangle
+   {
+      Vector p1(x.Size()), p2(x.Size()), p3(x.Size());
+      p1(0) = 0.25; p1(1) = 0.4;
+      p2(0) = 0.1; p2(1) = 0.1;
+      p3(0) = 0.4; p3(1) = 0.1;
+      return point_inside_trigon(x, p1, p2, p3);
+   }
+   else if (type == 7) // circle of radius 0.2 - centered at 0.5, 0.6
+   {
+      Vector xc(x.Size());
+      xc = 0.5; xc(1) = 0.6;
+      xc -= x;
+      return xc.Norml2() - 0.2;
    }
    else
    {
@@ -114,16 +145,19 @@ private:
 public:
    Combo_Level_Set_Coefficient() : Coefficient() { }
 
-   virtual void Add_Level_Set_Coefficient(Dist_Level_Set_Coefficient &dls_)
+   void Add_Level_Set_Coefficient(Dist_Level_Set_Coefficient &dls_)
    { dls.Append(&dls_); }
+
+   int GetNLevelSets() { return dls.Size(); }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       MFEM_VERIFY(dls.Size() > 0, "Add at-least 1 Dist_level_Set_Coefficient to"
-                                  " the Combo.");
+                  " the Combo.");
       double dist = dls[0]->Eval(T, ip);
-      for (int j = 1; j < dls.Size(); j++) {
-          dist = min(dist, dls[j]->Eval(T, ip));
+      for (int j = 1; j < dls.Size(); j++)
+      {
+         dist = min(dist, dls[j]->Eval(T, ip));
       }
       if (dist >= 0.) { return 1.; }
       else { return -1.; }
@@ -169,6 +203,16 @@ double dirichlet_velocity_circle(const Vector &x)
    return 0.;
 }
 
+double unity(const Vector &x)
+{
+   return 0.015;
+}
+
+double zero(const Vector &x)
+{
+   return 0.0;
+}
+
 double dirichlet_velocity_xy_exponent(const Vector &x)
 {
    double xy_p = 2.; // exponent for level set 2 where u = x^p+y^p;
@@ -186,13 +230,24 @@ double neumann_velocity_circle(const Vector &x)
    return 0.;
 }
 
-/// Normal vector for level_set_type = 5. Circle centered at [0.5 , 0.5]
-void normal_vector(const Vector &x, Vector &p) {
-    p.SetSize(x.Size());
-    p(0) = x(0)-0.5;
-    p(1) = x(1)-0.5; //center of circle at [0.5, 0.5]
-    p /= p.Norml2();
-    p *= -1;
+/// Normal vector for level_set_type = 1. Circle centered at [0.5 , 0.5]
+void normal_vector(const Vector &x, Vector &p)
+{
+   p.SetSize(x.Size());
+   p(0) = x(0)-0.5;
+   p(1) = x(1)-0.5; //center of circle at [0.5, 0.5]
+   p /= p.Norml2();
+   p *= -1;
+}
+
+/// Normal vector for level_set_type = 6. Circle centered at [0.75 , 0.25]
+void normal_vector2(const Vector &x, Vector &p)
+{
+   p.SetSize(x.Size());
+   p(0) = x(0)-0.5;
+   p(1) = x(1)-0.6; //center of circle at [0.5, 0.6]
+   p /= p.Norml2();
+   p *= -1;
 }
 
 

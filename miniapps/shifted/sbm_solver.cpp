@@ -86,13 +86,13 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    {
       // 1 is inside and 2 is cut or 1 is a boundary element.
       if (marker1 == ShiftedFaceMarker::SBElementType::INSIDE &&
-          (marker2 == ShiftedFaceMarker::SBElementType::CUT ||
+          (cut_marker.Find(marker2) != -1 ||
            Trans.ElementType == ElementTransformation::BDR_FACE))
       {
          elem1f = true;
       }
       // 1 is cut, 2 is inside
-      else if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+      else if (cut_marker.Find(marker1) != -1 &&
                marker2 == ShiftedFaceMarker::SBElementType::INSIDE)
       {
          if (Trans.Elem2No >= NEproc) { return; }
@@ -106,7 +106,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    else
    {
       // 1 is cut and 2 is outside or 1 is a boundary element.
-      if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+      if (cut_marker.Find(marker1) != -1 &&
           (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
            Trans.ElementType == ElementTransformation::BDR_FACE))
       {
@@ -114,7 +114,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       }
       // 1 is outside, 2 is cut
       else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
-               marker2 == ShiftedFaceMarker::SBElementType::CUT)
+               cut_marker.Find(marker2) != -1)
       {
          if (Trans.Elem2No >= NEproc) { return; }
          elem1f = false;
@@ -420,7 +420,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    {
       // 1 is cut and 2 is outside or 1 is a boundary element.
       if (marker1 == ShiftedFaceMarker::SBElementType::CUT
-              + cut_cell_marker_offset &&
+          + cut_cell_marker_offset &&
           (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
            Tr.ElementType == ElementTransformation::BDR_FACE))
       {
@@ -703,13 +703,13 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
    {
       // 1 is inside and 2 is cut or 1 is a boundary element.
       if (marker1 == ShiftedFaceMarker::SBElementType::INSIDE &&
-          (marker2 == ShiftedFaceMarker::SBElementType::CUT ||
+          (cut_marker.Find(marker2) != -1 ||
            Trans.ElementType == ElementTransformation::BDR_FACE))
       {
          elem1f = true;
       }
       // 1 is cut, 2 is inside
-      else if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+      else if (cut_marker.Find(marker1) != -1 &&
                marker2 == ShiftedFaceMarker::SBElementType::INSIDE)
       {
          if (Trans.Elem2No >= NEproc) { return; }
@@ -723,7 +723,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
    else
    {
       // 1 is cut and 2 is outside or 1 is a boundary element.
-      if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+      if (cut_marker.Find(marker1) != -1 &&
           (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
            Trans.ElementType == ElementTransformation::BDR_FACE))
       {
@@ -731,7 +731,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       }
       // 1 is outside, 2 is cut
       else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
-               marker2 == ShiftedFaceMarker::SBElementType::CUT)
+               cut_marker.Find(marker2) != -1)
       {
          if (Trans.Elem2No >= NEproc) { return; }
          elem1f = false;
@@ -967,7 +967,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
 
 void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el1, const FiniteElement &el2,
-        FaceElementTransformations &Tr, Vector &elvect)
+   FaceElementTransformations &Tr, Vector &elvect)
 {
 
    int dim, ndof1, ndof2, ndof, ndoftotal;
@@ -1035,7 +1035,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
    {
       // 1 is cut and 2 is outside or 1 is a boundary element.
       if (marker1 == ShiftedFaceMarker::SBElementType::CUT
-              + cut_cell_marker_offset &&
+          + cut_cell_marker_offset &&
           (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
            Tr.ElementType == ElementTransformation::BDR_FACE))
       {

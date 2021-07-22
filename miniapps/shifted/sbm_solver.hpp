@@ -93,7 +93,7 @@ protected:
    int NEproc;                //Number of elements on the current MPI rank
    int par_shared_face_count; //
 
-   int cut_cell_marker_offset;
+   Array<int> cut_marker;
 
    // these are not thread-safe!
    Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
@@ -105,16 +105,16 @@ public:
                            const double a,
                            VectorCoefficient &vD_,
                            Array<int> &elem_marker_,
+                           Array<int> &cut_marker_,
                            bool include_cut_cell_ = false,
-                           int nterms_ = 0,
-                           int cut_cell_marker_offset_ = 0)
+                           int nterms_ = 0)
       : alpha(a), vD(&vD_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
         nterms(nterms_),
         NEproc(pmesh->GetNE()),
         par_shared_face_count(0),
-        cut_cell_marker_offset(cut_cell_marker_offset_) { }
+        cut_marker(cut_marker_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -205,7 +205,7 @@ protected:
    int NEproc;                //Number of elements on the current MPI rank
    int par_shared_face_count; //
 
-   int cut_cell_marker_offset;
+   Array<int> cut_marker;
 
 
    // these are not thread-safe!
@@ -219,16 +219,16 @@ public:
                          VectorCoefficient &vD_,
                          ShiftedVectorFunctionCoefficient &vN_,
                          Array<int> &elem_marker_,
+                         Array<int> &cut_marker_,
                          bool include_cut_cell_ = false,
-                         int nterms_ = 0,
-                         int cut_cell_marker_offset_ = 0)
+                         int nterms_ = 0)
       : alpha(alpha_), vD(&vD_), vN(&vN_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
         nterms(nterms_),
         NEproc(pmesh->GetNE()),
         par_shared_face_count(0),
-        cut_cell_marker_offset(cut_cell_marker_offset_) { }
+        cut_marker(cut_marker_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,

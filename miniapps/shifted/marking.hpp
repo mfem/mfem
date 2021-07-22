@@ -12,7 +12,7 @@
 #ifndef MFEM_MARKING_HPP
 #define MFEM_MARKING_HPP
 
-#include "mfem.hpp"
+#include "../../mfem.hpp"
 
 namespace mfem
 {
@@ -23,10 +23,10 @@ class ShiftedFaceMarker
 {
 protected:
    ParMesh &pmesh;
-   ParGridFunction &ls_func;
-   ParFiniteElementSpace &pfes_sltn;
+   ParGridFunction *ls_func;
+   ParFiniteElementSpace *pfes_sltn;
    bool include_cut_cell;
-   bool initial_marking;
+   bool initial_marking_done;
 
    // Marking of face dofs by using an averaged continuous GridFunction.
    const bool func_dof_marking = false;
@@ -37,19 +37,26 @@ protected:
 
 private:
    int level_set_index;
+
 public:
    /// Element type related to shifted boundaries (not interfaces).
    enum SBElementType {INSIDE = 0, OUTSIDE = 1, CUT = 2};
 
    ShiftedFaceMarker(ParMesh &pm, ParGridFunction &ls,
-                     ParFiniteElementSpace &space_sltn,
+                     ParFiniteElementSpace &pfes, bool include_cut_cell_)
+      : pmesh(pm), ls_func(&ls), pfes_sltn(&pfes),
+        include_cut_cell(include_cut_cell_), initial_marking_done(false),
+        level_set_index(0) { }
+
+   ShiftedFaceMarker(ParMesh &pm, ParFiniteElementSpace &pfes,
                      bool include_cut_cell_)
-      : pmesh(pm), ls_func(ls), pfes_sltn(space_sltn),
-        include_cut_cell(include_cut_cell_), initial_marking(false),
+      : pmesh(pm), ls_func(NULL), pfes_sltn(&pfes),
+        include_cut_cell(include_cut_cell_), initial_marking_done(false),
         level_set_index(0) { }
 
    /// Mark all the elements in the mesh using the @a SBElementType
    void MarkElements(Array<int> &elem_marker);
+   void MarkElements(ParGridFunction &ls, Array<int> &elem_marker);
 
    /// List dofs associated with the surrogate boundary.
    /// If @a include_cut_cell = false, the surrogate boundary includes faces
@@ -71,7 +78,7 @@ public:
                            Array<int> &ess_tdof_list,
                            Array<int> &ess_shift_bdr) const;
 
-   void SetLevelSetFunction(ParGridFunction &ls) { ls_func = ls; }
+   void SetLevelSetFunction(ParGridFunction &ls) { ls_func = &ls; }
 };
 
 } // namespace mfem

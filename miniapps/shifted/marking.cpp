@@ -17,7 +17,7 @@ namespace mfem
 void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
 {
    elem_marker.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
-   if (!initial_marking) { elem_marker = SBElementType::INSIDE; }
+   if (!initial_marking_done) { elem_marker = SBElementType::INSIDE; }
    else { level_set_index += 1; }
 
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
@@ -29,7 +29,7 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       ElementTransformation *Tr = pmesh.GetElementTransformation(i);
       const IntegrationRule &ir =
          IntRulesLo.Get(pmesh.GetElementBaseGeometry(i), 4*Tr->OrderJ());
-      ls_func.GetValues(i, ir, vals);
+      ls_func->GetValues(i, ir, vals);
 
       int count = 0;
       for (int j = 0; j < ir.GetNPoints(); j++)
@@ -43,6 +43,8 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       }
       else if (count > 0) // partially outside
       {
+         MFEM_VERIFY(elem_marker[i] <= SBElementType::OUTSIDE,
+                     " One element cut by multiple level-sets.");
          elem_marker[i] = SBElementType::CUT + level_set_index;
       }
    }
@@ -67,7 +69,7 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         vals[j] = ls_func.GetValue(tr->Elem2No, ip);
+         vals[j] = ls_func->GetValue(tr->Elem2No, ip);
          if (vals[j] <= 0.) { count++; }
       }
 
@@ -77,10 +79,19 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       }
       else if (count > 0) // partially outside
       {
+         MFEM_VERIFY(elem_marker[i] <= SBElementType::OUTSIDE,
+                     " One element cut by multiple level-sets.");
          elem_marker[i] = SBElementType::CUT + level_set_index;
       }
    }
-   initial_marking = true;
+   initial_marking_done = true;
+}
+
+void ShiftedFaceMarker::MarkElements(ParGridFunction &ls,
+                                     Array<int> &elem_marker)
+{
+   SetLevelSetFunction(ls);
+   MarkElements(elem_marker);
 }
 
 void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
@@ -106,25 +117,25 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          if (!include_cut_cell &&
              te1 >= ShiftedFaceMarker::CUT && te2 == ShiftedFaceMarker::INSIDE)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
          if (!include_cut_cell &&
              te1 == ShiftedFaceMarker::INSIDE && te2 >= ShiftedFaceMarker::CUT)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
          if (include_cut_cell &&
              te1 >= SBElementType::CUT && te2 == SBElementType::OUTSIDE)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
          if (include_cut_cell &&
              te1 == SBElementType::OUTSIDE && te2 >= SBElementType::CUT)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
       }
@@ -140,7 +151,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          {
             if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn.GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }
@@ -162,13 +173,13 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          if (!include_cut_cell &&
              te2 >= ShiftedFaceMarker::CUT && te1 == ShiftedFaceMarker::INSIDE)
          {
-            pfes_sltn.GetFaceDofs(faceno, dofs);
+            pfes_sltn->GetFaceDofs(faceno, dofs);
             sface_dof_list.Append(dofs);
          }
          if (include_cut_cell &&
              te2 == SBElementType::OUTSIDE && te1 >= SBElementType::CUT)
          {
-            pfes_sltn.GetFaceDofs(faceno, dofs);
+            pfes_sltn->GetFaceDofs(faceno, dofs);
             sface_dof_list.Append(dofs);
          }
       }
@@ -227,7 +238,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
       }
    }
    Array<int> ess_vdofs_bdr;
-   pfes_sltn.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
+   pfes_sltn->GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
 
    // Get all dofs associated with elements outside the domain or intersected by
    // the boundary.
@@ -239,7 +250,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
           (elem_marker[e] == SBElementType::OUTSIDE ||
            elem_marker[e] >= SBElementType::CUT))
       {
-         pfes_sltn.GetElementVDofs(e, dofs);
+         pfes_sltn->GetElementVDofs(e, dofs);
          for (int i = 0; i < dofs.Size(); i++)
          {
             ess_vdofs[dofs[i]] = -1;
@@ -248,7 +259,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
       if (include_cut_cell &&
           elem_marker[e] == SBElementType::OUTSIDE)
       {
-         pfes_sltn.GetElementVDofs(e, dofs);
+         pfes_sltn->GetElementVDofs(e, dofs);
          for (int i = 0; i < dofs.Size(); i++)
          {
             ess_vdofs[dofs[i]] = -1;
@@ -273,13 +284,13 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
 
    // Synchronize
    for (int i = 0; i < ess_vdofs.Size() ; i++) { ess_vdofs[i] += 1; }
-   pfes_sltn.Synchronize(ess_vdofs);
+   pfes_sltn->Synchronize(ess_vdofs);
    for (int i = 0; i < ess_vdofs.Size() ; i++) { ess_vdofs[i] -= 1; }
 
    // Convert to tdofs
    Array<int> ess_tdofs;
-   pfes_sltn.GetRestrictionMatrix()->BooleanMult(ess_vdofs, ess_tdofs);
-   pfes_sltn.MarkerToList(ess_tdofs, ess_tdof_list);
+   pfes_sltn->GetRestrictionMatrix()->BooleanMult(ess_vdofs, ess_tdofs);
+   pfes_sltn->MarkerToList(ess_tdofs, ess_tdof_list);
 }
 
 void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
@@ -290,7 +301,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
    L2_FECollection mat_coll(0, pmesh.Dimension());
    ParFiniteElementSpace mat_fes(&pmesh, &mat_coll);
    ParGridFunction mat(&mat_fes);
-   ParGridFunction marker_gf(&pfes_sltn);
+   ParGridFunction marker_gf(pfes_sltn);
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
       // 0 is inside, 1 is outside.
@@ -323,7 +334,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
          {
             if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn.GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }
