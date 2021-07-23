@@ -42,9 +42,9 @@ int main(int argc, char *argv[])
 
    if (!myid)
       cout << "-- This is an example of using a geometric-like multilevel "
-              "hierarchy, constructed by ParElag,\n"
-              "-- to solve a finite element H(div) form: "
-              "(alpha div u, div v) + (beta u, v).\n\n";
+           "hierarchy, constructed by ParElag,\n"
+           "-- to solve a finite element H(div) form: "
+           "(alpha div u, div v) + (beta u, v).\n\n";
 
    // Get basic parameters from command line.
    const char *xml_file_c = "MultilevelHdivSolver_cube_example_parameters.xml";
@@ -62,11 +62,15 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       if (!myid)
+      {
          args.PrintUsage(cout);
+      }
       return EXIT_FAILURE;
    }
    if (!myid)
+   {
       args.PrintOptions(cout);
+   }
    string xml_file(xml_file_c);
 
    // Read and parse the detailed parameter list from file.
@@ -75,7 +79,9 @@ int main(int argc, char *argv[])
    if (!xml_in.good())
    {
       if (!myid)
+      {
          cerr << "ERROR: Cannot read from input file: " << xml_file << ".\n";
+      }
       return EXIT_FAILURE;
    }
    SimpleXMLParameterListReader reader;
@@ -114,19 +120,19 @@ int main(int argc, char *argv[])
    // boundary. That is, if a single 0 is given the whole boundary is "natural",
    // while a single 1 means that the whole boundary is essential.
    vector<int> par_ess_attr = prob_list.Get("Essential attributes",
-                                            vector<int>{1});
+                                            vector<int> {1});
 
    // A list of (piecewise) constant values for the coefficient 'alpha', in
    // accordance with the mesh attributes. If only a single entry is given, it
    // is applied to the whole mesh/domain.
    vector<double> alpha_vals = prob_list.Get("alpha values",
-                                             vector<double>{1.0});
+                                             vector<double> {1.0});
 
    // A list of (piecewise) constant values for the coefficient 'beta', in
    // accordance with the mesh attributes. If only a single entry is given, it
    // is applied to the whole mesh/domain.
    vector<double> beta_vals = prob_list.Get("beta values",
-                                             vector<double>{1.0});
+                                             vector<double> {1.0});
 
    // The list of solvers to invoke.
    auto list_of_solvers = prob_list.Get<list<string>>("List of linear solvers");
@@ -153,7 +159,9 @@ int main(int argc, char *argv[])
       if (!imesh)
       {
          if (!myid)
+         {
             cerr << "ERROR: Cannot open mesh file: " << meshfile << ".\n";
+         }
          return EXIT_FAILURE;
       }
 
@@ -163,7 +171,9 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ser_ref_levels; ++l)
       {
          if (!myid)
+         {
             cout << "Serially refining mesh: " << l + 1 << "...\n";
+         }
          mesh->UniformRefinement();
       }
 
@@ -173,8 +183,10 @@ int main(int argc, char *argv[])
          for (; mesh->GetNE() < 6 * num_ranks; ++ser_ref_levels)
          {
             if (!myid)
+            {
                cout << "Serially refining mesh: " << ser_ref_levels + 1
                     << "...\n";
+            }
             mesh->UniformRefinement();
          }
       }
@@ -200,12 +212,20 @@ int main(int argc, char *argv[])
    vector<Array<int>> ess_attr(1);
    ess_attr[0].SetSize(pmesh->bdr_attributes.Max());
    if (par_ess_attr.size() == 0)
+   {
       ess_attr[0] = 1;
+   }
    else if (par_ess_attr.size() == 1)
+   {
       ess_attr[0] = par_ess_attr[0];
+   }
    else
+   {
       for (unsigned i = 0; i < par_ess_attr.size(); ++i)
+      {
          ess_attr[0][i] = par_ess_attr[i];
+      }
+   }
 
    // Initialize piecewise constant coefficients in the form.
    MFEM_ASSERT(alpha_vals.size() <= 1 ||
@@ -220,20 +240,36 @@ int main(int argc, char *argv[])
    PWConstCoefficient beta(pmesh->attributes.Max());
 
    if (alpha_vals.size() == 0)
+   {
       alpha = 1.0;
+   }
    else if (alpha_vals.size() == 1)
+   {
       alpha = alpha_vals[0];
+   }
    else
+   {
       for (unsigned i = 0; i < alpha_vals.size(); ++i)
+      {
          alpha(i+1) = alpha_vals[i];
+      }
+   }
 
    if (beta_vals.size() == 0)
+   {
       beta = 1.0;
+   }
    else if (beta_vals.size() == 1)
+   {
       beta = beta_vals[0];
+   }
    else
+   {
       for (unsigned i = 0; i < beta_vals.size(); ++i)
+      {
          beta(i+1) = beta_vals[i];
+      }
+   }
 
    // Refine the mesh in parallel.
    const int nDimensions = pmesh->Dimension();
@@ -252,18 +288,24 @@ int main(int argc, char *argv[])
    for (int l = 0; l < par_ref_levels; ++l)
    {
       if (!myid)
+      {
          cout << "Parallelly refining mesh: " << l + 1
               << (par_ref_levels - l > nLevels ? " (not in hierarchy)"
-                                                : " (in hierarchy)")
+                  : " (in hierarchy)")
               << "...\n";
+      }
       if (par_ref_levels - l < nLevels)
+      {
          level_nElements[par_ref_levels - l] = pmesh->GetNE();
+      }
       pmesh->UniformRefinement();
    }
    level_nElements[0] = pmesh->GetNE();
 
    if (!myid)
+   {
       cout << "Times refined mesh in parallel: " << par_ref_levels << ".\n";
+   }
 
    {
       size_t local_num_elmts = pmesh->GetNE(), global_num_elmts;
@@ -279,7 +321,9 @@ int main(int argc, char *argv[])
    }
 
    if (!myid)
+   {
       cout << mesh_msg.str();
+   }
    pmesh->ReorientTetMesh();
    init_timer.Stop();
 
@@ -287,8 +331,10 @@ int main(int argc, char *argv[])
    Timer agg_timer = TimeManager::AddTimer("Mesh Agglomeration -- Total");
    Timer agg0_timer = TimeManager::AddTimer("Mesh Agglomeration -- Level 0");
    if (!myid)
+   {
       cout << "Agglomerating topology for " << nLevels - 1
            << " coarse levels...\n";
+   }
 
    constexpr auto AT_elem = AgglomeratedTopology::ELEMENT;
    // This partitioner simply geometrically coarsens the mesh by recovering the
@@ -298,7 +344,9 @@ int main(int argc, char *argv[])
    vector<shared_ptr<AgglomeratedTopology>> topology(nLevels);
 
    if (!myid)
+   {
       cout << "Agglomerating level: 0...\n";
+   }
 
    topology[0] = make_shared<AgglomeratedTopology>(pmesh, nDimensions);
 
@@ -315,17 +363,19 @@ int main(int argc, char *argv[])
 
    agg0_timer.Stop();
 
-   for(int l = 0; l < nLevels - 1; ++l)
+   for (int l = 0; l < nLevels - 1; ++l)
    {
       Timer aggl_timer = TimeManager::AddTimer(std::string("Mesh "
-                                               "Agglomeration -- Level ").
+                                                           "Agglomeration -- Level ").
                                                append(std::to_string(l+1)));
       Array<int> partitioning(topology[l]->GetNumberLocalEntities(AT_elem));
       partitioner.Partition(topology[l]->GetNumberLocalEntities(AT_elem),
                             level_nElements[l + 1], partitioning);
 
       if (!myid)
+      {
          cout << "Agglomerating level: " << l + 1 << "...\n";
+      }
 
       topology[l + 1] = topology[l]->CoarsenLocalPartitioning(partitioning,
                                                               false, false, 2);
@@ -335,8 +385,10 @@ int main(int argc, char *argv[])
               << topology[l + 1]->
               GetNumberGlobalTrueEntities((AgglomeratedTopology::Entity)0);
          for (int j = 1; j <= nDimensions; ++j)
+         {
             cout << ", " << topology[l + 1]->
                  GetNumberGlobalTrueEntities((AgglomeratedTopology::Entity)j);
+         }
          cout << endl;
       }
    }
@@ -344,8 +396,12 @@ int main(int argc, char *argv[])
    agg_timer.Stop();
 
    if (visualize && nDimensions <= 3)
+   {
       for (int l = 1; l < nLevels; ++l)
+      {
          ShowTopologyAgglomeratedElements(topology[l].get(), pmesh.get());
+      }
+   }
 
    // Construct the hierarchy of spaces, thus forming a hierarchy of (partial)
    // de Rham sequences.
@@ -354,14 +410,18 @@ int main(int argc, char *argv[])
    Timer derham0_timer = TimeManager::AddTimer("DeRhamSequence Construction -- "
                                                "Level 0");
    if (!myid)
+   {
       cout << "Building the fine-level de Rham sequence...\n";
+   }
 
    vector<shared_ptr<DeRhamSequence>> sequence(topology.size());
 
    const int jform = nDimensions - 1; // This is the H(div) form.
-   if(nDimensions == 3)
+   if (nDimensions == 3)
+   {
       sequence[0] = make_shared<DeRhamSequence3D_FE>(topology[0], pmesh.get(),
                                                      feorder, true, false);
+   }
    else
    {
       MFEM_ASSERT(nDimensions == 2, "Only 2D or 3D problems are supported.");
@@ -385,38 +445,48 @@ int main(int argc, char *argv[])
    {
       cout << "Level 0 global number of dofs: "
            << DRSequence_FE->GetDofHandler(0)->GetDofTrueDof().
-                 GetTrueGlobalSize();
+           GetTrueGlobalSize();
       for (int j = 1; j <= nDimensions; ++j)
+      {
          cout << ", " << DRSequence_FE->GetDofHandler(j)->GetDofTrueDof().
-                            GetTrueGlobalSize();
+              GetTrueGlobalSize();
+      }
       cout << endl;
    }
 
    if (!myid)
+   {
       cout << "Setting coefficients and computing fine-level local "
            << "matrices...\n";
+   }
 
    DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform,
-                     make_unique<VectorFEMassIntegrator>(beta), false);
+                                        make_unique<VectorFEMassIntegrator>(beta), false);
    DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1,
-                     make_unique<MassIntegrator>(alpha), true);
+                                        make_unique<MassIntegrator>(alpha), true);
 
    if (!myid)
+   {
       cout << "Interpolating and setting polynomial targets...\n";
+   }
 
    DRSequence_FE->SetUpscalingTargets(nDimensions, upscalingOrder);
    derham0_timer.Stop();
 
    if (!myid)
+   {
       cout << "Building the coarse-level de Rham sequences...\n";
+   }
 
-   for(int l = 0; l < nLevels - 1; ++l)
+   for (int l = 0; l < nLevels - 1; ++l)
    {
       Timer derhaml_timer = TimeManager::AddTimer(std::string("DeRhamSequence "
-                                                  "Construction -- Level ").
+                                                              "Construction -- Level ").
                                                   append(std::to_string(l+1)));
       if (!myid)
+      {
          cout << "Building the level " << l + 1 << " de Rham sequences...\n";
+      }
 
       sequence[l]->SetSVDTol(tolSVD);
       sequence[l + 1] = sequence[l]->Coarsen();
@@ -426,10 +496,12 @@ int main(int argc, char *argv[])
          auto DRSequence = sequence[l + 1];
          cout << "Level " << l + 1 << " global number of dofs: "
               << DRSequence->GetDofHandler(0)->GetDofTrueDof().
-                    GetTrueGlobalSize();
+              GetTrueGlobalSize();
          for (int j = 1; j <= nDimensions; ++j)
+         {
             cout << ", " << DRSequence->GetDofHandler(j)->GetDofTrueDof().
-                               GetTrueGlobalSize();
+                 GetTrueGlobalSize();
+         }
          cout << endl;
       }
    }
@@ -437,7 +509,9 @@ int main(int argc, char *argv[])
 
    Timer assemble_timer = TimeManager::AddTimer("Fine Matrix Assembly");
    if (!myid)
+   {
       cout << "Assembling the fine-level system...\n";
+   }
 
    VectorFunctionCoefficient rhscoeff(nDimensions, rhsfunc);
    VectorFunctionCoefficient solcoeff(nDimensions, bdrfunc);
@@ -490,16 +564,22 @@ int main(int argc, char *argv[])
       sequence[0]->GetDofHandler(jform)->MarkDofsOnSelectedBndr(ess_attr[0],
                                                                 marker);
 
-      for(int i = 0; i < spA->Height(); ++i)
-         if(marker[i])
+      for (int i = 0; i < spA->Height(); ++i)
+      {
+         if (marker[i])
+         {
             spA->EliminateRowCol(i, sol->Elem(i), *rhs);
+         }
+      }
 
       A = Assemble(hdiv_dofTrueDof, *spA, hdiv_dofTrueDof);
       hdiv_dofTrueDof.Assemble(*rhs, B);
    }
    if (!myid)
+   {
       cout << "A size: " << A->GetGlobalNumRows() << 'x'
            << A->GetGlobalNumCols() << '\n' << " A NNZ: " << A->NNZ() << '\n';
+   }
    MFEM_ASSERT(B.Size() == A->Height(),
                "Matrix and vector size are incompatible.");
    assemble_timer.Stop();
@@ -507,11 +587,13 @@ int main(int argc, char *argv[])
    // Perform the solves.
    Timer solvers_timer = TimeManager::AddTimer("Solvers -- Total");
    if (!myid)
+   {
       cout << "\nRunning fine-level solvers...\n\n";
+   }
 
    // Create the solver library.
    auto lib = SolverLibrary::CreateLibrary(
-                                master_list->Sublist("Preconditioner Library"));
+                 master_list->Sublist("Preconditioner Library"));
 
    // Loop through the solvers.
    for (const auto& solver_name : list_of_solvers)
@@ -531,7 +613,9 @@ int main(int argc, char *argv[])
                                                 append(solver_name).
                                                 append("\" -- Build"));
       if (!myid)
+      {
          cout << "Building solver \"" << solver_name << "\"...\n";
+      }
       unique_ptr<Solver> solver = solver_factory->BuildSolver(A, *solver_state);
       build_timer.Stop();
 
@@ -540,7 +624,9 @@ int main(int argc, char *argv[])
                                               append(solver_name).
                                               append("\" -- Pre-solve"));
       if (!myid)
+      {
          cout << "Solving system with \"" << solver_name << "\"...\n";
+      }
 
       // Note that X is on true dofs owned by the process, while x is on local
       // dofs that are known to the process.
@@ -558,7 +644,9 @@ int main(int argc, char *argv[])
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, comm);
          if (!myid)
+         {
             cout << "Initial residual l2 norm: " << sqrt(global_norm) << '\n';
+         }
       }
       pre_timer.Stop();
 
@@ -583,11 +671,15 @@ int main(int argc, char *argv[])
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, comm);
          if (!myid)
+         {
             cout << "Final residual l2 norm: " << sqrt(global_norm) << '\n';
+         }
       }
 
       if (!myid)
+      {
          cout << "Solver \"" << solver_name << "\" finished.\n";
+      }
 
       // Visualize the solution.
       if (visualize)
@@ -604,7 +696,9 @@ int main(int argc, char *argv[])
    TimeManager::Print();
 
    if (!myid)
+   {
       cout << "\nFinished.\n";
+   }
 
    return EXIT_SUCCESS;
 }
