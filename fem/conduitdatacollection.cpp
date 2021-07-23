@@ -18,8 +18,6 @@
 #include <conduit_relay.hpp>
 #include <conduit_blueprint.hpp>
 
-#include <algorithm>
-#include <cstring>
 #include <string>
 #include <sstream>
 
@@ -648,7 +646,8 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
                                            const std::string &coordset_name,
                                            const std::string &main_topology_name,
                                            const std::string &boundary_topology_name,
-                                           const std::string &main_adjset_name)
+                                           const std::string &main_adjset_name,
+                                           const std::string &boundary_adjset_name)
 {
    int dim = mesh->SpaceDimension();
 
@@ -827,11 +826,15 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
    if (pmesh)
    {
+      ////////////////////////////////////////////
+      // Setup main adjset
+      ////////////////////////////////////////////
+
       Node &n_adjset = n_mesh["adjsets"][main_adjset_name];
 
       n_adjset["association"] = "vertex";
       n_adjset["topology"] = main_topology_name;
-      n_adjset["groups"];
+      n_adjset["groups"].set(DataType::object());
 
       const GroupTopology &pmesh_gtopo = pmesh->gtopo;
       const int num_groups = pmesh_gtopo.NGroups();
@@ -848,16 +851,14 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
          // solution
          std::string group_name = "group";
          {
-            int *group_nbrs_sorted = new int[num_group_nbrs];
-            std::memcpy(group_nbrs_sorted, group_nbrs, num_group_nbrs * sizeof(int));
+            Array<int> group_nbrs_sorted(num_group_nbrs);
+            group_nbrs_sorted.CopyFrom(group_nbrs);
+            group_nbrs_sorted.Sort();
 
-            std::sort(group_nbrs_sorted, group_nbrs_sorted + num_group_nbrs);
             for (int j = 0; j < num_group_nbrs; j++)
             {
                group_name += "_" + std::to_string(group_nbrs_sorted[j]);
             }
-
-            delete [] group_nbrs_sorted;
          }
          Node &n_group = n_adjset["groups"][group_name];
 
@@ -869,6 +870,97 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
          for (int j = 0; j < num_group_verts; j++)
          {
             group_vals[j] = pmesh->GroupVertex(i, j);
+         }
+      }
+
+      ////////////////////////////////////////////
+      // Setup boundary adjset
+      ////////////////////////////////////////////
+
+      if (pmesh->GetNBE() > 0)
+      {
+         pmesh->ExchangeFaceNbrData();
+
+         Node &n_bndry_adjset = n_mesh["adjsets"][boundary_adjset_name];
+
+         n_bndry_adjset["association"] = "element";
+         n_bndry_adjset["topology"] = boundary_topology_name;
+         n_bndry_adjset["groups"].set(DataType::object());
+
+         Array<bool> lface_has_sface(pmesh->GetNumFaces());
+         {
+            lface_has_sface = false;
+
+            const int num_sfaces = pmesh->GetNSharedFaces();
+            for (int i = 0; i < num_sfaces; i++)
+            {
+               lface_has_sface[pmesh->GetSharedFace(i)] = true;
+            }
+         }
+
+         const int bndry_dim = pmesh->Dimension() - 1;
+         const int num_bndry_groups = pmesh->GetNFaceNeighbors();
+         for (int i = 0; i < num_bndry_groups; i++)
+         {
+            Array<int> bndry_nbrs(2);
+            {
+                bndry_nbrs[0] = pmesh->GetMyRank();
+                bndry_nbrs[1] = pmesh->GetFaceNbrRank(i);
+            }
+
+            const int bndry_group = pmesh->GetFaceNbrGroup(i);
+            Array<int> bndry_faces;
+            if (bndry_dim == 1)
+            {
+               const int num_faces = pmesh->GroupNEdges(bndry_group);
+               for (int j = 0; j < num_faces; j++)
+               {
+                  int face, o;
+                  pmesh->GroupEdge(bndry_group, j, face, o);
+                  if (lface_has_sface[face])
+                  {
+                     bndry_faces.Append(face);
+                  }
+               }
+            }
+            else // if (bndry_dim == 2)
+            {
+               const int num_tri_faces = pmesh->GroupNTriangles(bndry_group);
+               for (int j = 0; j < num_tri_faces; j++)
+               {
+                  int face, o;
+                  pmesh->GroupTriangle(bndry_group, j, face, o);
+                  if (lface_has_sface[face])
+                  {
+                     bndry_faces.Append(face);
+                  }
+               }
+               const int num_quad_faces = pmesh->GroupNQuadrilaterals(bndry_group);
+               for (int j = 0; j < num_quad_faces; j++)
+               {
+                  int face, o;
+                  pmesh->GroupQuadrilateral(bndry_group, j, face, o);
+                  if (lface_has_sface[face])
+                  {
+                     bndry_faces.Append(face);
+                  }
+               }
+            }
+
+            std::string group_name = "group";
+            {
+               Array<int> group_nbrs_sorted = bndry_nbrs;
+               group_nbrs_sorted.Sort();
+
+               for (int j = 0; j < group_nbrs_sorted.Size(); j++)
+               {
+                  group_name += "_" + std::to_string(group_nbrs_sorted[j]);
+               }
+            }
+            Node &n_bndry_group = n_bndry_adjset["groups"][group_name];
+
+            n_bndry_group["neighbors"].set(bndry_nbrs[1]);
+            n_bndry_group["values"].set(bndry_faces.GetData(), bndry_faces.Size());
          }
       }
    }
