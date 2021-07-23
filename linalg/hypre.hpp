@@ -323,42 +323,6 @@ private:
    // The Boolean flags are used in Destroy().
    void Write(MemoryClass mc, bool set_diag = true, bool set_offd = true);
 
-   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
-   /** After this call #A's diagonal and off-diagonal should not be modified
-       until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
-   void HostRead() const { Read(Device::GetHostMemoryClass()); }
-
-   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
-   /** After this call #A's diagonal and off-diagonal can be modified on host
-       and subsequent calls to Hypre{Read,Write,ReadWrite} will require a deep
-       copy of the data if hypre is built with device support. */
-   void HostReadWrite() { ReadWrite(Device::GetHostMemoryClass()); }
-
-   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
-   /** Similar to HostReadWrite(), except that the data will never be copied
-       from device to host to ensure host contains the correct current data. */
-   void HostWrite() { Write(Device::GetHostMemoryClass()); }
-
-   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
-       memory space. */
-   /** After this call #A's diagonal and off-diagonal should not be modified
-       until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
-   void HypreRead() const { Read(GetHypreMemoryClass()); }
-
-   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
-       memory space. */
-   /** After this call #A's diagonal and off-diagonal can be modified in hypre
-       memory space and subsequent calls to Host{Read,Write,ReadWrite} will
-       require a deep copy of the data if hypre is built with device support. */
-   void HypreReadWrite() { ReadWrite(GetHypreMemoryClass()); }
-
-   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
-       memory space. */
-   /** Similar to HostReadWrite(), except that the data will never be copied
-       from host to hypre memory space to ensure the latter contains the correct
-       current data. */
-   void HypreWrite() { Write(GetHypreMemoryClass()); }
-
    // Copy (shallow/deep, based on HYPRE_BIGINT) the I and J arrays from csr to
    // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
    // The CSR arrays are wrapped in the mem_csr struct which is used to move
@@ -755,6 +719,42 @@ public:
        (A+Ae) is the original (Neumann) matrix before elimination. */
    void EliminateBC(const HypreParMatrix &Ae, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
+
+   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
+   /** After this call #A's diagonal and off-diagonal should not be modified
+       until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
+   void HostRead() const { Read(Device::GetHostMemoryClass()); }
+
+   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
+   /** After this call #A's diagonal and off-diagonal can be modified on host
+       and subsequent calls to Hypre{Read,Write,ReadWrite} will require a deep
+       copy of the data if hypre is built with device support. */
+   void HostReadWrite() { ReadWrite(Device::GetHostMemoryClass()); }
+
+   /// Update the internal hypre_ParCSRMatrix object, #A, to be on host.
+   /** Similar to HostReadWrite(), except that the data will never be copied
+       from device to host to ensure host contains the correct current data. */
+   void HostWrite() { Write(Device::GetHostMemoryClass()); }
+
+   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
+       memory space. */
+   /** After this call #A's diagonal and off-diagonal should not be modified
+       until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
+   void HypreRead() const { Read(GetHypreMemoryClass()); }
+
+   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
+       memory space. */
+   /** After this call #A's diagonal and off-diagonal can be modified in hypre
+       memory space and subsequent calls to Host{Read,Write,ReadWrite} will
+       require a deep copy of the data if hypre is built with device support. */
+   void HypreReadWrite() { ReadWrite(GetHypreMemoryClass()); }
+
+   /** @brief Update the internal hypre_ParCSRMatrix object, #A, to be in hypre
+       memory space. */
+   /** Similar to HostReadWrite(), except that the data will never be copied
+       from host to hypre memory space to ensure the latter contains the correct
+       current data. */
+   void HypreWrite() { Write(GetHypreMemoryClass()); }
 
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;

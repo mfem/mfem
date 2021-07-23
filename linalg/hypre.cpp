@@ -1466,12 +1466,7 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
 HypreParMatrix * HypreParMatrix::Transpose() const
 {
    hypre_ParCSRMatrix * At;
-   // TODO:
-   // hypre_ParCSRMatrixTranspose does not work correctly on device, at least
-   // when num_proc > 1, so try to create the transpose on host:
-   // HostRead();
    hypre_ParCSRMatrixTranspose(A, &At, 1);
-   // HypreRead();
    hypre_ParCSRMatrixSetNumNonzeros(At);
 
    hypre_MatvecCommPkgCreate(At);
@@ -2753,7 +2748,9 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
          }
          else
          {
+            blocks(i, j)->HostRead();
             csr_blocks(i, j) = hypre_MergeDiagAndOffd(*blocks(i, j));
+            blocks(i, j)->HypreRead();
 
             for (int k = 0; k < csr_blocks(i, j)->num_rows; ++k)
             {
