@@ -115,7 +115,8 @@ However, MultilevelH*Solver_cube_example_parameters.xml are set to
 solve a smaller unit cube problem and can be executed faster and in serial.
 
 The mesh files CrookedPipeMesh_2.mesh and cube456.mesh can be found in
-parelag/meshes/ and coppied to mfem/miniapps/parelag/ to execute the miniapps.
+parelag/meshes/ and copied to mfem/miniapps/parelag/ or
+mfem/build/miniapps/parelag/ to execute the miniapps.
 
 Note that the examples in their current form are limited to 3D meshes and
 problems.
