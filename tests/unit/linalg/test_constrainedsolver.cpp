@@ -176,6 +176,12 @@ TEST_CASE("SerialConstrainedSolver", "[ConstrainedSolver]")
 // marked [Parallel] because it uses hypre
 TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return;
+#endif
+
    int comm_size;
    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
@@ -375,6 +381,12 @@ void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
 /// *actual* parallel constrained solver
 TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return;
+#endif
+
    int comm_size;
    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
@@ -659,6 +671,12 @@ void ParallelTestProblemTwo::Penalty(double pen, Vector& serr, Vector& lerr)
 
 TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return;
+#endif
+
    int comm_rank, comm_size;
    MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
@@ -703,7 +721,6 @@ TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
             REQUIRE(lerr(0) == MFEM_Approx(0.0, 2./pen));
          }
       }
-
    }
 }
 
@@ -794,6 +811,12 @@ void ZerosTestProblem::Elimination(Vector& serr, Vector& lerr, bool twoblocks)
 
 TEST_CASE("ZerosTestCase", "[Parallel], [ConstrainedSolver]")
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return;
+#endif
+
    int comm_rank, comm_size;
    MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);

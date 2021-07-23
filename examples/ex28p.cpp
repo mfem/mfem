@@ -81,13 +81,17 @@ Mesh * build_trapezoid_mesh(double offset)
 
 int main(int argc, char *argv[])
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return 0;
+#endif
+
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   // HYPRE_Init();
-   // HYPRE_SetSpGemmUseCusparse(0);
 
    // 2. Parse command-line options.
    int order = 1;
@@ -119,7 +123,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      // HYPRE_Finalize();
       MPI_Finalize();
       return 1;
    }
