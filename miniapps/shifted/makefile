@@ -88,4 +88,4 @@ clean-build:
 
 clean-exec:
 	@rm -f diffusion.mesh diffusion.gf
-	@rm -rf ParaViewDistance
+	@rm -rf ParaViewDistance ParaViewDiffusion
