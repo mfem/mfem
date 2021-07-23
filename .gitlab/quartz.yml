@@ -94,6 +94,7 @@ q_report_failure:
 .build_and_test_on_quartz:
   extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
   stage: q_build_and_test
+  needs: [setup]
 
 # Build MFEM
 debug_ser_gcc_4_9_3:
@@ -139,7 +140,7 @@ opt_par_gcc_6_1_0_pumi:
 # Baseline
 baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
-  needs: [setup]
+  needs: [setup_baseline]
 
 update_autotest:
   extends: [.on_quartz]
