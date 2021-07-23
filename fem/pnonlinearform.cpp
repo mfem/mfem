@@ -218,7 +218,8 @@ void ParBlockNonlinearForm::SetEssentialBC(const
 
 double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
+   // xs_true is not modified, so const_cast is okay
+   xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
    xs.Update(block_offsets);
 
    for (int s = 0; s < fes.Size(); ++s)
@@ -237,8 +238,9 @@ double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
 
 void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
-   ys_true.Update(y.GetData(), block_trueOffsets);
+   // xs_true is not modified, so const_cast is okay
+   xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
+   ys_true.Update(y, block_trueOffsets);
    xs.Update(block_offsets);
    ys.Update(block_offsets);
 
@@ -268,7 +270,8 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
    const Vector &x) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
+   // xs_true is not modified, so const_cast is okay
+   xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
    xs.Update(block_offsets);
 
    for (int s=0; s<fes.Size(); ++s)
