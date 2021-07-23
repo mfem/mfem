@@ -1429,7 +1429,7 @@ public:
        See "Nonsymmetric Algebraic Multigrid Based on Local Approximate Ideal
        Restriction (AIR)," Manteuffel, Ruge, Southworth, SISC (2018),
        DOI:/10.1137/17M1144350. Options: "distanceR" -> distance of neighbor
-       DOFs to buld restriction operator; options include 1, 2, and 15 (1.5).
+       DOFs for the restriction operator; options include 1, 2, and 15 (1.5).
        Strings "prerelax" and "postrelax" indicate points to relax on:
        F = F-points, C = C-points, A = all points. E.g., FFC -> relax on
        F-points, relax again on F-points, then relax on C-points. */
