@@ -222,7 +222,7 @@ protected:
 #ifdef MFEM_USE_MPI
    void ParUpdate();
 #endif
-   void UpdateNonlinearFormAndBC(Mesh &mesh, NonlinearForm &nlf);
+   void UpdateNonlinearFormAndBC(Mesh *mesh, NonlinearForm *nlf);
 
 #ifdef MFEM_USE_MPI
    // Rebalance ParMesh such that all the children elements are moved to the same
