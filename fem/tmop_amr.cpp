@@ -447,8 +447,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       const CoarseFineTransformations &dtrans =
          meshcopy.pncmesh->GetDerefinementTransforms();
       Table coarse_to_fine;
-      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine,
-                                pmesh->pncmesh->GetNGhostElements());
+      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine);
 
       for (int pe = 0; pe < meshcopy.GetNE(); pe++)
       {
