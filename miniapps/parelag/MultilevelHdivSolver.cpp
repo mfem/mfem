@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
    // accordance with the mesh attributes. If only a single entry is given, it
    // is applied to the whole mesh/domain.
    vector<double> beta_vals = prob_list.Get("beta values",
-                                             vector<double> {1.0});
+                                            vector<double> {1.0});
 
    // The list of solvers to invoke.
    auto list_of_solvers = prob_list.Get<list<string>>("List of linear solvers");
