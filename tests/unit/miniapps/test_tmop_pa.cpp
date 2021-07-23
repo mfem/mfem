@@ -871,6 +871,7 @@ TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
    device.Configure(MFEM_TMOP_DEVICE);
    device.Print();
    tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
+   return 255;
 }
 #endif
 #else
