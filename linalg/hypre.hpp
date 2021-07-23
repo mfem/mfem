@@ -588,7 +588,7 @@ public:
        with relative size > @a threshold in *this. */
 #if MFEM_HYPRE_VERSION >= 21800
    HypreParMatrix *ExtractSubmatrix(const Array<int> &indices,
-                                    double threshhold=0.0) const;
+                                    double threshold=0.0) const;
 #endif
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix

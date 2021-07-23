@@ -1488,7 +1488,7 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 
 #if MFEM_HYPRE_VERSION >= 21800
 HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
-                                                 double threshhold) const
+                                                 double threshold) const
 {
    if (!(A->comm))
    {
@@ -1519,7 +1519,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 
    // Extract submatrix into *submat
    hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
-                                        "FF", &submat, threshhold);
+                                        "FF", &submat, threshold);
 
    mfem_hypre_TFree(cpts_global);
    return new HypreParMatrix(submat);
