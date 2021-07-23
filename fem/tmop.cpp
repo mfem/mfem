@@ -1314,13 +1314,12 @@ static inline void device_copy(double *d_dest, const double *d_src, int size)
 } // namespace internal
 
 #ifdef MFEM_USE_MPI
-void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
-                                                    &tspec_)
+void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
 {
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
-   ParFiniteElementSpace *ptspec_fes = tspec_.ParFESpace();
+   ParFiniteElementSpace *ptspec_fes = t.ParFESpace();
 
    adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
                               *ptspec_fes->FEColl(), ncomp);
@@ -1339,19 +1338,6 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
    delete tspec_pgf;
    tspec_pgf = new ParGridFunction(ptspec_fesv, tspec);
    tspec_gf = tspec_pgf;
-}
-
-void DiscreteAdaptTC::GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx)
-{
-   if (idx < 0) { return; }
-   MFEM_VERIFY(tspec_.FESpace()->GetNDofs() == tspec.Size()/ncomp,
-               "Inconsistency in GetSerialDiscreteTargetSpec.");
-   const int ndof = tspec_.FESpace()->GetNDofs(),
-             vdim = tspec_.FESpace()->GetVDim();
-   for (int i = 0; i < ndof*vdim; i++)
-   {
-      tspec_(i) = tspec(i + idx*ndof);
-   }
 }
 
 void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
@@ -1402,22 +1388,20 @@ void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
    FinalizeParDiscreteTargetSpec(tspec_);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
-                                                      &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction &ar)
 {
-   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
+   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, ar); return; }
    aspectratioidx = ncomp;
-   SetDiscreteTargetBase(tspec_);
-   FinalizeParDiscreteTargetSpec(tspec_);
+   SetDiscreteTargetBase(ar);
+   FinalizeParDiscreteTargetSpec(ar);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
-                                                      &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction &o)
 {
-   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
+   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, o); return; }
    orientationidx = ncomp;
-   SetDiscreteTargetBase(tspec_);
-   FinalizeParDiscreteTargetSpec(tspec_);
+   SetDiscreteTargetBase(o);
+   FinalizeParDiscreteTargetSpec(o);
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
@@ -1479,31 +1463,28 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
    FinalizeSerialDiscreteTargetSpec(tspec_);
 }
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
-   const GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(const GridFunction &ar)
 {
-   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
+   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, ar); return; }
    aspectratioidx = ncomp;
-   SetDiscreteTargetBase(tspec_);
-   FinalizeSerialDiscreteTargetSpec(tspec_);
+   SetDiscreteTargetBase(ar);
+   FinalizeSerialDiscreteTargetSpec(ar);
 }
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
-   const GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(const GridFunction &o)
 {
-   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
+   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, o); return; }
    orientationidx = ncomp;
-   SetDiscreteTargetBase(tspec_);
-   FinalizeSerialDiscreteTargetSpec(tspec_);
+   SetDiscreteTargetBase(o);
+   FinalizeSerialDiscreteTargetSpec(o);
 }
 
-void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction
-                                                       &tspec_)
+void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
 {
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
-   const FiniteElementSpace *tspec_fes = tspec_.FESpace();
+   const FiniteElementSpace *tspec_fes = t.FESpace();
    adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
                                  *tspec_fes->FEColl(), ncomp);
    adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
@@ -1518,7 +1499,7 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction
    tspec_gf = new GridFunction(tspec_fesv, tspec);
 }
 
-void DiscreteAdaptTC::GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx)
+void DiscreteAdaptTC::GetDiscreteTargetSpec(GridFunction &tspec_, int idx)
 {
    if (idx < 0) { return; }
    const int ndof = tspec_.FESpace()->GetNDofs(),

@@ -467,8 +467,9 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 #endif
    }
 
-   fine_energy *= -1; // error_estimate(e) = energy(parent_of_e)-energy(e)
-   // -ve energy means derefinement is desirable
+   // error_estimate(e) = energy(parent_of_e)-energy(e)
+   // Negative energy means derefinement is desirable.
+   fine_energy *= -1;
    return true;
 }
 

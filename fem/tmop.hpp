@@ -1146,7 +1146,7 @@ public:
    { good_tspec = good_tspec_grad = good_tspec_hess = false; }
 
    /// Get one of the discrete fields from tspec.
-   virtual void GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx);
+   void GetDiscreteTargetSpec(GridFunction &tspec_, int idx);
    /// Get the FESpace associated with tspec.
    FiniteElementSpace *GetTSpecFESpace() { return tspec_fesv; }
    /// Get the entire tspec.
@@ -1155,7 +1155,6 @@ public:
    void UpdateAfterMeshTopologyChange();
 
 #ifdef MFEM_USE_MPI
-   virtual void GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx);
    ParFiniteElementSpace *GetTSpecParFESpace() { return ptspec_fesv; }
    void ParUpdateAfterMeshTopologyChange();
 #endif
@@ -1223,7 +1222,7 @@ public:
 
    void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
 
-   // Set tspec data using the coarse FESpace.
+   /// Computes target specification data with respect to the coarse FE space.
    void SetTspecDataForDerefinement(FiniteElementSpace *fes);
 
    // Reset refinement data associated with h-adaptivity component.
