@@ -1641,7 +1641,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    ProcessNewState(x);
 
+   TimeVector.Start();
    oper->Mult(x, r);
+   TimeVector.Stop();
    if (have_b)
    {
       r -= b;
@@ -1680,7 +1682,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
+      TimeGrad.Start();
       grad = &oper->GetGradient(x);
+      TimeGrad.Stop();
       prec->SetOperator(*grad);
 
       if (lin_rtol_type)
@@ -1688,7 +1692,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          AdaptiveLinRtolPreSolve(x, it, norm);
       }
 
+      TimePrecMult.Start();
       prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      TimePrecMult.Stop();
 
       if (lin_rtol_type)
       {
@@ -1705,7 +1711,10 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
       ProcessNewState(x);
 
+      TimeVector.Start();
       oper->Mult(x, r);
+      TimeVector.Stop();
+
       if (have_b)
       {
          r -= b;

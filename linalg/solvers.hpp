@@ -16,6 +16,7 @@
 #include "densemat.hpp"
 #include "handle.hpp"
 #include <memory>
+#include "../general/tic_toc.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -464,6 +465,9 @@ protected:
    double gamma;
    // Eisenstat-Walker factor alpha
    double alpha;
+   mutable StopWatch TimeVector, TimeGrad, TimePrecMult;
+
+
 
    /** @brief Method for the adaptive linear solver rtol invoked before the
        linear solve. */
@@ -479,10 +483,20 @@ protected:
                                  const double fnorm) const;
 
 public:
-   NewtonSolver() { }
+   NewtonSolver()
+   {
+       TimeVector.Clear();
+       TimeGrad.Clear();
+       TimePrecMult.Clear();
+   }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_)
+   {
+       TimeVector.Clear();
+       TimeGrad.Clear();
+       TimePrecMult.Clear();
+   }
 #endif
    virtual void SetOperator(const Operator &op);
 
@@ -521,6 +535,10 @@ public:
                            const double rtol_max = 0.9,
                            const double alpha = 0.5 * (1.0 + sqrt(5.0)),
                            const double gamma = 1.0);
+
+   virtual double GetAssembleElementVectorTime() { return TimeVector.RealTime(); }
+   virtual double GetAssembleElementGradTime() { return TimeGrad.RealTime(); }
+   virtual double GetPrecMultTime() { return TimePrecMult.RealTime(); }
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing

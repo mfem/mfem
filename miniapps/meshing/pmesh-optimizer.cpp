@@ -1040,6 +1040,8 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
+   StopWatch TimeSolver;
+
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -1062,11 +1064,29 @@ int main (int argc, char *argv[])
    }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
+   TimeSolver.Start();
    solver.Mult(b, x.GetTrueVector());
+   TimeSolver.Stop();
    x.SetFromTrueVector();
+
+   double solvertime = TimeSolver.RealTime(),
+          vectortime = solver.GetAssembleElementVectorTime(),
+          gradtime   = solver.GetAssembleElementGradTime(),
+          prectime   = solver.GetPrecMultTime();
+
    if (myid == 0 && solver.GetConverged() == false)
    {
       cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   int NDofs = x.ParFESpace()->GlobalTrueVSize()/pmesh->Dimension(),
+       NEGlob = pmesh->GetGlobalNE();
+   if (myid == 0) {
+       std::cout << "Monitoring info: " << mesh_poly_deg << " " << NEGlob << " " <<
+                    NDofs << " " << solver.GetNumIterations() << " " <<
+                    solvertime << " " << vectortime << " " << gradtime << " " <<
+                    prectime << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
@@ -1090,6 +1110,7 @@ int main (int argc, char *argv[])
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
    }
+
    if (myid == 0)
    {
       cout << "Initial strain energy: " << init_energy
