@@ -1220,6 +1220,9 @@ public:
    // Used for the refinement component in hr-adaptivity.
    void SetTspecFromIntRule(int e_id, const IntegrationRule &intrule);
 
+   // Targets based on discrete functions can result in invalid (negative)
+   // size at the quadrature points. This method can be used to set a
+   // minimum target size.
    void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
 
    /// Computes target specification data with respect to the coarse FE space.
