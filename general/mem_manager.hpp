@@ -930,7 +930,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    {
       if (
 #ifndef HYPRE_USING_CUDA
-         // If the following condiftion is true then MemoryManager::Exists()
+         // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
 #else

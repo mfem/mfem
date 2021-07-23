@@ -584,7 +584,7 @@ public:
 #ifdef MFEM_USE_HIP
       return HipMemcpyHtoD(dst, src, bytes);
 #endif
-      //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
+      // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
    void *DtoD(void* dst, const void* src, size_t bytes) override
    {
@@ -594,7 +594,7 @@ public:
 #ifdef MFEM_USE_HIP
       return HipMemcpyDtoD(dst, src, bytes);
 #endif
-      //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
+      // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
    void *DtoH(void *dst, const void *src, size_t bytes) override
    {
@@ -604,7 +604,7 @@ public:
 #ifdef MFEM_USE_HIP
       return HipMemcpyDtoH(dst, src, bytes);
 #endif
-      //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
+      // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
 };
 #else
