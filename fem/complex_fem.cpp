@@ -1217,7 +1217,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
 #else
-         // FIXME: need Ah->HypreReadWrite() since Ah will be modified.
+         Ah->HypreReadWrite();
          const int *d_ess_tdof_list =
             ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
          const int *d_diag_i = Aih->diag->i;
