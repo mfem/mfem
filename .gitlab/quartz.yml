@@ -136,7 +136,12 @@ opt_par_gcc_6_1_0_pumi:
     SPEC: "%gcc@6.1.0 +pumi"
   extends: .build_and_test_on_quartz
 
-# Baseline
+
+# Baseline jobs form an independent set of jobs. We use `needs:[]` to specify
+# that "setup-baseline" can start immediately. Then, we have to use needs for
+# each one of the baseline jobs, otherwise they will wait for the rest of the
+# pipeline.
+
 baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
   needs: [setup_baseline]

@@ -51,9 +51,9 @@ variables:
   MFEM_DATA_REPO: https://github.com/mfem/data.git
   ARTIFACTS_DIR: artifacts
 
-# The pipeline is divided into stages. Usually, these are also synchronization
-# points, however, we use "needs" keyword to express the DAG of jobs for more
-# efficiency.
+# The pipeline is divided into stages. Usually, jobs in a given stage wait for
+# the preceeding stages to complete before to start. However, we sometimes use
+# the "needs" keyword and express the DAG of jobs for more efficiency.
 # - We use setup and setup_baseline phases to download content outside of mfem
 #   directory.
 # - Allocate/Release is where quartz resources are allocated/released once for all.
@@ -87,7 +87,6 @@ setup:
   script:
     - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
     - if [ ! -d data ]; then git clone ${MFEM_DATA_REPO}; fi
-  needs: []
 
 # The setup_baseline job in setup stage_baseline doesn't rely on MFEM git repo.
 # It prepares a pipeline-wide working directory downloading/updating external
@@ -95,6 +94,7 @@ setup:
 # are now using unique directories so repo are never shared with another
 # pipeline. This is not memory efficient (we keep a lot of data), hence this
 # reminder.
+# Note: This job can start immediately.
 setup_baseline:
   tags:
     - shell
