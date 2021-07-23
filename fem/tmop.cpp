@@ -2259,11 +2259,11 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
 
 DiscreteAdaptTC::~DiscreteAdaptTC()
 {
-   if (tspec_gf) { delete tspec_gf; }
-   if (adapt_eval) { delete adapt_eval; }
-   if (tspec_fesv) { delete tspec_fesv; }
+   delete tspec_gf;
+   delete adapt_eval;
+   delete tspec_fesv;
 #ifdef MFEM_USE_MPI
-   if (ptspec_fesv) {delete ptspec_fesv; }
+   delete ptspec_fesv;
 #endif
 }
 
@@ -2402,7 +2402,6 @@ void TMOP_Integrator::UpdateAfterMeshTopologyChange()
                                     *zeta->FESpace()->FEColl(), 1);
       adapt_eval->SetInitialField
       (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
-
    }
 }
 
@@ -2416,7 +2415,6 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
                                  *pzeta_0->ParFESpace()->FEColl(), 1);
       adapt_eval->SetInitialField
       (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
-
    }
 }
 #endif

@@ -1545,16 +1545,18 @@ public:
                                    ElementTransformation &T,
                                    const Vector &elfun);
 
-   // In addition to the inputs for GetElementEnergy, this function also requires
-   // an integration rule to be specified that will give the decomposition of
-   // this element based on the refinement type being considered.
+   /** @brief Computes the mean of the energies of the given element's children.
+
+       In addition to the inputs for GetElementEnergy, this function requires an
+       IntegrationRule to be specified that will give the decomposition of the
+       given element based on the refinement type being considered. */
    virtual double GetRefinementElementEnergy(const FiniteElement &el,
                                              ElementTransformation &T,
                                              const Vector &elfun,
                                              const IntegrationRule &irule);
 
-   // This function is similar to GetElementEnergy, but ignores components such
-   // as limiting etc. to compute the element energy.
+   /// This function is similar to GetElementEnergy, but ignores components
+   /// such as limiting etc. to compute the element energy.
    virtual double GetDerefinementElementEnergy(const FiniteElement &el,
                                                ElementTransformation &T,
                                                const Vector &elfun);
