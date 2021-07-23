@@ -235,6 +235,8 @@ Version 4.2.1 (development)
 
 - Added makefile rule to generate TAGS table for vi or Emacs users.
 
+- Added support for hr-adaptivity using TMOP-based error estimator.
+
 API changes
 -----------
 - Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
