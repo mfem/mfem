@@ -57,24 +57,27 @@ TIMECMD := $(word 1,$(TIMECMD))
 ifneq (,$(filter test%,$(MAKECMDGOALS)))
    MAKEFLAGS += -k
 endif
-# Test runs of the examples/miniapps with parameters - check exit code
+# Test runs of the examples/miniapps with parameters - check exit code:
+# 0 means success, 255 means the test was skipped, anything else means error
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) $(if $(5),,-no-vis )$(4) \
      > $(1).stderr 2>&1); \
    err="$$3"; \
-   if [ "$$3" = 0 ]; \
-   then $(PRINT_OK); else if [ "$$3" = 255 ]; then $(PRINT_SKIP); err=0; \
+   if [ "$$3" = 0 ]; then $(PRINT_OK); \
+   else if [ "$$3" = 255 ]; then $(PRINT_SKIP); err=0; \
    else $(PRINT_FAILED); cat $(1).stderr; fi; fi; \
    rm -f $(1).stderr; exit $$err
 
 # Test runs of the examples/miniapps - check exit code and if a file exists
+# See mfem-test for the interpretation of the error code
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) -no-vis > $(1).stderr 2>&1); \
    err="$$3"; \
-   if [ "$$3" = 0 ] && [ -e $(4) ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; err=64; fi; \
+   if [ "$$3" = 0 ] && [ -e $(4) ]; then $(PRINT_OK); \
+   else if [ "$$3" = 255 ] && [ -e $(4) ]; then $(PRINT_SKIP); err=0; \
+   else $(PRINT_FAILED); cat $(1).stderr; err=64; fi; fi; \
    rm -f $(1).stderr; exit $$err
 
 .PHONY: test test-par-YES test-par-NO test-ser test-par test-clean test-print
