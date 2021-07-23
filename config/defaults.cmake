@@ -97,6 +97,11 @@ set(HYPRE_DIR "${MFEM_DIR}/../hypre/src/hypre" CACHE PATH
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
 #     "Packages that HYPRE depends on.")
+if (MFEM_USE_CUDA)
+   # This is only necessary when hypre is built with cuda:
+   set(HYPRE_REQUIRED_LIBRARIES "-lcusparse" "-lcurand" CACHE STRING
+       "Libraries that HYPRE depends on.")
+endif()
 
 set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library.")
 

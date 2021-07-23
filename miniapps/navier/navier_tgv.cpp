@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
    double ke = kin_energy.ComputeKineticEnergy(*u_gf);
 
    std::string fname = "tgv_out_p_" + std::to_string(ctx.order) + ".txt";
-   FILE *f;
+   FILE *f = NULL;
 
    if (mpi.Root())
    {

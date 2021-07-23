@@ -80,6 +80,26 @@ mfem-test-file = \
 # What sets of tests to run in serial and parallel
 test-par-YES: $(PAR_$(MFEM_TESTS):=-test-par) $(SEQ_$(MFEM_TESTS):=-test-seq)
 test-par-NO:  $(SEQ_$(MFEM_TESTS):=-test-seq)
+ifeq ($(MFEM_USE_CUDA),YES)
+.PHONY: test-par-YES-cuda test-par-NO-cuda test-ser-cuda test-par-cuda test-cuda
+test-par-YES: test-par-YES-cuda
+test-par-NO:  test-par-NO-cuda
+test-par-YES-cuda: test-par-cuda test-ser-cuda
+test-par-NO-cuda:  test-ser-cuda
+test-ser-cuda: $(SEQ_DEVICE_$(MFEM_TESTS):=-test-seq-cuda)
+test-par-cuda: $(PAR_DEVICE_$(MFEM_TESTS):=-test-par-cuda)
+test-cuda: test-par-$(MFEM_USE_MPI)-cuda clean-exec
+endif
+ifeq ($(MFEM_USE_HIP),YES)
+.PHONY: test-par-YES-hip test-par-NO-hip test-ser-hip test-par-hip test-hip
+test-par-YES: test-par-YES-hip
+test-par-NO:  test-par-NO-hip
+test-par-YES-hip: test-par-hip test-ser-hip
+test-par-NO-hip:  test-ser-hip
+test-ser-hip: $(SEQ_DEVICE_$(MFEM_TESTS):=-test-seq-hip)
+test-par-hip: $(PAR_DEVICE_$(MFEM_TESTS):=-test-par-hip)
+test-hip: test-par-$(MFEM_USE_MPI)-hip clean-exec
+endif
 test-ser:     test-par-NO
 test-par:     test-par-YES
 test:         all test-par-$(MFEM_USE_MPI) clean-exec
