@@ -82,80 +82,32 @@ namespace kernels
 #define MfEM_BLOCK_SIZE(k) 1
 #endif
 
-template <bool allPrint = false>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void whoAmI(int m)
-{
-  if (!allPrint) {
-    if (MFEM_THREAD_ID(x) || MFEM_THREAD_ID(y) || MFEM_THREAD_ID(z)) return;
-  }
-  printf("gdim (%d,%d,%d) bdim (%d,%d,%d) block (%d,%d,%d) thread (%d,%d,%d): %d\n",MFEM_BLOCK_SIZE(x),MFEM_BLOCK_SIZE(y),MFEM_BLOCK_SIZE(z),MFEM_THREAD_SIZE(x),MFEM_THREAD_SIZE(y),MFEM_THREAD_SIZE(z),MFEM_BLOCK_ID(x),MFEM_BLOCK_ID(y),MFEM_BLOCK_ID(z),MFEM_THREAD_ID(x),MFEM_THREAD_ID(y),MFEM_THREAD_ID(z),m);
-  MFEM_SYNC_THREAD;
-  return;
-}
-
-template <bool allPrint = false>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void whoAmI(const char *m)
-{
-  if (!allPrint) {
-    if (MFEM_THREAD_ID(x) || MFEM_THREAD_ID(y) || MFEM_THREAD_ID(z)) return;
-  }
-  printf("gdim (%d,%d,%d) bdim (%d,%d,%d) block (%d,%d,%d) thread (%d,%d,%d): %s\n",MFEM_BLOCK_SIZE(x),MFEM_BLOCK_SIZE(y),MFEM_BLOCK_SIZE(z),MFEM_THREAD_SIZE(x),MFEM_THREAD_SIZE(y),MFEM_THREAD_SIZE(z),MFEM_BLOCK_ID(x),MFEM_BLOCK_ID(y),MFEM_BLOCK_ID(z),MFEM_THREAD_ID(x),MFEM_THREAD_ID(y),MFEM_THREAD_ID(z),m);
-  MFEM_SYNC_THREAD;
-  return;
-}
-
 template <int DIM>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void computeSmootherAction(
    const double *__restrict__ d, const double *__restrict__ g,
-   const double *__restrict__ v, double *__restrict__ ret);
+   const double *__restrict__ v, double *__restrict__ ret)
+{
+  double d0givi = g[0]*v[0];
 
+  MFEM_UNROLL(DIM-1)
+  for (int i = 1; i < DIM; ++i) d0givi += g[i]*v[i]; // make the givi portion
+  d0givi *= d[0]; // and finally the d0
+
+  MFEM_UNROLL(DIM)
+  for (int i = 0; i < DIM; ++i) {
+    ret[i] = d0givi*g[i];
+    if (i) ret[i] += d[i]*v[i];
+  }
+  return;
+}
+
+// specialize for DIM = 1 since g = 1 so we save the multiply
 template <>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<1>
 (const double *__restrict__ d, const double *__restrict__ g,
  const double *__restrict__ v, double *__restrict__ ret)
 {
-   const double d0 = d[0];
-   const double v0 = v[0];
-
-   // common subexpr
-   const double d0givi = d0*v0;
-
-   ret[0] = d0givi;
-   return;
-}
-
-template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<2>
-(const double *__restrict__ d, const double *__restrict__ g,
- const double *__restrict__ v, double *__restrict__ ret)
-{
-   const double d0 = d[0], d1 = d[1];
-   const double g0 = g[0], g1 = g[1];
-   const double v0 = v[0], v1 = v[1];
-
-   // common subexpr
-   const double d0givi = d0*(g0*v0+g1*v1);
-
-   ret[0] = g0*d0givi;
-   ret[1] = d1*v1+g1*d0givi;
-   return;
-}
-
-template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<3>
-(const double *__restrict__ d, const double *__restrict__ g,
- const double *__restrict__ v, double *__restrict__ ret)
-{
-   const double d0 = d[0], d1 = d[1], d2 = d[2];
-   const double g0 = g[0], g1 = g[1], g2 = g[2];
-   const double v0 = v[0], v1 = v[1], v2 = v[2];
-
-   // common subexpr
-   const double d0givi = d0*(g0*v0+g1*v1+g2*v2);
-
-   ret[0] = g0*d0givi;
-   ret[1] = d1*v1+g1*d0givi;
-   ret[2] = d2*v2+g2*d0givi;
+   ret[0] = d[0]*v[0];
    return;
 }
 
@@ -265,8 +217,12 @@ void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
 	      forAllDispatch<2>(cpackSize/2,scale,devC,devDG+totalSize,devB,devX);
 	      totalSize += 2*cpackSize;
 	      break;
-            case 3:
+	    case 3:
 	      forAllDispatch<3>(cpackSize/3,scale,devC,devDG+totalSize,devB,devX);
+	      totalSize += 2*cpackSize;
+	      break;
+	    case 4:
+	      forAllDispatch<4>(cpackSize/4,scale,devC,devDG+totalSize,devB,devX);
 	      totalSize += 2*cpackSize;
 	      break;
             default:
@@ -849,20 +805,8 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE double matVAV(const double *__restrict__ mat,
 {
   double scratch[LDA];
 
-  matMultInv<LDA,F>(mat,v,scratch);
-  return vecDot<LDA>(v,scratch);
-}
-
-template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE double matVAVInPlace(const double *__restrict__ mat, double *__restrict__ v)
-{
-  double scratch[LDA];
-
-  matMultInv<LDA,F>(mat,v,scratch);
-  double ret = vecDot<LDA>(v,scratch);
-  MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i) v[i] = scratch[i];
-  return ret;
+  matMultInv<LDA,F>(mat,v,scratch); // scratch <- A @ vec
+  return vecDot<LDA>(v,scratch);    // dot <- sratch @ vec
 }
 
 // constexpr square root for doubles using the newton-raphson method
@@ -877,26 +821,23 @@ MFEM_HOST_DEVICE double constexpr constexprSqrt(double x)
 }
 
 template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *__restrict__ mat, double *__restrict__ vec)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *__restrict__ mat, double *__restrict__ vec, const double atol = 1e-6)
 {
   MFEM_UNROLL(LDA)
   for (int i = 0; i < LDA; ++i)	vec[i] = 1.0/constexprSqrt(static_cast<double>(LDA));
 
   double matfactored[LDA*LDA];
-  matFactor<LDA,MATRIX_FACTOR_TYPE::CHOLESKY>(mat,matfactored);
+  matFactor<LDA,F>(mat,matfactored); // matfactored <- chol(mat)
 
-  double val = matVAVInPlace<LDA,F>(matfactored,vec); // val <- vec @ A @ vec, vec <- A @ vec
+  double val = matVAV<LDA,F>(matfactored,vec); // val <- vec @ A @ vec
 
-  int  iter = 0;
-  bool skipMatMul = true;
+  int iter = 0;
+  MFEM_UNROLL(5)
   do {
-    if (skipMatMul) {
-      matMultInvInPlace<LDA,F>(matfactored,vec);    // vec <- A @ vec
-      skipMatMul = false;
-    }
+    matMultInvInPlace<LDA,F>(matfactored,vec);      // vec <- A @ vec
     vecNormalize<LDA>(vec);                         // vec <- vec/norm(vec)
     double valTmp = matVAV<LDA,F>(matfactored,vec); // valTmp <- vec @ A @ vec
-    if (fabs(val-valTmp) < 0.00001) break;
+    if (fabs(val-valTmp) < atol) break;
     val = valTmp;
   } while (++iter < 30); // can't just use while (true) as nvcc has ICE when using debug
 			 // flag with pseudo-infinite inlined loops
@@ -915,7 +856,7 @@ static void forAllDispatchCoeffs(const int size,
 				 const int *__restrict__ clusters,
 				 double *__restrict__ ret)
 {
-  if (LDA <= 2) {
+  if (LDA <= 3) {
 #define SUBMAT membuf
 #define EIGVAL (SUBMAT+(LDA*LDA))
 #define EIGVEC (EIGVAL+LDA)
@@ -977,7 +918,7 @@ static void forAllDispatchCoeffs(const int size,
      for (int i = 0; i < LDA*LDA; ++i) SUBMAT[i] = 0.0;
 
      loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,SUBMAT);
-     computeLowestEigenVector<LDA,MATRIX_FACTOR_TYPE::CHOLESKY>(SUBMAT,EIGVEC);
+     computeLowestEigenVector<LDA,MATRIX_FACTOR_TYPE::CHOLESKY>(SUBMAT,EIGVEC,1e-7);
      vecNormalize<LDA>(EIGVEC);
 
      // compute g^T A g
