@@ -78,12 +78,26 @@ double wavefront_laplace(const Vector &p)
    double r = sqrt(pow(x - xc,2.0) + pow(y - yc,2.0));
    double num = - ( alpha - pow(alpha,3) * (pow(r,2) - pow(r0,2)) );
    double denom = pow(r * ( pow(alpha,2) * pow(r0,2) + pow(alpha,2) * pow(r,2) \
-                  - 2 * pow(alpha,2) * r0 * r + 1.0 ),2);
+                            - 2 * pow(alpha,2) * r0 * r + 1.0 ),2);
    denom = max(denom,1e-8);
    // return num / denom;
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
    if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 2; }
    return 0;
+}
+
+double wavefront_laplace_alt(const Vector &p)
+{
+   double x = p(0), y = p(1);
+   double alpha = 1000.0;
+   double xc = -0.5, yc = -0.5;
+   double r0 = 0.7;
+   double r = sqrt(pow(x - xc,2.0) + pow(y - yc,2.0));
+   double num = - ( alpha - pow(alpha,3) * (pow(r,2) - pow(r0,2)) );
+   double denom = pow(r * ( pow(alpha,2) * pow(r0,2) + pow(alpha,2) * pow(r,2) \
+                            - 2 * pow(alpha,2) * r0 * r + 1.0 ),2);
+   denom = max(denom,1e-8);
+   return num / denom;
 }
 
 int main(int argc, char *argv[])
@@ -95,6 +109,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int max_dofs = 50000;
    bool visualization = true;
+   int nc_limit = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -209,65 +224,22 @@ int main(int argc, char *argv[])
 
 
    // 11.5. Preprocess mesh to control osc
-   L2_FECollection l2fec(order, dim);
-   FiniteElementSpace l2fes(&mesh, &l2fec);
-   GridFunction load(&l2fes);
-   int order_quad = std::max(2, 2*order+1);
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
-
    double osc_tol = 1e-3;
-   while (true)
-   {
-      bool h_refined = false;
-      Array<int> mesh_refinements;
-      // get L2-norm of load ( f )
-      load.ProjectCoefficient(*rhs);
-      // load.ProjectDiscCoefficient(*rhs,mfem::GridFunction::AvgType::ARITHMETIC);
-      double norm_of_load = ComputeLpNorm(2.0,*rhs,mesh,irs);
+   CoefficientRefiner coeffrefiner(0);
+   coeffrefiner.SetCoefficient(*rhs);
+   coeffrefiner.SetThreshold(osc_tol);
+   coeffrefiner.SetNCLimit(0);
+   coeffrefiner.PreprocessMesh(mesh);
 
-      // construct h * (I - Pi) f
-      GridFunction osc_fun;
-      double NE = l2fes.GetNE();
-      double av_norm_of_load = norm_of_load / sqrt(NE);
-      Vector norm_of_fine_scale(NE);
-      load.ComputeElementL2Errors(*rhs,norm_of_fine_scale);
-      // osc.Print();
-      // break;
+   Coefficient * rhs2 = nullptr;
+   rhs2 = new FunctionCoefficient(wavefront_laplace_alt);
+   coeffrefiner.SetCoefficient(*rhs2);
+   coeffrefiner.PreprocessMesh(mesh);
 
 
-      for (int i = 0; i < NE; i++)
-      {
-         double h = mesh.GetElementSize(i);
-         double local_osc = h * norm_of_fine_scale(i);
-         if ( local_osc > osc_tol * av_norm_of_load )
-         {
-            h_refined = true;
-            mesh_refinements.Append(i);
-         }
-      }
-      if (h_refined)
-      {
-         int nonconforming = -1;
-         int nc_limit = 1;
-         
-         mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
-         l2fes.Update(false);
-         load.Update();
-      }
-      else
-      {
-         break;
-      }
 
-      sol_sock.precision(8);
-      sol_sock << "mesh\n" << mesh << flush;
-   }
-
-
+   sol_sock.precision(8);
+   sol_sock << "mesh\n" << mesh << flush;
 
    cout << "press any key" << endl;
    cin.get();

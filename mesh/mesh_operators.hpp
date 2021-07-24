@@ -307,6 +307,82 @@ public:
    virtual void Reset() { estimator.Reset(); }
 };
 
+/** @brief Refinement operator to control data oscillation.
+
+    This class uses the given computes osc_K(f) := \| h \cdot (I - \Pi) f \|_K at
+    each element K. Here, \Pi is the L2-projection and \| \cdot \|_K is the
+    L2-norm, restricted to the element K. All elements satisfying the inequality
+    \code
+       osc_K(f) > threshold \cdot \| f \| / sqrt(n_el) ,
+    \endcode
+    are refined. Here, threshold is a postive parameter, \| \cdot \| is the
+    L2-norm over the entire \Omega, and n_el is the number of elements in the
+    mesh.
+
+    Note that if osc(f) = threshold \cdot \| f \| / sqrt(n_el) for each K,
+    then
+    \code
+       osc(f) = sqrt( sum_K osc_K^2(f)) = threshold \cdot \| f \| .
+    \endcode
+    This is the reason for the 1/sqrt(n_el) factor. */
+class CoefficientRefiner : public MeshOperator
+{
+protected:
+   Coefficient * coeff = NULL;
+   double threshold = 1.0e-3;
+   int nc_limit = 1;
+   int nonconforming = -1;
+   int order;
+   Array<IntegrationRule *> irs;
+//    const IntegrationRule *irs[Geometry::NumGeom] = NULL;
+   GridFunction gf;
+   Array<int> mesh_refinements;
+   // TODO: Save oscillation error
+
+   /** @brief Apply the operator to the mesh once.
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   virtual int ApplyImpl(Mesh &mesh);
+
+public:
+   /// Constructor
+   CoefficientRefiner(int order_) : order(order_) { }
+
+   /** @brief Apply the operator to the mesh max_it times or until tolerance
+    *  achieved.
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   virtual int PreprocessMesh(Mesh &mesh, int max_it);
+
+   bool PreprocessMesh(Mesh &mesh)
+   {
+      int max_it = 100;
+      return PreprocessMesh(mesh, max_it);
+   }
+
+   /// Set the de-refinement threshold. The default value is zero.
+   void SetThreshold(double threshold_) { threshold = threshold_; }
+
+   /// Set the de-refinement threshold. The default value is zero.
+   void SetCoefficient(Coefficient &coeff_) { coeff = &coeff_; }
+
+   /// Reset the oscillation order
+   void SetOrder(double order_) { order = order_; }
+
+   /** @brief Set the maximum ratio of refinement levels of adjacent elements
+       (0 = unlimited). */
+   void SetNCLimit(int nc_limit_)
+   {
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
+   }
+
+   // Set a custom integration rule
+   void SetIntRule(const IntegrationRule *irs_[]) { irs.Assign(&irs_); }
+
+   /// Reset
+   virtual void Reset();
+};
 
 /** @brief ParMesh rebalancing operator.
 
