@@ -2251,6 +2251,12 @@ public:
                              const int cbtype, const int obtype,
                              const int M, const DofMapType dmtype);
 
+   // For 1D elements: there is only an "open basis", no "closed basis"
+   VectorTensorFiniteElement(const int dims, const int dimv, const int dimc,
+                             const int d, const int p,
+                             const int obtype, const int M,
+                             const DofMapType dmtype);
+
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const;
 
@@ -3322,11 +3328,9 @@ public:
 
 
 /// Arbitrary order Nedelec elements in 1D on a segment
-class ND_SegmentElement : public VectorFiniteElement
+class ND_SegmentElement : public VectorTensorFiniteElement
 {
    static const double tk[1];
-
-   Poly_1D::Basis &obasis1d;
    Array<int> dof2tk;
 
 public:
