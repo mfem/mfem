@@ -7962,12 +7962,14 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
+                                                     const int dimv,
+                                                     const int dimc,
                                                      const int d,
                                                      const int p,
                                                      const int obtype,
                                                      const int M,
                                                      const DofMapType dmtype)
-   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
+   : VectorFiniteElement(dims, dimc, dimv, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Pk),
      TensorBasisElement(dims, p, obtype, dmtype),
      cbasis1d(poly1d.GetBasis(p, VerifyOpen(obtype))),
@@ -13085,7 +13087,7 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 const double ND_SegmentElement::tk[1] = { 1. };
 
 ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
-   : VectorTensorFiniteElement(1, p, p - 1, ob_type, H_CURL,
+   : VectorTensorFiniteElement(1, 1, 0, p, p - 1, ob_type, H_CURL,
                                DofMapType::L2_DOF_MAP),
      dof2tk(dof)
 {
