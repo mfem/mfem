@@ -157,6 +157,72 @@ int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
 }
 
 
+int CoefficientRefiner::ApplyImpl(Mesh &mesh)
+{
+   return PreprocessMesh(mesh, 1);
+}
+
+int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
+{
+   MFEM_VERIFY(max_it > 0, "max_it must be strictly positive")
+   MFEM_VERIFY(coeff, "Coefficient is not set for CoefficientRefiner object")
+
+   int dim = mesh.Dimension();
+   L2_FECollection l2fec(order, dim);
+   FiniteElementSpace l2fes(&mesh, &l2fec);
+   if (!irs.Size())
+   {
+      irs.SetSize(Geometry::NumGeom);
+      int order_quad = 2*order + 3;
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+   }
+
+   for (int i = 0; i < max_it; i++)
+   {
+      // Get average L2-norm of f
+      double NE = mesh.GetNE();
+      gf.SetSpace(&l2fes);
+      gf.ProjectCoefficient(*coeff);
+      double av_norm_of_gf = ComputeLpNorm(2.0,*coeff,mesh,irs.GetData()) / sqrt(NE);
+
+      // Construct local L2-norms of (I - Pi) f
+      Vector norm_of_fine_scale(NE);
+      gf.ComputeElementL2Errors(*coeff,norm_of_fine_scale,irs.GetData());
+
+      // Define osc = h \cdot \| (I - Pi) f \| and select elements
+      // for refinement based on threshold
+      mesh_refinements.SetSize(0);
+      for (int j = 0; j < NE; j++)
+      {
+         double h = mesh.GetElementSize(j);
+         double local_osc = h * norm_of_fine_scale(j);
+         if ( local_osc > threshold * av_norm_of_gf )
+         {
+            mesh_refinements.Append(j);
+         }
+      }
+
+      // Refine elements
+      if (mesh_refinements.Size())
+      {
+         mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
+         l2fes.Update(false);
+         gf.Update();
+      }
+      else
+      {
+         return STOP;
+      }
+   }
+   return CONTINUE + REFINED;
+}
+
+void CoefficientRefiner::Reset() { coeff = nullptr; }
+
+
 int Rebalancer::ApplyImpl(Mesh &mesh)
 {
 #ifdef MFEM_USE_MPI
