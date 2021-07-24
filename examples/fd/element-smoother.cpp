@@ -163,8 +163,10 @@ Array<int> ess_bdr, Coefficient * cf_ )
                (*vecM)(i) = 1.0/((1./(*vecM1)(i)+1./(*vecM2)(i))/2.0);
             }   
          }
-         GetDiffusionEdgeMatrix(edge,fes,*vecG,*Q,irs,*EdgeGrad[edge],edge_orient[edge]);
-         GetMassEdgeMatrix(edge,fes,*vecM,*Q,irs,*EdgeMass[edge],edge_orient[edge]);
+         // GetDiffusionEdgeMatrix(edge,fes,*vecG,*Q,irs,*EdgeGrad[edge],edge_orient[edge]);
+         // GetMassEdgeMatrix(edge,fes,*vecM,*Q,irs,*EdgeMass[edge],edge_orient[edge]);
+         Get1DMatrices(fes,edge, edge_orient[edge],
+                       *vecG, *vecM,*Q,irs,*EdgeGrad[edge],*EdgeMass[edge]);
          emarker[edge] = 1;
       }
    }

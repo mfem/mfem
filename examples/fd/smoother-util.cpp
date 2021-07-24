@@ -268,7 +268,7 @@ void TPElementTransformation::Setup2D()
          TransB1D[iel][d] = new Vector;
       }
       ElementTransformation * T = mesh->GetElementTransformation(iel);
-      // Populate integrations points and get the K = adj(J)/sqrt(detJ);
+      // Populate integration points and get the K = adj(J)/sqrt(detJ);
       // Store K_11^2 + K_12^2 
       //       K_21^2 + K_22^2 
 
@@ -535,6 +535,36 @@ void GetMassEdgeMatrix(int iedge, FiniteElementSpace * fes,
       AddMult_a_VVt(w, shape, elmat);
    }
 }
+
+void Get1DMatrices(FiniteElementSpace * fes, int iedge, int orient, 
+                               Vector & JacL, Vector & JacM, Vector & Coeff1D,
+                               const IntegrationRule *ir,  
+                               DenseMatrix &L, DenseMatrix & M)
+{
+   const FiniteElement * el = fes->GetEdgeElement(iedge);
+   int dim = el->GetDim();
+   int nd = el->GetDof();
+
+   DenseMatrix dshape(nd,dim);
+   Vector shape(nd);
+   L.SetSize(nd); L = 0.0;
+   M.SetSize(nd); M = 0.0;
+   int nint = ir->GetNPoints();
+   for (int i = 0; i < nint; i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      double w = ip.weight;
+      el->CalcDShape(ip, dshape);
+      el->CalcShape(ip, shape);
+      int j = orient == -1 ? nint-i-1 : i;
+      double wL = w*Coeff1D(j) * JacL(j);
+      double wM = w*Coeff1D(j) * JacM(j);
+      AddMult_a_AAt(wL, dshape, L);
+      AddMult_a_VVt(wM, shape, M);
+   } 
+}                               
+
+
 
 void TensorProductEssentialDofsMaps(const Array<int> & ess_tdof_list, 
                                     const ParFiniteElementSpace * fes, 

@@ -20,7 +20,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = ex_diffusion 
-PAR_EXAMPLES = ex_diffusionp
+PAR_EXAMPLES = ex_diffusionp  ex_amr_diffusionp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -32,7 +32,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= element-smoother.o smoother-util.o 
+COMMON_O= element-smoother.o smoother-util.o exact_sol.o
 
 # Remove built-in rules
 %: %.cpp

@@ -92,6 +92,11 @@ public:
 
 void GetVertexToEdgeCount(const Mesh * mesh, DenseMatrix & edge_counts);
 
+void Get1DMatrices(FiniteElementSpace * fes, int iedge, int orient, 
+                               Vector & JacL, Vector & JacM, Vector & Coeff1D,
+                               const IntegrationRule *ir,  
+                               DenseMatrix &L, DenseMatrix & M);
+
 void GetDiffusionEdgeMatrix(int iedge, FiniteElementSpace * fes, 
                                Vector & Jac1D, Vector & Coeff1D,
                                const IntegrationRule *ir,  

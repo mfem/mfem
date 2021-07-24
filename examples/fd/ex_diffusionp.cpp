@@ -417,11 +417,11 @@ int main(int argc, char *argv[])
          Array<int> ess_tdof_list;
          fespaces.GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
          a.FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-         if (i==3)
+         if (i==4)
          {
             Vector diag(fespaces.GetFinestFESpace().GetTrueVSize());
             a.AssembleDiagonal(diag);
-            prec = new OperatorChebyshevSmoother(A.Ptr(), diag,ess_tdof_list, 3, MPI_COMM_WORLD);
+            prec = new OperatorChebyshevSmoother(A.Ptr(), diag,ess_tdof_list, 1, MPI_COMM_WORLD);
             if (myid == 0)
                cout << "\nJacobi-Chebychev " << endl;
          }
