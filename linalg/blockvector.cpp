@@ -20,9 +20,7 @@ void BlockVector::SetBlocks()
 {
    for (int i = 0; i < numBlocks; ++i)
    {
-      blocks[i].NewMemoryAndSize(
-         Memory<double>(data, blockOffsets[i], BlockSize(i)),
-         BlockSize(i), true);
+      blocks[i].MakeRef(*this, blockOffsets[i], BlockSize(i));
    }
 }
 
@@ -178,9 +176,7 @@ BlockVector::~BlockVector()
 
 void BlockVector::GetBlockView(int i, Vector & blockView)
 {
-   blockView.NewMemoryAndSize(
-      Memory<double>(data, blockOffsets[i], BlockSize(i)),
-      BlockSize(i), true);
+   blockView.MakeRef(*this, blockOffsets[i], BlockSize(i));
 }
 
 }
