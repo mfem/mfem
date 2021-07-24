@@ -7969,7 +7969,7 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
                                                      const int obtype,
                                                      const int M,
                                                      const DofMapType dmtype)
-   : VectorFiniteElement(dims, dimc, dimv, GetTensorProductGeometry(dims), d,
+   : VectorFiniteElement(dims, dimv, dimc, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Pk),
      TensorBasisElement(dims, p, obtype, dmtype),
      cbasis1d(poly1d.GetBasis(p, VerifyOpen(obtype))),
