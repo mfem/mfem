@@ -12,7 +12,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../data/star.mesh";
-   int order = 2;
+   int order = 4;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
                   "Enter the number of refinement steps");
    args.AddOption(&solver_opt, "-S", "--solver",
                   "Which solver to use (either two-level"
-                  ", amg, smoother, direct, or boomer-amg");
+                  ", amg_hypre, amg_amgx, smoother, direct, or boomer-amg");
 
    args.Parse();
    if (!args.Good())
@@ -109,11 +109,11 @@ int main(int argc, char *argv[])
    int bounds[2];
    if (solver == "boomer-amg")
    {
-      A_par = SimpleAMG::ToHypreParMatrix(A.As<SparseMatrix>(), MPI_COMM_WORLD,
-                                          bounds);
-      auto hamg = new HypreBoomerAMG(*A_par);
-      hamg->SetPrintLevel(0);
-      prec = hamg;
+     //A_par = SimpleAMG::ToHypreParMatrix(A.As<SparseMatrix>(), MPI_COMM_WORLD,
+     //                                     bounds);
+   //auto hamg = new HypreBoomerAMG(*A_par);
+   //hamg->SetPrintLevel(0);
+   //prec = hamg;
    }
    else if (solver == "direct")
    {
@@ -189,11 +189,18 @@ int main(int argc, char *argv[])
       }
       if (solver == "two-level")
       {
-         prec = new SimpleAMG(A.As<SparseMatrix>(), smoother, MPI_COMM_WORLD);
+	const auto Alor = A.As<SparseMatrix>();
+	prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::DIRECT, MPI_COMM_WORLD);
       }
-      else if (solver == "amg")
+      else if (solver == "amg_hypre")
       {
-         prec = new SimpleAMG(A.As<SparseMatrix>(), smoother, MPI_COMM_WORLD, false);
+	const auto Alor = A.As<SparseMatrix>();
+	prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::AMG_HYPRE, MPI_COMM_WORLD);
+      }
+      else if (solver == "amg_amgx")
+      {
+	const auto Alor = A.As<SparseMatrix>();
+	prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::AMG_AMGX, MPI_COMM_WORLD,std::string("amgx.json"));
       }
       else if (solver == "smoother")
       {

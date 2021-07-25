@@ -141,7 +141,7 @@ void SimpleAMG::FormRestriction()
    R.Swap(R_);
 }
 
-SimpleAMG::SimpleAMG(const SparseMatrix &A_, Solver &smoother_, const solverBackend &backend, MPI_Comm comm, std::string amgConfig = "amgx.json") : A(A_), smoother(smoother_)
+SimpleAMG::SimpleAMG(const SparseMatrix &A_, Solver &smoother_, const solverBackend &backend, MPI_Comm comm, std::string amgConfig) : A(A_), smoother(smoother_)
 {
    FormRestriction();
    Ac.reset(RAP(A, R));

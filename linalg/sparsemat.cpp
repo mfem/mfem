@@ -1432,12 +1432,13 @@ void SparseMatrix::Symmetrize()
 
 int SparseMatrix::NumNonZeroElems() const
 {
-   if (A != NULL)  // matrix is finalized
+   if (HostReadData() != NULL)  // matrix is finalized
    {
-      return I[height];
+      return HostReadI()[height];
    }
    else
    {
+
       int nnz = 0;
 
       for (int i = 0; i < height; i++)
@@ -3311,9 +3312,9 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    m      = A.Height(); // number of rows of A
    n      = A.Width();  // number of columns of A
    nnz    = A.NumNonZeroElems();
-   A_i    = A.GetI();
-   A_j    = A.GetJ();
-   A_data = A.GetData();
+   A_i    = A.HostReadI();
+   A_j    = A.HostReadJ();
+   A_data = A.HostReadData();
 
    At_i = Memory<int>(n+1);
    At_j = Memory<int>(nnz);

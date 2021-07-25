@@ -39,7 +39,7 @@ protected:
 public:
    enum class solverBackend{DIRECT,AMG_HYPRE,AMG_AMGX};
 
-  SimpleAMG(const SparseMatrix &A_, Solver &smoother_, const solverBackend &backend, MPI_Comm comm, std::string);
+   SimpleAMG(const SparseMatrix &A_, Solver &smoother_, const solverBackend &backend, MPI_Comm comm, std::string="amgx.json");
 
    void Mult(const Vector &x, Vector &y) const;
 
