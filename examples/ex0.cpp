@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
    //     can be viewed using GLVis as follows: "glvis -m mesh.mesh -g sol.gf"
    a.RecoverFEMSolution(X, b, x);
    x.Save("sol.gf");
-   mesh.Save("mesh.mesh");
+   mesh.Save("mesh.mesh")
 
    return 0;
 }
