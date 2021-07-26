@@ -37,6 +37,18 @@
     # Default is to run if previous stage succeeded
     - when: on_success
 
+# This is a yaml anchor, it can be used to avoid duplication like here.
+# The code below will simply be pasted wherever the anchor is placed.
+.safe_create_rundir: &safe_create_rundir |
+  if ! mkdir ${rundir}; then
+    n=1
+    while ! mkdir ${rundir}_${n}
+    do
+      n=$((n+1))
+    done
+    rundir=${rundir}_${n}
+  fi
+
 # Allocate
 q_allocate_resources:
   variables:
@@ -65,10 +77,11 @@ q_report_success:
   stage: q_release_resources
   script:
     - echo "Can only run if all the quartz jobs passed"
-    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - mkdir -p ${rundir}
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
     - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
     - git push origin master
@@ -80,10 +93,11 @@ q_report_failure:
   stage: q_release_resources
   script:
     - echo "Runs if there was at least one failure on quartz"
-    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - mkdir -p ${rundir}
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
     - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
     - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
@@ -150,14 +164,15 @@ update_autotest:
   needs: [baselinecheck_mfem_intel_quartz]
   stage: baseline_to_autotest
   script:
-    - rundir="quartz/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - mkdir -p ${rundir}
+    - rundir="quartz/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
     - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
     # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
     - |
       if [[ -f ${rundir}/*.err ]]
       then
+        echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/*.err
         cp ${rundir}/*.err ${rundir}/autotest-email.html
       fi
     - git add ${rundir}
