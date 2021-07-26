@@ -63,6 +63,16 @@ Version 4.2.1 (development)
 - Added a new miniapp for computing (signed) distance functions to a point
   source or zero level set. See miniapps/shifted/distance.cpp.
 
+- Added support for AMG preconditioners on GPUs based on the hypre library
+  (version 2.22.0 or later). These include BoomerAMG, AMS and ADS and most
+  MFEM examples that use hypre have been ported to support this functionality.
+  The GPU preconditioners require that both hypre and MFEM are built with CUDA
+  support. Hypre builds with CUDA and unified memory are also supported and
+  can be used with `-d cuda:uvm` as a command-line option.
+
+- Extended `make test` to include GPU tests when MFEM is built with CUDA or HIP
+  support.
+
 - Added matrix-free GPU-enabled implementations of GradientInterpolator and
   IdentityInterpolator.
 
