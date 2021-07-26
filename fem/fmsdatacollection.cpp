@@ -61,7 +61,6 @@ void FMSDataCollection::Save()
 {
    // Convert this to FmsDataCollection.
 
-   int err = 0;
    FmsDataCollection dc;
    if (DataCollectionToFmsDataCollection(this, &dc) == 0)
    {
