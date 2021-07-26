@@ -8,7 +8,7 @@
                                https://mfem.org
 
 
-Version 4.3, released on July 27, 2021
+Version 4.3, released on July 29, 2021
 ======================================
 
 Discretization improvements
@@ -49,6 +49,13 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
+- Added support for AMG preconditioners on GPUs based on the hypre library
+  (version 2.22.0 or later). These include BoomerAMG, AMS and ADS and most
+  MFEM examples that use hypre have been ported to support this functionality.
+  The GPU preconditioners require that both hypre and MFEM are built with CUDA
+  support. Hypre builds with CUDA and unified memory are also supported and
+  can be used with `-d cuda:uvm` as a command-line option.
+
 - Added support for AMG preconditioners for non-symmetric systems (e.g.
   advection-dominated problems) using hypre's approximate ideal restriction
   (AIR) AMG. Requires hypre version 2.14.0 or newer. Usage is illustrated in
@@ -78,16 +85,6 @@ Linear and nonlinear solvers
 
 - Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
   diffusion problems with the Ceed backend.
-
-- Added initial support for hypre's mixed integer (mixedint) capability, which
-  uses different data types for local and global indices in order to save memory
-  in large problems. This capability requires that hypre was configured with the
-  --enable-mixedint option. Note that this option is currently tested only in
-  ex1p and may not work in more general settings.
-
-- Improved the interface for using the Ginkgo library, including: support for
-  matrix-free operators in Ginkgo solvers, new wrappers for Ginkgo
-  preconditioners, HIP support, and reduction of unnecessary data copies.
 
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
@@ -229,6 +226,9 @@ Improved testing
 - Transitioned from Travis to GitHub Action for testing/CI on GitHub.
 
 - Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
+
+- Extended `make test` to include GPU tests when MFEM is built with CUDA or HIP
+  support.
 
 - Added a set of suggested git hooks for developers in config/githooks.
 

@@ -16,13 +16,13 @@
     - shell
     - quartz
   rules:
-    # Don’t run quartz jobs if...
+    # Don't run quartz jobs if...
     - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"'
       when: never
-    # Don’t run autotest update if...
+    # Don't run autotest update if...
     - if: '$CI_JOB_NAME =~ /update_autotest/ && $AUTOTEST != "YES"'
       when: never
-    # Don’t run autotest update if...
+    # Don't run autotest update if...
     - if: '$CI_JOB_NAME =~ /q_report/ && $AUTOTEST != "YES"'
       when: never
     # Report success on success status
@@ -94,7 +94,6 @@ q_report_failure:
 .build_and_test_on_quartz:
   extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
   stage: q_build_and_test
-  needs: [setup]
 
 # Build MFEM
 debug_ser_gcc_4_9_3:
@@ -137,7 +136,11 @@ opt_par_gcc_6_1_0_pumi:
     SPEC: "%gcc@6.1.0 +pumi"
   extends: .build_and_test_on_quartz
 
-# Baseline
+# Baseline jobs form an independent set of jobs. We use `needs:[]` to specify
+# that "setup-baseline" can start immediately. Then, we have to use needs for
+# each one of the baseline jobs, otherwise they will wait for the rest of the
+# pipeline.
+
 baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
   needs: [setup_baseline]
