@@ -55,6 +55,9 @@ FmsBasisTypeToMfemBasis(FmsBasisType b)
    return retval;
 }
 
+// The following function is unused (for now), so it is commented out to
+// suppress compilation warning.
+#if 0
 /**
 @brief Get the order and layout of the field.
 */
@@ -90,6 +93,7 @@ FmsFieldGetOrderAndLayout(FmsField f, FmsInt *f_order, FmsLayoutType *f_layout)
 
    return err;
 }
+#endif
 
 /**
 @brief This function converts an FmsField to an MFEM GridFunction.
@@ -108,7 +112,7 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
    // NOTE: transplanted from the FmsMeshToMesh function
    //       We should do this work once and save it.
    //--------------------------------------------------
-   FmsInt dim, n_vert, n_elem, n_bdr_elem, space_dim;
+   FmsInt dim, n_vert, n_elem, space_dim;
 
    // Find the first component that has coordinates - that will be the new mfem
    // mesh.
@@ -200,6 +204,11 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
             break;
          case FMS_HDIV:
             fec = new RT_FECollection(f_order, dim);
+            break;
+         case FMS_HCURL:
+         case FMS_DISCONTINUOUS_WEIGHTED:
+            MFEM_ABORT("Field types FMS_HCURL and FMS_DISCONTINUOUS_WEIGHTED"
+                       " are not supported yet.");
             break;
       }
 
@@ -501,7 +510,7 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
 #ifdef RENUMBER_ENTITIES
    int *verts_start = new int[n_main_parts];
    verts_start[0] = 0;
-   for (int i = 1; i < n_main_parts; ++i)
+   for (FmsInt i = 1; i < n_main_parts; ++i)
    {
       verts_start[i] = verts_start[i-1] + verts_per_part[i-1];
    }
@@ -854,8 +863,8 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
       }
 
       // Switch to mfem::Mesh with nodes (interpolates the linear coordinates)
-      const bool discont = false;
-      mesh->SetCurvature(coords_order, (coords_ftype == FMS_DISCONTINUOUS), space_dim,
+      const bool discont = (coords_ftype == FMS_DISCONTINUOUS);
+      mesh->SetCurvature(coords_order, discont, space_dim,
                          (coords_layout == FMS_BY_VDIM) ?
                          mfem::Ordering::byVDIM : mfem::Ordering::byNODES);
 
@@ -864,7 +873,7 @@ FmsMeshToMesh(FmsMesh fms_mesh, Mesh **mfem_mesh)
 
       // Set the high-order mesh nodes
       mfem::GridFunction &nodes = *mesh->GetNodes();
-      int ce = FmsFieldToGridFunction<double>(fms_mesh, coords, mesh, nodes, false);
+      FmsFieldToGridFunction<double>(fms_mesh, coords, mesh, nodes, false);
    }
 
 func_exit:
@@ -937,8 +946,11 @@ BasisTypeToFmsBasisType(int bt, FmsBasisType &btype)
       types, etc.)
 */
 int
-GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
-                       const std::string &fd_name, const std::string &field_name, const Mesh *mesh,
+GridFunctionToFmsField(FmsDataCollection dc,
+                       FmsComponent comp,
+                       const std::string &fd_name,
+                       const std::string &field_name,
+                       const Mesh *mesh,
                        const GridFunction *gf,
                        FmsField *outfield)
 {
@@ -949,7 +961,6 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
    if (!outfield) { return 5; }
 
    double *c = gf->GetData();
-   int s = gf->Size();
 
    const mfem::FiniteElementSpace *fespace = gf->FESpace();
    const mfem::FiniteElementCollection *fecoll = fespace->FEColl();
@@ -977,8 +988,8 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
          {
             if (!BasisTypeToFmsBasisType(fec->GetBasisType(), btype))
             {
-               mfem::err << "Error converting MFEM basis type to FMS for FMS_CONTINUOUS." <<
-                         std::endl;
+               mfem::err << "Error converting MFEM basis type to FMS for"
+                         " FMS_CONTINUOUS." << std::endl;
                return 6;
             }
          }
@@ -994,8 +1005,8 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
          {
             if (!BasisTypeToFmsBasisType(fec->GetBasisType(), btype))
             {
-               mfem::err << "Error converting MFEM basis type to FMS for FMS_DISCONTINUOUS." <<
-                         std::endl;
+               mfem::err << "Error converting MFEM basis type to FMS for"
+                         " FMS_DISCONTINUOUS." << std::endl;
                return 7;
             }
          }
@@ -1003,8 +1014,8 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
       }
       case mfem::FiniteElementCollection::TANGENTIAL:
       {
-         mfem::out << "Warning, unsupported ContType (TANGENTIAL) for " << field_name <<
-                   ". Using FMS_CONTINUOUS." << std::endl;
+         mfem::out << "Warning, unsupported ContType (TANGENTIAL) for "
+                   << field_name << ". Using FMS_CONTINUOUS." << std::endl;
          break;
       }
       case mfem::FiniteElementCollection::NORMAL:
@@ -1032,8 +1043,8 @@ GridFunctionToFmsField(FmsDataCollection dc, FmsComponent comp,
          break;
       }
       default:
-         mfem::out << "Warning, unsupported ContType for field " << field_name <<
-                   ". Using FMS_CONTINUOUS." << std::endl;
+         mfem::out << "Warning, unsupported ContType for field " << field_name
+                   << ". Using FMS_CONTINUOUS." << std::endl;
          ftype = FMS_CONTINUOUS;
          break;
    }
@@ -1162,7 +1173,7 @@ bool
 FmsMetaDataGetInteger(FmsMetaData mdata, const std::string &key,
                       std::vector<int> &values)
 {
-   if (!mdata) { false; }
+   if (!mdata) { return false; }
 
    bool retval = false;
    FmsMetaDataType type;
@@ -1250,6 +1261,8 @@ FmsMetaDataGetInteger(FmsMetaData mdata, const std::string &key,
                }
             }
             break;
+         default:
+            break;
       }
    }
 
@@ -1261,7 +1274,7 @@ bool
 FmsMetaDataGetScalar(FmsMetaData mdata, const std::string &key,
                      std::vector<double> &values)
 {
-   if (!mdata) { false; }
+   if (!mdata) { return false; }
 
    bool retval = false;
    FmsMetaDataType type;
@@ -1313,6 +1326,8 @@ FmsMetaDataGetScalar(FmsMetaData mdata, const std::string &key,
                }
             }
             break;
+         default:
+            break;
       }
    }
 
@@ -1324,7 +1339,7 @@ bool
 FmsMetaDataGetString(FmsMetaData mdata, const std::string &key,
                      std::string &value)
 {
-   if (!mdata) { false; }
+   if (!mdata) { return false; }
 
    bool retval = false;
    FmsMetaDataType type;
@@ -1356,6 +1371,8 @@ FmsMetaDataGetString(FmsMetaData mdata, const std::string &key,
                   retval = FmsMetaDataGetString(children[i], key, value);
                }
             }
+            break;
+         default:
             break;
       }
    }
@@ -1425,6 +1442,8 @@ int FmsDataCollectionToDataCollection(FmsDataCollection dc,
                case FMS_COMPLEX_FLOAT:
                case FMS_COMPLEX_DOUBLE:
                   // Does MFEM support complex?
+                  break;
+               default:
                   break;
             }
 
@@ -1516,9 +1535,12 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
    if (!fmesh) { return 2; }
    if (!volume) { return 3; }
 
+
    int err = 0;
    const int num_verticies = mmesh->GetNV();
+#ifdef DEBUG_MFEM_FMS
    const int num_edges = mmesh->GetNEdges();
+#endif
    const int num_faces = mmesh->GetNFaces();
    const int num_elements = mmesh->GetNE();
 
