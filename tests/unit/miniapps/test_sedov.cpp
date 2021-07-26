@@ -1074,7 +1074,8 @@ public:
 
    void Mult(const Vector &x, Vector &y) const
    {
-      ParGridFunction X;
+      // FIXME: why is 'x' being modified here (through 'X')?
+      Vector X;
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       if (ess_tdofs_count) { X.SetSubVector(ess_tdofs, 0.0); }
       massOperator->Mult(X, y);
