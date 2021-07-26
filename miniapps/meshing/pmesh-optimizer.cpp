@@ -1089,6 +1089,7 @@ int main (int argc, char *argv[])
                     "Number of elements   :" << NEGlob << endl <<
                     "Polynomial degree    :" << mesh_poly_deg << endl <<
                     "Total TDofs          :" << NDofs << endl <<
+                    std::setprecision(4) <<
                     "Total Iterations     :" << solver.GetNumIterations() << endl <<
                     "Total Solver Time (%):" << solvertime << " " << solvertime*100/solvertime <<  endl <<
                     "Assemble Vector Time :" << vectortime << " " << vectortime*100/solvertime <<  endl <<
