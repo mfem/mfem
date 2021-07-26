@@ -12,6 +12,15 @@
 # In this CI section, we build different variants of mfem and run test on them.
 name: builds-and-tests
 
+# Github actions can use the default "GITHUB_TOKEN". By default, this token
+# is set to have permissive access. However, this is not a good practice
+# security-wise. Here we use an external action, so we restrict the
+# permission to the minimum required.
+# When the 'permissions' is set, all the scopes not mentioned are set to the
+# most restrictive setting. So the following is enough.
+permissions:
+  actions: write
+
 on:
   push:
     branches:
@@ -38,30 +47,47 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-10.15]
-        target: [debug, optim]
-        mpi: [sequential, parallel]
+        target: [dbg, opt]
+        mpi: [seq, par]
         build-system: [make]
-        # 'include' allows us to
-        # - add a variable without creating a new matrix dimension.
-        # - add a new combination ('build-system: cmake' case here)
+        hypre-target: [int32]
+        # 'include' allows us to:
+        # - Add a variable to all jobs without creating a new matrix dimension.
+        #   Codecov is defined that way.
+        # - Add a new combination.
+        #   'build-system: cmake' and 'hypre-target: int64'
         #
         # note: we will gather coverage info for any non-debug run except the
         # CMake build.
         include:
-          - target: debug
+          - target: dbg
             codecov: NO
-          - target: optim
+          - target: opt
             codecov: YES
           - os: ubuntu-18.04
-            target: optim
+            target: opt
             codecov: NO
-            mpi: parallel
+            mpi: par
             build-system: cmake
-    name: ${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+            hypre-target: int32
+          - os: ubuntu-18.04
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int64
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
 
     runs-on: ${{ matrix.os }}
 
     steps:
+    # This external action allows to interrupt a workflow already running on
+    # the same branch to save resource
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.9.0
+      with:
+        access_token: ${{ github.token }}
+
     # Checkout MFEM in "mfem" subdirectory. Final path:
     # /home/runner/work/mfem/mfem/mfem
     # Note: Done now to access "install-hypre" and "install-metis" actions.
@@ -76,7 +102,7 @@ jobs:
     # TODO: It would be nice to have only one step, e.g. with a dedicated
     # action, but I (@adrienbernede) don't see how at the moment.
     - name: get MPI (Linux)
-      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
+      if: matrix.mpi == 'par' && matrix.os == 'ubuntu-18.04'
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
@@ -87,11 +113,11 @@ jobs:
         sudo apt-get install lcov
 
     - name: Set up Homebrew
-      if: ( matrix.mpi == 'parallel' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
+      if: ( matrix.mpi == 'par' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
     - name: get MPI (MacOS)
-      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      if: matrix.mpi == 'par' && matrix.os == 'macos-10.15'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
@@ -107,39 +133,40 @@ jobs:
     # Install will only run on cache miss.
     - name: cache hypre
       id: hypre-cache
-      if: matrix.mpi == 'parallel'
+      if: matrix.mpi == 'par'
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v2.0
 
     - name: get hypre
-      if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@v1.0
+      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-hypre@v2.0
       with:
-        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
-        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+        archive: ${{ env.HYPRE_ARCHIVE }}
+        dir: ${{ env.HYPRE_TOP_DIR }}
+        target: ${{ matrix.hypre-target }}
 
     # Get Metis through cache, or build it.
     # Install will only run on cache miss.
     - name: cache metis
       id: metis-cache
-      if: matrix.mpi == 'parallel'
+      if: matrix.mpi == 'par'
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.0
 
     - name: install metis
-      if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v1.0
+      if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-metis@v2.0
       with:
-        metis-archive: ${{ env.METIS_ARCHIVE }}
-        metis-dir: ${{ env.METIS_TOP_DIR }}
+        archive: ${{ env.METIS_ARCHIVE }}
+        dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v1.0
+      uses: mfem/github-actions/build-mfem@v2.0
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -152,17 +179,17 @@ jobs:
 
     # Run checks (and only checks) on debug targets
     - name: checks
-      if: matrix.build-system == 'make' && matrix.target == 'debug'
+      if: matrix.build-system == 'make' && matrix.target == 'dbg'
       run: |
         cd ${{ env.MFEM_TOP_DIR }}  && make check
 
     - name: unit tests
-      if: matrix.build-system == 'make' && matrix.target == 'optim'
+      if: matrix.build-system == 'make' && matrix.target == 'opt'
       run: |
         cd ${{ env.MFEM_TOP_DIR }} && make unittest
 
     - name: tests
-      if: matrix.build-system == 'make' && matrix.target == 'optim'
+      if: matrix.build-system == 'make' && matrix.target == 'opt'
       run: |
         cd ${{ env.MFEM_TOP_DIR }} && make test
 
@@ -174,8 +201,8 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@v1.0
+      uses: mfem/github-actions/upload-coverage@v2.0
       with:
-        name: ${{ matrix.os }}-${{ matrix.mpi }}
+        name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
         directories: "fem general linalg mesh"
