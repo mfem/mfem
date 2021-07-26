@@ -195,7 +195,7 @@ static void PADGDiffusionSetup(const int dim,
 
 void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
-   std::cout << "%--------  SetupPA  ------------------------------------------ "<< std::endl;
+   //std::cout << "%--------  SetupPA  ------------------------------------------ "<< std::endl;
 
    nf = fes.GetNFbyType(type);
    if (nf==0) { return; }
@@ -442,8 +442,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                //nor.Print();
             }
 
-            std::cout << "%--------------------- "<< std::endl;
-            std::cout << std::endl;
+            //std::cout << "%--------------------- "<< std::endl;
+            //std::cout << std::endl;
 
             Vector ntilde;
             ntilde = nor;
@@ -651,11 +651,13 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             const double h0 = 1.0/mag_norm;
             op3(p,0,f_ind) = -kappa*w/h0;
 
+/*
             std::cout << "%dnh = ? " << std::endl;
             std::cout << "% " << dnh << std::endl;
             std::cout << std::endl;
+            */
 
-            op2(p,0,f_ind) = -2.0*dnh*sigma*w*detJ(p,f_ind);
+            op2(p,0,f_ind) = -dnh*sigma*w*detJ(p,f_ind);
 
             if (int_type_match)
             {
@@ -696,23 +698,19 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                op1(p,0,1,f_ind) =  beta*dnh*w*detJ(p,f_ind);
                op1(p,1,1,f_ind) = - beta*dnh*w*detJ(p,f_ind);
 
-               op2(p,1,f_ind) =  2.0*dnh*sigma*w*detJ(p,f_ind);
-               op2(p,0,f_ind) = -2.0*dnh*sigma*w*detJ(p,f_ind);
+               op2(p,1,f_ind) =  dnh*sigma*w*detJ(p,f_ind);
+               op2(p,0,f_ind) = -dnh*sigma*w*detJ(p,f_ind);
 
                op3(p,0,f_ind) = kappa*w*(1.0/h0+1.0/h1)/2.0;
                op3(p,1,f_ind) = kappa*w*(1.0/h0+1.0/h1)/2.0;
             }
-//sadasdsadsadsad
-
-
          }
          f_ind++;
       }
    }
 
 
-   std::cout << "% num faces " << f_ind << std::endl;
-
+   //std::cout << "% num faces " << f_ind << std::endl;
 
    //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    //exit(1);
@@ -770,7 +768,7 @@ void PADGDiffusionApply2D(const int NF,
    auto x = Reshape(_x.Read(), D1D, VDIM, NS, NF, 2);
    auto y = Reshape(_y.ReadWrite(), D1D, VDIM, NS, NF, 2);
 
-   std::cout << "%postu,Gvecs" << std::endl;
+//   std::cout << "%postu,Gvecs" << std::endl;
 
    // Loop over all faces
    MFEM_FORALL(f, NF,
@@ -805,7 +803,7 @@ void PADGDiffusionApply2D(const int NF,
          }
 
 
-         std::cout << "%" << f << " " << q << " bu0 " << Bu0[q][0] << " bgu0 " << BGu0[q][0] << " bu1 " << Bu1[q][0] << " bgu1 " << BGu1[q][0] << std::endl;
+         //std::cout << "%" << f << " " << q << " bu0 " << Bu0[q][0] << " bgu0 " << BGu0[q][0] << " bu1 " << Bu1[q][0] << " bgu1 " << BGu1[q][0] << std::endl;
       }
 
       // 2. Form numerical fluxes
@@ -827,7 +825,7 @@ void PADGDiffusionApply2D(const int NF,
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
 
-         std::cout << "%" << f << " " << q << " d0 " << D0[q][0] << " dj0 " << D0jumpu[q][0] << " d1 " << D1[q][0] << " dj1 " << D1jumpu[q][0]  << std::endl;
+         //std::cout << "%" << f << " " << q << " d0 " << D0[q][0] << " dj0 " << D0jumpu[q][0] << " d1 " << D1[q][0] << " dj1 " << D1jumpu[q][0]  << std::endl;
       }
 
       // 3. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)
@@ -848,7 +846,7 @@ void PADGDiffusionApply2D(const int NF,
                BD1jumpu += b*D1jumpu[q][c];
             }
 
-            std::cout << "%" << f << " " << d << " bd0 " << BD0 << " bdj0 " << BD0jumpu << " bd1 " << BD1 << " bdj1 " << BD1jumpu << std::endl;
+            //std::cout << "%" << f << " " << d << " bd0 " << BD0 << " bdj0 " << BD0jumpu << " bd1 " << BD1 << " bdj1 " << BD1jumpu << std::endl;
 
             //double u0 = x(d,c,0,f,0);
             //double u1 = x(d,c,1,f,0);
@@ -870,9 +868,11 @@ void PADGDiffusionApply2D(const int NF,
    
    //std::cout << "end u, G vecs" << std::endl;
 
+/*
    std::cout << " PA y" << std::endl;
    _y.Print(std::cout,1);
    std::cout << " end PA y" << std::endl;
+*/
 
 }
 
