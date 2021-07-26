@@ -77,10 +77,10 @@ public:
    explicit Vector(int s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(double *_data, int _size)
-   { data.Wrap(_data, _size, false); size = _size; }
+   Vector(double *data_, int size_)
+   { data.Wrap(data_, size_, false); size = size_; }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
@@ -159,6 +159,11 @@ public:
    /// Reset the Vector to use the given external Memory @a mem and size @a s.
    /** If @a own_mem is false, the Vector will not own any of the pointers of
        @a mem.
+
+       Note that when @a own_mem is true, the @a mem object can be destroyed
+       immediately by the caller but `mem.Delete()` should NOT be called since
+       the Vector object takes ownership of all pointers owned by @a mem.
+
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
 
@@ -273,7 +278,13 @@ public:
 
    Vector &operator*=(double c);
 
+   /// Component-wise scaling: (*this)(i) *= v(i)
+   Vector &operator*=(const Vector &v);
+
    Vector &operator/=(double c);
+
+   /// Component-wise division: (*this)(i) /= v(i)
+   Vector &operator/=(const Vector &v);
 
    Vector &operator-=(double c);
 
@@ -553,8 +564,14 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 {
    data.Delete();
    size = s;
-   data = mem;
-   if (!own_mem) { data.ClearOwnerFlags(); }
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
 }
 
 inline void Vector::MakeRef(Vector &base, int offset, int s)

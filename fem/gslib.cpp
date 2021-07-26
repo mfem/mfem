@@ -19,7 +19,11 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
+// External GSLIB header (the MFEM header is gslib.hpp)
+namespace gslib
+{
 #include "gslib.h"
+}
 
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
@@ -34,13 +38,13 @@ FindPointsGSLIB::FindPointsGSLIB()
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
 {
-   gsl_comm = new comm;
-   cr       = new crystal;
+   gsl_comm = new gslib::comm;
+   cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
    int initialized;
    MPI_Initialized(&initialized);
    if (!initialized) { MPI_Init(NULL, NULL); }
-   MPI_Comm comm = MPI_COMM_WORLD;;
+   MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
    comm_init(gsl_comm, 0);
@@ -56,15 +60,15 @@ FindPointsGSLIB::~FindPointsGSLIB()
 }
 
 #ifdef MFEM_USE_MPI
-FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
+FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
 {
-   gsl_comm = new comm;
-   cr      = new crystal;
-   comm_init(gsl_comm, _comm);
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, comm_);
 }
 #endif
 
@@ -728,7 +732,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       }
 
       // Pack data to send via crystal router
-      struct array *outpt = new array;
+      struct gslib::array *outpt = new gslib::array;
       struct out_pt { double r[3], ival; uint index, el, proc; };
       struct out_pt *pt;
       array_init(struct out_pt, outpt, nptsend);
@@ -788,7 +792,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          }
 
          // Save index and proc data in a struct
-         struct array *savpt = new array;
+         struct gslib::array *savpt = new gslib::array;
          struct sav_pt { uint index, proc; };
          struct sav_pt *spt;
          array_init(struct sav_pt, savpt, npt);
@@ -806,7 +810,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          delete outpt;
 
          // Copy data from save struct to send struct and send component wise
-         struct array *sendpt = new array;
+         struct gslib::array *sendpt = new gslib::array;
          struct send_pt { double ival; uint index, proc; };
          struct send_pt *sdpt;
          for (int j = 0; j < ncomp; j++)
