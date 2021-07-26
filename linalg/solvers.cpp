@@ -1639,7 +1639,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
+   TimeProcessNewState.Start();
    ProcessNewState(x);
+   TimeProcessNewState.Stop();
 
    TimeVector.Start();
    oper->Mult(x, r);
@@ -1701,7 +1703,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          AdaptiveLinRtolPostSolve(c, r, it, norm);
       }
 
+      TimeComputeScaling.Start();
       const double c_scale = ComputeScalingFactor(x, b);
+      TimeComputeScaling.Stop();
       if (c_scale == 0.0)
       {
          converged = 0;
@@ -1709,7 +1713,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x);
 
+      TimeProcessNewState.Start();
       ProcessNewState(x);
+      TimeProcessNewState.Stop();
 
       TimeVector.Start();
       oper->Mult(x, r);
@@ -1813,6 +1819,11 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
+   Array<Vector *> skMV(m), ykMV(m);
+   for (int i = 0; i < m; i++) {
+       skMV[i] = new Vector(width);
+       ykMV[i] = new Vector(width);
+   }
 
    // r - r_{k+1}, c - descent direction
    sk.SetSize(width);    // x_{k+1}-x_k
@@ -1831,10 +1842,14 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
+   TimeProcessNewState.Start();
    ProcessNewState(x);
+   TimeProcessNewState.Stop();
 
    // r = F(x)-b
+   TimeVector.Start();
    oper->Mult(x, r);
+   TimeVector.Stop();
    if (have_b) { r -= b; }
 
    c = r;           // initial descent direction
@@ -1868,7 +1883,9 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       rk = r;
+      TimeComputeScaling.Start();
       const double c_scale = ComputeScalingFactor(x, b);
+      TimeComputeScaling.Stop();
       if (c_scale == 0.0)
       {
          converged = 0;
@@ -1876,15 +1893,20 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
 
+      TimeProcessNewState.Start();
       ProcessNewState(x);
+      TimeProcessNewState.Stop();
 
+      TimeVector.Start();
       oper->Mult(x, r);
+      TimeVector.Stop();
       if (have_b)
       {
          r -= b;
       }
 
       // LBFGS - construct descent direction
+      TimePrecMult.Start();
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
@@ -1893,12 +1915,16 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
       skM.SetCol(last_saved_id, sk);
       ykM.SetCol(last_saved_id, yk);
+      *skMV[last_saved_id] = sk;
+      *ykMV[last_saved_id] = yk;
 
       c = r;
       for (int i = last_saved_id; i > -1; i--)
       {
-         skM.GetColumn(i, sk);
-         ykM.GetColumn(i, yk);
+         sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
+         yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
+//         skM.GetColumn(i, sk);
+//         ykM.GetColumn(i, yk);
          rho(i) = 1./Dot(sk, yk);
          alpha(i) = rho(i)*Dot(sk,c);
          add(c, -alpha(i), yk, c);
@@ -1907,8 +1933,10 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = m-1; i > last_saved_id; i--)
          {
-            skM.GetColumn(i, sk);
-            ykM.GetColumn(i, yk);
+//            skM.GetColumn(i, sk);
+//            ykM.GetColumn(i, yk);
+            sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
+            yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
             rho(i) = 1./Dot(sk, yk);
             alpha(i) = rho(i)*Dot(sk,c);
             add(c, -alpha(i), yk, c);
@@ -1920,21 +1948,31 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            skM.GetColumn(i,sk);
-            ykM.GetColumn(i,yk);
+//            skM.GetColumn(i,sk);
+//            ykM.GetColumn(i,yk);
+            sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
+            yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
             double betai = rho(i)*Dot(yk, c);
             add(c, alpha(i)-betai, sk, c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         skM.GetColumn(i,sk);
-         ykM.GetColumn(i,yk);
+//         skM.GetColumn(i,sk);
+//         ykM.GetColumn(i,yk);
+         sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
+         yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
          double betai = rho(i)*Dot(yk, c);
          add(c, alpha(i)-betai, sk, c);
       }
+      TimePrecMult.Stop();
 
       norm = Norm(r);
+   }
+
+   for (int i = 0; i < m; i++) {
+       skMV[i]->Destroy();
+       ykMV[i]->Destroy();
    }
 
    final_iter = it;

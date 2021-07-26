@@ -465,7 +465,8 @@ protected:
    double gamma;
    // Eisenstat-Walker factor alpha
    double alpha;
-   mutable StopWatch TimeVector, TimeGrad, TimePrecMult;
+   mutable StopWatch TimeVector, TimeGrad, TimePrecMult,
+                     TimeProcessNewState, TimeComputeScaling;
 
 
 
@@ -488,6 +489,8 @@ public:
        TimeVector.Clear();
        TimeGrad.Clear();
        TimePrecMult.Clear();
+       TimeProcessNewState.Clear();
+       TimeComputeScaling.Clear();
    }
 
 #ifdef MFEM_USE_MPI
@@ -496,6 +499,8 @@ public:
        TimeVector.Clear();
        TimeGrad.Clear();
        TimePrecMult.Clear();
+       TimeProcessNewState.Clear();
+       TimeComputeScaling.Clear();
    }
 #endif
    virtual void SetOperator(const Operator &op);
@@ -539,6 +544,8 @@ public:
    virtual double GetAssembleElementVectorTime() { return TimeVector.RealTime(); }
    virtual double GetAssembleElementGradTime() { return TimeGrad.RealTime(); }
    virtual double GetPrecMultTime() { return TimePrecMult.RealTime(); }
+   virtual double GetProcessNewStateTime() { return TimeProcessNewState.RealTime(); }
+   virtual double GetComputeScalingTime() { return TimeComputeScaling.RealTime(); }
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
