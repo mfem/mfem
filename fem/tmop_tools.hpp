@@ -155,16 +155,16 @@ public:
       : LBFGSSolver(comm), solver_type(type), parallel(true),
         ir(irule), IntegRules(NULL), integ_order(-1)
    {
-       scale_history.SetSize(5);
-       scale_history = 1;
+      scale_history.SetSize(5);
+      scale_history = 1;
    }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
       : LBFGSSolver(), solver_type(type), parallel(false),
         ir(irule), IntegRules(NULL), integ_order(-1)
    {
-       scale_history.SetSize(5);
-       scale_history = 1;
+      scale_history.SetSize(5);
+      scale_history = 1;
    }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
@@ -192,9 +192,10 @@ public:
       {
          LBFGSSolver::Mult(b, x);
       }
-      else {
-          out << "Solver type " << solver_type << " is invalid type." << std::endl;
-          MFEM_ABORT("");
+      else
+      {
+         out << "Solver type " << solver_type << " is invalid type." << std::endl;
+         MFEM_ABORT("");
       }
    }
 
@@ -208,9 +209,10 @@ public:
       {
          LBFGSSolver::SetSolver(solver);
       }
-      else {
-          out << "Solver type " << solver_type << " is invalid type." << std::endl;
-          MFEM_ABORT("");
+      else
+      {
+         out << "Solver type " << solver_type << " is invalid type." << std::endl;
+         MFEM_ABORT("");
       }
    }
    virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }

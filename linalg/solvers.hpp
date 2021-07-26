@@ -466,7 +466,7 @@ protected:
    // Eisenstat-Walker factor alpha
    double alpha;
    mutable StopWatch TimeVector, TimeGrad, TimePrecMult,
-                     TimeProcessNewState, TimeComputeScaling;
+           TimeProcessNewState, TimeComputeScaling;
 
 
 
@@ -486,21 +486,21 @@ protected:
 public:
    NewtonSolver()
    {
-       TimeVector.Clear();
-       TimeGrad.Clear();
-       TimePrecMult.Clear();
-       TimeProcessNewState.Clear();
-       TimeComputeScaling.Clear();
+      TimeVector.Clear();
+      TimeGrad.Clear();
+      TimePrecMult.Clear();
+      TimeProcessNewState.Clear();
+      TimeComputeScaling.Clear();
    }
 
 #ifdef MFEM_USE_MPI
    NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_)
    {
-       TimeVector.Clear();
-       TimeGrad.Clear();
-       TimePrecMult.Clear();
-       TimeProcessNewState.Clear();
-       TimeComputeScaling.Clear();
+      TimeVector.Clear();
+      TimeGrad.Clear();
+      TimePrecMult.Clear();
+      TimeProcessNewState.Clear();
+      TimeComputeScaling.Clear();
    }
 #endif
    virtual void SetOperator(const Operator &op);

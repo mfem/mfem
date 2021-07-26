@@ -1084,26 +1084,33 @@ int main (int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD);
    int NDofs = x.ParFESpace()->GlobalTrueVSize()/pmesh->Dimension(),
        NEGlob = pmesh->GetGlobalNE();
-   if (myid == 0) {
-       std::cout << "Monitoring info      :" << endl <<
-                    "Number of elements   :" << NEGlob << endl <<
-                    "Polynomial degree    :" << mesh_poly_deg << endl <<
-                    "Total TDofs          :" << NDofs << endl <<
-                    std::setprecision(4) <<
-                    "Total Iterations     :" << solver.GetNumIterations() << endl <<
-                    "Total Solver Time (%):" << solvertime << " " << solvertime*100/solvertime <<  endl <<
-                    "Assemble Vector Time :" << vectortime << " " << vectortime*100/solvertime <<  endl <<
-                    "Assemble Grad Time   :" << gradtime << " " << gradtime*100/solvertime <<  endl <<
-                    "Prec Solve Time      :" << prectime << " " << prectime*100/solvertime <<  endl <<
-                    "ProcessNewState Time :" << processnewstatetime << " " << processnewstatetime*100/solvertime <<  endl <<
-                    "ComputeScale Time    :" << scalefactortime << " " << scalefactortime*100/solvertime <<  endl;
-//                    "k" << " N_E" << "  N" <<
-//                    " Its" << " T_total" << " T_vec"  << " T_grad" <<
-//                    " T_linsolve" << " T_procnewstate" << " T_scalefac" << endl;
-//       std::cout << "Monitoring info: " << mesh_poly_deg << " " << NEGlob << " " <<
-//                    NDofs << " " << solver.GetNumIterations() << " " <<
-//                    solvertime << " " << vectortime << " " << gradtime << " " <<
-//                    prectime << " " << processnewstatetime << " " << scalefactortime << endl;
+   if (myid == 0)
+   {
+      std::cout << "Monitoring info      :" << endl <<
+                "Number of elements   :" << NEGlob << endl <<
+                "Polynomial degree    :" << mesh_poly_deg << endl <<
+                "Total TDofs          :" << NDofs << endl <<
+                std::setprecision(4) <<
+                "Total Iterations     :" << solver.GetNumIterations() << endl <<
+                "Total Solver Time (%):" << solvertime << " " << solvertime*100/solvertime <<
+                endl <<
+                "Assemble Vector Time :" << vectortime << " " << vectortime*100/solvertime <<
+                endl <<
+                "Assemble Grad Time   :" << gradtime << " " << gradtime*100/solvertime <<  endl
+                <<
+                "Prec Solve Time      :" << prectime << " " << prectime*100/solvertime <<  endl
+                <<
+                "ProcessNewState Time :" << processnewstatetime << " " <<
+                processnewstatetime*100/solvertime <<  endl <<
+                "ComputeScale Time    :" << scalefactortime << " " <<
+                scalefactortime*100/solvertime <<  endl;
+      //                    "k" << " N_E" << "  N" <<
+      //                    " Its" << " T_total" << " T_vec"  << " T_grad" <<
+      //                    " T_linsolve" << " T_procnewstate" << " T_scalefac" << endl;
+      //       std::cout << "Monitoring info: " << mesh_poly_deg << " " << NEGlob << " " <<
+      //                    NDofs << " " << solver.GetNumIterations() << " " <<
+      //                    solvertime << " " << vectortime << " " << gradtime << " " <<
+      //                    prectime << " " << processnewstatetime << " " << scalefactortime << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later

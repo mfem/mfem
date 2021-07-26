@@ -1820,9 +1820,10 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
    Array<Vector *> skMV(m), ykMV(m);
-   for (int i = 0; i < m; i++) {
-       skMV[i] = new Vector(width);
-       ykMV[i] = new Vector(width);
+   for (int i = 0; i < m; i++)
+   {
+      skMV[i] = new Vector(width);
+      ykMV[i] = new Vector(width);
    }
 
    // r - r_{k+1}, c - descent direction
@@ -1923,8 +1924,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
          yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
-//         skM.GetColumn(i, sk);
-//         ykM.GetColumn(i, yk);
+         //         skM.GetColumn(i, sk);
+         //         ykM.GetColumn(i, yk);
          rho(i) = 1./Dot(sk, yk);
          alpha(i) = rho(i)*Dot(sk,c);
          add(c, -alpha(i), yk, c);
@@ -1933,8 +1934,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = m-1; i > last_saved_id; i--)
          {
-//            skM.GetColumn(i, sk);
-//            ykM.GetColumn(i, yk);
+            //            skM.GetColumn(i, sk);
+            //            ykM.GetColumn(i, yk);
             sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
             yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
             rho(i) = 1./Dot(sk, yk);
@@ -1948,8 +1949,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-//            skM.GetColumn(i,sk);
-//            ykM.GetColumn(i,yk);
+            //            skM.GetColumn(i,sk);
+            //            ykM.GetColumn(i,yk);
             sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
             yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
             double betai = rho(i)*Dot(yk, c);
@@ -1958,8 +1959,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-//         skM.GetColumn(i,sk);
-//         ykM.GetColumn(i,yk);
+         //         skM.GetColumn(i,sk);
+         //         ykM.GetColumn(i,yk);
          sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
          yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
          double betai = rho(i)*Dot(yk, c);
@@ -1970,9 +1971,10 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       norm = Norm(r);
    }
 
-   for (int i = 0; i < m; i++) {
-       skMV[i]->Destroy();
-       ykMV[i]->Destroy();
+   for (int i = 0; i < m; i++)
+   {
+      skMV[i]->Destroy();
+      ykMV[i]->Destroy();
    }
 
    final_iter = it;

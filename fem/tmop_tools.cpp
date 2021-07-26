@@ -405,8 +405,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    static Vector x_out(x.Size());
    bool x_out_ok = false;
    double scale = 1.0;
-   if (adaptive_line_search) {
-       scale = std::min(1.0, scale_history.Sum()*2.0/5);
+   if (adaptive_line_search)
+   {
+      scale = std::min(1.0, scale_history.Sum()*2.0/5);
    }
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
@@ -525,17 +526,21 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (x_out_ok == false) { scale = 0.0; }
 
-   if (adaptive_line_search) {
-       if (iteration_count < 5) {
-           scale_history(iteration_count) = scale;
-           iteration_count += 1;
-       }
-       else {
-           for (int i = 0; i < 4; i++){
-               scale_history(i) = scale_history(i+1);
-           }
-           scale_history(4) = scale;
-       }
+   if (adaptive_line_search)
+   {
+      if (iteration_count < 5)
+      {
+         scale_history(iteration_count) = scale;
+         iteration_count += 1;
+      }
+      else
+      {
+         for (int i = 0; i < 4; i++)
+         {
+            scale_history(i) = scale_history(i+1);
+         }
+         scale_history(4) = scale;
+      }
    }
 
    return scale;
