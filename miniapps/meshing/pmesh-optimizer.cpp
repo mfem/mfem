@@ -1104,13 +1104,6 @@ int main (int argc, char *argv[])
                 processnewstatetime*100/solvertime <<  endl <<
                 "ComputeScale Time    :" << scalefactortime << " " <<
                 scalefactortime*100/solvertime <<  endl;
-      //                    "k" << " N_E" << "  N" <<
-      //                    " Its" << " T_total" << " T_vec"  << " T_grad" <<
-      //                    " T_linsolve" << " T_procnewstate" << " T_scalefac" << endl;
-      //       std::cout << "Monitoring info: " << mesh_poly_deg << " " << NEGlob << " " <<
-      //                    NDofs << " " << solver.GetNumIterations() << " " <<
-      //                    solvertime << " " << vectortime << " " << gradtime << " " <<
-      //                    prectime << " " << processnewstatetime << " " << scalefactortime << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
