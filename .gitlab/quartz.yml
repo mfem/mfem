@@ -16,13 +16,13 @@
     - shell
     - quartz
   rules:
-    # Don’t run quartz jobs if...
+    # Don't run quartz jobs if...
     - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"'
       when: never
-    # Don’t run autotest update if...
+    # Don't run autotest update if...
     - if: '$CI_JOB_NAME =~ /update_autotest/ && $AUTOTEST != "YES"'
       when: never
-    # Don’t run autotest update if...
+    # Don't run autotest update if...
     - if: '$CI_JOB_NAME =~ /q_report/ && $AUTOTEST != "YES"'
       when: never
     # Report success on success status
@@ -135,7 +135,6 @@ opt_par_gcc_6_1_0_pumi:
   variables:
     SPEC: "%gcc@6.1.0 +pumi"
   extends: .build_and_test_on_quartz
-
 
 # Baseline jobs form an independent set of jobs. We use `needs:[]` to specify
 # that "setup-baseline" can start immediately. Then, we have to use needs for
