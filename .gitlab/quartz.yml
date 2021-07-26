@@ -81,7 +81,7 @@ q_report_success:
     - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - *safe_create_rundir
     - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
-    - echo "See the pipeline here: $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
     - git push origin master
@@ -97,7 +97,7 @@ q_report_failure:
     - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
     - *safe_create_rundir
     - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
-    - echo "See the pipeline here: $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
     - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
@@ -168,7 +168,7 @@ update_autotest:
     - |
       if [[ -f ${rundir}/*.err ]]
       then
-        echo "See the pipeline here: $CI_PIPELINE_URL" >> ${rundir}/*.err
+        echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/*.err
         cp ${rundir}/*.err ${rundir}/autotest-email.html
       fi
     - git add ${rundir}
