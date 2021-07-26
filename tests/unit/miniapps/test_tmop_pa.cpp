@@ -710,6 +710,12 @@ public:
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
+#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_CUDA)
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return;
+#endif
+
    const double jitter = 1./(M_PI*M_PI);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL").

@@ -45,8 +45,8 @@ all: $(MINIAPPS)
 %: %.cpp
 %.o: %.cpp
 
-lor_solvers.o: lor_mms.hpp
-plor_solvers.o: lor_mms.hpp
+lor_solvers.o: $(SRC)lor_mms.hpp
+plor_solvers.o: $(SRC)lor_mms.hpp
 
 %: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
