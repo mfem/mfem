@@ -708,7 +708,7 @@ void GetNormalDFaceDofStencil(const int dim, const int face_id,
       }
    }
    //std::cout << "%} " << std::endl; 
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 */
 
 }
@@ -757,6 +757,40 @@ int GetLid(const int ipid,
    return lid;
 }     
 
+void GetVectorCoefficients2D(Vector &v1,
+                            Vector &v2,
+                            Vector &r,
+                            Vector &coeffs)
+{
+   // Solves [v1,v2]*coeffs = r for coeffs
+
+   coeffs(0) = v2(1)*r(0) - v2(0)*r(1);
+   coeffs(1) = v1(0)*r(1) - v1(1)*r(0);
+
+   double detLHS = v1(0)*v2(1) - v1(1)*v2(0);
+
+   coeffs /= detLHS;
+}   
+
+void GetVectorCoefficients3D(Vector &v1,
+                            Vector &v2,
+                            Vector &v3,
+                            Vector &r,
+                            Vector &coeffs)
+{
+   // Solves [v1,v2,v3]*coeffs = r for coeffs
+
+   coeffs(0) = v2(0)*v3(1)*r(2) - v2(0)*v3(2)*r(1) - v2(1)*v3(0)*r(2) + v2(1)*v3(2)*r(0) + v2(2)*v3(0)*r(1) - v2(2)*v3(1)*r(0);
+   coeffs(1) = v1(0)*v3(2)*r(1) - v1(0)*v3(1)*r(2) + v1(1)*v3(0)*r(2) - v1(1)*v3(2)*r(0) - v1(2)*v3(0)*r(1) + v1(2)*v3(1)*r(0);
+   coeffs(2) = v1(0)*v2(1)*r(2) - v1(0)*v2(2)*r(1) - v1(1)*v2(0)*r(2) + v1(1)*v2(2)*r(0) + v1(2)*v2(0)*r(1) - v1(2)*v2(1)*r(0);
+
+   double detLHS = v1(0)*v2(1)*v3(2) - v1(0)*v2(2)*v3(1) 
+                     - v1(1)*v2(0)*v3(2) + v1(1)*v2(2)*v3(0)
+                     + v1(2)*v2(0)*v3(1) - v1(2)*v2(1)*v3(0);
+
+   coeffs /= detLHS;
+}     
+
 // Return the face degrees of freedom returned in Lexicographic order.
 void GetTangentDFaceDofStencil(const int dim,
                                const int face_id,
@@ -781,7 +815,7 @@ void GetTangentDFaceDofStencil(const int dim,
                {
                   for (int s = 0; s < dof1d; ++s)
                   {
-                     facemaptan1[dof1d*i+s] = Get_dof_from_ijk(s,0,0,dof1d);
+                     facemaptan1[dof1d*i+s] = Get_dof_from_ijk(s,i,0,dof1d);
                      //i + s*dof1d;
                   }
                }
@@ -791,7 +825,7 @@ void GetTangentDFaceDofStencil(const int dim,
                {
                   for (int s = 0; s < dof1d; ++s)
                   {
-                     facemaptan1[dof1d*j+s] = Get_dof_from_ijk(end,s,0,dof1d);
+                     facemaptan1[dof1d*j+s] = Get_dof_from_ijk(end - j,s,0,dof1d);
                   }
                }
                break;
@@ -800,7 +834,7 @@ void GetTangentDFaceDofStencil(const int dim,
                {
                   for (int s = 0; s < dof1d; ++s)
                   {
-                     facemaptan1[dof1d*i+s] = Get_dof_from_ijk(s,end,0,dof1d);
+                     facemaptan1[dof1d*i+s] = Get_dof_from_ijk(s,end - i,0,dof1d);
                   }
                }
                break;
@@ -809,7 +843,7 @@ void GetTangentDFaceDofStencil(const int dim,
                {
                   for (int s = 0; s < dof1d; ++s)
                   {
-                     facemaptan1[dof1d*j+s] = Get_dof_from_ijk(0,s,0,dof1d);
+                     facemaptan1[dof1d*j+s] = Get_dof_from_ijk(j,s,0,dof1d);
                   }
                }
                break;
@@ -817,7 +851,6 @@ void GetTangentDFaceDofStencil(const int dim,
                MFEM_ABORT("Invalid face_id");
          }
          break;
-      /*
       case 3:
          switch (face_id)
          {
@@ -829,7 +862,8 @@ void GetTangentDFaceDofStencil(const int dim,
                   {
                      for (int s = 0; s < dof1d; ++s)
                      {
-                        facemaptan[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,j,s,dof1d);//i + j*dof1d + s*dof1d*dof1d;
+                        facemaptan1[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(s,i,j,dof1d);
+                        facemaptan2[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,s,j,dof1d);
                      }
                   }
                }
@@ -841,7 +875,8 @@ void GetTangentDFaceDofStencil(const int dim,
                   {
                      for (int s = 0; s < dof1d; ++s)
                      {
-                        facemaptan[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,s,j,dof1d);//i + s*dof1d + j*dof1d*dof1d;
+                        facemaptan1[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,s,j,dof1d);
+                        facemaptan2[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,j,s,dof1d);
                      }
                   }
                }
@@ -853,7 +888,8 @@ void GetTangentDFaceDofStencil(const int dim,
                   {
                      for (int s = 0; s < dof1d; ++s)
                      {
-                        facemaptan[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(end-s,i,j,dof1d);//end-s + i*dof1d + j*dof1d*dof1d;
+                        facemaptan1[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(s,i,j,dof1d);
+                        facemaptan2[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,j,s,dof1d);
                      }
                   }
                }
@@ -865,7 +901,8 @@ void GetTangentDFaceDofStencil(const int dim,
                   {
                      for (int s = 0; s < dof1d; ++s)
                      {
-                        facemaptan[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,end-s,j,dof1d);//(end-s)*dof1d + i + j*dof1d*dof1d;
+                        facemaptan1[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(s,i,j,dof1d);
+                        facemaptan2[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,j,s,dof1d);
                      }
                   }
                }
@@ -877,7 +914,8 @@ void GetTangentDFaceDofStencil(const int dim,
                   {
                      for (int s = 0; s < dof1d; ++s)
                      {
-                        facemaptan[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(s,i,j,dof1d);//s + i*dof1d + j*dof1d*dof1d;
+                        facemaptan1[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(s,i,j,dof1d);
+                        facemaptan2[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,j,s,dof1d);
                      }
                   }
                }
@@ -889,7 +927,8 @@ void GetTangentDFaceDofStencil(const int dim,
                   {
                      for (int s = 0; s < dof1d; ++s)
                      {
-                        facemaptan[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,j,end-s,dof1d);//(end-s)*dof1d*dof1d + i + j*dof1d;
+                        facemaptan1[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(s,i,j,dof1d);
+                        facemaptan2[s+i*dof1d+j*dof1d*dof1d] = Get_dof_from_ijk(i,s,j,dof1d);
                      }
                   }
                }
@@ -898,7 +937,6 @@ void GetTangentDFaceDofStencil(const int dim,
                MFEM_ABORT("Invalid face_id");
          }
          break;
-         */
 #ifdef MFEM_DEBUG
          for(int k = 0 ; k < dof1d*dof1d*dof1d ; k++ )
          {
@@ -1879,12 +1917,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                                      const L2FaceValues m)
    : L2FaceNormalDRestriction(fes, type, m)
 {
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //std::cout << "dof1d " << dof1d << std::endl;
-   //std::cout << "dof " << dof << std::endl;
-
-   // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
 
@@ -1896,7 +1928,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                "L2FaceNormalDRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
+
    if (nf==0) { return; }
+
    // Operator parameters
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nfdofs*2;
    width = fes.GetVSize();
@@ -1949,60 +1983,45 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    auto u_face    = Reshape(Bf.Write(), dof1d, dof, nf, 2);
    auto dudn_face = Reshape(Gf.Write(), dof1d, dof, nf, 2, 3);
 
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //std::cout << "i p B G" << std::endl;
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
    // Computation of scatter indices
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       if (dof_reorder)
       {
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          Array<int> V, E, Eo;
          fes.GetMesh()->GetElementVertices(e1, V);
          fes.GetMesh()->GetElementEdges(e1, E, Eo);
-         //std::cout << "%{ " << std::endl;
-         V.Print();
-         E.Print();
-         Eo.Print();
-         //std::cout << "%} " << std::endl;
-
-         orientation1 = inf1 % 64; // why 64?
+         orientation1 = inf1 % 64;
          face_id1 = inf1 / 64;
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          GetNormalDFaceDofStencil(dim, face_id1, dof1d, facemapnorself);
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          orientation2 = inf2 % 64;
          face_id2 = inf2 / 64;
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, facemapnorother);
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-         GetTangentDFaceDofStencil(dim, face_id1, dof1d, facemaptan1self, facemaptan2self); 
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+         GetTangentDFaceDofStencil(dim, face_id1, dof1d, facemaptan1self, facemaptan2self);
          GetTangentDFaceDofStencil(dim, face_id2, dof1d, facemaptan1other, facemaptan2other); 
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-         // dont forget 3d piece 
-         
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+         // dont forget 3d piece
          orientation1 = Eo[face_id1];
-         //orientation2 = Eo[face_id2];
+         orientation2 = Eo[face_id2];
          //std::cout << "%{ " << std::endl;
          //std::cout << " face_id1 " << face_id1 << std::endl;
          //std::cout << " orientation1 " << orientation1 << std::endl;
-         for( int k = 0 ; k < dof1d ; k++ )
-         {
-            //std::cout <<  facemapnorself[k] << "   " << facemaptan1self[k] << "  " << facemaptan2self[k] << std::endl; 
-         }
-         //std::cout << "%} " << std::endl;
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       }
       else
@@ -2011,20 +2030,24 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                     "element.");
       }
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      // port int_type_match 
-      if ((type==FaceType::Interior && e2>=0) ||
-          (type==FaceType::Boundary && e2<0))
+      bool int_face_match = type==FaceType::Interior && e2>=0;
+      bool bdy_face_match = type==FaceType::Boundary && e2<0;
+
+      if ( int_face_match || bdy_face_match )
       {
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
          FaceElementTransformations &Trans0 =
          *fes.GetMesh()->GetFaceElementTransformations(f);
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          const FiniteElement &el1 =
          *fes.GetTraceElement(e1, fes.GetMesh()->GetFaceBaseGeometry(f));
          const FiniteElement &el2 =
          *fes.GetTraceElement(e2, fes.GetMesh()->GetFaceBaseGeometry(f));
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          const FiniteElement &elf1 = *fes.GetFE(e1);
          const FiniteElement &elf2 = *fes.GetFE(e2);
 
@@ -2032,11 +2055,12 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          elf1.Calc1DShape(zero, bf, gf);
          gf *= -1.0;
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          if (ir == NULL)
          {
             // a simple choice for the integration order; is this OK?
             int order;
-            if (type==FaceType::Interior && e2>=0)
+            if (int_face_match)
             {
                order = 2*std::max(el1.GetOrder(), el2.GetOrder());
             }
@@ -2046,162 +2070,197 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             }
             ir = &IntRules.Get(Trans0.GetGeometryType(), order);
          }
-         //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-         IntegrationRule ir_glob;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+
+         IntegrationRule ir_glob_1d;
          QuadratureFunctions1D quad;
+         quad.GaussLobatto(1+el1.GetOrder(),&ir_glob_1d);
 
-         quad.GaussLobatto(1+el1.GetOrder(),&ir_glob);
-         IntegrationRule ir_glob2(ir_glob,ir_glob);
-         Vector realpt;
-         realpt.SetSize(2);
-         int NP2 = ir_glob2.GetNPoints();
-
-         for(int p = 0; p < NP2 ; p++ )
+         IntegrationRule ir_glob_face;
+         IntegrationRule ir_glob_element;
+         if( dim == 2 )
          {
-            IntegrationPoint &ip2p = ir_glob2.IntPoint(p); 
-            fes.GetMesh()->GetElementTransformation(e1)->Transform(ip2p,realpt);
-            //std::cout << "% ips " << p << " " << ip2p.x << " " << ip2p.y 
-                      //<< " realps " << realpt(0) << " " << realpt(1) << std::endl;
+            ir_glob_face = IntegrationRule(ir_glob_1d);         
+            ir_glob_element = IntegrationRule(ir_glob_1d, ir_glob_1d);         
+         }
+         else if( dim == 3)
+         {
+            ir_glob_face = IntegrationRule(ir_glob_1d, ir_glob_1d);         
+            ir_glob_element = IntegrationRule(ir_glob_1d, ir_glob_1d, ir_glob_1d);
          }
 
-         Vector locR;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
          // Initialize face restriction operators
+         Vector locR;
          locR.SetSize(dof1d);
 
          Vector locR2;
-         // Initialize face restriction operators
          locR2.SetSize(dof1d);
 
-         int NP = ir_glob.GetNPoints();
-         int NP1d = ir_glob.GetNPoints();
-         //std::cout << "% el1.GetOrder() = " << el1.GetOrder() << std::endl;
-         //std::cout << "% NP = " << NP << std::endl;
-         //std::cout << "% NP1d = " << NP1d << std::endl;
+         int NPe = ir_glob_element.GetNPoints();
+         int NPf = ir_glob_face.GetNPoints();
+         int NP1d = ir_glob_1d.GetNPoints();
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
          // Loop over integration points on the the face
-         for (int p = 0; p < NP; p++) 
+         for (int p = 0; p < NPf; p++) 
          {
             // For each of these, we need an inner 1D loop
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
             Vector locRn;
-            locRn.SetSize(2);
+            locRn.SetSize(dim);
             locRn = 0.0;
 
             Vector locRt1;
-            locRt1.SetSize(2);
+            locRt1.SetSize(dim);
+            locRt1 = 0.0;
+
+            Vector locRt2;
+            locRt2.SetSize(dim);
             locRt1 = 0.0;
 
             Vector locRn_2;
-            locRn_2.SetSize(2);
+            locRn_2.SetSize(dim);
             locRn_2 = 0.0;
 
             Vector locRt1_2;
-            locRt1_2.SetSize(2);
+            locRt1_2.SetSize(dim);
             locRt1_2 = 0.0;
 
-            //Vector locRt2;
-            //locRt2.SetSize(2);
+            Vector locRt2_2;
+            locRt2_2.SetSize(dim);
+            locRt2_2 = 0.0;
 
+            IntegrationPoint &pb = ir_glob_element.IntPoint(facemapnorself[p*dof1d+0]); 
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-            IntegrationPoint &pb = ir_glob2.IntPoint(facemapnorself[p*dof1d+0]); 
-            IntegrationPoint &pb2 = ir_glob2.IntPoint(facemapnorother[p*dof1d+0]); 
-
-            // my use of getElement1Transformation seemed to give the wrong pointmatrix
-            //Trans0.GetElement1Transformation().Transform(pb,locR);
-
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
             fes.GetMesh()->GetElementTransformation(e1)->Transform(pb,locR);
-
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-            if (type==FaceType::Interior && e2>=0)
+            if (int_face_match)
             {
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      //std::cout << "% e2 " << e2 << std::endl;
-               fes.GetMesh()->GetElementTransformation(e2)->Transform(pb2,locR2);
+               IntegrationPoint &pb_other = ir_glob_element.IntPoint(facemapnorother[p*dof1d+0]); 
+               fes.GetMesh()->GetElementTransformation(e2)->Transform(pb_other,locR2);
             }
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-            // combine these into one loop
             for (int l = 0; l < NP1d; l++)
             {
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                const int pn  = facemapnorself[p*dof1d+l];
                const int pt1 = facemaptan1self[p*dof1d+l];
+               const int pt2 = (dim==3)? facemaptan1self[p*dof1d+l] : 0;
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-               IntegrationPoint &ip_nor = ir_glob2.IntPoint(pn); 
-               IntegrationPoint &ip_tan1 = ir_glob2.IntPoint(pt1); 
-
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-
-
-
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+               IntegrationPoint &ip_nor = ir_glob_element.IntPoint(pn);
+               IntegrationPoint &ip_tan1 = ir_glob_element.IntPoint(pt1);
+               IntegrationPoint &ip_tan2 = ir_glob_element.IntPoint(pt2);
 
                Vector this_locRn;
-               this_locRn.SetSize(2);
+               this_locRn.SetSize(dim);
                this_locRn = 0.0;
 
                Vector this_locRt1;
-               this_locRt1.SetSize(2);
+               this_locRt1.SetSize(dim);
                this_locRt1 = 0.0;
 
+               Vector this_locRt2;
+               this_locRt2.SetSize(dim);
+               this_locRt2 = 0.0;
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
                fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_nor , this_locRn );
                fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_tan1, this_locRt1);
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+               if( dim == 3 )
+               {
+                  fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_tan2, this_locRt2);
+               }
 
-               int lid_t1shape_pt = GetLid(p, l, dof1d, dof, f_ind, facemaptan1self);
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                int lid_nshape_pt = GetLid(p, l, dof1d, dof, f_ind, facemapnorself);
+               int lid_t1shape_pt = GetLid(p, l, dof1d, dof, f_ind, facemaptan1self);
+               int lid_t2shape_pt = ( dim == 3 )? GetLid(p, l, dof1d, dof, f_ind, facemaptan2self):0;
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
                this_locRn *= gf(l);
                locRn += this_locRn;
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
+               
                this_locRt1 *= gf(l);
                locRt1 += this_locRt1;
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-               if (type==FaceType::Interior && e2>=0)
+               if( dim == 3 )
                {
+                  this_locRt2 *= gf(l);
+                  locRt2 += this_locRt2;
+               }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+               if (int_face_match)
+               {
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                   const int pn_2  = facemapnorother[p*dof1d+l];
                   const int pt1_2 = facemaptan1other[p*dof1d+l];
+                  const int pt2_2 = (dim == 3)? facemaptan2other[p*dof1d+l]:0;
 
-                  IntegrationPoint &ip_nor_2 = ir_glob2.IntPoint(pn_2); 
-                  IntegrationPoint &ip_tan1_2 = ir_glob2.IntPoint(pt1_2); 
+      std::cout << "% pt1_2 = " << pt1_2 << " pn_2 = " << pn_2 << " pt2_2 " << pt2_2 << std::endl;
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+                  IntegrationPoint &ip_nor_2 = ir_glob_element.IntPoint(pn_2); 
+                  IntegrationPoint &ip_tan1_2 = ir_glob_element.IntPoint(pt1_2); 
+
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+                  IntegrationPoint &ip_tan2_2 = ir_glob_element.IntPoint(pt2_2); 
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
                   Vector this_locRn_2;
-                  this_locRn_2.SetSize(2);
+                  this_locRn_2.SetSize(dim);
                   this_locRn_2 = 0.0;
 
                   Vector this_locRt1_2;
-                  this_locRt1_2.SetSize(2);
+                  this_locRt1_2.SetSize(dim);
                   this_locRt1_2 = 0.0;
-                  
+
+                  Vector this_locRt2_2;
+                  this_locRt2_2.SetSize(dim);
+                  this_locRt2_2 = 0.0;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                   fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_nor_2 , this_locRn_2 );
                   fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_tan1_2, this_locRt1_2);
+                  if( dim == 3)
+                  {
+                     fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_tan2_2, this_locRt2_2);
+                  }
 
-                  int lid_t1shape_pt_2 = GetLid(p, l, dof1d, dof, f_ind, facemaptan1other);
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                   int lid_nshape_pt_2 = GetLid(p, l, dof1d, dof, f_ind, facemapnorother);
+                  int lid_t1shape_pt_2 = GetLid(p, l, dof1d, dof, f_ind, facemaptan1other);
+                  int lid_t2shape_pt_2 = (dim == 3)? GetLid(p, l, dof1d, dof, f_ind, facemaptan2other):0;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
                   this_locRn_2 *= gf(l);
                   locRn_2 += this_locRn_2;
+
                   this_locRt1_2 *= gf(l);
                   locRt1_2 += this_locRt1_2;
+
+                  if( dim == 3)
+                  {
+                     this_locRt2_2 *= gf(l);
+                     locRt2_2 += this_locRt2_2;
+                  }
                }
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
                //const int pt2 = facemaptan2self[p*dof1d+l];
                //IntegrationPoint &ip_tan2 = ir_glob2.IntPoint(pt2); 
@@ -2225,19 +2284,29 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                //gid_t2shape_pt = GetGid(p, l, dof1d, e1, elem_dofs, facemaptan2self, elementMap);      
             }
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             locRn /= locRn.Norml2();
             locRt1 /= locRt1.Norml2();
+            if( dim == 3)
+            {
+               locRt2 /= locRt2.Norml2();
+            }
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-            if (type==FaceType::Interior && e2>=0)
+            if (int_face_match)
             {
                locRn_2 /= locRn_2.Norml2();
                locRt1_2 /= locRt1_2.Norml2();
+               if( dim == 3)
+               {
+                  locRt2_2 /= locRt2_2.Norml2();
+               }
             }
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
             //std::cout << "%                      tangent vector " << std::endl;
 /*
             for (int l = 0; l < NP1d; l++)
@@ -2268,12 +2337,12 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             const int lid = GetLid(p, 0, dof1d, dof, f_ind, facemapnorself);
             const int gid = GetGid(p, 0, dof1d, e1, elem_dofs, facemapnorself, elementMap);
 
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
+            const int lid2 = (int_face_match)? GetLid(p, 0, dof1d, dof, f_ind, facemapnorother):0;
+            const int gid2 = (int_face_match)? GetGid(p, 0, dof1d, e2, elem_dofs, facemapnorother, elementMap):0;
 
-            const int lid2 = (type==FaceType::Interior && e2>=0)? GetLid(p, 0, dof1d, dof, f_ind, facemapnorother):0;
-            const int gid2 = (type==FaceType::Interior && e2>=0)? GetGid(p, 0, dof1d, e2, elem_dofs, facemapnorother, elementMap):0;
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             //std::cout << "%physical ip for restrictions  info = " << inf1  << std::endl;
             //std::cout << "% p = " <<  p << ";" << std::endl;
@@ -2378,7 +2447,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             double sr = 1.0/sqrt(3.0);
 
             ip2.x = (ip.x + sr/2.0 - 1.0/2.0)/sr ;
-            ip2.x = (orientation1==1)? ip2.x : (1.0-ip2.x) ;
+            ip2.x = (orientation2==1)? ip2.x : (1.0-ip2.x) ;
 
             Trans0.SetAllIntPoints(&ip2);
             Vector shape;
@@ -2387,34 +2456,38 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 /*
 
             ip2.x = (ip.x + sr/2.0 - 1.0/2.0)/sr ;
-            ip2.x = (orientation1==1)? ip2.x : (1.0-ip2.x) ;
+            ip2.x = (orientation2==1)? ip2.x : (1.0-ip2.x) ;
             */
             //std::cout << "ipw(" << int(lid)+1 << ") = " <<  pb.weight << ";" << std::endl;
             //std::cout << "trw(" << int(lid)+1 << ") = " <<  Trans0.Elem1->Weight() << ";" << std::endl;
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
             const FaceGeometricFactors *geom = fes.GetMesh()->GetFaceGeometricFactors(
-                           ir_glob,
+                           ir_glob_face,
                            FaceGeometricFactors::DETERMINANTS |
                            FaceGeometricFactors::NORMALS, type);
 
-            auto truenor = Reshape(geom->normal.Read(), NP, dim, nf);
-            Vector facenorm; // change this to use gf*pts
-            facenorm.SetSize(2);
-            facenorm(0) = truenor(p,0,f_ind);
-            facenorm(1) = truenor(p,1,f_ind);
-            
-            Vector norm; 
-            norm.SetSize(2);
-            Vector refnorm; 
-            refnorm.SetSize(2);
-            refnorm(0) = 0;
-            refnorm(1) = 1;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-            CalcOrtho(Trans0.Jacobian(), norm);
-            //detJ.Mult(refnorm,norm);
-            //std::cout << "%{" << std::endl;
-            //std::cout << "facenorm" << std::endl;
-            facenorm.Print(std::cout,2);
+            auto truenor = Reshape(geom->normal.Read(), NPf, dim, nf);
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+            Vector facenorm; // change this to use gf*pts
+            facenorm.SetSize(dim);
+            if( dim == 2 )
+            {
+               facenorm(0) = truenor(p,0,f_ind);
+               facenorm(1) = truenor(p,1,f_ind);
+            }
+            else if( dim == 2 )
+            {
+               facenorm(0) = truenor(p,0,f_ind);
+               facenorm(1) = truenor(p,1,f_ind);
+               facenorm(2) = truenor(p,2,f_ind);
+            }
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             //std::cout << "detJ" << std::endl;
             //detJ.Print(std::cout,4);
@@ -2454,101 +2527,101 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             //std::cout << std::endl;
   // auto detJ = Reshape(det_jac.Read(), Q1D, NF); // assumes conforming mesh
 
-//ipw./trw
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-            /*
-            double scaling = geom->detJ(lid)/Trans0.Elem1->Weight();
-            double correct = pb.weight/Trans0.Elem1->Weight();
-            scaling /= correct;
-            */
-            double scaling = 1.0/geom->detJ(lid);///pb.weight;
-            
-            double term = locRn(0)*locRt1(1) - locRn(1)*locRt1(0);
-            double coeffn = scaling*(locRt1(1)*facenorm(0)-locRt1(0)*facenorm(1))/term;
-            double coefft1 = scaling*(locRn(0)*facenorm(1)-locRn(1)*facenorm(0))/term;
-            double coefft2 = scaling*0; // need to fix this for 3D 
-            /*
-            //std::cout << "% scaling = " << scaling << std::endl;
-            //std::cout << "% term = " << term  << std::endl;
-            //std::cout << "% coefft1 = " << coefft1 << "    " << locRn(1)*facenorm(0) << "  " << locRn(0)*facenorm(1) << std::endl;
-            //std::cout << "% coeffn = " << coeffn << std::endl;
-*/
-/*
-            Vector check;
-            check.SetSize(2);
-            check(0) = coeffn*locRn(0) + coefft1*locRt1(0);
-            check(1) = coeffn*locRn(1) + coefft1*locRt1(1);
-            check /= check.Norml2();
-            //std::cout << "check(" << int(lid)+1 << ",:) = [" << check(0) << "," << check(1) << "];" << std::endl;
-*/
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+            double scaling = 1.0/geom->detJ(lid);
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+            Vector coeffs;
+            coeffs.SetSize(dim);
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+            if( dim == 2 )
+            {
+               GetVectorCoefficients2D(locRn,
+                                       locRt1,
+                                       facenorm,
+                                       coeffs);
+               coeffs *= scaling;
+            }
+            else if( dim == 3 )
+            {
+               GetVectorCoefficients3D(locRn,
+                                       locRt1,
+                                       locRt2,
+                                       facenorm,
+                                       coeffs);
+               coeffs *= scaling;
+            }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
             for( int i = 0 ; i < dof1d ; i++ )
             {
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
                u_face(i,p,f_ind,0) = bf(i);
-               dudn_face(i,p,f_ind,0,0) = gf(i)*coeffn;
-               dudn_face(i,p,f_ind,0,1) = gf(i)*coefft1;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+               dudn_face(i,p,f_ind,0,0) = gf(i)*coeffs(0);
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+               dudn_face(i,p,f_ind,0,1) = gf(i)*coeffs(1);
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                if(dim==3)
                {
-                  //dudn_face(i,p,f_ind,0,2) = gf(i)*coefft2;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+                  dudn_face(i,p,f_ind,0,2) = gf(i)*coeffs(2);
                }
 
-               if(type==FaceType::Interior && e2>=0)
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+               if(int_face_match)
                {
-                  double scaling = -1.0/geom->detJ(lid);///pb.weight;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+                  double scaling = -1.0/geom->detJ(lid);
                   
-                  double term = locRn_2(0)*locRt1_2(1) - locRn_2(1)*locRt1_2(0);
-                  double coeffn = scaling*(locRt1_2(1)*facenorm(0)-locRt1_2(0)*facenorm(1))/term;
-                  double coefft1 = scaling*(locRn_2(0)*facenorm(1)-locRn_2(1)*facenorm(0))/term;
-                  double coefft2 = scaling*0; // need to fix this for 3D                   
+                  Vector coeffs;
+                  coeffs.SetSize(dim);
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+                  if( dim == 2 )
+                  {
+                     GetVectorCoefficients2D(locRn_2,
+                                             locRt1_2,
+                                             facenorm,
+                                             coeffs);
+                     coeffs *= scaling;
+                  }
+                  else if( dim == 3 )
+                  {
+                     GetVectorCoefficients3D(locRn_2,
+                                             locRt1_2,
+                                             locRt2_2,
+                                             facenorm,
+                                             coeffs);
+                     coeffs *= scaling;
+                  }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                   u_face(i,p,f_ind,1) = bf(i);
-                  dudn_face(i,p,f_ind,1,0) = gf(i)*coeffn;
-                  dudn_face(i,p,f_ind,1,1) = gf(i)*coefft1;
+                  dudn_face(i,p,f_ind,1,0) = gf(i)*coeffs(0);
+                  dudn_face(i,p,f_ind,1,1) = gf(i)*coeffs(1);
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                   if(dim==3)
                   {
-                     //dudn_face(i,p,f_ind,1,2) = -gf(i)*coefft2;
+                     dudn_face(i,p,f_ind,1,2) = gf(i)*coeffs(2);
                   }
                }
-//               //std::cout << i << " " << p  << " " << u_face(i,p,f_ind,1) << " " <<  dudn_face(i,p,f_ind,1) << std::endl;
-
             }
-
-/*
-         const int k = i % dof1d;
-         const int fdof = (i/dof1d) % dof;
-         const int face = i / (dof1d*dof);
-         const int idx1 = d_indices1[i];
-
-         for (int c = 0; c < vd; ++c)
-         {  
-            d_y( fdof , c, 0, face, 0) += d_x(t?c:idx1, t?idx1:c)*u_face(k,fdof,face,0);
-            d_y( fdof , c, 0, face, 1) += d_x(t?c:idx1, t?idx1:c)*dudn_face(k,fdof,face,0);
-*/
-         
-            //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-/*
-            if (type==FaceType::Interior && e2>=0)
-            {
-               elf2.Calc1DShape(zero, bf, gf);
-               gf *= -1.0;
-               for( int i = 0 ; i < dof1d ; i++ )
-               {
-                  u_face(i,p,f_ind,1) = bf(i);
-                  dudn_face(i,p,f_ind,1,0) = gf(i)*scaling;
-                  dudn_face(i,p,f_ind,1,1) = gf(i)*scaling;
-                  if(dim==3)
-                  {
-                     dudn_face(i,p,f_ind,1,2) = gf(i)*scaling;
-                  }
-                  //std::cout << i << " " << p  << " " << u_face(i,p,f_ind,1) << " " <<  dudn_face(i,p,f_ind,1) << std::endl;
-               }
-            }
-*/
-
-
          }
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
 
          // Compute task-local scatter id for each face dof
@@ -2557,216 +2630,125 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             for (int k = 0; k < dof1d; ++k)
             {
 
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
                int gid = GetGid(d, k, dof1d, e1, elem_dofs, facemapnorself, elementMap);
                int lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemapnorself, d);
-
-               //const int face_dof = facemapnorself[d*dof1d+k];
-               //const int did = face_dof;
-               //const int gid = elementMap[e1*elem_dofs + did];
-               //const int lid = dof*dof1d*f_ind + dof1d*d + k;
                scatter_indices1[lid] = gid;
 
-               gid = GetGid(d, k, dof1d, e2, elem_dofs, facemapnorother, elementMap);
-               lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemapnorother, d);
-               scatter_indices2[lid] = gid;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-/*
-               int lid_nshape_pt = GetLid(d, l, dof1d, dof, f_ind, facemapnorself);
-               int lid_t1shape_pt = GetLid(p, l, dof1d, dof, f_ind, facemaptan1self);
-               //lid_t2shape_pt = GetLid(p, l, dof1d, dof, f_ind, facemaptan2self);
+               gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan1self, elementMap);
+               lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemaptan1self, d);
+               scatter_indices_tan1[lid] = gid;
 
-               //gid_nshape_pt = GetGid(p, l, dof1d, e1, elem_dofs, facemapnorself, elementMap);
-               //gid_t1shape_pt = GetGid
-               */
-
-               {
-                  const int gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan1self, elementMap);
-                  const int lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemaptan1self, d);
-/*
-                  const int face_dof = facemaptan1self[d*dof1d+k];
-                  const int did = face_dof;
-                  const int gid = elementMap[e1*elem_dofs + did];
-                  const int lid = dof*dof1d*f_ind + dof1d*d + k;
-                  */
-                  scatter_indices_tan1[lid] = gid;
-               }
-
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+               
                if( dim==3 )
                {
-                  /*
-                  const int face_dof = facemaptan2self[d*dof1d+k];
-                  const int did = face_dof;
-                  const int gid = elementMap[e1*elem_dofs + did];
-                  const int lid = dof*dof1d*f_ind + dof1d*d + k;
+                  const int gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan2self, elementMap);
+                  const int lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemaptan2self, d);
                   scatter_indices_tan2[lid] = gid;
-                  */
                }
 
-               // todo - guard this with (m==L2FaceValues::DoubleValued
-               // For double-values face dofs, compute second scatter index
-               if (type==FaceType::Interior && e2>=0) // interior face
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+               // todo - guard this with 
+               if(m==L2FaceValues::DoubleValued)
                {
-                  /*
-                  const int pd = PermuteDFaceDNormL2(dim, face_id1, face_id2,
-                                             orientation, dof1d, d);
-                                             */
-
-                                             //should this be or1 or or2 ?
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                             orientation1, dof1d, d);
-
-/*
-std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-std::cout << "facemapnorother.Size() = " << facemapnorother.Size() << std::endl;
-std::cout << "pd = " << pd << std::endl;
-std::cout << "dof = " << dof << std::endl;
-std::cout << "k = " << k << std::endl;
-std::cout << "pd*dof1d+k = " << pd*dof1d+k << std::endl;
-std::cout << "pd*dof1d+dof1d-1-k = " << pd*dof1d+dof1d-1-k << std::endl;
-*/
-
-                  const int gid = GetGid(d, (orientation1==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1self, elementMap);
-                  const int lid = GetLid(d, (orientation1==1)? k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemaptan1self, d);
-                 // const int face_dof = (orientation1==1)? facemapnorother[pd*dof1d+k]:facemapnorother[pd*dof1d+dof1d-1-k];
-                  //const int did = face_dof;
-                  //const int gid = elementMap[e2*elem_dofs + did];
-                  //const int lid = dof1d*dof*f_ind + dof1d*d + k;
-                  scatter_indices2_tan1[lid] = gid;
-
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+                  gid = GetGid(d, k, dof1d, e2, elem_dofs, facemapnorother, elementMap);
+                  lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemapnorother, d);
+                  scatter_indices2[lid] = gid;
+                  // For double-values face dofs, compute second scatter index
+                  if (int_face_match) // interior face
                   {
-                     /*
-                     const int face_dof = (orientation1==1)? facemaptan1other[pd*dof1d+k]:facemaptan1other[pd*dof1d+dof1d-1-k];
-                     const int did = face_dof;
-                     const int gid = elementMap[e2*elem_dofs + did];
-                     const int lid = dof1d*dof*f_ind + dof1d*d + k;
-                     */
-                     const int gid = GetGid(d, (orientation1==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
-                     const int lid = GetLid(d, (orientation1==1)? k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemaptan1other, d);
-
-                     scatter_indices2_tan2[lid] = gid;
-                  }
-
-                  //needs tangential components
-               }
-               else if (type==FaceType::Boundary && e2<0) // true boundary face
-               {
-                  const int lid = dof1d*dof*f_ind + dof1d*d + k;
-                  scatter_indices2[lid] = -1;
-               }
-            }
-         }
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-//std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-         if (m==L2FaceValues::DoubleValued)
-         {
-            // Moved above. Can revert later
-
-            /*
-            // For double-values face dofs, compute second scatter index
-            for (int d = 0; d < dof; ++d)
-            {
-               if (type==FaceType::Interior && e2>=0) // interior face
-               {
-                  for (int k = 0; k < dof1d; ++k)
-                  {
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation, dof1d, d);
-                     const int face_dof = facemapnorother[pd*dof1d+k];
-                     const int did = face_dof;
-                     const int gid = elementMap[e2*elem_dofs + did];
-                     const int lid = dof1d*dof*f_ind + dof1d*d + k;
-                     scatter_indices2[lid] = gid;
+                                                orientation1, dof1d, d);
+                     const int gid = GetGid(d, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
+                     const int lid = GetLid(d, (orientation2==1)? k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemaptan1other, d);
+                     scatter_indices2_tan1[lid] = gid;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+                     if( dim == 3)
+                     {
+                        const int gid = GetGid(d, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2other, elementMap);
+                        const int lid = GetLid(d, (orientation2==1)? k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemaptan2other, d);
+                        scatter_indices2_tan2[lid] = gid;
+                     }
                   }
-               }
-               else if (type==FaceType::Boundary && e2<0) // true boundary face
-               {
-                  for (int k = 0; k < dof1d; ++k)
+                  else if (bdy_face_match) // true boundary face
                   {
                      const int lid = dof1d*dof*f_ind + dof1d*d + k;
                      scatter_indices2[lid] = -1;
                   }
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
                }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
             }
-            */
          }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          f_ind++;
       }
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-   // Computation of gather_indices_*
+   // Computation of gather_indices
    for (int i = 0; i <= ndofs; ++i)
    {
       offsets_nor[i] = 0;
       offsets_tan1[i] = 0;
-      offsets_tan2[i] = 0;
+      if( dim == 3 )
+      {
+         offsets_tan2[i] = 0;
+      }
    }
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
-      {
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
+      bool int_face_match = type==FaceType::Interior && e2>=0;
+      bool bdy_face_match = type==FaceType::Boundary && e2<0;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (bdy_face_match && inf2<0) )
+      {
          orientation1 = inf1 % 64;
          face_id1 = inf1 / 64;
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          GetNormalDFaceDofStencil(dim, face_id1, dof1d, facemapnorself);
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          orientation2 = inf2 % 64;
          face_id2 = inf2 / 64;
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, facemapnorother);
-
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
          for (int d = 0; d < dof; ++d)
          {
             for (int k = 0; k < dof1d; ++k)
             {
-               // dof should be 1d dof, need to check this for 3D
-            //std::cout << "size(facemapnorself) = " << dof*dof1d << std::endl;
-            //std::cout << "d = " << d << std::endl;
-            //std::cout << "k = " << k << std::endl;
-            //std::cout << "dof1d = " << dof1d << std::endl;
-            //std::cout << "d*dof1d+k = " << d*dof1d+k << std::endl;
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-             //  int did = facemapnorself[d*dof1d+k];
-            //std::cout << "did = " << did << std::endl;
-            //std::cout << "e1*elem_dofs + did = " << e1*elem_dofs + did << std::endl;
-//               int gid = elementMap[e1*elem_dofs + did];
                int gid = GetGid(d, k, dof1d, e1, elem_dofs, facemapnorself, elementMap);                     
+               ++offsets_nor[gid + 1];
 
-            //std::cout << "gid = " << gid << std::endl;
-
-               MFEM_VERIFY(gid+1 < ndofs+1, " something wrong ");
-
-                     ++offsets_nor[gid + 1];
-
-                     //did = facemaptan1self[d*dof1d+k];
-                     //gid = elementMap[e1*elem_dofs + did];
-                     gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan1self, elementMap);                     
-
-               MFEM_VERIFY(gid+1 < ndofs+1, " something wrong ");
-
+               gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan1self, elementMap);     
                ++offsets_tan1[gid + 1];
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-               //did = facemaptan2self[d*dof1d+k];
-               // facemaptan2self is not currently allocated correctly
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-     //std::cout << "% " << did << std::endl;
-              // gid = elementMap[e1*elem_dofs + did];
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-              // MFEM_VERIFY(gid+1 < ndofs+1, " something wrong ");
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-                //     ++offsets_tan2[gid + 1];
-      //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+               if(dim==3)
+               {
+                  gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan2self, elementMap);                     
+                  ++offsets_tan2[gid + 1];
+               }
             }
          }
          if (m==L2FaceValues::DoubleValued)
@@ -2774,249 +2756,160 @@ std::cout << "pd*dof1d+dof1d-1-k = " << pd*dof1d+dof1d-1-k << std::endl;
             for (int d = 0; d < dof; ++d)
                for (int k = 0; k < dof1d; ++k)
                {
-                  if (type==FaceType::Interior && e2>=0) // interior face
+                  if(int_face_match) // interior face
                   {
-                     /*
-                     const int pd2 = PermuteDFaceDNormL2(dim, face_id1, face_id2,
-                                                orientation, dof1d, d);
-                                                */
-                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation1, dof1d, d);
-                     /*
-                     if( pd != pd2 )
-                     {
-                        //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-                        //std::cout << "pd = " << pd;
-                        //std::cout << "pd2 = " << pd2;
-                     }
-                     */
 
-                     // correct or1 or or2?
-                     //int did  = orientation1==1?facemapnorother[pd*dof1d+k]:facemapnorother[pd*dof1d+dof1d-1-k];
-                     //int gid = elementMap[e2*elem_dofs + did];
-                     int gid = GetGid(pd, orientation1==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorother, elementMap);                     
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                                orientation2, dof1d, d);
+
+                     int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorother, elementMap);                     
                      ++offsets_nor[gid + 1];
 
-                     //did  = orientation1==1?facemaptan1other[pd*dof1d+k]:facemaptan1other[pd*dof1d+dof1d-1-k];
-                     //gid = elementMap[e2*elem_dofs + did];
-                     gid = GetGid(pd, orientation1==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
+                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
                      ++offsets_tan1[gid + 1];
-                     //did  = orientation1==1?facemaptan2other[pd*dof1d+k]:facemaptan2other[pd*dof1d+dof1d-1-k];
-                     //gid = elementMap[e2*elem_dofs + did];
-                     //++offsets_tan2[gid + 1];                     
+
+                     if( dim == 3 )
+                     {
+                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2other, elementMap);
+                        ++offsets_tan2[gid + 1];
+                     }
                   }
                }
          }
          f_ind++;
       }
    }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
 
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    for (int i = 1; i <= ndofs; ++i)
    {
       offsets_nor[i] += offsets_nor[i - 1];
       offsets_tan1[i] += offsets_tan1[i - 1];
-      offsets_tan2[i] += offsets_tan2[i - 1];
+      if( dim == 3 )
+      {
+         offsets_tan2[i] += offsets_tan2[i - 1];
+      }
    }
 
-/*
-   for (int i = 1; i <= ndofs; ++i)
-   {
-      std::cout << "%offs " << offsets_nor[i] << " " << offsets_tan1[i] << std::endl;
-   }
-*/
-      
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+
+      bool int_face_match = type==FaceType::Interior && e2>=0;
+      bool bdy_face_match = type==FaceType::Boundary && e2<0;
+
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+          (bdy_face_match && inf2<0) )
       {
          orientation1 = inf1 % 64;
          face_id1 = inf1 / 64;
          GetNormalDFaceDofStencil(dim, face_id1, dof1d, facemapnorself);
-//         //std::cout << "% face_id1  " << face_id1 << std::endl;
- //        //std::cout << "% facemapnorself[0]  " << facemapnorself[0] << std::endl;
-
          orientation2 = inf2 % 64;
          face_id2 = inf2 / 64;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, facemapnorother);
 
-/*
-         const FiniteElement &elf1 = *fes.GetFE(e1);
-         const FiniteElement &elf2 = *fes.GetFE(e2);
-
-         const IntegrationRule *ir = IntRule;
-*/
-
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //std::cout << "dof = " << dof << std::endl;
-
          for (int d = 0; d < dof; ++d)
             for (int k = 0; k < dof1d; ++k)
             {
-               //int did = facemapnorself[d*dof1d+k];
-
-//std::cout << "size(facemapnorself) = " << dof*dof1d << std::endl;
-//std::cout << "d = " << d << std::endl;
-//std::cout << "k = " << k << std::endl;
-//std::cout << "dof = " << dof << std::endl;
-//std::cout << "d*dof+k = " << d*dof1d+k << std::endl;
-//std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-//std::cout << "e1 = " << e1 << std::endl;
-//std::cout << "elem_dofs = " << elem_dofs << std::endl;
-//std::cout << "did = " << did << std::endl;
-//std::cout << "e1*elem_dofs + did = " << e1*elem_dofs + did << std::endl;
-
                int gid = GetGid(d, k, dof1d, e1, elem_dofs, facemapnorself, elementMap);
                int lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemapnorself, d);
-               //int gid = elementMap[e1*elem_dofs + did];
-               //std::cout << "gid = " << gid << std::endl;
-               //int lid = dof1d*dof*f_ind + dof1d*d + k;
-               // We don't shift lid to express that it's e1 of f
                int offset = offsets_nor[gid];
                gather_indices_nor[offset] = lid;
                offsets_nor[gid]++;
-               const int did = facemapnorself[d*dof+k];
-
-/*
-               std::cout << d << " " << k << " " <<  did << " " << gid << " " <<  lid << " " << offset << std::endl;
-               if(  lid == 194 )
-               {
-                  std::cout << d << " " << k << " " <<  did << " " << gid << " " <<  lid  << " " << offset << " bug? " << std::endl;
-                  //exit(1);
-               }
-               */
-
-
-               //did = facemaptan1self[d*dof1d+k];
-               //gid = elementMap[e1*elem_dofs + did];
-               //lid = dof1d*dof*f_ind + dof1d*d + k;
 
                gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan1self, elementMap);
                lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemaptan1self, d);
-
                offset = offsets_tan1[gid];
-
-               //std::cout <<  offset << std::endl;
                gather_indices_tan1[offset] = lid;
                offsets_tan1[gid]++;
 
-            // fix this 
-//               did = facemaptan2self[d*dof1d+k];
-  //             gid = elementMap[e1*elem_dofs + did];
-    //           lid = dof1d*dof*f_ind + dof1d*d + k;
-      //         offset = offsets_tan2[gid];
-        //       gather_indices_tan2[offset] = lid;
-          //     offsets_tan2[gid]++;
+               if( dim == 3 )
+               {
+                  gid = GetGid(d, k, dof1d, e1, elem_dofs, facemaptan2self, elementMap);
+                  lid = GetLid(d, k, dof1d, dof1d*dof, f_ind, facemaptan2self, d);
+                  offset = offsets_tan2[gid];
+                  gather_indices_tan2[offset] = lid;
+                  offsets_tan2[gid]++;
+               }
+
             }
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
                for (int k = 0; k < dof1d; ++k)
                {
-                  if (type==FaceType::Interior && e2>=0) // interior face
+                  if (int_face_match) // interior face
                   {
-                     
-                     const int pd2 = PermuteDFaceDNormL2(dim, face_id1, face_id2,
-                                                orientation2, dof1d, d);
-                                                
-                                                // correct or1 or or2? ?
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation2, dof1d, d);
+                                                orientation2, dof1d, d);                  
 
-         
-                     if( pd != pd2 )
-                     {
-                        std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-                        std::cout << "pd = " << pd;
-                        std::cout << "pd2 = " << pd2;
-                        exit(1);
-                     }                     
-
-                     // correct orientation1 or 2 ? 
                      int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorother, elementMap);
                      int lid = GetLid(pd, orientation2==1?k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemapnorother,d);
-                     const int did = facemapnorother[d*dof+(orientation2==1?k:dof1d-1-k)];
-
-                     //int did  = orientation1==1?facemapnorother[pd*dof1d+k]:facemapnorother[pd*dof1d+dof1d-1-k];
-                     //int gid = elementMap[e2*elem_dofs + did];
-                     //int lid = dof1d*dof*f_ind + dof1d*d + k;
-                     // We shift lid to express that it's e2 of f
                      int offset = offsets_nor[gid];
-
-/*
-                     std::cout << d << " " << pd << " " << did << " " <<  gid << " " <<  2*nfdofs + lid<< " " << offset << std::endl;
-                     if(  2*nfdofs + lid== 194 )
-                     {
-                        std::cout << d << " " << pd << " " <<  did << " " << gid << " " <<  2*nfdofs + lid<< " " << offset << " bug? " << std::endl;
-                        //exit(1);
-                     }
-                     */
-
-
                      gather_indices_nor[offset] = 2*nfdofs + lid;
                      offsets_nor[gid]++;
 
-/*
-                     did  = orientation1==1?facemaptan1other[pd*dof1d+k]:facemaptan1other[pd*dof1d+dof1d-1-k];
-                     gid = elementMap[e2*elem_dofs + did];
-                     lid = dof1d*dof*f_ind + dof1d*d + k;
-*/
-                     gid = GetGid(pd, orientation1==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
-                     lid = GetLid(pd, orientation1==1?k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemaptan1self,d);
-                     // We shift lid to express that it's e2 of f
+                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
+                     lid = GetLid(pd, orientation2==1?k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemaptan1other,d);
                      offset = offsets_tan1[gid];
                      gather_indices_tan1[offset] = 2*nfdofs + lid;
                      offsets_tan1[gid]++;
 
-      /*
-                     did  = orientation1==1?facemaptan2other[pd*dof1d+k]:facemaptan2other[pd*dof1d+dof1d-1-k];
-                     gid = elementMap[e2*elem_dofs + did];
-                     lid = dof1d*dof*f_ind + dof1d*d + k;
-                     // We shift lid to express that it's e2 of f
-                     offset = offsets_tan2[gid];
-                     gather_indices_tan2[offset] = 2*nfdofs + lid;
-                     offsets_tan2[gid]++;
-                     */
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+                     if( dim == 3 )
+                     {
+                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2other, elementMap);
+                        lid = GetLid(pd, orientation2==1?k:dof1d-1-k, dof1d, dof1d*dof, f_ind, facemaptan2other,d);
+                        // We shift lid to express that it's e2 of f
+                        offset = offsets_tan2[gid];
+                        gather_indices_tan2[offset] = 2*nfdofs + lid;
+                        offsets_tan2[gid]++;
+                     }
                   }
                }
          }
          f_ind++;
       }
    }
-   
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    for (int i = ndofs; i > 0; --i)
    {
       offsets_nor[i] = offsets_nor[i - 1];
       offsets_tan1[i] = offsets_tan1[i - 1];
-      //offsets_tan2[i] = offsets_tan2[i - 1];
+      if( dim == 3)
+      {
+         offsets_tan2[i] = offsets_tan2[i - 1];
+      }
    }
    offsets_nor[0] = 0;
    offsets_tan1[0] = 0;
-   //offsets_tan2[0] = 0;
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-/*
-   for (int i = 0; i < 2*nf*dof*dof1d ; i++)
+   if( dim == 3 )
    {
-      std::cout << "gi " << i << " = " <<  gather_indices_nor[i] << std::endl;
+      offsets_tan2[0] = 0;
    }
-*/
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
 }
 
 void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 {
-   /*
+/*
    //std::cout << " restrict x" << std::endl;
    x.Print(std::cout,1);
    //std::cout << " end restrict x" << std::endl;
@@ -3024,6 +2917,7 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    // Assumes all elements have the same number of dofs, nd
    //const int dim = fes.GetMesh()->SpaceDimension();
    const int vd = vdim;
+   const int dim = fes.GetMesh()->SpaceDimension();
    // is x transposed?
    const bool t = byvdim;
    auto u_face    = Reshape(Bf.Read(), dof1d, dof, nf, 2);
@@ -3034,8 +2928,10 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_indicestan1self = scatter_indices_tan1.Read();
+      auto d_indicestan2self = scatter_indices_tan2.Read();
       auto d_indices2 = scatter_indices2.Read();
       auto d_indicestan1other = scatter_indices2_tan1.Read();
+      auto d_indicestan2other = scatter_indices2_tan2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), dof, vd, 2, nf, 2);
 
@@ -3046,21 +2942,33 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
          const int fdof = (i/dof1d) % dof;
          const int face = i / (dof1d*dof);
          const int idx1 = d_indices1[i];
-         const int idxt1 = d_indicestan1self[i];
+         const int idxt1s = d_indicestan1self[i];         
+         int idxt2s = 0;
+         if(dim == 3)
+         {
+            idxt2s = d_indicestan2self[i];
+         }
 
          for (int c = 0; c < vd; ++c)
          {  
             d_y( fdof , c, 0, face, 0) += d_x(t?c:idx1, t?idx1:c)*u_face(k,fdof,face,0);
             d_y( fdof , c, 0, face, 1) += d_x(t?c:idx1, t?idx1:c)*dudn_face(k,fdof,face,0,0);
-            d_y( fdof , c, 0, face, 1) += d_x(t?c:idxt1, t?idxt1:c)*dudn_face(k,fdof,face,0,1);
-
-//            //std::cout << "u1(" << int(i/dof1d)+1 << ") = " <<  d_y( fdof , c, 0, face , 0) << "; % bf = "  << u_face(k,fdof,face,0) << " x = " << d_x(t?c:idx1, t?idx1:c) << std::endl;
-            //std::cout << "dudn(" << int(i/dof1d)+1 << ") = " <<  d_y( fdof , c, 0, face , 1) << ";% gf = " << dudn_face(k,fdof,face,0,0) << " x = " << d_x(t?c:idx1, t?idx1:c) << std::endl;
-//            //std::cout << "dudn1(" << int(i/dof1d)+1 << ") = " <<  d_y( fdof , c, 0, face , 1) << ";% gfn = " << dudn_face(k,fdof,face,0,0) << " gft = " << dudn_face(k,fdof,face,0,1) << " x = " << d_x(t?c:idx1, t?idx1:c) << std::endl;
+            d_y( fdof , c, 0, face, 1) += d_x(t?c:idxt1s, t?idxt1s:c)*dudn_face(k,fdof,face,0,1);
+            if( dim == 3 )
+            {
+               d_y( fdof , c, 0, face, 1) += d_x(t?c:idxt2s, t?idxt2s:c)*dudn_face(k,fdof,face,0,2);
+            }
          }
-         // other side 
+
+         // neighbor side 
          const int idx2 = d_indices2[i];
-         const int idxt2 = d_indicestan1other[i];
+         const int idxt1o = d_indicestan1other[i];
+         int idxt2o = 0;
+         if( dim==3 )
+         {
+            idxt2o = d_indicestan2other[i];
+         }
+
          if( idx2==-1 )
          {
             for (int c = 0; c < vd; ++c)
@@ -3075,45 +2983,25 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
             {
                d_y( fdof , c, 1, face, 0) += d_x(t?c:idx2, t?idx2:c)*u_face(k,fdof,face,1);
                d_y( fdof , c, 1, face, 1) += d_x(t?c:idx2, t?idx2:c)*dudn_face(k,fdof,face,1,0);
-               d_y( fdof , c, 1, face, 1) += d_x(t?c:idxt2, t?idxt2:c)*dudn_face(k,fdof,face,1,1);
-
-//               //std::cout << "u2(" << int(i/dof1d)+1 << ") = " <<  d_y( fdof , c, 1, face , 0) << "; % bf = "  << u_face(k,fdof,face,1) << " x = " << d_x(t?c:idx2, t?idx2:c) << std::endl;
-               //std::cout << "dudn(" << int(i/dof1d)+1 << ") = " <<  d_y( fdof , c, 0, face , 1) << ";% gf = " << dudn_face(k,fdof,face,0,0) << " x = " << d_x(t?c:idx1, t?idx1:c) << std::endl;
-//               //std::cout << "dudn2(" << int(i/dof1d)+1 << ") = " <<  d_y( fdof , c, 1, face , 1) << ";% gfn = " << dudn_face(k,fdof,face,1,0) << " gft = " << dudn_face(k,fdof,face,1,1) << " x = " << d_x(t?c:idx2, t?idx2:c) << std::endl;
-
-/*
-               d_y( fdof , c, 1, face, 0) += d_x(t?c:idx2, t?idx2:c)*u_face(k,fdof,face,1);
-               d_y( fdof , c, 1, face, 1) += d_x(t?c:idx2, t?idx2:c)*dudn_face(k,fdof,face,1,0);
-               */
+               d_y( fdof , c, 1, face, 1) += d_x(t?c:idxt1o, t?idxt1o:c)*dudn_face(k,fdof,face,1,1);
+               if( dim == 3 )
+               {
+                  d_y( fdof , c, 1, face, 1) += d_x(t?c:idxt2o, t?idxt2o:c)*dudn_face(k,fdof,face,1,2);
+               }
             }
          }
       });
-
-/*
-         for( int face = 0 ; face < nf ; face++ )
-            for( int fdof = 0 ; fdof < dof ; fdof++ )
-            {
-               int c = 0;
-               //std::cout << "% fid " << fdof << " f " << face << " gu0 " << d_y( fdof , c, 0, face, 1) << " gu1 " << d_y( fdof , c, 1, face, 1) << std::endl;
-            }
-*/
-
    }
    else
    {
       mfem_error("not yet implemented.");
    }
 
-
-
 /*
    //std::cout << " restrict y" << std::endl;
    y.Print(std::cout,1);
    //std::cout << " end restrict y" << std::endl;
 */
-
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
 }
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
@@ -3129,6 +3017,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto dudn_face = Reshape(Gf.Read(), dof1d, dof, nf, 2, 3);
 
    // Assumes all elements have the same number of dofs
+   const int dim = fes.GetMesh()->SpaceDimension();
    const int vd = vdim;
    const bool t = byvdim;
    auto d_offsets_nor = offsets_nor.Read();
@@ -3160,46 +3049,6 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                int faceid = idx_j / (dof1d*dof);
 
 /*
-               double gamma = 1.0;//0.5; 
-
-               double b = 0;
-               if( s == 0)
-                  b = 1;
-
-               double g = 0;
-               if( dof1d == 2)
-               {
-                  if(s==0)
-                     g = 1.0;
-                  if(s==1)
-                     g = -1.0;
-               }
-               else if( dof1d == 3)
-               {
-                  if(s==0)
-                     g = 3;
-                  if(s==1)
-                     g = -4;
-                  if(s==2)
-                     g = 1;
-               }
-               else
-               {
-                  if(s==0)
-                     g = 11.0;
-                  if(s==1)
-                     g = -18.0;
-                  if(s==2)
-                     g = 9.0;
-                  if(s==3)
-                     g = -2.0;
-
-//                  //std::cout << "error!   dof1d > 3 " << std::endl;
-//                  exit(1);
-               }
-*/
-
-/*
                std::cout << "% Mtrans " 
                      << " offset " << offset
                      << " nextOffset " << nextOffset
@@ -3220,22 +3069,6 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 
                if( isE1 )
                {
-
-/*
-                  if(  abs(dudn_face(s,did,faceid,0,0)*gamma - g ) > 1.0e-09 )
-                  {
-                     //std::cout << "error! s = " << s << std::endl;
-                     //std::cout << "dudn_face(s,did,faceid,0,0)*gamma = " << dudn_face(s,did,faceid,0,0)*gamma << std::endl;
-                     //std::cout << "g = " << g << std::endl;
-
-                     for( int si = 0 ; si < dof1d ; si++ )
-                     {
-                        //std::cout << "s " << s << " dudn " << dudn_face(si,did,faceid,0,0) << std::endl;
-                     }
-                     //exit(1);
-                  }
-                  */
-
                   d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 0)*u_face(s,did,faceid,0);
                   d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,0);
                }
@@ -3262,127 +3095,39 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                int faceid = idx_j / (dof1d*dof);
                if( isE1 )
                {
-                  if( abs(dudn_face(s,did,faceid,0,1)) > 1.0e-11 )
-                  {
-                     //std::cout << " nonzero dudnt = " << dudn_face(s,did,faceid,0,1) << std::endl;
-                     exit(1);
-                  } 
                   d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,1);
                }
                else
                {
-
-                  if( abs(dudn_face(s,did,faceid,1,1)) > 1.0e-11 )
-                  {
-                     //std::cout << " nonzero dudnt = " << dudn_face(s,did,faceid,1,1) << std::endl;
-                     exit(1);
-                  } 
-
                   d_y(t?c:i,t?i:c) += d_x( did, c, 1, faceid, 1)*dudn_face(s,did,faceid,1,1);
                }
             }
          }
 
-         // need to do tan2 ... 
-
-
-      });
-   }
-   else
-   {
-      mfem_error("not yet implemented.");
-   }
-
-
-
-/*
-
-   // Assumes all elements have the same number of dofs
-   const int nd = dof*dof; //this is for 2D, need to generalize for 3D
-   const int vd = vdim;
-   const bool t = byvdim;
-   auto d_offsets = offsets_nor.Read();
-   auto d_indices = gather_indices_nor.Read();
-
-   //std::cout << "                         nfdofs " << nfdofs << std::endl;
-   //std::cout << "                         ndofs " << ndofs << std::endl;
-   //std::cout << "                         x.Size() " << x.Size() << std::endl;
-
-   if (m == L2FaceValues::DoubleValued)
-   {
-      auto d_x = Reshape(x.Read(), dof, vd, 2, nf, 2);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
-         for (int c = 0; c < vd; ++c)
+         if( dim >= 3 )
          {
-            //double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
+            offset = d_offsets_tan2[i];
+            nextOffset = d_offsets_tan2[i + 1];
+            for (int c = 0; c < vd; ++c)
             {
-               int idx_j0 = d_indices[j];
-               bool isE1 = idx_j0 < nfdofs;
-               // we use e1 e2 but then use D0 D1 in the PA kernel 
-               int idx_j = isE1 ? idx_j0 : idx_j0 - 2*nfdofs;
-               int s = idx_j % dof1d;
-               int did = (idx_j/dof1d) % dof1d;
-               int faceid = idx_j / nd;
-               //std::cout << offset << " " << nextOffset << " " << i << " " << j << " " <<  idx_j0 << " " << isE1 << " " << idx_j << " " << 1 << " " << did << " " << faceid << std::endl ;
-               MFEM_VERIFY( idx_j <= 2*nfdofs , " offset is too large? ");
-               MFEM_VERIFY( idx_j >= 0 , " offset is negative? ");
-
-               double b = 0;
-               if( s == 0)
-                  b = 1;
-
-               double g = 0;
-               if( dof1d == 2)
+               for (int j = offset; j < nextOffset; ++j)
                {
-                  if(s==0)
-                     g = 1.0;
-                  if(s==1)
-                     g = -1.0;
+                  int idx_j0 = d_indices_tan2[j];
+                  bool isE1 = idx_j0 < nfdofs;
+                  // we use e1 e2 but then use D0 D1 in the PA kernel 
+                  int idx_j = isE1 ? idx_j0 : idx_j0 - 2*nfdofs;
+                  int s = idx_j % dof1d;
+                  int did = (idx_j/dof1d) % dof1d;
+                  int faceid = idx_j / (dof1d*dof);
+                  if( isE1 )
+                  {
+                     d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,2);
+                  }
+                  else
+                  {
+                     d_y(t?c:i,t?i:c) += d_x( did, c, 1, faceid, 1)*dudn_face(s,did,faceid,1,2);
+                  }
                }
-               else if( dof1d == 3)
-               {
-                  if(s==0)
-                     g = 3;
-                  if(s==1)
-                     g = -4;
-                  if(s==2)
-                     g = 1;
-               }
-               else
-               {
-
-               }
-
-               //std::cout << "% Mtrans " 
-                     << " offset " << offset
-                     << " nextOffset " << nextOffset
-                     << " idx_j0 " << idx_j0
-                     << " offset " << offset
-                     << " offset " << offset
-                     << " did " << did 
-                     << " faceid " << faceid 
-                     << " s " << s 
-                     << " dx1 " << d_x( did, c, 0, faceid, 1)
-                     << " dx2 " << d_x( did, c, 1, faceid, 1)
-                     << " dudn1 " << g
-                     << " dudn2 " << 0
-                     << std::endl;
-
-               double dofValue = isE1 ? 
-               d_x( did, c, 0, faceid, 0 )
-               :d_x( did, c, 1, faceid, 0 );
-               d_y(t?c:i,t?i:c) += b*dofValue;
-
-               double dofValueprime = isE1 ? 
-               d_x( did, c, 0, faceid, 1 )
-               :d_x( did, c, 1, faceid, 1 );
-               d_y(t?c:i,t?i:c) += g*dofValueprime;
-
             }
          }
       });
@@ -3391,9 +3136,6 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    {
       mfem_error("not yet implemented.");
    }
-
-*/
-
 
 /*
    std::cout << "multT y " << std::endl;
@@ -3401,5 +3143,4 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    std::cout << "end multT y " << std::endl;
 */
 }
-
 }
