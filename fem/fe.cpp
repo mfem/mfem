@@ -9828,8 +9828,9 @@ void PositiveTensorFiniteElement::Calc1DShape(IntegrationPoint &ip,
                                           Vector &shape,
                                           Vector &dshape) const
 {
-   //const int p = order;
-   basis1d.Eval(ip.x, shape, dshape);
+   const int p = order;
+   Poly_1D::CalcBernstein(p, ip.x, shape, dshape);
+   //basis1d.Eval(ip.x, shape, dshape);
 }
 
 void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
