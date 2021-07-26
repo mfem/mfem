@@ -332,10 +332,10 @@ int GridFunction::VectorDim() const
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
-   if (!R)
+   if (!R || IsIdentityProlongation(fes->GetProlongationMatrix()))
    {
-      // R is identity -> make tv a reference to *this
-      tv.MakeRef(const_cast<GridFunction &>(*this), 0, size);
+      // R is identity
+      tv = *this; // no real copy if 'tv' and '*this' use the same data
    }
    else
    {

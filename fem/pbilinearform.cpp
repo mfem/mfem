@@ -473,7 +473,7 @@ void ParBilinearForm::RecoverFEMSolution(
    else
    {
       // Apply conforming prolongation
-      x.SetSize(P.Height());
+      x.SetSize(P.Height(), GetHypreMemoryType());
       P.Mult(X, x);
    }
 }
