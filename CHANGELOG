@@ -175,6 +175,7 @@ Version 4.2.1 (development)
 
 - Testing improvements:
   * Transitioned from Travis to GitHub Action for testing/CI on GitHub.
+  * Effectively remove Travis from CI.
   * Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
   * Added a set of suggested git hooks for developers in config/githooks.
 
