@@ -60,6 +60,7 @@ c_allocate_resources:
   script:
     - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
+  needs: [setup]
 
 # Release
 c_release_resources:
@@ -70,6 +71,7 @@ c_release_resources:
   script:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+  needs: [rocm_gcc_8.3.1]
 
 # Release
 c_report_success:
@@ -87,6 +89,7 @@ c_report_success:
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
     - git push origin master
+  needs: [rocm_gcc_8.3.1]
 
 c_report_failure:
   variables:
@@ -103,6 +106,7 @@ c_report_failure:
     - git add ${rundir}
     - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
     - git push origin master
+  needs: [rocm_gcc_8.3.1]
 
 # Spack helped builds
 # Generic corona build job, extending build script
@@ -111,8 +115,9 @@ c_report_failure:
   stage: c_build_and_test
 
 # Build MFEM
-debug_ser_gcc_8.3.1:
+rocm_gcc_8.3.1:
   variables:
     SPEC: "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906"
   extends: .build_and_test_on_corona
+  needs: [c_allocate_resources]
 

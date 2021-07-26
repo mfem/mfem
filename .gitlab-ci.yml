@@ -67,7 +67,9 @@ stages:
   - q_build_and_test
   - q_release_resources
   - l_build_and_test
+  - c_allocate_resources
   - c_build_and_test
+  - c_release_resources
   - setup_baseline
   - baseline_check
   - baseline_to_autotest
