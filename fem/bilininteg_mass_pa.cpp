@@ -488,7 +488,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    {
       ceedOp->GetDiagonal(diag);
    }
-   else if (DeviceCanUseAMD())
+   else if (DeviceCanUseNonDeterministicKernels())
    {
       AMD_PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                  fespace, maps,
@@ -1256,7 +1256,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       ceedOp->AddMult(x, y);
    }
-   else if (DeviceCanUseAMD())
+   else if (DeviceCanUseNonDeterministicKernels())
    {
       AMD_PAMassApply(dim, dofs1D, quad1D, ne,
                       fespace, maps,

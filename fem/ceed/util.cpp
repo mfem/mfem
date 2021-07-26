@@ -28,10 +28,9 @@ typedef struct _stat struct_stat;
 namespace mfem
 {
 
-bool DeviceCanUseAMD()
+bool DeviceCanUseNonDeterministicKernels()
 {
-   static bool amd = std::getenv("AMD");
-   return amd;
+   return Device::IsNonDeterministicKernelsEnabled();
 }
 
 bool DeviceCanUseCeed()
@@ -71,6 +70,8 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes)
          itr++;
       }
    }
+#else
+   MFEM_CONTRACT_VAR(fes);
 #endif
 }
 

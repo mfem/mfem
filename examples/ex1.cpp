@@ -245,6 +245,7 @@ int main(int argc, char *argv[])
                cg.SetMaxIter(2);
                cg.SetPrintLevel(-1);
                cg.Mult(B, Y);
+               MFEM_DEVICE_SYNC;
             }
 
             // benchmark this problem
@@ -255,6 +256,7 @@ int main(int argc, char *argv[])
                {
                   tic_toc.Start();
                   cg.Mult(B, X);
+                  MFEM_DEVICE_SYNC;
                   tic_toc.Stop();
                }
             }

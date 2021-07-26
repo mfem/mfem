@@ -123,11 +123,14 @@ class Device
 private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
+   enum DETERMINISTIC_KERNELS {ON, OFF};
 
    static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static Device device_singleton;
 
    MODES mode = Device::SEQUENTIAL;
+   /// Device kernels are set to be deterministic by default.
+   DETERMINISTIC_KERNELS deterministic_kernels = DETERMINISTIC_KERNELS::ON;
    int dev = 0;   ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
    /// Bitwise-OR of all configured backends.
@@ -247,6 +250,12 @@ public:
 
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
+
+   /// Return true if the deterministic kernels are allaowed.
+   static inline bool IsNonDeterministicKernelsEnabled()
+   {
+      return Get().deterministic_kernels == OFF;
+   }
 
    /// Get the device id of the configured device.
    static inline int GetId() { return Get().dev; }
