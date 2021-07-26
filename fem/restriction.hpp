@@ -191,9 +191,17 @@ protected:
    Vector Bf;
    Vector Gf;
    Array<int> scatter_indices1;
+   Array<int> scatter_indices_tan1; //these need some serious renaming
+   Array<int> scatter_indices_tan2;
    Array<int> scatter_indices2;
-   Array<int> offsets;
-   Array<int> gather_indices;
+   Array<int> scatter_indices2_tan1; //these need some serious renaming
+   Array<int> scatter_indices2_tan2;
+   Array<int> offsets_nor;
+   Array<int> offsets_tan1;
+   Array<int> offsets_tan2;
+   Array<int> gather_indices_nor;
+   Array<int> gather_indices_tan1;
+   Array<int> gather_indices_tan2;
    L2FaceNormalDRestriction(const FiniteElementSpace&,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
