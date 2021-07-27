@@ -16,7 +16,7 @@
 # We define the following GitLab pipeline variables:
 #
 # BUILD_ROOT:
-# The path to the shared resources between all jobs. For example, external
+# The path to the shared resource between all jobs. For example, external
 # repositories like 'tests' and 'tpls' are cloned here. Also, 'tpls' is built
 # once for all targets, so that build happen here. The BUILD_ROOT is unique to
 # the pipeline, preventing any form of concurrency with other pipelines. This
@@ -30,7 +30,7 @@
 #
 # MFEM_ALLOC_NAME:
 # On LLNL's quartz, there is only one allocation shared among jobs in order to
-# save time and resources. This allocation has to be uniquely named so that we
+# save time and resource. This allocation has to be uniquely named so that we
 # are sure to retrieve it.
 #
 # TPLS_REPO & TESTS_REPO:
@@ -56,20 +56,20 @@ variables:
 # the "needs" keyword and express the DAG of jobs for more efficiency.
 # - We use setup and setup_baseline phases to download content outside of mfem
 #   directory.
-# - Allocate/Release is where quartz resources are allocated/released once for all.
+# - Allocate/Release is where quartz resource are allocated/released once for all.
 # - Build and Test is where we build and MFEM for multiple toolchains.
 # - Baseline_checks gathers baseline-type test suites execution
 # - Baseline_publish, only available on master, allows to update baseline
 #   results
 stages:
   - setup
-  - q_allocate_resources
+  - q_allocate_resource
   - q_build_and_test
-  - q_release_resources
+  - q_release_resource
   - l_build_and_test
-  - c_allocate_resources
+  - c_allocate_resource
   - c_build_and_test
-  - c_release_resources
+  - c_release_resource
   - setup_baseline
   - baseline_check
   - baseline_to_autotest
