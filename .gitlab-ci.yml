@@ -254,3 +254,4 @@ setup_baseline:
 include:
   - local: .gitlab/quartz.yml
   - local: .gitlab/lassen.yml
+  - local: .gitlab/corona.yml
