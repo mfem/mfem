@@ -31,8 +31,8 @@
     # Report failure on failure status
     - if: '$CI_JOB_NAME =~ /q_report_failure/ && $AUTOTEST == "YES"'
       when: on_failure
-    # Always release resources
-    - if: '$CI_JOB_NAME =~ /release_resources/'
+    # Always release resource
+    - if: '$CI_JOB_NAME =~ /release_resource/'
       when: always
     # Default is to run if previous stage succeeded
     - when: on_success
@@ -50,7 +50,7 @@
   fi
 
 # Allocate
-q_allocate_resources:
+q_allocate_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
@@ -60,11 +60,11 @@ q_allocate_resources:
   timeout: 6h
 
 # Release
-q_release_resources:
+q_release_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_release_resources
+  stage: q_release_resource
   script:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
@@ -74,7 +74,7 @@ q_report_success:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_release_resources
+  stage: q_release_resource
   script:
     - echo "Can only run if all the quartz jobs passed"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
@@ -90,7 +90,7 @@ q_report_failure:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_release_resources
+  stage: q_release_resource
   script:
     - echo "Runs if there was at least one failure on quartz"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
