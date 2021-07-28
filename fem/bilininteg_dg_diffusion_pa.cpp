@@ -25,177 +25,9 @@
 namespace mfem
 {
 
-// PA DG DGDiffusion Integrator
-/*
-static void PADGDiffusionSetup2D(const int Q1D,
-                             const int D1D,
-                             const int NF,
-                             const Array<double> &weights,
-                             const Array<double> &g,
-                             const Array<double> &b,
-                             const Vector &jac,
-                             const Vector &det_jac,
-                             const Vector &nor,
-                             const Vector &Q,
-                             const Vector &rho,
-                             const Vector &vel,
-                             const Vector &face_2_elem_volumes,
-                             const double sigma,
-                             const double kappa,
-                             const double beta,
-                             Vector &op1,
-                             Vector &op2,
-                             Vector &op3)
-{
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   const int VDIM = 2; // why ? 
-   //auto jac = Reshape(jac.Read(), Q1D, NF); // assumes conforming mesh
-   auto detJ = Reshape(det_jac.Read(), Q1D, NF); // assumes conforming mesh
-   auto norm = Reshape(nor.Read(), Q1D, VDIM, NF);
-   auto f2ev = Reshape(face_2_elem_volumes.Read(), 2, NF);
-
-   // Input
-   const bool const_Q = Q.Size() == 1;
-   auto Qreshaped =
-      const_Q ? Reshape(Q.Read(), 1,1) : Reshape(Q.Read(), Q1D,NF);
-   auto wgts = weights.Read();
-
-   // Output
-   auto op_data_ptr1 = Reshape(op1.Write(), Q1D, 2, 2, NF);
-   auto op_data_ptr2 = Reshape(op2.Write(), Q1D, 2, NF);
-   auto op_data_ptr3 = Reshape(op3.Write(), Q1D, 2, NF);
-
-   MFEM_FORALL(f, NF, // can be optimized with Q1D thread for NF blocks
-   {
-      for (int q = 0; q < Q1D; ++q)
-      {
-         const double normx = norm(q,0,f);
-         const double normy = norm(q,1,f);
-         //const double normz = norm(q,0,f) + norm(q,1,f); //todo: fix for 
-         const double mag_norm = sqrt(normx*normx + normy*normy); //todo: fix for 
-         const double Q = const_Q ? Qreshaped(0,0) : Qreshaped(q,f);
-         const double w = wgts[q]*Q*detJ(q,f);
-         // Need to correct the scaling of w to account for d/dn, etc..
-         double w_o_detJ = w/detJ(q,f);
-         //double n = normx+normy;
-         
-         if( f2ev(1,f) == -1.0 ) // Need a more standard way to detect bdr faces
-         {
-            // Boundary face
-            // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = beta*w_o_detJ;
-            op_data_ptr1(q,1,0,f) = -beta*w_o_detJ;
-            op_data_ptr1(q,0,1,f) =  0.0;
-            op_data_ptr1(q,1,1,f) =  0.0;
-            // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
-            op_data_ptr2(q,0,f) =   -w_o_detJ*sigma;
-            op_data_ptr2(q,1,f) =   0.0;
-            // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
-            const double h0 = detJ(q,f)/mag_norm;
-            const double h1 = detJ(q,f)/mag_norm;
-            op_data_ptr3(q,0,f) =   -w*kappa/h0;
-            op_data_ptr3(q,1,f) =   0.0;
-            //std::cout << "f2ev(1,f) = " << f2ev(1,f)  << std::endl;
-            //std::cout << "op3 = " << op_data_ptr3(q,0,f) <<" "<< op_data_ptr3(q,1,f) << std::endl;
-         }
-         else
-         {
-            // Interior face
-            // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = beta*w_o_detJ/2.0;
-            op_data_ptr1(q,1,0,f) = -beta*w_o_detJ/2.0;
-            op_data_ptr1(q,0,1,f) = beta*w_o_detJ/2.0;
-            op_data_ptr1(q,1,1,f) = -beta*w_o_detJ/2.0;
-            // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
-            op_data_ptr2(q,0,f) =   -w_o_detJ*sigma/2.0;
-            op_data_ptr2(q,1,f) =   w_o_detJ*sigma/2.0;
-            // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
-            const double h0 = detJ(q,f)/mag_norm;
-            const double h1 = detJ(q,f)/mag_norm;
-            op_data_ptr3(q,0,f) =   -w*kappa*(1.0/h0+1.0/h1)/2.0;
-            op_data_ptr3(q,1,f) =   w*kappa*(1.0/h0+1.0/h1)/2.0;
-            //std::cout << "f2ev(1,f) = " << f2ev(1,f)  << std::endl;
-            //std::cout << "op3 = " << op_data_ptr3(q,0,f) <<" "<< op_data_ptr3(q,1,f) << std::endl;
-         }
-      }
-   });
-}
-*/
-
-/*
-static void PADGDiffusionSetup3D(const int Q1D,
-                             const int D1D,
-                             const int NF,
-                             const Array<double> &weights,
-                             const Array<double> &g,
-                             const Array<double> &b,
-                             const Vector &jac,
-                             const Vector &det_jac,
-                             const Vector &nor,
-                             const Vector &Q,
-                             const Vector &rho,
-                             const Vector &vel,
-                             const Vector &face_2_elem_volumes,
-                             const double sigma,
-                             const double kappa,
-                             const double beta,
-                             Vector &op1,
-                             Vector &op2,
-                             Vector &op3)
-{
-   mfem_error("not yet implemented.");
-}
-*/
-
-/*
-static void PADGDiffusionSetup(const int dim,
-                           const int D1D,
-                           const int Q1D,
-                           const int NF,
-                           const Array<double> &weights,
-                           const Array<double> &b,
-                           const Array<double> &g,
-                           const Vector &bf,
-                           const Vector &gf,
-                           const Vector &jac,
-                           const Vector &det_jac,
-                           const Vector &nor,
-                           const Vector &Q,
-                           const Vector &rho,
-                           const Vector &u,
-                           const Vector &face_2_elem_volumes,
-                           const double sigma,
-                           const double kappa,
-                           const double beta,
-                           Vector &op1,
-                           Vector &op2,
-                           Vector &op3)
-{
-
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGDiffusionSetup"); }
-   else if (dim == 2)
-   {
-      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, beta, op1, op2, op3);
-   }
-   else if (dim == 3)
-   {
-      PADGDiffusionSetup3D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, beta, op1, op2, op3);
-   }
-   else
-   {
-      MFEM_ABORT("dim > 3 not supported in PADGDiffusionSetup");     
-   }
-}
-*/
-
 void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
-   //std::cout << "%--------  SetupPA  ------------------------------------------ "<< std::endl;
+   std::cout << "%--------  SetupPA  ------------------------------------------ "<< std::endl;
 
    nf = fes.GetNFbyType(type);
    if (nf==0) { return; }
@@ -236,7 +68,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    const bool const_Q = Q->Size() == 1;
    auto Qreshaped =
       const_Q ? Reshape(Q->Read(), 1,1) : Reshape(Q->Read(), Q1D,NF);
-*/
+   */
    auto wgts = weights.Read();
 
    // convert Q to a vector
@@ -275,11 +107,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    {
       int e0,e1;
       int inf0, inf1;
-      // Get the two elements associated with the current face
       fes.GetMesh()->GetFaceElements(f, &e0, &e1);
       fes.GetMesh()->GetFaceInfos(f, &inf0, &inf1);
-      //int face_id = inf0 / 64; //I don't know what 64 is all about 
-      // Act if type matches the kind of face f is
 
       bool int_type_match = (type==FaceType::Interior && (e1>=0 || (e1<0 && inf1>=0)));
       bool bdy_type_match = (type==FaceType::Boundary && e1<0 && inf1<0);
@@ -308,7 +137,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    coeff_data_2 = 0.0;
    coeff_data_3 = 0.0;
 
-   auto norm = Reshape(facegeom->normal.Read(), nq, NS, nf);
+   auto norm = Reshape(facegeom->normal.Read(), nq, dim, nf);
 
    auto op1 = Reshape(coeff_data_1.Write(), nq, NS, NS, nf);
    auto op2 = Reshape(coeff_data_2.Write(), nq, NS, nf);
@@ -392,6 +221,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          }
          for (int p = 0; p < ir->GetNPoints(); p++)
          {
+
             const IntegrationPoint &ip = ir->IntPoint(p);
             // Set the integration point in the face and the neighboring elements
             Trans.SetAllIntPoints(&ip);
@@ -435,229 +265,17 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             if (kappa_is_nonzero)
             {
                wq = ni * nor;
-               //std::cout << " wq = " << wq << std::endl;
-               //std::cout << " ni = "  << std::endl;
-               //ni.Print();
-               //std::cout << " nor = "  << std::endl;
-               //nor.Print();
             }
 
-            //std::cout << "%--------------------- "<< std::endl;
-            //std::cout << std::endl;
-
-            Vector ntilde;
-            ntilde = nor;
-            ntilde = 1;
-
-            Vector rnor;
-            rnor = nh;
-
-            Vector ref_normal;
-            ref_normal.SetSize(2);
-            //CalcOrtho(Trans.Jacobian(), ref_normal);
-            if( nh(0) > 0 )
-            {
-               ref_normal(0) = nh(0);
-               ref_normal(1) = 0;
-            }
-            else
-            {
-               ref_normal(0) = 0;
-               ref_normal(1) = nh(1);
-            }
-            ref_normal = nor;
-
-            DenseMatrix trick;
-            trick.SetSize(2);
-            trick(0,0) = 1.1572;
-            trick(0,1) = 0.3576;
-            trick(1,0) = 0.3576;
-            trick(1,1) = 1.1572;
-            Vector nhtrick;
-
-            nhtrick.SetSize(2);
-            trick.Mult(nh, nhtrick);
-
-   /*
-            adjJ.Mult(nor, rnor);
-            std::cout << "rnor (unscaled) " << std::endl;
-            rnor.Print(std::cout,99);
-            double norm_rnor = sqrt(rnor * rnor);
-            std::cout << "norm_rnor (unscaled) " << std::endl;
-            std::cout << norm_rnor << std::endl;
-            rnor /= norm_rnor;
-            std::cout << "rnor = reference normal " << std::endl;
-            rnor.Print(std::cout,99);
-            norm_rnor = sqrt(rnor * rnor);
-            std::cout << "norm_rnor " << std::endl;
-            std::cout << norm_rnor << std::endl;
-            std::cout << std::endl;
-
-            std::cout << "p = ip index: [0," << ir->GetNPoints()-1<< "]" << std::endl;
-            std::cout << p << std::endl;
-            std::cout << std::endl;
-
-            std::cout << "ip = (x,y)" << std::endl;
-            std::cout << eip1.x << " " << eip1.y << std::endl;
-            std::cout << std::endl;
-
-            std::cout << "w = weight_ip/weight_trans" << std::endl;
-            std::cout << w << std::endl;
-            std::cout << std::endl;
-
-            std::cout << "nor = physical normal " << std::endl;
-            nor.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "ntilde = ?? " << std::endl;
-            ntilde.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "ni = w * nor" << std::endl;
-            ni.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "nh = adjJ * ni" << std::endl;
-            nh.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "norm_rnor " << std::endl;
-            std::cout << norm_rnor << std::endl;
-            std::cout << std::endl;
-
-            std::cout << "rnor = reference normal? " << std::endl;
-            rnor.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "wq = ni * nor" << std::endl;
-            std::cout << wq << std::endl;
-            std::cout << std::endl;
-
-            std::cout << "adjJ = adj(Jacobian) " << std::endl;
-            adjJ.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "shape1 " << std::endl;
-            shape1.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "dshape1 = grad * shape" << std::endl;
-            dshape1.Print(std::cout,99);
-            std::cout << std::endl;
-
-            std::cout << "dshape1dn = dshape1 * nh " << std::endl;
-            dshape1dn.Print(std::cout,99);
-            std::cout << std::endl;
-*/
- 
- /*
-      std::cout << "%--------------------- "<< std::endl;
-      std::cout << std::endl;
-      std::cout << " k = k + 1 ; "<< std::endl;
-
-      std::cout << "% p = ip index: [0," << ir->GetNPoints()-1<< "]" << std::endl;
-      std::cout << "% " <<  p  << std::endl;
-      std::cout << std::endl;
-
-      std::cout << "%ip = (x,y)" << std::endl;
-      std::cout << "ip(:,k) = [" << eip1.x << " , " << eip1.y << "]; " << std::endl;
-      std::cout << std::endl;
-
-      Vector loc;
-      loc.SetSize(2);
-      Trans.Transform(ip,loc);
-
-      std::cout << "%physical ip = (x,y)" << std::endl;
-      std::cout << "pip(:,k) = [" << loc(0) << " , " << loc(1) << "]; " << std::endl;
-      std::cout << std::endl;
-     
-      int orientation = inf0 % 64;
-
-      double sr = 1.0/sqrt(3.0);
-      Vector locR;
-      locR.SetSize(2);
-      IntegrationPoint ip2;
-      ip2.x = (ip.x + sr/2.0 - 1.0/2.0)/sr ;
-      ip2.x = (orientation==1)? (1.0-ip2.x): ip2.x ;
-      Trans.Transform(ip2,locR);
-      std::cout << "%physical ip for restrictions " << std::endl;
-      std::cout << "pipR(:,k) = [" << locR(0) << " , " << locR(1) << "]; % " <<  ip2.x <<" or " << orientation  << std::endl;
-      std::cout << std::endl;
-
-      std::cout << "%w = weight_ip/weight_trans" << std::endl;
-      std::cout << w << std::endl;
-      std::cout << std::endl;
-
-      std::cout << "%nor = physical normal " << std::endl;
-      //nor.Print(std::cout,99);
-      std::cout << "nor(:,k) = [" << nor(0) << " , " << nor(1) << "]; " << std::endl;
-      std::cout << std::endl;
-
-      std::cout << "% ni = w * nor" << std::endl;
-      //ni.Print(std::cout,99);
-      std::cout << std::endl;
-
-      std::cout << "%nh = adjJ * ni" << std::endl;
-      std::cout << "%rnor = adjJ * ni" << std::endl;
-      adjJ.Mult(nor, nh);
-      std::cout << "rnor(:,k) = [" << nh(0) << " , " << nh(1) << "]; " << std::endl;
-      //nh.Print(std::cout,99);
-      std::cout << std::endl;
-
-      std::cout << "%ref_normal" << std::endl;
-      std::cout << "ref_normal(:,k) = [" << ref_normal(0) << " , " << ref_normal(1) << "]; " << std::endl;
-      //nh.Print(std::cout,99);
-      std::cout << std::endl;
-
-      std::cout << "% wq = ni * nor" << std::endl;
-      std::cout << wq << std::endl;
-      std::cout << std::endl;
-
-      std::cout << "% adjJ = adj(Jacobian) " << std::endl;
-      //adjJ.Print(std::cout,99);
-      std::cout << "adj(:,:,k) = [[" << adjJ(0,0) << " , " << adjJ(0,1) << "]; " << 
-                                 "[" << adjJ(1,0) << " , " << adjJ(1,1) << "];]; " << std::endl;
-      std::cout << std::endl;
-      */
-
-
-
-/*
-      std::cout << "shape1 " << std::endl;
-      shape1.Print(std::cout,99);
-      std::cout << std::endl;
-
-      std::cout << "dshape1 = grad * shape" << std::endl;
-      dshape1.Print(std::cout,99);
-      std::cout << std::endl;
-
-      std::cout << "dshape1dn = dshape1 * nh " << std::endl;
-      dshape1dn.Print(std::cout,99);
-      std::cout << std::endl;
-*/
-
-            ///const double Q = 1;//const_Q ? Qcoeff(0,0) : Qcoeff(q,f);
-            //double w = wgts[p]*Q;
-
-            double dnh = 1;//ni * ref_normal;
-            op1(p,0,0,f_ind) =  beta*dnh*w*detJ(p,f_ind);
-            op1(p,1,0,f_ind) = - beta*dnh*w*detJ(p,f_ind); 
-
-            // is this not 1?
+            op1(p,0,0,f_ind) =  beta*w*detJ(p,f_ind);
+            op1(p,1,0,f_ind) = - beta*w*detJ(p,f_ind); 
             const double normx = norm(p,0,f_ind);
             const double normy = norm(p,1,f_ind);
-            //const double normz = norm(q ,0,f) + norm(q,1,f); //todo: fix for 
-            const double mag_norm = sqrt(normx*normx + normy*normy); //todo: fix for 
+            const double normz = ( dim == 3 ) ? norm(p,2,f_ind) : 0.0;
+            const double mag_norm = sqrt(normx*normx + normy*normy + normz*normz);
             const double h0 = 1.0/mag_norm;
             op3(p,0,f_ind) = -kappa*w/h0;
-
-/*
-            std::cout << "%dnh = ? " << std::endl;
-            std::cout << "% " << dnh << std::endl;
-            std::cout << std::endl;
-            */
-
-            op2(p,0,f_ind) = -dnh*sigma*w*detJ(p,f_ind);
+            op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
             if (int_type_match)
             {
@@ -686,20 +304,13 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                {
                   wq += ni * nor;
                }
-               double dnh = 1;//ni * ref_normal;
-/*
-               std::cout << "dnh = ? " << std::endl;
-               std::cout << dnh << std::endl;
-               std::cout << std::endl;
-*/
-
                const double h1 = 1.0/mag_norm;
 
-               op1(p,0,1,f_ind) =  beta*dnh*w*detJ(p,f_ind);
-               op1(p,1,1,f_ind) = - beta*dnh*w*detJ(p,f_ind);
+               op1(p,0,1,f_ind) =  beta*w*detJ(p,f_ind);
+               op1(p,1,1,f_ind) = - beta*w*detJ(p,f_ind);
 
-               op2(p,1,f_ind) =  dnh*sigma*w*detJ(p,f_ind);
-               op2(p,0,f_ind) = -dnh*sigma*w*detJ(p,f_ind);
+               op2(p,1,f_ind) =  sigma*w*detJ(p,f_ind);
+               op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
                op3(p,0,f_ind) = kappa*w*(1.0/h0+1.0/h1)/2.0;
                op3(p,1,f_ind) = kappa*w*(1.0/h0+1.0/h1)/2.0;
@@ -708,12 +319,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          f_ind++;
       }
    }
-
-
-   //std::cout << "% num faces " << f_ind << std::endl;
-
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //exit(1);
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
@@ -768,13 +373,10 @@ void PADGDiffusionApply2D(const int NF,
    auto x = Reshape(_x.Read(), D1D, VDIM, NS, NF, 2);
    auto y = Reshape(_y.ReadWrite(), D1D, VDIM, NS, NF, 2);
 
-//   std::cout << "%postu,Gvecs" << std::endl;
-
    // Loop over all faces
    MFEM_FORALL(f, NF,
    {
       // 1. Interpolate u and du/dn along the face
-      //    Bu = B:u, and Gu = G:u    
       double Bu0[max_Q1D][VDIM];
       double Bu1[max_Q1D][VDIM];      
       double BGu0[max_Q1D][VDIM];
@@ -798,12 +400,8 @@ void PADGDiffusionApply2D(const int NF,
                Bu1[q][c] += b*x(d,c,1,f,0);
                BGu0[q][c] += b*x(d,c,0,f,1);
                BGu1[q][c] += b*x(d,c,1,f,1);
-               //std::cout << "% gu0 " << x(d,c,0,f,1) << " gu1 " << x(d,c,1,f,1) << std::endl;
             }
          }
-
-
-         //std::cout << "%" << f << " " << q << " bu0 " << Bu0[q][0] << " bgu0 " << BGu0[q][0] << " bu1 " << Bu1[q][0] << " bgu1 " << BGu1[q][0] << std::endl;
       }
 
       // 2. Form numerical fluxes
@@ -816,7 +414,6 @@ void PADGDiffusionApply2D(const int NF,
       {
          for (int c = 0; c < VDIM; c++)
          {
-            // need to have different op2 and op3 for each side, then use n
             const double jump_u = Bu1[q][c] - Bu0[q][c];
             const double jump_Gu = BGu1[q][c] - BGu0[q][c];
             D0[q][c] = op1(q,0,0,f)*jump_Gu + op3(q,0,f)*jump_u;
@@ -824,11 +421,9 @@ void PADGDiffusionApply2D(const int NF,
             D0jumpu[q][c] = op2(q,0,f)*jump_u;
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
-
-         //std::cout << "%" << f << " " << q << " d0 " << D0[q][0] << " dj0 " << D0jumpu[q][0] << " d1 " << D1[q][0] << " dj1 " << D1jumpu[q][0]  << std::endl;
       }
 
-      // 3. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)
+      // 3. Integrate along faces
       for (int d = 0; d < D1D; ++d)
       {
          for (int c = 0; c < VDIM; c++)
@@ -845,29 +440,13 @@ void PADGDiffusionApply2D(const int NF,
                BD0jumpu += b*D0jumpu[q][c];
                BD1jumpu += b*D1jumpu[q][c];
             }
-
-            //std::cout << "%" << f << " " << d << " bd0 " << BD0 << " bdj0 " << BD0jumpu << " bd1 " << BD1 << " bdj1 " << BD1jumpu << std::endl;
-
-            //double u0 = x(d,c,0,f,0);
-            //double u1 = x(d,c,1,f,0);
-            //double Gu0 = x(d,c,0,f,1);
-            //double Gu1 = x(d,c,1,f,1);
-            //std::cout << "(" << f << " " << d << BD0  << " " <<  << std::endl; // BD0jumpu
-            //std::cout << f << " " << d << " " << u0 << " " << u1 << " " << Gu0 << " " << Gu1 << " " << BD0  << " " << BD0jumpu << std::endl;
-
             y(d,c,0,f,0) =  BD0;
             y(d,c,1,f,0) =  BD1;
             y(d,c,0,f,1) =  BD0jumpu;
             y(d,c,1,f,1) =  BD1jumpu;
          }
-
-
       }
    });
-
-   
-   //std::cout << "end u, G vecs" << std::endl;
-
 /*
    std::cout << " PA y" << std::endl;
    _y.Print(std::cout,1);
@@ -891,8 +470,9 @@ void PADGDiffusionApply3D(const int NF,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   exit(1);
+   std::cout << " PA x 3D" << std::endl;
+   _x.Print(std::cout,1);
+   std::cout << " end PA x 3D" << std::endl;
 
    // vdim is confusing as it seems to be used differently based on the context
    const int VDIM = 1;
@@ -918,7 +498,6 @@ void PADGDiffusionApply3D(const int NF,
    MFEM_FORALL(f, NF,
    {
       // 1. Interpolate u and du/dn along the face
-      //    Bu = B:u, and Gu = G:u   
       double Bu0[max_Q1D][max_D1D][VDIM];
       double Bu1[max_Q1D][max_D1D][VDIM];
       double BGu0[max_Q1D][max_D1D][VDIM];
@@ -1058,12 +637,12 @@ void PADGDiffusionApply3D(const int NF,
       }
    });
 
-   /*
+/*
    std::cout << " PA y 3D" << std::endl;
    _y.Print(std::cout,1);
    std::cout << " end PA y 3D" << std::endl;
-   //exit(1);
-   */
+*/
+
 }
 
 static void PADGDiffusionApply(const int dim,
@@ -1080,11 +659,8 @@ static void PADGDiffusionApply(const int dim,
                            const Vector &x,
                            Vector &y)                           
 {
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
    if (dim == 2)
    {
-   //std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       switch ((D1D << 4 ) | Q1D)
       {  
          /*
@@ -1102,7 +678,6 @@ static void PADGDiffusionApply(const int dim,
    }
    else if (dim == 3)
    {
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       switch ((D1D << 4 ) | Q1D)
       {
          /*

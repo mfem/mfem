@@ -2848,19 +2848,11 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       }
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
       adjJ.Mult(ni, nh);
-      //std::cout << " adjJ = "  << std::endl;
-      //adjJ.Print();
 
       if (kappa_is_nonzero)
       {
          
-         //std::cout << " wq = " << wq << std::endl;
          wq = ni * nor;
-         //std::cout << " wq = " << wq << std::endl;
-         //std::cout << " ni = "  << std::endl;
-         //ni.Print();
-         //std::cout << " nor = "  << std::endl;
-         //nor.Print();
       }
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
@@ -2875,26 +2867,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 
       dshape1.Mult(nh, dshape1dn);
 
-      /*
-      std::cout << "shape1 " << std::endl;
-      shape1.Print();
-      std::cout << "dshape1 " << std::endl;
-      dshape1.Print();
-      std::cout << "dshape1dn " << std::endl;
-      dshape1dn.Print();
-
-      std::cout << " w = " << w << std::endl;
-      std::cout << " nor = "  << std::endl;
-      nor.Print();
-      std::cout << " ni = "  << std::endl;
-      ni.Print();
-      std::cout << " nh = "  << std::endl;
-      nh.Print();
-      */
-
       wq = ni * nor;
-      //std::cout << " ni*nor = " << wq << std::endl;
-
 
       for (int i = 0; i < ndof1; i++)
          for (int j = 0; j < ndof1; j++)
@@ -2926,13 +2899,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          if (kappa_is_nonzero)
          {
             wq += ni * nor;
-            /*
-            std::cout << " wq = " << wq << std::endl;
-            std::cout << " ni = "  << std::endl;
-            ni.Print();
-            std::cout << " nor = "  << std::endl;
-            nor.Print();
-            */
          }
 
 
