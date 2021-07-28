@@ -379,7 +379,7 @@ void hypre_CSRMatrixElimCreate(hypre_CSRMatrix *A,
    hypre_CSRMatrixJ(Ae) = mfem_hypre_TAlloc_host(HYPRE_Int, nnz);
    hypre_CSRMatrixData(Ae) = mfem_hypre_TAlloc_host(HYPRE_Real, nnz);
    hypre_CSRMatrixNumNonzeros(Ae) = nnz;
-#if MFEM_HYPRE_VERSION >= 21400
+#if MFEM_HYPRE_VERSION >= 21800
    hypre_CSRMatrixMemoryLocation(Ae) = HYPRE_MEMORY_HOST;
 #endif
 }
@@ -753,7 +753,7 @@ void hypre_CSRMatrixSplit(hypre_CSRMatrix *A,
                                                     num_cols[j], 0);
          hypre_CSRMatrixI(B) = mfem_hypre_CTAlloc_host(HYPRE_Int,
                                                        num_rows[i] + 1);
-#if MFEM_HYPRE_VERSION >= 21400
+#if MFEM_HYPRE_VERSION >= 21800
          hypre_CSRMatrixMemoryLocation(B) = HYPRE_MEMORY_HOST;
 #endif
          blocks[i*nc + j] = B;
