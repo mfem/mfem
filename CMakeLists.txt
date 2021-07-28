@@ -16,7 +16,7 @@ set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
 
 # Require C++11 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 11)
-if (MFEM_USE_GINKGO) 
+if (MFEM_USE_GINKGO)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -102,7 +102,7 @@ if (MFEM_USE_CUDA)
    endif()
    enable_language(CUDA)
    set(CMAKE_CUDA_STANDARD 11)
-   if (MFEM_USE_GINKGO) 
+   if (MFEM_USE_GINKGO)
      set(CMAKE_CUDA_STANDARD 14)
    endif()
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
