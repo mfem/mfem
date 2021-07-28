@@ -54,7 +54,7 @@ q_allocate_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_allocate_resources
+  stage: q_allocate_resource
   script:
     - salloc --exclusive --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
