@@ -1103,8 +1103,8 @@ MfemMetaDataToFmsMetaData(DataCollection *mdc, FmsDataCollection fdc)
    if (!mdc) { return false; }
    if (!fdc) { return false; }
 
-   int *cycle = NULL, *timestep = NULL;
-   double *time = NULL;
+   int *cycle = NULL;
+   double *time = NULL, *timestep = NULL;
    FmsMetaData top_level = NULL;
    FmsMetaData *cycle_time_timestep = NULL;
    int mdata_err = 0;
@@ -1128,8 +1128,8 @@ MfemMetaDataToFmsMetaData(DataCollection *mdc, FmsDataCollection fdc)
       mfem::err << "The MetaData pointer for cycle is NULL" << std::endl;
       return false;
    }
-   mdata_err = FmsMetaDataSetIntegers(cycle_time_timestep[0], "cycle", FMS_INT32,
-                                      1, (void**)&cycle);
+   mdata_err = FmsMetaDataSetIntegers(cycle_time_timestep[0], "cycle",
+                                      FMS_INT32, 1, (void**)&cycle);
    if (!cycle || mdata_err)
    {
       mfem::err << "The data pointer for cycle is NULL" << std::endl;
@@ -1142,8 +1142,8 @@ MfemMetaDataToFmsMetaData(DataCollection *mdc, FmsDataCollection fdc)
       mfem::err << "The FmsMetaData pointer for time is NULL" << std::endl;
       return false;
    }
-   mdata_err = FmsMetaDataSetScalars(cycle_time_timestep[1], "time", FMS_DOUBLE, 1,
-                                     (void**)&time);
+   mdata_err = FmsMetaDataSetScalars(cycle_time_timestep[1], "time", FMS_DOUBLE,
+                                     1, (void**)&time);
    if (!time || mdata_err)
    {
       mfem::err << "The data pointer for time is NULL." << std::endl;
@@ -1156,8 +1156,8 @@ MfemMetaDataToFmsMetaData(DataCollection *mdc, FmsDataCollection fdc)
       mfem::err << "The FmsMetData pointer for timestep is NULL" << std::endl;
       return false;
    }
-   FmsMetaDataSetIntegers(cycle_time_timestep[2], "timestep", FMS_INT32, 1,
-                          (void**)&timestep);
+   mdata_err = FmsMetaDataSetScalars(cycle_time_timestep[2], "timestep",
+                                     FMS_DOUBLE, 1, (void**)&timestep);
    if (!timestep || mdata_err)
    {
       mfem::err << "The data pointer for timestep is NULL" << std::endl;
