@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
-                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5"
+                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5\n"
                   "\t   fms:                  FMSDataCollection w/ protocol ascii\n"
                   "\t   fms_json:             FMSDataCollection w/ protocol json\n"
                   "\t   fms_yaml:             FMSDataCollection w/ protocol yaml\n"
