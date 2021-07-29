@@ -1541,12 +1541,15 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
-   if (X == NULL)
+   if (X == nullptr)
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
                              nullptr,
                              GetColStarts());
+   }
+   if (Y == nullptr)
+   {
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
                              nullptr,
@@ -1601,12 +1604,15 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
 
    // Note: x has the dimensions of Y (height), and
    //       y has the dimensions of X (width)
-   if (X == NULL)
+   if (X == nullptr)
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
                              nullptr,
                              GetColStarts());
+   }
+   if (Y == nullptr)
+   {
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
                              nullptr,

@@ -281,7 +281,7 @@ private:
    hypre_ParCSRMatrix *A;
 
    /// Auxiliary vectors for typecasting
-   mutable HypreParVector *X, *Y;
+   mutable HypreParVector *X = nullptr, *Y = nullptr;
    /** @brief Auxiliary buffers for the case when the input or output arrays in
        methods like Mult(double, const Vector &, double, Vector &) need to be
        deep copied in order to be used by hypre. */
@@ -775,6 +775,10 @@ public:
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
+
+   /// Erase X or Y and set the deleted value to nullptr
+   inline void EraseX() { delete X; X = nullptr; }
+   inline void EraseY() { delete Y; Y = nullptr; }
 
    Type GetType() const { return Hypre_ParCSR; }
 };
