@@ -333,8 +333,9 @@ protected:
    int nc_limit = 1;
    int nonconforming = -1;
    int order;
-   Array<IntegrationRule *> irs;
-//    const IntegrationRule *irs[Geometry::NumGeom] = NULL;
+   const IntegrationRule *ir[Geometry::NumGeom];
+   const IntegrationRule ** irs = NULL;
+   //    const IntegrationRule *irs[Geometry::NumGeom] = NULL;
    GridFunction gf;
    Array<int> mesh_refinements;
    // TODO: Save oscillation error
@@ -346,7 +347,10 @@ protected:
 
 public:
    /// Constructor
-   CoefficientRefiner(int order_) : order(order_) { }
+   CoefficientRefiner(int order_) : order(order_)
+   {
+
+   }
 
    /** @brief Apply the operator to the mesh max_it times or until tolerance
     *  achieved.
@@ -378,7 +382,10 @@ public:
    }
 
    // Set a custom integration rule
-   void SetIntRule(const IntegrationRule *irs_[]) { irs.Assign(&irs_); }
+   void SetIntRule(const IntegrationRule *irs_[])
+   {
+      irs = irs_;
+   }
 
    /// Reset
    virtual void Reset();

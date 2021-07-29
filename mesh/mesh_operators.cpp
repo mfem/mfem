@@ -170,14 +170,15 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
    int dim = mesh.Dimension();
    L2_FECollection l2fec(order, dim);
    FiniteElementSpace l2fes(&mesh, &l2fec);
-   if (!irs.Size())
+
+   if (!irs)
    {
-      irs.SetSize(Geometry::NumGeom);
       int order_quad = 2*order + 3;
       for (int i=0; i < Geometry::NumGeom; ++i)
       {
-         irs[i] = &(IntRules.Get(i, order_quad));
+         ir[i] = &(IntRules.Get(i, order_quad));
       }
+      irs = ir;
    }
 
    for (int i = 0; i < max_it; i++)
@@ -186,11 +187,11 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       double NE = mesh.GetNE();
       gf.SetSpace(&l2fes);
       gf.ProjectCoefficient(*coeff);
-      double av_norm_of_gf = ComputeLpNorm(2.0,*coeff,mesh,irs.GetData()) / sqrt(NE);
+      double av_norm_of_gf = ComputeLpNorm(2.0,*coeff,mesh,irs) / sqrt(NE);
 
       // Construct local L2-norms of (I - Pi) f
       Vector norm_of_fine_scale(NE);
-      gf.ComputeElementL2Errors(*coeff,norm_of_fine_scale,irs.GetData());
+      gf.ComputeElementL2Errors(*coeff,norm_of_fine_scale,irs);
 
       // Define osc = h \cdot \| (I - Pi) f \| and select elements
       // for refinement based on threshold
