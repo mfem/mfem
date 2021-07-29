@@ -61,7 +61,6 @@ void FMSDataCollection::Save()
 {
    // Convert this to FmsDataCollection.
 
-   int err = 0;
    FmsDataCollection dc;
    if (DataCollectionToFmsDataCollection(this, &dc) == 0)
    {
@@ -138,7 +137,7 @@ void FMSDataCollection::Load(int cycle)
    }
    else
    {
-      MFEM_ABORT("Error reading data collection" << root);
+      MFEM_ABORT("Error reading data collection: " << root);
    }
 }
 

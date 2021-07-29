@@ -298,10 +298,6 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
-if (MFEM_USE_FMS)
-    find_package(FMS REQUIRED fms )
-endif()
-
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
@@ -332,6 +328,10 @@ endif()
 
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
+endif()
+
+if (MFEM_USE_FMS)
+    find_package(FMS REQUIRED fms )
 endif()
 
 # Axom/Sidre

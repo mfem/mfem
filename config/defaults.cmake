@@ -195,6 +195,9 @@ set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
 set(FMS_DIR "${MFEM_DIR}/../fms" CACHE PATH
     "Path to the FMS library.")
+# If FMS is built with Conduit:
+# set(FMS_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+#     "Additional packages required by FMS.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
