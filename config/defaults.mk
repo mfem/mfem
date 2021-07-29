@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -17,6 +17,9 @@
 
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
+
+ETAGS_BIN = $(shell command -v etags 2> /dev/null)
+EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 
 CXX = g++
 MPICXX = mpicxx
@@ -133,6 +136,7 @@ MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
+MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
@@ -142,6 +146,7 @@ MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
+MFEM_USE_CALIPER       = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
@@ -161,7 +166,7 @@ endif
 ZLIB_DIR =
 ZLIB_OPT = $(if $(ZLIB_DIR),-I$(ZLIB_DIR)/include)
 ZLIB_LIB = $(if $(ZLIB_DIR),$(ZLIB_RPATH) -L$(ZLIB_DIR)/lib ,)-lz
-ZLIB_RPATH = -Wl,-rpath,$(ZLIB_DIR)/lib
+ZLIB_RPATH = $(XLINKER)-rpath,$(ZLIB_DIR)/lib
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
@@ -170,6 +175,10 @@ LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
+ifeq (YES,$(MFEM_USE_CUDA))
+   # This is only necessary when hypre is built with cuda:
+   HYPRE_LIB += -lcusparse -lcurand
+endif
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
@@ -231,19 +240,21 @@ MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 LIB_RT = $(if $(NOTMAC),-lrt,)
 SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse
 SUITESPARSE_OPT = -I$(SUITESPARSE_DIR)/include
-SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
- -lklu -lbtf -lumfpack -lcholmod -lcolamd -lamd -lcamd -lccolamd\
- -lsuitesparseconfig $(LIB_RT) $(METIS_LIB) $(LAPACK_LIB)
+SUITESPARSE_LIB = $(XLINKER)-rpath,$(SUITESPARSE_DIR)/lib\
+ -L$(SUITESPARSE_DIR)/lib -lklu -lbtf -lumfpack -lcholmod -lcolamd -lamd -lcamd\
+ -lccolamd -lsuitesparseconfig $(LIB_RT) $(METIS_LIB) $(LAPACK_LIB)
 
 # SuperLU library configuration
 ifeq ($(MFEM_USE_SUPERLU5),YES)
    SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
-   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
+   SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib\
+      -lsuperlu_dist_5.1.0
 else
    SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
-   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64 -lsuperlu_dist -lblas
+   SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64\
+      -lsuperlu_dist -lblas
 endif
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
@@ -269,7 +280,7 @@ MPI_FORTRAN_LIB = -lmpifort
 # MUMPS library configuration
 MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.2.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_LIB = -Wl,-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
+MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
  -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 
 # STRUMPACK library configuration
@@ -282,9 +293,23 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
+GINKGO_BUILD_TYPE=Release
+ifeq ($(MFEM_USE_GINKGO),YES)
+   BASE_FLAGS = -std=c++14
+endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo\
- -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+GINKGO_LIB_DIR = $(sort $(dir $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*d.a  $(GINKGO_DIR)/lib*/libginkgo*d.so $(GINKGO_DIR)/lib*/libginkgo*d.dylib $(GINKGO_DIR)/lib*/libginkgo*d.dll)))
+ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+ALL_GINKGO_LIBS_RELEASE = $(filter-out $(ALL_GINKGO_LIBS_DEBUG),$(ALL_GINKGO_LIBS))
+GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_RELEASE))
+ifeq ($(GINKGO_BUILD_TYPE),Debug)
+  ifneq (,$(ALL_GINKGO_LIBS_DEBUG))
+    GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_DEBUG))
+  endif
+else
+endif
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LIB_DIR) -L$(GINKGO_LIB_DIR) $(GINKGO_LINK)
 
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
@@ -299,8 +324,8 @@ GNUTLS_LIB = -lgnutls
 NETCDF_DIR = $(HOME)/local
 HDF5_DIR   = $(HOME)/local
 NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
-NETCDF_LIB = -Wl,-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
- -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
+NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
+ $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
  -lnetcdf -lhdf5_hl -lhdf5 $(ZLIB_LIB)
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
@@ -312,9 +337,10 @@ PETSC_INC_VAR = PETSC_CC_INCLUDES
 PETSC_LIB_VAR = PETSC_EXTERNAL_LIB_BASIC
 ifeq ($(PETSC_FOUND),YES)
    PETSC_OPT := $(shell sed -n "s/$(PETSC_INC_VAR) = *//p" $(PETSC_VARS))
-   PETSC_LIB := $(shell sed -n "s/$(PETSC_LIB_VAR) = *//p" $(PETSC_VARS))
-   PETSC_LIB := -Wl,-rpath,$(abspath $(PETSC_DIR))/lib\
-      -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIB)
+   PETSC_DEP := $(shell sed -n "s/$(PETSC_LIB_VAR) = *//p" $(PETSC_VARS))
+   PETSC_LIB = $(XLINKER)-rpath,$(abspath $(PETSC_DIR))/lib\
+      -L$(abspath $(PETSC_DIR))/lib -lpetsc\
+      $(subst $(CXX_XLINKER),$(XLINKER),$(PETSC_DEP))
 endif
 
 SLEPC_DIR := $(MFEM_DIR)/../slepc
@@ -326,20 +352,26 @@ ifeq ($(SLEPC_FOUND),YES)
    SLEPC_OPT := $(shell sed -n "s/$(SLEPC_INC_VAR) *= *//p" $(SLEPC_VARS))
    # Some additional external libraries might be defined in this file
    -include ${SLEPC_DIR}/${PETSC_ARCH}/lib/slepc/conf/slepcvariables
-   SLEPC_LIB := $(shell sed -n "s/$(SLEPC_LIB_VAR) *= *//p" $(SLEPC_VARS))
-   SLEPC_LIB := -Wl,-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
-      -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc $(SLEPC_LIB)
+   SLEPC_DEP := $(shell sed -n "s/$(SLEPC_LIB_VAR) *= *//p" $(SLEPC_VARS))
+   SLEPC_LIB = $(XLINKER)-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
+      -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc\
+      $(subst $(CXX_XLINKER),$(XLINKER),$(SLEPC_DEP))
 endif
 
 # MPFR library configuration
 MPFR_OPT =
 MPFR_LIB = -lmpfr
 
+# FMS and required libraries configuration
+FMS_DIR = $(MFEM_DIR)/../fms
+FMS_OPT = -I$(FMS_DIR)/include
+FMS_LIB = -Wl,-rpath,$(FMS_DIR)/lib -L$(FMS_DIR)/lib -lfms
+
 # Conduit and required libraries configuration
 CONDUIT_DIR = @MFEM_DIR@/../conduit
 CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit
 CONDUIT_LIB = \
-   -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
+   $(XLINKER)-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -lconduit -lconduit_relay -lconduit_blueprint  -ldl
 
 # Check if Conduit was built with hdf5 support, by looking
@@ -347,7 +379,7 @@ CONDUIT_LIB = \
 CONDUIT_HDF5_HEADER=$(CONDUIT_DIR)/include/conduit/conduit_relay_hdf5.hpp
 ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
    CONDUIT_OPT += -I$(HDF5_DIR)/include
-   CONDUIT_LIB += -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
+   CONDUIT_LIB += $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
                   -lhdf5 $(ZLIB_LIB)
 endif
 
@@ -357,9 +389,9 @@ SIDRE_DIR = @MFEM_DIR@/../axom
 SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
  -I$(HDF5_DIR)/include
 SIDRE_LIB = \
-   -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
-   -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
-   -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
+   $(XLINKER)-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
+   $(XLINKER)-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
+   $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
    -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
@@ -392,6 +424,11 @@ OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
+# CALIPER library configuration
+CALIPER_DIR = @MFEM_DIR@/../caliper
+CALIPER_OPT = -I$(CALIPER_DIR)/include
+CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
+
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
 CEED_OPT = -I$(CEED_DIR)/include
@@ -403,11 +440,14 @@ RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
+ifdef CAMP_DIR
+   RAJA_OPT += -I$(CAMP_DIR)/include
+endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
-UMPIRE_OPT = -I$(UMPIRE_DIR)/include
+UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # MKL CPardiso library configuration
@@ -415,9 +455,9 @@ MKL_CPARDISO_DIR ?=
 MKL_MPI_WRAPPER ?= mkl_blacs_mpich_lp64
 MKL_LIBRARY_SUBDIR ?= lib
 MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
-MKL_CPARDISO_LIB = -Wl,-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
-                   -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
-                   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
+   -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
+   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # If YES, enable some informational messages
 VERBOSE = NO

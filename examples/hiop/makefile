@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -49,6 +49,13 @@ endif
 
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
+
+# Testing: Parallel vs. serial runs
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
+%-test-seq: %
+	@$(call mfem-test,$<,, Serial example)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

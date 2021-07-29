@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,7 +113,8 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
-   pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
+   pmesh_lor = new ParMesh(
+      ParMesh::MakeRefined(*pmesh, order, BasisType::GaussLobatto));
    pfec_lor = new H1_FECollection(1);
    pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
 
@@ -230,7 +231,7 @@ void NavierSolver::Setup(double dt)
       MvInvPC = new HypreSmoother(*Mv.As<HypreParMatrix>());
       dynamic_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
    }
-   MvInv = new CGSolver(MPI_COMM_WORLD);
+   MvInv = new CGSolver(vfes->GetComm());
    MvInv->iterative_mode = false;
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
@@ -248,17 +249,17 @@ void NavierSolver::Setup(double dt)
       SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
       SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
-      SpInvOrthoPC = new OrthoSolver();
+      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
    else
    {
       SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
       SpInvPC->SetPrintLevel(0);
-      SpInvOrthoPC = new OrthoSolver();
+      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
-   SpInv = new CGSolver(MPI_COMM_WORLD);
+   SpInv = new CGSolver(vfes->GetComm());
    SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
    if (pres_dbcs.empty())
@@ -284,7 +285,7 @@ void NavierSolver::Setup(double dt)
       HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
       dynamic_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
    }
-   HInv = new CGSolver(MPI_COMM_WORLD);
+   HInv = new CGSolver(vfes->GetComm());
    HInv->iterative_mode = true;
    HInv->SetOperator(*H);
    HInv->SetPreconditioner(*HInvPC);
@@ -564,10 +565,11 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
       un_filtered_gf.ProjectGridFunction(un_NM1_gf);
       const auto d_un_filtered_gf = un_filtered_gf.Read();
       auto d_un_gf = un_gf.ReadWrite();
+      const auto filter_alpha_ = filter_alpha;
       MFEM_FORALL(i,
                   un_gf.Size(),
-                  d_un_gf[i] = (1.0 - filter_alpha) * d_un_gf[i]
-                               + filter_alpha * d_un_filtered_gf[i];);
+                  d_un_gf[i] = (1.0 - filter_alpha_) * d_un_gf[i]
+                               + filter_alpha_ * d_un_filtered_gf[i];);
    }
 
    sw_step.Stop();
@@ -648,8 +650,8 @@ void NavierSolver::Orthogonalize(Vector &v)
    int loc_size = v.Size();
    int global_size = 0;
 
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
+   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, pfes->GetComm());
 
    v -= global_sum / static_cast<double>(global_size);
 }
@@ -877,7 +879,8 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
          ut.SetSize(uz.Size());
       }
 
-      double hmin = pmesh->GetElementSize(e, 1) / (double) fes->GetOrder(0);
+      double hmin = pmesh->GetElementSize(e, 1) /
+                    (double) fes->GetElementOrder(0);
 
       for (int i = 0; i < ir.GetNPoints(); ++i)
       {
@@ -1017,7 +1020,7 @@ void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)
 {
-   // Maxmium BDF order to use at current time step
+   // Maximum BDF order to use at current time step
    // step + 1 <= order <= max_bdf_order
    int bdf_order = std::min(step + 1, max_bdf_order);
 

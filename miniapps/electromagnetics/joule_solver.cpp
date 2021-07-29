@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -820,8 +820,8 @@ void MagneticDiffusionEOperator::GetJouleHeating(ParGridFunction &E_gf,
    w_gf.ProjectCoefficient(w_coeff);
 }
 
-void MagneticDiffusionEOperator::SetTime(const double _t)
-{ t = _t; }
+void MagneticDiffusionEOperator::SetTime(const double t_)
+{ t = t_; }
 
 MagneticDiffusionEOperator::~MagneticDiffusionEOperator()
 {
