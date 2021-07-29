@@ -330,6 +330,10 @@ if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
 endif()
 
+if (MFEM_USE_FMS)
+    find_package(FMS REQUIRED fms )
+endif()
+
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   find_package(Axom REQUIRED Axom)
@@ -424,9 +428,10 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
     CUSPARSE MKL_CPARDISO AMGX CALIPER)
+
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
