@@ -332,10 +332,10 @@ protected:
    int nonconforming = -1;
    int order;
    double threshold = 1.0e-3;
-   double relative_osc;
+   double relative_osc = 0.0;
    Array<int> mesh_refinements;
    Coefficient *coeff = NULL;
-   GridFunction gf;
+   GridFunction *gf;
    const IntegrationRule *ir_default[Geometry::NumGeom];
    const IntegrationRule **irs = NULL;
 
@@ -381,7 +381,7 @@ public:
    void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
    
    // Return data oscillation value
-   double GetOsc() { return osc; }
+   double GetOsc() { return relative_osc; }
 
    /// Reset
    virtual void Reset();

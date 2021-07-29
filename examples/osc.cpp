@@ -100,6 +100,13 @@ double wavefront_laplace_alt(const Vector &p)
    return num / denom;
 }
 
+double load3(const Vector &p)
+{
+   double x = p(0), y = p(1);
+   double r = sqrt(x*x + y*y) + 1.0e-8;
+   return r * sin(1.0/r);
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -229,18 +236,30 @@ int main(int argc, char *argv[])
    }
 
    // 11.5. Preprocess mesh to control osc
-   double osc_tol = 1e-2;
+   double osc;
+   double osc_tol = 1e-3;
    CoefficientRefiner coeffrefiner(0);
    coeffrefiner.SetCoefficient(*rhs);
    // coeffrefiner.SetIntRule(irs);
    coeffrefiner.SetThreshold(osc_tol);
-   coeffrefiner.SetNCLimit(0);
+   coeffrefiner.SetNCLimit(nc_limit);
    coeffrefiner.PreprocessMesh(mesh);
+
+   osc = coeffrefiner.GetOsc();
+   std::cout << " osc(f1) = " << osc << std::endl;
 
    Coefficient * rhs2 = nullptr;
    rhs2 = new FunctionCoefficient(wavefront_laplace_alt);
    coeffrefiner.SetCoefficient(*rhs2);
    coeffrefiner.PreprocessMesh(mesh);
+
+   osc = coeffrefiner.GetOsc();
+   std::cout << " osc(f2) = " << osc << std::endl;
+
+   // Coefficient * rhs3 = nullptr;
+   // rhs3 = new FunctionCoefficient(load3);
+   // coeffrefiner.SetCoefficient(*rhs3);
+   // coeffrefiner.PreprocessMesh(mesh);
 
 
 

@@ -170,7 +170,29 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
    int dim = mesh.Dimension();
    L2_FECollection l2fec(order, dim);
-   FiniteElementSpace l2fes(&mesh, &l2fec);
+   FiniteElementSpace* l2fes = NULL;
+
+   std::cout << " tag 0 " << std::endl;
+
+#ifdef MFEM_USE_MPI
+   ParMesh* pmesh = dynamic_cast<ParMesh*>(&mesh);
+   if (pmesh && pmesh->Nonconforming())
+   {
+      l2fes = new ParFiniteElementSpace(&mesh, &l2fec);
+      gf = new ParGridFunction(l2fes);
+   }
+   else
+   {
+      l2fes = new FiniteElementSpace(&mesh, &l2fec);
+      gf = new GridFunction(l2fes);
+   }
+   // MPI_Comm comm = pmesh->GetComm();
+#else
+   l2fes = new FiniteElementSpace(&mesh, &l2fec);
+   gf = new GridFunction(l2fes);
+#endif
+
+   std::cout << " tag 1 " << std::endl;
 
    // If custom integration rule has not been set,
    // then use the default integration rule
@@ -189,38 +211,57 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       double NE = mesh.GetNE();
 
       // Compute L2-norm of f
-      double norm_of_gf = ComputeLpNorm(2.0,*coeff,mesh,irs);
-      double av_norm_of_gf = norm_of_gf / sqrt(NE);
+      double norm_of_coeff;
+#ifdef MFEM_USE_MPI
+      norm_of_coeff = ComputeGlobalLpNorm(2.0,*coeff,mesh,irs);
+#else
+      norm_of_coeff = ComputeLpNorm(2.0,*coeff,mesh,irs);
+#endif
+      double av_norm_of_coeff = norm_of_coeff / sqrt(NE);
 
-      // Compute local L2-norms of (I - Pi) f
-      Vector local_norms_of_fine_scale(NE);
-      gf.SetSpace(&l2fes);
-      gf.ProjectCoefficient(*coeff);
-      gf.ComputeElementL2Errors(*coeff,local_norms_of_fine_scale,irs);
+      // Compute element-wise L2-norms of (I - Pi) f
+      Vector element_norms_of_fine_scale(NE);
+      gf->SetSpace(l2fes);
+      gf->ProjectCoefficient(*coeff);
+      gf->ComputeElementL2Errors(*coeff,element_norms_of_fine_scale,irs);
 
       // Define osc = h \cdot \| (I - Pi) f \| and select elements
       // for refinement based on threshold
       mesh_refinements.SetSize(0);
       relative_osc = 0.0;
-      norm_of_gf += 1e-10; // to avoid dividing by zero
+      double my_relative_osc = 0.0;
+      norm_of_coeff += 1e-10; // to avoid dividing by zero
       for (int j = 0; j < NE; j++)
       {
          double h = mesh.GetElementSize(j);
-         double local_osc = h * local_norms_of_fine_scale(j);
-         relative_osc += pow(local_osc/norm_of_gf,2.0);
-         if ( local_osc > threshold * av_norm_of_gf )
+         double element_osc = h * element_norms_of_fine_scale(j);
+         my_relative_osc += pow(element_osc/norm_of_coeff,2.0);
+         if ( element_osc > threshold * av_norm_of_coeff )
          {
             mesh_refinements.Append(j);
          }
       }
-      osc = sqrt(osc);
+#ifdef MFEM_USE_MPI
+      ParMesh* pmesh = dynamic_cast<ParMesh*>(&mesh);
+      if (pmesh)
+      {
+         MPI_Allreduce(&my_relative_osc, &relative_osc, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+         relative_osc = sqrt(relative_osc);
+      }
+      else
+      {
+         relative_osc = sqrt(my_relative_osc);
+      }
+#else
+      relative_osc = sqrt(my_relative_osc);
+#endif
 
       // Refine elements
       if (mesh_refinements.Size())
       {
          mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
-         l2fes.Update(false);
-         gf.Update();
+         l2fes->StealNURBSext(false);
+         gf->Update();
       }
       else
       {
@@ -232,7 +273,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
 void CoefficientRefiner::Reset()
 {
-   osc = 0.0;
+   relative_osc = 0.0;
    coeff = NULL;
    *irs = NULL;
 }
