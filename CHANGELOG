@@ -354,9 +354,6 @@ Linear and nonlinear solvers
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
 
-- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
-  modification of Example 9/9p.
-
 - Added wrappers for hypre's flexible GMRES solver and the new parallel ILU
   preconditioner. The latter requires hypre version 2.19.0 or later.
 
