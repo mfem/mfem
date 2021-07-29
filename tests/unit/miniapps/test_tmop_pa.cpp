@@ -840,7 +840,7 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({302,321})).Run(id,all);
 
-   // The folowing tests need more iterations to converge between PA & non-PA
+   // The following tests need more iterations to converge between PA & non-PA
    // They can only be launched with the `--all` command line option
 
    if (!all) { return; }

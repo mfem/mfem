@@ -474,7 +474,7 @@ MFEM_USE_HIP = YES/NO
    Enables support for AMD devices in MFEM. HIP is a heterogeneous-compute
    interface for portability developed by AMD that can target both AMD and
    NVIDIA GPUs. The variable HIP_ARCH is used to specify the AMD GPU processor
-   used during compilation (by default, HIP_ARCH=gfx900).  When enabled, this
+   used during compilation (by default, HIP_ARCH=gfx900). When enabled, this
    option uses the HIP_* build options, see below.
 
 MFEM_USE_RAJA = YES/NO
@@ -623,7 +623,7 @@ The specific libraries and their options are:
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or Debug).
-  Versions: Ginkgo >= 1.4.0. 
+  Versions: Ginkgo >= 1.4.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
@@ -970,7 +970,7 @@ config/config.hpp.in:
 
    cp config/config.hpp.in config/_config.hpp
 
-The file config/_config.hpp can then be edited to enable desired options.  The
+The file config/_config.hpp can then be edited to enable desired options. The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
 
@@ -978,7 +978,7 @@ the .cpp source files in the source directories: general, linalg, mesh, and fem.
 Specifying an MPI job launcher
 ==============================
 By default, MFEM will use 'mpirun -np #' to launch any of its parallel tests or
-miniapps, where # is the number of MPI tasks.  An alternate MPI launcher can be
+miniapps, where # is the number of MPI tasks. An alternate MPI launcher can be
 provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NP config variables.
 
 MFEM will expect the launcher command, plus the command line option to allow it

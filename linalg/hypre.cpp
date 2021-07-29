@@ -448,9 +448,9 @@ void HypreParMatrix::Read(MemoryClass mc) const
    offd->i = const_cast<HYPRE_Int*>(mem_offd.I.Read(mc, num_rows+1));
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
    offd->data = const_cast<double*>(mem_offd.data.Read(mc, offd_nnz));
-#if MFEM_HYPRE_VERSION >= 21400
-   HYPRE_MemoryLocation ml = (mc != GetHypreMemoryClass()
-                              ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+#if MFEM_HYPRE_VERSION >= 21800
+   decltype(diag->memory_location) ml =
+      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -469,9 +469,9 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->i = mem_offd.I.ReadWrite(mc, num_rows+1);
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
-#if MFEM_HYPRE_VERSION >= 21400
-   HYPRE_MemoryLocation ml = (mc != GetHypreMemoryClass()
-                              ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+#if MFEM_HYPRE_VERSION >= 21800
+   decltype(diag->memory_location) ml =
+      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -493,9 +493,9 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
       offd->j = mem_offd.J.Write(mc, mem_offd.J.Capacity());
       offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
    }
-#if MFEM_HYPRE_VERSION >= 21400
-   HYPRE_MemoryLocation ml = (mc != GetHypreMemoryClass()
-                              ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+#if MFEM_HYPRE_VERSION >= 21800
+   decltype(diag->memory_location) ml =
+      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
    if (set_diag) { diag->memory_location = ml; }
    if (set_offd) { offd->memory_location = ml; }
 #endif
@@ -515,7 +515,7 @@ void HypreParMatrix::WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner)
    ParCSROwner = owner;
    height = GetNumRows();
    width = GetNumCols();
-#if MFEM_HYPRE_VERSION >= 21400
+#if MFEM_HYPRE_VERSION >= 21800
    MemoryType diag_mt = (A->diag->memory_location == HYPRE_MEMORY_HOST
                          ? MemoryType::HOST : GetHypreMemoryType());
    MemoryType offd_mt = (A->offd->memory_location == HYPRE_MEMORY_HOST
@@ -643,6 +643,8 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
          // h_mat owns i; owns j,data if h_mat->owns_data
 #if MFEM_HYPRE_VERSION < 21400
          hypre_TFree(h_mat->i);
+#elif MFEM_HYPRE_VERSION < 21800
+         hypre_TFree(h_mat->i, HYPRE_MEMORY_SHARED);
 #else
          hypre_TFree(h_mat->i, h_mat->memory_location);
 #endif
@@ -651,6 +653,9 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
 #if MFEM_HYPRE_VERSION < 21400
             hypre_TFree(h_mat->j);
             hypre_TFree(h_mat->data);
+#elif MFEM_HYPRE_VERSION < 21800
+            hypre_TFree(h_mat->j, HYPRE_MEMORY_SHARED);
+            hypre_TFree(h_mat->data, HYPRE_MEMORY_SHARED);
 #else
             hypre_TFree(h_mat->j, h_mat->memory_location);
             hypre_TFree(h_mat->data, h_mat->memory_location);
@@ -661,7 +666,7 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       h_mat->j = mem.J.ReadWrite(hypre_mc, nnz);
       h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
       h_mat->owns_data = 0;
-#if MFEM_HYPRE_VERSION >= 21400
+#if MFEM_HYPRE_VERSION >= 21800
       h_mat->memory_location = HYPRE_MEMORY_DEVICE;
 #endif
       return 3;

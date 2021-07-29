@@ -16,7 +16,7 @@ set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
 
 # Require C++11 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 11)
-if (MFEM_USE_GINKGO) 
+if (MFEM_USE_GINKGO)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -54,7 +54,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.2.1)
+set(${PROJECT_NAME}_VERSION 4.3.0)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -102,7 +102,7 @@ if (MFEM_USE_CUDA)
    endif()
    enable_language(CUDA)
    set(CMAKE_CUDA_STANDARD 11)
-   if (MFEM_USE_GINKGO) 
+   if (MFEM_USE_GINKGO)
      set(CMAKE_CUDA_STANDARD 14)
    endif()
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -246,6 +246,7 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
     message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
   endif()
   find_package(OpenMP REQUIRED)
+  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -450,6 +451,9 @@ include_directories(${TPL_INCLUDE_DIRS})
 if (OPENMP_FOUND)
   message(STATUS "MFEM: using package OpenMP")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  if (MFEM_USE_CUDA)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+  endif()
 endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
