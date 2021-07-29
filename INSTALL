@@ -623,7 +623,7 @@ The specific libraries and their options are:
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or Debug).
-  Versions: Ginkgo >= 1.4.0. 
+  Versions: Ginkgo >= 1.4.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
