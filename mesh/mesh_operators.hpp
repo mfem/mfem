@@ -379,7 +379,7 @@ public:
 
    // Set a custom integration rule
    void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
-   
+
    // Return data oscillation value
    double GetOsc() { return relative_osc; }
 

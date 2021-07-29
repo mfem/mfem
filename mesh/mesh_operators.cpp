@@ -172,14 +172,12 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
    L2_FECollection l2fec(order, dim);
    FiniteElementSpace* l2fes = NULL;
 
-   std::cout << " tag 0 " << std::endl;
-
 #ifdef MFEM_USE_MPI
    ParMesh* pmesh = dynamic_cast<ParMesh*>(&mesh);
    if (pmesh && pmesh->Nonconforming())
    {
-      l2fes = new ParFiniteElementSpace(&mesh, &l2fec);
-      gf = new ParGridFunction(l2fes);
+      l2fes = new ParFiniteElementSpace(pmesh, &l2fec);
+      gf = new ParGridFunction(dynamic_cast<ParFiniteElementSpace*>(l2fes));
    }
    else
    {
@@ -191,8 +189,6 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
    l2fes = new FiniteElementSpace(&mesh, &l2fec);
    gf = new GridFunction(l2fes);
 #endif
-
-   std::cout << " tag 1 " << std::endl;
 
    // If custom integration rule has not been set,
    // then use the default integration rule
@@ -213,7 +209,8 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       // Compute L2-norm of f
       double norm_of_coeff;
 #ifdef MFEM_USE_MPI
-      norm_of_coeff = ComputeGlobalLpNorm(2.0,*coeff,mesh,irs);
+      norm_of_coeff = ComputeGlobalLpNorm(2.0,*coeff,*dynamic_cast<ParMesh*>(&mesh),
+                                          irs);
 #else
       norm_of_coeff = ComputeLpNorm(2.0,*coeff,mesh,irs);
 #endif
@@ -245,7 +242,8 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       ParMesh* pmesh = dynamic_cast<ParMesh*>(&mesh);
       if (pmesh)
       {
-         MPI_Allreduce(&my_relative_osc, &relative_osc, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+         MPI_Allreduce(&my_relative_osc, &relative_osc, 1, MPI_DOUBLE, MPI_SUM,
+                       pmesh->GetComm());
          relative_osc = sqrt(relative_osc);
       }
       else
@@ -257,18 +255,22 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 #endif
 
       // Refine elements
-      if (mesh_refinements.Size())
+      int num_marked_elements = mesh.ReduceInt(mesh_refinements.Size());
+      if (num_marked_elements == 0)
       {
-         mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
-         l2fes->StealNURBSext(false);
-         gf->Update();
-      }
-      else
-      {
+         delete l2fes;
+         delete gf;
          return STOP;
       }
+
+      mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
+      l2fes->Update(false);
+      gf->Update();
    }
+   delete l2fes;
+   delete gf;
    return CONTINUE + REFINED;
+
 }
 
 void CoefficientRefiner::Reset()

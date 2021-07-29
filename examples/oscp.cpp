@@ -180,18 +180,18 @@ int main(int argc, char *argv[])
    }
 
    // 11.5. Preprocess mesh to control osc
-   double osc_tol = 1e-2;
+   double osc_tol = 1e-3;
    CoefficientRefiner coeffrefiner(0);
    coeffrefiner.SetCoefficient(*rhs);
-   // coeffrefiner.SetIntRule(irs);
+   coeffrefiner.SetIntRule(irs);
    coeffrefiner.SetThreshold(osc_tol);
    coeffrefiner.SetNCLimit(0);
    coeffrefiner.PreprocessMesh(pmesh);
 
-   // Coefficient * rhs2 = nullptr;
-   // rhs2 = new FunctionCoefficient(wavefront_laplace_alt);
-   // coeffrefiner.SetCoefficient(*rhs2);
-   // coeffrefiner.PreprocessMesh(pmesh);
+   Coefficient * rhs2 = nullptr;
+   rhs2 = new FunctionCoefficient(wavefront_laplace_alt);
+   coeffrefiner.SetCoefficient(*rhs2);
+   coeffrefiner.PreprocessMesh(pmesh);
 
 
    sol_sock.precision(8);
