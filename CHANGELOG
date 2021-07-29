@@ -111,6 +111,12 @@ Meshing improvements
   NC data files are compatible with serial code, e.g., can be viewed with serial
   GLVis. Loading of legacy NC mesh files is still supported.
 
+- Added FMS support (https://github.com/CEED/FMS) to mfem. FMS can represent
+  unstructured high-order meshes with general high-order finite element fields
+  on them. When enabled, mfem can convert data collections to/from FMS data
+  collections in memory. In addition, an FMS data collection class was added so
+  the convert-dc miniapp can read and generate data files in FMS format.
+
 - Added new mesh quality metrics and improved the untangling capabilities of the
   TMOP-based mesh optimization algorithms.
 
@@ -503,12 +509,6 @@ Miscellaneous
 
 - The integration order used in the ComputeLpError and ComputeElementLpError
   methods of class GridFunction has been increased.
-
-- Added FMS support (https://github.com/CEED/FMS) to mfem. FMS can represent
-  unstructured high-order meshes with general high-order finite element fields
-  on them. When enabled, mfem can convert data collections to/from FMS data
-  collections in memory. In addition, an FMS data collection class was added so
-  the convert-dc miniapp can read and generate data files in FMS format.
 
 - Change the IntegrationRule inside VectorDiffusionIntegrator to use the same
   quadrature as DiffusionIntegrator.
