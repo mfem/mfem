@@ -125,6 +125,22 @@ void Table::ShiftUpI()
    I[0] = 0;
 }
 
+void Table::ReplaceConnection(int r, int c_old, int c_new)
+{
+   for (int j=I[r]; j<I[r+1]; j++)
+   {
+      if ( J[j] == c_old) { J[j] = c_new; }
+   }
+}
+
+void Table::RemoveRow(int r)
+{
+   for (int j=I[r]; j<I[r+1]; j++)
+   {
+      J[j] = -1;
+   }
+}
+
 void Table::SetSize(int dim, int connections_per_row)
 {
    SetDims (dim, dim * connections_per_row);

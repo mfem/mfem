@@ -1195,6 +1195,12 @@ public:
    /// Set the attribute of element i.
    void SetAttribute(int i, int attr) { elements[i]->SetAttribute(attr); }
 
+   /// Return the attribute of element i.
+   int GetFaceAttribute(int i) const { return faces[i]->GetAttribute(); }
+
+   /// Set the attribute of face element i.
+   void SetFaceAttribute(int i, int attr) { faces[i]->SetAttribute(attr); }
+
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
 

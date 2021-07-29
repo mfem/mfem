@@ -27,6 +27,8 @@ private:
    using AddIntegratorFn = void (BilinearForm::*)(BilinearFormIntegrator*);
    using AddIntegratorMarkersFn =
       void (BilinearForm::*)(BilinearFormIntegrator*, Array<int>&);
+   using AddIntegratorMarkersPtrFn =
+      void (BilinearForm::*)(BilinearFormIntegrator*, Array<int>*);
 
    IntegrationRules irs;
    const IntegrationRule *ir_el, *ir_face;
@@ -50,6 +52,12 @@ private:
                                  GetIntegratorsFn get_integrators,
                                  GetMarkersFn get_markers,
                                  AddIntegratorMarkersFn add_integrator,
+                                 const IntegrationRule *ir);
+   void AddIntegratorsAndMarkers(BilinearForm &a_from,
+                                 BilinearForm &a_to,
+                                 GetIntegratorsFn get_integrators,
+                                 GetMarkersFn get_markers,
+                                 AddIntegratorMarkersPtrFn add_integrator,
                                  const IntegrationRule *ir);
 
    /// Resets the integration rules of the integrators of @a a to their original

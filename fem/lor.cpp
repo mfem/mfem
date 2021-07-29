@@ -48,6 +48,24 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
    }
 }
 
+void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
+                                       BilinearForm &a_to,
+                                       GetIntegratorsFn get_integrators,
+                                       GetMarkersFn get_markers,
+                                       AddIntegratorMarkersPtrFn add_integrator,
+                                       const IntegrationRule *ir)
+{
+   Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
+   Array<Array<int>*> *markers = (a_from.*get_markers)();
+
+   for (int i=0; i<integrators->Size(); ++i)
+   {
+      (a_to.*add_integrator)((*integrators)[i], *markers[i]);
+      ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
+      if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
+   }
+}
+
 void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
 {
    Array<BilinearFormIntegrator*> *integrators = (a->*get_integrators)();
@@ -243,8 +261,9 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
    a->UseExternalIntegrators();
    AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
                   &BilinearForm::AddDomainIntegrator, ir_el);
-   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
-                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetFBFI,
+                            &BilinearForm::GetFBFI_Marker,
+                            &BilinearForm::AddInteriorFaceIntegrator, ir_face);
    AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
                             &BilinearForm::GetBBFI_Marker,
                             &BilinearForm::AddBoundaryIntegrator, ir_face);

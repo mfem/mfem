@@ -28,7 +28,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SHIFTED_COMMON_SRC = dist_solver.cpp sbm_solver.cpp marking.cpp
 SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion
+PAR_MINIAPPS = distance diffusion cutH1
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -83,7 +83,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion
+	rm -f *.o *~ distance diffusion cutH1
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
