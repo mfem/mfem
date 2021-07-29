@@ -127,11 +127,10 @@ Meshing improvements
   TMOP-based mesh optimization algorithms.
 
 - The TMOP mesh optimization algorithms were extended to GPU:
-   - QualityMetric #1, #2, #7 and #77 are available in 2D, #302, #303, #315
-     and #321 in 3D
-   - Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
-   - Kernels for normalization and limiting have been added
-   - The AdvectorCG now also supports AssemblyLevel::PARTIAL
+  * QualityMetric 1, 2, 7, 77 are available in 2D, 302, 303, 315, 321 in 3D
+  * Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
+  * Kernels for normalization and limiting have been added
+  * The AdvectorCG now also supports AssemblyLevel::PARTIAL
 
 - Added support for creating refined meshes for all element types (e.g. by
   splitting high-order elements into low-order refined elements), including
@@ -254,6 +253,18 @@ Improved testing
 
 Miscellaneous
 -------------
+- The following integrations have updated minimum version requirements:
+  * CUDA >= 10.1.168
+  * Ginkgo >= 1.4.0
+  * GSLIB >= 1.0.7
+  * HIOP >= 0.4
+  * HYPRE >= 2.20.0 for mixedint support
+  * HYPRE >= 2.22.0 for CUDA support
+  * libCEED >= 0.8
+  * PETSc >= 3.15.0 for CUDA support
+  * RAJA >= 0.13.0
+  see INSTALL for more details.
+
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
   help identify elements with poor mesh quality.
 
