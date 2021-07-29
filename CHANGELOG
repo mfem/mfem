@@ -83,6 +83,12 @@ Linear and nonlinear solvers
   free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
   support, and reduction of unnecessary data copies.
 
+- Added initial support for hypre's mixed integer (mixedint) capability, which
+  uses different data types for local and global indices in order to save memory
+  in large problems. This capability requires that hypre was configured with the
+  --enable-mixedint option. Note that this option is currently tested only in
+  ex1p, ex3p, and ex4p, and may not work in more general settings.
+
 - Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
   diffusion problems with the Ceed backend.
 
