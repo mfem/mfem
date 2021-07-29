@@ -221,12 +221,18 @@ int main(int argc, char *argv[])
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
 
-
+   const IntegrationRule *irs[Geometry::NumGeom];
+   int order_quad = 2*order + 5;
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
 
    // 11.5. Preprocess mesh to control osc
-   double osc_tol = 1e-3;
+   double osc_tol = 1e-2;
    CoefficientRefiner coeffrefiner(0);
    coeffrefiner.SetCoefficient(*rhs);
+   // coeffrefiner.SetIntRule(irs);
    coeffrefiner.SetThreshold(osc_tol);
    coeffrefiner.SetNCLimit(0);
    coeffrefiner.PreprocessMesh(mesh);
