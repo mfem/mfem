@@ -328,17 +328,16 @@ public:
 class CoefficientRefiner : public MeshOperator
 {
 protected:
-   Coefficient * coeff = NULL;
-   double threshold = 1.0e-3;
    int nc_limit = 1;
    int nonconforming = -1;
    int order;
-   const IntegrationRule *ir[Geometry::NumGeom];
-   const IntegrationRule ** irs = NULL;
-   //    const IntegrationRule *irs[Geometry::NumGeom] = NULL;
-   GridFunction gf;
+   double threshold = 1.0e-3;
+   double relative_osc;
    Array<int> mesh_refinements;
-   // TODO: Save oscillation error
+   Coefficient *coeff = NULL;
+   GridFunction gf;
+   const IntegrationRule *ir_default[Geometry::NumGeom];
+   const IntegrationRule **irs = NULL;
 
    /** @brief Apply the operator to the mesh once.
        @return STOP if a stopping criterion is satisfied or no elements were
@@ -347,10 +346,7 @@ protected:
 
 public:
    /// Constructor
-   CoefficientRefiner(int order_) : order(order_)
-   {
-
-   }
+   CoefficientRefiner(int order_) : order(order_) { }
 
    /** @brief Apply the operator to the mesh max_it times or until tolerance
     *  achieved.
@@ -358,9 +354,9 @@ public:
        marked for refinement; REFINED + CONTINUE otherwise. */
    virtual int PreprocessMesh(Mesh &mesh, int max_it);
 
-   bool PreprocessMesh(Mesh &mesh)
+   int PreprocessMesh(Mesh &mesh)
    {
-      int max_it = 100;
+      int max_it = 10;
       return PreprocessMesh(mesh, max_it);
    }
 
@@ -382,10 +378,10 @@ public:
    }
 
    // Set a custom integration rule
-   void SetIntRule(const IntegrationRule *irs_[])
-   {
-      irs = irs_;
-   }
+   void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
+   
+   // Return data oscillation value
+   double GetOsc() { return osc; }
 
    /// Reset
    virtual void Reset();
