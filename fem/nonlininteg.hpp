@@ -130,8 +130,6 @@ public:
        The state Vector @a x is an E-vector. */                                                           
    virtual void AssembleGradPA(const FiniteElementSpace &fes);
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
-   
-   virtual ~NonlinearFormIntegrator() { }
 
    /// Method for partially assembled gradient action.
    /** All arguments are E-vectors. This method can be called only after the

@@ -114,24 +114,10 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
-void NonlinearFormIntegrator::AssemblePAGrad(
+void NonlinearFormIntegrator::AssembleGradPA(
    const FiniteElementSpace &fes)
 {
-   mfem_error("NonlinearFormIntegrator::AssemblePAGrad"
-              " is not overloaded!");
-}
-
-void NonlinearFormIntegrator::AddMultPAGrad(
-   const Vector &x, Vector &y)
-{
-   mfem_error("NonlinearFormIntegrator::AddMultPAGrad"
-              " is not overloaded!");
-}
-
-void NonlinearFormIntegrator::AssembleDiagonalPA(
-   Vector &y)
-{
-   mfem_error("NonlinearFormIntegrator::AssembleDiagonalPA"
+   mfem_error("NonlinearFormIntegrator::AssembleGradPA"
               " is not overloaded!");
 }
 
