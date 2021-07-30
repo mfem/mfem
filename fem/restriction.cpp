@@ -2375,6 +2375,10 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       }
    }
 
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    // Computation of gather_indices
    for (int i = 0; i <= ndofs; ++i)
@@ -2460,8 +2464,10 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       }
    }
 
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
 
-/*
 #ifdef MFEM_DEBUG
 
    std::cout << " scatter_indices " << std::endl;
@@ -2487,7 +2493,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    }
    std::cout << "end offsets pre " << std::endl;
 #endif
-*/
 
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    for (int i = 1; i <= ndofs; ++i)
@@ -2501,7 +2506,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    }
    f_ind = 0;
 
-/*
 #ifdef MFEM_DEBUG
    std::cout << " offsets post " << std::endl;
    for (int i = 0; i < ndofs+1; i++)
@@ -2513,7 +2517,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    }
    std::cout << "end offsets post " << std::endl;
 #endif
-*/
 
    for (int f = 0; f < fes.GetNF(); ++f)
    {
@@ -2601,6 +2604,10 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       }
    }
 
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    for (int i = ndofs; i > 0; --i)
    {
@@ -2618,7 +2625,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       offsets_tan2[0] = 0;
    }
 
-/*
 #ifdef MFEM_DEBUG
    std::cout << " elementMap " << std::endl;
    for (int i = 0; i < elemDofs*ne ; i++)
@@ -2642,7 +2648,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    }
    std::cout << "end gather_indices " << std::endl;
 #endif
-   */
+
 }
 
 void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const

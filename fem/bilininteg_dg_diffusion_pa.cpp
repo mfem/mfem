@@ -37,7 +37,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
                                IntRule:
-                               &GetRule(el.GetGeomType(), el.GetOrder()-1, Trans0);
+                               &GetRule(el.GetGeomType(), el.GetOrder(), Trans0);
    //const int nq = ir->GetNPoints();
    auto weights = ir->GetWeights();
    dim = mesh->Dimension();
@@ -135,10 +135,14 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    std::cout << " nf = " << nf << std::endl;
    std::cout << " fes.GetNF() = " << fes.GetNF() << std::endl;
 #endif 
-  
+
    auto op1 = Reshape(coeff_data_1.Write(), nq, NS, NS, nf);
    auto op2 = Reshape(coeff_data_2.Write(), nq, NS, nf);
    auto op3 = Reshape(coeff_data_3.Write(), nq, NS, nf);
+   
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
    
    f_ind = 0;
    for (int face_num = 0; face_num < fes.GetNF(); ++face_num)
@@ -193,8 +197,19 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          for (int p = 0; p < ir->GetNPoints(); p++)
          {
 
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
+            std::cout << " p = " << p << std::endl;
+
             const IntegrationPoint &ip = ir->IntPoint(p);
             // Set the integration point in the face and the neighboring elements
+
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
             Trans.SetAllIntPoints(&ip);
 
             w = ip.weight;///Trans.Elem1->Weight();
@@ -202,11 +217,31 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             {
                w /= 2;
             }
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
 
             op1(p,0,0,f_ind) =  beta*w*detJ(p,f_ind);
+
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
             op1(p,1,0,f_ind) = - beta*w*detJ(p,f_ind); 
+
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
             const double h0 = 1.0; // I think this is handled by w
+
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
             op3(p,0,f_ind) = -kappa*w/h0;
+
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
             op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
             if (int_type_match)
@@ -215,6 +250,10 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                double ipw = ip.weight;
                w = ipw/2/t2w;
                const double h1 = 1.0; // I think this is handled by w
+
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
 
                op1(p,0,1,f_ind) =  beta*w*detJ(p,f_ind);
                op1(p,1,1,f_ind) = - beta*w*detJ(p,f_ind);
@@ -229,6 +268,11 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          f_ind++;
       }
    }
+
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
