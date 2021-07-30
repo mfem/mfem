@@ -599,6 +599,8 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
    else
    {
       const FiniteElement *edge_el = Nodes->FESpace()->GetEdgeElement(EdgeNo);
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       if (edge_el)
       {
          Array<int> vdofs;
@@ -609,7 +611,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
          {
             for (int j = 0; j < n; j++)
             {
-               pm(i, j) = (*Nodes)(vdofs[n*i+j]);
+               pm(i, j) = nodes(vdofs[n*i+j]);
             }
          }
          EdTr->SetFE(edge_el);
@@ -4114,7 +4116,11 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    }
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+
+   // The check below is disabled because is fails for parallel meshes with
+   // interior "boundary" element that, when such "boundary" element is between
+   // two elements on different processors.
+   // MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
 
 Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
