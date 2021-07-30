@@ -65,7 +65,7 @@ void gradexact(const Vector& x, Vector & grad)
    }
 }
 
-double d2uexact(const Vector& x) // retuns \Delta u
+double d2uexact(const Vector& x) // returns \Delta u
 {
    double d2u;
    switch (dim)
@@ -83,7 +83,7 @@ double d2uexact(const Vector& x) // retuns \Delta u
    return d2u;
 }
 
-double fexact(const Vector& x) // retuns -\Delta u
+double fexact(const Vector& x) // returns -\Delta u
 {
    double d2u = d2uexact(x);
    return -d2u;
