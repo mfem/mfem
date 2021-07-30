@@ -142,7 +142,7 @@ protected:
    const L2FaceValues m;
    const int nfdofs;
    Array<int> scatter_indices1;
-   Array<int> scatter_indices_neighbor;
+   Array<int> scatter_indices2;
    Array<int> offsets;
    Array<int> gather_indices;
 
