@@ -497,6 +497,7 @@ void ScalarFiniteElement::ScalarLocalRestriction(
       R *= 1.0 / Trans.Weight();
    }
 }
+
 const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                                    DofToQuad::Mode mode) const
 {

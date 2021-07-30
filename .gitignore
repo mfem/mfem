@@ -256,6 +256,7 @@ miniapps/shifted/ParaViewDistance
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
+miniapps/shifted/ParaViewDiffusion
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
