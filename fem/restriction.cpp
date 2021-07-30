@@ -1439,7 +1439,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
-     scatter_indices_neighbor(m==L2FaceValues::DoubleValued?nf*dof:0),
+     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
      offsets(ndofs+1),
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
@@ -1536,12 +1536,12 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                   const int did = face_dof;
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;
-                  scatter_indices_neighbor[lid] = gid;
+                  scatter_indices2[lid] = gid;
                }
                else if (type==FaceType::Boundary && e2<0) // true boundary face
                {
                   const int lid = dof*f_ind + d;
-                  scatter_indices_neighbor[lid] = -1;
+                  scatter_indices2[lid] = -1;
                }
             }
          }
@@ -1656,7 +1656,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices_neighbor.Read();
+      auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       MFEM_FORALL(i, nfdofs,
@@ -1754,7 +1754,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
-   auto d_indices2 = scatter_indices_neighbor.Read();
+   auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
    MFEM_FORALL(fdof, nf*face_dofs,
    {
@@ -1771,7 +1771,7 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
-   auto d_indices2 = scatter_indices_neighbor.Read();
+   auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
    auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
    auto J = mat.WriteJ();
@@ -1805,7 +1805,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices_neighbor.Read();
+      auto d_indices2 = scatter_indices2.Read();
       auto mat_fea = Reshape(fea_data.Read(), face_dofs, face_dofs, 2, nf);
       auto mat_ea = Reshape(ea_data.ReadWrite(), elem_dofs, elem_dofs, ne);
       MFEM_FORALL(f, nf,
