@@ -366,7 +366,7 @@ public:
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
        LONG_MAX. */
-   void SetMaxElements(int max_elements_) { max_elements = max_elements_; }
+   void SetMaxElements(long max_elements_) { max_elements = max_elements_; }
 
    /// Set the function f
    void SetCoefficient(Coefficient &coeff_) { coeff = &coeff_; }

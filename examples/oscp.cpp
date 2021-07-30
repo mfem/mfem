@@ -4,25 +4,16 @@
 //
 // Sample runs:  mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 1
 //               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 2  ???
 //               mpirun -np 4 ex30p -m ../data/star.mesh -o 3
-//               mpirun -np 4 ex30p -m ../data/escher.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/escher.mesh -o 2  ???
+//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 2 !!!
 //               mpirun -np 4 ex30p -m ../data/disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/ball-nurbs.mesh
 //               mpirun -np 4 ex30p -m ../data/pipe-nurbs.mesh
-//               mpirun -np 4 ex30p -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/square-disc-surf.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/star-surf.mesh -o 2 ???
+//               mpirun -np 4 ex30p -m ../data/square-disc-surf.mesh -o 2  ???
 //               mpirun -np 4 ex30p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex30p -m ../data/inline-segment.mesh -o 1 -md 100
-//
-// Device sample runs:
-//               mpirun -np 4 ex30p -pa -d cuda
-//               mpirun -np 4 ex30p -pa -d occa-cuda
-//               mpirun -np 4 ex30p -pa -d raja-omp
-//               mpirun -np 4 ex30p -pa -d ceed-cpu
-//             * mpirun -np 4 ex30p -pa -d ceed-cuda
-//               mpirun -np 4 ex30p -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is an example of adaptive mesh refinement preprocessing
 //               which lowers the data oscillation [1] to a user-defined
@@ -66,7 +57,7 @@ double function2(const Vector &p)
 {
    double x = p(0), y = p(1);
    double alpha = 1000.0;
-   double xc = -0.5, yc = -0.5;
+   double xc = 0.75, yc = 0.5;
    double r0 = 0.7;
    double r = sqrt(pow(x - xc,2.0) + pow(y - yc,2.0));
    double num = - ( alpha - pow(alpha,3) * (pow(r,2) - pow(r0,2)) );
@@ -88,7 +79,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int nc_limit = 1;
-   int max_elems = 1e6;
+   int max_elems = 1e5;
    bool visualization = true;
    double osc_threshold = 1e-3;
 
@@ -126,6 +117,18 @@ int main(int argc, char *argv[])
    mesh.EnsureNCMesh();
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+
+   // // 2. Since a NURBS mesh can currently only be refined uniformly, we need to
+   // //    convert it to a piecewise-polynomial curved mesh. First we refine the
+   // //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
+   // if (mesh.NURBSext)
+   // {
+   //    for (int i = 0; i < 2; i++)
+   //    {
+   //       mesh.UniformRefinement();
+   //    }
+   //    mesh.SetCurvature(2);
+   // }
 
    // 2. Define functions and refiner.
    FunctionCoefficient coeff0(function0);

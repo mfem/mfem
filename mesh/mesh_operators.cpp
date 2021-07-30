@@ -206,16 +206,12 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       
       // Compute number of elements.
       int NE = mesh.GetNE();
-      int globalNE;
+      int globalNE = NE;
       if (par)
       {
 #ifdef MFEM_USE_MPI
          globalNE = pmesh->GetGlobalNE();
 #endif
-      }
-      else
-      {
-         globalNE = NE;
       }
       
       // Exit if the maximum number of elements has been reached.
