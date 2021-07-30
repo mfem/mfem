@@ -203,8 +203,28 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
    for (int i = 0; i < max_it; i++)
    {
+      
+      // Compute number of elements.
       int NE = mesh.GetNE();
-      int globalNE = NE;
+      int globalNE;
+      if (par)
+      {
+#ifdef MFEM_USE_MPI
+         globalNE = pmesh->GetGlobalNE();
+#endif
+      }
+      else
+      {
+         globalNE = NE;
+      }
+      
+      // Exit if the maximum number of elements has been reached.
+      if (globalNE > max_elements)
+      {
+         delete l2fes;
+         delete gf;
+         return STOP;
+      }
 
       // Compute L2-norm of f
       double norm_of_coeff = 0.0;
@@ -212,7 +232,6 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       {
 #ifdef MFEM_USE_MPI
          norm_of_coeff = ComputeGlobalLpNorm(2.0,*coeff,*pmesh,irs);
-         globalNE = pmesh->GetGlobalNE();
 #endif
       }
       else
@@ -220,24 +239,24 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
          norm_of_coeff = ComputeLpNorm(2.0,*coeff,mesh,irs);
       }
 
+      // Compute average L2-norm of f
       double av_norm_of_coeff = norm_of_coeff / sqrt(globalNE);
 
-      // Compute element-wise L2-norms of (I - Pi) f
+      // Compute element-wise L2-norms of (I - Π) f
       Vector element_norms_of_fine_scale(NE);
       gf->SetSpace(l2fes);
       gf->ProjectCoefficient(*coeff);
       gf->ComputeElementL2Errors(*coeff,element_norms_of_fine_scale,irs);
 
-      // Define osc = h \cdot \| (I - Pi) f \| and select elements
-      // for refinement based on threshold
-      mesh_refinements.SetSize(0);
+      // Define osc_K(f) := || h ⋅ (I - Π) f ||_K and select elements
+      // for refinement based on threshold. Also record relative osc(f).
       relative_osc = 0.0;
-      norm_of_coeff += 1e-10; // to avoid dividing by zero
+      mesh_refinements.SetSize(0);
       for (int j = 0; j < NE; j++)
       {
          double h = mesh.GetElementSize(j);
          double element_osc = h * element_norms_of_fine_scale(j);
-         relative_osc += pow(element_osc/norm_of_coeff,2.0);
+         relative_osc += element_osc*element_osc;
          if ( element_osc > threshold * av_norm_of_coeff )
          {
             mesh_refinements.Append(j);
@@ -250,9 +269,9 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
                        pmesh->GetComm());
       }
 #endif
-      relative_osc = sqrt(relative_osc);
+      relative_osc = sqrt(relative_osc)/(norm_of_coeff + 1e-10);
 
-      // Refine elements
+      // Exit if there are no elements to refine.
       int num_marked_elements = mesh.ReduceInt(mesh_refinements.Size());
       if (num_marked_elements == 0)
       {
@@ -261,9 +280,18 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
          return STOP;
       }
 
+      // Refine elements
       mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
       l2fes->Update(false);
       gf->Update();
+
+      // Exit if the global threshold has been reached.
+      if (relative_osc < threshold)
+      {
+         delete l2fes;
+         delete gf;
+         return STOP;
+      }
    }
    delete l2fes;
    delete gf;
