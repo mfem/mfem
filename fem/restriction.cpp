@@ -2349,15 +2349,14 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                      gid = GetGid(d, k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);
                      lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
                      scatter_indices_neighbor[lid] = gid;
-                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation1, dof1d, d);
-                     const int gid = GetGid(pd, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
-                     const int lid = GetLid(pd, (orientation2==1)? k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
+
+                     const int gid = GetGid(d, k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
+                     const int lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
                      scatter_indices_neighbor_tan1[lid] = gid;
                      if( dim == 3)
                      {
-                        const int gid = GetGid(d, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
-                        const int lid = GetLid(d, (orientation2==1)? k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
+                        const int gid = GetGid(d, k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
+                        const int lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
                         scatter_indices_neighbor_tan2[lid] = gid;
                      }
                   }
@@ -2439,22 +2438,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                {
                   if(int_face_match) // interior face
                   {
-                     const int pd = PermuteFaceL2( dim, 
-                                                   face_id1,
-                                                   face_id2,
-                                                   orientation2, 
-                                                   dof1d, 
-                                                   d);
-
-                     int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);                     
+                     int gid = GetGid(d, k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);                     
                      ++offsets_nor[gid + 1];
 
-                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
+                     gid = GetGid(d, k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
                      ++offsets_tan1[gid + 1];
 
                      if( dim == 3 )
                      {
-                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
+                        gid = GetGid(d, k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
                         ++offsets_tan2[gid + 1];
                      }
                   }
@@ -2574,23 +2566,21 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   if (int_face_match) // interior face
                   {
                      // double check all of this logic 
-                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                                orientation2, dof1d, d);
-                     int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);
-                     int lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
+                     int gid = GetGid(d, k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);
+                     int lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
                      int offset = offsets_nor[gid];
                      gather_indices_nor[offset] = nfdofs*dof1d + lid;
                      offsets_nor[gid]++;
 
-                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
-                     lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
+                     gid = GetGid(d, k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
+                     lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
                      offset = offsets_tan1[gid];
                      gather_indices_tan1[offset] = nfdofs*dof1d + lid;
                      offsets_tan1[gid]++;
                      if( dim == 3 )
                      {
-                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
-                        lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
+                        gid = GetGid(d, k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
+                        lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
                         // We shift lid to express that it's e2 of f
                         offset = offsets_tan2[gid];
                         gather_indices_tan2[offset] = nfdofs*dof1d + lid;
