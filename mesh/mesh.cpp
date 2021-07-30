@@ -75,7 +75,7 @@ void Mesh::GetElementCenter(int i, Vector &center)
 
 double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
-   DenseMatrix J(Dim);
+   DenseMatrix J(spaceDim,Dim);
 
    Geometry::Type geom = T->GetGeometryType();
    T->SetIntPoint(&Geometries.GetCenter(geom));
@@ -83,7 +83,7 @@ double Mesh::GetElementSize(ElementTransformation *T, int type)
 
    if (type == 0)
    {
-      return pow(fabs(J.Det()), 1./Dim);
+      return pow(fabs(J.Weight()), 1./double(Dim));
    }
    else if (type == 1)
    {
