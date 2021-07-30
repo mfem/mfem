@@ -316,11 +316,10 @@ public:
        osc_K(f) > threshold ⋅ ||f|| / sqrt(n_el),
     \endcode
     are refined. Here, threshold is a postive parameter, ||⋅|| is the
-    L2-norm over the entire Ω, and n_el is the number of elements in the
+    L2-norm over the entire domain Ω, and n_el is the number of elements in the
     mesh.
 
-    Note that if osc(f) = threshold ⋅ ||f|| / sqrt(n_el) for each K,
-    then
+    Note that if osc(f) = threshold ⋅ ||f|| / sqrt(n_el) for each K, then
     \code
        osc(f) = sqrt( sum_K osc_K^2(f)) = threshold ⋅ ||f||.
     \endcode
@@ -331,7 +330,8 @@ protected:
    int nc_limit = 1;
    int nonconforming = -1;
    int order;
-   double threshold = 1.0e-3;
+   long max_elements = std::numeric_limits<long>::max();
+   double threshold = 1.0e-2;
    double relative_osc = 0.0;
    Array<int> mesh_refinements;
    Coefficient *coeff = NULL;
@@ -360,17 +360,24 @@ public:
       return PreprocessMesh(mesh, max_it);
    }
 
-   /// Set the de-refinement threshold. The default value is zero.
+   /// Set the refinement threshold. The default value is 1.0e-3.
    void SetThreshold(double threshold_) { threshold = threshold_; }
 
-   /// Set the de-refinement threshold. The default value is zero.
+   /** @brief Set the maximum number of elements stopping criterion: stop when
+       the input mesh has num_elements >= max_elem. The default value is
+       LONG_MAX. */
+   void SetMaxElements(int max_elements_) { max_elements = max_elements_; }
+
+   /// Set the function f
    void SetCoefficient(Coefficient &coeff_) { coeff = &coeff_; }
 
    /// Reset the oscillation order
    void SetOrder(double order_) { order = order_; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
+       (0 = unlimited). The default value is 1, which helps ensure appropriate
+       refinements in pathological situations where the default quadrature
+       order is too low.  */
    void SetNCLimit(int nc_limit_)
    {
       MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
@@ -380,7 +387,7 @@ public:
    // Set a custom integration rule
    void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
 
-   // Return data oscillation value
+   // Return the value of the global relative data oscillation
    double GetOsc() { return relative_osc; }
 
    /// Reset

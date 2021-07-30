@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
    // 11.5. Preprocess mesh to control osc
    double osc;
    double osc_tol = 1e-3;
-   CoefficientRefiner coeffrefiner(0);
+   CoefficientRefiner coeffrefiner(order);
    coeffrefiner.SetCoefficient(*rhs);
    // coeffrefiner.SetIntRule(irs);
    coeffrefiner.SetThreshold(osc_tol);
