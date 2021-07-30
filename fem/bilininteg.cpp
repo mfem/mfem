@@ -2745,7 +2745,7 @@ const IntegrationRule &DGDiffusionIntegrator::GetRule(
 void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
-{   
+{
    int dim, ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
    double w, wq = 0.0;
@@ -2851,7 +2851,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 
       if (kappa_is_nonzero)
       {
-         
          wq = ni * nor;
       }
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
@@ -2866,9 +2865,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
       dshape1.Mult(nh, dshape1dn);
-
-      wq = ni * nor;
-
       for (int i = 0; i < ndof1; i++)
          for (int j = 0; j < ndof1; j++)
          {
@@ -2901,14 +2897,12 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
             wq += ni * nor;
          }
 
-
-
          dshape2.Mult(nh, dshape2dn);
 
          for (int i = 0; i < ndof1; i++)
             for (int j = 0; j < ndof2; j++)
             {
-                  elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
+               elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
             }
 
          for (int i = 0; i < ndof2; i++)
@@ -2928,7 +2922,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          // only assemble the lower triangular part of jmat
          wq *= kappa;
-         //std::cout << " wq = " << wq << std::endl;
          for (int i = 0; i < ndof1; i++)
          {
             const double wsi = wq*shape1(i);
@@ -2980,7 +2973,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
             elmat(i,j) = sigma*aji - beta*aij;
             elmat(j,i) = sigma*aij - beta*aji;
          }
-         elmat(i,i) *= (sigma - beta*1.);
+         elmat(i,i) *= (sigma - beta);
       }
    }
 }
