@@ -58,6 +58,9 @@ int main(int argc, char *argv[])
 {
    //ProfilerStart("/tmp/data.prof");
 
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::setprecision(18);
+
    // 1. Parse command-line options.
    //const char *mesh_file = "../data/inline-hex.mesh";
    const char *mesh_file = "../data/inline-quad.mesh"; 
@@ -124,16 +127,16 @@ int main(int argc, char *argv[])
    {
       kappa = (order+1)*(order+1);
    }
-   args.PrintOptions(cout);
+   //args.PrintOptions(cout);
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
@@ -153,7 +156,7 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(max(order, 1));
    }
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec;
@@ -177,7 +180,7 @@ int main(int argc, char *argv[])
       //fec = new DG_FECollection(order, dim);
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
+   cout << "% Number of unknowns: " << fespace->GetVSize() << endl;
 
    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
@@ -199,7 +202,7 @@ int main(int argc, char *argv[])
 
    x.ProjectCoefficient(f);
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    // Test the full operator
    LinearForm *bfull = new LinearForm(fespace);
@@ -220,8 +223,8 @@ int main(int argc, char *argv[])
    afull->Assemble();
    afull->Finalize();
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   std::cout << "-----------------------------------------------------------------------" << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "%-----------------------------------------------------------------------" << std::endl;
 
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -260,23 +263,23 @@ int main(int argc, char *argv[])
       }
       else
       {
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+         std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          exit(0);
       }
       */
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+         std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          exit(0);
    }
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    
    a->Assemble();
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   std::cout << "done assembling " << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% done assembling " << std::endl;
    //exit(1);
    a->Finalize();
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // -------------------------------------------
    // Sanity checks (temporary, for debugging)
    // -------------------------------------------
@@ -295,6 +298,7 @@ int main(int argc, char *argv[])
       {
          case 0:
             // f = constant = 1
+            std::cout << "init = @(x,y) 1.0;  " << std::endl;
             x = 1.0;
             xfull = 1.0;
             break;
@@ -328,7 +332,7 @@ int main(int argc, char *argv[])
       std::chrono::time_point<std::chrono::system_clock> StartTime;
       std::chrono::time_point<std::chrono::system_clock> EndTime;
 
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       StartTime = std::chrono::system_clock::now();
       afull->Mult(xfull,youtfull);
@@ -336,11 +340,11 @@ int main(int argc, char *argv[])
 
       youtfull += 1000.0;
       youtfull -= 1000.0;
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       auto timefull = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       StartTime = std::chrono::system_clock::now();
       a->Mult(x,yout);
@@ -348,11 +352,10 @@ int main(int argc, char *argv[])
 
       yout += 1000.0;
       yout -= 1000.0;
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       auto timex = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       Vector ydiff;
       ydiff = yout;
@@ -368,13 +371,29 @@ int main(int argc, char *argv[])
          //x.Print(std::cout,1);
          //std::cout << "xfull" << std::endl;
          //xfull.Print(std::cout,1);
+
+         int N = yout.Size();
+         auto yout_ = Reshape(yout.Read(), N);
+         auto youtfull_ = Reshape(youtfull.Read(), N );
+
+/*
+         for(int i = 0 ; i < N ; i++ )
+         {
+            std::cout << "yout(" << i+1 << ",1) = " << yout_(i) << ";" << std::endl;
+            std::cout << "youtfull(" << i+1 << ",1) = " << youtfull_(i) << ";" << std::endl;
+         }
+*/
+
+         std::cout << " %{ " << std::endl;
          std::cout << "               yout" << std::endl;
          yout.Print(mfem::out,1);
          std::cout << "               youtfull"  << std::endl;
          youtfull.Print(mfem::out,1);
          std::cout << "               ydiff" << std::endl;
          ydiff.Print(mfem::out,1);
+
       }
+
 
       std::cout << " Timing full = " << double(timefull) << std::endl; 
       std::cout << " Timing pa   = " << double(timex) << std::endl; 
@@ -382,9 +401,13 @@ int main(int argc, char *argv[])
       double errnorm = ydiff.Normlinf();
       std::cout << "               ||xdiff|| = " << xdiff.Normlinf() << std::endl;
       std::cout << "               ||ydiff|| = " << errnorm << std::endl;
-      exit(1);
       std::cout << "----------------------------------" << std::endl;
+      std::cout << " %} " << std::endl;
+      exit(1);
    }
+
+   exit(1);
+
    int print_iter = 3;
    int max_num_iter = 800;
    double rtol = 1.0e-12;
@@ -580,5 +603,8 @@ double x1(const Vector &x)
 
 double x2(const Vector &x)
 {
-   return x(0)*x(0)*exp(x(1));
+   //std::cout << "init = @(x,y) x;  " << std::endl;   
+   return x(0);//*x(0)*x(1)*x(1);//exp(x(1));
+   //std::cout << "init = @(x,y) x;  " << std::endl;
+   //return x(0);//*x(0)*exp(x(1));
 }
