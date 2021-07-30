@@ -188,10 +188,14 @@ int main(int argc, char *argv[])
    coeffrefiner.SetNCLimit(0);
    coeffrefiner.PreprocessMesh(pmesh);
 
-   Coefficient * rhs2 = nullptr;
-   rhs2 = new FunctionCoefficient(wavefront_laplace_alt);
-   coeffrefiner.SetCoefficient(*rhs2);
-   coeffrefiner.PreprocessMesh(pmesh);
+   // Coefficient * rhs2 = nullptr;
+   // rhs2 = new FunctionCoefficient(wavefront_laplace_alt);
+   // coeffrefiner.SetCoefficient(*rhs2);
+   // coeffrefiner.PreprocessMesh(pmesh);
+
+
+   cout << "Number of Elements " << pmesh.GetGlobalNE() << endl;
+   cout << "Osc error " << coeffrefiner.GetOsc() << endl;
 
 
    sol_sock.precision(8);

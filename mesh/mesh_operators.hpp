@@ -309,20 +309,20 @@ public:
 
 /** @brief Refinement operator to control data oscillation.
 
-    This class uses the given computes osc_K(f) := \| h \cdot (I - \Pi) f \|_K at
-    each element K. Here, \Pi is the L2-projection and \| \cdot \|_K is the
+    This class uses the given computes osc_K(f) := || h ⋅ (I - Π) f ||_K  at
+    each element K. Here, Π is the L2-projection and ||⋅||_K is the
     L2-norm, restricted to the element K. All elements satisfying the inequality
     \code
-       osc_K(f) > threshold \cdot \| f \| / sqrt(n_el) ,
+       osc_K(f) > threshold ⋅ ||f|| / sqrt(n_el),
     \endcode
-    are refined. Here, threshold is a postive parameter, \| \cdot \| is the
-    L2-norm over the entire \Omega, and n_el is the number of elements in the
+    are refined. Here, threshold is a postive parameter, ||⋅|| is the
+    L2-norm over the entire Ω, and n_el is the number of elements in the
     mesh.
 
-    Note that if osc(f) = threshold \cdot \| f \| / sqrt(n_el) for each K,
+    Note that if osc(f) = threshold ⋅ ||f|| / sqrt(n_el) for each K,
     then
     \code
-       osc(f) = sqrt( sum_K osc_K^2(f)) = threshold \cdot \| f \| .
+       osc(f) = sqrt( sum_K osc_K^2(f)) = threshold ⋅ ||f||.
     \endcode
     This is the reason for the 1/sqrt(n_el) factor. */
 class CoefficientRefiner : public MeshOperator
