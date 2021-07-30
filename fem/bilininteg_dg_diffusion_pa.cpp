@@ -27,8 +27,6 @@ namespace mfem
 
 void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
-   std::cout << "%--------  SetupPA  ------------------------------------------ "<< std::endl;
-
    nf = fes.GetNFbyType(type);
    if (nf==0) { return; }
    // Assumes tensor-product elements
@@ -39,8 +37,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
                                IntRule:
-                               &GetRule(el.GetGeomType(), el.GetOrder(), Trans0);
-   const int nq = ir->GetNPoints();
+                               &GetRule(el.GetGeomType(), el.GetOrder()-1, Trans0);
+   //const int nq = ir->GetNPoints();
    auto weights = ir->GetWeights();
    dim = mesh->Dimension();
    facegeom = mesh->GetFaceGeometricFactors(
@@ -50,17 +48,11 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
 
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
-   quad1D = maps->nqpt; 
+   quad1D = maps->nqpt;
+
+   const int nq = ( dim == 3 ) ? quad1D*quad1D : quad1D ;
 
    auto detJ = Reshape(facegeom->detJ.Read(), nq, nf); // assumes conforming mesh
-
-   coeff_data_1_old.SetSize( 4 * nq * nf, Device::GetMemoryType());
-   coeff_data_2_old.SetSize( 2 * nq * nf, Device::GetMemoryType());
-   coeff_data_3_old.SetSize( 2 * nq * nf, Device::GetMemoryType());
-   coeff_data_1_old = 0.0;
-   coeff_data_2_old = 0.0;
-   coeff_data_3_old = 0.0;
-   
    int NS = 2;
 
    // Input
@@ -105,7 +97,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    // Loop over all faces
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      int e0,e1;
+      int e0, e1;
       int inf0, inf1;
       fes.GetMesh()->GetFaceElements(f, &e0, &e1);
       fes.GetMesh()->GetFaceInfos(f, &inf0, &inf1);
@@ -137,8 +129,12 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    coeff_data_2 = 0.0;
    coeff_data_3 = 0.0;
 
-   auto norm = Reshape(facegeom->normal.Read(), nq, dim, nf);
 
+   std::cout << " nq = " << nq << std::endl;
+   std::cout << " dim = " << dim << std::endl;
+   std::cout << " nf = " << nf << std::endl;
+   std::cout << " fes.GetNF() = " << fes.GetNF() << std::endl;
+   
    auto op1 = Reshape(coeff_data_1.Write(), nq, NS, NS, nf);
    auto op2 = Reshape(coeff_data_2.Write(), nq, NS, nf);
    auto op3 = Reshape(coeff_data_3.Write(), nq, NS, nf);
@@ -151,8 +147,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
       // Get the two elements associated with the current face
       fes.GetMesh()->GetFaceElements(face_num, &e0, &e1);
       fes.GetMesh()->GetFaceInfos(face_num, &inf0, &inf1);
-      //int face_id = inf0 / 64; //I don't know what 64 is all about 
-      // Act if type matches the kind of face f is
 
       FaceElementTransformations &Trans =
          *fes.GetMesh()->GetFaceElementTransformations(face_num);
@@ -167,37 +161,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          const FiniteElement &el2 =
          *fes.GetTraceElement(e1, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
 
-         int ndof1, ndof2, ndofs;
-         bool kappa_is_nonzero = (kappa != 0.);
          double w, wq = 0.0;
-
-         const int dim = fes.GetMesh()->SpaceDimension();
-         ndof1 = el1.GetDof();
-         nor.SetSize(dim);
-         nh.SetSize(dim);
-         ni.SetSize(dim);
-         adjJ.SetSize(dim);
-         if (MQ)
-         {
-            mq.SetSize(dim);
-         }
-         shape1.SetSize(ndof1);
-         dshape1.SetSize(ndof1, dim);
-         dshape1dn.SetSize(ndof1);
-         if (int_type_match)
-         {
-            ndof2 = el2.GetDof();
-            shape2.SetSize(ndof2);
-            dshape2.SetSize(ndof2, dim);
-            dshape2dn.SetSize(ndof2);
-         }
-         else
-         {
-            ndof2 = 0;
-         }
-
-         ndofs = ndof1 + ndof2;
-
          const IntegrationRule *ir = IntRule;
          if (ir == NULL)
          {
@@ -219,6 +183,12 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
             //exit(1);
          }
+
+#ifdef MFEM_DEBUG
+         std::cout << " ir->GetNPoints() = " << ir->GetNPoints() << std::endl;
+         std::cout << " fes.GetNF() = " << fes.GetNF() << std::endl;
+#endif
+
          for (int p = 0; p < ir->GetNPoints(); p++)
          {
 
@@ -229,82 +199,25 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             // Note: eip2 will only contain valid data if Elem2 exists
             const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
             const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
-            if (dim == 1)
-            {
-               nor(0) = 2*eip1.x - 1.0;
-            }
-            else
-            {
-               CalcOrtho(Trans.Jacobian(), nor);
-            }
-            el1.CalcShape (eip1,  shape1);
-            el1.CalcDShape(eip1, dshape1);
-            //w = ip.weight/Trans.Elem1->Weight();
+
             w = ip.weight;///Trans.Elem1->Weight();
             if (int_type_match)
             {
                w /= 2;
             }
-            if (!MQ)
-            {
-               if (Q)
-               {
-                  w *= Q->Eval(*Trans.Elem1, eip1);
-               }
-               ni.Set(w, nor);
-            }
-            else
-            {
-               nh.Set(w, nor);
-               MQ->Eval(mq, *Trans.Elem1, eip1);
-               mq.MultTranspose(nh, ni);
-            }
-            CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
-            adjJ.Mult(ni, nh);
-            dshape1.Mult(nh, dshape1dn);
-            if (kappa_is_nonzero)
-            {
-               wq = ni * nor;
-            }
 
             op1(p,0,0,f_ind) =  beta*w*detJ(p,f_ind);
             op1(p,1,0,f_ind) = - beta*w*detJ(p,f_ind); 
-            const double normx = norm(p,0,f_ind);
-            const double normy = norm(p,1,f_ind);
-            const double normz = ( dim == 3 ) ? norm(p,2,f_ind) : 0.0;
-            const double mag_norm = sqrt(normx*normx + normy*normy + normz*normz);
-            const double h0 = 1.0/mag_norm;
+            const double h0 = 1.0; // I think this is handled by w
             op3(p,0,f_ind) = -kappa*w/h0;
             op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
             if (int_type_match)
             {
-               el2.CalcShape(eip2, shape2);
-               el2.CalcDShape(eip2, dshape2);
                double t2w = 1.0;//Trans.Elem2->Weight();
                double ipw = ip.weight;
                w = ipw/2/t2w;
-               if (!MQ)
-               {
-                  if (Q)
-                  {
-                     w *= Q->Eval(*Trans.Elem2, eip2);
-                  }
-                  ni.Set(w, nor);
-               }
-               else
-               {
-                  nh.Set(w, nor);
-                  MQ->Eval(mq, *Trans.Elem2, eip2);
-                  mq.MultTranspose(nh, ni);
-               }
-               CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
-               adjJ.Mult(ni, nh);
-               if (kappa_is_nonzero)
-               {
-                  wq += ni * nor;
-               }
-               const double h1 = 1.0/mag_norm;
+               const double h1 = 1.0; // I think this is handled by w
 
                op1(p,0,1,f_ind) =  beta*w*detJ(p,f_ind);
                op1(p,1,1,f_ind) = - beta*w*detJ(p,f_ind);
@@ -347,11 +260,11 @@ void PADGDiffusionApply2D(const int NF,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   /*
+#ifdef MFEM_DEBUG
    std::cout << " PA x" << std::endl;
    _x.Print(std::cout,1);
    std::cout << " end PA x" << std::endl;
-   */
+#endif
 
    // vdim is confusing as it seems to be used differently based on the context
    const int VDIM = 1;
@@ -447,11 +360,13 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
    });
-/*
+
+
+#ifdef MFEM_DEBUG
    std::cout << " PA y" << std::endl;
    _y.Print(std::cout,1);
    std::cout << " end PA y" << std::endl;
-*/
+#endif
 
 }
 
@@ -470,9 +385,11 @@ void PADGDiffusionApply3D(const int NF,
                           const int d1d = 0,
                           const int q1d = 0)
 {
+#ifdef MFEM_DEBUG
    std::cout << " PA x 3D" << std::endl;
    _x.Print(std::cout,1);
    std::cout << " end PA x 3D" << std::endl;
+#endif
 
    // vdim is confusing as it seems to be used differently based on the context
    const int VDIM = 1;
@@ -493,6 +410,28 @@ void PADGDiffusionApply3D(const int NF,
    auto op3 = Reshape(_op3.Read(), Q1D, Q1D, NS, NF);
    auto x = Reshape(_x.Read(), D1D, D1D, VDIM, NS, NF, 2);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, NS, NF, 2);
+
+/*
+#ifdef MFEM_DEBUG
+   std::cout << " Q1D = " << Q1D  << std::endl;
+   std::cout << " _op3 3D   size = " << _op3.Size() << std::endl;
+   _op3.Print(std::cout,1);
+   std::cout << " _op3 3D" << std::endl;
+
+   MFEM_FORALL(f, NF,
+   {
+      for (int q2 = 0; q2 < Q1D; q2++)
+      {
+         for (int q1 = 0; q1 < Q1D; ++q1)
+         {
+            std::cout << "%  op3("<<q1<<","<<q2<<",0,"<<f<<") " <<  op3(q1,q2,0,f)
+            << "  op3("<<q1<<","<<q2<<",1,"<<f<<") " <<  op3(q1,q2,1,f)
+            << std::endl;
+         }
+      }
+   });
+#endif
+*/
 
    // Loop over all faces
    MFEM_FORALL(f, NF,
@@ -556,7 +495,17 @@ void PADGDiffusionApply3D(const int NF,
             }
          }
       }
-
+/*
+#ifdef MFEM_DEBUG
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            std::cout << "% BB0 " << BBu0[q1][q2][0] << " BB1 " << BBu1[q1][q2][0] << " BBG0 " << BBGu0[q1][q2][0] << " BBG1 " << BBGu1[q1][q2][0]  << std::endl;
+         }
+      }
+#endif
+*/
       // 2. Form numerical fluxes
       double D1[max_Q1D][max_Q1D][VDIM];
       double D0[max_Q1D][max_Q1D][VDIM];
@@ -579,7 +528,19 @@ void PADGDiffusionApply3D(const int NF,
             }
          }
       }
-      
+
+/*
+#ifdef MFEM_DEBUG
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            std::cout << "%  op3("<<q1<<","<<q2<<",0,"<<f<<") " <<  op3(q1,q2,0,f) << " D0 " << D0[q1][q2][0] << " D1 " << D1[q1][q2][0] << " D0j " << D0jumpu[q1][q2][0] << " D1j " << D1jumpu[q1][q2][0]  << std::endl;
+         }
+      }
+#endif
+*/
+
       // 3. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
       double BD1[max_Q1D][max_D1D][VDIM];
       double BD0[max_Q1D][max_D1D][VDIM];
@@ -637,12 +598,11 @@ void PADGDiffusionApply3D(const int NF,
       }
    });
 
-/*
+#ifdef MFEM_DEBUG
    std::cout << " PA y 3D" << std::endl;
    _y.Print(std::cout,1);
    std::cout << " end PA y 3D" << std::endl;
-*/
-
+#endif
 }
 
 static void PADGDiffusionApply(const int dim,

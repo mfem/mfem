@@ -1037,6 +1037,8 @@ public:
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
+   void GetFaceOrientations(int Face, int *Orientation1, int *Orientation2) const;
+   void GetFaceIds(int Face, int *FaceId1, int *FaceId2) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;

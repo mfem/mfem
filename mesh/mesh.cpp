@@ -1049,6 +1049,18 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2) const
    *Inf2 = faces_info[Face].Elem2Inf;
 }
 
+void Mesh::GetFaceOrientations(int Face, int *Orientation1, int *Orientation2) const
+{
+   *Orientation1 = faces_info[Face].Elem1Inf % 64;
+   *Orientation2 = faces_info[Face].Elem2Inf % 64;
+}
+
+void Mesh::GetFaceIds(int Face, int *FaceId1, int *FaceId2) const
+{
+   *FaceId1 = faces_info[Face].Elem1Inf/64;
+   *FaceId2 = faces_info[Face].Elem2Inf/64;
+}
+
 void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
 {
    *Inf1   = faces_info[Face].Elem1Inf;

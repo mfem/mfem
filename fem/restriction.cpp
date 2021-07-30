@@ -540,7 +540,7 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-int inline Get_dof_from_ijk(int i,int j,int k,int dof1d)
+int inline Get_dof_from_ijk(int i, int j, int k, int dof1d)
 {
    return i + dof1d*j + dof1d*dof1d*k;
 }
@@ -692,6 +692,43 @@ void GetNormalDFaceDofStencil(const int dim,
          }
 #endif
    }
+}
+
+int GetGid(const int ipid, 
+           const int k, 
+           const int dof1d,
+           const int elemid,
+           const int elem_dofs,
+           Array<int> &facemap,
+           const int* elementMap)
+{
+   const int face_dof = facemap[ipid*dof1d+k];
+   const int gid = elementMap[elemid*elem_dofs + face_dof];
+
+/*
+   std::cout << "ipid = " << ipid << std::endl;
+   std::cout << "k = " << k << std::endl;
+   std::cout << "ipid*dof1d+k = " << ipid*dof1d+k << std::endl;
+   std::cout << "face_dof = " << face_dof << std::endl;
+   std::cout << "elemid " << elemid << std::endl;
+   std::cout << "gid " << gid << std::endl;
+   if( face_dof != gid  )
+   {
+      exit(1);
+   }   
+   std::cout << "-------------------------------- " << std::endl;
+*/
+   return gid;
+}
+
+int GetLid(const int d,
+           const int k, 
+           const int face_id,
+           const int dof1d,
+           const int dof)
+{
+   const int lid = dof*face_id + dof1d*d + k;
+   return lid;
 }
 
 void GetGradFaceDofStencil(const int dim, 
@@ -860,31 +897,20 @@ void GetGradFaceDofStencil(const int dim,
          }
 #endif
    }
-}
 
-int GetGid(const int ipid, 
-           const int k, 
-           const int dof1d,
-           const int elemid,
-           const int elem_dofs,
-           Array<int> &facemap,
-           const int* elementMap)
-{
-   const int face_dof = facemap[ipid*dof1d+k];
-   const int gid = elementMap[elemid*elem_dofs + face_dof];
-   //std::cout << "gid " << gid << std::endl;
-   return gid;
-}
 
-int GetLid(const int d,
-           const int k, 
-           const int face_id,
-           const int dof1d,
-           const int dof)
-{
-   const int lid = dof*face_id + dof1d*d + k;
-   //std::cout << "lid " << lid << std::endl;
-   return lid;
+
+/*
+   std::cout << "face maps id = "<< face_id <<  "------------" << std::endl;
+   bool flag = false;
+   for( int i = 0 ; i < facemapnor.Size() ; i++ )
+   {
+      std::cout << i << " : " << facemapnor[i] << " " << facemaptan1[i] << " " <<  facemaptan2[i] << std::endl;
+   }
+   std::cout << "end face maps ------------" << std::endl;
+*/
+
+
 }
 
 void GetVectorCoefficients2D(Vector &v1,
@@ -1862,7 +1888,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          : 0),
      elemDofs(fes.GetFE(0)->GetDof()),
      m(m),
-     nfdofs(nf*dof*dof1d),
+     nfdofs(nf*dof),
      scatter_indices1(nf*dof*dof1d),
      scatter_indices_tan1(nf*dof*dof1d),
      scatter_indices_tan2(nf*dof*dof1d),
@@ -1872,10 +1898,40 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
      offsets_nor(ndofs+1),
      offsets_tan1(ndofs+1),
      offsets_tan2(ndofs+1),
-     gather_indices_nor((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d*2),
-     gather_indices_tan1((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d*2),
-     gather_indices_tan2((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d*2)
+     gather_indices_nor((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d),
+     gather_indices_tan1((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d),
+     gather_indices_tan2((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d)
 {
+
+#ifdef MFEM_DEBUG   
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   for (int i = 0; i < nf*dof*dof1d ; i++ )
+   {
+     scatter_indices1[i] = 999;
+     scatter_indices_tan1[i] = 999;
+     scatter_indices_tan2[i] = 999;
+     scatter_indices2[i] = 999;
+     scatter_indices2_tan1[i] = 999;
+     scatter_indices2_tan2[i] = 999;
+   } 
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   for (int i = 0; i < ndofs+1 ; i++ )
+   {
+      offsets_nor[i] = 999;
+      offsets_tan1[i] = 999;
+      offsets_tan2[i] = 999;
+   }
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+   for (int i = 0; i < (m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d  ; i++ )
+   {
+     gather_indices_nor[i] = 999;
+     gather_indices_tan1[i] = 999;
+     gather_indices_tan2[i] = 999;
+   }
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
 }
 
 L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes,
@@ -1900,7 +1956,8 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    if (nf==0) { return; }
 
    // Operator parameters
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nfdofs*2;
+   // double valued? * vector dims * face dofs * stencil dofs * num derivatives
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nfdofs;
    width = fes.GetVSize();
 
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -1959,14 +2016,12 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if (dof_reorder)
       {
+         fes.GetMesh()->GetFaceOrientations(f, &orientation1, &orientation2);
+         fes.GetMesh()->GetFaceIds(f, &face_id1, &face_id2);
          Array<int> V, E, Eo;
          fes.GetMesh()->GetElementVertices(e1, V);
          fes.GetMesh()->GetElementEdges(e1, E, Eo);
-         orientation1 = inf1 % 64;
-         face_id1 = inf1 / 64;
          GetGradFaceDofStencil(dim, face_id1, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
-         orientation2 = inf2 % 64;
-         face_id2 = inf2 / 64;
          GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorother, facemaptan1other, facemaptan2other);
          orientation1 = Eo[face_id1];
          orientation2 = Eo[face_id2];
@@ -2341,17 +2396,20 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       bool int_face_match = type==FaceType::Interior && e2>=0;
       bool bdy_face_match = type==FaceType::Boundary && e2<0;
 
-      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (bdy_face_match && inf2<0) )
       {
-         orientation1 = inf1 % 64;
-         face_id1 = inf1 / 64;
+
+         fes.GetMesh()->GetFaceOrientations(f, &orientation1, &orientation2);
+         fes.GetMesh()->GetFaceIds(f, &face_id1, &face_id2);
+         Array<int> V, E, Eo;
+         fes.GetMesh()->GetElementVertices(e1, V);
+         fes.GetMesh()->GetElementEdges(e1, E, Eo);
+
          GetGradFaceDofStencil(dim, face_id1, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
-         orientation2 = inf2 % 64;
-         face_id2 = inf2 / 64;
-         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
+         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorother, facemaptan1other, facemaptan2other);
+         orientation1 = Eo[face_id1];
+         orientation2 = Eo[face_id2];
 
          for (int d = 0; d < dof; ++d)
          {
@@ -2402,6 +2460,35 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       }
    }
 
+
+/*
+#ifdef MFEM_DEBUG
+
+   std::cout << " scatter_indices " << std::endl;
+   for (int i = 0; i < nf*dof*dof1d ; i++)
+   {
+      std::cout << i << " : " << 
+      scatter_indices1[i] << " " <<
+      scatter_indices_tan1[i] << " " <<
+      scatter_indices_tan2[i]  << " " <<
+      scatter_indices2[i] << " " <<
+      scatter_indices2_tan1[i] << " " <<
+      scatter_indices2_tan2[i]  << std::endl;
+   }
+   std::cout << "end scatter_indices " << std::endl;
+
+   std::cout << " offsets pre " << std::endl;
+   for (int i = 0; i < ndofs+1; i++)
+   {
+      std::cout << i << " : " << 
+      offsets_nor[i] << " " <<
+      offsets_tan1[i] << " " <<
+      offsets_tan2[i]  << std::endl;
+   }
+   std::cout << "end offsets pre " << std::endl;
+#endif
+*/
+
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    for (int i = 1; i <= ndofs; ++i)
    {
@@ -2414,6 +2501,20 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    }
    f_ind = 0;
 
+/*
+#ifdef MFEM_DEBUG
+   std::cout << " offsets post " << std::endl;
+   for (int i = 0; i < ndofs+1; i++)
+   {
+      std::cout << i << " : " << 
+      offsets_nor[i] << " " <<
+      offsets_tan1[i] << " " <<
+      offsets_tan2[i]  << std::endl;
+   }
+   std::cout << "end offsets post " << std::endl;
+#endif
+*/
+
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
@@ -2425,14 +2526,18 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (bdy_face_match && inf2<0) )
       {
-         orientation1 = inf1 % 64;
-         face_id1 = inf1 / 64;
-         GetGradFaceDofStencil(dim, face_id1, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
-         orientation2 = inf2 % 64;
-         face_id2 = inf2 / 64;
-         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorother, facemaptan1other, facemaptan2other);
 
+         fes.GetMesh()->GetFaceOrientations(f, &orientation1, &orientation2);
+         fes.GetMesh()->GetFaceIds(f, &face_id1, &face_id2);
+         Array<int> V, E, Eo;
+         fes.GetMesh()->GetElementVertices(e1, V);
+         fes.GetMesh()->GetElementEdges(e1, E, Eo);
+         GetGradFaceDofStencil(dim, face_id1, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
+         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorother, facemaptan1other, facemaptan2other);
+         orientation1 = Eo[face_id1];
+         orientation2 = Eo[face_id2];
          for (int d = 0; d < dof; ++d)
+         {
             for (int k = 0; k < dof1d; ++k)
             {
                int gid = GetGid(d, k, dof1d, e1, elem_dofs, facemapnorself, elementMap);
@@ -2456,25 +2561,28 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                }
 
             }
+         }
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
+            {
                for (int k = 0; k < dof1d; ++k)
                {
                   if (int_face_match) // interior face
                   {
+                     // double check all of this logic 
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                 orientation2, dof1d, d);
                      int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorother, elementMap);
                      int lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
                      int offset = offsets_nor[gid];
-                     gather_indices_nor[offset] = nfdofs + lid;
+                     gather_indices_nor[offset] = nfdofs*dof1d + lid;
                      offsets_nor[gid]++;
 
                      gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
                      lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
                      offset = offsets_tan1[gid];
-                     gather_indices_tan1[offset] = nfdofs + lid;
+                     gather_indices_tan1[offset] = nfdofs*dof1d + lid;
                      offsets_tan1[gid]++;
                      if( dim == 3 )
                      {
@@ -2482,11 +2590,12 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                         lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
                         // We shift lid to express that it's e2 of f
                         offset = offsets_tan2[gid];
-                        gather_indices_tan2[offset] = nfdofs + lid;
+                        gather_indices_tan2[offset] = nfdofs*dof1d + lid;
                         offsets_tan2[gid]++;
                      }
                   }
                }
+            }
          }
          f_ind++;
       }
@@ -2508,17 +2617,44 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    {
       offsets_tan2[0] = 0;
    }
+
+/*
+#ifdef MFEM_DEBUG
+   std::cout << " elementMap " << std::endl;
+   for (int i = 0; i < elemDofs*ne ; i++)
+   {
+      std::cout << i << " : " << 
+      elementMap[i] << std::endl;
+   }
+   std::cout << "end elementMap " << std::endl;
+
+   std::cout << " dof = " << dof  << std::endl;
+   std::cout << " dof1d = " << dof1d  << std::endl;
+   std::cout << " nf = " << nf  << std::endl;
+
+   std::cout << " gather_indices " << std::endl;
+   for (int i = 0; i < 2*nf*dof*dof1d ; i++)
+   {
+      std::cout << i << " : " << 
+      gather_indices_nor[i] << " " <<
+      gather_indices_tan1[i] << " " <<
+      gather_indices_tan2[i]  << std::endl;
+   }
+   std::cout << "end gather_indices " << std::endl;
+#endif
+   */
 }
 
 void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 {
 
+#ifdef MFEM_DEBUG
    std::cout << " restrict x" << std::endl;
    x.Print(std::cout,1);
    std::cout << " end restrict x" << std::endl;
+#endif
 
    // Assumes all elements have the same number of dofs, nd
-   //const int dim = fes.GetMesh()->SpaceDimension();
    const int vd = vdim;
    const int dim = fes.GetMesh()->SpaceDimension();
    // is x transposed?
@@ -2546,12 +2682,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
          const int fdof = (i/dof1d) % dof;
          const int face = i / (dof1d*dof);
          const int idx1 = d_indices1[i];
-         const int idxt1s = d_indicestan1self[i];         
-         int idxt2s = 0;
-         if(dim == 3)
-         {
-            idxt2s = d_indicestan2self[i];
-         }
+         const int idxt1s = d_indicestan1self[i];
+         const int idxt2s = (dim == 3)? d_indicestan2self[i] : 0;
          for (int c = 0; c < vd; ++c)
          {  
             d_y( fdof , c, 0, face, 0) += d_x(t?c:idx1, t?idx1:c)*u_face(k,fdof,face,0);
@@ -2606,9 +2738,12 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
+
+#ifdef MFEM_DEBUG
    std::cout << "multT x " << std::endl;
    x.Print(std::cout,1);
    std::cout << "end multT x " << std::endl;
+#endif
 
    auto u_face    = Reshape(Bf.Read(), dof1d, dof, nf, 2);
    auto dudn_face = Reshape(Gf.Read(), dof1d, dof, nf, 2, 3);
@@ -2637,12 +2772,34 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
             for (int j = offset; j < nextOffset; ++j)
             {
                int idx_j0 = d_indices_nor[j];
-               bool isE1 = idx_j0 < nfdofs;
+               bool isE1 = idx_j0 < nfdofs*dof1d;
                // we use e1 e2 but then use D0 D1 in the PA kernel 
-               int idx_j = isE1 ? idx_j0 : idx_j0 - nfdofs;
+               int idx_j = isE1 ? idx_j0 : idx_j0 - nfdofs*dof1d;
                int s = idx_j % dof1d;
-               int did = (idx_j/dof1d) % dof1d;
+               int did = (idx_j/dof1d) % dof;
                int faceid = idx_j / (dof1d*dof);
+
+#ifdef MFEM_DEBUG
+                  std::cout << "% RnorT " 
+                        << " i " << i
+                        << " offset " << offset
+                        << " nextOffset " << nextOffset
+                        << " j " << j
+                        << " idx_j0 " << idx_j0
+                        << " did " << did 
+                        << " faceid " << faceid 
+                        << " s " << s 
+                        << " isE1 " << isE1 
+                        << " dx1 " << d_x( did, c, 0, faceid, 0)
+                        << " dx1' " << d_x( did, c, 0, faceid, 1)
+                        << " u " << u_face(s,did,faceid,0)
+                        << " dudn1 " << dudn_face(s,did,faceid,0,0)
+                        << " dx*dy " << d_x( did, c, 0, faceid, 0)*u_face(s,did,faceid,0)
+                        << " dx'*dy " << d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,0)
+                        << " dyi " << d_y(t?c:i,t?i:c)
+                        << std::endl;
+#endif
+
                if( isE1 )
                {
                   d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 0)*u_face(s,did,faceid,0);
@@ -2655,6 +2812,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                }
             }
          }
+
          offset = d_offsets_tan1[i];
          nextOffset = d_offsets_tan1[i + 1];
          for (int c = 0; c < vd; ++c)
@@ -2662,12 +2820,33 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
             for (int j = offset; j < nextOffset; ++j)
             {
                int idx_j0 = d_indices_tan1[j];
-               bool isE1 = idx_j0 < nfdofs;
+               bool isE1 = idx_j0 < nfdofs*dof1d;
                // we use e1 e2 but then use D0 D1 in the PA kernel 
-               int idx_j = isE1 ? idx_j0 : idx_j0 - nfdofs;
+               int idx_j = isE1 ? idx_j0 : idx_j0 - nfdofs*dof1d;
                int s = idx_j % dof1d;
-               int did = (idx_j/dof1d) % dof1d;
+               int did = (idx_j/dof1d) % dof;
                int faceid = idx_j / (dof1d*dof);
+
+
+#ifdef MFEM_DEBUG
+               std::cout << "% Rtan1T " 
+                     << " i " << i
+                     << " offset " << offset
+                     << " nextOffset " << nextOffset
+                     << " j " << j
+                     << " idx_j0 " << idx_j0
+                     << " did " << did 
+                     << " faceid " << faceid 
+                     << " s " << s 
+                     << " isE1 " << isE1 
+                     << " dx1 " << d_x( did, c, 0, faceid, 0)
+                     << " dx1' " << d_x( did, c, 0, faceid, 1)
+                     << " dudn1 " << dudn_face(s,did,faceid,0,1)
+                     << " dx'*dy " << d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,1)
+                     << " dyi " << d_y(t?c:i,t?i:c)
+                     << std::endl;
+#endif
+
                if( isE1 )
                {
                   d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,1);
@@ -2678,6 +2857,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                }
             }
          }
+
          if( dim >= 3 )
          {
             offset = d_offsets_tan2[i];
@@ -2687,12 +2867,32 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                for (int j = offset; j < nextOffset; ++j)
                {
                   int idx_j0 = d_indices_tan2[j];
-                  bool isE1 = idx_j0 < nfdofs;
+                  bool isE1 = idx_j0 < nfdofs*dof1d;
                   // we use e1 e2 but then use D0 D1 in the PA kernel 
-                  int idx_j = isE1 ? idx_j0 : idx_j0 - nfdofs;
+                  int idx_j = isE1 ? idx_j0 : idx_j0 - nfdofs*dof1d;
                   int s = idx_j % dof1d;
-                  int did = (idx_j/dof1d) % dof1d;
+                  int did = (idx_j/dof1d) % dof;
                   int faceid = idx_j / (dof1d*dof);
+
+#ifdef MFEM_DEBUG
+               std::cout << "% Rtan2T " 
+                     << " i " << i
+                     << " offset " << offset
+                     << " nextOffset " << nextOffset
+                     << " j " << j
+                     << " idx_j0 " << idx_j0
+                     << " did " << did 
+                     << " faceid " << faceid 
+                     << " s " << s 
+                     << " isE1 " << isE1 
+                     << " dx1 " << d_x( did, c, 0, faceid, 0)
+                     << " dx1' " << d_x( did, c, 0, faceid, 1)
+                     << " dudn1 " << dudn_face(s,did,faceid,0,2)
+                     << " dx'*dy " << d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,2)
+                     << " dyi " << d_y(t?c:i,t?i:c)
+                     << std::endl;
+#endif
+
                   if( isE1 )
                   {
                      d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,2);
@@ -2711,9 +2911,11 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
       mfem_error("not yet implemented.");
    }
 
+#ifdef MFEM_DEBUG
    std::cout << "multT y " << std::endl;
    y.Print(std::cout,1);
    std::cout << "end multT y " << std::endl;
+#endif
 
 }
 }
