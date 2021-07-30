@@ -3139,19 +3139,10 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    HypreParMatrix* R;
    R = new HypreParMatrix(MyComm, dof_offsets[nrk], old_dof_offsets[nrk],
-                          dof_offsets, old_dof_offsets, diag, offd, cmap);
+                          dof_offsets, old_dof_offsets, diag, offd, cmap,
+                          true);
 
-#ifndef HYPRE_BIGINT
-   diag->LoseData();
-   offd->LoseData();
-#else
-   diag->SetDataOwner(false);
-   offd->SetDataOwner(false);
-#endif
-   delete diag;
-   delete offd;
-
-   R->SetOwnerFlags(3, 3, 1);
+   R->SetOwnerFlags(R->OwnsDiag(), R->OwnsOffd(), 1);
 
    return R;
 }
