@@ -30,6 +30,9 @@
 //               We recommend viewing examples 1 and 9 before viewing this
 //               example.
 
+// ./ex14 -pa -m ../data/inline-hex.mesh  --lob -i 2 -k -1 -s -0 -b 0 --noint --bdy -r 1 -o 1 &> ex14out.log
+
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -406,8 +409,6 @@ int main(int argc, char *argv[])
       exit(1);
    }
 
-   exit(1);
-
    int print_iter = 3;
    int max_num_iter = 800;
    double rtol = 1.0e-12;
@@ -603,8 +604,4 @@ double x1(const Vector &x)
 
 double x2(const Vector &x)
 {
-   //std::cout << "init = @(x,y) x;  " << std::endl;   
-   return x(0);//*x(0)*x(1)*x(1);//exp(x(1));
-   //std::cout << "init = @(x,y) x;  " << std::endl;
-   //return x(0);//*x(0)*exp(x(1));
-}
+   return x(0);
