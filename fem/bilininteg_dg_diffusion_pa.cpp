@@ -61,7 +61,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    auto Qreshaped =
       const_Q ? Reshape(Q->Read(), 1,1) : Reshape(Q->Read(), Q1D,NF);
    */
-   auto wgts = weights.Read();
 
    // convert Q to a vector
    Vector Qcoeff;
@@ -130,11 +129,13 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    coeff_data_3 = 0.0;
 
 
+#ifdef MFEM_DEBUG
    std::cout << " nq = " << nq << std::endl;
    std::cout << " dim = " << dim << std::endl;
    std::cout << " nf = " << nf << std::endl;
    std::cout << " fes.GetNF() = " << fes.GetNF() << std::endl;
-   
+#endif 
+  
    auto op1 = Reshape(coeff_data_1.Write(), nq, NS, NS, nf);
    auto op2 = Reshape(coeff_data_2.Write(), nq, NS, nf);
    auto op3 = Reshape(coeff_data_3.Write(), nq, NS, nf);
@@ -161,7 +162,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          const FiniteElement &el2 =
          *fes.GetTraceElement(e1, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
 
-         double w, wq = 0.0;
+         double w = 0.0;
          const IntegrationRule *ir = IntRule;
          if (ir == NULL)
          {
@@ -195,10 +196,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             const IntegrationPoint &ip = ir->IntPoint(p);
             // Set the integration point in the face and the neighboring elements
             Trans.SetAllIntPoints(&ip);
-            // Access the neighboring elements' integration points
-            // Note: eip2 will only contain valid data if Elem2 exists
-            const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-            const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
             w = ip.weight;///Trans.Elem1->Weight();
             if (int_type_match)
