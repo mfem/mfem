@@ -1439,7 +1439,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
-     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
+     scatter_indices_neighbor(m==L2FaceValues::DoubleValued?nf*dof:0),
      offsets(ndofs+1),
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
@@ -1536,12 +1536,12 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                   const int did = face_dof;
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = gid;
+                  scatter_indices_neighbor[lid] = gid;
                }
                else if (type==FaceType::Boundary && e2<0) // true boundary face
                {
                   const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = -1;
+                  scatter_indices_neighbor[lid] = -1;
                }
             }
          }
@@ -1656,7 +1656,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices2.Read();
+      auto d_indices2 = scatter_indices_neighbor.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       MFEM_FORALL(i, nfdofs,
@@ -1754,7 +1754,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
-   auto d_indices2 = scatter_indices2.Read();
+   auto d_indices2 = scatter_indices_neighbor.Read();
    auto I = mat.ReadWriteI();
    MFEM_FORALL(fdof, nf*face_dofs,
    {
@@ -1771,7 +1771,7 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
-   auto d_indices2 = scatter_indices2.Read();
+   auto d_indices2 = scatter_indices_neighbor.Read();
    auto I = mat.ReadWriteI();
    auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
    auto J = mat.WriteJ();
@@ -1805,7 +1805,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices2.Read();
+      auto d_indices2 = scatter_indices_neighbor.Read();
       auto mat_fea = Reshape(fea_data.Read(), face_dofs, face_dofs, 2, nf);
       auto mat_ea = Reshape(ea_data.ReadWrite(), elem_dofs, elem_dofs, ne);
       MFEM_FORALL(f, nf,
@@ -1892,9 +1892,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
      scatter_indices1(nf*dof*dof1d),
      scatter_indices_tan1(nf*dof*dof1d),
      scatter_indices_tan2(nf*dof*dof1d),
-     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
-     scatter_indices2_tan1(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
-     scatter_indices2_tan2(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
+     scatter_indices_neighbor(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
+     scatter_indices_neighbor_tan1(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
+     scatter_indices_neighbor_tan2(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
      offsets_nor(ndofs+1),
      offsets_tan1(ndofs+1),
      offsets_tan2(ndofs+1),
@@ -1910,9 +1910,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
      scatter_indices1[i] = 999;
      scatter_indices_tan1[i] = 999;
      scatter_indices_tan2[i] = 999;
-     scatter_indices2[i] = 999;
-     scatter_indices2_tan1[i] = 999;
-     scatter_indices2_tan2[i] = 999;
+     scatter_indices_neighbor[i] = 999;
+     scatter_indices_neighbor_tan1[i] = 999;
+     scatter_indices_neighbor_tan2[i] = 999;
    } 
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    for (int i = 0; i < ndofs+1 ; i++ )
@@ -1979,9 +1979,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   Array<int> facemapnorself(dof*dof1d), facemapnorother(dof*dof1d);
+   Array<int> facemapnorself(dof*dof1d), facemapnorneighbor(dof*dof1d);
    Array<int> facemaptan1self(dof*dof1d), facemaptan2self(dof*dof1d);
-   Array<int> facemaptan1other(dof*dof1d), facemaptan2other(dof*dof1d);
+   Array<int> facemaptan1neighbor(dof*dof1d), facemaptan2neighbor(dof*dof1d);
    int e1, e2;
    int inf1, inf2;
    int face_id1, face_id2;
@@ -2022,7 +2022,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          fes.GetMesh()->GetElementVertices(e1, V);
          fes.GetMesh()->GetElementEdges(e1, E, Eo);
          GetGradFaceDofStencil(dim, face_id1, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
-         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorother, facemaptan1other, facemaptan2other);
+         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorneighbor, facemaptan1neighbor, facemaptan2neighbor);
          orientation1 = Eo[face_id1];
          orientation2 = Eo[face_id2];
       }
@@ -2128,8 +2128,8 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             fes.GetMesh()->GetElementTransformation(e1)->Transform(pb,locR);
             if (int_face_match)
             {
-               IntegrationPoint &pb_other = ir_glob_element.IntPoint(facemapnorother[p*dof1d+0]); 
-               fes.GetMesh()->GetElementTransformation(e2)->Transform(pb_other,locR2);
+               IntegrationPoint &pb_neighbor = ir_glob_element.IntPoint(facemapnorneighbor[p*dof1d+0]); 
+               fes.GetMesh()->GetElementTransformation(e2)->Transform(pb_neighbor,locR2);
             }
 
             for (int l = 0; l < NP1d; l++)
@@ -2174,9 +2174,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                }
                if (int_face_match)
                {
-                  const int pn_2  = facemapnorother[p*dof1d+l];
-                  const int pt1_2 = facemaptan1other[p*dof1d+l];
-                  const int pt2_2 = (dim == 3)? facemaptan2other[p*dof1d+l]:0;
+                  const int pn_2  = facemapnorneighbor[p*dof1d+l];
+                  const int pt1_2 = facemaptan1neighbor[p*dof1d+l];
+                  const int pt2_2 = (dim == 3)? facemaptan2neighbor[p*dof1d+l]:0;
 
                   IntegrationPoint &ip_nor_2 = ir_glob_element.IntPoint(pn_2); 
                   IntegrationPoint &ip_tan1_2 = ir_glob_element.IntPoint(pt1_2); 
@@ -2346,27 +2346,27 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   // For double-values face dofs, compute second scatter index
                   if (int_face_match) // interior face
                   {
-                     gid = GetGid(d, k, dof1d, e2, elem_dofs, facemapnorother, elementMap);
+                     gid = GetGid(d, k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);
                      lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
-                     scatter_indices2[lid] = gid;
+                     scatter_indices_neighbor[lid] = gid;
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                 orientation1, dof1d, d);
-                     const int gid = GetGid(pd, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
+                     const int gid = GetGid(pd, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
                      const int lid = GetLid(pd, (orientation2==1)? k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
-                     scatter_indices2_tan1[lid] = gid;
+                     scatter_indices_neighbor_tan1[lid] = gid;
                      if( dim == 3)
                      {
-                        const int gid = GetGid(d, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2other, elementMap);
+                        const int gid = GetGid(d, (orientation2==1)? k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
                         const int lid = GetLid(d, (orientation2==1)? k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
-                        scatter_indices2_tan2[lid] = gid;
+                        scatter_indices_neighbor_tan2[lid] = gid;
                      }
                   }
                   else if (bdy_face_match) // true boundary face
                   {
                      const int lid = GetLid(d, k, f_ind, dof1d, dof1d*dof);
-                     scatter_indices2[lid] = -1;
-                     scatter_indices2_tan1[lid] = -1;
-                     scatter_indices2_tan2[lid] = -1;
+                     scatter_indices_neighbor[lid] = -1;
+                     scatter_indices_neighbor_tan1[lid] = -1;
+                     scatter_indices_neighbor_tan2[lid] = -1;
                   }
                }
             }
@@ -2407,7 +2407,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          fes.GetMesh()->GetElementEdges(e1, E, Eo);
 
          GetGradFaceDofStencil(dim, face_id1, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
-         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorother, facemaptan1other, facemaptan2other);
+         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorneighbor, facemaptan1neighbor, facemaptan2neighbor);
          orientation1 = Eo[face_id1];
          orientation2 = Eo[face_id2];
 
@@ -2442,15 +2442,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                                                    dof1d, 
                                                    d);
 
-                     int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorother, elementMap);                     
+                     int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);                     
                      ++offsets_nor[gid + 1];
 
-                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
+                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
                      ++offsets_tan1[gid + 1];
 
                      if( dim == 3 )
                      {
-                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2other, elementMap);
+                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
                         ++offsets_tan2[gid + 1];
                      }
                   }
@@ -2471,9 +2471,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       scatter_indices1[i] << " " <<
       scatter_indices_tan1[i] << " " <<
       scatter_indices_tan2[i]  << " " <<
-      scatter_indices2[i] << " " <<
-      scatter_indices2_tan1[i] << " " <<
-      scatter_indices2_tan2[i]  << std::endl;
+      scatter_indices_neighbor[i] << " " <<
+      scatter_indices_neighbor_tan1[i] << " " <<
+      scatter_indices_neighbor_tan2[i]  << std::endl;
    }
    std::cout << "end scatter_indices " << std::endl;
 
@@ -2533,7 +2533,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          fes.GetMesh()->GetElementVertices(e1, V);
          fes.GetMesh()->GetElementEdges(e1, E, Eo);
          GetGradFaceDofStencil(dim, face_id1, dof1d, facemapnorself, facemaptan1self, facemaptan2self);
-         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorother, facemaptan1other, facemaptan2other);
+         GetGradFaceDofStencil(dim, face_id2, dof1d, facemapnorneighbor, facemaptan1neighbor, facemaptan2neighbor);
          orientation1 = Eo[face_id1];
          orientation2 = Eo[face_id2];
          for (int d = 0; d < dof; ++d)
@@ -2573,20 +2573,20 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                      // double check all of this logic 
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                 orientation2, dof1d, d);
-                     int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorother, elementMap);
+                     int gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemapnorneighbor, elementMap);
                      int lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
                      int offset = offsets_nor[gid];
                      gather_indices_nor[offset] = nfdofs*dof1d + lid;
                      offsets_nor[gid]++;
 
-                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1other, elementMap);
+                     gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan1neighbor, elementMap);
                      lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
                      offset = offsets_tan1[gid];
                      gather_indices_tan1[offset] = nfdofs*dof1d + lid;
                      offsets_tan1[gid]++;
                      if( dim == 3 )
                      {
-                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2other, elementMap);
+                        gid = GetGid(pd, orientation2==1?k:dof1d-1-k, dof1d, e2, elem_dofs, facemaptan2neighbor, elementMap);
                         lid = GetLid(pd, orientation2==1?k:dof1d-1-k, f_ind, dof1d, dof1d*dof);
                         // We shift lid to express that it's e2 of f
                         offset = offsets_tan2[gid];
@@ -2669,9 +2669,9 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       auto d_indicestan1self = scatter_indices_tan1.Read();
       auto d_indicestan2self = scatter_indices_tan2.Read();
 
-      auto d_indices2 = scatter_indices2.Read();
-      auto d_indicestan1other = scatter_indices2_tan1.Read();
-      auto d_indicestan2other = scatter_indices2_tan2.Read();
+      auto d_indices2 = scatter_indices_neighbor.Read();
+      auto d_indicestan1neighbor = scatter_indices_neighbor_tan1.Read();
+      auto d_indicestan2neighbor = scatter_indices_neighbor_tan2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), dof, vd, 2, nf, 2);
 
@@ -2697,11 +2697,11 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 
          // neighbor side 
          const int idx2 = d_indices2[i];
-         const int idxt1o = d_indicestan1other[i];
+         const int idxt1o = d_indicestan1neighbor[i];
          int idxt2o = 0;
          if( dim==3 )
          {
-            idxt2o = d_indicestan2other[i];
+            idxt2o = d_indicestan2neighbor[i];
          }
          if( idx2==-1 )
          {
@@ -2731,9 +2731,11 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       mfem_error("not yet implemented.");
    }
 
+#ifdef MFEM_DEBUG
    std::cout << " restrict y" << std::endl;
    y.Print(std::cout,1);
    std::cout << " end restrict y" << std::endl;
+#endif
 }
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const

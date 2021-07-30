@@ -605,3 +605,4 @@ double x1(const Vector &x)
 double x2(const Vector &x)
 {
    return x(0);
+}
