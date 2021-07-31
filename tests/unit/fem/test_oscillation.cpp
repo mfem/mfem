@@ -73,7 +73,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
    SECTION("Perfect Approximation X")
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionX);
-      
+
       CoefficientRefiner coeffrefiner(order);
       coeffrefiner.SetCoefficient(u_analytic);
       coeffrefiner.PreprocessMesh(*pmesh);
@@ -97,7 +97,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
    SECTION("Nonsmooth Approximation X")
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionX);
-      
+
       CoefficientRefiner coeffrefiner(order);
       coeffrefiner.SetCoefficient(u_analytic);
       coeffrefiner.PreprocessMesh(*pmesh);
@@ -109,7 +109,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
    SECTION("Nonsmooth Approximation Y")
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionY);
-      
+
       CoefficientRefiner coeffrefiner(order);
       coeffrefiner.SetCoefficient(u_analytic);
       coeffrefiner.PreprocessMesh(*pmesh);
@@ -188,7 +188,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    SECTION("Perfect Approximation X")
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionX);
-      
+
       CoefficientRefiner coeffrefiner(order);
       coeffrefiner.SetCoefficient(u_analytic);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
@@ -200,7 +200,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    SECTION("Perfect Approximation Y")
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionY);
-      
+
       CoefficientRefiner coeffrefiner(order);
       coeffrefiner.SetCoefficient(u_analytic);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
@@ -212,7 +212,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    SECTION("Nonsmooth Approximation X")
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionX);
-      
+
       CoefficientRefiner coeffrefiner(order);
       coeffrefiner.SetCoefficient(u_analytic);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
@@ -224,7 +224,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    SECTION("Nonsmooth Approximation Y")
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionY);
-      
+
       CoefficientRefiner coeffrefiner(order);
       coeffrefiner.SetCoefficient(u_analytic);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
