@@ -213,14 +213,6 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
          globalNE = pmesh->GetGlobalNE();
 #endif
       }
-      
-      // Exit if the maximum number of elements has been reached.
-      if (globalNE > max_elements)
-      {
-         delete l2fes;
-         delete gf;
-         return STOP;
-      }
 
       // Compute L2-norm of f
       double norm_of_coeff = 0.0;
@@ -267,28 +259,43 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 #endif
       relative_osc = sqrt(relative_osc)/(norm_of_coeff + 1e-10);
 
-      // Exit if there are no elements to refine.
-      int num_marked_elements = mesh.ReduceInt(mesh_refinements.Size());
-      if (num_marked_elements == 0)
+      // // Exit if the maximum number of elements has been reached.
+      // if (globalNE > max_elements)
+      // {
+      //    MFEM_WARNING("Reached maximum number of elements.");
+      //    delete l2fes;
+      //    delete gf;
+      //    return STOP;
+      // }
+
+      // Exit if the global threshold or maximum number of elements is reached.
+      if (relative_osc < threshold || globalNE > max_elements)
       {
+         if (relative_osc > threshold && globalNE > max_elements)
+         {
+            MFEM_WARNING("Reached maximum number of elements "
+                         "before resolving data to tolerance.");
+         }
          delete l2fes;
          delete gf;
          return STOP;
       }
 
-      // Refine elements
+      // // Exit if there are no elements left to refine.
+      // int num_marked_elements = mesh.ReduceInt(mesh_refinements.Size());
+      // if (num_marked_elements == 0)
+      // {
+      //    delete l2fes;
+      //    delete gf;
+      //    return STOP;
+      // }
+
+      // Refine elements.
       mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
       l2fes->Update(false);
       gf->Update();
 
-      // Exit if the global threshold has been reached.
-      if (relative_osc < threshold)
-      {
-         delete l2fes;
-         delete gf;
-         return STOP;
-      }
-   }
+}
    delete l2fes;
    delete gf;
    return CONTINUE + REFINED;
@@ -299,7 +306,7 @@ void CoefficientRefiner::Reset()
 {
    relative_osc = 0.0;
    coeff = NULL;
-   *irs = NULL;
+   irs = NULL;
 }
 
 
