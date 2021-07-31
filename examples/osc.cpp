@@ -2,17 +2,17 @@
 //
 // Compile with: make ex30
 //
-// Sample runs:  ex30 -m ../data/square-disc.mesh -o 1
-//               ex30 -m ../data/square-disc.mesh -o 2
-//               ex30 -m ../data/square-disc.mesh -o 2 -me 1e3
-//               ex30 -m ../data/square-disc-nurbs.mesh -o 2
-//               ex30 -m ../data/star.mesh -o 3 -eo 4
-//               ex30 -m ../data/fichera.mesh -o 2 -me 1e4
-//               ex30 -m ../data/disc-nurbs.mesh -o 2
-//               ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
-//               ex30 -m ../data/star-surf.mesh -o 2
-//               ex30 -m ../data/square-disc-surf.mesh -o 2
-//               ex30 -m ../data/amr-quad.mesh -l 2
+// Sample runs:  osc -m ../data/square-disc.mesh -o 1
+//               osc -m ../data/square-disc.mesh -o 2
+//               osc -m ../data/square-disc.mesh -o 2 -me 1e3
+//               osc -m ../data/square-disc-nurbs.mesh -o 2
+//               osc -m ../data/star.mesh -o 2 -eo 4
+//               osc -m ../data/fichera.mesh -o 2 -me 1e4
+//               osc -m ../data/disc-nurbs.mesh -o 2
+//               osc -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
+//               osc -m ../data/star-surf.mesh -o 2
+//               osc -m ../data/square-disc-surf.mesh -o 2
+//               osc -m ../data/amr-quad.mesh -l 2
 //
 // Description:  This is an example of adaptive mesh refinement preprocessing
 //               which lowers the data oscillation [1] to a user-defined
@@ -53,7 +53,7 @@ double affine_function(const Vector &p)
    }
    else
    {
-      return 0.0;
+      return 1.0;
    }
 }
 
@@ -61,7 +61,7 @@ double affine_function(const Vector &p)
 double jump_function(const Vector &p)
 {
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
-   if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 2; }
+   if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 5; }
    return 0;
 }
 
@@ -172,21 +172,21 @@ int main(int argc, char *argv[])
    mfem::out << "Function 0 (affine) \n";
    mfem::out << "Number of Elements " << mesh.GetNE() << "\n";
    mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
-   mfem::out  << "\n";
 
    // 8. Preprocess mesh to control osc (jump function).
    coeffrefiner.SetCoefficient(jump_coeff);
    coeffrefiner.PreprocessMesh(mesh);
 
+   mfem::out  << "\n";
    mfem::out << "Function 1 (discontinuous) \n";
    mfem::out << "Number of Elements " << mesh.GetNE() << "\n";
    mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
-   mfem::out  << "\n";
 
    // 9. Preprocess mesh to control osc (singular function).
    coeffrefiner.SetCoefficient(singular_coeff);
    coeffrefiner.PreprocessMesh(mesh);
 
+   mfem::out  << "\n";
    mfem::out << "Function 2 (singular) \n";
    mfem::out << "Number of Elements " << mesh.GetNE() << "\n";
    mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
