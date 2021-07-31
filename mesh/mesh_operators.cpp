@@ -204,26 +204,20 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
    for (int i = 0; i < max_it; i++)
    {
 
-      // Compute number of elements.
+      // Compute number of elements and L2-norm of f.
       int NE = mesh.GetNE();
-      int globalNE = NE;
-      if (par)
-      {
-#ifdef MFEM_USE_MPI
-         globalNE = pmesh->GetGlobalNE();
-#endif
-      }
-
-      // Compute L2-norm of f
+      int globalNE = 0;
       double norm_of_coeff = 0.0;
       if (par)
       {
 #ifdef MFEM_USE_MPI
+         globalNE = pmesh->GetGlobalNE();
          norm_of_coeff = ComputeGlobalLpNorm(2.0,*coeff,*pmesh,irs);
 #endif
       }
       else
       {
+         globalNE = NE;
          norm_of_coeff = ComputeLpNorm(2.0,*coeff,mesh,irs);
       }
 
@@ -259,15 +253,6 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 #endif
       relative_osc = sqrt(relative_osc)/(norm_of_coeff + 1e-10);
 
-      // // Exit if the maximum number of elements has been reached.
-      // if (globalNE > max_elements)
-      // {
-      //    MFEM_WARNING("Reached maximum number of elements.");
-      //    delete l2fes;
-      //    delete gf;
-      //    return STOP;
-      // }
-
       // Exit if the global threshold or maximum number of elements is reached.
       if (relative_osc < threshold || globalNE > max_elements)
       {
@@ -280,15 +265,6 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
          delete gf;
          return STOP;
       }
-
-      // // Exit if there are no elements left to refine.
-      // int num_marked_elements = mesh.ReduceInt(mesh_refinements.Size());
-      // if (num_marked_elements == 0)
-      // {
-      //    delete l2fes;
-      //    delete gf;
-      //    return STOP;
-      // }
 
       // Refine elements.
       mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);

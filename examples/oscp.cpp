@@ -2,18 +2,17 @@
 //
 // Compile with: make ex30p
 //
-// Sample runs:  mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 1
-//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 2  ???
-//               mpirun -np 4 ex30p -m ../data/star.mesh -o 3
-//               mpirun -np 4 ex30p -m ../data/escher.mesh -o 2  ???
-//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 2 !!!
-//               mpirun -np 4 ex30p -m ../data/disc-nurbs.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/ball-nurbs.mesh
-//               mpirun -np 4 ex30p -m ../data/pipe-nurbs.mesh
-//               mpirun -np 4 ex30p -m ../data/star-surf.mesh -o 2 ???
-//               mpirun -np 4 ex30p -m ../data/square-disc-surf.mesh -o 2  ???
-//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh
+// Sample runs:  mpirun -np 4 ex30 -m ../data/square-disc.mesh -o 1
+//               mpirun -np 4 ex30 -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex30 -m ../data/square-disc.mesh -o 2 -me 1e3
+//               mpirun -np 4 ex30 -m ../data/square-disc-nurbs.mesh -o 2
+//               mpirun -np 4 ex30 -m ../data/star.mesh -o 3 -eo 4
+//               mpirun -np 4 ex30 -m ../data/fichera.mesh -o 2 -me 1e4
+//               mpirun -np 4 ex30 -m ../data/disc-nurbs.mesh -o 2
+//               mpirun -np 4 ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
+//               mpirun -np 4 ex30 -m ../data/star-surf.mesh -o 2
+//               mpirun -np 4 ex30 -m ../data/square-disc-surf.mesh -o 2
+//               mpirun -np 4 ex30 -m ../data/amr-quad.mesh -l 2
 //
 // Description:  This is an example of adaptive mesh refinement preprocessing
 //               which lowers the data oscillation [1] to a user-defined
@@ -30,6 +29,10 @@
 //               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000).
 //                   Data oscillation and convergence of adaptive FEM. SIAM
 //                   Journal on Numerical Analysis, 38(2), 466-488.
+//
+//               [2] Mitchell, W. F. (2013). A collection of 2D elliptic
+//                   problems for testing adaptive grid refinement algorithms.
+//                   Applied mathematics and computation, 220, 350-364.
 
 
 #include "mfem.hpp"
@@ -40,20 +43,31 @@ using namespace std;
 using namespace mfem;
 
 
-double function0(const Vector &p)
+// Piecewise-affine function which is sometimes mesh-conforming
+double affine_function(const Vector &p)
 {
    double x = p(0), y = p(1);
-   return 1.0 + x + y;
+   if (x < 0.0)
+   {
+      return 1.0 + x + y;
+   }
+   else
+   {
+      return 0.0;
+   }
 }
 
-double function1(const Vector &p)
+// Piecewise-constant function which is never mesh-conforming
+double jump_function(const Vector &p)
 {
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
    if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 2; }
    return 0;
 }
 
-double function2(const Vector &p)
+// Singular function derived from the Laplacian of the "steep wavefront"
+// problem in [2].
+double singular_function(const Vector &p)
 {
    double x = p(0), y = p(1);
    double alpha = 1000.0;
@@ -80,9 +94,11 @@ int main(int argc, char *argv[])
    int order = 1;
    int nc_limit = 1;
    int max_elems = 1e5;
+   double double_max_elems = double(max_elems);
    bool visualization = true;
    bool nc_simplices = true;
    double osc_threshold = 1e-3;
+   int enriched_order = 5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -91,13 +107,15 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&nc_limit, "-l", "--nc-limit",
                   "Maximum level of hanging nodes.");
-   args.AddOption(&max_elems, "-me", "--max-elems",
+   args.AddOption(&double_max_elems, "-me", "--max-elems",
                   "Stop after reaching this many elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&osc_threshold, "-e", "--error",
                   "relative data oscillation threshold");
+   args.AddOption(&enriched_order, "-eo", "--enriched_order",
+                  "Enriched quadrature order.");
    args.AddOption(&nc_simplices, "-ns", "--nonconforming-simplices",
                   "-cs", "--conforming-simplices",
                   "For simplicial meshes, enable/disable nonconforming"
@@ -118,9 +136,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   max_elems = int(double_max_elems);
    Mesh mesh(mesh_file, 1, 1);
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
 
    // 2. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
@@ -134,20 +151,25 @@ int main(int argc, char *argv[])
       mesh.SetCurvature(2);
    }
 
-   // 7. Make sure the mesh is in the non-conforming mode to enable local
+   // 3. Make sure the mesh is in the non-conforming mode to enable local
    //    refinement of quadrilaterals/hexahedra, and the above partitioning
    //    algorithm. Simplices can be refined either in conforming or in non-
    //    conforming mode. The conforming mode however does not support
    //    dynamic partitioning.
    mesh.EnsureNCMesh(nc_simplices);
 
-   // 2. Define functions and refiner.
-   FunctionCoefficient coeff0(function0);
-   FunctionCoefficient coeff1(function1);
-   FunctionCoefficient coeff2(function2);
+   // 4. Define a parallel mesh by partitioning the serial mesh.
+   //    Once the parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+
+   // 5. Define functions and refiner.
+   FunctionCoefficient affine_coeff(affine_function);
+   FunctionCoefficient jump_coeff(jump_function);
+   FunctionCoefficient singular_coeff(singular_function);
    CoefficientRefiner coeffrefiner(order);
 
-   // 2. Connect to GLVis.
+   // 6. Connect to GLVis.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
@@ -156,42 +178,63 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
    }
 
+   // 7. Define custom integration rule (optional).
    const IntegrationRule *irs[Geometry::NumGeom];
-   int order_quad = 2*order + 5;
+   int order_quad = 2*order + enriched_order;
    for (int i=0; i < Geometry::NumGeom; ++i)
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   // 3. Preprocess mesh to control osc
-   coeffrefiner.SetCoefficient(coeff0);
-   coeffrefiner.PreprocessMesh(pmesh);
-
-   mfem::out  << "\n";
-   mfem::out << "Function 0 (affine) \n";
-   mfem::out << "Number of Elements " << pmesh.GetGlobalNE() << "\n";
-   mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
-   mfem::out  << "\n";
-
-   // coeffrefiner.SetIntRule(irs);
+   // 8. Apply custom refiner settings.
+   coeffrefiner.SetIntRule(irs);
    coeffrefiner.SetMaxElements( (long) max_elems);
    coeffrefiner.SetThreshold(osc_threshold);
    coeffrefiner.SetNCLimit(nc_limit);
 
-   coeffrefiner.SetCoefficient(coeff1);
+   // 9. Preprocess mesh to control osc (piecewise-affine function).
+   //    This is mostly just a verification check. The oscillation should
+   //    be zero if the function is mesh-conforming and order > 0.
+   coeffrefiner.SetCoefficient(affine_coeff);
    coeffrefiner.PreprocessMesh(pmesh);
 
-   mfem::out << "Function 1 (discontinuous) \n";
-   mfem::out << "Number of Elements " << pmesh.GetGlobalNE() << "\n";
-   mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
-   mfem::out  << "\n";
+   int globalNE = pmesh.GetGlobalNE();
+   double osc = coeffrefiner.GetOsc();
+   if (myid == 0)
+   {
+      mfem::out  << "\n";
+      mfem::out << "Function 0 (affine) \n";
+      mfem::out << "Number of Elements " << globalNE << "\n";
+      mfem::out << "Osc error " << osc << "\n";
+      mfem::out  << "\n";
+   }
 
-   coeffrefiner.SetCoefficient(coeff2);
+   // 10. Preprocess mesh to control osc (jump function).
+   coeffrefiner.SetCoefficient(jump_coeff);
    coeffrefiner.PreprocessMesh(pmesh);
 
-   mfem::out << "Function 2 (singular) \n";
-   mfem::out << "Number of Elements " << pmesh.GetGlobalNE() << "\n";
-   mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
+   globalNE = pmesh.GetGlobalNE();
+   osc = coeffrefiner.GetOsc();
+   if (myid == 0)
+   {
+      mfem::out << "Function 1 (discontinuous) \n";
+      mfem::out << "Number of Elements " << globalNE << "\n";
+      mfem::out << "Osc error " << osc << "\n";
+      mfem::out  << "\n";
+   }
+
+   // 11. Preprocess mesh to control osc (singular function).
+   coeffrefiner.SetCoefficient(singular_coeff);
+   coeffrefiner.PreprocessMesh(pmesh);
+
+   globalNE = pmesh.GetGlobalNE();
+   osc = coeffrefiner.GetOsc();
+   if (myid == 0)
+   {
+      mfem::out << "Function 2 (singular) \n";
+      mfem::out << "Number of Elements " << globalNE << "\n";
+      mfem::out << "Osc error " << osc << "\n";
+   }
 
    sol_sock.precision(8);
    sol_sock << "parallel " << num_procs << " " << myid << "\n";
