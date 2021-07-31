@@ -1,6 +1,6 @@
-//                            MFEM Example 30
+//                            MFEM Example 30+
 //
-// Compile with: make ex30
+// Compile with: make osc
 //
 // Sample runs:  osc -m ../data/square-disc.mesh -o 1
 //               osc -m ../data/square-disc.mesh -o 2
