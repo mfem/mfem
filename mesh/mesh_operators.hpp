@@ -369,7 +369,10 @@ public:
    void SetMaxElements(long max_elements_) { max_elements = max_elements_; }
 
    /// Set the function f
-   void SetCoefficient(Coefficient &coeff_) { coeff = &coeff_; }
+   void SetCoefficient(Coefficient &coeff_) {
+       relative_osc = 0.0;
+       coeff = &coeff_;
+    }
 
    /// Reset the oscillation order
    void SetOrder(double order_) { order = order_; }

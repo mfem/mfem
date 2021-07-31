@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
    int nc_limit = 1;
    int max_elems = 1e5;
    bool visualization = true;
+   bool nc_simplices = true;
    double osc_threshold = 1e-3;
 
    OptionsParser args(argc, argv);
@@ -97,6 +98,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&osc_threshold, "-e", "--error",
                   "relative data oscillation threshold");
+   args.AddOption(&nc_simplices, "-ns", "--nonconforming-simplices",
+               "-cs", "--conforming-simplices",
+               "For simplicial meshes, enable/disable nonconforming"
+               " refinement");
 
    args.Parse();
    if (!args.Good())
@@ -114,21 +119,27 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh(mesh_file, 1, 1);
-   mesh.EnsureNCMesh();
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // // 2. Since a NURBS mesh can currently only be refined uniformly, we need to
-   // //    convert it to a piecewise-polynomial curved mesh. First we refine the
-   // //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
-   // if (mesh.NURBSext)
-   // {
-   //    for (int i = 0; i < 2; i++)
-   //    {
-   //       mesh.UniformRefinement();
-   //    }
-   //    mesh.SetCurvature(2);
-   // }
+   // 2. Since a NURBS mesh can currently only be refined uniformly, we need to
+   //    convert it to a piecewise-polynomial curved mesh. First we refine the
+   //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
+   if (mesh.NURBSext)
+   {
+      for (int i = 0; i < 2; i++)
+      {
+         mesh.UniformRefinement();
+      }
+      mesh.SetCurvature(2);
+   }
+
+   // 7. Make sure the mesh is in the non-conforming mode to enable local
+   //    refinement of quadrilaterals/hexahedra, and the above partitioning
+   //    algorithm. Simplices can be refined either in conforming or in non-
+   //    conforming mode. The conforming mode however does not support
+   //    dynamic partitioning.
+   mesh.EnsureNCMesh(nc_simplices);
 
    // 2. Define functions and refiner.
    FunctionCoefficient coeff0(function0);
