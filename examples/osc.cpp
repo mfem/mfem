@@ -18,15 +18,15 @@
 //               which lowers the data oscillation [1] to a user-defined
 //               relative threshold. There is no PDE being solved.
 //
-//               MFEM's capability to work with both conforming and 
+//               MFEM's capability to work with both conforming and
 //               nonconforming meshes is demonstrated in example 6. In some
 //               problems, the material data or loading data is not sufficiently
-//               resolved on the initial mesh. This missing fine scale data 
+//               resolved on the initial mesh. This missing fine scale data
 //               reduces the accuracy of the solution as well as the accuracy
 //               of some local error estimators. By preprocessing the mesh
 //               before the solving the PDE, many issues can be avoided.
 //
-//               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000). 
+//               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000).
 //                   Data oscillation and convergence of adaptive FEM. SIAM
 //                   Journal on Numerical Analysis, 38(2), 466-488.
 //
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   
+
    max_elems = int(double_max_elems);
    Mesh mesh(mesh_file, 1, 1);
 

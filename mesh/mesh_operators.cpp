@@ -203,7 +203,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
    for (int i = 0; i < max_it; i++)
    {
-      
+
       // Compute number of elements.
       int NE = mesh.GetNE();
       int globalNE = NE;
@@ -295,7 +295,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       l2fes->Update(false);
       gf->Update();
 
-}
+   }
    delete l2fes;
    delete gf;
    return CONTINUE + REFINED;
