@@ -1,18 +1,18 @@
 //                        MFEM Example 30 - Parallel Version
 //
-// Compile with: make ex30p
+// Compile with: make oscp
 //
-// Sample runs:  mpirun -np 4 ex30 -m ../data/square-disc.mesh -o 1
-//               mpirun -np 4 ex30 -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex30 -m ../data/square-disc.mesh -o 2 -me 1e3
-//               mpirun -np 4 ex30 -m ../data/square-disc-nurbs.mesh -o 2
-//               mpirun -np 4 ex30 -m ../data/star.mesh -o 3 -eo 4
-//               mpirun -np 4 ex30 -m ../data/fichera.mesh -o 2 -me 1e4
-//               mpirun -np 4 ex30 -m ../data/disc-nurbs.mesh -o 2
-//               mpirun -np 4 ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
-//               mpirun -np 4 ex30 -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 ex30 -m ../data/square-disc-surf.mesh -o 2
-//               mpirun -np 4 ex30 -m ../data/amr-quad.mesh -l 2
+// Sample runs:  mpirun -np 4 oscp -m ../data/square-disc.mesh -o 1
+//               mpirun -np 4 oscp -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 oscp -m ../data/square-disc.mesh -o 2 -me 1e3
+//               mpirun -np 4 oscp -m ../data/square-disc-nurbs.mesh -o 2
+//               mpirun -np 4 oscp -m ../data/star.mesh -o 2 -eo 4
+//               mpirun -np 4 oscp -m ../data/fichera.mesh -o 2 -me 1e4
+//               mpirun -np 4 oscp -m ../data/disc-nurbs.mesh -o 2
+//               mpirun -np 4 oscp -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2
+//               mpirun -np 4 oscp -m ../data/star-surf.mesh -o 2
+//               mpirun -np 4 oscp -m ../data/square-disc-surf.mesh -o 2
+//               mpirun -np 4 oscp -m ../data/amr-quad.mesh -l 2
 //
 // Description:  This is an example of adaptive mesh refinement preprocessing
 //               which lowers the data oscillation [1] to a user-defined
@@ -53,7 +53,7 @@ double affine_function(const Vector &p)
    }
    else
    {
-      return 0.0;
+      return 1.0;
    }
 }
 
@@ -61,7 +61,7 @@ double affine_function(const Vector &p)
 double jump_function(const Vector &p)
 {
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
-   if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 2; }
+   if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 5; }
    return 0;
 }
 
@@ -206,7 +206,6 @@ int main(int argc, char *argv[])
       mfem::out << "Function 0 (affine) \n";
       mfem::out << "Number of Elements " << globalNE << "\n";
       mfem::out << "Osc error " << osc << "\n";
-      mfem::out  << "\n";
    }
 
    // 10. Preprocess mesh to control osc (jump function).
@@ -217,10 +216,10 @@ int main(int argc, char *argv[])
    osc = coeffrefiner.GetOsc();
    if (myid == 0)
    {
+      mfem::out  << "\n";
       mfem::out << "Function 1 (discontinuous) \n";
       mfem::out << "Number of Elements " << globalNE << "\n";
       mfem::out << "Osc error " << osc << "\n";
-      mfem::out  << "\n";
    }
 
    // 11. Preprocess mesh to control osc (singular function).
@@ -231,6 +230,7 @@ int main(int argc, char *argv[])
    osc = coeffrefiner.GetOsc();
    if (myid == 0)
    {
+      mfem::out  << "\n";
       mfem::out << "Function 2 (singular) \n";
       mfem::out << "Number of Elements " << globalNE << "\n";
       mfem::out << "Osc error " << osc << "\n";

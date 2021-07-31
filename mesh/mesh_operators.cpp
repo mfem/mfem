@@ -165,6 +165,7 @@ int CoefficientRefiner::ApplyImpl(Mesh &mesh)
 
 int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 {
+   int rank = 0;
    MFEM_VERIFY(max_it > 0, "max_it must be strictly positive")
    MFEM_VERIFY(coeff, "Coefficient is not set for CoefficientRefiner object")
 
@@ -247,8 +248,9 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 #ifdef MFEM_USE_MPI
       if (par)
       {
-         MPI_Allreduce(MPI_IN_PLACE, &relative_osc, 1, MPI_DOUBLE, MPI_SUM,
-                       pmesh->GetComm());
+         MPI_Comm comm = pmesh->GetComm();
+         MPI_Allreduce(MPI_IN_PLACE, &relative_osc, 1, MPI_DOUBLE, MPI_SUM, comm);
+         MPI_Comm_rank(comm, &rank);
       }
 #endif
       relative_osc = sqrt(relative_osc)/(norm_of_coeff + 1e-10);
@@ -256,7 +258,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       // Exit if the global threshold or maximum number of elements is reached.
       if (relative_osc < threshold || globalNE > max_elements)
       {
-         if (relative_osc > threshold && globalNE > max_elements)
+         if (relative_osc > threshold && globalNE > max_elements && rank == 0)
          {
             MFEM_WARNING("Reached maximum number of elements "
                          "before resolving data to tolerance.");
