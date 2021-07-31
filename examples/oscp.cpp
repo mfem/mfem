@@ -1,4 +1,4 @@
-//                        MFEM Example 30 - Parallel Version
+//                        MFEM Example 30+ - Parallel Version
 //
 // Compile with: make oscp
 //
