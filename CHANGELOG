@@ -10,6 +10,7 @@
 
 Version 4.3.1 (development)
 ===========================
+- Added support for hr-adaptivity using TMOP-based error estimator.
 
 
 Version 4.3, released on July 29, 2021
@@ -279,8 +280,6 @@ Miscellaneous
 - Added HIP support to the CMake build system.
 
 - Various other simplifications, extensions, and bugfixes in the code.
-
-- Added support for hr-adaptivity using TMOP-based error estimator.
 
 API changes
 -----------
