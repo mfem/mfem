@@ -100,8 +100,8 @@ protected:
    HypreParMatrix *T; // T = M + dt K
    double current_dt;
 
-   mutable CGSolver M_solver;    // Krylov solver for inverting the mass matrix M
-   HypreSmoother M_prec; // Preconditioner for the mass matrix M
+   mutable CGSolver M_solver; // Krylov solver for inverting the mass matrix M
+   HypreSmoother M_prec;      // Preconditioner for the mass matrix M
 
    CGSolver T_solver;    // Implicit solver for T = M + dt K
    HypreSmoother T_prec; // Preconditioner for the implicit solver
@@ -421,10 +421,10 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
    Array<int> ess_bdr(f.GetParMesh()->bdr_attributes.Max());
    // Dirichlet boundary condition on inlet and isothermal section of wall.
    ess_bdr = 0;
-   ess_bdr[0] = 1; //inlet
-   ess_bdr[1] = 1; //homogeneous isothermal section of bottom wall
-   ess_bdr[2] = 0; //top wall
-   ess_bdr[3] = 0; //inhomogeneous isothermal section of bottom wall
+   ess_bdr[0] = 1; // inlet
+   ess_bdr[1] = 1; // homogeneous isothermal section of bottom wall
+   ess_bdr[2] = 0; // top wall
+   ess_bdr[3] = 0; // inhomogeneous isothermal section of bottom wall
    f.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    M = new ParBilinearForm(&fespace);
