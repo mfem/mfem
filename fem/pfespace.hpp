@@ -291,7 +291,7 @@ public:
    /** Returns pointer to the FiniteElement in the FiniteElementCollection
        associated with i'th element in the mesh object. If @a i is greater than
        or equal to the number of local mesh elements, @a i will be interpreted
-       as a shifted index of a face neigbor element. */
+       as a shifted index of a face neighbor element. */
    virtual const FiniteElement *GetFE(int i) const;
 
    /** Returns an Operator that converts L-vectors to E-vectors on each face.
@@ -299,7 +299,7 @@ public:
        presence of shared faces. Shared faces are treated as interior faces,
        the returned operator handles the communication needed to get the
        shared face values from other MPI ranks */
-   virtual const Operator *GetFaceRestriction(
+   virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering e_ordering, FaceType type,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 

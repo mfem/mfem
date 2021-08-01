@@ -17,6 +17,9 @@
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
+#ifdef MFEM_USE_MPI
+#include <HYPRE_config.h> // HYPRE_USING_CUDA
+#endif
 
 namespace mfem
 {
@@ -89,6 +92,9 @@ inline bool IsDeviceMemory(MemoryType mt)
 
 /// Return a suitable MemoryType for a given MemoryClass.
 MemoryType GetMemoryType(MemoryClass mc);
+
+/// Return true iff the MemoryType @a mt is contained in the MemoryClass @a mc.
+bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
 
 /// Return a suitable MemoryClass from a pair of MemoryClass%es.
 /** Note: this operation is commutative, i.e. a*b = b*a, associative, i.e.
@@ -463,6 +469,13 @@ public:
        returned. */
    inline MemoryType GetMemoryType() const;
 
+   /// Return the host MemoryType of the Memory object.
+   inline MemoryType GetHostMemoryType() const { return h_mt; }
+
+   /** @brief Return the device MemoryType of the Memory object. If the device
+       MemoryType is not set, return MemoryType::DEFAULT. */
+   inline MemoryType GetDeviceMemoryType() const;
+
    /** @brief Return true if host pointer is valid */
    inline bool HostIsValid() const;
 
@@ -595,9 +608,9 @@ private: // Static methods used by the Memory<T> class
                           bool own, bool alias, unsigned &flags);
 
    /// Register a pair of external host and device pointers
-   static void Register_(void *h_ptr, void *d_ptr, size_t bytes,
-                         MemoryType h_mt, MemoryType d_mt,
-                         bool own, bool alias, unsigned &flags);
+   static void Register2_(void *h_ptr, void *d_ptr, size_t bytes,
+                          MemoryType h_mt, MemoryType d_mt,
+                          bool own, bool alias, unsigned &flags);
 
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
@@ -634,13 +647,13 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
-   static MemoryType GetDeviceMemoryType_(void *h_ptr);
+   static MemoryType GetDeviceMemoryType_(void *h_ptr, bool alias);
 
    /// Return the type the of the host memory.
    static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
-   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
+   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr, bool alias);
 
    /// Copy entries from valid memory type to valid memory type.
    ///  Both dest_h_ptr and src_h_ptr are registered host pointers.
@@ -850,15 +863,21 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
    h_ptr = ptr;
    capacity = size;
-   const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
-   { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
+   {
+      MemoryType h_ptr_mt = MemoryManager::GetHostMemoryType_(h_ptr);
+      MFEM_VERIFY(h_mt == h_ptr_mt,
+                  "h_mt = " << (int)h_mt << ", h_ptr_mt = " << (int)h_ptr_mt);
+   }
 #endif
    if (own && h_mt != MemoryType::HOST)
-   { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
+   {
+      const size_t bytes = size*sizeof(T);
+      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
+   }
 }
 
 template <typename T>
@@ -879,7 +898,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    else
    {
       h_mt = MemoryManager::GetDualMemoryType(mt);
-      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
+      h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
    }
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
@@ -896,7 +915,8 @@ inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
    MFEM_ASSERT(IsHostMemory(h_mt),"");
    const size_t bytes = size*sizeof(T);
    const MemoryType d_mt = MemoryManager::GetDualMemoryType(h_mt);
-   MemoryManager::Register_(h_ptr, d_ptr, bytes, h_mt, d_mt, own, false, flags);
+   MemoryManager::Register2_(h_ptr, d_ptr, bytes, h_mt, d_mt,
+                             own, false, flags);
 }
 
 template <typename T>
@@ -906,13 +926,35 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
-   { flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE); }
-   else
    {
-      const size_t s_bytes = size*sizeof(T);
-      const size_t o_bytes = offset*sizeof(T);
-      MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
+      if (
+#ifndef HYPRE_USING_CUDA
+         // If the following condition is true then MemoryManager::Exists()
+         // should also be true:
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
+#else
+         // When HYPRE_USING_CUDA is defined we always register the 'base' if
+         // the MemoryManager::Exists():
+         MemoryManager::Exists()
+#endif
+      )
+      {
+         // Register 'base':
+         MemoryManager::Register_(base.h_ptr, nullptr, base.capacity*sizeof(T),
+                                  base.h_mt, base.flags & OWNS_HOST,
+                                  base.flags & ALIAS, base.flags);
+      }
+      else
+      {
+         // Copy the flags from 'base', setting the ALIAS flag to true, and
+         // setting both OWNS_HOST and OWNS_DEVICE to false:
+         flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
+         return;
+      }
    }
+   const size_t s_bytes = size*sizeof(T);
+   const size_t o_bytes = offset*sizeof(T);
+   MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
 }
 
 template <typename T>
@@ -1068,7 +1110,14 @@ template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & VALID_DEVICE)) { return h_mt; }
-   return MemoryManager::GetDeviceMemoryType_(h_ptr);
+   return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
+}
+
+template <typename T>
+inline MemoryType Memory<T>::GetDeviceMemoryType() const
+{
+   if (!(flags & REGISTERED)) { return MemoryType::DEFAULT; }
+   return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 
 template <typename T>
