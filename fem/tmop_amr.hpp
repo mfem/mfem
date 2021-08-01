@@ -24,8 +24,8 @@ namespace mfem
 class TMOPRefinerEstimator : public AnisotropicErrorEstimator
 {
 protected:
-   Mesh *mesh; //not-owned
-   NonlinearForm *nlf; //not-owned
+   Mesh *mesh; // not owned
+   NonlinearForm *nlf; // not owned
    int order;
    int amrmetric;
    Array<IntegrationRule *> TriIntRule, QuadIntRule, TetIntRule, HexIntRule;
@@ -35,8 +35,8 @@ protected:
    // An element is refined only if
    // [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
    double energy_scaling_factor;
-   GridFunction *spat_gf;          // If specified, can be used to specify the
-   double spat_gf_critical;        // the region where hr-adaptivity is done.
+   GridFunction *spat_gf;   // If specified, can be used to specify the
+   double spat_gf_critical; // region where hr-adaptivity is done.
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
