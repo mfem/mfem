@@ -186,6 +186,11 @@ if (MFEM_USE_ADIOS2)
   list(APPEND HDRS adios2datacollection.hpp)
 endif()
 
+if (MFEM_USE_FMS)
+  list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
+  list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
+endif()
+
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     pbilinearform.cpp
