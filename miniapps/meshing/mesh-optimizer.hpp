@@ -240,7 +240,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (hr_target_type == 0) //size only circle
+      if (hr_target_type == 0) // size only circle
       {
          double small = 0.001, big = 0.01;
          if (dim == 3) { small = 0.005, big = 0.1; }
@@ -267,7 +267,7 @@ public:
          K(1, 1) *= pow(val,0.5);
          if (dim == 3) { K(2, 2) = pow(val,0.5); }
       }
-      else if (hr_target_type == 1) //circle with size and AR
+      else if (hr_target_type == 1) // circle with size and AR
       {
          const double small = 0.001, big = 0.01;
          const double xc = pos(0)-0.5, yc = pos(1)-0.5;
@@ -312,7 +312,7 @@ public:
          K(0,0) *= pow(szval,0.5);
          K(1,1) *= pow(szval,0.5);
       }
-      else if (hr_target_type == 2) //sharp rotated sine wave
+      else if (hr_target_type == 2) // sharp rotated sine wave
       {
          double xc = pos(0)-0.5, yc = pos(1)-0.5;
          double th = 15.5*M_PI/180.;
@@ -378,13 +378,13 @@ double adapt_lim_fun(const Vector &x)
 
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
-   //Setup the Laplacian operator
+   // Setup the Laplacian operator
    BilinearForm *Lap = new BilinearForm(field.FESpace());
    Lap->AddDomainIntegrator(new DiffusionIntegrator());
    Lap->Assemble();
    Lap->Finalize();
 
-   //Setup the smoothing operator
+   // Setup the smoothing operator
    DSmoother *S = new DSmoother(0,1.0,smooth_steps);
    S->iterative_mode = true;
    S->SetOperator(Lap->SpMat());
@@ -400,7 +400,7 @@ void DiffuseField(GridFunction &field, int smooth_steps)
 #ifdef MFEM_USE_MPI
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
-   //Setup the Laplacian operator
+   // Setup the Laplacian operator
    ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
    Lap->AddDomainIntegrator(new DiffusionIntegrator());
    Lap->Assemble();

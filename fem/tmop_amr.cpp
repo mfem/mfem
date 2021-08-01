@@ -80,7 +80,7 @@ void TMOPRefinerEstimator::ComputeEstimates()
    }
 
    error_estimates -= amr_base_energy;
-   error_estimates *= -1; //error = E(parent) - scaling_factor*mean(E(children))
+   error_estimates *= -1; // error = E(parent) - scaling_factor*mean(E(children))
    current_sequence = mesh->GetSequence();
 }
 
