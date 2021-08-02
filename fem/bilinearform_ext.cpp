@@ -125,6 +125,11 @@ void MFBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+
+   MFEM_VERIFY(interior_face_integs.Size() == 0,
+               "the case of interior face integrators is not"
+               " implemented");
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
@@ -183,6 +188,10 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
 void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(interior_face_integs.Size() == 0,
+               "the case of interior face integrators is not"
+               " implemented");
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
    if (elem_restrict)
@@ -1204,6 +1213,9 @@ void PAMixedBilinearFormExtension::SetupMultInputs(
 
 void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(interior_face_integs.Size() == 0,
+               "the case of interior face integrators is not"
+               " implemented");
    y = 0.0;
    AddMult(x, y);
 }
@@ -1211,6 +1223,9 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
                                            const double c) const
 {
+   MFEM_VERIFY(interior_face_integs.Size() == 0,
+               "the case of interior face integrators is not"
+               " implemented");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
@@ -1236,6 +1251,9 @@ void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
 void PAMixedBilinearFormExtension::MultTranspose(const Vector &x,
                                                  Vector &y) const
 {
+   MFEM_VERIFY(interior_face_integs.Size() == 0,
+               "the case of interior face integrators is not"
+               " implemented");
    y = 0.0;
    AddMultTranspose(x, y);
 }
@@ -1243,6 +1261,9 @@ void PAMixedBilinearFormExtension::MultTranspose(const Vector &x,
 void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
                                                     const double c) const
 {
+   MFEM_VERIFY(interior_face_integs.Size() == 0,
+               "the case of interior face integrators is not"
+               " implemented");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
