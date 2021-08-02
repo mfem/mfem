@@ -75,12 +75,14 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
 
       if (count == ir.GetNPoints()) // completely outside
       {
+         MFEM_VERIFY(elem_marker[i] != SBElementType::OUTSIDE,
+                     "An element cannot be excluded by more than 1 level-set.");
          elem_marker[i] = SBElementType::OUTSIDE;
       }
       else if (count > 0) // partially outside
       {
          MFEM_VERIFY(elem_marker[i] <= SBElementType::OUTSIDE,
-                     " One element cut by multiple level-sets.");
+                     "An element cannot be cut by multiple level-sets.");
          elem_marker[i] = SBElementType::CUT + level_set_index;
       }
    }

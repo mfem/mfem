@@ -208,11 +208,6 @@ double unity(const Vector &x)
    return 0.015;
 }
 
-double zero(const Vector &x)
-{
-   return 0.0;
-}
-
 double dirichlet_velocity_xy_exponent(const Vector &x)
 {
    double xy_p = 2.; // exponent for level set 2 where u = x^p+y^p;
@@ -231,21 +226,21 @@ double neumann_velocity_circle(const Vector &x)
 }
 
 /// Normal vector for level_set_type = 1. Circle centered at [0.5 , 0.5]
-void normal_vector(const Vector &x, Vector &p)
+void normal_vector_1(const Vector &x, Vector &p)
 {
    p.SetSize(x.Size());
    p(0) = x(0)-0.5;
-   p(1) = x(1)-0.5; //center of circle at [0.5, 0.5]
+   p(1) = x(1)-0.5; // center of circle at [0.5, 0.5]
    p /= p.Norml2();
    p *= -1;
 }
 
-/// Normal vector for level_set_type = 6. Circle centered at [0.75 , 0.25]
-void normal_vector2(const Vector &x, Vector &p)
+/// Normal vector for level_set_type = 7. Circle centered at [0.75 , 0.25]
+void normal_vector_2(const Vector &x, Vector &p)
 {
    p.SetSize(x.Size());
    p(0) = x(0)-0.5;
-   p(1) = x(1)-0.6; //center of circle at [0.5, 0.6]
+   p(1) = x(1)-0.6; // center of circle at [0.5, 0.6]
    p /= p.Norml2();
    p *= -1;
 }

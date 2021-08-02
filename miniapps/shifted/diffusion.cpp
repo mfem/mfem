@@ -65,6 +65,7 @@
 //            inhomogeneous Dirichlet, and square hole with homogeneous Dirichlet
 //            boundary condition.
 // mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dlstc 6
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "sbm_aux.hpp"
@@ -406,7 +407,7 @@ int main(int argc, char *argv[])
    ShiftedFunctionCoefficient *dbcCoefCombo = NULL;
    if (dirichlet_level_set_type_combo == 6)
    {
-      dbcCoefCombo = new ShiftedFunctionCoefficient(unity);
+      dbcCoefCombo = new ShiftedFunctionCoefficient(ConstantCoefficient(0.015));
    }
 
    // Homogeneous Neumann boundary condition coefficient
@@ -414,21 +415,26 @@ int main(int argc, char *argv[])
    ShiftedVectorFunctionCoefficient *normalbcCoef = NULL;
    if (neumann_level_set_type == 1)
    {
-      normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector);
+      normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector_1);
    }
    else if (neumann_level_set_type == 7)
    {
-      normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector2);
+      normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector_2);
    }
    else if (neumann_level_set_type > 0)
    {
       MFEM_ABORT(" Normal vector coefficient not implemented for level set.");
    }
+
    // Add integrators corresponding to the shifted boundary method (SBM)
    // for Dirichlet boundaries.
-   int cut_marker_offset = 0;
-   Array<int> bilinear_dirichlet_marker(0),
-         bilinear_neumann_marker(0);
+   // For each LinearFormIntegrator, we indicate the marker that we have used
+   // for the cut-cell corresponding to the level-set.
+   int ls_cut_marker = ShiftedFaceMarker::SBElementType::CUT;
+   // For each BilinearFormIntegrators, we make a list of the markers
+   // corresponding to the cut-cell whose faces they will be applied to.
+   Array<int> bf_dirichlet_marker(0),
+              bf_neumann_marker(0);
 
    if (dirichlet_level_set_type > 0)
    {
@@ -437,49 +443,42 @@ int main(int argc, char *argv[])
                                                                 elem_marker,
                                                                 include_cut_cell,
                                                                 ho_terms,
-                                                                cut_marker_offset));
+                                                                ls_cut_marker));
       b.AddBdrFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
                                                            alpha, *dist_vec,
                                                            elem_marker,
                                                            include_cut_cell,
                                                            ho_terms,
-                                                           cut_marker_offset), ess_shift_bdr);
-      bilinear_dirichlet_marker.Append(ShiftedFaceMarker::SBElementType::CUT
-                                       +cut_marker_offset);
-      cut_marker_offset += 1;
+                                                           ls_cut_marker),
+                             ess_shift_bdr);
+      bf_dirichlet_marker.Append(ls_cut_marker);
    }
 
    if (dirichlet_level_set_type_combo == 6)
    {
+
+      ls_cut_marker += 1;
       b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoefCombo,
                                                                 alpha, *dist_vec,
                                                                 elem_marker,
                                                                 include_cut_cell,
                                                                 ho_terms,
-                                                                cut_marker_offset));
-      bilinear_dirichlet_marker.Append(ShiftedFaceMarker::SBElementType::CUT
-                                       +cut_marker_offset);
-      cut_marker_offset += 1;
+                                                                ls_cut_marker));
+      bf_dirichlet_marker.Append(ls_cut_marker);
    }
 
    // Add integrators corresponding to the shifted boundary method (SBM)
    // for Neumann boundaries.
    if (neumann_level_set_type > 0)
    {
+      ls_cut_marker += 1;
       b.AddInteriorFaceIntegrator(new SBM2NeumannLFIntegrator(
                                      &pmesh, nbcCoef, alpha, *dist_vec, *normalbcCoef,
-                                     elem_marker, include_cut_cell, ho_terms, cut_marker_offset));
-      bilinear_neumann_marker.Append(ShiftedFaceMarker::SBElementType::CUT
-                                     +cut_marker_offset);
-      cut_marker_offset += 1;
+                                     elem_marker, include_cut_cell, ho_terms, ls_cut_marker));
+      bf_neumann_marker.Append(ls_cut_marker);
    }
 
    b.Assemble();
-
-   //   elem_marker.Print();
-   //   bilinear_dirichlet_marker.Print();
-   //   bilinear_neumann_marker.Print();
-   //   MFEM_ABORT(" ");
 
    // Set up the bilinear form a(.,.) on the finite element space corresponding
    // to the Laplacian operator -Delta, by adding the Diffusion domain
@@ -492,12 +491,12 @@ int main(int argc, char *argv[])
       a.AddInteriorFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha,
                                                               *dist_vec,
                                                               elem_marker,
-                                                              bilinear_dirichlet_marker,
+                                                              bf_dirichlet_marker,
                                                               include_cut_cell,
                                                               ho_terms));
       a.AddBdrFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha, *dist_vec,
                                                          elem_marker,
-                                                         bilinear_dirichlet_marker,
+                                                         bf_dirichlet_marker,
                                                          include_cut_cell,
                                                          ho_terms), ess_shift_bdr);
    }
@@ -509,7 +508,7 @@ int main(int argc, char *argv[])
                                                             *dist_vec,
                                                             *normalbcCoef,
                                                             elem_marker,
-                                                            bilinear_neumann_marker,
+                                                            bf_neumann_marker,
                                                             include_cut_cell,
                                                             ho_terms));
    }
@@ -520,24 +519,10 @@ int main(int argc, char *argv[])
 
    // Project the exact solution as an initial condition for Dirichlet boundary.
    x = 0.0;
-   if (dirichlet_level_set_type > 0)
+   if (dirichlet_level_set_type > 0 && dirichlet_level_set_type_combo != 6)
    {
-      //x.ProjectCoefficient(*dbcCoef);
-      if (dirichlet_level_set_type_combo == 6)
-      {
-         x = 0.0;
-      }
+      x.ProjectCoefficient(*dbcCoef);
    }
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
-      socketstream sol_sock;
-      common::VisualizeField(sol_sock, vishost, visport, x,
-                             "Solution", s, 0, s, s, "Rj");
-   }
-
 
    // Form the linear system and solve it.
    OperatorPtr A;

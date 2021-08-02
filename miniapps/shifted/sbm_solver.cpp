@@ -19,6 +19,8 @@ double ShiftedFunctionCoefficient::Eval(ElementTransformation & T,
                                         const IntegrationPoint & ip,
                                         const Vector &D)
 {
+   if (constantcoefficient) { return constant; }
+
    Vector transip;
    T.Transform(ip, transip);
    for (int i = 0; i < D.Size(); i++)
@@ -395,16 +397,14 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    {
       // 1 is inside and 2 is cut or 1 is a boundary element.
       if ( marker1 == ShiftedFaceMarker::SBElementType::INSIDE &&
-           (marker2 == ShiftedFaceMarker::SBElementType::CUT
-            + cut_cell_marker_offset ||
+           (marker2 == ls_cut_marker ||
             Tr.ElementType == ElementTransformation::BDR_FACE))
       {
          elem1f = true;
          ndof = ndof1;
       }
       // 1 is cut, 2 is inside
-      else if (marker1 == ShiftedFaceMarker::SBElementType::CUT
-               + cut_cell_marker_offset &&
+      else if (marker1 == ls_cut_marker &&
                marker2 == ShiftedFaceMarker::SBElementType::INSIDE)
       {
          if (Tr.Elem2No >= NEproc) { return; }
@@ -419,8 +419,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    else
    {
       // 1 is cut and 2 is outside or 1 is a boundary element.
-      if (marker1 == ShiftedFaceMarker::SBElementType::CUT
-          + cut_cell_marker_offset &&
+      if (marker1 == ls_cut_marker &&
           (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
            Tr.ElementType == ElementTransformation::BDR_FACE))
       {
@@ -429,8 +428,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       }
       // 1 is outside, 2 is cut
       else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
-               marker2 == ShiftedFaceMarker::SBElementType::CUT
-               + cut_cell_marker_offset)
+               marker2 == ls_cut_marker)
       {
          if (Tr.Elem2No >= NEproc) { return; }
          elem1f = false;
@@ -1010,16 +1008,14 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
    {
       // 1 is inside and 2 is cut or 1 is a boundary element.
       if ( marker1 == ShiftedFaceMarker::SBElementType::INSIDE &&
-           (marker2 == ShiftedFaceMarker::SBElementType::CUT
-            + cut_cell_marker_offset ||
+           (marker2 == ls_cut_marker ||
             Tr.ElementType == ElementTransformation::BDR_FACE))
       {
          elem1f = true;
          ndof = ndof1;
       }
       // 1 is cut, 2 is inside
-      else if (marker1 == ShiftedFaceMarker::SBElementType::CUT
-               + cut_cell_marker_offset &&
+      else if (marker1 == ls_cut_marker &&
                marker2 == ShiftedFaceMarker::SBElementType::INSIDE)
       {
          if (Tr.Elem2No >= NEproc) { return; }
@@ -1034,8 +1030,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
    else
    {
       // 1 is cut and 2 is outside or 1 is a boundary element.
-      if (marker1 == ShiftedFaceMarker::SBElementType::CUT
-          + cut_cell_marker_offset &&
+      if (marker1 == ls_cut_marker &&
           (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
            Tr.ElementType == ElementTransformation::BDR_FACE))
       {
@@ -1044,8 +1039,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
       }
       // 1 is outside, 2 is cut
       else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
-               marker2 == ShiftedFaceMarker::SBElementType::CUT
-               + cut_cell_marker_offset)
+               marker2 == ls_cut_marker)
       {
          if (Tr.Elem2No >= NEproc) { return; }
          elem1f = false;
