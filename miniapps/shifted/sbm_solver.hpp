@@ -24,15 +24,22 @@ class ShiftedFunctionCoefficient : public Coefficient
 {
 protected:
    std::function<double(const Vector &)> Function;
+   double constant = 0.0;
+   bool constantcoefficient;
 
 public:
    ShiftedFunctionCoefficient(std::function<double(const Vector &v)> F)
-      : Function(std::move(F)) { }
+      : Function(std::move(F)), constantcoefficient(false) { }
+   ShiftedFunctionCoefficient(ConstantCoefficient C)
+      : constant(C.constant), constantcoefficient(true) { }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-      Vector D(1);
+      if (constantcoefficient) { return constant; }
+      Vector transip;
+      T.Transform(ip, transip);
+      Vector D = transip;
       D = 0.;
       return (this)->Eval(T, ip, D);
    }
@@ -90,10 +97,11 @@ protected:
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
-   int NEproc;                //Number of elements on the current MPI rank
+   int NEproc;                // Number of elements on the current MPI rank
    int par_shared_face_count; //
 
-   Array<int> cut_marker;
+   Array<int> cut_marker;     // Array with marker values for cut-cell
+   // corresponding to the level set that BilinearForm applies to.
 
    // these are not thread-safe!
    Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
@@ -146,15 +154,15 @@ protected:
    ShiftedFunctionCoefficient *uD;
    double alpha;              // Nitsche parameter
    VectorCoefficient *vD;     // Distance function coefficient
-   Array<int> *elem_marker;   //marker indicating whether element is inside,
+   Array<int> *elem_marker;   // marker indicating whether element is inside,
    //cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
-   int NEproc;                //Number of elements on the current MPI rank
+   int NEproc;                // Number of elements on the current MPI rank
    int par_shared_face_count; //
-
-   int cut_cell_marker_offset;
+   int ls_cut_marker;         // Flag used for the cut-cell corresponding to the
+   // level set.
 
    // these are not thread-safe!
    Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
@@ -168,14 +176,14 @@ public:
                              Array<int> &elem_marker_,
                              bool include_cut_cell_ = false,
                              int nterms_ = 0,
-                             int cut_cell_marker_offset_ = 0)
+                             int ls_cut_marker_ = ShiftedFaceMarker::SBElementType::CUT)
       : uD(&u), alpha(alpha_), vD(&vD_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
         nterms(nterms_),
         NEproc(pmesh->GetNE()),
         par_shared_face_count(0),
-        cut_cell_marker_offset(cut_cell_marker_offset_) { }
+        ls_cut_marker(ls_cut_marker_) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -195,14 +203,14 @@ class SBM2NeumannIntegrator : public BilinearFormIntegrator
 {
 protected:
    double alpha;
-   VectorCoefficient *vD; // Distance function coefficient
    ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
-   Array<int> *elem_marker;   //marker indicating whether element is inside,
+   VectorCoefficient *vD;     // Distance function coefficient
+   Array<int> *elem_marker;   // Marker indicating whether element is inside,
    //cut, or outside the domain.
    bool include_cut_cell;
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
-   int NEproc;                //Number of elements on the current MPI rank
+   int NEproc;                // Number of elements on the current MPI rank
    int par_shared_face_count; //
 
    Array<int> cut_marker;
@@ -222,7 +230,7 @@ public:
                          Array<int> &cut_marker_,
                          bool include_cut_cell_ = false,
                          int nterms_ = 0)
-      : alpha(alpha_), vD(&vD_), vN(&vN_),
+      : alpha(alpha_), vN(&vN_), vD(&vD_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
         nterms(nterms_),
@@ -244,17 +252,17 @@ public:
 class SBM2NeumannLFIntegrator : public LinearFormIntegrator
 {
 protected:
-   ShiftedFunctionCoefficient *uN; //Neumann condition on true boundary
-   VectorCoefficient *vD; // Distance function coefficient
-   ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
-   Array<int> *elem_marker;   //marker indicating whether element is inside,
-   double alpha; // Nitsche parameter
-   int nterms;  //Number of terms in addition to the gradient term from Taylor
-   //expansion that should be included. (0 by default).
+    ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
+    ShiftedFunctionCoefficient *uN; // Neumann condition on true boundary
+   VectorCoefficient *vD;     // Distance function coefficient
+   Array<int> *elem_marker;   // Marker indicating whether element is inside,
+   double alpha;              // Nitsche parameter
+   int nterms;                // Number of terms in addition to the gradient
+   // term from Taylor expansion that should be included. (0 by default).
    bool include_cut_cell;
-   int NEproc;                //Number of elements on the current MPI rank
+   int NEproc;                // Number of elements on the current MPI rank
    int par_shared_face_count; //
-   int cut_cell_marker_offset;
+   int ls_cut_marker;
 
    // these are not thread-safe!
    Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
@@ -269,14 +277,14 @@ public:
                            Array<int> &elem_marker_,
                            int nterms_ = 0,
                            bool include_cut_cell_ = true,
-                           int cut_cell_marker_offset_ = 0)
-      : uN(&u), vD(&vD_), vN(&vN_),
+                           int ls_cut_marker_ = ShiftedFaceMarker::SBElementType::CUT)
+      :  vN(&vN_), uN(&u), vD(&vD_),
         elem_marker(&elem_marker_),
         alpha(alpha_), nterms(nterms_),
         include_cut_cell(include_cut_cell_),
         NEproc(pmesh->GetNE()),
         par_shared_face_count(0),
-        cut_cell_marker_offset(cut_cell_marker_offset_) { }
+        ls_cut_marker(ls_cut_marker_) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
