@@ -99,13 +99,12 @@ protected:
    // term from Taylor expansion that should be included. (0 by default).
    int NEproc;                // Number of elements on the current MPI rank
    int par_shared_face_count; //
-
    Array<int> cut_marker;     // Array with marker values for cut-cell
    // corresponding to the level set that BilinearForm applies to.
 
    // these are not thread-safe!
-   Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
-   DenseMatrix jmat, dshape, dshapephys, adjJ;
+   Vector shape, dshapedn, nor, nh, ni;
+   DenseMatrix dshape, dshapephys, adjJ;
 
 
 public:
@@ -166,7 +165,7 @@ protected:
 
    // these are not thread-safe!
    Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
-   DenseMatrix dshape, mq, adjJ;
+   DenseMatrix dshape, adjJ;
 
 public:
    SBM2DirichletLFIntegrator(const ParMesh *pmesh,
@@ -198,7 +197,14 @@ public:
 };
 
 
-// <grad u. d, grad w .n>
+/// BilinearFormIntegrator for Neumann boundaries using the shifted boundary
+/// method.
+/// A(u, w) = <nabla u.d, nabla w.n>
+/// Since this interior face integrator is applied to the surrogate boundary
+/// (see marking.hpp for notes on how the surrogate faces are determined and
+/// elements are marked), this integrator adds contribution to only the element
+/// that is adjacent to that face (Trans.Elem1 or Trans.Elem2) and is part of
+/// the surrogate domain.
 class SBM2NeumannIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -212,13 +218,12 @@ protected:
    // term from Taylor expansion that should be included. (0 by default).
    int NEproc;                // Number of elements on the current MPI rank
    int par_shared_face_count; //
-
    Array<int> cut_marker;
 
 
    // these are not thread-safe!
-   Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
-   DenseMatrix jmat, dshape, dshapephys, adjJ;
+   Vector shape, dshapedn, nor, nh, ni;
+   DenseMatrix dshape, adjJ;
 
 
 public:
@@ -249,6 +254,21 @@ public:
    virtual ~SBM2NeumannIntegrator() { }
 };
 
+/// LinearFormIntegrator for Neumann boundaries using the shifted boundary
+/// method.
+/// (u, w) = <nhat.n t_n, w>
+/// where nhat is the normal vector at the true boundary, n is the normal vector
+/// at the surrogate boundary, and t_n is the traction boundary condition.
+/// Since this interior face integrator is applied to the surrogate boundary
+/// (see marking.hpp for notes on how the surrogate faces are determined and
+/// elements are marked), this integrator adds contribution to only the element
+/// that is adjacent to that face (Trans.Elem1 or Trans.Elem2) and is part of
+/// the surrogate domain.
+/// Note that t_N is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. t_N(x_true) = t_N(x_surrogate + D),
+/// where x_surrogate is the location of the integration point on the surrogate
+/// boundary and D is the distance vector from the surrogate boundary to the
+/// true boundary.
 class SBM2NeumannLFIntegrator : public LinearFormIntegrator
 {
 protected:
@@ -265,8 +285,7 @@ protected:
    int ls_cut_marker;
 
    // these are not thread-safe!
-   Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
-   DenseMatrix dshape, mq, adjJ;
+   Vector shape, nor;
 
 public:
    SBM2NeumannLFIntegrator(const ParMesh *pmesh,

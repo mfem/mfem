@@ -752,7 +752,6 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
 
    shape.SetSize(ndof1);
    dshape.SetSize(ndof1, dim);
-   dshapephys.SetSize(ndof1, dim);
    dshapedn.SetSize(ndof1);
    Vector wrk = shape;
 
@@ -1056,10 +1055,6 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
 
 
    nor.SetSize(dim);
-   nh.SetSize(dim);
-   ni.SetSize(dim);
-   adjJ.SetSize(dim);
-
    shape.SetSize(ndof);
 
    const IntegrationRule *ir = IntRule;
