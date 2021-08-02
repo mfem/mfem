@@ -177,10 +177,11 @@ void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
                }
             }
 
-            // TODO go over faces (in face_dof) that have the replaced dof, and
-            // check if the face_dof table should be updated.
-            // Maybe the face should have the new dof instead of the old one,
-            // which is the case if it has higher el-attributes on both sides.
+            // TODO go over faces (in face_dof) that have the replaced dof (the
+            // old id), and check if they have the higher el-attributes on
+            // noth sides. For such faces, the face_dof table should be updated
+            // with the  new_dof_id.
+            // These are faces that touch the interface at a point or an edge.
 
             ndofs++;
             mat++;
