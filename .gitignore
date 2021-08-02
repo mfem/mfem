@@ -252,6 +252,7 @@ miniapps/shifted/ParaViewDistance
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
+miniapps/shifted/ParaViewDiffusion
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
@@ -296,6 +297,7 @@ tests/unit/psedov_tests_*
 tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
+tests/unit/debug_device_tests
 
 # Test script output
 tests/scripts/*.err

@@ -152,7 +152,8 @@ TEST_CASE("ParBlockNonlinearForm",
 
       std::cout << "Rank " << my_rank
                 << ": ParBlockNonlinearForm::GetEnergy = " << A4
-                << " Expected" << M_PI / 6.0 << " diff=" << (A4 - M_PI / 6.0)
+                << ", expected = " << M_PI / 6.0
+                << ", diff = " << (A4 - M_PI / 6.0)
                 << std::endl;
 
       REQUIRE(fabs(A4 - M_PI / 6.0) < 1e-2);
