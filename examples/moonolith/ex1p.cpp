@@ -6,10 +6,14 @@
 // Moonolith sample runs:
 //               mpirun -np 4 moonolith_ex1p
 //               mpirun -np 4 moonolith_ex1p --visualization
-//               mpirun -np 4 moonolith_ex1p --source_mesh ../data/inline-tri.mesh
+//               mpirun -np 4 moonolith_ex1p --source_mesh
+//               ../data/inline-tri.mesh
 //               --destination_mesh \
 //               ../data/inline-quad.mesh
-//               mpirun -np 4 moonolith_ex1p --source_refinements 1 --dest_refinements 2
+//               mpirun -np 4 moonolith_ex1p --source_refinements 1
+//               --dest_refinements 2
+//               mpirun -np 4 moonolith_ex1p --source_refinements 1
+//               --dest_refinements 2 --use_vector_fe
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -18,16 +22,17 @@
 //               domain methods for fluid-structure interaction or general
 //               multi-physics applications.
 //
-//               This particular example is for parallel runtimes.
+//               This particular example is for parallel runtimes. Vector FE is
+//               an experimental feature in parallel.
 
-#include <memory>
-#include "mfem.hpp"
 #include "example_utils.hpp"
+#include "mfem.hpp"
+#include <memory>
 
 using namespace mfem;
 using namespace std;
 
-void dest_transform(const Vector &x, Vector &x_new)
+void destination_transform(const Vector &x, Vector &x_new)
 {
    x_new = x;
    // x_new *= .5;
@@ -42,12 +47,16 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-   const char *source_mesh_file      = "../data/inline-tri.mesh";
+   // Init transfer library context, with MPI handled outside the library
+   InitTransfer(argc, argv, MPI_COMM_WORLD);
+
+   const char *source_mesh_file = "../data/inline-tri.mesh";
    const char *destination_mesh_file = "../data/inline-quad.mesh";
 
-   int src_n_refinements  = 0;
+   int src_n_refinements = 0;
    int dest_n_refinements = 0;
    bool visualization = true;
+   bool use_vector_fe = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -61,6 +70,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
+                  "--no-vector_fe", "Use vector finite elements");
 
    args.Parse();
    check_options(args);
@@ -88,14 +99,12 @@ int main(int argc, char *argv[])
 
    const int dim = dest_mesh->Dimension();
 
-   dest_mesh->Transform(&dest_transform);
+   dest_mesh->Transform(&destination_transform);
 
    Vector box_min(dim), box_max(dim), range(dim);
    dest_mesh->GetBoundingBox(box_min, box_max);
    range = box_max;
    range -= box_min;
-
-
 
    imesh.open(source_mesh_file);
 
@@ -107,13 +116,14 @@ int main(int argc, char *argv[])
    else
    {
       if (rank == 0)
-         mfem::err << "WARNING: Source mesh file not found: "
-                   << source_mesh_file << "\n"
+         mfem::err << "WARNING: Source mesh file not found: " << source_mesh_file
+                   << "\n"
                    << "Using default box mesh.\n";
 
       if (dim == 2)
       {
-         src_mesh = make_shared<Mesh>(4, 4, Element::TRIANGLE, 1, range[0], range[1]);
+         src_mesh =
+            make_shared<Mesh>(4, 4, Element::TRIANGLE, 1, range[0], range[1]);
       }
       else if (dim == 3)
       {
@@ -123,7 +133,7 @@ int main(int argc, char *argv[])
 
       for (int i = 0; i < src_mesh->GetNV(); ++i)
       {
-         double * v = src_mesh->GetVertex(i);
+         double *v = src_mesh->GetVertex(i);
 
          for (int d = 0; d < dim; ++d)
          {
@@ -132,7 +142,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   for (int i = 0; i < src_n_refinements;  ++i)
+   for (int i = 0; i < src_n_refinements; ++i)
    {
       src_mesh->UniformRefinement();
    }
@@ -142,45 +152,101 @@ int main(int argc, char *argv[])
       dest_mesh->UniformRefinement();
    }
 
-   auto p_src_mesh   = make_shared<ParMesh>(MPI_COMM_WORLD, *src_mesh);
-   auto p_dest_mesh  = make_shared<ParMesh>(MPI_COMM_WORLD, *dest_mesh);
+   auto p_src_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *src_mesh);
+   auto p_dest_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *dest_mesh);
 
    ///////////////////////////////////////////////////
 
-   auto src_fe_coll  = make_shared<L2_FECollection>(1, p_src_mesh->Dimension());
-   auto src_fe        = make_shared<ParFiniteElementSpace>(p_src_mesh.get(),
-                                                           src_fe_coll.get());
+   shared_ptr<FiniteElementCollection> src_fe_coll, dest_fe_coll;
 
-   auto dest_fe_coll = make_shared<L2_FECollection>(1, p_dest_mesh->Dimension());
-   auto dest_fe       = make_shared<ParFiniteElementSpace>(p_dest_mesh.get(),
-                                                           dest_fe_coll.get());
+   if (use_vector_fe)
+   {
+      src_fe_coll = make_shared<RT_FECollection>(1, src_mesh->Dimension());
+      dest_fe_coll = make_shared<RT_FECollection>(1, dest_mesh->Dimension());
+   }
+   else
+   {
+      src_fe_coll = make_shared<L2_FECollection>(1, src_mesh->Dimension());
+      dest_fe_coll = make_shared<L2_FECollection>(1, dest_mesh->Dimension());
+   }
+
+   auto src_fe =
+      make_shared<ParFiniteElementSpace>(p_src_mesh.get(), src_fe_coll.get());
+
+   auto dest_fe =
+      make_shared<ParFiniteElementSpace>(p_dest_mesh.get(), dest_fe_coll.get());
 
    ///////////////////////////////////////////////////
 
    ParGridFunction src_fun(src_fe.get());
+
+   // To be used with standard fe
    FunctionCoefficient coeff(example_fun);
-   // ConstantCoefficient coeff(2);
-   make_fun(*src_fe, coeff, src_fun);
+
+   // To be used with vector fe
+   VectorFunctionCoefficient vector_coeff(dim, &vector_fun);
+
+   if (use_vector_fe)
+   {
+      src_fun.ProjectCoefficient(vector_coeff);
+      src_fun.Update();
+   }
+   else
+   {
+      src_fun.ProjectCoefficient(coeff);
+      src_fun.Update();
+   }
 
    ParGridFunction dest_fun(dest_fe.get());
    dest_fun = 0.0;
    dest_fun.Update();
 
    ParMortarAssembler assembler(src_fe, dest_fe);
-   assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
-   if (assembler.Transfer(src_fun, dest_fun) && visualization)
-   {
-      const double src_err  = src_fun.ComputeL2Error(coeff);
-      const double dest_err = dest_fun.ComputeL2Error(coeff);
-      if (rank == 0) { mfem::out << "l2 error: src: " << src_err << ", dest: " << dest_err << std::endl; }
 
-      plot(*p_src_mesh,  src_fun);
-      plot(*p_dest_mesh, dest_fun);
+   if (use_vector_fe)
+   {
+      assembler.AddMortarIntegrator(make_shared<VectorL2MortarIntegrator>());
+   }
+   else
+   {
+      assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
+   }
+
+   if (assembler.Transfer(src_fun, dest_fun))
+   {
+
+      if (visualization)
+      {
+         double src_err = 0;
+         double dest_err = 0;
+
+         if (use_vector_fe)
+         {
+            src_err = src_fun.ComputeL2Error(vector_coeff);
+            dest_err = dest_fun.ComputeL2Error(vector_coeff);
+         }
+         else
+         {
+            src_err = src_fun.ComputeL2Error(coeff);
+            dest_err = dest_fun.ComputeL2Error(coeff);
+         }
+
+         if (rank == 0)
+         {
+            mfem::out << "l2 error: src: " << src_err << ", dest: " << dest_err
+                      << std::endl;
+         }
+
+         plot(*p_src_mesh, src_fun);
+         plot(*p_dest_mesh, dest_fun);
+      }
    }
    else
    {
       mfem::out << "No intersection no transfer!" << std::endl;
    }
 
+   // Finalize transfer library context
+   FinalizeTransfer();
    return MPI_Finalize();
 }

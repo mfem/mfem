@@ -28,10 +28,8 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-   int num_procs, rank;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   // Init transfer library context
+   InitTransfer(argc, argv);
 
    const char *source_mesh_file = "../data/inline-tri.mesh";
    const char *destination_mesh_file = "../data/inline-quad.mesh";
@@ -39,6 +37,7 @@ int main(int argc, char *argv[])
    int src_n_refinements = 0;
    int dest_n_refinements = 0;
    bool visualization = true;
+   bool use_vector_fe = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -49,10 +48,11 @@ int main(int argc, char *argv[])
                   "Number of src refinements");
    args.AddOption(&dest_n_refinements, "-dr", "--dest_refinements",
                   "Number of dest refinements");
-
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
+                  "--no-vector_fe", "Use vector finite elements");
 
    args.Parse();
    check_options(args);
@@ -72,10 +72,9 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (rank == 0)
-         mfem::err << "WARNING: Destination mesh file not found: "
-                   << destination_mesh_file << "\n"
-                   << "Using default 2D quad mesh.";
+      mfem::err << "WARNING: Destination mesh file not found: "
+                << destination_mesh_file << "\n"
+                << "Using default 2D quad mesh.";
 
       dest_mesh = make_shared<Mesh>(4, 4, Element::QUADRILATERAL);
    }
@@ -96,10 +95,9 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (rank == 0)
-         mfem::err << "WARNING: Source mesh file not found: " << source_mesh_file
-                   << "\n"
-                   << "Using default box mesh.\n";
+      mfem::err << "WARNING: Source mesh file not found: " << source_mesh_file
+                << "\n"
+                << "Using default box mesh.\n";
 
       if (dim == 2)
       {
@@ -135,11 +133,22 @@ int main(int argc, char *argv[])
 
    ///////////////////////////////////////////////////
 
-   auto src_fe_coll = make_shared<L2_FECollection>(1, src_mesh->Dimension());
+   shared_ptr<FiniteElementCollection> src_fe_coll, dest_fe_coll;
+
+   if (use_vector_fe)
+   {
+      src_fe_coll = make_shared<RT_FECollection>(1, src_mesh->Dimension());
+      dest_fe_coll = make_shared<RT_FECollection>(1, dest_mesh->Dimension());
+   }
+   else
+   {
+      src_fe_coll = make_shared<L2_FECollection>(1, src_mesh->Dimension());
+      dest_fe_coll = make_shared<L2_FECollection>(1, dest_mesh->Dimension());
+   }
+
    auto src_fe =
       make_shared<FiniteElementSpace>(src_mesh.get(), src_fe_coll.get());
 
-   auto dest_fe_coll = make_shared<L2_FECollection>(1, dest_mesh->Dimension());
    auto dest_fe =
       make_shared<FiniteElementSpace>(dest_mesh.get(), dest_fe_coll.get());
 
@@ -149,32 +158,69 @@ int main(int argc, char *argv[])
    GridFunction dest_fun(dest_fe.get());
    src_fun = 1.0;
 
+   // To be used with standard fe
    FunctionCoefficient coeff(example_fun);
-   // ConstantCoefficient coeff(1);
-   make_fun(*src_fe, coeff, src_fun);
+
+   // To be used with vector fe
+   VectorFunctionCoefficient vector_coeff(dim, &vector_fun);
+
+   if (use_vector_fe)
+   {
+      src_fun.ProjectCoefficient(vector_coeff);
+      src_fun.Update();
+   }
+   else
+   {
+      src_fun.ProjectCoefficient(coeff);
+      src_fun.Update();
+   }
 
    dest_fun = 0.0;
    dest_fun.Update();
 
    MortarAssembler assembler(src_fe, dest_fe);
-   assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
 
-   if (assembler.Transfer(src_fun, dest_fun) && visualization)
+   if (use_vector_fe)
    {
-      dest_fun.Update();
+      assembler.AddMortarIntegrator(make_shared<VectorL2MortarIntegrator>());
+   }
+   else
+   {
+      assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
+   }
 
-      const double src_err = src_fun.ComputeL2Error(coeff);
-      const double dest_err = dest_fun.ComputeL2Error(coeff);
-      mfem::out << "l2 error: src: " << src_err << ", dest: " << dest_err
-                << std::endl;
+   if (assembler.Transfer(src_fun, dest_fun))
+   {
+      if (visualization)
+      {
+         dest_fun.Update();
 
-      plot(*src_mesh, src_fun);
-      plot(*dest_mesh, dest_fun);
+         double src_err = 0;
+         double dest_err = 0;
+
+         if (use_vector_fe)
+         {
+            src_err = src_fun.ComputeL2Error(vector_coeff);
+            dest_err = dest_fun.ComputeL2Error(vector_coeff);
+         }
+         else
+         {
+            src_err = src_fun.ComputeL2Error(coeff);
+            dest_err = dest_fun.ComputeL2Error(coeff);
+         }
+
+         mfem::out << "l2 error: src: " << src_err << ", dest: " << dest_err
+                   << std::endl;
+
+         plot(*src_mesh, src_fun);
+         plot(*dest_mesh, dest_fun);
+      }
    }
    else
    {
       mfem::out << "No intersection -> no transfer!" << std::endl;
    }
 
-   return MPI_Finalize();
+   // Finalize transfer library context
+   return FinalizeTransfer();
 }

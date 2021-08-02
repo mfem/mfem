@@ -358,12 +358,6 @@ endif()
 
 # Moonolith
 if(MFEM_USE_MOONOLITH)
-    if(NOT MFEM_USE_MPI)
-        message(
-            FATAL_ERROR
-                "Moonolith requires mpi. Compile MFEM with the flag -DMFEM_USE_MPI=ON"
-        )
-    else()
         find_package(ParMoonolith REQUIRED)
         if(ParMoonolith_FOUND)
             get_target_property(
@@ -377,7 +371,6 @@ if(MFEM_USE_MOONOLITH)
                     "MOONOLITH_LIBRARIES=${MOONOLITH_LIBRARIES}, MOONOLITH_INCLUDE_DIRS=${MOONOLITH_INCLUDE_DIRS}"
             )
         endif()
-    endif()
 endif()
 
 # HiOp optimizer
@@ -495,6 +488,9 @@ set(MFEM_SOURCE_DIRS general linalg mesh fem)
 
 if(MFEM_USE_MOONOLITH)
     set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} transfer)
+    if(MFEM_USE_MPI)
+      set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} transfer/parallel)
+    endif()
 endif()
 
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)

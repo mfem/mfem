@@ -1,7 +1,7 @@
 #include "pmortarassembler.hpp"
-#include "transferutils.hpp"
+#include "../transferutils.hpp"
 
-#include "cut.hpp"
+#include "../cut.hpp"
 
 #include "moonolith_bounding_volume_with_span.hpp"
 #include "moonolith_n_tree_mutator_factory.hpp"
@@ -950,8 +950,7 @@ bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
 }
 
 bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
-                                  ParGridFunction &dest_fun,
-                                  bool is_vector_fe)
+                                  ParGridFunction &dest_fun)
 {
    using namespace std;
    static const bool verbose = false;
@@ -991,6 +990,16 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
    {
       B.reset(RAP(destination_->Dof_TrueDof_Matrix(), B.get(),
                   source_->Dof_TrueDof_Matrix()));
+   }
+
+   bool is_vector_fe = false;
+   for (auto i_ptr : integrators_)
+   {
+      if (i_ptr->is_vector_fe())
+      {
+         is_vector_fe = true;
+         break;
+      }
    }
 
    ParBilinearForm b_form(destination_.get());
@@ -1086,4 +1095,4 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
    dest_fun.Update();
    return true;
 }
-}
+} // namespace mfem

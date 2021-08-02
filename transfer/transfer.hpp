@@ -6,8 +6,20 @@
 #ifdef MFEM_USE_MOONOLITH
 #include "mortarassembler.hpp"
 #ifdef MFEM_USE_MPI
-#include "pmortarassembler.hpp"
-#endif //MFEM_USE_MPI
-#endif //MFEM_USE_MOONOLITH
+#include "parallel/pmortarassembler.hpp"
+#endif // MFEM_USE_MPI
+#endif // MFEM_USE_MOONOLITH
 
-#endif //MFEM_TRANSFER
+namespace mfem
+{
+
+void InitTransfer(int argc, char *argv[]);
+int FinalizeTransfer();
+
+#ifdef MFEM_USE_MPI
+void InitTransfer(int argc, char *argv[], MPI_Comm comm);
+#endif
+
+} // namespace mfem
+
+#endif // MFEM_TRANSFER
