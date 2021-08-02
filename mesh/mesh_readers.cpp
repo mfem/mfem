@@ -691,16 +691,31 @@ struct BufferReader : BufferReaderBase
    BufferReader(bool compressed_, HeaderType header_type_)
       : compressed(compressed_), header_type(header_type_) { }
 
-   /// Return the number of bytes in the header. The header consists of one
-   /// integer if the data is uncompressed, and four integers if the data is
-   /// compressed. The integers are either 32 or 64 bytes depending on the value
-   /// of @a header_type.
-   int NumHeaderBytes() const
+   /// Return the number of bytes of each header entry.
+   size_t HeaderEntrySize() const
    {
-      int num_entries = compressed ? 4 : 1;
-      int entry_size = (header_type == UINT64_HEADER)
-                       ? sizeof(uint64_t) : sizeof(uint32_t);
-      return num_entries*entry_size;
+      return header_type == UINT64_HEADER ? sizeof(uint64_t) : sizeof(uint32_t);
+   }
+
+   /// Return the value of the header entry pointer to by @a header_buf. The
+   /// value is stored as either uint32_t or uint64_t, according to the @a
+   /// header_type, and is returned as uint64_t.
+   uint64_t ReadHeaderEntry(const char *header_buf) const
+   {
+      return (header_type == UINT64_HEADER) ? bin_io::read<uint64_t>(header_buf)
+             : bin_io::read<uint32_t>(header_buf);
+   }
+
+   /// Return the number of bytes in the header. The header consists of one
+   /// integer if the data is uncompressed, and @a N + 3 integers if the data is
+   /// compressed, where @a N is the number of blocks. The integers are either
+   /// 32 or 64 bytes depending on the value of @a header_type. The number of
+   /// blocks is determined by reading the first integer (of type @a
+   /// header_type) pointed to by @a header_buf.
+   int NumHeaderBytes(const char *header_buf) const
+   {
+      if (!compressed) { return HeaderEntrySize(); }
+      return (3 + ReadHeaderEntry(header_buf))*HeaderEntrySize();
    }
 
    /// Read @a n elements of type @a F from the source buffer @a buf into the
@@ -711,32 +726,42 @@ struct BufferReader : BufferReaderBase
    void ReadBinaryWithHeader(const char *header_buf, const char *buf,
                              void *dest_void, int n) const
    {
-      std::vector<unsigned char> uncompressed_data;
+      std::vector<char> uncompressed_data;
       T *dest = static_cast<T*>(dest_void);
 
       if (compressed)
       {
 #ifdef MFEM_USE_ZLIB
-         uint64_t header[4];
-         if (header_type == UINT32_HEADER)
+         // The header has format (where header_t is uint32_t or uint64_t):
+         //    header_t number_of_blocks;
+         //    header_t uncompressed_block_size;
+         //    header_t uncompressed_last_block_size;
+         //    header_t compressed_size[number_of_blocks];
+         int header_entry_size = HeaderEntrySize();
+         int nblocks = ReadHeaderEntry(header_buf);
+         header_buf += header_entry_size;
+         std::vector<int> header(nblocks + 2);
+         for (int i=0; i<nblocks+2; ++i)
          {
-            uint32_t *header_32 = (uint32_t *)header_buf;
-            for (int i=0; i<4; ++i) { header[i] = header_32[i]; }
+            header[i] = ReadHeaderEntry(header_buf);
+            header_buf += header_entry_size;
          }
-         else
+         uncompressed_data.resize((nblocks-1)*header[0] + header[1]);
+         Bytef *dest_ptr = (Bytef *)uncompressed_data.data();
+         Bytef *dest_start = dest_ptr;
+         const Bytef *source_ptr = (const Bytef *)buf;
+         for (int i=0; i<nblocks; ++i)
          {
-            uint64_t *header_64 = (uint64_t *)header_buf;
-            for (int i=0; i<4; ++i) { header[i] = header_64[i]; }
+            uLongf source_len = header[i+2];
+            uLong dest_len = (i == nblocks-1) ? header[1] : header[0];
+            int res = uncompress(dest_ptr, &dest_len, source_ptr, source_len);
+            MFEM_VERIFY(res == Z_OK, "Error uncompressing");
+            dest_ptr += dest_len;
+            source_ptr += source_len;
          }
-
-         MFEM_VERIFY(header[0] == 1, "Multiple compressed blocks not supported");
-         uLongf dest_len = header[1];
-         uncompressed_data.resize(dest_len);
-         int res = uncompress(uncompressed_data.data(), &dest_len,
-                              (const Bytef *)buf, header[3]);
-         MFEM_VERIFY(res == Z_OK, "Error uncompressing");
-         MFEM_VERIFY(sizeof(F)*n == dest_len, "AppendedData: wrong data size");
-         buf = (const char *)uncompressed_data.data();
+         MFEM_VERIFY(int(sizeof(F)*n) == (dest_ptr - dest_start),
+                     "AppendedData: wrong data size");
+         buf = uncompressed_data.data();
 #else
          MFEM_ABORT("MFEM must be compiled with zlib enabled to uncompress.")
 #endif
@@ -779,7 +804,7 @@ struct BufferReader : BufferReaderBase
    /// buffer @a dest. The input buffer contains both the header and the data.
    void ReadBinary(const char *buf, void *dest, int n) const override
    {
-      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(), dest, n);
+      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(buf), dest, n);
    }
 
    /// Read @a n elements of type @a F from base-64 encoded source buffer into
@@ -796,21 +821,25 @@ struct BufferReader : BufferReaderBase
       }
       if (compressed)
       {
-         std::vector<unsigned char> data, header;
+         // Decode the first entry of the header, which we need to determine
+         // how long the rest of the header is.
+         std::vector<char> nblocks_buf;
+         int nblocks_b64 = bin_io::NumBase64Chars(HeaderEntrySize());
+         bin_io::DecodeBase64(txt, nblocks_b64, nblocks_buf);
+         std::vector<char> data, header;
          // Compute number of characters needed to encode header in base 64,
          // then round to nearest multiple of 4 to take padding into account.
-         int b64_header = ((4*NumHeaderBytes()/3) + 3) & ~3;
+         int header_b64 = bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data()));
          // If data is compressed, header is encoded separately
-         bin_io::DecodeBase64(txt, b64_header, header);
-         bin_io::DecodeBase64(txt + b64_header, strlen(txt)-b64_header, data);
-         ReadBinaryWithHeader((const char *)header.data(),
-                              (const char *)data.data(), dest, n);
+         bin_io::DecodeBase64(txt, header_b64, header);
+         bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);
+         ReadBinaryWithHeader(header.data(), data.data(), dest, n);
       }
       else
       {
-         std::vector<unsigned char> data;
+         std::vector<char> data;
          bin_io::DecodeBase64(txt, strlen(txt), data);
-         ReadBinary((const char *)data.data(), dest, n);
+         ReadBinary(data.data(), dest, n);
       }
    }
 };
