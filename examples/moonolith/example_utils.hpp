@@ -73,7 +73,7 @@ void vector_fun(const mfem::Vector &x, mfem::Vector &f)
    f = n;
 }
 
-inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x)
+inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title)
 {
    using namespace std;
    using namespace mfem;
@@ -90,6 +90,7 @@ inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x)
    socketstream sol_sock(vishost, visport);
    sol_sock << "parallel " << num_procs << " " << rank << "\n";
    sol_sock.precision(8);
-   sol_sock << "solution\n" << mesh << x << flush;
+   sol_sock << "solution\n" << mesh << x
+            << "window_title '"<< title << "'\n" << flush;
    sol_sock << flush;
 }

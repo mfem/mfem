@@ -4,16 +4,9 @@
 // Compile with: make moonolith_ex1p
 //
 // Moonolith sample runs:
-//               mpirun -np 4 moonolith_ex1p
-//               mpirun -np 4 moonolith_ex1p --visualization
-//               mpirun -np 4 moonolith_ex1p --source_mesh
-//               ../data/inline-tri.mesh
-//               --destination_mesh \
-//               ../data/inline-quad.mesh
-//               mpirun -np 4 moonolith_ex1p --source_refinements 1
-//               --dest_refinements 2
-//               mpirun -np 4 moonolith_ex1p --source_refinements 1
-//               --dest_refinements 2 --use_vector_fe
+//               mpirun -np 4 ex1p
+//               mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2
+//               mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2 --use_vector_fe
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -50,8 +43,8 @@ int main(int argc, char *argv[])
    // Init transfer library context, with MPI handled outside the library
    InitTransfer(argc, argv, MPI_COMM_WORLD);
 
-   const char *source_mesh_file = "../data/inline-tri.mesh";
-   const char *destination_mesh_file = "../data/inline-quad.mesh";
+   const char *source_mesh_file = "../../data/inline-tri.mesh";
+   const char *destination_mesh_file = "../../data/inline-quad.mesh";
 
    int src_n_refinements = 0;
    int dest_n_refinements = 0;
@@ -237,8 +230,8 @@ int main(int argc, char *argv[])
                       << std::endl;
          }
 
-         plot(*p_src_mesh, src_fun);
-         plot(*p_dest_mesh, dest_fun);
+         plot(*p_src_mesh, src_fun, "source");
+         plot(*p_dest_mesh, dest_fun, "destination");
       }
    }
    else

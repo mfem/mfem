@@ -4,12 +4,9 @@
 // Compile with: make moonolith_ex1
 //
 // Moonolith sample runs:
-//               moonolith_ex1
-//               moonolith_ex1 --visualization
-//               moonolith_ex1 --source_mesh ../data/inline-tri.mesh
-//               --destination_mesh \
-//               ../data/inline-quad.mesh
-//               moonolith_ex1 --source_refinements 1 --dest_refinements 2
+//               ex1
+//               ex1 --source_refinements 1 --dest_refinements 2
+//               ex1 --source_refinements 1 --dest_refinements 2 --use_vector_fe
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -31,8 +28,8 @@ int main(int argc, char *argv[])
    // Init transfer library context
    InitTransfer(argc, argv);
 
-   const char *source_mesh_file = "../data/inline-tri.mesh";
-   const char *destination_mesh_file = "../data/inline-quad.mesh";
+   const char *source_mesh_file = "../../data/inline-tri.mesh";
+   const char *destination_mesh_file = "../../data/inline-quad.mesh";
 
    int src_n_refinements = 0;
    int dest_n_refinements = 0;
@@ -212,8 +209,8 @@ int main(int argc, char *argv[])
          mfem::out << "l2 error: src: " << src_err << ", dest: " << dest_err
                    << std::endl;
 
-         plot(*src_mesh, src_fun);
-         plot(*dest_mesh, dest_fun);
+         plot(*src_mesh, src_fun, "source");
+         plot(*dest_mesh, dest_fun, "destination");
       }
    }
    else
