@@ -14,10 +14,6 @@ Version 4.3.1 (development)
   mesh information transfer using ParMoonolith (https://bitbucket.org/zulianp/par_moonolith).
   With ParMortarAssember fields can be exchanged between arbitrarily distributed and unrelated
   finite element meshes in a variationally consistent way.
-- Added initial support for GPU-accelerated versions of PETSc that works with
-  MFEM_USE_CUDA if PETSc has been configured with CUDA support. Examples 1 and 9
-  in the examples/petsc directory have been modified to work with --device cuda.
-  Examples with GAMG (ex1p) and SLEPc (ex11p) are also provided.
 
 Version 4.3, released on July 29, 2021
 ======================================
