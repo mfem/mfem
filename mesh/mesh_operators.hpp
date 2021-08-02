@@ -398,8 +398,9 @@ public:
    // Return the local relative data oscillation errors
    Vector GetLocalOscs()
    {
-       MFEM_ASSERT(element_oscs.Size() > 0, "Local oscillations have not been computed yet")
-       return element_oscs;
+      MFEM_ASSERT(element_oscs.Size() > 0,
+                  "Local oscillations have not been computed yet")
+      return element_oscs;
    }
 
    /// Reset
