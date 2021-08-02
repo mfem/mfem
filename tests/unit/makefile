@@ -87,6 +87,12 @@ USE_CEED := $(MFEM_USE_CEED:NO=)
 CEED_OBJ = $(CEED_SOURCE_FILES:$(SRC)%.cpp=%.o)
 SEQ_UNIT_TESTS += $(if $(USE_CEED),ceed_tests)
 
+# Debug device tests
+DEBUG_DEVICE_FILE = $(SRC)miniapps/test_debug_device.cpp
+DEBUG_DEVICE_OBJ = $(DEBUG_DEVICE_FILE:$(SRC)%.cpp=%.o)
+DEBUG_DEVICE_TEST = debug_device_tests
+SEQ_UNIT_TESTS += $(DEBUG_DEVICE_TEST)
+
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
 else
@@ -114,10 +120,16 @@ pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+$(DEBUG_DEVICE_TEST): $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
+ $(CONFIG_MK)
+	$(CCC) $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
+	   $(MFEM_LIBS) -o $(@)
+
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OBJ): %.o: $(SRC)%.cpp \
- $(HEADER_FILES) $(CONFIG_MK)
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) \
+ $(PCUDA_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
+ $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
@@ -214,21 +226,27 @@ $(DATA_DIR):
 MFEM_TESTS = UNIT_TESTS
 include $(MFEM_TEST_MK)
 
+ifeq (,$(wildcard $(MFEM_DIR)/../data))
+   MFEM_DATA_FLAG =
+else
+   MFEM_DATA_FLAG = --data $(MFEM_DIR)/../data
+endif
+
 %-test-seq: %
-	@$(call mfem-test,$<,, Unit tests,,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, Unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
 ceed_tests-test-seq: ceed_tests
-	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 ifeq ($(MFEM_USE_CUDA),YES)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),--device ceed-cuda:/gpu/cuda/ref,SKIP-NO-VIS)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared,SKIP-NO-VIS)
-	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),--device ceed-cuda:/gpu/cuda/ref $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 endif
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 %-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,,SKIP-NO-VIS)
-	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -237,4 +255,3 @@ $(MFEM_LIB_FILE):
 clean:
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
 	rm -rf *.dSYM output_meshes
-
