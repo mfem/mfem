@@ -619,9 +619,14 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete prec;
    delete bicg;
+   delete normalbcCoef;
+   delete dbcCoefCombo;
    delete dbcCoef;
    delete rhs_f;
    delete dist_vec;
+   delete neumann_dist_coef;
+   delete dirichlet_dist_coef;
+   delete dirichlet_dist_coef_2;
 
    MPI_Finalize();
 

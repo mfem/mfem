@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -203,11 +203,6 @@ public:
 double dirichlet_velocity_circle(const Vector &x)
 {
    return 0.;
-}
-
-double unity(const Vector &x)
-{
-   return 0.015;
 }
 
 double dirichlet_velocity_xy_exponent(const Vector &x)
