@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool amg_elast = 0;
    bool reorder_space = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -78,6 +79,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
                   "Use byNODES ordering of vector space instead of byVDIM");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -93,7 +96,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -109,14 +117,14 @@ int main(int argc, char *argv[])
       return 3;
    }
 
-   // 4. Select the order of the finite element discretization space. For NURBS
+   // 5. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
    if (mesh->NURBSext)
    {
       mesh->DegreeElevate(order, order);
    }
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
+   // 6. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
@@ -129,7 +137,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 7. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -142,7 +150,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
+   // 8. Define a parallel finite element space on the parallel mesh. Here we
    //    use vector finite elements, i.e. dim copies of a scalar finite element
    //    space. We use the ordering by vector dimension (the last argument of
    //    the FiniteElementSpace constructor) which is expected in the systems
@@ -175,7 +183,7 @@ int main(int argc, char *argv[])
            << "Assembling: " << flush;
    }
 
-   // 8. Determine the list of true (i.e. parallel conforming) essential
+   // 9. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined by
    //    marking only boundary attribute 1 from the mesh as essential and
    //    converting it to a list of true dofs.
@@ -184,14 +192,14 @@ int main(int argc, char *argv[])
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 9. Set up the parallel linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system. In this case, b_i equals the
-   //    boundary integral of f*phi_i where f represents a "pull down" force on
-   //    the Neumann part of the boundary and phi_i are the basis functions in
-   //    the finite element fespace. The force is defined by the object f, which
-   //    is a vector of Coefficient objects. The fact that f is non-zero on
-   //    boundary attribute 2 is indicated by the use of piece-wise constants
-   //    coefficient for its last component.
+   // 10. Set up the parallel linear form b(.) which corresponds to the
+   //     right-hand side of the FEM linear system. In this case, b_i equals the
+   //     boundary integral of f*phi_i where f represents a "pull down" force on
+   //     the Neumann part of the boundary and phi_i are the basis functions in
+   //     the finite element fespace. The force is defined by the object f, which
+   //     is a vector of Coefficient objects. The fact that f is non-zero on
+   //     boundary attribute 2 is indicated by the use of piece-wise constants
+   //     coefficient for its last component.
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
    {
@@ -212,13 +220,13 @@ int main(int argc, char *argv[])
    }
    b->Assemble();
 
-   // 10. Define the solution vector x as a parallel finite element grid
+   // 11. Define the solution vector x as a parallel finite element grid
    //     function corresponding to fespace. Initialize x with initial guess of
    //     zero, which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
 
-   // 11. Set up the parallel bilinear form a(.,.) on the finite element space
+   // 12. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the linear elasticity integrator with piece-wise
    //     constants coefficient lambda and mu.
    Vector lambda(pmesh->attributes.Max());
@@ -233,7 +241,7 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func, mu_func));
 
-   // 12. Assemble the parallel bilinear form and the corresponding linear
+   // 13. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
@@ -250,7 +258,7 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
 
-   // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
+   // 14. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
    //     preconditioner from hypre.
    HypreBoomerAMG *amg = new HypreBoomerAMG(A);
    if (amg_elast && !a->StaticCondensationIsEnabled())
@@ -268,11 +276,11 @@ int main(int argc, char *argv[])
    pcg->SetPreconditioner(*amg);
    pcg->Mult(B, X);
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
+   // 15. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 15. For non-NURBS meshes, make the mesh curved based on the finite element
+   // 16. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
    //     based transformation of the reference element.  This allows us to save
    //     the displaced mesh as a curved mesh when using high-order finite
@@ -284,7 +292,7 @@ int main(int argc, char *argv[])
       pmesh->SetNodalFESpace(fespace);
    }
 
-   // 16. Save in parallel the displaced mesh and the inverted solution (which
+   // 17. Save in parallel the displaced mesh and the inverted solution (which
    //     gives the backward displacements to the original grid). This output
    //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
@@ -305,7 +313,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 17. Send the above data by socket to a GLVis server.  Use the "n" and "b"
+   // 18. Send the above data by socket to a GLVis server.  Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -317,7 +325,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 18. Free the used memory.
+   // 19. Free the used memory.
    delete pcg;
    delete amg;
    delete a;
