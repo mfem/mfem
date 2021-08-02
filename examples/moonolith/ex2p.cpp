@@ -6,10 +6,12 @@
 // Moonolith sample runs:
 //               mpirun -np 4 moonolith_ex2p
 //               mpirun -np 4 moonolith_ex2p --visualization
-//               mpirun -np 4 moonolith_ex2p --source_mesh ../data/inline-tri.mesh
+//               mpirun -np 4 moonolith_ex2p --source_mesh
+//               ../data/inline-tri.mesh
 //               --destination_mesh \
 //               ../data/inline-quad.mesh
-//               mpirun -np 4 moonolith_ex2p --source_refinements 1 --dest_refinements 2
+//               mpirun -np 4 moonolith_ex2p --source_refinements 1
+//               --dest_refinements 2
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -18,51 +20,43 @@
 //               domain methods for fluid-structure interaction or general
 //               multi-physics applications.
 //
-//               This particular example concerns vector FEM and it is for parallel runtimes.
+//               This particular example concerns discontinuos Galrkin FEM and
+//               it is for parallel runtimes.
 
-#include <memory>
-
-#include "mfem.hpp"
 #include "example_utils.hpp"
+#include "mfem.hpp"
+#include <memory>
 
 using namespace mfem;
 using namespace std;
 
-void vector_fun(const Vector &x, Vector &f)
-{
-   double n = x.Norml2();
-   f.SetSize(x.Size());
-   f = n;
-}
-
-void dest_transform(const Vector &x, Vector &x_new)
+void destination_transform(const Vector &x, Vector &x_new)
 {
    x_new = x;
-   // x_new *= .7;
+   // x_new *= .5;
 }
 
 int main(int argc, char *argv[])
 {
    MPI_Init(&argc, &argv);
 
-
    int num_procs, rank;
 
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-   const char *source_mesh_file      = "../data/inline-tri.mesh";
+   // Init transfer library context, with MPI handled outside the library
+   InitTransfer(argc, argv, MPI_COMM_WORLD);
+
+   const char *source_mesh_file = "../data/inline-tri.mesh";
    const char *destination_mesh_file = "../data/inline-quad.mesh";
 
-   int src_n_refinements  = 0;
+   int src_n_refinements = 0;
    int dest_n_refinements = 0;
-   bool debug = false;
-   bool wait = false;
-   const char * logger_type = "file";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&source_mesh_file,     "-s", "--source_mesh",
+   args.AddOption(&source_mesh_file, "-s", "--source_mesh",
                   "Mesh file to use for src.");
    args.AddOption(&destination_mesh_file, "-d", "--destination_mesh",
                   "Mesh file to use for dest.");
@@ -70,10 +64,6 @@ int main(int argc, char *argv[])
                   "Number of src refinements");
    args.AddOption(&dest_n_refinements, "-dr", "--dest_refinements",
                   "Number of dest refinements");
-   args.AddOption(&debug, "-debug", "--debug", "-ndebug", "--no-debug", "debug");
-   args.AddOption(&logger_type, "-logger", "--logger", "logger");
-   args.AddOption(&wait, "-wait", "--wait", "-nwait", "-no-wait", "wait");
-
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -93,11 +83,10 @@ int main(int argc, char *argv[])
    else
    {
       if (rank == 0)
-         mfem::err << "WARNING: Source mesh file not found: "
-                   << source_mesh_file << "\n"
+         mfem::err << "WARNING: Source mesh file not found: " << source_mesh_file
+                   << "\n"
                    << "Using default 2D triangle mesh.";
-      src_mesh = make_shared<Mesh>(4,4,Element::QUADRILATERAL);
-      //        src_mesh = make_shared<Mesh>(4,4,Element::TRIANGLE,1);
+      src_mesh = make_shared<Mesh>(4, 4, Element::TRIANGLE);
    }
 
    imesh.open(destination_mesh_file);
@@ -109,16 +98,15 @@ int main(int argc, char *argv[])
    else
    {
       if (rank == 0)
-         std::cerr << "WARNING: Destination mesh file not found: "
+         mfem::err << "WARNING: Destination mesh file not found: "
                    << destination_mesh_file << "\n"
                    << "Using default 2D quad mesh.";
-      dest_mesh = make_shared<Mesh>(4, 4,Element::QUADRILATERAL);
-      // dest_mesh = make_shared<Mesh>(4,7,Element::TRIANGLE,1);
+      dest_mesh = make_shared<Mesh>(4, 4, Element::QUADRILATERAL);
    }
 
-   dest_mesh->Transform(&dest_transform);
+   dest_mesh->Transform(&destination_transform);
 
-   for (int i = 0; i < src_n_refinements;  ++i)
+   for (int i = 0; i < src_n_refinements; ++i)
    {
       src_mesh->UniformRefinement();
    }
@@ -128,56 +116,68 @@ int main(int argc, char *argv[])
       dest_mesh->UniformRefinement();
    }
 
-   src_mesh->ReorientTetMesh();
-   dest_mesh->ReorientTetMesh();
+   src_mesh->EnsureNCMesh();
+   dest_mesh->EnsureNCMesh();
 
-   auto p_src_mesh   = make_shared<ParMesh>(MPI_COMM_WORLD, *src_mesh);
-   auto p_dest_mesh  = make_shared<ParMesh>(MPI_COMM_WORLD, *dest_mesh);
+   {
+      for (int l = 0; l < 4; l++)
+      {
+         src_mesh->RandomRefinement(0.1); // 10% probability
+      }
+   }
+
+   {
+      for (int l = 0; l < 4; l++)
+      {
+         dest_mesh->RandomRefinement(0.1); // 10% probability
+      }
+   }
+
+   auto p_src_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *src_mesh);
+   auto p_dest_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *dest_mesh);
 
    ///////////////////////////////////////////////////
-   auto src_fe_coll  = make_shared<RT_FECollection>(1, p_src_mesh->Dimension());
-   auto src_fe        = make_shared<ParFiniteElementSpace>(p_src_mesh.get(),
-                                                           src_fe_coll.get());
 
-   auto dest_fe_coll = make_shared<ND_FECollection>(1, p_dest_mesh->Dimension());
-   auto dest_fe       = make_shared<ParFiniteElementSpace>(p_dest_mesh.get(),
-                                                           dest_fe_coll.get());
+   auto src_fe_coll = make_shared<DG_FECollection>(0, p_src_mesh->Dimension());
+   auto src_fe =
+      make_shared<ParFiniteElementSpace>(p_src_mesh.get(), src_fe_coll.get());
 
-   bool is_vector_fe = true;
+   auto dest_fe_coll = make_shared<DG_FECollection>(1, p_dest_mesh->Dimension());
+   auto dest_fe =
+      make_shared<ParFiniteElementSpace>(p_dest_mesh.get(), dest_fe_coll.get());
+
    ///////////////////////////////////////////////////
-
-   const int dim = p_src_mesh->Dimension();
 
    ParGridFunction src_fun(src_fe.get());
-
-   Vector local_coeff(dim);
-   local_coeff = 1.0/sqrt(dim);
-
-   // VectorConstantCoefficient coeff(local_coeff);
-   VectorFunctionCoefficient coeff(dim, &vector_fun);
-   src_fun.ProjectCoefficient(coeff);
-   src_fun.Update();
+   FunctionCoefficient coeff(example_fun);
+   make_fun(*src_fe, coeff, src_fun);
 
    ParGridFunction dest_fun(dest_fe.get());
    dest_fun = 0.0;
    dest_fun.Update();
 
    ParMortarAssembler assembler(src_fe, dest_fe);
-
-   //Use Vector integrator
-   assembler.AddMortarIntegrator(make_shared<VectorL2MortarIntegrator>());
-   if (assembler.Transfer(src_fun, dest_fun, is_vector_fe) && visualization)
+   assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
+   if (assembler.Transfer(src_fun, dest_fun))
    {
-      const double err = dest_fun.ComputeL2Error(coeff);
-      if (rank == 0) { mfem::out << "l2 error: " << err << std::endl; }
+      if (visualization)
+      {
+         const double err = dest_fun.ComputeL2Error(coeff);
+         if (rank == 0)
+         {
+            mfem::out << "l2 error: " << err << std::endl;
+         }
 
-      plot(*p_src_mesh,  src_fun);
-      plot(*p_dest_mesh, dest_fun);
+         plot(*p_src_mesh, src_fun);
+         plot(*p_dest_mesh, dest_fun);
+      }
    }
    else
    {
       mfem::out << "No intersection no transfer!" << std::endl;
    }
 
+   // Finalize transfer library context
+   FinalizeTransfer();
    return MPI_Finalize();
 }

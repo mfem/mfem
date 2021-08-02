@@ -259,13 +259,6 @@ ifeq ($(MFEM_USE_HIP),YES)
    endif
 endif
 
-#MOONOLITH begin
-ifeq ($(MFEM_USE_MOONOLITH),YES)
-   ifneq ($(MFEM_USE_MPI), YES)
-      $(error Moonolith requires MPI)
-   endif
-endif
-
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check legacy OpenMP configuration
@@ -422,6 +415,11 @@ ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_INCFLAGS += -I$(MFEM_DIR)/transfer $(MOONOLITH_INCLUDES)
    MFEM_TPLFLAGS += $(MOONOLITH_INCLUDES)
    DIRS += transfer
+
+   ifeq ($(MFEM_USE_MPI),YES)
+      MFEM_INCFLAGS += -I$(MFEM_DIR)/transfer/parallel
+      DIRS += transfer/parallel
+   endif
 endif
 
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))

@@ -1,22 +1,26 @@
-#ifndef MFEML2P_MORTAR_ASSEMBLER_HPP
-#define MFEML2P_MORTAR_ASSEMBLER_HPP
+#ifndef MFEM_L2P_PAR_MORTAR_ASSEMBLER_HPP
+#define MFEM_L2P_PAR_MORTAR_ASSEMBLER_HPP
 
-#include "../fem/fem.hpp"
-#include "mortarintegrator.hpp"
 #include <memory>
+#include <vector>
+
+#include "../../fem/fem.hpp"
+#include "../mortarintegrator.hpp"
 
 namespace mfem
 {
+
 /*!
- * @brief This class implements the serial variational transfer between finite
+ * @brief This class implements the parallel variational transfer between finite
  * element spaces. Variational transfer has been shown to have better
  * approximation properties than standard interpolation. This facilities can be
  * used for supporting applications wich require the handling of non matching
  * meshes. For instance: General multi-physics problems, fluid structure
- * interaction, or even visulization of average quanties within subvolumes
- *
+ * interaction, or even visulization of average quanties within subvolumes. This
+ * particular code is also used with LLNL for large scale multilevel Monte Carlo
+ * simulations.
  */
-class MortarAssembler
+class ParMortarAssembler
 {
 public:
    /*!
@@ -26,8 +30,8 @@ public:
     * @param destination the source space to where we want to transfer the
     * discrete field
     */
-   MortarAssembler(const std::shared_ptr<FiniteElementSpace> &source,
-                   const std::shared_ptr<FiniteElementSpace> &destination);
+   ParMortarAssembler(const std::shared_ptr<ParFiniteElementSpace> &source,
+                      const std::shared_ptr<ParFiniteElementSpace> &destination);
 
    /*!
     * @brief assembles the coupling matrix B. B : source -> destination If u is a
@@ -39,7 +43,7 @@ public:
     * @return true if there was an intersection and the operator has been
     * assembled. False otherwise.
     */
-   bool Assemble(std::shared_ptr<SparseMatrix> &B);
+   bool Assemble(std::shared_ptr<HypreParMatrix> &B);
 
    /*!
     * @brief transfer a function from source to destination. if the transfer is
@@ -47,9 +51,10 @@ public:
     * @param src_fun the function associated with the source finite element space
     * @param[out] dest_fun the function associated with the destination finite
     * element space
+    * @param is_vector_fe set to true if vector FEM are used
     * @return true if there was an intersection and the output can be used.
     */
-   bool Transfer(GridFunction &src_fun, GridFunction &dest_fun);
+   bool Transfer(ParGridFunction &src_fun, ParGridFunction &dest_fun);
 
    /*!
     * @brief This method must be called before Assemble or Transfer.
@@ -63,11 +68,12 @@ public:
    }
 
 private:
-   std::shared_ptr<FiniteElementSpace> source_;
-   std::shared_ptr<FiniteElementSpace> destination_;
+   MPI_Comm comm_;
+   std::shared_ptr<ParFiniteElementSpace> source_;
+   std::shared_ptr<ParFiniteElementSpace> destination_;
    std::vector<std::shared_ptr<MortarIntegrator>> integrators_;
 };
 
 } // namespace mfem
 
-#endif // MFEML2P_MORTAR_ASSEMBLER_HPP
+#endif // MFEM_L2P_PAR_MORTAR_ASSEMBLER_HPP

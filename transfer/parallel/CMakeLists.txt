@@ -10,19 +10,11 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SRCS
-  cut.cpp
-  transferutils.cpp
-  mortarassembler.cpp
-  mortarintegrator.cpp
-  transfer.cpp
+  pmortarassembler.cpp
   )
 
 list(APPEND HDRS
-  cut.hpp
-  transferutils.hpp
-  mortarassembler.hpp
-  mortarintegrator.hpp
-  transfer.hpp
+  pmortarassembler.hpp
   )
 
 convert_filenames_to_full_paths(SRCS)

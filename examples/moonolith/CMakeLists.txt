@@ -10,7 +10,11 @@
 # CONTRIBUTING.md for details.
 
 set(MOONOLITH_EXAMPLES_SRCS)
-list(APPEND MOONOLITH_EXAMPLES_SRCS ex1.cpp ex1p.cpp ex2.cpp ex2p.cpp ex3p.cpp)
+list(APPEND MOONOLITH_EXAMPLES_SRCS ex1.cpp)
+
+if (MFEM_USE_MPI)
+  list(APPEND MOONOLITH_EXAMPLES_SRCS ex1p.cpp ex2p.cpp)
+endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})

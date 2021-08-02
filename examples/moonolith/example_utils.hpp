@@ -1,7 +1,11 @@
 #include <algorithm>
 #include <assert.h>
+#include <cstdlib>
 #include <memory>
+
+#ifdef MFEM_USE_MPI
 #include <mpi.h>
+#endif // MFEM_USE_MPI
 
 #include "mfem.hpp"
 
@@ -10,8 +14,10 @@ inline void check_options(mfem::OptionsParser &args)
    using namespace std;
    using namespace mfem;
 
-   int rank;
+   int rank = 0;
+#ifdef MFEM_USE_MPI
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif // MFEM_USE_MPI
 
    if (!args.Good())
    {
@@ -20,8 +26,12 @@ inline void check_options(mfem::OptionsParser &args)
          args.PrintUsage(cout);
       }
 
+#ifdef MFEM_USE_MPI
       MPI_Finalize();
       MPI_Abort(MPI_COMM_WORLD, 1);
+#else
+      abort();
+#endif // MFEM_USE_MPI
    }
 
    if (rank == 0)
@@ -56,14 +66,24 @@ inline double example_fun(const mfem::Vector &x)
    return sqrt(ret);
 }
 
+void vector_fun(const mfem::Vector &x, mfem::Vector &f)
+{
+   const double n = x.Norml2();
+   f.SetSize(x.Size());
+   f = n;
+}
+
 inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x)
 {
    using namespace std;
    using namespace mfem;
 
-   int num_procs, rank;
+   int num_procs = 1, rank = 0;
+
+#ifdef MFEM_USE_MPI
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+#endif // MFEM_USE_MPI
 
    char vishost[] = "localhost";
    int visport = 19916;

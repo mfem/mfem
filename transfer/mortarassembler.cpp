@@ -1,23 +1,23 @@
 #include "mortarassembler.hpp"
 #include "../general/tic_toc.hpp"
 
-#include "transferutils.hpp"
 #include "cut.hpp"
+#include "transferutils.hpp"
 
 #include <cassert>
 
 // Moonolith includes
-#include "par_moonolith_config.hpp"
 #include "moonolith_aabb.hpp"
-#include "moonolith_stream_utils.hpp"
 #include "moonolith_serial_hash_grid.hpp"
+#include "moonolith_stream_utils.hpp"
+#include "par_moonolith_config.hpp"
 
 using namespace mfem::private_;
 
 namespace mfem
 {
 
-template<int Dim>
+template <int Dim>
 void BuildBoxes(const Mesh &mesh,
                 std::vector<::moonolith::AABB<Dim, double>> &element_boxes)
 {
@@ -46,7 +46,7 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
       case 1:
       {
          std::vector<::moonolith::AABB<1, double>> src_boxes, dest_boxes;
-         BuildBoxes(src,  src_boxes);
+         BuildBoxes(src, src_boxes);
          BuildBoxes(dest, dest_boxes);
 
          ::moonolith::SerialHashGrid<1, double> grid;
@@ -55,7 +55,7 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
       case 2:
       {
          std::vector<::moonolith::AABB<2, double>> src_boxes, dest_boxes;
-         BuildBoxes(src,  src_boxes);
+         BuildBoxes(src, src_boxes);
          BuildBoxes(dest, dest_boxes);
 
          ::moonolith::SerialHashGrid<2, double> grid;
@@ -64,7 +64,7 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
       case 3:
       {
          std::vector<::moonolith::AABB<3, double>> src_boxes, dest_boxes;
-         BuildBoxes(src,  src_boxes);
+         BuildBoxes(src, src_boxes);
          BuildBoxes(dest, dest_boxes);
 
          ::moonolith::SerialHashGrid<3, double> grid;
@@ -81,8 +81,7 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
 MortarAssembler::MortarAssembler(
    const std::shared_ptr<FiniteElementSpace> &source,
    const std::shared_ptr<FiniteElementSpace> &destination)
-   : source_(source), destination_(destination)
-{ }
+   : source_(source), destination_(destination) {}
 
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 {
@@ -90,7 +89,7 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    static const bool verbose = false;
 
    const auto &source_mesh = *source_->GetMesh();
-   const auto &destination_mesh  = *destination_->GetMesh();
+   const auto &destination_mesh = *destination_->GetMesh();
 
    int dim = source_mesh.Dimension();
 
@@ -119,7 +118,6 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    //////////////////////////////////////////////////
    double local_element_matrices_sum = 0.0;
 
-
    long n_intersections = 0;
    long n_candidates = 0;
 
@@ -127,10 +125,10 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    for (auto it = begin(pairs); it != end(pairs); /*inside*/)
    {
       const int source_index = *it++;
-      const int destination_index  = *it++;
+      const int destination_index = *it++;
 
       auto &source_fe = *source_->GetFE(source_index);
-      auto &destination_fe  = *destination_->GetFE(destination_index);
+      auto &destination_fe = *destination_->GetFE(destination_index);
 
       ElementTransformation &destination_Trans =
          *destination_->GetElementTransformation(destination_index);
@@ -143,33 +141,34 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       n_candidates++;
 
       if (cut->BuildQuadrature(*source_, source_index, *destination_,
-                               destination_index,  source_ir, destination_ir))
+                               destination_index, source_ir, destination_ir))
       {
          source_->GetElementVDofs(source_index, source_vdofs);
-         destination_->GetElementVDofs (destination_index,  destination_vdofs);
+         destination_->GetElementVDofs(destination_index, destination_vdofs);
 
-         ElementTransformation &source_Trans = *source_->GetElementTransformation(
-                                                  source_index);
+         ElementTransformation &source_Trans =
+            *source_->GetElementTransformation(source_index);
 
          bool first = true;
          for (auto i_ptr : integrators_)
          {
             if (first)
             {
-               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans, destination_fe,
-                                            destination_ir, destination_Trans, cumulative_elemmat);
+               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans,
+                                            destination_fe, destination_ir,
+                                            destination_Trans, cumulative_elemmat);
                first = false;
             }
             else
             {
-               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans, destination_fe,
-                                            destination_ir, destination_Trans, elemmat);
+               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans,
+                                            destination_fe, destination_ir,
+                                            destination_Trans, elemmat);
                cumulative_elemmat += elemmat;
             }
          }
 
          local_element_matrices_sum += Sum(cumulative_elemmat);
-
 
          B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat,
                          skip_zeros);
@@ -178,29 +177,30 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       }
    }
 
-   if (!intersected) { return false; }
+   if (!intersected)
+   {
+      return false;
+   }
 
    B->Finalize();
 
    if (verbose)
    {
-      mfem::out <<  "local_element_matrices_sum: " << local_element_matrices_sum <<
-                std::endl;
-      mfem::out <<  "B in R^(" << B->Height() <<  " x " << B->Width() << ")" <<
-                std::endl;
+      mfem::out << "local_element_matrices_sum: " << local_element_matrices_sum
+                << std::endl;
+      mfem::out << "B in R^(" << B->Height() << " x " << B->Width() << ")"
+                << std::endl;
 
-      mfem::out << "n_intersections: " << n_intersections << ", n_candidates: " <<
-                n_candidates << '\n';
+      mfem::out << "n_intersections: " << n_intersections
+                << ", n_candidates: " << n_candidates << '\n';
 
       cut->Describe();
    }
 
    return true;
-
 }
 
-bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun,
-                               bool is_vector_fe)
+bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun)
 {
    using namespace std;
    static const bool verbose = false;
@@ -228,6 +228,17 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun,
    }
 
    BilinearForm b_form(destination_.get());
+
+   bool is_vector_fe = false;
+   for (auto i_ptr : integrators_)
+   {
+      if (i_ptr->is_vector_fe())
+      {
+         is_vector_fe = true;
+         break;
+      }
+   }
+
    if (is_vector_fe)
    {
       b_form.AddDomainIntegrator(new VectorFEMassIntegrator());
@@ -259,12 +270,11 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun,
       Vector drs(D.Height());
       D.GetRowSums(drs);
 
-      mfem::out <<  "sum(B): " << brs.Sum() << std::endl;
-      mfem::out <<  "sum(D): " << drs.Sum() << std::endl;
+      mfem::out << "sum(B): " << brs.Sum() << std::endl;
+      mfem::out << "sum(D): " << drs.Sum() << std::endl;
    }
 
    return true;
-
 }
 
-}
+} // namespace mfem
