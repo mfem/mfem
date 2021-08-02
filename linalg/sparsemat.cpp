@@ -2463,9 +2463,9 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 
 template <bool useFabs>
 static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
-			   const Memory<int> &I, const Memory<int> &J,
-			   const Memory<double> &A, const int height,
-			   const double sc)
+                           const Memory<int> &I, const Memory<int> &J,
+                           const Memory<double> &A, const int height,
+                           const double sc)
 {
    const bool useDevice = b.UseDevice() || x0.UseDevice() || x1.UseDevice();
 
@@ -2483,14 +2483,14 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
       for (int j = Ip[i]; j < Ip[i+1]; j++)
       {
          resi -= Ap[j] * x0p[Jp[j]];
-	 if (useFabs)
+         if (useFabs)
          {
-	    norm += fabs(Ap[j]);
-	 }
-	 else
+            norm += fabs(Ap[j]);
+         }
+         else
          {
-	    norm += Ap[j];
-	 }
+            norm += Ap[j];
+         }
       }
       if (norm > 0.0)
       {
@@ -2498,7 +2498,7 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
       }
       else
       {
-	MFEM_ABORT_KERNEL("L1 norm of row is zero.");
+         MFEM_ABORT_KERNEL("L1 norm of row is zero.");
       }
    });
 }
