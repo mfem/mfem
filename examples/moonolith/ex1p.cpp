@@ -1,12 +1,13 @@
 //                                MFEM Example 1 - Parallel Version
 //                              Moonolith Modification
 //
-// Compile with: make moonolith_ex1p
+// Compile with: make ex1p
 //
 // Moonolith sample runs:
 //               mpirun -np 4 ex1p
 //               mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2
 //               mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2 --use_vector_fe
+//               mpirun -np 4 ex1p -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -20,7 +21,6 @@
 
 #include "example_utils.hpp"
 #include "mfem.hpp"
-#include <memory>
 
 using namespace mfem;
 using namespace std;
