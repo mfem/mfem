@@ -434,7 +434,7 @@ int main(int argc, char *argv[])
    // For each BilinearFormIntegrators, we make a list of the markers
    // corresponding to the cut-cell whose faces they will be applied to.
    Array<int> bf_dirichlet_marker(0),
-              bf_neumann_marker(0);
+         bf_neumann_marker(0);
 
    if (dirichlet_level_set_type > 0)
    {
