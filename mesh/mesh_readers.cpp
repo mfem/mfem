@@ -2445,6 +2445,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             // initialize mesh_geoms so we can create Nodes FE space below
             this->SetMeshGen();
 
+            // Generate faces and edges so that we can define
+            // FE space on the mesh
+            this->FinalizeTopology();
+
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
@@ -2666,6 +2670,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Convert nodes to discontinuous GridFunction (if they aren't already)
          if (mesh_order == 1)
          {
+            this->FinalizeTopology();
             this->SetMeshGen();
             this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
          }
