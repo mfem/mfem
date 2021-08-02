@@ -72,9 +72,12 @@ public:
 
    void * InternalData() const { return rowLocPtr_; }
 
+   HYPRE_BigInt GetGlobalNumColumns() const { return num_global_cols; }
+
 private:
    MPI_Comm   comm_;
    void     * rowLocPtr_;
+   HYPRE_BigInt num_global_cols;
 
 }; // mfem::SuperLURowLocMatrix
 
