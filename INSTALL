@@ -511,10 +511,12 @@ MFEM_USE_MKL_CPARDISO = YES/NO
 MFEM_USE_MOONOOLITH = YES/NO
    Enables the interface ParMoonolith for parallel non-conforming, non-matching,
    variational, volumetric mesh information transfer using ParMoonolith. It
-   requires MFEM_USE_METIS=YES, and MOONOLITH_DIR=<path to install>. Makefile users
-   are required to install moonolith using the command `make install_all` (see https://bitbucket.org/zulianp/par_moonolith for details). Although Moonolith
-   is an MPI based library, serial (MFEM_USE_MPI=NO) and parallel (MFEM_USE_MPI=YES)
-   versions of MFEM are supported.
+   requires the variable MOONOLITH_DIR=<path to installation> to
+   be defined in the environment in order to be used with the Makefile.
+   Makefile users are also required to install moonolith using the command
+   `make install_all` (see https://bitbucket.org/zulianp/par_moonolith for details).
+   Although Moonolith is an MPI-based library, both serial (MFEM_USE_MPI=NO) and
+   parallel (MFEM_USE_MPI=YES) versions of MFEM are supported.
 
 MFEM_USE_CALIPER = YES/NO
    Enables the interface to Caliper. Caliper is a library to integrate
