@@ -332,8 +332,9 @@ protected:
    int order;
    long max_elements = std::numeric_limits<long>::max();
    double threshold = 1.0e-2;
-   double relative_osc = 0.0;
+   double global_osc = 0.0;
    Array<int> mesh_refinements;
+   Vector element_oscs;
    Coefficient *coeff = NULL;
    GridFunction *gf;
    const IntegrationRule *ir_default[Geometry::NumGeom];
@@ -371,7 +372,7 @@ public:
    /// Set the function f
    void SetCoefficient(Coefficient &coeff_)
    {
-      relative_osc = 0.0;
+      global_osc = 0.0;
       coeff = &coeff_;
    }
 
@@ -392,7 +393,14 @@ public:
    void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
 
    // Return the value of the global relative data oscillation
-   double GetOsc() { return relative_osc; }
+   double GetOsc() { return global_osc; }
+
+   // Return the local relative data oscillation errors
+   Vector GetLocalOscs()
+   {
+       MFEM_ASSERT(element_oscs.Size() > 0, "Local oscillations have not been computed yet")
+       return element_oscs;
+   }
 
    /// Reset
    virtual void Reset();

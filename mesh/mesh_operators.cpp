@@ -233,32 +233,36 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
       // Define osc_K(f) := || h ⋅ (I - Π) f ||_K and select elements
       // for refinement based on threshold. Also record relative osc(f).
-      relative_osc = 0.0;
+      global_osc = 0.0;
       mesh_refinements.SetSize(0);
+      element_oscs.Destroy();
+      element_oscs.SetSize(NE);
+      element_oscs = 0.0;
       for (int j = 0; j < NE; j++)
       {
          double h = mesh.GetElementSize(j);
          double element_osc = h * element_norms_of_fine_scale(j);
-         relative_osc += element_osc*element_osc;
          if ( element_osc > threshold * av_norm_of_coeff )
          {
             mesh_refinements.Append(j);
          }
+         element_oscs(j) = element_osc/(norm_of_coeff + 1e-10);
+         global_osc += element_osc*element_osc;
       }
 #ifdef MFEM_USE_MPI
       if (par)
       {
          MPI_Comm comm = pmesh->GetComm();
-         MPI_Allreduce(MPI_IN_PLACE, &relative_osc, 1, MPI_DOUBLE, MPI_SUM, comm);
+         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPI_DOUBLE, MPI_SUM, comm);
          MPI_Comm_rank(comm, &rank);
       }
 #endif
-      relative_osc = sqrt(relative_osc)/(norm_of_coeff + 1e-10);
+      global_osc = sqrt(global_osc)/(norm_of_coeff + 1e-10);
 
       // Exit if the global threshold or maximum number of elements is reached.
-      if (relative_osc < threshold || globalNE > max_elements)
+      if (global_osc < threshold || globalNE > max_elements)
       {
-         if (relative_osc > threshold && globalNE > max_elements && rank == 0)
+         if (global_osc > threshold && globalNE > max_elements && rank == 0)
          {
             MFEM_WARNING("Reached maximum number of elements "
                          "before resolving data to tolerance.");
@@ -282,7 +286,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
 void CoefficientRefiner::Reset()
 {
-   relative_osc = 0.0;
+   global_osc = 0.0;
    coeff = NULL;
    irs = NULL;
 }
