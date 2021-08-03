@@ -96,7 +96,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
                                const SparseMatrix& agg_elem,
                                const SparseMatrix& elem_dof,
                                const HypreParMatrix& dof_truedof,
-                               Array<int>& agg_starts)
+                               Array<HYPRE_Int>& agg_starts)
 {
    OperatorPtr agg_dof(Mult(agg_elem, elem_dof));
    SparseMatrix& agg_dof_ref = *agg_dof.As<SparseMatrix>();
@@ -131,7 +131,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
 
 void DFSSpaces::MakeDofRelationTables(int level)
 {
-   Array<int> agg_starts(Array<int>(l2_0_fes_->GetDofOffsets(), 2));
+   Array<HYPRE_Int> agg_starts(Array<HYPRE_Int>(l2_0_fes_->GetDofOffsets(), 2));
    auto& elem_agg = (const SparseMatrix&)*l2_0_fes_->GetUpdateOperator();
    OperatorPtr agg_elem(Transpose(elem_agg));
    SparseMatrix& agg_el = *agg_elem.As<SparseMatrix>();
