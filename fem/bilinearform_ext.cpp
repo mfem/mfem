@@ -125,11 +125,6 @@ void MFBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-
-   MFEM_VERIFY(a->GetFBFI()->Size() == 0,
-               "the case of interior face integrators is not"
-               " implemented");
-
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
@@ -188,10 +183,6 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
 void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(a->GetFBFI()->Size() == 0,
-               "the case of interior face integrators is not"
-               " implemented");
-
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
    if (elem_restrict)
