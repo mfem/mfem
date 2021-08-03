@@ -1,16 +1,23 @@
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "mortarintegrator.hpp"
 
 namespace mfem
 {
 void L2MortarIntegrator::AssembleElementMatrix(
-   const FiniteElement     &trial,
-   const IntegrationRule   &trial_ir,
-   ElementTransformation   &trial_Trans,
-   const FiniteElement     &test,
-   const IntegrationRule   &test_ir,
-   ElementTransformation   &test_Trans,
-   DenseMatrix          &elmat
-)
+   const FiniteElement &trial, const IntegrationRule &trial_ir,
+   ElementTransformation &trial_Trans, const FiniteElement &test,
+   const IntegrationRule &test_ir, ElementTransformation &test_Trans,
+   DenseMatrix &elmat)
 {
    int tr_nd = trial.GetDof();
    int te_nd = test.GetDof();
@@ -18,16 +25,16 @@ void L2MortarIntegrator::AssembleElementMatrix(
 
    Vector shape, te_shape;
 
-   elmat.SetSize (te_nd, tr_nd);
-   shape.SetSize (tr_nd);
-   te_shape.SetSize (te_nd);
+   elmat.SetSize(te_nd, tr_nd);
+   shape.SetSize(tr_nd);
+   te_shape.SetSize(te_nd);
 
    elmat = 0.0;
    for (int i = 0; i < test_ir.GetNPoints(); i++)
    {
       const IntegrationPoint &trial_ip = trial_ir.IntPoint(i);
-      const IntegrationPoint &test_ip  = test_ir.IntPoint(i);
-      test_Trans.SetIntPoint (&test_ip);
+      const IntegrationPoint &test_ip = test_ir.IntPoint(i);
+      test_Trans.SetIntPoint(&test_ip);
 
       trial.CalcShape(trial_ip, shape);
       test.CalcShape(test_ip, te_shape);
@@ -39,21 +46,16 @@ void L2MortarIntegrator::AssembleElementMatrix(
    }
 }
 
-
 void VectorL2MortarIntegrator::AssembleElementMatrix(
-   const FiniteElement     &trial,
-   const IntegrationRule   &trial_ir,
-   ElementTransformation   &trial_Trans,
-   const FiniteElement     &test,
-   const IntegrationRule   &test_ir,
-   ElementTransformation   &test_Trans,
-   DenseMatrix          &elmat
-)
+   const FiniteElement &trial, const IntegrationRule &trial_ir,
+   ElementTransformation &trial_Trans, const FiniteElement &test,
+   const IntegrationRule &test_ir, ElementTransformation &test_Trans,
+   DenseMatrix &elmat)
 {
-   if ( test.GetRangeType() == FiniteElement::SCALAR && VQ )
+   if (test.GetRangeType() == FiniteElement::SCALAR && VQ)
    {
       // assume test is scalar FE and trial is vector FE
-      int dim  = test.GetDim();
+      int dim = test.GetDim();
       int trial_dof = trial.GetDof();
       int test_dof = test.GetDof();
       double w;
@@ -72,16 +74,16 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
       D.SetSize(dim);
 #endif
 
-      elmat.SetSize (test_dof, trial_dof);
+      elmat.SetSize(test_dof, trial_dof);
 
       elmat = 0.0;
       for (int i = 0; i < test_ir.GetNPoints(); i++)
       {
          const IntegrationPoint &trial_ip = trial_ir.IntPoint(i);
-         const IntegrationPoint &test_ip  = test_ir.IntPoint(i);
+         const IntegrationPoint &test_ip = test_ir.IntPoint(i);
 
          trial_Trans.SetIntPoint(&trial_ip);
-         test_Trans.SetIntPoint (&test_ip);
+         test_Trans.SetIntPoint(&test_ip);
 
          trial.CalcVShape(trial_Trans, trial_vshape);
          test.CalcShape(test_ip, shape);
@@ -102,12 +104,12 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
          }
       }
    }
-   else if ( test.GetRangeType() == FiniteElement::SCALAR )
+   else if (test.GetRangeType() == FiniteElement::SCALAR)
    {
       // assume test is scalar FE and trial is vector FE
-      int dim       = test.GetDim();
+      int dim = test.GetDim();
       int trial_dof = trial.GetDof();
-      int test_dof  = test.GetDof();
+      int test_dof = test.GetDof();
       double w;
 
       if (VQ || MQ)
@@ -122,17 +124,16 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
       shape.SetSize(test_dof);
 #endif
 
-      elmat.SetSize (dim*test_dof, trial_dof);
-
+      elmat.SetSize(dim * test_dof, trial_dof);
 
       elmat = 0.0;
       for (int i = 0; i < test_ir.GetNPoints(); i++)
       {
          const IntegrationPoint &trial_ip = trial_ir.IntPoint(i);
-         const IntegrationPoint &test_ip  = test_ir.IntPoint(i);
+         const IntegrationPoint &test_ip = test_ir.IntPoint(i);
 
          trial_Trans.SetIntPoint(&trial_ip);
-         test_Trans.SetIntPoint (&test_ip);
+         test_Trans.SetIntPoint(&test_ip);
 
          trial.CalcVShape(trial_Trans, trial_vshape);
          test.CalcShape(test_ip, shape);
@@ -141,7 +142,7 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
 
          if (Q)
          {
-            w *= Q -> Eval (test_Trans, test_ip);
+            w *= Q->Eval(test_Trans, test_ip);
          }
 
          for (int d = 0; d < dim; d++)
@@ -159,7 +160,7 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
    else
    {
       // assume both test and trial are vector FE
-      int dim  = test.GetDim();
+      int dim = test.GetDim();
       int trial_dof = trial.GetDof();
       int test_dof = test.GetDof();
       double w;
@@ -170,22 +171,22 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
 
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, dim);
-      DenseMatrix test_vshape(test_dof,dim);
+      DenseMatrix test_vshape(test_dof, dim);
 #else
       trial_vshape.SetSize(trial_dof, dim);
-      test_vshape.SetSize(test_dof,dim);
+      test_vshape.SetSize(test_dof, dim);
 #endif
 
-      elmat.SetSize (test_dof, trial_dof);
+      elmat.SetSize(test_dof, trial_dof);
 
       elmat = 0.0;
       for (int i = 0; i < test_ir.GetNPoints(); i++)
       {
          const IntegrationPoint &trial_ip = trial_ir.IntPoint(i);
-         const IntegrationPoint &test_ip  = test_ir.IntPoint(i);
+         const IntegrationPoint &test_ip = test_ir.IntPoint(i);
 
          trial_Trans.SetIntPoint(&trial_ip);
-         test_Trans.SetIntPoint (&test_ip);
+         test_Trans.SetIntPoint(&test_ip);
 
          trial.CalcVShape(trial_Trans, trial_vshape);
          test.CalcVShape(test_Trans, test_vshape);
@@ -193,7 +194,7 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
          w = test_ip.weight * test_Trans.Weight();
          if (Q)
          {
-            w *= Q -> Eval (test_Trans, test_ip);
+            w *= Q->Eval(test_Trans, test_ip);
          }
 
          for (int d = 0; d < dim; d++)
@@ -213,4 +214,4 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
    }
 }
 
-}
+} // namespace mfem

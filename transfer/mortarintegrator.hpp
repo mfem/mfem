@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #ifndef MFEML2_MORTAR_INTEGRATOR_HPP
 #define MFEML2_MORTAR_INTEGRATOR_HPP
 
@@ -84,11 +95,8 @@ public:
 public:
    VectorL2MortarIntegrator() { Init(NULL, NULL, NULL); }
    VectorL2MortarIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
-   VectorL2MortarIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
    VectorL2MortarIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL); }
-   VectorL2MortarIntegrator(VectorCoefficient &vq) { Init(NULL, &vq, NULL); }
    VectorL2MortarIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq); }
-   VectorL2MortarIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
 
    void AssembleElementMatrix(const FiniteElement &trial,
                               const IntegrationRule &trial_ir,

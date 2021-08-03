@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "cut.hpp"
 
 #include "transferutils.hpp"
@@ -9,8 +20,7 @@ using namespace mfem::private_;
 namespace mfem
 {
 
-template<class Polytope>
-class CutGeneric : public Cut
+template <class Polytope> class CutGeneric : public Cut
 {
 public:
    using Point = typename Polytope::Point;
@@ -28,15 +38,9 @@ public:
 
 protected:
    inline Quadrature_t &GetQRule() { return q_rule_; }
-   inline int GetOrder()const
-   {
-      return order_;
-   }
+   inline int GetOrder() const { return order_; }
 
-   inline void SetOrder(const int order)
-   {
-      order_ = order;
-   }
+   inline void SetOrder(const int order) { order_ = order; }
 
    virtual void MakePolytope(Mesh &mesh, const int elem_idx,
                              Polytope &polygon) = 0;
@@ -61,7 +65,8 @@ public:
 
 protected:
    void SetQuadratureRule(const IntegrationRule &ir) override;
-   void MakePolytope(Mesh &mesh, const int elem_idx, Polygon_t &polygon) override;
+   void MakePolytope(Mesh &mesh, const int elem_idx,
+                     Polygon_t &polygon) override;
 
 private:
    DenseMatrix buffer_pts;
@@ -75,7 +80,6 @@ public:
    using BuildQuadrature_t = moonolith::BuildQuadrature<Polyhedron_t>;
 
    void SetIntegrationOrder(const int order) override;
-
 
 protected:
    void SetQuadratureRule(const IntegrationRule &ir) override;
@@ -107,7 +111,7 @@ void TransformToReference(ElementTransformation &Trans, int type,
    ref_p.weight = w;
 }
 
-template<class Polytope>
+template <class Polytope>
 bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
                                            const int from_elem_idx,
                                            const FiniteElementSpace &to_space,
@@ -152,17 +156,16 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       double w = physical_quadrature_.weights[qp];
       intersection_measure_ += w;
 
-      TransformToReference(from_trans, from_type, p, w/from_measure,
+      TransformToReference(from_trans, from_type, p, w / from_measure,
                            from_quadrature[qp]);
-      TransformToReference(to_trans, to_type, p, w/to_measure, to_quadrature[qp]);
+      TransformToReference(to_trans, to_type, p, w / to_measure,
+                           to_quadrature[qp]);
    }
 
    return true;
 }
 
-
-template<class Polytope>
-void CutGeneric<Polytope>::Describe() const
+template <class Polytope> void CutGeneric<Polytope>::Describe() const
 {
    mfem::out << "Cut measure " << intersection_measure_ << '\n';
 }
