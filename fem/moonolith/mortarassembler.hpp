@@ -25,7 +25,11 @@ namespace mfem
  * used for supporting applications wich require the handling of non matching
  * meshes. For instance: General multi-physics problems, fluid structure
  * interaction, or even visulization of average quanties within subvolumes
- *
+ * This algorithm allows to perform quadrature in the intersection of elements
+ * of two separate and unrelated meshes. It generates quadrature rules in
+ * the intersection which allows us to integrate with to machine precision using
+ * the mfem::MortarIntegrator interface. See https://doi.org/10.1137/15M1008361
+ * for and in-depth explanation.
  */
 class MortarAssembler
 {
@@ -79,7 +83,6 @@ public:
     * To before alling the Apply function. Works with
     * L2_FECollection, H1_FECollection and DG_FECollection (experimental with
     * RT_FECollection and ND_FECollection).
-    * @param B the assembled coupling operator. B can be passed uninitialized.
     * @return true if there was an intersection and the operator has been
     * assembled. False otherwise.
     */
@@ -94,7 +97,7 @@ public:
 
    /*!
     * @brief Expose process details with verbose output
-    * @param verbose, set to true for verbose output
+    * @param verbose is set to true for verbose output
     */
    void SetVerbose(const bool verbose);
 
