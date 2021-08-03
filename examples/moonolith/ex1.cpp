@@ -34,6 +34,8 @@ int main(int argc, char *argv[])
 
    int src_n_refinements = 0;
    int dest_n_refinements = 0;
+   int source_fe_order = 1;
+   int dest_fe_order = 1;
    bool visualization = true;
    bool use_vector_fe = false;
 
@@ -49,6 +51,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&source_fe_order, "-so", "--source_fe_order",
+                  "Order of the src finite elements");
+   args.AddOption(&dest_fe_order, "-do", "--dest_fe_order",
+                  "Order of the dest finite elements");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
                   "--no-vector_fe", "Use vector finite elements");
 
@@ -135,13 +141,17 @@ int main(int argc, char *argv[])
 
    if (use_vector_fe)
    {
-      src_fe_coll = make_shared<RT_FECollection>(1, src_mesh->Dimension());
-      dest_fe_coll = make_shared<RT_FECollection>(1, dest_mesh->Dimension());
+      src_fe_coll =
+         make_shared<RT_FECollection>(source_fe_order, src_mesh->Dimension());
+      dest_fe_coll =
+         make_shared<RT_FECollection>(dest_fe_order, dest_mesh->Dimension());
    }
    else
    {
-      src_fe_coll = make_shared<L2_FECollection>(1, src_mesh->Dimension());
-      dest_fe_coll = make_shared<L2_FECollection>(1, dest_mesh->Dimension());
+      src_fe_coll =
+         make_shared<L2_FECollection>(source_fe_order, src_mesh->Dimension());
+      dest_fe_coll =
+         make_shared<L2_FECollection>(dest_fe_order, dest_mesh->Dimension());
    }
 
    auto src_fe =

@@ -487,9 +487,9 @@ set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
 
 if(MFEM_USE_MOONOLITH)
-    set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} transfer)
+    set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith)
     if(MFEM_USE_MPI)
-      set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} transfer/parallel)
+      set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith/parallel)
     endif()
 endif()
 

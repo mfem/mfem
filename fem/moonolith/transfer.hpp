@@ -12,7 +12,7 @@
 #ifndef MFEM_TRANSFER
 #define MFEM_TRANSFER
 
-#include "../fem/fem.hpp"
+#include "../fem.hpp"
 
 #ifdef MFEM_USE_MOONOLITH
 #include "mortarassembler.hpp"

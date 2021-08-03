@@ -12,7 +12,7 @@
 #ifndef MFEML2_MORTAR_INTEGRATOR_HPP
 #define MFEML2_MORTAR_INTEGRATOR_HPP
 
-#include "../fem/fem.hpp"
+#include "../fem.hpp"
 
 namespace mfem
 {

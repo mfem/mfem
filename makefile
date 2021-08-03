@@ -412,13 +412,13 @@ DIRS = general linalg linalg/simd mesh fem fem/ceed fem/qinterp fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
-   MFEM_INCFLAGS += -I$(MFEM_DIR)/transfer $(MOONOLITH_INCLUDES)
+   MFEM_INCFLAGS += -I$(MFEM_DIR)/fem/moonolith $(MOONOLITH_INCLUDES)
    MFEM_TPLFLAGS += $(MOONOLITH_INCLUDES)
-   DIRS += transfer
+   DIRS += fem/moonolith
 
    ifeq ($(MFEM_USE_MPI),YES)
-      MFEM_INCFLAGS += -I$(MFEM_DIR)/transfer/parallel
-      DIRS += transfer/parallel
+      MFEM_INCFLAGS += -I$(MFEM_DIR)/fem/moonolith/parallel
+      DIRS += fem/moonolith/parallel
    endif
 endif
 

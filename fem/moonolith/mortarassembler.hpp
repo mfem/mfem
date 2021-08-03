@@ -12,7 +12,7 @@
 #ifndef MFEML2P_MORTAR_ASSEMBLER_HPP
 #define MFEML2P_MORTAR_ASSEMBLER_HPP
 
-#include "../fem/fem.hpp"
+#include "../fem.hpp"
 #include "mortarintegrator.hpp"
 #include <memory>
 
