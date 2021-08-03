@@ -286,6 +286,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
 void CoefficientRefiner::Reset()
 {
+   element_oscs.Destroy();
    global_osc = 0.0;
    coeff = NULL;
    irs = NULL;

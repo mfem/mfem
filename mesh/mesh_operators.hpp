@@ -336,7 +336,6 @@ protected:
    Vector element_oscs;
    Coefficient *coeff = NULL;
    GridFunction *gf;
-   const IntegrationRule *ir_default[Geometry::NumGeom];
    const IntegrationRule **irs = NULL;
 
    /** @brief Apply the operator to the mesh once.
@@ -371,6 +370,7 @@ public:
    /// Set the function f
    void SetCoefficient(Coefficient &coeff_)
    {
+      element_oscs.Destroy();
       global_osc = 0.0;
       coeff = &coeff_;
    }
