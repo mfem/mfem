@@ -51,6 +51,10 @@ Discretization improvements
 
 - Added support for nonscalar coefficient with VectorDiffusionIntegrator.
 
+- Tetrahedral meshes no longer need to be reordered to support high order
+  Nedelec basis functions. This will allow future support for Nedelec basis
+  functions on wedges and pyramids which are not amenable to reordering.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added support for AMG preconditioners on GPUs based on the hypre library
@@ -160,6 +164,11 @@ Meshing improvements
   of the six currently supported element types; ref-segment.mesh,
   ref-triangle.mesh, ref-square.mesh, ref-tetrahedron.mesh, ref-cube.mesh, and
   ref-prism.mesh.
+
+- Tetrahedral meshes no longer require reordering to make them compatible with
+  high order Nedelec basis functions. This ensures that the user-provided mesh
+  will be the same as the computational mesh which will help to facilitate
+  exchanging data between different simulation codes.
 
 High-performance computing
 --------------------------
