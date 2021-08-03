@@ -763,7 +763,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
    }
 
    MFEM_VERIFY(nterms == 1, " High-order extension is not available for Neumann"
-                            " boundary condition. Set nterms=1.\n");
+               " boundary condition. Set nterms=1.\n");
 
    Array<DenseMatrix *> dkphi_dxk;
    DenseMatrix grad_phys;
