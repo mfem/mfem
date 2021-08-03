@@ -48,6 +48,8 @@ int main(int argc, char *argv[])
 
    int src_n_refinements = 0;
    int dest_n_refinements = 0;
+   int source_fe_order = 0;
+   int dest_fe_order = 1;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -62,6 +64,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&source_fe_order, "-so", "--source_fe_order",
+                  "Order of the src finite elements");
+   args.AddOption(&dest_fe_order, "-do", "--dest_fe_order",
+                  "Order of the dest finite elements");
 
    args.Parse();
    check_options(args);
@@ -133,11 +139,13 @@ int main(int argc, char *argv[])
 
    ///////////////////////////////////////////////////
 
-   auto src_fe_coll = make_shared<DG_FECollection>(0, p_src_mesh->Dimension());
+   auto src_fe_coll =
+      make_shared<DG_FECollection>(source_fe_order, p_src_mesh->Dimension());
    auto src_fe =
       make_shared<ParFiniteElementSpace>(p_src_mesh.get(), src_fe_coll.get());
 
-   auto dest_fe_coll = make_shared<DG_FECollection>(1, p_dest_mesh->Dimension());
+   auto dest_fe_coll =
+      make_shared<DG_FECollection>(dest_fe_order, p_dest_mesh->Dimension());
    auto dest_fe =
       make_shared<ParFiniteElementSpace>(p_dest_mesh.get(), dest_fe_coll.get());
 

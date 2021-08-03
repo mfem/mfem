@@ -12,7 +12,7 @@
 #ifndef MFEM_TRANSFER_CUT_HPP
 #define MFEM_TRANSFER_CUT_HPP
 
-#include "../fem/fem.hpp"
+#include "../fem.hpp"
 #include <memory>
 
 namespace mfem

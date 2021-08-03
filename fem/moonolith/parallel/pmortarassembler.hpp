@@ -15,7 +15,7 @@
 #include <memory>
 #include <vector>
 
-#include "../../fem/fem.hpp"
+#include "../../fem.hpp"
 #include "../mortarintegrator.hpp"
 
 namespace mfem

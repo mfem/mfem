@@ -44,7 +44,7 @@
 #include "fem/fem.hpp"
 
 #ifdef MFEM_USE_MOONOLITH
-#include "transfer/transfer.hpp"
+#include "fem/moonolith/transfer.hpp"
 #endif //MFEM_USE_MOONOLITH
 
 #endif
