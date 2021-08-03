@@ -96,6 +96,12 @@ public:
     */
    void AddMortarIntegrator(const std::shared_ptr<MortarIntegrator> &integrator);
 
+   /*!
+    * @brief Expose process details with verbose output
+    * @param verbose, set to true for verbose output
+    */
+   void SetVerbose(const bool verbose);
+
 private:
    class Impl;
    std::unique_ptr<Impl> impl_;

@@ -36,6 +36,7 @@ public:
    std::vector<std::shared_ptr<MortarIntegrator>> integrators;
    std::shared_ptr<SparseMatrix> coupling_matrix;
    std::shared_ptr<SparseMatrix> mass_matrix;
+   bool verbose{false};
 };
 
 MortarAssembler::~MortarAssembler() = default;
@@ -44,6 +45,11 @@ void MortarAssembler::AddMortarIntegrator(
    const std::shared_ptr<MortarIntegrator> &integrator)
 {
    impl_->integrators.push_back(integrator);
+}
+
+void MortarAssembler::SetVerbose(const bool verbose)
+{
+   impl_->verbose = verbose;
 }
 
 template <int Dim>
@@ -119,7 +125,7 @@ MortarAssembler::MortarAssembler(
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 {
    using namespace std;
-   static const bool verbose = true;
+   const bool verbose = impl_->verbose;
 
    const auto &source_mesh = *impl_->source->GetMesh();
    const auto &destination_mesh = *impl_->destination->GetMesh();
@@ -264,13 +270,13 @@ bool MortarAssembler::Apply(GridFunction &src_fun, GridFunction &dest_fun)
 bool MortarAssembler::Init()
 {
    using namespace std;
-   static const bool verbose = true;
+   const bool verbose = impl_->verbose;
 
    StopWatch chrono;
 
    if (verbose)
    {
-      mfem::out << "Assembling coupling operator..." << endl;
+      mfem::out << "\nAssembling coupling operator..." << endl;
    }
 
    chrono.Start();

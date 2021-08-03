@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
    int source_fe_order = 0;
    int dest_fe_order = 1;
    bool visualization = true;
+   bool verbose = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -68,6 +69,8 @@ int main(int argc, char *argv[])
                   "Order of the src finite elements");
    args.AddOption(&dest_fe_order, "-do", "--dest_fe_order",
                   "Order of the dest finite elements");
+   args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
+                  "Eanble/Disable verbose output");
 
    args.Parse();
    check_options(args);
@@ -160,6 +163,8 @@ int main(int argc, char *argv[])
    dest_fun.Update();
 
    ParMortarAssembler assembler(src_fe, dest_fe);
+   assembler.SetVerbose(verbose);
+
    assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
    if (assembler.Transfer(src_fun, dest_fun))
    {

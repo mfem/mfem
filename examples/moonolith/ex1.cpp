@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
    int dest_fe_order = 1;
    bool visualization = true;
    bool use_vector_fe = false;
+   bool verbose = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -55,6 +56,8 @@ int main(int argc, char *argv[])
                   "Order of the src finite elements");
    args.AddOption(&dest_fe_order, "-do", "--dest_fe_order",
                   "Order of the dest finite elements");
+   args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
+                  "Eanble/Disable verbose output");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
                   "--no-vector_fe", "Use vector finite elements");
 
@@ -187,6 +190,7 @@ int main(int argc, char *argv[])
    dest_fun.Update();
 
    MortarAssembler assembler(src_fe, dest_fe);
+   assembler.SetVerbose(verbose);
 
    if (use_vector_fe)
    {
