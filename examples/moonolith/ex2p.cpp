@@ -6,7 +6,8 @@
 // Moonolith sample runs:
 //               mpirun -np 4 ex2p
 //               mpirun -np 4 ex2p --source_refinements 1 --dest_refinements 2
-//               mpirun -np 4 ex2p -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
+//               mpirun -np 4 ex2p -s ../../data/inline-hex.mesh -d
+//               ../../data/inline-tet.mesh
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -156,10 +157,14 @@ int main(int argc, char *argv[])
    {
       if (visualization)
       {
-         const double err = dest_fun.ComputeL2Error(coeff);
+
+         const double src_err = src_fun.ComputeL2Error(coeff);
+         const double dest_err = dest_fun.ComputeL2Error(coeff);
+
          if (rank == 0)
          {
-            mfem::out << "l2 error: " << err << std::endl;
+            mfem::out << "l2 error: src: " << src_err << ", dest: " << dest_err
+                      << std::endl;
          }
 
          plot(*p_src_mesh, src_fun, "source");

@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "mortarassembler.hpp"
 #include "../general/tic_toc.hpp"
 
@@ -16,6 +27,24 @@ using namespace mfem::private_;
 
 namespace mfem
 {
+
+class MortarAssembler::Impl
+{
+public:
+   std::shared_ptr<FiniteElementSpace> source;
+   std::shared_ptr<FiniteElementSpace> destination;
+   std::vector<std::shared_ptr<MortarIntegrator>> integrators;
+   std::shared_ptr<SparseMatrix> coupling_matrix;
+   std::shared_ptr<SparseMatrix> mass_matrix;
+};
+
+MortarAssembler::~MortarAssembler() = default;
+
+void MortarAssembler::AddMortarIntegrator(
+   const std::shared_ptr<MortarIntegrator> &integrator)
+{
+   impl_->integrators.push_back(integrator);
+}
 
 template <int Dim>
 void BuildBoxes(const Mesh &mesh,
@@ -81,15 +110,19 @@ bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
 MortarAssembler::MortarAssembler(
    const std::shared_ptr<FiniteElementSpace> &source,
    const std::shared_ptr<FiniteElementSpace> &destination)
-   : source_(source), destination_(destination) {}
+   : impl_(new Impl())
+{
+   impl_->source = source;
+   impl_->destination = destination;
+}
 
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 {
    using namespace std;
    static const bool verbose = false;
 
-   const auto &source_mesh = *source_->GetMesh();
-   const auto &destination_mesh = *destination_->GetMesh();
+   const auto &source_mesh = *impl_->source->GetMesh();
+   const auto &destination_mesh = *impl_->destination->GetMesh();
 
    int dim = source_mesh.Dimension();
 
@@ -111,7 +144,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    IntegrationRule destination_ir;
    //////////////////////////////////////////////////
    int skip_zeros = 1;
-   B = make_shared<SparseMatrix>(destination_->GetNDofs(), source_->GetNDofs());
+   B = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
+                                 impl_->source->GetNDofs());
    Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
@@ -127,11 +161,11 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       const int source_index = *it++;
       const int destination_index = *it++;
 
-      auto &source_fe = *source_->GetFE(source_index);
-      auto &destination_fe = *destination_->GetFE(destination_index);
+      auto &source_fe = *impl_->source->GetFE(source_index);
+      auto &destination_fe = *impl_->destination->GetFE(destination_index);
 
       ElementTransformation &destination_Trans =
-         *destination_->GetElementTransformation(destination_index);
+         *impl_->destination->GetElementTransformation(destination_index);
       const int order = source_fe.GetOrder() + destination_fe.GetOrder() +
                         destination_Trans.OrderW();
 
@@ -140,17 +174,17 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
       n_candidates++;
 
-      if (cut->BuildQuadrature(*source_, source_index, *destination_,
+      if (cut->BuildQuadrature(*impl_->source, source_index, *impl_->destination,
                                destination_index, source_ir, destination_ir))
       {
-         source_->GetElementVDofs(source_index, source_vdofs);
-         destination_->GetElementVDofs(destination_index, destination_vdofs);
+         impl_->source->GetElementVDofs(source_index, source_vdofs);
+         impl_->destination->GetElementVDofs(destination_index, destination_vdofs);
 
          ElementTransformation &source_Trans =
-            *source_->GetElementTransformation(source_index);
+            *impl_->source->GetElementTransformation(source_index);
 
          bool first = true;
-         for (auto i_ptr : integrators_)
+         for (auto i_ptr : impl_->integrators)
          {
             if (first)
             {
@@ -202,6 +236,33 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
 bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun)
 {
+   return Init() && Apply(src_fun, dest_fun);
+}
+
+bool MortarAssembler::Apply(GridFunction &src_fun, GridFunction &dest_fun)
+{
+   if (!impl_->coupling_matrix)
+   {
+      mfem::err << "Warning calling apply without calling Init() first!\n";
+      if (!Init())
+      {
+         return false;
+      }
+   }
+
+   CGSolver Dinv;
+   Dinv.SetOperator(*impl_->mass_matrix);
+   Dinv.SetRelTol(1e-6);
+   Dinv.SetMaxIter(20);
+
+   Vector temp(impl_->coupling_matrix->Height());
+   impl_->coupling_matrix->Mult(src_fun, temp);
+   Dinv.Mult(temp, dest_fun);
+   return true;
+}
+
+bool MortarAssembler::Init()
+{
    using namespace std;
    static const bool verbose = false;
 
@@ -214,8 +275,7 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun)
 
    chrono.Start();
 
-   shared_ptr<SparseMatrix> B = nullptr;
-   if (!Assemble(B))
+   if (!Assemble(impl_->coupling_matrix))
    {
       return false;
    }
@@ -227,10 +287,10 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun)
       mfem::out << chrono.RealTime() << " seconds" << endl;
    }
 
-   BilinearForm b_form(destination_.get());
+   BilinearForm b_form(impl_->destination.get());
 
    bool is_vector_fe = false;
-   for (auto i_ptr : integrators_)
+   for (auto i_ptr : impl_->integrators)
    {
       if (i_ptr->is_vector_fe())
       {
@@ -251,24 +311,15 @@ bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun)
    b_form.Assemble();
    b_form.Finalize();
 
-   auto &D = b_form.SpMat();
-
-   CGSolver Dinv;
-   Dinv.SetOperator(D);
-   Dinv.SetRelTol(1e-6);
-   Dinv.SetMaxIter(20);
-
-   Vector temp(B->Height());
-   B->Mult(src_fun, temp);
-   Dinv.Mult(temp, dest_fun);
+   impl_->mass_matrix = std::shared_ptr<SparseMatrix>(b_form.LoseMat());
 
    if (verbose)
    {
-      Vector brs(B->Height());
-      B->GetRowSums(brs);
+      Vector brs(impl_->coupling_matrix->Height());
+      impl_->coupling_matrix->GetRowSums(brs);
 
-      Vector drs(D.Height());
-      D.GetRowSums(drs);
+      Vector drs(impl_->mass_matrix->Height());
+      impl_->mass_matrix->GetRowSums(drs);
 
       mfem::out << "sum(B): " << brs.Sum() << std::endl;
       mfem::out << "sum(D): " << drs.Sum() << std::endl;

@@ -17,8 +17,6 @@
 #include "../general/globals.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
-#include "quadrilateral.hpp" //FIXME maybe there was a reason why these includes were not here
-#include "hexahedron.hpp"    //FIXME maybe there was a reason why these includes were not here
 #include "vertex.hpp"
 #include "vtk.hpp"
 #include "ncmesh.hpp"

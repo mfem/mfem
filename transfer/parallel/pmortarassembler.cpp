@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "pmortarassembler.hpp"
 #include "../transferutils.hpp"
 
@@ -19,6 +30,26 @@ using namespace mfem::private_;
 
 namespace mfem
 {
+
+class ParMortarAssembler::Impl
+{
+public:
+   MPI_Comm comm;
+   std::shared_ptr<ParFiniteElementSpace> source;
+   std::shared_ptr<ParFiniteElementSpace> destination;
+   std::vector<std::shared_ptr<MortarIntegrator>> integrators;
+
+   std::shared_ptr<HypreParMatrix> coupling_matrix;
+   std::shared_ptr<HypreParMatrix> mass_matrix;
+};
+
+ParMortarAssembler::~ParMortarAssembler() = default;
+
+void ParMortarAssembler::AddMortarIntegrator(
+   const std::shared_ptr<MortarIntegrator> &integrator)
+{
+   impl_->integrators.push_back(integrator);
+}
 
 template <int Dimension> class ElementAdapter : public moonolith::Serializable
 {
@@ -576,7 +607,7 @@ static bool Assemble(moonolith::Communicator &comm,
 
    long maxNElements = settings.max_elements;
    long maxDepth = settings.max_depth;
-   static const bool verbose = false;
+   static const bool verbose = true;
 
    const int n_elements_source = source->GetNE();
    const int n_elements_destination = destination->GetNE();
@@ -586,7 +617,7 @@ static bool Assemble(moonolith::Communicator &comm,
    predicate->add(0, 1);
 
    MOONOLITH_EVENT_BEGIN("create_adapters");
-   ////////////////////////////////////////////////////////////////////////////////////////////////////
+   /////////////////////////////////////////////////////////////////////////////
    std::shared_ptr<NTreeT> tree = NTreeT::New(predicate, maxNElements, maxDepth);
    tree->reserve(n_elements);
 
@@ -614,7 +645,7 @@ static bool Assemble(moonolith::Communicator &comm,
    }
 
    tree->root()->bound().static_bound().enlarge(1e-6);
-   ////////////////////////////////////////////////////////////////////////////////////////////////////
+   /////////////////////////////////////////////////////////////////////////////
    MOONOLITH_EVENT_END("create_adapters");
 
    // Just to have an indexed-storage
@@ -739,7 +770,7 @@ Assemble(moonolith::Communicator &comm,
          std::shared_ptr<HypreParMatrix> &pmat,
          const moonolith::SearchSettings &settings)
 {
-   static const bool verbose = false;
+   static const bool verbose = true;
    int max_q_order = 0;
 
    for (auto i_ptr : integrators)
@@ -921,7 +952,12 @@ Assemble(moonolith::Communicator &comm,
 ParMortarAssembler::ParMortarAssembler(
    const std::shared_ptr<ParFiniteElementSpace> &source,
    const std::shared_ptr<ParFiniteElementSpace> &destination)
-   : comm_(source->GetComm()), source_(source), destination_(destination) {}
+   : impl_(new Impl())
+{
+   impl_->comm = source->GetComm();
+   impl_->source = source;
+   impl_->destination = destination;
+}
 
 bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
 {
@@ -932,17 +968,17 @@ bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
    // settings.set("disable_redistribution", moonolith::Boolean(true));
    // settings.set("disable_asynch", moonolith::Boolean(true));
 
-   moonolith::Communicator comm(comm_);
-   if (source_->GetMesh()->Dimension() == 2)
+   moonolith::Communicator comm(impl_->comm);
+   if (impl_->source->GetMesh()->Dimension() == 2)
    {
-      return mfem::Assemble<2>(comm, source_, destination_, integrators_, pmat,
-                               settings);
+      return mfem::Assemble<2>(comm, impl_->source, impl_->destination,
+                               impl_->integrators, pmat, settings);
    }
 
-   if (source_->GetMesh()->Dimension() == 3)
+   if (impl_->source->GetMesh()->Dimension() == 3)
    {
-      return mfem::Assemble<3>(comm, source_, destination_, integrators_, pmat,
-                               settings);
+      return mfem::Assemble<3>(comm, impl_->source, impl_->destination,
+                               impl_->integrators, pmat, settings);
    }
 
    assert(false && "Dimension not supported!");
@@ -952,13 +988,61 @@ bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
 bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
                                   ParGridFunction &dest_fun)
 {
+
+   return Init() && Apply(src_fun, dest_fun);
+}
+
+bool ParMortarAssembler::Apply(ParGridFunction &src_fun,
+                               ParGridFunction &dest_fun)
+{
+
+   if (!impl_->coupling_matrix)
+   {
+      mfem::err << "Warning calling apply without calling Init() first!\n";
+      if (!Init())
+      {
+         return false;
+      }
+   }
+
+   auto &B = *impl_->coupling_matrix;
+   auto &D = *impl_->mass_matrix;
+
+   auto &P_source = *impl_->source->Dof_TrueDof_Matrix();
+   auto &P_destination = *impl_->destination->Dof_TrueDof_Matrix();
+
+   CGSolver Dinv(impl_->comm);
+   Dinv.SetOperator(D);
+   Dinv.SetRelTol(1e-6);
+   Dinv.SetMaxIter(20);
+   // Dinv.SetPrintLevel(1);
+
+   Vector P_x_src_fun(B.Width());
+   P_source.MultTranspose(src_fun, P_x_src_fun);
+
+   Vector B_x_src_fun(B.Height());
+   B_x_src_fun = 0.0;
+
+   B.Mult(P_x_src_fun, B_x_src_fun);
+
+   Vector R_x_dest_fun(D.Height());
+   R_x_dest_fun = 0.0;
+
+   Dinv.Mult(B_x_src_fun, R_x_dest_fun);
+
+   P_destination.Mult(R_x_dest_fun, dest_fun);
+
+   dest_fun.Update();
+   return true;
+}
+
+bool ParMortarAssembler::Init()
+{
    using namespace std;
-   static const bool verbose = false;
+   static const bool verbose = true;
    static const bool dof_transformation = true;
 
-   shared_ptr<HypreParMatrix> B = nullptr;
-
-   moonolith::Communicator comm(comm_);
+   moonolith::Communicator comm(impl_->comm);
 
    if (verbose)
    {
@@ -968,14 +1052,11 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
          "Assembly begin: ",
          comm, mfem::out);
    }
-   // moonolith::Clock c;
 
-   if (!Assemble(B))
+   if (!Assemble(impl_->coupling_matrix))
    {
       return false;
    }
-
-   // c.tock();
 
    if (verbose)
    {
@@ -983,17 +1064,19 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
          "Assembly end: "
          "--------------------------------------------------------",
          comm, mfem::out);
-      // moonolith::root_describe(c, comm, mfem::out);
    }
 
    if (dof_transformation)
    {
-      B.reset(RAP(destination_->Dof_TrueDof_Matrix(), B.get(),
-                  source_->Dof_TrueDof_Matrix()));
+      impl_->coupling_matrix.reset(RAP(impl_->destination->Dof_TrueDof_Matrix(),
+                                       impl_->coupling_matrix.get(),
+                                       impl_->source->Dof_TrueDof_Matrix()));
    }
 
+   auto &B = *impl_->coupling_matrix;
+
    bool is_vector_fe = false;
-   for (auto i_ptr : integrators_)
+   for (auto i_ptr : impl_->integrators)
    {
       if (i_ptr->is_vector_fe())
       {
@@ -1002,7 +1085,7 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
       }
    }
 
-   ParBilinearForm b_form(destination_.get());
+   ParBilinearForm b_form(impl_->destination.get());
    if (is_vector_fe)
    {
       b_form.AddDomainIntegrator(new VectorFEMassIntegrator());
@@ -1015,23 +1098,27 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
    b_form.Assemble();
    b_form.Finalize();
 
-   shared_ptr<HypreParMatrix> Dptr(b_form.ParallelAssemble());
+   impl_->mass_matrix = shared_ptr<HypreParMatrix>(b_form.ParallelAssemble());
 
    comm.barrier();
 
    if (verbose && comm.is_root())
    {
-      mfem::out << "P in R^(" << source_->Dof_TrueDof_Matrix()->Height();
-      mfem::out << " x " << source_->Dof_TrueDof_Matrix()->Width() << ")\n";
-      mfem::out << "Q in R^(" << destination_->Dof_TrueDof_Matrix()->Height();
-      mfem::out << " x " << destination_->Dof_TrueDof_Matrix()->Width() << ")\n";
+      mfem::out << "P in R^(" << impl_->source->Dof_TrueDof_Matrix()->Height();
+      mfem::out << " x " << impl_->source->Dof_TrueDof_Matrix()->Width() << ")\n";
+      mfem::out << "Q in R^("
+                << impl_->destination->Dof_TrueDof_Matrix()->Height();
+      mfem::out << " x " << impl_->destination->Dof_TrueDof_Matrix()->Width()
+                << ")\n";
    }
 
-   // if(dof_transformation) {
-   //    Dptr.reset( RAP(Dptr.get(), destination_->Dof_TrueDof_Matrix()) );
-   // }
+   if (dof_transformation)
+   {
+      impl_->mass_matrix.reset(RAP(impl_->mass_matrix.get(),
+                                   impl_->destination->Dof_TrueDof_Matrix()));
+   }
 
-   auto &D = *Dptr;
+   auto &D = *impl_->mass_matrix;
 
    comm.barrier();
 
@@ -1039,10 +1126,10 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
    {
       mfem::out << "--------------------------------------------------------"
                 << std::endl;
-      mfem::out << "B in R^(" << B->GetGlobalNumRows() << " x "
-                << B->GetGlobalNumCols() << ")" << std::endl;
-      mfem::out << "D in R^(" << Dptr->GetGlobalNumRows() << " x "
-                << Dptr->GetGlobalNumCols() << ")" << std::endl;
+      mfem::out << "B in R^(" << B.GetGlobalNumRows() << " x "
+                << B.GetGlobalNumCols() << ")" << std::endl;
+      mfem::out << "D in R^(" << D.GetGlobalNumRows() << " x "
+                << D.GetGlobalNumCols() << ")" << std::endl;
       mfem::out << "--------------------------------------------------------"
                 << std::endl;
    }
@@ -1068,31 +1155,6 @@ bool ParMortarAssembler::Transfer(ParGridFunction &src_fun,
       }
    }
 
-   auto &P_source = *source_->Dof_TrueDof_Matrix();
-   auto &P_destination = *destination_->Dof_TrueDof_Matrix();
-
-   CGSolver Dinv(comm.get());
-   Dinv.SetOperator(D);
-   Dinv.SetRelTol(1e-6);
-   Dinv.SetMaxIter(20);
-   // Dinv.SetPrintLevel(1);
-
-   Vector P_x_src_fun(B->Width());
-   P_source.MultTranspose(src_fun, P_x_src_fun);
-
-   Vector B_x_src_fun(B->Height());
-   B_x_src_fun = 0.0;
-
-   B->Mult(P_x_src_fun, B_x_src_fun);
-
-   Vector R_x_dest_fun(D.Height());
-   R_x_dest_fun = 0.0;
-
-   Dinv.Mult(B_x_src_fun, R_x_dest_fun);
-
-   P_destination.Mult(R_x_dest_fun, dest_fun);
-
-   dest_fun.Update();
    return true;
 }
 } // namespace mfem
