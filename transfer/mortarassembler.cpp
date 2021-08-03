@@ -119,7 +119,7 @@ MortarAssembler::MortarAssembler(
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 {
    using namespace std;
-   static const bool verbose = false;
+   static const bool verbose = true;
 
    const auto &source_mesh = *impl_->source->GetMesh();
    const auto &destination_mesh = *impl_->destination->GetMesh();
@@ -264,7 +264,7 @@ bool MortarAssembler::Apply(GridFunction &src_fun, GridFunction &dest_fun)
 bool MortarAssembler::Init()
 {
    using namespace std;
-   static const bool verbose = false;
+   static const bool verbose = true;
 
    StopWatch chrono;
 
