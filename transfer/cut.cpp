@@ -109,6 +109,19 @@ void TransformToReference(ElementTransformation &Trans, int type,
    assert(ref_p.z <= 1 + 1e-8);
 
    ref_p.weight = w;
+
+   if (type == Geometry::TRIANGLE && dim == 2)
+   {
+      ref_p.weight *= 0.5;
+   }
+   else if (type == Geometry::TETRAHEDRON && dim == 3)
+   {
+      ref_p.weight *= 1. / 6;
+   }
+   else
+   {
+      assert(dim == 2 || dim == 3);
+   }
 }
 
 template <class Polytope>

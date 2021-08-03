@@ -961,7 +961,7 @@ ParMortarAssembler::ParMortarAssembler(
 
 bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
 {
-   assert(!integrators_.empty() &&
+   assert(!impl_->integrators.empty() &&
           "it must have at least on integrator see class MortarIntegrator");
 
    moonolith::SearchSettings settings;
@@ -1112,11 +1112,11 @@ bool ParMortarAssembler::Init()
                 << ")\n";
    }
 
-   if (dof_transformation)
-   {
-      impl_->mass_matrix.reset(RAP(impl_->mass_matrix.get(),
-                                   impl_->destination->Dof_TrueDof_Matrix()));
-   }
+   // if (dof_transformation)
+   // {
+   //    impl_->mass_matrix.reset(RAP(impl_->mass_matrix.get(),
+   //                                 impl_->destination->Dof_TrueDof_Matrix()));
+   // }
 
    auto &D = *impl_->mass_matrix;
 
