@@ -41,6 +41,8 @@ public:
 
    std::shared_ptr<HypreParMatrix> coupling_matrix;
    std::shared_ptr<HypreParMatrix> mass_matrix;
+
+   bool verbose{false};
 };
 
 ParMortarAssembler::~ParMortarAssembler() = default;
@@ -49,6 +51,11 @@ void ParMortarAssembler::AddMortarIntegrator(
    const std::shared_ptr<MortarIntegrator> &integrator)
 {
    impl_->integrators.push_back(integrator);
+}
+
+void ParMortarAssembler::SetVerbose(const bool verbose)
+{
+   impl_->verbose = verbose;
 }
 
 template <int Dimension> class ElementAdapter : public moonolith::Serializable
@@ -596,8 +603,8 @@ template <int Dimensions, class Fun>
 static bool Assemble(moonolith::Communicator &comm,
                      std::shared_ptr<ParFiniteElementSpace> &source,
                      std::shared_ptr<ParFiniteElementSpace> &destination,
-                     Fun process_fun,
-                     const moonolith::SearchSettings &settings)
+                     Fun process_fun, const moonolith::SearchSettings &settings,
+                     const bool verbose)
 {
    using namespace moonolith;
 
@@ -607,7 +614,6 @@ static bool Assemble(moonolith::Communicator &comm,
 
    long maxNElements = settings.max_elements;
    long maxDepth = settings.max_depth;
-   static const bool verbose = true;
 
    const int n_elements_source = source->GetNE();
    const int n_elements_destination = destination->GetNE();
@@ -768,9 +774,9 @@ Assemble(moonolith::Communicator &comm,
          std::shared_ptr<ParFiniteElementSpace> &destination,
          std::vector<std::shared_ptr<MortarIntegrator>> &integrators,
          std::shared_ptr<HypreParMatrix> &pmat,
-         const moonolith::SearchSettings &settings)
+         const moonolith::SearchSettings &settings, const bool verbose)
 {
-   static const bool verbose = true;
+
    int max_q_order = 0;
 
    for (auto i_ptr : integrators)
@@ -893,7 +899,8 @@ Assemble(moonolith::Communicator &comm,
       }
    };
 
-   if (!Assemble<Dimensions>(comm, source, destination, fun, settings))
+   if (!Assemble<Dimensions>(comm, source, destination, fun, settings,
+                             verbose))
    {
       return false;
    }
@@ -972,13 +979,15 @@ bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
    if (impl_->source->GetMesh()->Dimension() == 2)
    {
       return mfem::Assemble<2>(comm, impl_->source, impl_->destination,
-                               impl_->integrators, pmat, settings);
+                               impl_->integrators, pmat, settings,
+                               impl_->verbose);
    }
 
    if (impl_->source->GetMesh()->Dimension() == 3)
    {
       return mfem::Assemble<3>(comm, impl_->source, impl_->destination,
-                               impl_->integrators, pmat, settings);
+                               impl_->integrators, pmat, settings,
+                               impl_->verbose);
    }
 
    assert(false && "Dimension not supported!");
@@ -1039,7 +1048,7 @@ bool ParMortarAssembler::Apply(ParGridFunction &src_fun,
 bool ParMortarAssembler::Init()
 {
    using namespace std;
-   static const bool verbose = true;
+   const bool verbose = impl_->verbose;
    static const bool dof_transformation = true;
 
    moonolith::Communicator comm(impl_->comm);
@@ -1049,7 +1058,7 @@ bool ParMortarAssembler::Init()
 
       moonolith::root_describe(
          "--------------------------------------------------------"
-         "Assembly begin: ",
+         "\nAssembly begin: ",
          comm, mfem::out);
    }
 
@@ -1061,7 +1070,7 @@ bool ParMortarAssembler::Init()
    if (verbose)
    {
       moonolith::root_describe(
-         "Assembly end: "
+         "\nAssembly end: "
          "--------------------------------------------------------",
          comm, mfem::out);
    }
@@ -1148,6 +1157,7 @@ bool ParMortarAssembler::Init()
       D.Mult(v, Dv);
 
       double sum_Dv = Dv.Sum();
+      comm.all_reduce(&sum_Dv, 1, MPI_SUM);
 
       if (comm.is_root())
       {
