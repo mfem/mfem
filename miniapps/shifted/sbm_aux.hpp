@@ -232,7 +232,7 @@ void normal_vector_1(const Vector &x, Vector &p)
    p *= -1;
 }
 
-/// Normal vector for level_set_type = 7. Circle centered at [0.75 , 0.25]
+/// Normal vector for level_set_type = 7. Circle centered at [0.5 , 0.6]
 void normal_vector_2(const Vector &x, Vector &p)
 {
    p.SetSize(x.Size());

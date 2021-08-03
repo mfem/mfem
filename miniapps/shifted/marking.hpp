@@ -12,7 +12,7 @@
 #ifndef MFEM_MARKING_HPP
 #define MFEM_MARKING_HPP
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 
 namespace mfem
 {
@@ -22,11 +22,13 @@ namespace mfem
 class ShiftedFaceMarker
 {
 protected:
-   ParMesh &pmesh;
-   ParGridFunction *ls_func;
-   ParFiniteElementSpace *pfes_sltn;
-   bool include_cut_cell;
-   bool initial_marking_done;
+   ParMesh &pmesh;                    // Mesh whose elements have to be marked.
+   ParGridFunction *ls_func;          // Gridfunction to be used for marking.
+   ParFiniteElementSpace *pfes_sltn;  // FESpace associated with the solution.
+   bool include_cut_cell;             // Flag indicating wether cut-cells
+                                      // will be included in assembly.
+   bool initial_marking_done;         // Flag indicating wether all the elements
+                                      // have been marked at-least once.
 
    // Marking of face dofs by using an averaged continuous GridFunction.
    const bool func_dof_marking = false;
@@ -40,6 +42,8 @@ private:
 
 public:
    /// Element type related to shifted boundaries (not interfaces).
+   /// For more than 1 level-set, we set the marker to CUT+level_set_index
+   /// to discern between different level-sets.
    enum SBElementType {INSIDE = 0, OUTSIDE = 1, CUT = 2};
 
    ShiftedFaceMarker(ParMesh &pm, ParGridFunction &ls,

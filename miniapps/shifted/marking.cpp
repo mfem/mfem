@@ -16,6 +16,8 @@ namespace mfem
 
 void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
 {
+   MFEM_VERIFY(ls_func, "Level-set function to be used for marking has not "
+                        "been specified. Check ShiftedFaceMarker constructor.");
    elem_marker.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
    if (!initial_marking_done) { elem_marker = SBElementType::INSIDE; }
    else { level_set_index += 1; }

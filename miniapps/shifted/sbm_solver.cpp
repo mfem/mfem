@@ -750,9 +750,9 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
    ni.SetSize(dim);
    adjJ.SetSize(dim);
 
-   shape.SetSize(ndof1);
-   dshape.SetSize(ndof1, dim);
-   dshapedn.SetSize(ndof1);
+   shape.SetSize(ndof);
+   dshape.SetSize(ndof, dim);
+   dshapedn.SetSize(ndof);
    Vector wrk = shape;
 
    const IntegrationRule *ir = IntRule;
@@ -762,11 +762,11 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
-   MFEM_VERIFY(nterms == 1, " nterms must be 1 for Neumann.\n");
+   MFEM_VERIFY(nterms == 1, " High-order extension is not available for Neumann"
+                            " boundary condition. Set nterms=1.\n");
 
    Array<DenseMatrix *> dkphi_dxk;
    DenseMatrix grad_phys;
-   Vector Factorial;
    Array<DenseMatrix *> grad_phys_dir;
 
    if (nterms > 0)
@@ -831,25 +831,16 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       {
          delete grad_phys_dir[i];
       }
-
-      Factorial.SetSize(nterms);
-      Factorial(0) = 2;
-      for (int i = 1; i < nterms; i++)
-      {
-         Factorial(i) = Factorial(i-1)*(i+2);
-      }
    }
 
 
-   DenseMatrix q_hess_dn(dim, ndof1);
-   Vector q_hess_dn_work(q_hess_dn.GetData(), ndof1*dim);
-   Vector q_hess_dot_d(ndof1);
+   DenseMatrix q_hess_dn(dim, ndof);
+   Vector q_hess_dn_work(q_hess_dn.GetData(), ndof*dim);
+   Vector q_hess_dot_d_nhat(ndof);
 
    Vector D(vD->GetVDim());
-   Vector N(vN->GetVDim());
-   // assemble: -< \nabla u.n, w >
-   //           -< u + \nabla u.d + h.o.t, \nabla w.n>
-   //           -<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
+   Vector Nhat(vN->GetVDim());
+   // Assemble: <nabla(nabla u).d.nhat (n.nhat), w>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -873,7 +864,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
          CalcOrtho(Trans.Jacobian(), nor);
       }
       vD->Eval(D, Trans, ip);
-      vN->Eval(N, Trans, ip, D);
+      vN->Eval(Nhat, Trans, ip, D);
 
       double nor_dot_d = nor*D;
       // If we are clipping inside the domain, ntilde and d vector should be
@@ -896,29 +887,29 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
       }
 
-      ni.Set(w, nor); // alpha_k*nor/det(J)
+      ni.Set(w, nor); // nor/det(J)
       adjJ.Mult(ni, nh);
-      dshape.Mult(nh, dshapedn); //dphi/dn * Jinv * alpha_k * nor
+      dshape.Mult(nh, dshapedn); //dphi/dn * Jinv * nor
 
       // -<w, grad u.n> - Term 2
       AddMult_a_VWt(-1., shape, dshapedn, temp_elmat);
 
-      // -<w, (grad u.nhat)nhat.n
+      // <w, (grad u.nhat)nhat.n
       // Here nhat is the normal vector at true boundary and n is the normal
       // vector at shifted boundary
-      ni.Set(w, N);
+      double n_dot_ntilde = nor*Nhat;
+      ni.Set(w, Nhat);
       adjJ.Mult(ni, nh);
       dshape.Mult(nh, dshapedn);
-      dshapedn *= (nor*N);
+      dshapedn *= n_dot_ntilde;
       AddMult_a_VWt(1., shape, dshapedn, temp_elmat);
 
-      double n_dot_ntilde = (nor*N); //nor and N are pointing in opposite direction
-      q_hess_dot_d = 0.;
+      q_hess_dot_d_nhat = 0.;
       for (int i = 0; i < nterms; i++)
       {
          int sz1 = pow(dim, i+1);
-         DenseMatrix T1(dim, ndof1*sz1);
-         Vector T1_wrk(T1.GetData(), dim*ndof1*sz1);
+         DenseMatrix T1(dim, ndof*sz1);
+         Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
 
          DenseMatrix T2;
@@ -926,17 +917,17 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i+1; j++)
          {
             int sz2 = pow(dim, i-j);
-            T2.SetSize(dim, ndof1*sz2);
-            T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof1*sz2);
+            T2.SetSize(dim, ndof*sz2);
+            T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
             T1.MultTranspose(D, T2_wrk);
             T1 = T2;
          }
-         Vector q_hess_dot_d_work(ndof1);
-         T1.MultTranspose(N, q_hess_dot_d_work);
-         q_hess_dot_d += q_hess_dot_d_work;
+         Vector q_hess_dot_d_work(ndof);
+         T1.MultTranspose(Nhat, q_hess_dot_d_work);
+         q_hess_dot_d_nhat += q_hess_dot_d_work;
       }
 
-      wrk =  q_hess_dot_d;
+      wrk =  q_hess_dot_d_nhat;
       wrk *= ip.weight * n_dot_ntilde;
 
       AddMult_a_VWt(1., shape, wrk, temp_elmat);
@@ -1066,7 +1057,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
    }
 
    Vector D(vD->GetVDim());
-   Vector N(vN->GetVDim());
+   Vector Nhat(vN->GetVDim());
    Vector wrk = shape;
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
@@ -1089,7 +1080,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
          CalcOrtho(Tr.Jacobian(), nor);
       }
       vD->Eval(D, Tr, ip);
-      vN->Eval(N, Tr, ip, D);
+      vN->Eval(Nhat, Tr, ip, D);
 
       double nor_dot_d = nor*D;
       if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
@@ -1108,7 +1099,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
          w = ip.weight * uN->Eval(Tr, ip, D);
       }
 
-      double n_dot_ntilde = (nor*N); //nor and N are pointing in opposite direction
+      double n_dot_ntilde = nor*Nhat;
       wrk.Set(n_dot_ntilde*w, shape);
       //<w, (nhat.n)t_n)
       temp_elvect.Add(1., wrk);
