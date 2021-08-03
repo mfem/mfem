@@ -191,10 +191,10 @@ protected:
    Vector Bf;
    Vector Gf;
    Array<int> scatter_indices1;
-   Array<int> scatter_indices_tan1; //these need some serious renaming
+   Array<int> scatter_indices_tan1;
    Array<int> scatter_indices_tan2;
    Array<int> scatter_indices_neighbor;
-   Array<int> scatter_indices_neighbor_tan1; //these need some serious renaming
+   Array<int> scatter_indices_neighbor_tan1;
    Array<int> scatter_indices_neighbor_tan2;
    Array<int> offsets_nor;
    Array<int> offsets_tan1;

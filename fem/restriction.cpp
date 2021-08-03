@@ -2049,13 +2049,11 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          const FiniteElement &elf1 = *fes.GetFE(e1);
          //const FiniteElement &elf2 = *fes.GetFE(e2);
 
-         // may need bf, gf for elf2?
          elf1.Calc1DShape(zero, bf, gf);
          gf *= -1.0;
 
          if (ir == NULL)
          {
-            // a simple choice for the integration order; is this OK?
             int order;
             if (int_face_match)
             {
@@ -2068,6 +2066,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             ir = &IntRules.Get(Trans0.GetGeometryType(), order);
          }
 
+         // Get Gauss-Lobatto integration points
          IntegrationRule ir_glob_1d;
          QuadratureFunctions1D quad;
          quad.GaussLobatto(1+el1.GetOrder(),&ir_glob_1d);
@@ -2099,29 +2098,29 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          // Loop over integration points on the the face
          for (int p = 0; p < NPf; p++) 
          {
-            Vector locRn;
-            locRn.SetSize(dim);
-            locRn = 0.0;
+            Vector point_stencil_nor;
+            point_stencil_nor.SetSize(dim);
+            point_stencil_nor = 0.0;
 
-            Vector locRt1;
-            locRt1.SetSize(dim);
-            locRt1 = 0.0;
+            Vector point_stencil_tan1;
+            point_stencil_tan1.SetSize(dim);
+            point_stencil_tan1 = 0.0;
 
-            Vector locRt2;
-            locRt2.SetSize(dim);
-            locRt2 = 0.0;
+            Vector point_stencil_tan2;
+            point_stencil_tan2.SetSize(dim);
+            point_stencil_tan2 = 0.0;
 
-            Vector locRn_2;
-            locRn_2.SetSize(dim);
-            locRn_2 = 0.0;
+            Vector point_stencil_nor_2;
+            point_stencil_nor_2.SetSize(dim);
+            point_stencil_nor_2 = 0.0;
 
-            Vector locRt1_2;
-            locRt1_2.SetSize(dim);
-            locRt1_2 = 0.0;
+            Vector point_stencil_tan1_2;
+            point_stencil_tan1_2.SetSize(dim);
+            point_stencil_tan1_2 = 0.0;
 
-            Vector locRt2_2;
-            locRt2_2.SetSize(dim);
-            locRt2_2 = 0.0;
+            Vector point_stencil_tan2_2;
+            point_stencil_tan2_2.SetSize(dim);
+            point_stencil_tan2_2 = 0.0;
 
             IntegrationPoint &pb = ir_glob_element.IntPoint(facemapnorself[p*dof1d+0]); 
 
@@ -2142,35 +2141,35 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                IntegrationPoint &ip_tan1 = ir_glob_element.IntPoint(pt1);
                IntegrationPoint &ip_tan2 = ir_glob_element.IntPoint(pt2);
 
-               Vector this_locRn;
-               this_locRn.SetSize(dim);
-               this_locRn = 0.0;
+               Vector this_point_stencil_nor;
+               this_point_stencil_nor.SetSize(dim);
+               this_point_stencil_nor = 0.0;
 
-               Vector this_locRt1;
-               this_locRt1.SetSize(dim);
-               this_locRt1 = 0.0;
+               Vector this_point_stencil_tan1;
+               this_point_stencil_tan1.SetSize(dim);
+               this_point_stencil_tan1 = 0.0;
 
-               Vector this_locRt2;
-               this_locRt2.SetSize(dim);
-               this_locRt2 = 0.0;
+               Vector this_point_stencil_tan2;
+               this_point_stencil_tan2.SetSize(dim);
+               this_point_stencil_tan2 = 0.0;
 
-               fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_nor , this_locRn );
-               fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_tan1, this_locRt1);
+               fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_nor , this_point_stencil_nor );
+               fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_tan1, this_point_stencil_tan1);
                if( dim == 3 )
                {
-                  fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_tan2, this_locRt2);
+                  fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_tan2, this_point_stencil_tan2);
                }
                
-               this_locRn *= gf(l);
-               locRn += this_locRn;
+               this_point_stencil_nor *= gf(l);
+               point_stencil_nor += this_point_stencil_nor;
                
-               this_locRt1 *= gf(l);
-               locRt1 += this_locRt1;
+               this_point_stencil_tan1 *= gf(l);
+               point_stencil_tan1 += this_point_stencil_tan1;
 
                if( dim == 3 )
                {
-                  this_locRt2 *= gf(l);
-                  locRt2 += this_locRt2;
+                  this_point_stencil_tan2 *= gf(l);
+                  point_stencil_tan2 += this_point_stencil_tan2;
                }
                if (int_face_match)
                {
@@ -2182,53 +2181,53 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   IntegrationPoint &ip_tan1_2 = ir_glob_element.IntPoint(pt1_2); 
                   IntegrationPoint &ip_tan2_2 = ir_glob_element.IntPoint(pt2_2); 
 
-                  Vector this_locRn_2;
-                  this_locRn_2.SetSize(dim);
-                  this_locRn_2 = 0.0;
+                  Vector this_point_stencil_nor_2;
+                  this_point_stencil_nor_2.SetSize(dim);
+                  this_point_stencil_nor_2 = 0.0;
 
-                  Vector this_locRt1_2;
-                  this_locRt1_2.SetSize(dim);
-                  this_locRt1_2 = 0.0;
+                  Vector this_point_stencil_tan1_2;
+                  this_point_stencil_tan1_2.SetSize(dim);
+                  this_point_stencil_tan1_2 = 0.0;
 
-                  Vector this_locRt2_2;
-                  this_locRt2_2.SetSize(dim);
-                  this_locRt2_2 = 0.0;
+                  Vector this_point_stencil_tan2_2;
+                  this_point_stencil_tan2_2.SetSize(dim);
+                  this_point_stencil_tan2_2 = 0.0;
 
-                  fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_nor_2 , this_locRn_2 );
-                  fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_tan1_2, this_locRt1_2);
+                  fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_nor_2 , this_point_stencil_nor_2 );
+                  fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_tan1_2, this_point_stencil_tan1_2);
                   if( dim == 3)
                   {
-                     fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_tan2_2, this_locRt2_2);
+                     fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_tan2_2, this_point_stencil_tan2_2);
                   }
 
-                  this_locRn_2 *= gf(l);
-                  locRn_2 += this_locRn_2;
+                  this_point_stencil_nor_2 *= gf(l);
+                  point_stencil_nor_2 += this_point_stencil_nor_2;
 
-                  this_locRt1_2 *= gf(l);
-                  locRt1_2 += this_locRt1_2;
+                  this_point_stencil_tan1_2 *= gf(l);
+                  point_stencil_tan1_2 += this_point_stencil_tan1_2;
 
                   if( dim == 3)
                   {
-                     this_locRt2_2 *= gf(l);
-                     locRt2_2 += this_locRt2_2;
+                     this_point_stencil_tan2_2 *= gf(l);
+                     point_stencil_tan2_2 += this_point_stencil_tan2_2;
                   }
                }
             }
 
-            locRn /= locRn.Norml2();
-            locRt1 /= locRt1.Norml2();
+            point_stencil_nor /= point_stencil_nor.Norml2();
+            point_stencil_tan1 /= point_stencil_tan1.Norml2();
             if( dim == 3)
             {
-               locRt2 /= locRt2.Norml2();
+               point_stencil_tan2 /= point_stencil_tan2.Norml2();
             }
 
             if (int_face_match)
             {
-               locRn_2 /= locRn_2.Norml2();
-               locRt1_2 /= locRt1_2.Norml2();
+               point_stencil_nor_2 /= point_stencil_nor_2.Norml2();
+               point_stencil_tan1_2 /= point_stencil_tan1_2.Norml2();
                if( dim == 3)
                {
-                  locRt2_2 /= locRt2_2.Norml2();
+                  point_stencil_tan2_2 /= point_stencil_tan2_2.Norml2();
                }
             }
 
@@ -2260,17 +2259,17 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             coeffs.SetSize(dim);
             if( dim == 2 )
             {
-               GetVectorCoefficients2D(locRn,
-                                       locRt1,
+               GetVectorCoefficients2D(point_stencil_nor,
+                                       point_stencil_tan1,
                                        facenorm,
                                        coeffs);
                coeffs *= scaling;
             }
             else if( dim == 3 )
             {
-               GetVectorCoefficients3D(locRn,
-                                       locRt1,
-                                       locRt2,
+               GetVectorCoefficients3D(point_stencil_nor,
+                                       point_stencil_tan1,
+                                       point_stencil_tan2,
                                        facenorm,
                                        coeffs);
                coeffs *= scaling;
@@ -2294,17 +2293,17 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   coeffs.SetSize(dim);
                   if( dim == 2 )
                   {
-                     GetVectorCoefficients2D(locRn_2,
-                                             locRt1_2,
+                     GetVectorCoefficients2D(point_stencil_nor_2,
+                                             point_stencil_tan1_2,
                                              facenorm,
                                              coeffs);
                      coeffs *= scaling;
                   }
                   else if( dim == 3 )
                   {
-                     GetVectorCoefficients3D(locRn_2,
-                                             locRt1_2,
-                                             locRt2_2,
+                     GetVectorCoefficients3D(point_stencil_nor_2,
+                                             point_stencil_tan1_2,
+                                             point_stencil_tan2_2,
                                              facenorm,
                                              coeffs);
                      coeffs *= scaling;
