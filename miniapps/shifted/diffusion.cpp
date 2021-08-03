@@ -475,12 +475,12 @@ int main(int argc, char *argv[])
    if (neumann_level_set_type > 0)
    {
       MFEM_VERIFY(!include_cut_cell, "include_cut_cell option must be set to"
-                                     " false for Neumann boundary conditions.");
+                  " false for Neumann boundary conditions.");
       b.AddInteriorFaceIntegrator(new SBM2NeumannLFIntegrator(
-                                      &pmesh, nbcCoef, alpha, *dist_vec,
-                                      *normalbcCoef, elem_marker,
-                                      include_cut_cell, neumann_ho_terms,
-                                      ls_cut_marker));
+                                     &pmesh, nbcCoef, alpha, *dist_vec,
+                                     *normalbcCoef, elem_marker,
+                                     include_cut_cell, neumann_ho_terms,
+                                     ls_cut_marker));
       bf_neumann_marker.Append(ls_cut_marker);
       ls_cut_marker += 1;
    }

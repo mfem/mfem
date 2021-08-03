@@ -26,9 +26,9 @@ protected:
    ParGridFunction *ls_func;          // Gridfunction to be used for marking.
    ParFiniteElementSpace *pfes_sltn;  // FESpace associated with the solution.
    bool include_cut_cell;             // Flag indicating wether cut-cells
-                                      // will be included in assembly.
+   // will be included in assembly.
    bool initial_marking_done;         // Flag indicating wether all the elements
-                                      // have been marked at-least once.
+   // have been marked at-least once.
 
    // Marking of face dofs by using an averaged continuous GridFunction.
    const bool func_dof_marking = false;
