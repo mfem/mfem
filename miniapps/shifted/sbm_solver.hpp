@@ -30,8 +30,8 @@ protected:
 public:
    ShiftedFunctionCoefficient(std::function<double(const Vector &v)> F)
       : Function(std::move(F)), constantcoefficient(false) { }
-   ShiftedFunctionCoefficient(ConstantCoefficient C)
-      : constant(C.constant), constantcoefficient(true) { }
+   ShiftedFunctionCoefficient(double constant_)
+      : constant(constant_), constantcoefficient(true) { }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
@@ -199,12 +199,13 @@ public:
 
 /// BilinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// A(u, w) = <nabla u.d, nabla w.n>
-/// Since this interior face integrator is applied to the surrogate boundary
-/// (see marking.hpp for notes on how the surrogate faces are determined and
-/// elements are marked), this integrator adds contribution to only the element
-/// that is adjacent to that face (Trans.Elem1 or Trans.Elem2) and is part of
-/// the surrogate domain.
+/// A(u, w) = <[nabla u + nabla(nabla u).d].nhat (n.nhat), w> - <grad u.n, w>,
+/// where nhat is the normal vector at the true boundary, n is the normal vector
+/// at the surrogate boundary. Since this interior face integrator is applied to
+/// the surrogate boundary (see marking.hpp for notes on how the surrogate faces
+/// are determined and elements are marked), this integrator adds contribution
+/// to only the element that is adjacent to that face (Trans.Elem1 or
+/// Trans.Elem2) and is part of the surrogate domain.
 class SBM2NeumannIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -234,7 +235,7 @@ public:
                          Array<int> &elem_marker_,
                          Array<int> &cut_marker_,
                          bool include_cut_cell_ = false,
-                         int nterms_ = 0)
+                         int nterms_ = 1)
       : alpha(alpha_), vN(&vN_), vD(&vD_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
@@ -295,7 +296,7 @@ public:
                            ShiftedVectorFunctionCoefficient &vN_,
                            Array<int> &elem_marker_,
                            int nterms_ = 0,
-                           bool include_cut_cell_ = true,
+                           bool include_cut_cell_ = false,
                            int ls_cut_marker_ = ShiftedFaceMarker::SBElementType::CUT)
       :  vN(&vN_), uN(&u), vD(&vD_),
          elem_marker(&elem_marker_),
