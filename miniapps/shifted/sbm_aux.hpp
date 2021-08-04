@@ -200,9 +200,9 @@ public:
 };
 
 /// Boundary conditions - Dirichlet
-double dirichlet_velocity_circle(const Vector &x)
+double homogeneous(const Vector &x)
 {
-   return 0.;
+   return 0.0;
 }
 
 double dirichlet_velocity_xy_exponent(const Vector &x)
@@ -217,11 +217,6 @@ double dirichlet_velocity_xy_sinusoidal(const Vector &x)
 }
 
 /// Boundary conditions - Neumann
-double neumann_velocity_circle(const Vector &x)
-{
-   return 0.;
-}
-
 /// Normal vector for level_set_type = 1. Circle centered at [0.5 , 0.5]
 void normal_vector_1(const Vector &x, Vector &p)
 {
@@ -242,6 +237,17 @@ void normal_vector_2(const Vector &x, Vector &p)
    p *= -1;
 }
 
+/// Neumann condition for exponent based solution
+double traction_xy_exponent(const Vector &x)
+{
+   double xy_p = 2;
+   Vector gradient(2);
+   gradient(0) = xy_p*x(0);
+   gradient(1) = xy_p*x(1);
+   Vector normal(2);
+   normal_vector_1(x, normal);
+   return 1.0*(gradient*normal);
+}
 
 /// `f` for the Poisson problem (-nabla^2 u = f).
 double rhs_fun_circle(const Vector &x)
