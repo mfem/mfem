@@ -1,13 +1,12 @@
-//                                MFEM Example 1
-//                              Moonolith Modification
+//                         MFEM + Moonolith Example 1
 //
 // Compile with: make ex1
 //
 // Moonolith sample runs:
-//               ex1
-//               ex1 --source_refinements 1 --dest_refinements 2
-//               ex1 --source_refinements 1 --dest_refinements 2 --use_vector_fe
-//               ex1 -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
+//   ex1
+//   ex1 --source_refinements 1 --dest_refinements 2
+//   ex1 --source_refinements 1 --dest_refinements 2 --use_vector_fe
+//   ex1 -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
