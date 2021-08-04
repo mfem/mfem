@@ -1,5 +1,4 @@
-//                                MFEM Example 2 - Parallel Version
-//                              Moonolith Modification
+//                  MFEM + Moonolith Example 2 (parallel version)
 //
 // Compile with: make ex2p
 //
