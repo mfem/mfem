@@ -957,7 +957,6 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, Vector &elvect)
 {
-
    int dim, ndof1, ndof2, ndof, ndoftotal;
    double w;
    Vector temp_elvect;
@@ -1043,7 +1042,6 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
 
    temp_elvect.SetSize(ndof);
    temp_elvect = 0.0;
-
 
    nor.SetSize(dim);
    shape.SetSize(ndof);

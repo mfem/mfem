@@ -33,14 +33,20 @@
 //
 //   Problem 1: Circular hole of radius 0.2 at the center of the domain.
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
+//     Dirichlet boundary condition
 //     mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 1
 //     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
+//     Neumann boundary condition
+//     mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst -1 -ho 1 -nlst 1
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
 //              Solves -nabla^2 u = f with inhomogeneous boundary conditions, and
 //              f is setup such that u = x^p + y^p, where p = 2 by default.
 //              This is a 2D convergence test.
+//     Dirichlet boundary condition
 //     mpirun -np 4 diffusion -rs 2 -o 2 -vis -lst 2
+//     Neumann boundary condition (inhomogeneous condition derived using exact solution)
+//     mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst -1 -ho 1 -nlst 2
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
 //              Solves -nabla^2 u = f with inhomogeneous boundary conditions,
@@ -56,12 +62,8 @@
 //   Problem 4: Complex 2D shape:
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
 //     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
-
-// Problem 5: Circular hole of radius 0.2 at [0.5, 0.5].
-//            Solves -nabla^2 u = 1 with homogeneous Neumann boundary conditions.
-//     mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst -1 -ho 1 -nlst 1
-
-// Problem 6: Circular hole with homogeneous Neumann, triangular hole with
+//
+//   Problem 5: Circular hole with homogeneous Neumann, triangular hole with
 //            inhomogeneous Dirichlet, and square hole with homogeneous Dirichlet
 //            boundary condition.
 //     mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dlstc 6
@@ -378,7 +380,7 @@ int main(int argc, char *argv[])
    {
       rhs_f = new FunctionCoefficient(rhs_fun_circle);
    }
-   else if (dirichlet_level_set_type == 2)
+   else if (dirichlet_level_set_type == 2 || neumann_level_set_type == 2)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_xy_exponent);
    }
@@ -389,19 +391,24 @@ int main(int argc, char *argv[])
    else { MFEM_ABORT("RHS function not set for level set type.\n"); }
    b.AddDomainIntegrator(new DomainLFIntegrator(*rhs_f), ess_elem);
 
+   // Exact solution to project for Dirichlet boundaries
+   FunctionCoefficient *exactCoef = NULL;
    // Dirichlet BC that must be imposed on the true boundary.
    ShiftedFunctionCoefficient *dbcCoef = NULL;
    if (dirichlet_level_set_type == 1 || dirichlet_level_set_type >= 4)
    {
-      dbcCoef = new ShiftedFunctionCoefficient(0.0);
+      dbcCoef = new ShiftedFunctionCoefficient(homogeneous);
+      exactCoef = new FunctionCoefficient(homogeneous);
    }
    else if (dirichlet_level_set_type == 2)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_exponent);
+      exactCoef = new FunctionCoefficient(dirichlet_velocity_xy_exponent);
    }
    else if (dirichlet_level_set_type == 3)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_sinusoidal);
+      exactCoef = new FunctionCoefficient(dirichlet_velocity_xy_sinusoidal);
    }
 
    ShiftedFunctionCoefficient *dbcCoefCombo = NULL;
@@ -411,14 +418,22 @@ int main(int argc, char *argv[])
    }
 
    // Homogeneous Neumann boundary condition coefficient
-   ShiftedFunctionCoefficient nbcCoef(neumann_velocity_circle);
+   ShiftedFunctionCoefficient *nbcCoef = NULL;
    ShiftedVectorFunctionCoefficient *normalbcCoef = NULL;
    if (neumann_level_set_type == 1)
    {
+      nbcCoef = new ShiftedFunctionCoefficient(homogeneous);
       normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector_1);
+   }
+   else if (neumann_level_set_type == 2)
+   {
+      nbcCoef = new ShiftedFunctionCoefficient(traction_xy_exponent);
+      normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector_1);
+      exactCoef = new FunctionCoefficient(dirichlet_velocity_xy_exponent);
    }
    else if (neumann_level_set_type == 7)
    {
+      nbcCoef = new ShiftedFunctionCoefficient(homogeneous);
       normalbcCoef = new ShiftedVectorFunctionCoefficient(dim, normal_vector_2);
    }
    else if (neumann_level_set_type > 0)
@@ -476,10 +491,11 @@ int main(int argc, char *argv[])
    {
       MFEM_VERIFY(!include_cut_cell, "include_cut_cell option must be set to"
                   " false for Neumann boundary conditions.");
+      std::cout << include_cut_cell << " k10inc\n";
       b.AddInteriorFaceIntegrator(new SBM2NeumannLFIntegrator(
-                                     &pmesh, nbcCoef, alpha, *dist_vec,
+                                     &pmesh, *nbcCoef, alpha, *dist_vec,
                                      *normalbcCoef, elem_marker,
-                                     include_cut_cell, neumann_ho_terms,
+                                     neumann_ho_terms, include_cut_cell,
                                      ls_cut_marker));
       bf_neumann_marker.Append(ls_cut_marker);
       ls_cut_marker += 1;
@@ -525,11 +541,11 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    // Project the exact solution as an initial condition for Dirichlet boundary.
-   x = 0.0;
-   if (dirichlet_level_set_type > 0 && dirichlet_level_set_type_combo != 6)
+   if (!exactCoef)
    {
-      x.ProjectCoefficient(*dbcCoef);
+      exactCoef = new FunctionCoefficient(homogeneous);
    }
+   x.ProjectCoefficient(*exactCoef);
 
    // Form the linear system and solve it.
    OperatorPtr A;
@@ -580,7 +596,8 @@ int main(int argc, char *argv[])
    }
 
    // Construct an error grid function if the exact solution is known.
-   if (dirichlet_level_set_type == 2 || dirichlet_level_set_type == 3)
+   if (dirichlet_level_set_type == 2 || dirichlet_level_set_type == 3 ||
+       (dirichlet_level_set_type == -1 && neumann_level_set_type == 2))
    {
       ParGridFunction err(x);
       Vector pxyz(dim);
@@ -590,7 +607,7 @@ int main(int argc, char *argv[])
          pxyz(0) = vxyz(i);
          pxyz(1) = vxyz(i+nodes_cnt);
          double exact_val = 0.;
-         if (dirichlet_level_set_type == 2)
+         if (dirichlet_level_set_type == 2 || neumann_level_set_type == 2)
          {
             exact_val = dirichlet_velocity_xy_exponent(pxyz);
          }
@@ -610,7 +627,7 @@ int main(int argc, char *argv[])
                                 "Error", 2*s, 0, s, s, "Rj");
       }
 
-      const double global_error = x.ComputeL2Error(*dbcCoef);
+      const double global_error = x.ComputeL2Error(*exactCoef);
       if (myid == 0)
       {
          std::cout << "Global L2 error: " << global_error << endl;
@@ -621,8 +638,10 @@ int main(int argc, char *argv[])
    delete prec;
    delete bicg;
    delete normalbcCoef;
+   delete nbcCoef;
    delete dbcCoefCombo;
    delete dbcCoef;
+   delete exactCoef;
    delete rhs_f;
    delete dist_vec;
    delete neumann_dist_coef;
