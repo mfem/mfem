@@ -852,6 +852,8 @@ protected:
    mutable HypreParVector *V, *Z;
    /// FIR Filter Temporary Vectors
    mutable HypreParVector *X0, *X1;
+   /// Chebyshev
+   mutable HypreParVector *P, *R;
 
    /** Smoother type from hypre_ParCSRRelax() in ams.c plus extensions, see the
        enumeration Type below. */
@@ -895,6 +897,7 @@ protected:
 
    /// Combined coefficients for windowing and Chebyshev polynomials.
    double* fir_coeffs;
+   double* poly_coeffs;
 
    /// A flag that indicates whether the linear system matrix A is symmetric
    bool A_is_symmetric;

@@ -3154,7 +3154,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       P = new HypreParVector(*A);
       R = new HypreParVector(*A);
 
-      hypre_ParCSRRelax_Cheby_Setup(*A, max_eig_est, min_eig_est, poly_fraction, poly_order, 1, 0, poly_coeffs, diags);
+      hypre_ParCSRRelax_Cheby_Setup(*A, max_eig_est, min_eig_est, poly_fraction, poly_order, 1, 0, poly_coeffs, diag);
 
    }
    else if (type == 1001 || type == 1002)
@@ -3295,14 +3295,14 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
-                           x, *V, NULL, (P?*P:NULL), (R?*R:NULL), poly_coeffs, diags);
+                           x, *V, NULL, P, R, &poly_coeffs, diag);
       }
       else
       {
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
-                           x, *V, *Z, (P?*P:NULL), (R?*R:NULL), poly_coeffs, diags);
+                           x, *V, *Z, P, R, &poly_coeffs, diag);
       }
    }
 }
@@ -3398,7 +3398,7 @@ HypreSmoother::~HypreSmoother()
    if (X0) { delete X0; }
    if (X1) { delete X1; }
    if (poly_coeffs) { mfem_hypre_TFree(poly_coeffs); };
-   if (diags) { mfem_hypre_TFree(diags); };
+   if (diag) { mfem_hypre_TFree(diag); };
 }
 
 
