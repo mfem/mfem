@@ -788,7 +788,6 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            true);
 
    // Give the new matrix ownership of row_starts and col_starts
-   hypre_ParCSRMatrix *hA = (hypre_ParCSRMatrix*)(*A);
 
    return A;
 }
