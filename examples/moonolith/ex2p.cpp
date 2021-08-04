@@ -4,10 +4,9 @@
 // Compile with: make ex2p
 //
 // Moonolith sample runs:
-//               mpirun -np 4 ex2p
-//               mpirun -np 4 ex2p --source_refinements 1 --dest_refinements 2
-//               mpirun -np 4 ex2p -s ../../data/inline-hex.mesh -d
-//               ../../data/inline-tet.mesh
+//   mpirun -np 4 ex2p
+//   mpirun -np 4 ex2p --source_refinements 1 --dest_refinements 2
+//   mpirun -np 4 ex2p -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -16,8 +15,8 @@
 //               domain methods for fluid-structure interaction or general
 //               multi-physics applications.
 //
-//               This particular example concerns discontinuos Galrkin FEM and
-//               it is for parallel runtimes.
+//               This particular example concerns discontinuos Galerkin FEM with
+//               adaptive mesh refinement for parallel runtimes.
 
 #include "example_utils.hpp"
 #include "mfem.hpp"
