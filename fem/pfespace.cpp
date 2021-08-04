@@ -1278,7 +1278,6 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 {
-   hypre_ParCSRMatrix *csrP = (hypre_ParCSRMatrix*)(*P);
    P -> StealData();
    dof_offsets.LoseData();
    tdof_offsets.LoseData();
