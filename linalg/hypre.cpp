@@ -88,7 +88,6 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 {
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
-   hypre_ParVectorSetPartitioningOwner(x,0);
    // The data will be destroyed by hypre (this is the default)
    hypre_ParVectorSetDataOwner(x,1);
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
@@ -105,7 +104,6 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_SeqVectorSetDataOwner(x_loc,0);
-   hypre_ParVectorSetPartitioningOwner(x,0);
    double tmp = 0.0;
    hypre_VectorData(x_loc) = &tmp;
 #ifdef HYPRE_USING_CUDA
@@ -128,7 +126,6 @@ HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
    x = hypre_ParVectorCreate(y.x -> comm, y.x -> global_size,
                              y.x -> partitioning);
    hypre_ParVectorInitialize(x);
-   hypre_ParVectorSetPartitioningOwner(x,0);
    hypre_ParVectorSetDataOwner(x,1);
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
    _SetDataAndSize_();
@@ -162,7 +159,6 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    x = hypre_ParVectorCreate(pfes->GetComm(), pfes->GlobalTrueVSize(),
                              pfes->GetTrueDofOffsets());
    hypre_ParVectorInitialize(x);
-   hypre_ParVectorSetPartitioningOwner(x,0);
    // The data will be destroyed by hypre (this is the default)
    hypre_ParVectorSetDataOwner(x,1);
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
@@ -683,8 +679,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts,
                                 row_starts, 0, diag->NumNonZeroElems(), 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
-   hypre_ParCSRMatrixSetColStartsOwner(A,0);
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, mem_diag, A->diag, false);
@@ -726,8 +720,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                 row_starts, col_starts,
                                 0, diag->NumNonZeroElems(), 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
-   hypre_ParCSRMatrixSetColStartsOwner(A,0);
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, mem_diag, A->diag, false);
@@ -770,8 +762,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                 offd->Width(), diag->NumNonZeroElems(),
                                 offd->NumNonZeroElems());
    hypre_ParCSRMatrixSetDataOwner(A,1);
-   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
-   hypre_ParCSRMatrixSetColStartsOwner(A,0);
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, mem_diag, A->diag, own_diag_offd);
@@ -817,8 +807,6 @@ HypreParMatrix::HypreParMatrix(
    A = hypre_ParCSRMatrixCreate(comm, global_num_rows, global_num_cols,
                                 row_starts, col_starts, offd_num_cols, 0, 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
-   hypre_ParCSRMatrixSetColStartsOwner(A,0);
 
    HYPRE_Int local_num_rows = hypre_CSRMatrixNumRows(A->diag);
 
@@ -931,8 +919,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    A = hypre_ParCSRMatrixCreate(comm, global_num_rows, global_num_cols,
                                 row_starts, col_starts, 0, nnz, 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
-   hypre_ParCSRMatrixSetColStartsOwner(A,0);
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyBoolCSR(diag, mem_diag, A->diag);
@@ -989,8 +975,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    }
 
    hypre_ParCSRMatrixSetDataOwner(A,1);
-   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
-   hypre_ParCSRMatrixSetColStartsOwner(A,0);
 
    mem_diag.data.New(diag_nnz);
    for (HYPRE_Int i = 0; i < diag_nnz; i++)
@@ -1263,82 +1247,12 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 
 void HypreParMatrix::CopyRowStarts()
 {
-   if (!A || hypre_ParCSRMatrixOwnsRowStarts(A) ||
-       (hypre_ParCSRMatrixRowStarts(A) == hypre_ParCSRMatrixColStarts(A) &&
-        hypre_ParCSRMatrixOwnsColStarts(A)))
-   {
-      return;
-   }
 
-   int row_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      row_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &row_starts_size);
-      row_starts_size++; // num_proc + 1
-   }
-
-   HYPRE_BigInt *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
-   HYPRE_BigInt *new_row_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
-                                                          row_starts_size);
-   for (int i = 0; i < row_starts_size; i++)
-   {
-      new_row_starts[i] = old_row_starts[i];
-   }
-
-   hypre_ParCSRMatrixRowStarts(A) = new_row_starts;
-   hypre_ParCSRMatrixOwnsRowStarts(A) = 1;
-
-   if (hypre_ParCSRMatrixColStarts(A) == old_row_starts)
-   {
-      hypre_ParCSRMatrixColStarts(A) = new_row_starts;
-      hypre_ParCSRMatrixOwnsColStarts(A) = 0;
-   }
 }
 
 void HypreParMatrix::CopyColStarts()
 {
-   if (!A || hypre_ParCSRMatrixOwnsColStarts(A) ||
-       (hypre_ParCSRMatrixRowStarts(A) == hypre_ParCSRMatrixColStarts(A) &&
-        hypre_ParCSRMatrixOwnsRowStarts(A)))
-   {
-      return;
-   }
 
-   int col_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      col_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &col_starts_size);
-      col_starts_size++; // num_proc + 1
-   }
-
-   HYPRE_BigInt *old_col_starts = hypre_ParCSRMatrixColStarts(A);
-   HYPRE_BigInt *new_col_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
-                                                          col_starts_size);
-   for (int i = 0; i < col_starts_size; i++)
-   {
-      new_col_starts[i] = old_col_starts[i];
-   }
-
-   hypre_ParCSRMatrixColStarts(A) = new_col_starts;
-
-   if (hypre_ParCSRMatrixRowStarts(A) == old_col_starts)
-   {
-      hypre_ParCSRMatrixRowStarts(A) = new_col_starts;
-      hypre_ParCSRMatrixOwnsRowStarts(A) = 1;
-      hypre_ParCSRMatrixOwnsColStarts(A) = 0;
-   }
-   else
-   {
-      hypre_ParCSRMatrixOwnsColStarts(A) = 1;
-   }
 }
 
 void HypreParMatrix::GetDiag(Vector &diag) const
@@ -1792,8 +1706,6 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                          own_diag_offd);
 
    // Give ownership of row_starts, col_starts, and col_map_offd to DA
-   hypre_ParCSRMatrixSetRowStartsOwner(DA->A, 1);
-   hypre_ParCSRMatrixSetColStartsOwner(DA->A, 1);
    DA->colMapOwner = 1;
 
    return DA;
@@ -1948,18 +1860,12 @@ void HypreParMatrix::Threshold(double threshold)
    row_starts = hypre_ParCSRMatrixRowStarts(A);
    col_starts = hypre_ParCSRMatrixColStarts(A);
 
-   bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
-   bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
    HYPRE_BigInt global_num_rows = hypre_ParCSRMatrixGlobalNumRows(A);
    HYPRE_BigInt global_num_cols = hypre_ParCSRMatrixGlobalNumCols(A);
    parcsr_A_ptr = hypre_ParCSRMatrixCreate(comm, global_num_rows,
                                            global_num_cols,
                                            row_starts, col_starts,
                                            0, 0, 0);
-   hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
-   hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
-   hypre_ParCSRMatrixOwnsRowStarts(A) = 0;
-   hypre_ParCSRMatrixOwnsColStarts(A) = 0;
 
    csr_A = hypre_MergeDiagAndOffd(A);
 
@@ -2503,19 +2409,9 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       // hypre_ParCSRMatrixRAPKT
    }
 #else
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
 
    hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
 
-   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-      from P (even if it does not own them)! */
-   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
-   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-   if (P_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
-   }
 #endif
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
@@ -2536,25 +2432,9 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
       hypre_ParCSRMatrixDestroy(Q);
    }
 #else
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
-   HYPRE_Int Rt_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
 
    hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
 
-   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-      from Rt and P (even if they do not own them)! */
-   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
-   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-   if (P_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
-   }
-   if (Rt_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
-   }
 #endif
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
