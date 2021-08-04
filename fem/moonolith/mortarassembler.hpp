@@ -29,7 +29,7 @@ namespace mfem
  * of two separate and unrelated meshes. It generates quadrature rules in
  * the intersection which allows us to integrate with to machine precision using
  * the mfem::MortarIntegrator interface. See https://doi.org/10.1137/15M1008361
- * for and in-depth explanation.
+ * for and in-depth explanation. At this time curved elements are not supported.
  */
 class MortarAssembler
 {
