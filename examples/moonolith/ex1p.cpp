@@ -4,11 +4,9 @@
 // Compile with: make ex1p
 //
 // Moonolith sample runs:
-//               mpirun -np 4 ex1p
-//               mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2
-//               mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2
-//               --use_vector_fe mpirun -np 4 ex1p -s ../../data/inline-hex.mesh
-//               -d ../../data/inline-tet.mesh
+//   mpirun -np 4 ex1p
+//   mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2
+//   mpirun -np 4 ex1p -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
 //               discrete fields from one finite element mesh to another. The
@@ -29,7 +27,7 @@ using namespace std;
 void destination_transform(const Vector &x, Vector &x_new)
 {
    x_new = x;
-   // x_new *= .5;
+   // x_new *= 0.5;
 }
 
 int main(int argc, char *argv[])
