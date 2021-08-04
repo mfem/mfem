@@ -3034,7 +3034,8 @@ void HypreSmoother::SetOperator(const Operator &op)
       P = new HypreParVector(*A);
       R = new HypreParVector(*A);
 
-      hypre_ParCSRRelax_Cheby_Setup(*A, max_eig_est, min_eig_est, poly_fraction, poly_order, 1, 0, poly_coeffs, diag);
+      hypre_ParCSRRelax_Cheby_Setup(*A, max_eig_est, min_eig_est, poly_fraction,
+                                    poly_order, 1, 0, poly_coeffs, diag);
 
    }
    else if (type == 1001 || type == 1002)
