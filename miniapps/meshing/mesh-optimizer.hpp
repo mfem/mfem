@@ -421,6 +421,53 @@ void kershaw(const double epsy, const double epsz,
    }
 }
 
+void kershaw8(const double epsy, const double epsz,
+             const double x, const double y, const double z,
+             double &X, double &Y, double &Z)
+{
+   X = x;
+
+   int layer = x*8.0;
+   double lambda = (x-layer/8.0)*8;
+
+   // The x-range is split in 6 layers going from left-to-left, left-to-right,
+   // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
+   switch (layer)
+   {
+   case 0:
+       case 7:
+   case 8:
+      Y = left(epsy, y);
+      Z = left(epsz, z);
+      break;
+   case 1:
+   case 4:
+      Y = step(left(epsy, y), right(epsy, y), lambda);
+      Z = step(left(epsz, z), right(epsz, z), lambda);
+      break;
+   case 2:
+      Y = step(right(epsy, y), left(epsy, y), lambda/2);
+      Z = step(right(epsz, z), left(epsz, z), lambda/2);
+      break;
+   case 3:
+      Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
+      Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
+      break;
+   case 6:
+      Y = step(right(epsy, y), left(epsy, y), 0.5+lambda/2);
+      Z = step(right(epsz, z), left(epsz, z), 0.5+lambda/2);
+      break;
+   case 5:
+      Y = step(right(epsy, y), left(epsy, y), (0+lambda)/2);
+      Z = step(right(epsz, z), left(epsz, z), (0+lambda)/2);
+      break;
+   default:
+      Y = right(epsy, y);
+      Z = right(epsz, z);
+      break;
+   }
+}
+
 void stretching2D(const double x, const double y,
                   double &X, double &Y)
 {

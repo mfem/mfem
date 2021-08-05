@@ -367,6 +367,10 @@ int main (int argc, char *argv[])
             rotation2D(xc[0], xc[1], xn[0], xn[1]);
             if (dim == 3) { xn[2] = xc[2]; }
          }
+         else if (benchmarkid == 4)
+         {
+             kershaw8(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+         }
 
          for (int d = 0; d < dim; d++)
          {
