@@ -248,6 +248,33 @@ public:
                                DenseMatrix &elmat);
 };
 
+class nDotCurlIntegrator : public BilinearFormIntegrator
+{
+private:
+
+   Coefficient *Q;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector nor, nDotCurl;
+   Vector test_shape;
+   DenseMatrix trial_dshape;
+#endif
+
+public:
+   nDotCurlIntegrator() : Q(NULL) {}
+   nDotCurlIntegrator(Coefficient &q) : Q(&q) {}
+
+   int GetIntegrationOrder(const FiniteElement & trial_fe,
+                           const FiniteElement & test_fe,
+                           ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW(); }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat);
+};
+
 class zkxIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -618,6 +645,11 @@ private:
    void computeE(const ParComplexGridFunction & d,
                  ParComplexGridFunction & e);
 
+   void prepareVectorVisField(const ParComplexGridFunction &u,
+			      ComplexGridFunction &v);
+
+   void prepareVisFields();
+  
    int myid_;
    int num_procs_;
    int order_;
@@ -689,13 +721,15 @@ private:
    ParComplexLinearForm   * rhs1_; // RHS of magnetic field eqn (HCurl)
    ParComplexLinearForm   * rhs0_; // RHS of sheath potential eqn (H1)
    ParGridFunction        * e_t_; // Time dependent Electric field
-   ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
-   ParComplexGridFunction * h_v_; // Complex magnetic field (L2^d)
+   ComplexGridFunction    * e_b_v_; // Complex parallel electric field (L2)
+   ComplexGridFunction    * h_v_; // Complex magnetic field (L2^d)
    ComplexGridFunction    * e_v_; // Complex electric field (L2^d)
-   ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
-   ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
-   ParComplexGridFunction * j_v_; // Complex current density (L2^d)
+   ComplexGridFunction    * d_v_; // Complex electric flux (L2^d)
+   ComplexGridFunction    * phi_v_; // Complex sheath potential (L2)
+   ComplexGridFunction    * rectPot_v_; // Complex rectified potential (L2)
+   ComplexGridFunction    * j_v_; // Complex current density (L2^d)
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
+   GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
    // ParGridFunction        * u_;   // Energy density (L2)
    // ParGridFunction        * uE_;  // Electric Energy density (L2)
    // ParGridFunction        * uB_;  // Magnetic Energy density (L2)

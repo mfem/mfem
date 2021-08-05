@@ -517,8 +517,10 @@ double SheathImpedance::Eval(ElementTransformation &T,
    if ( volt_norm > 20) {cout << "Warning: V_RF > Z Parameterization Limit!" << endl;}
 
    double debye_length = debye(15.0, density_val); // Units: m
-   Vector nor(T.GetSpaceDim());
+   Vector nor(3); nor = 0.0;
+   nor.SetSize(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
+   nor.SetSize(3);
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag); // Unitless
 
@@ -1058,6 +1060,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
    if (type_ != CONSTANT)
    {
       T.Transform(ip, x_);
+      x_.SetSize(3);
    }
 
    switch (type_)

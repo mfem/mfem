@@ -248,9 +248,10 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                               ElementTransformation &Trans,
                                               DenseMatrix &elmat)
 {
-   int  test_nd = test_fe.GetDof();
-   int trial_nd = trial_fe.GetDof();
-   int     sdim = Trans.GetSpaceDim();
+   int   test_nd = test_fe.GetDof();
+   int test_vdim = test_fe.GetVDim();
+   int  trial_nd = trial_fe.GetDof();
+   int      sdim = Trans.GetSpaceDim();
    double w;
 
 #ifdef MFEM_THREAD_SAFE
@@ -259,9 +260,9 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
    DenseMatrix trial_dshape;
 #endif
 
-   nor.SetSize(sdim);
-   nxj.SetSize(sdim);
-   test_shape.SetSize(test_nd, sdim);
+   nor.SetSize(3); nor = 0.0;
+   nxj.SetSize(3);
+   test_shape.SetSize(test_nd, test_vdim);
    trial_dshape.SetSize(trial_nd, sdim);
 
    elmat.SetSize(test_nd, trial_nd);
@@ -279,7 +280,9 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       const IntegrationPoint &ip = ir->IntPoint(p);
       Trans.SetIntPoint(&ip);
 
+      nor.SetSize(sdim);
       CalcOrtho(Trans.Jacobian(), nor);
+      nor.SetSize(3);
 
       test_fe.CalcPhysVShape(Trans, test_shape);
       trial_fe.CalcPhysDShape(Trans, trial_dshape);
@@ -293,16 +296,32 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       for (int j=0; j<trial_nd; j++)
       {
          // Compute cross product
-         nxj[0] = nor[1] * trial_dshape(j,2) - nor[2] * trial_dshape(j,1);
-         nxj[1] = nor[2] * trial_dshape(j,0) - nor[0] * trial_dshape(j,2);
-         nxj[2] = nor[0] * trial_dshape(j,1) - nor[1] * trial_dshape(j,0);
+         nxj[0] = 0.0;
+         nxj[1] = nor[2] * trial_dshape(j,0);
+         nxj[2] = -nor[1] * trial_dshape(j,0);
+         if (sdim > 1)
+         {
+            nxj[0] += -nor[2] * trial_dshape(j,1);
+            nxj[1] += 0.0;
+            nxj[2] += nor[0] * trial_dshape(j,1);
+         }
+         if (sdim > 2)
+         {
+            nxj[0] += nor[1] * trial_dshape(j,2);
+            nxj[1] += -nor[0] * trial_dshape(j,2);
+            nxj[2] += 0.0;
+         }
+
 
          for (int i=0; i<test_nd; i++)
          {
             // Compute inner product
-            elmat(i,j) += w * (nxj[0] * test_shape(i,0) +
-                               nxj[1] * test_shape(i,1) +
-                               nxj[2] * test_shape(i,2));
+            double v = 0.0;
+            for (int d=0; d < test_vdim; d++)
+            {
+               v += nxj[d] * test_shape(i,d);
+            }
+            elmat(i,j) += w * v;
          }
       }
 
@@ -314,10 +333,14 @@ void nxkIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                            ElementTransformation &Trans,
                                            DenseMatrix &elmat)
 {
-   int  test_nd = test_fe.GetDof();
-   int trial_nd = trial_fe.GetDof();
-   int     sdim = Trans.GetSpaceDim();
+   int   test_nd = test_fe.GetDof();
+   int test_vdim = test_fe.GetVDim();
+   int  trial_nd = trial_fe.GetDof();
+   int      kdim = K->GetVDim();
+   int      sdim = Trans.GetSpaceDim();
    double w;
+
+   MFEM_ASSERT(kdim == 3, "");
 
 #ifdef MFEM_THREAD_SAFE
    Vector nor, nxj, k;
@@ -325,10 +348,11 @@ void nxkIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
    Vector trial_shape;
 #endif
 
-   nor.SetSize(sdim);
-   nxj.SetSize(sdim);
-   k.SetSize(sdim);
-   test_shape.SetSize(test_nd, sdim);
+   // Allocate three entries for the normal vector and set them to zero
+   nor.SetSize(3); nor = 0.0;
+   nxj.SetSize(3); nxj = 0.0;
+   k.SetSize(3);   k = 0.0;
+   test_shape.SetSize(test_nd, test_vdim);
    trial_shape.SetSize(trial_nd);
 
    elmat.SetSize(test_nd, trial_nd);
@@ -346,7 +370,12 @@ void nxkIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       const IntegrationPoint &ip = ir->IntPoint(p);
       Trans.SetIntPoint(&ip);
 
+      // Set the first sdim entries in nor
+      nor.SetSize(sdim);
       CalcOrtho(Trans.Jacobian(), nor);
+
+      // Expand nor, if necessary, so that we can access all three entries
+      nor.SetSize(3);
 
       K->Eval(k, Trans, ip);
 
@@ -369,36 +398,40 @@ void nxkIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
          for (int i=0; i<test_nd; i++)
          {
             // Compute inner product
-            elmat(i,j) += w * (nxj[0] * test_shape(i,0) +
-                               nxj[1] * test_shape(i,1) +
-                               nxj[2] * test_shape(i,2)) * trial_shape[j];
+            double v = 0.0;
+            for (int d = 0; d < test_vdim; d++)
+            {
+               v += nxj[d] * test_shape(i,d);
+            }
+
+            elmat(i,j) += w * v * trial_shape[j];
          }
       }
 
    }
 }
 
-void zkxIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                           const FiniteElement &test_fe,
-                                           ElementTransformation &Trans,
-                                           DenseMatrix &elmat)
+void nDotCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                                const FiniteElement &test_fe,
+                                                ElementTransformation &Trans,
+                                                DenseMatrix &elmat)
 {
-   int  test_nd = test_fe.GetDof();
-   int trial_nd = trial_fe.GetDof();
-   int     sdim = Trans.GetSpaceDim();
+   int    test_nd = test_fe.GetDof();
+   int   trial_nd = trial_fe.GetDof();
+   int trial_cdim = trial_fe.GetCurlDim();
+   int       sdim = Trans.GetSpaceDim();
    double w;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector nor, nxj, k;
+   Vector nor, nDotCurl;
    Vector test_shape;
-   DenseMatrix trial_shape;
+   DenseMatrix trial_dshape;
 #endif
 
-   nor.SetSize(sdim);
-   nxj.SetSize(sdim);
-   k.SetSize(sdim);
+   nor.SetSize(3); nor = 0.0;
+   nDotCurl.SetSize(trial_nd);
    test_shape.SetSize(test_nd);
-   trial_shape.SetSize(trial_nd, sdim);
+   trial_dshape.SetSize(trial_nd, trial_cdim);
 
    elmat.SetSize(test_nd, trial_nd);
 
@@ -415,14 +448,83 @@ void zkxIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       const IntegrationPoint &ip = ir->IntPoint(p);
       Trans.SetIntPoint(&ip);
 
+      nor.SetSize(sdim);
       CalcOrtho(Trans.Jacobian(), nor);
+      nor.SetSize(trial_cdim);
+
+      test_fe.CalcPhysShape(Trans, test_shape);
+      trial_fe.CalcPhysCurlShape(Trans, trial_dshape);
+
+      w = ip.weight;
+      if (Q)
+      {
+         w *= Q->Eval(Trans, ip);
+      }
+
+      trial_dshape.Mult(nor, nDotCurl);
+
+      for (int j=0; j<trial_nd; j++)
+      {
+         for (int i=0; i<test_nd; i++)
+         {
+            elmat(i,j) += w * test_shape[i] * nDotCurl[j];
+         }
+      }
+
+   }
+}
+
+void zkxIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                           const FiniteElement &test_fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &elmat)
+{
+   int    test_nd = test_fe.GetDof();
+   int   trial_nd = trial_fe.GetDof();
+   int trial_vdim = trial_fe.GetVDim();
+   int       sdim = Trans.GetSpaceDim();
+   double w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector nor, nxj, k;
+   Vector test_shape;
+   DenseMatrix trial_shape;
+#endif
+
+   nor.SetSize(3); nor = 0.0;
+   nxj.SetSize(trial_vdim);
+   k.SetSize(3);
+   test_shape.SetSize(test_nd);
+   trial_shape.SetSize(trial_nd, trial_vdim);
+
+   elmat.SetSize(test_nd, trial_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
+      ir = &IntRules.Get(trial_fe.GetGeomType(), ir_order);
+   }
+
+   elmat = 0.0;
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      Trans.SetIntPoint(&ip);
+
+      nor.SetSize(sdim);
+      CalcOrtho(Trans.Jacobian(), nor);
+      nor.SetSize(3);
 
       K->Eval(k, Trans, ip);
 
       // Compute cross product
       nxj[0] = nor[1] * k[2] - nor[2] * k[1];
       nxj[1] = nor[2] * k[0] - nor[0] * k[2];
-      nxj[2] = nor[0] * k[1] - nor[1] * k[0];
+      if (trial_vdim > 2)
+      {
+         nxj[2] = nor[0] * k[1] - nor[1] * k[0];
+      }
 
       w = a * ip.weight;
       if (Z)
@@ -440,7 +542,9 @@ void zkxIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
             // Compute inner product
             elmat(i,j) += w * (nxj[0] * trial_shape(j,0) +
                                nxj[1] * trial_shape(j,1) +
-                               nxj[2] * trial_shape(j,2)) * test_shape[i];
+                               ((trial_vdim > 2) ?
+                                nxj[2] * trial_shape(j,2) : 0.0)
+                              ) * test_shape[i];
          }
       }
 
@@ -521,13 +625,15 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      rhs1_(NULL),
      rhs0_(NULL),
      e_t_(NULL),
-     e_b_(NULL),
+     e_b_v_(NULL),
      h_v_(NULL),
      e_v_(NULL),
      d_v_(NULL),
      phi_v_(NULL),
+     rectPot_v_(NULL),
      j_v_(NULL),
      b_hat_(NULL),
+     b_hat_v_(NULL),
      // u_(NULL),
      // uE_(NULL),
      // uB_(NULL),
@@ -635,8 +741,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    if (BCoef_)
    {
-      e_b_ = new ParComplexGridFunction(L2FESpace_);
-      *e_b_ = 0.0;
+      // e_b_ = new ParComplexGridFunction(L2FESpace_);
+      // *e_b_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
       EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
@@ -644,14 +750,14 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    {
       L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(), 3);
       e_t_ = new ParGridFunction(L2VFESpace_);
-      h_v_ = new ParComplexGridFunction(L2VFESpace_);
+      // h_v_ = new ParComplexGridFunction(L2VFESpace_);
       // e_v_ = new ParComplexGridFunction(L2VFESpace_);
-      d_v_ = new ParComplexGridFunction(L2VFESpace_);
-      j_v_ = new ParComplexGridFunction(L2VFESpace_);
-      if (sbcs_.Size() > 0)
-      {
-         phi_v_ = new ParComplexGridFunction(L2FESpace_);
-      }
+      // d_v_ = new ParComplexGridFunction(L2VFESpace_);
+      // j_v_ = new ParComplexGridFunction(L2VFESpace_);
+      // if (sbcs_.Size() > 0)
+      // {
+      //    phi_v_ = new ParComplexGridFunction(L2FESpace_);
+      // }
 
       sinkx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, sin);
       coskx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, cos);
@@ -739,7 +845,6 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                          *muCoef_);
 
    // Impedance of free space
-   /*
    if ( abcs.Size() > 0 )
    {
       if ( myid_ == 0 && logging_ > 0 )
@@ -770,7 +875,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaCoef_,
                                             prodFunc);
    }
-   */
+
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
@@ -943,8 +1048,13 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          */
          m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), NULL,
                                     sbc.attr_marker);
-         nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
-                                       new VectorFECurlIntegrator(*sbc.imag),
+         /*
+              nzD12_->AddBoundaryIntegrator(new MixedVectorCurlIntegrator(*sbc.real),
+                                            new MixedVectorCurlIntegrator(*sbc.imag),
+                                            sbc.attr_marker);
+         */
+         nzD12_->AddBoundaryIntegrator(new nDotCurlIntegrator(*sbc.real),
+                                       new nDotCurlIntegrator(*sbc.imag),
                                        sbc.attr_marker);
          if (kReCoef_)
          {
@@ -1124,14 +1234,19 @@ CPDSolverDH::~CPDSolverDH()
    // delete DivFreeProj_;
    // delete SurfCur_;
 
-   if (h_v_ != h_) { delete h_v_; }
+   // if (h_v_ != h_) { delete h_v_; }
    // if (e_v_ != e_) { delete e_v_; }
+   // if (d_v_ != d_) { delete d_v_; }
+   // if (j_v_ != j_) { delete j_v_; }
+   // if (phi_v_ != phi_) {delete phi_v_;}
+   delete h_v_;
    delete e_v_;
-   if (d_v_ != d_) { delete d_v_; }
-   if (j_v_ != j_) { delete j_v_; }
-   if (phi_v_ != phi_) {delete phi_v_;}
-   delete e_b_;
+   delete d_v_;
+   delete j_v_;
+   delete phi_v_;
+   delete e_b_v_;
    delete b_hat_;
+   delete b_hat_v_;
    // delete e_r_;
    // delete e_i_;
    delete h_;
@@ -1144,6 +1259,7 @@ CPDSolverDH::~CPDSolverDH()
    delete prev_phi_;
    // delete phi_tmp_;
    delete rectPot_;
+   delete rectPot_v_;
    // delete b_;
    // delete h_;
    // delete u_;
@@ -1481,14 +1597,16 @@ CPDSolverDH::Update()
    // if (uB_) { uB_->Update(); }
    // if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
-   if (e_b_) { e_b_->Update(); }
+   if (e_b_v_) { e_b_v_->Update(); }
    if (h_v_) { h_v_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
    if (phi_v_) { phi_v_->Update(); }
-   if (rectPot_) { rectPot_ ->Update();}
+   if (rectPot_) { rectPot_->Update();}
+   if (rectPot_v_) { rectPot_v_->Update();}
    if (b_hat_) { b_hat_->Update(); }
+   if (b_hat_v_) { b_hat_v_->Update(); }
    if (StixS_) { StixS_->Update(); }
    if (StixD_) { StixD_->Update(); }
    if (StixP_) { StixP_->Update(); }
@@ -1918,6 +2036,55 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
 }
 
+void CPDSolverDH::prepareVectorVisField(const ParComplexGridFunction &u,
+					ComplexGridFunction &v)
+{
+   if (kReCoef_ || kImCoef_)
+   {
+      VectorGridFunctionCoefficient u_r(&u.real());
+      VectorGridFunctionCoefficient u_i(&u.imag());
+      VectorSumCoefficient uk_r(u_r, u_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient uk_i(u_i, u_r, *coskx_, *sinkx_);
+
+      VectorR2DCoef uk_r_3D(uk_r, *pmesh_);
+      VectorR2DCoef uk_i_3D(uk_i, *pmesh_);
+
+      v.ProjectCoefficient(uk_r_3D, uk_i_3D);
+   }
+   else
+   {
+      VectorGridFunctionCoefficient u_r(&u.real());
+      VectorGridFunctionCoefficient u_i(&u.imag());
+
+      VectorR2DCoef u_r_3D(u_r, *pmesh_);
+      VectorR2DCoef u_i_3D(u_i, *pmesh_);
+
+      v.ProjectCoefficient(u_r_3D, u_i_3D);
+   }
+}
+
+void CPDSolverDH::prepareVisFields()
+{
+  prepareVectorVisField(*h_, *h_v_);
+  prepareVectorVisField(*e_, *e_v_);
+  prepareVectorVisField(*d_, *d_v_);
+
+  if (BCoef_)
+  {
+    // VectorGridFunctionCoefficient b_hat(b_hat_);
+    // VectorR2DCoef b_hat_3D(b_hat, *pmesh_);
+      VectorR2DCoef b_hat_3D(*BCoef_, *pmesh_);
+      b_hat_v_->ProjectCoefficient(b_hat_3D);
+      
+      VectorGridFunctionCoefficient e_r(&e_v_->real());
+      VectorGridFunctionCoefficient e_i(&e_v_->imag());
+      InnerProductCoefficient eb_r(e_r, *BCoef_);
+      InnerProductCoefficient eb_i(e_i, *BCoef_);
+
+      e_b_v_->ProjectCoefficient(eb_r, eb_i);
+  }
+}
+
 void
 CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
@@ -1940,10 +2107,18 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    StixD_ = new ComplexGridFunction(L2FESpace3D_);
    StixP_ = new ComplexGridFunction(L2FESpace3D_);
 
+   h_v_ = new ComplexGridFunction(L2VFESpace3D_);
    e_v_ = new ComplexGridFunction(L2VFESpace3D_);
+   d_v_ = new ComplexGridFunction(L2VFESpace3D_);
+
+   visit_dc.RegisterField("Re_H", &h_v_->real());
+   visit_dc.RegisterField("Im_H", &h_v_->imag());
 
    visit_dc.RegisterField("Re_E", &e_v_->real());
    visit_dc.RegisterField("Im_E", &e_v_->imag());
+
+   visit_dc.RegisterField("Re_D", &d_v_->real());
+   visit_dc.RegisterField("Im_D", &d_v_->imag());
 
    /*
    visit_dc.RegisterField("Re_H", &h_->real());
@@ -1954,24 +2129,31 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    visit_dc.RegisterField("Re_D", &d_->real());
    visit_dc.RegisterField("Im_D", &d_->imag());
-
+   */
    if (sbcs_.Size() > 0)
    {
-      visit_dc.RegisterField("Re_Phi", &phi_->real());
-      visit_dc.RegisterField("Im_Phi", &phi_->imag());
+      phi_v_ = new ComplexGridFunction(L2FESpace3D_);
+
+      visit_dc.RegisterField("Re_Phi", &phi_v_->real());
+      visit_dc.RegisterField("Im_Phi", &phi_v_->imag());
    }
 
    if ( rectPot_ )
    {
-      visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
-      visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+      rectPot_v_ = new ComplexGridFunction(L2FESpace3D_);
+
+      visit_dc.RegisterField("Rec_Re_Phi", &rectPot_v_->real());
+      visit_dc.RegisterField("Rec_Im_Phi", &rectPot_v_->imag());
    }
 
    if ( BCoef_)
    {
-      visit_dc.RegisterField("B_hat", b_hat_);
-      // visit_dc.RegisterField("Re_EB", &e_b_->real());
-      // visit_dc.RegisterField("Im_EB", &e_b_->imag());
+       b_hat_v_ = new GridFunction(L2VFESpace3D_);
+       e_b_v_   = new ComplexGridFunction(L2FESpace3D_);
+      
+      visit_dc.RegisterField("B_hat", b_hat_v_);
+      visit_dc.RegisterField("Re_EB", &e_b_v_->real());
+      visit_dc.RegisterField("Im_EB", &e_b_v_->imag());
       // visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
       // visit_dc.RegisterField("Im_EpsPara", &EpsPara_->imag());
    }
@@ -1980,11 +2162,13 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
    // visit_dc.RegisterField("H", h_);
+   /*
    if ( j_ )
    {
       visit_dc.RegisterField("Re_J", &j_->real());
       visit_dc.RegisterField("Im_J", &j_->imag());
    }
+   */
    /*
    if ( u_ )
    {
@@ -2018,6 +2202,20 @@ CPDSolverDH::WriteVisItFields(int it)
    if ( visit_dc_ )
    {
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
+
+      prepareVisFields();
+      /*
+      cout << "Preparing E viz" << endl;
+      VectorGridFunctionCoefficient e_r(&e_->real());
+      VectorGridFunctionCoefficient e_i(&e_->imag());
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
+
+      VectorR2DCoef erCoef3D(erCoef, *pmesh_);
+      VectorR2DCoef eiCoef3D(eiCoef, *pmesh_);
+
+      e_v_->ProjectCoefficient(erCoef3D, eiCoef3D);
+      */
       /*
       if ( j_ )
       {
@@ -2058,7 +2256,8 @@ CPDSolverDH::WriteVisItFields(int it)
 
       if ( BCoef_)
       {
-         b_hat_->ProjectCoefficient(*BCoef_);
+	/*
+	b_hat_->ProjectCoefficient(*BCoef_);
 
          VectorGridFunctionCoefficient e_r(&e_->real());
          VectorGridFunctionCoefficient e_i(&e_->imag());
@@ -2066,7 +2265,8 @@ CPDSolverDH::WriteVisItFields(int it)
          InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-         /*
+	*/
+	/*
               MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
               MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);
               InnerProductCoefficient ReEpsParaCoef(*BCoef_, ReEpsB);
@@ -2106,23 +2306,32 @@ CPDSolverDH::InitializeGLVis()
 {
    if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl; }
 
-   socks_["Hr"] = new socketstream;
-   socks_["Hr"]->precision(8);
+   switch (pmesh_->Dimension())
+   {
+      case 1:
+         break;
+      case 2:
+         break;
+      case 3:
+         socks_["Hr"] = new socketstream;
+         socks_["Hr"]->precision(8);
 
-   socks_["Hi"] = new socketstream;
-   socks_["Hi"]->precision(8);
+         socks_["Hi"] = new socketstream;
+         socks_["Hi"]->precision(8);
 
-   socks_["Er"] = new socketstream;
-   socks_["Er"]->precision(8);
+         socks_["Er"] = new socketstream;
+         socks_["Er"]->precision(8);
 
-   socks_["Ei"] = new socketstream;
-   socks_["Ei"]->precision(8);
+         socks_["Ei"] = new socketstream;
+         socks_["Ei"]->precision(8);
 
-   socks_["Dr"] = new socketstream;
-   socks_["Dr"]->precision(8);
+         socks_["Dr"] = new socketstream;
+         socks_["Dr"]->precision(8);
 
-   socks_["Di"] = new socketstream;
-   socks_["Di"]->precision(8);
+         socks_["Di"] = new socketstream;
+         socks_["Di"]->precision(8);
+         break;
+   }
 
    if (sbcs_.Size() > 0)
    {
@@ -2156,11 +2365,20 @@ CPDSolverDH::InitializeGLVis()
 
    if ( j_ )
    {
-      socks_["Jr"] = new socketstream;
-      socks_["Jr"]->precision(8);
+      switch (pmesh_->Dimension())
+      {
+         case 1:
+            break;
+         case 2:
+            break;
+         case 3:
+            socks_["Jr"] = new socketstream;
+            socks_["Jr"]->precision(8);
 
-      socks_["Ji"] = new socketstream;
-      socks_["Ji"]->precision(8);
+            socks_["Ji"] = new socketstream;
+            socks_["Ji"]->precision(8);
+            break;
+      }
    }
    /*
    if ( u_ )
@@ -2210,8 +2428,11 @@ CPDSolverDH::DisplayToGLVis()
    int Ww = 350, Wh = 350; // window size
    int offx = Ww+10, offy = Wh+45; // window offsets
 
+   prepareVisFields();
+   /*   
    if (kReCoef_ || kImCoef_)
    {
+      cout << "Preparing H viz" << endl;
       VectorGridFunctionCoefficient h_r(&h_->real());
       VectorGridFunctionCoefficient h_i(&h_->imag());
       VectorSumCoefficient hrCoef(h_r, h_i, *coskx_, *negsinkx_);
@@ -2219,6 +2440,7 @@ CPDSolverDH::DisplayToGLVis()
 
       h_v_->ProjectCoefficient(hrCoef, hiCoef);
 
+      cout << "Preparing E viz" << endl;
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
       VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
@@ -2226,6 +2448,7 @@ CPDSolverDH::DisplayToGLVis()
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
 
+      cout << "Preparing D viz" << endl;
       VectorGridFunctionCoefficient d_r(&d_->real());
       VectorGridFunctionCoefficient d_i(&d_->imag());
       VectorSumCoefficient drCoef(d_r, d_i, *coskx_, *negsinkx_);
@@ -2262,35 +2485,53 @@ CPDSolverDH::DisplayToGLVis()
       d_v_ = d_;
       phi_v_ = phi_;
    }
-
+   */
    ostringstream hr_keys, hi_keys;
    hr_keys << "aaAcPPPP";
    hi_keys << "aaAcPPPP";
 
-   VisualizeField(*socks_["Hr"], vishost, visport,
-                  h_v_->real(), "Magnetic Field, Re(H)", Wx, Wy, Ww, Wh,
-                  hr_keys.str().c_str());
-   Wx += offx;
+   switch (pmesh_->Dimension())
+   {
+      case 1:
+         break;
+      case 2:
+         break;
+      case 3:
 
-   VisualizeField(*socks_["Hi"], vishost, visport,
-                  h_v_->imag(), "Magnetic Field, Im(H)", Wx, Wy, Ww, Wh,
-                  hr_keys.str().c_str());
+         VisualizeField(*socks_["Hr"], vishost, visport,
+                        h_v_->real(), "Magnetic Field, Re(H)", Wx, Wy, Ww, Wh,
+                        hr_keys.str().c_str());
+         Wx += offx;
 
-   Wx += offx;
+         VisualizeField(*socks_["Hi"], vishost, visport,
+                        h_v_->imag(), "Magnetic Field, Im(H)", Wx, Wy, Ww, Wh,
+                        hr_keys.str().c_str());
+
+         Wx += offx;
+         break;
+   }
 
    ostringstream er_keys, ei_keys;
    er_keys << "aaAcppppp";
    ei_keys << "aaAcppppp";
 
-   VisualizeField(*socks_["Er"], vishost, visport,
-                  e_v_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh,
-                  er_keys.str().c_str());
-   Wx += offx;
+   switch (pmesh_->Dimension())
+   {
+      case 1:
+         break;
+      case 2:
+         break;
+      case 3:
+         VisualizeField(*socks_["Er"], vishost, visport,
+                        e_v_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh,
+                        er_keys.str().c_str());
+         Wx += offx;
 
-   VisualizeField(*socks_["Ei"], vishost, visport,
-                  e_v_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh,
-                  ei_keys.str().c_str());
-
+         VisualizeField(*socks_["Ei"], vishost, visport,
+                        e_v_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh,
+                        ei_keys.str().c_str());
+         break;
+   }
    /*
    Wx += offx;
    VisualizeField(*socks_["Dr"], vishost, visport,
@@ -2332,24 +2573,25 @@ CPDSolverDH::DisplayToGLVis()
 
    if (BCoef_)
    {
+     /*
       VectorGridFunctionCoefficient e_r(&e_v_->real());
       VectorGridFunctionCoefficient e_i(&e_v_->imag());
       InnerProductCoefficient ebrCoef(e_r, *BCoef_);
       InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-
+     */
       ostringstream ebr_keys, ebi_keys;
       ebr_keys << "aaAc";
       ebi_keys << "aaAc";
 
       VisualizeField(*socks_["EBr"], vishost, visport,
-                     e_b_->real(), "Parallel Electric Field, Re(E.B)",
+                     e_b_v_->real(), "Parallel Electric Field, Re(E.B)",
                      Wx, Wy, Ww, Wh, ebr_keys.str().c_str());
       Wx += offx;
 
       VisualizeField(*socks_["EBi"], vishost, visport,
-                     e_b_->imag(), "Parallel Electric Field, Im(E.B)",
+                     e_b_v_->imag(), "Parallel Electric Field, Im(E.B)",
                      Wx, Wy, Ww, Wh, ebi_keys.str().c_str());
       Wx += offx;
 
@@ -2369,7 +2611,7 @@ CPDSolverDH::DisplayToGLVis()
       Wx = 0; Wy += offy; // next line
 
       // j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-
+      /*
       if (kReCoef_ || kImCoef_)
       {
          VectorGridFunctionCoefficient j_r(&j_->real());
@@ -2383,12 +2625,21 @@ CPDSolverDH::DisplayToGLVis()
       {
          j_v_ = j_;
       }
-
-      VisualizeField(*socks_["Jr"], vishost, visport,
-                     j_v_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
-      Wx += offx;
-      VisualizeField(*socks_["Ji"], vishost, visport,
-                     j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
+      */
+      switch (pmesh_->Dimension())
+      {
+         case 1:
+            break;
+         case 2:
+            break;
+         case 3:
+            VisualizeField(*socks_["Jr"], vishost, visport,
+                           j_v_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
+            Wx += offx;
+            VisualizeField(*socks_["Ji"], vishost, visport,
+                           j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
+            break;
+      }
    }
    Wx = 0; Wy += offy; // next line
    /*
