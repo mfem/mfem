@@ -66,6 +66,9 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
    return atomicAdd(&add,val);
 #else
    T old = add;
+#ifdef MFEM_USE_OPENMP
+   #pragma omp atomic
+#endif
    add += val;
    return old;
 #endif

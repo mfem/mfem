@@ -251,7 +251,7 @@ public:
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
 
-   /// Return true if the deterministic kernels are allaowed.
+   /// Return true if the deterministic kernels are allowed.
    static inline bool IsNonDeterministicKernelsEnabled()
    {
       return Get().deterministic_kernels == OFF;

@@ -19,7 +19,7 @@ namespace mfem
 {
 
 template<int D1D, int Q1D>
-void AMD_SmemPAMassApply3D(const int ndofs,
+void NDK_SmemPAMassApply3D(const int ndofs,
                            const int NE,
                            const int *map,
                            const double *b_,
@@ -244,7 +244,186 @@ void AMD_SmemPAMassApply3D(const int ndofs,
    });
 }
 
-void AMD_PAMassApply(const int dim,
+template<int D1D, int Q1D>
+void NDK_RegsPAMassApply3D(const int ndofs,
+                           const int NE,
+                           const int *map,
+                           const double *b_,
+                           const double *d_,
+                           const double *x_,
+                           double *y_)
+{
+   const auto MAP = Reshape(map, D1D,D1D,D1D, NE);
+   const auto B = Reshape(b_, Q1D, D1D);
+   const auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   const auto X = Reshape(x_, ndofs);
+   const auto X1 = Reshape(x_, D1D,D1D,D1D, NE);
+   auto Y = Reshape(y_, ndofs);
+   auto Y1 = Reshape(y_, D1D,D1D,D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   {
+      double r_wk[Q1D];
+      MFEM_SHARED double s_B[Q1D][D1D];
+      MFEM_SHARED double s_q[Q1D][Q1D][Q1D];
+
+      MFEM_FOREACH_THREAD(b,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(a,x,Q1D)
+         {
+            if (a<D1D) { s_B[b][a] = B(b,a); }
+
+            for (int i=0; i<Q1D; ++i) { r_wk[i] = 0.0; }
+
+            if (a<D1D && b<D1D)
+            {
+               MFEM_UNROLL(D1D)
+               for (int c=0; c<D1D; ++c)
+               {
+                  if (map)
+                  {
+                     const int gid = MAP(a,b,c,e);
+                     const int idx = gid >= 0 ? gid : -1 - gid;
+                     s_q[c][b][a] = X(idx);
+                  }
+                  else
+                  {
+                     s_q[c][b][a] = X1(a,b,c,e);
+                  }
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(c,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(b,x,Q1D)
+         {
+            if (b<D1D && c<D1D)
+            {
+               MFEM_UNROLL(D1D)
+               for (int a=0; a<D1D; ++a)
+               {
+                  const double q_cba = s_q[c][b][a];
+                  MFEM_UNROLL(Q1D)
+                  for (int i=0; i<Q1D; ++i) { r_wk[i] += s_B[i][a]*q_cba; }
+               }
+               MFEM_UNROLL(Q1D)
+               for (int i=0; i<Q1D; ++i) { s_q[c][b][i] = r_wk[i]; }
+            }
+            MFEM_UNROLL(Q1D)
+            for (int j=0; j<Q1D; ++j) { r_wk[j] = 0.0; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(c,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(i,x,Q1D)
+         {
+            if (i<Q1D && c<D1D)
+            {
+               MFEM_UNROLL(D1D)
+               for (int b=0; b<D1D; ++b)
+               {
+                  const double q_cbi = s_q[c][b][i];
+                  MFEM_UNROLL(Q1D)
+                  for (int j=0; j<Q1D; ++j) { r_wk[j] += s_B[j][b]*q_cbi; }
+               }
+               MFEM_UNROLL(Q1D)
+               for (int j=0; j<Q1D; ++j) { s_q[c][j][i] = r_wk[j]; }
+            }
+            MFEM_UNROLL(Q1D)
+            for (int k=0; k<Q1D; ++k) { r_wk[k] = 0.0; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(j,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(i,x,Q1D)
+         {
+            MFEM_UNROLL(D1D)
+            for (int c=0; c<D1D; ++c)
+            {
+               const double q_cji = s_q[c][j][i];
+               MFEM_UNROLL(Q1D)
+               for (int k=0; k<Q1D; ++k) { r_wk[k] += s_B[k][c]*q_cji; }
+            }
+            MFEM_UNROLL(Q1D)
+            for (int k=0; k<Q1D; ++k) { r_wk[k] *= D(i,j,k,e); }
+            for (int c=0; c<D1D; ++c)
+            {
+               double q_cji = 0.0;
+               MFEM_UNROLL(Q1D)
+               for (int k=0; k<Q1D; ++k) { q_cji += s_B[k][c] * r_wk[k]; }
+               s_q[c][j][i] = q_cji;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(c,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(i,x,Q1D)
+         {
+            for (int j=0; j<Q1D; ++j) { r_wk[j] = s_q[c][j][i]; }
+            MFEM_UNROLL(D1D)
+            for (int b=0; b<D1D; ++b)
+            {
+               double q_cbi = 0.0;
+               MFEM_UNROLL(Q1D)
+               for (int j=0; j<Q1D; ++j) { q_cbi += s_B[j][b] * r_wk[j]; }
+               s_q[c][b][i] = q_cbi;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(c,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(b,x,D1D)
+         {
+            for (int i=0; i<Q1D; ++i) { r_wk[i] = s_q[c][b][i]; }
+            MFEM_UNROLL(D1D)
+            for (int a=0; a<D1D; ++a)
+            {
+               double q_cba = 0.0;
+               MFEM_UNROLL(Q1D)
+               for (int i=0; i<Q1D; ++i) { q_cba += s_B[i][a] * r_wk[i]; }
+               s_q[c][b][a] = q_cba;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(b,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(a,x,D1D)
+         {
+            MFEM_UNROLL(D1D)
+            for (int c=0; c<D1D; ++c)
+            {
+               const double q_cba = s_q[c][b][a];
+               if (map)
+               {
+                  const int gid = MAP(a,b,c,e);
+                  const int idx = gid >= 0 ? gid : -1 - gid;
+                  AtomicAdd(Y(idx), q_cba);
+               }
+               else
+               {
+                  Y1(a,b,c,e) += q_cba;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+void NDK_PAMassApply(const int dim,
                      const int D1D,
                      const int Q1D,
                      const int NE,
@@ -267,19 +446,25 @@ void AMD_PAMassApply(const int dim,
    assert(dim == 3);
    const int id = (D1D << 4) | Q1D;
 
+#if 0
+#define NDK_PAMassApply3D NDK_SmemPAMassApply3D
+#else
+#define NDK_PAMassApply3D NDK_RegsPAMassApply3D
+#endif
+
    switch (id) // orders 1~6
    {
-      case 0x23: return AMD_SmemPAMassApply3D<2,3>(ndofs,NE,map,b,d,x,y);
-      case 0x24: return AMD_SmemPAMassApply3D<2,4>(ndofs,NE,map,b,d,x,y);
-      case 0x34: return AMD_SmemPAMassApply3D<3,4>(ndofs,NE,map,b,d,x,y);
-      case 0x36: return AMD_SmemPAMassApply3D<3,6>(ndofs,NE,map,b,d,x,y);
-      case 0x45: return AMD_SmemPAMassApply3D<4,5>(ndofs,NE,map,b,d,x,y);
-      case 0x46: return AMD_SmemPAMassApply3D<4,6>(ndofs,NE,map,b,d,x,y);
-      case 0x48: return AMD_SmemPAMassApply3D<4,8>(ndofs,NE,map,b,d,x,y);
-      case 0x56: return AMD_SmemPAMassApply3D<5,6>(ndofs,NE,map,b,d,x,y);
-      case 0x58: return AMD_SmemPAMassApply3D<5,8>(ndofs,NE,map,b,d,x,y);
-      case 0x67: return AMD_SmemPAMassApply3D<6,7>(ndofs,NE,map,b,d,x,y);
-      case 0x78: return AMD_SmemPAMassApply3D<7,8>(ndofs,NE,map,b,d,x,y);
+      case 0x23: return NDK_PAMassApply3D<2,3>(ndofs,NE,map,b,d,x,y);
+      case 0x24: return NDK_PAMassApply3D<2,4>(ndofs,NE,map,b,d,x,y);
+      case 0x34: return NDK_PAMassApply3D<3,4>(ndofs,NE,map,b,d,x,y);
+      case 0x36: return NDK_PAMassApply3D<3,6>(ndofs,NE,map,b,d,x,y);
+      case 0x45: return NDK_PAMassApply3D<4,5>(ndofs,NE,map,b,d,x,y);
+      case 0x46: return NDK_PAMassApply3D<4,6>(ndofs,NE,map,b,d,x,y);
+      case 0x48: return NDK_PAMassApply3D<4,8>(ndofs,NE,map,b,d,x,y);
+      case 0x56: return NDK_PAMassApply3D<5,6>(ndofs,NE,map,b,d,x,y);
+      case 0x58: return NDK_PAMassApply3D<5,8>(ndofs,NE,map,b,d,x,y);
+      case 0x67: return NDK_PAMassApply3D<6,7>(ndofs,NE,map,b,d,x,y);
+      case 0x78: return NDK_PAMassApply3D<7,8>(ndofs,NE,map,b,d,x,y);
       default: break;
    }
 

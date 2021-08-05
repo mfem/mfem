@@ -19,7 +19,7 @@ using namespace std;
 namespace mfem
 {
 
-void AMD_PAMassApply(const int dim,
+void NDK_PAMassApply(const int dim,
                      const int D1D,
                      const int Q1D,
                      const int NE,
@@ -29,7 +29,7 @@ void AMD_PAMassApply(const int dim,
                      const Vector &X,
                      Vector &Y);
 
-void AMD_PAMassAssembleDiagonal(const int dim,
+void NDK_PAMassAssembleDiagonal(const int dim,
                                 const int D1D,
                                 const int Q1D,
                                 const int NE,
@@ -490,7 +490,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else if (DeviceCanUseNonDeterministicKernels())
    {
-      AMD_PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne,
+      NDK_PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                  fespace, maps,
                                  pa_data, diag);
    }
@@ -1258,7 +1258,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else if (DeviceCanUseNonDeterministicKernels())
    {
-      AMD_PAMassApply(dim, dofs1D, quad1D, ne,
+      NDK_PAMassApply(dim, dofs1D, quad1D, ne,
                       fespace, maps,
                       pa_data, x, y);
    }
