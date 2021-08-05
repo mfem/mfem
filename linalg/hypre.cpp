@@ -3038,6 +3038,8 @@ HypreSmoother::HypreSmoother() : Solver()
    auxB.Reset(); auxX.Reset();
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   poly_coeffs = NULL;
+   diag = NULL;
    A_is_symmetric = false;
 }
 
@@ -3060,6 +3062,8 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
    auxB.Reset(); auxX.Reset();
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   poly_coeffs = NULL;
+   diag = NULL;
    A_is_symmetric = false;
 
    SetOperator(A_);
@@ -3133,6 +3137,8 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (Z) { delete Z; }
    if (P) { delete P; }
    if (R) { delete R; }
+   if (poly_coeffs) { mfem_hypre_TFree_host(poly_coeffs); };
+   if (diag) { mfem_hypre_TFree(diag); };
    if (l1_norms)
    {
       mfem_hypre_TFree(l1_norms);
@@ -3141,6 +3147,9 @@ void HypreSmoother::SetOperator(const Operator &op)
    delete X1;
 
    X1 = X0 = Z = V = B = X = P = R = NULL;
+   poly_coeffs = NULL;
+   diag = NULL;
+
    auxB.Reset(); auxX.Reset();
 
    if (type >= 1 && type <= 4)
@@ -3446,7 +3455,7 @@ HypreSmoother::~HypreSmoother()
    }
    if (X0) { delete X0; }
    if (X1) { delete X1; }
-   if (poly_coeffs) { mfem_hypre_TFree(poly_coeffs); };
+   if (poly_coeffs) { mfem_hypre_TFree_host(poly_coeffs); };
    if (diag) { mfem_hypre_TFree(diag); };
 }
 
