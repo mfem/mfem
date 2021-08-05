@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #include "gridfunc.hpp"
 #include "fespace.hpp"
 #include "../general/forall.hpp"
+#include <climits>
 
 namespace mfem
 {
@@ -195,6 +196,31 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    });
 }
 
+void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         const int j = nextOffset - 1;
+         const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+         dofValue = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+         -d_x(idx_j % nd, c, idx_j / nd);
+         d_y(t?c:i,t?i:c) = dofValue;
+      }
+   });
+}
+
 void ElementRestriction::BooleanMask(Vector& y) const
 {
    // Assumes all elements have the same number of dofs
@@ -242,35 +268,25 @@ void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
    FillJAndData(mat_ea, mat);
 }
 
-template <int MaxNbNbr>
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
-   // Building the intersection
-   int inter[MaxNbNbr];
-   int cpt = 0;
+   // Find the minimal element index found in both my_elts[] and nbr_elts[]
+   int min_el = INT_MAX;
    for (int i = 0; i < nbElts; i++)
    {
       const int e_i = my_elts[i];
+      if (e_i >= min_el) { continue; }
       for (int j = 0; j < nbrNbElts; j++)
       {
          if (e_i==nbr_elts[j])
          {
-            inter[cpt] = e_i;
-            cpt++;
+            min_el = e_i; // we already know e_i < min_el
+            break;
          }
       }
    }
-   // Finding the minimum
-   int min = inter[0];
-   for (int i = 1; i < cpt; i++)
-   {
-      if (inter[i] < min)
-      {
-         min = inter[i];
-      }
-   }
-   return min;
+   return min_el;
 }
 
 /** Returns the index where a non-zero entry should be added and increment the
@@ -330,7 +346,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                   const int elt = j_E/elt_dofs;
                   j_elts[e_j] = elt;
                }
-               int min_e = GetMinElt<Max>(i_elts, i_nbElts, j_elts, j_nbElts);
+               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) // add the nnz only once
                {
                   GetAndIncrementNnzIndex(i_L, I);
@@ -409,7 +425,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                   j_elts[e_j] = elt;
                   j_B[e_j]    = j_E%elt_dofs;
                }
-               int min_e = GetMinElt<Max>(i_elts, i_nbElts, j_elts, j_nbElts);
+               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) // add the nnz only once
                {
                   double val = 0.0;
@@ -500,9 +516,11 @@ void L2ElementRestriction::FillI(SparseMatrix &mat) const
    const int elem_dofs = ndof;
    const int vd = vdim;
    auto I = mat.WriteI();
-   MFEM_FORALL(dof, ne*elem_dofs*vd,
+   const int isize = mat.Height() + 1;
+   const int interior_dofs = ne*elem_dofs*vd;
+   MFEM_FORALL(dof, isize,
    {
-      I[dof] = elem_dofs;
+      I[dof] = dof<interior_dofs ? elem_dofs : 0;
    });
 }
 
@@ -820,7 +838,7 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -829,7 +847,7 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -1035,8 +1053,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
-   int face_id1, face_id2;
-   int orientation;
+   int face_id1 = -1, face_id2 = -1;
+   int orientation = -1;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
@@ -1240,7 +1258,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -1253,7 +1271,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    if (m == L2FaceValues::DoubleValued)
    {
       auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
@@ -1277,7 +1295,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    else
    {
       auto d_x = Reshape(x.Read(), nd, vd, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
@@ -1297,7 +1315,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
 }
 
 void L2FaceRestriction::FillI(SparseMatrix &mat,
-                              SparseMatrix &face_mat) const
+                              const bool keep_nbr_block) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
@@ -1314,7 +1332,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
 
 void L2FaceRestriction::FillJAndData(const Vector &ea_data,
                                      SparseMatrix &mat,
-                                     SparseMatrix &face_mat) const
+                                     const bool keep_nbr_block) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();

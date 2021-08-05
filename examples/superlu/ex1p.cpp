@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
       delete_fec = true;
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -282,6 +282,10 @@ int main(int argc, char *argv[])
    superlu->SetOperator(*SLU_A);
    superlu->SetPrintStatistics(true);
    superlu->Mult(B, X);
+   superlu->DismantleGrid();
+
+   delete SLU_A;
+   delete superlu;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.

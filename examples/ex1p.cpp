@@ -32,6 +32,7 @@
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -o 4 -a
 //             * mpirun -np 4 ex1p -pa -d ceed-cuda
 //             * mpirun -np 4 ex1p -pa -d ceed-hip
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
@@ -62,10 +63,9 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -87,6 +88,11 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+#ifdef MFEM_USE_CEED
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
+                  "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -97,7 +103,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -167,7 +172,7 @@ int main(int argc, char *argv[])
       delete_fec = true;
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -193,15 +198,15 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // 10. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace. Initialize x with initial guess of zero,
-   //     which satisfies the boundary conditions.
+   // 10. Define the solution vector x as a parallel finite element grid
+   //     function corresponding to fespace. Initialize x with initial guess of
+   //     zero, which satisfies the boundary conditions.
    ParGridFunction x(&fespace);
    x = 0.0;
 
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -225,7 +230,14 @@ int main(int argc, char *argv[])
    {
       if (UsesTensorBasis(fespace))
       {
-         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         if (algebraic_ceed)
+         {
+            prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
+         }
+         else
+         {
+            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         }
       }
    }
    else
@@ -277,7 +289,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-   MPI_Finalize();
 
    return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,8 +64,17 @@ class FiniteElementSpace;
 class ParNCMesh : public NCMesh
 {
 public:
+   /// Construct by partitioning a serial NCMesh.
+   /** SFC partitioning is used by default. A user-specified partition can be
+       passed in 'part', where part[i] is the desired MPI rank for element i. */
    ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
+   /** Load from a stream, parallel version. See the serial NCMesh::NCMesh
+       counterpart for a description of the parameters. */
+   ParNCMesh(MPI_Comm comm, std::istream &input,
+             int version, int &curved, int &is_nc);
+
+   /// Deep copy of another instance.
    ParNCMesh(const ParNCMesh &other);
 
    virtual ~ParNCMesh();
@@ -252,10 +261,7 @@ protected: // interface for ParMesh
 protected: // implementation
 
    MPI_Comm MyComm;
-   int NRanks, MyRank;
-
-   int NGhostVertices, NGhostEdges, NGhostFaces;
-   int NElements, NGhostElements;
+   int NRanks;
 
    typedef std::vector<CommGroup> GroupList;
    typedef std::map<CommGroup, GroupId> GroupMap;
@@ -271,7 +277,7 @@ protected: // implementation
    // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_conf_group[3];
    // ParMesh compatibility helper arrays to order groups, also temporary
-   Array<int> leaf_glob_order, entity_elem_local[3];
+   Array<int> entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -291,12 +297,6 @@ protected: // implementation
 
    virtual void Update();
 
-   virtual bool IsGhost(const Element& el) const
-   { return el.rank != MyRank; }
-
-   virtual int GetNumGhostElements() const { return NGhostElements; }
-   virtual int GetNumGhostVertices() const { return NGhostVertices; }
-
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
    { return index * NRanks / total_elements; }
@@ -308,10 +308,6 @@ protected: // implementation
    /// Return the global index of the first element owned by processor 'rank'.
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
-
-   virtual void UpdateVertices();
-   virtual void AssignLeafIndices();
-   virtual void OnMeshUpdated(Mesh *mesh);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();

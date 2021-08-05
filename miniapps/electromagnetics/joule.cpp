@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -449,10 +449,10 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace  HGradFESpace(pmesh, &HGradFEC);
 
    // The terminology is TrueVSize is the unique (non-redundant) number of dofs
-   HYPRE_Int glob_size_l2 = L2FESpace.GlobalTrueVSize();
-   HYPRE_Int glob_size_nd = HCurlFESpace.GlobalTrueVSize();
-   HYPRE_Int glob_size_rt = HDivFESpace.GlobalTrueVSize();
-   HYPRE_Int glob_size_h1 = HGradFESpace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size_l2 = L2FESpace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size_nd = HCurlFESpace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size_rt = HDivFESpace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size_h1 = HGradFESpace.GlobalTrueVSize();
 
    if (mpi.Root())
    {

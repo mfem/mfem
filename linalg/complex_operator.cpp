@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -81,13 +81,6 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
 
    y_r_.SyncAliasMemory(y);
    y_i_.SyncAliasMemory(y);
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   x_r_.Destroy();
-   x_i_.Destroy();
-   y_r_.Destroy();
-   y_i_.Destroy();
 }
 
 void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
@@ -137,13 +130,6 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 
    y_r_.SyncAliasMemory(y);
    y_i_.SyncAliasMemory(y);
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   x_r_.Destroy();
-   x_i_.Destroy();
-   y_r_.Destroy();
-   y_i_.Destroy();
 }
 
 void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
@@ -573,22 +559,26 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
 
    if ( A_r == NULL && A_i == NULL ) { return NULL; }
 
-   HYPRE_Int global_num_rows_r = (A_r) ? A_r->GetGlobalNumRows() : 0;
-   HYPRE_Int global_num_rows_i = (A_i) ? A_i->GetGlobalNumRows() : 0;
-   HYPRE_Int global_num_rows = std::max(global_num_rows_r, global_num_rows_i);
+   HYPRE_BigInt global_num_rows_r = (A_r) ? A_r->GetGlobalNumRows() : 0;
+   HYPRE_BigInt global_num_rows_i = (A_i) ? A_i->GetGlobalNumRows() : 0;
+   HYPRE_BigInt global_num_rows = std::max(global_num_rows_r,
+                                           global_num_rows_i);
 
-   HYPRE_Int global_num_cols_r = (A_r) ? A_r->GetGlobalNumCols() : 0;
-   HYPRE_Int global_num_cols_i = (A_i) ? A_i->GetGlobalNumCols() : 0;
-   HYPRE_Int global_num_cols = std::max(global_num_cols_r, global_num_cols_i);
+   HYPRE_BigInt global_num_cols_r = (A_r) ? A_r->GetGlobalNumCols() : 0;
+   HYPRE_BigInt global_num_cols_i = (A_i) ? A_i->GetGlobalNumCols() : 0;
+   HYPRE_BigInt global_num_cols = std::max(global_num_cols_r,
+                                           global_num_cols_i);
 
    int row_starts_size = (HYPRE_AssumedPartitionCheck()) ? 2 : nranks_ + 1;
-   HYPRE_Int * row_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
-   HYPRE_Int * col_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_BigInt * row_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
+                                                       row_starts_size);
+   HYPRE_BigInt * col_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
+                                                       row_starts_size);
 
-   const HYPRE_Int * row_starts_z = (A_r) ? A_r->RowPart() :
-                                    ((A_i) ? A_i->RowPart() : NULL);
-   const HYPRE_Int * col_starts_z = (A_r) ? A_r->ColPart() :
-                                    ((A_i) ? A_i->ColPart() : NULL);
+   const HYPRE_BigInt * row_starts_z = (A_r) ? A_r->RowPart() :
+                                       ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_BigInt * col_starts_z = (A_r) ? A_r->ColPart() :
+                                       ((A_i) ? A_i->ColPart() : NULL);
 
    for (int i = 0; i < row_starts_size; i++)
    {
@@ -597,7 +587,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
 
    SparseMatrix diag_r, diag_i, offd_r, offd_i;
-   HYPRE_Int * cmap_r, * cmap_i;
+   HYPRE_BigInt * cmap_r, * cmap_i;
 
    int nrows_r = 0, nrows_i = 0, ncols_r = 0, ncols_i = 0;
    int ncols_offd_r = 0, ncols_offd_i = 0;
@@ -621,7 +611,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int ncols = std::max(ncols_r, ncols_i);
 
    // Determine the unique set of off-diagonal columns global indices
-   std::set<int> cset;
+   std::set<HYPRE_BigInt> cset;
    for (int i=0; i<ncols_offd_r; i++)
    {
       cset.insert(cmap_r[i]);
@@ -661,14 +651,15 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
 
    // Allocate CSR arrays for the combined matrix
-   HYPRE_Int * diag_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * diag_J = mfem_hypre_CTAlloc(HYPRE_Int, diag_nnz);
-   double    * diag_D = mfem_hypre_CTAlloc(double, diag_nnz);
+   HYPRE_Int * diag_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * diag_J = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nnz);
+   double    * diag_D = mfem_hypre_CTAlloc_host(double, diag_nnz);
 
-   HYPRE_Int * offd_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * offd_J = mfem_hypre_CTAlloc(HYPRE_Int, offd_nnz);
-   double    * offd_D = mfem_hypre_CTAlloc(double, offd_nnz);
-   HYPRE_Int * cmap   = mfem_hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
+   HYPRE_Int * offd_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * offd_J = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_nnz);
+   double    * offd_D = mfem_hypre_CTAlloc_host(double, offd_nnz);
+   HYPRE_BigInt * cmap = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
+                                                 2 * num_cols_offd);
 
    // Fill the CSR arrays for the diagonal portion of the matrix
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
@@ -711,16 +702,16 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
 
    // Determine the mappings describing the layout of off-diagonal columns
    int num_recv_procs = 0;
-   HYPRE_Int * offd_col_start_stop = NULL;
+   HYPRE_BigInt * offd_col_start_stop = NULL;
    this->getColStartStop(A_r, A_i, num_recv_procs, offd_col_start_stop);
 
-   std::set<int>::iterator sit;
-   std::map<int,int> cmapa, cmapb, cinvmap;
+   std::set<HYPRE_BigInt>::iterator sit;
+   std::map<HYPRE_BigInt,HYPRE_BigInt> cmapa, cmapb, cinvmap;
    for (sit=cset.begin(); sit!=cset.end(); sit++)
    {
-      int col_orig = *sit;
-      int col_2x2  = -1;
-      int col_size = 0;
+      HYPRE_BigInt col_orig = *sit;
+      HYPRE_BigInt col_2x2  = -1;
+      HYPRE_BigInt col_size = 0;
       for (int i=0; i<num_recv_procs; i++)
       {
          if (offd_col_start_stop[2*i] <= col_orig &&
@@ -738,8 +729,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
    delete [] offd_col_start_stop;
 
-   std::map<int, int>::iterator mit;
-   int i = 0;
+   std::map<HYPRE_BigInt, HYPRE_BigInt>::iterator mit;
+   HYPRE_BigInt i = 0;
    for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
    {
       mit->second = i;
@@ -793,14 +784,13 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            row_starts, col_starts,
                                            diag_I, diag_J, diag_D,
                                            offd_I, offd_J, offd_D,
-                                           2 * num_cols_offd, cmap);
+                                           2 * num_cols_offd, cmap,
+                                           true);
 
-   // Give the new matrix ownership of its internal arrays
-   A->SetOwnerFlags(-1,-1,-1);
-   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
-   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
-   hypre_ParCSRMatrixSetRowStartsOwner((hypre_ParCSRMatrix*)(*A),1);
-   hypre_ParCSRMatrixSetColStartsOwner((hypre_ParCSRMatrix*)(*A),1);
+   // Give the new matrix ownership of row_starts and col_starts
+   hypre_ParCSRMatrix *hA = (hypre_ParCSRMatrix*)(*A);
+   hypre_ParCSRMatrixSetRowStartsOwner(hA,1);
+   hypre_ParCSRMatrixSetColStartsOwner(hA,1);
 
    return A;
 }
@@ -809,7 +799,8 @@ void
 ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
                                        const HypreParMatrix * A_i,
                                        int & num_recv_procs,
-                                       HYPRE_Int *& offd_col_start_stop) const
+                                       HYPRE_BigInt *& offd_col_start_stop
+                                      ) const
 {
    hypre_ParCSRCommPkg * comm_pkg_r =
       (A_r) ? hypre_ParCSRMatrixCommPkg((hypre_ParCSRMatrix*)(*A_r)) : NULL;
@@ -842,11 +833,11 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
 
    num_recv_procs = (int)recv_procs.size();
 
-   HYPRE_Int loc_start_stop[2];
-   offd_col_start_stop = new HYPRE_Int[2 * num_recv_procs];
+   HYPRE_BigInt loc_start_stop[2];
+   offd_col_start_stop = new HYPRE_BigInt[2 * num_recv_procs];
 
-   const HYPRE_Int * row_part = (A_r) ? A_r->RowPart() :
-                                ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_BigInt * row_part = (A_r) ? A_r->RowPart() :
+                                   ((A_i) ? A_i->RowPart() : NULL);
 
    int row_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
    loc_start_stop[0] = row_part[row_part_ind];
@@ -861,13 +852,13 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    std::set<HYPRE_Int>::iterator sit;
    for (sit=send_procs.begin(); sit!=send_procs.end(); sit++)
    {
-      MPI_Isend(loc_start_stop, 2, HYPRE_MPI_INT,
+      MPI_Isend(loc_start_stop, 2, HYPRE_MPI_BIG_INT,
                 *sit, tag, comm_, &req[send_count]);
       send_count++;
    }
    for (sit=recv_procs.begin(); sit!=recv_procs.end(); sit++)
    {
-      MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_INT,
+      MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_BIG_INT,
                 *sit, tag, comm_, &req[send_count+recv_count]);
       recv_count++;
    }

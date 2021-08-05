@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -33,6 +34,7 @@ void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
    DenseMatrix Pt(P.Size());
+   P = 0.0;
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
       tmop_q_arr[i]->EvalP(Jpt, Pt);
@@ -49,6 +51,7 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    DenseMatrix At(A.Size());
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
+      At = 0.0;
       tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
       At *= wt_arr[i];
       A += At;
@@ -488,8 +491,8 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
-   const double I2 = ie.Get_I2b();
-   return  0.5*(I2*I2 + 1./(I2*I2) - 2.);
+   const double I2b = ie.Get_I2b();
+   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -1050,6 +1053,78 @@ void TargetConstructor::ComputeAvgVolume() const
 #endif
 }
 
+void TargetConstructor::ComputeAllElementTargets_Fallback(
+   const FiniteElementSpace &fes,
+   const IntegrationRule &ir,
+   const Vector &xe,
+   DenseTensor &Jtr) const
+{
+   // Fallback to the 1-element method, ComputeElementTargets()
+
+   // When UsesPhysicalCoordinates() == true, we assume 'xe' uses
+   // ElementDofOrdering::LEXICOGRAPHIC iff 'fe' is a TensorFiniteElement.
+
+   const Mesh *mesh = fes.GetMesh();
+   const int NE = mesh->GetNE();
+   // Quick return for empty processors:
+   if (NE == 0) { return; }
+   const int dim = mesh->Dimension();
+   MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
+               "mixed meshes are not supported");
+   MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
+   const FiniteElement &fe = *fes.GetFE(0);
+   const int sdim = fes.GetVDim();
+   const int nvdofs = sdim*fe.GetDof();
+   MFEM_VERIFY(!UsesPhysicalCoordinates() ||
+               xe.Size() == NE*nvdofs, "invalid input Vector 'xe'!");
+   const int NQ = ir.GetNPoints();
+   const Array<int> *dof_map = nullptr;
+   if (UsesPhysicalCoordinates())
+   {
+      const TensorBasisElement *tfe =
+         dynamic_cast<const TensorBasisElement *>(&fe);
+      if (tfe)
+      {
+         dof_map = &tfe->GetDofMap();
+         if (dof_map->Size() == 0) { dof_map = nullptr; }
+      }
+   }
+
+   Vector elfun_lex, elfun_nat;
+   DenseTensor J;
+   xe.HostRead();
+   Jtr.HostWrite();
+   if (UsesPhysicalCoordinates() && dof_map != nullptr)
+   {
+      elfun_nat.SetSize(nvdofs);
+   }
+   for (int e = 0; e < NE; e++)
+   {
+      if (UsesPhysicalCoordinates())
+      {
+         if (!dof_map)
+         {
+            elfun_nat.SetDataAndSize(xe.GetData()+e*nvdofs, nvdofs);
+         }
+         else
+         {
+            elfun_lex.SetDataAndSize(xe.GetData()+e*nvdofs, nvdofs);
+            const int ndofs = fe.GetDof();
+            for (int d = 0; d < sdim; d++)
+            {
+               for (int i_lex = 0; i_lex < ndofs; i_lex++)
+               {
+                  elfun_nat[(*dof_map)[i_lex]+d*ndofs] =
+                     elfun_lex[i_lex+d*ndofs];
+               }
+            }
+         }
+      }
+      J.UseExternalData(Jtr(e*NQ).Data(), sdim, dim, NQ);
+      ComputeElementTargets(e, fe, ir, elfun_nat, J);
+   }
+}
+
 bool TargetConstructor::ContainsVolumeInfo() const
 {
    switch (target_type)
@@ -1069,6 +1144,7 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                               const Vector &elfun,
                                               DenseTensor &Jtr) const
 {
+   MFEM_CONTRACT_VAR(elfun);
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
    const FiniteElement *nfe = (target_type != IDEAL_SHAPE_UNIT_SIZE) ?
@@ -1134,15 +1210,18 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void TargetConstructor::ComputeElementTargetsGradient(const IntegrationRule &ir,
-                                                      const Vector &elfun,
-                                                      IsoparametricTransformation &Tpr,
-                                                      DenseTensor &dJtr) const
+void TargetConstructor::ComputeElementTargetsGradient(
+   const IntegrationRule &ir,
+   const Vector &elfun,
+   IsoparametricTransformation &Tpr,
+   DenseTensor &dJtr) const
 {
+   MFEM_CONTRACT_VAR(elfun);
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
    // TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
-   for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++) { dJtr(i) = 0.; }
+   for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++)
+   { dJtr(i) = 0.; }
 }
 
 void AnalyticAdaptTC::SetAnalyticTargetSpec(Coefficient *sspec,
@@ -1221,6 +1300,19 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
    }
 }
 
+namespace internal
+{
+
+// MFEM_FORALL-based copy kernel -- used by protected methods below.
+// Needed as a workaround for the nvcc restriction that methods with MFEM_FORALL
+// in them must to be public.
+static inline void device_copy(double *d_dest, const double *d_src, int size)
+{
+   MFEM_FORALL(i, size, d_dest[i] = d_src[i];);
+}
+
+} // namespace internal
+
 #ifdef MFEM_USE_MPI
 void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
                                                     &tspec_)
@@ -1245,11 +1337,10 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
-
+   const auto tspec__d = tspec_.Read();
+   auto tspec_d = tspec.ReadWrite();
+   const int offset = idx*dof_cnt;
+   internal::device_copy(tspec_d + offset, tspec__d, dof_cnt*vdim);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
 
@@ -1292,7 +1383,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
    SetParDiscreteTargetSize(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
-#endif
+#endif // MFEM_USE_MPI
 
 void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
@@ -1309,28 +1400,28 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
+   tspec.UseDevice(true);
+   tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
-   for (int i = 0; i < tspec_temp.Size(); i++)
-   {
-      tspec(i) = tspec_temp(i);
-   }
+   const auto tspec_temp_d = tspec_temp.Read();
+   auto tspec_d = tspec.ReadWrite();
+   internal::device_copy(tspec_d, tspec_temp_d, tspec_temp.Size());
 
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
-   }
+   const auto tspec__d = tspec_.Read();
+   const int offset = (ncomp-vdim)*dof_cnt;
+   internal::device_copy(tspec_d + offset, tspec__d, dof_cnt*vdim);
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
 
+   const auto tspec__d = tspec_.Read();
+   auto tspec_d = tspec.ReadWrite();
+   const int offset = idx*dof_cnt;
+   internal::device_copy(tspec_d + offset, tspec__d, dof_cnt*vdim);
    FinalizeSerialDiscreteTargetSpec();
 }
 
@@ -1468,6 +1559,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
+         tspec.UseDevice(true);
          tspec.GetSubVector(dofs, tspec_vals);
 
          for (int q = 0; q < nqp; q++)
@@ -2079,6 +2171,15 @@ void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
 }
 #endif
 
+void AdaptivityEvaluator::ClearGeometricFactors()
+{
+#ifdef MFEM_USE_MPI
+   if (pmesh) { pmesh->DeleteGeometricFactors(); }
+#else
+   if (mesh) { mesh->DeleteGeometricFactors(); }
+#endif
+}
+
 AdaptivityEvaluator::~AdaptivityEvaluator()
 {
    delete fes;
@@ -2087,6 +2188,16 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
    delete pfes;
    delete pmesh;
 #endif
+}
+
+void TMOP_Integrator::ReleasePADeviceMemory()
+{
+   if (PA.enabled)
+   {
+      PA.H.GetMemory().DeleteDevice();
+      PA.H0.GetMemory().DeleteDevice();
+      PA.Jtr.GetMemory().DeleteDevice();
+   }
 }
 
 TMOP_Integrator::~TMOP_Integrator()
@@ -2104,9 +2215,16 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      const GridFunction &dist, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
 {
-   EnableLimiting(n0, w0, lfunc);
+   nodes0 = &n0;
+   coeff0 = &w0;
    lim_dist = &dist;
+   MFEM_VERIFY(lim_dist->FESpace()->GetVDim() == 1,
+               "'dist' must be a scalar GridFunction!");
+
+   delete lim_func;
+   lim_func = (lfunc) ? lfunc : new TMOP_QuadraticLimiter;
 }
+
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
 {
@@ -2115,14 +2233,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    lim_dist = NULL;
 
    delete lim_func;
-   if (lfunc)
-   {
-      lim_func = lfunc;
-   }
-   else
-   {
-      lim_func = new TMOP_QuadraticLimiter;
-   }
+   lim_func = (lfunc) ? lfunc : new TMOP_QuadraticLimiter;
 }
 
 void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
@@ -2251,7 +2362,8 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          val += lim_normal *
-                lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
+                lim_func->Eval(p, p0, d_vals(i)) *
+                coeff0->Eval(*Tpr, ip);
       }
 
       if (adaptive_limiting)
@@ -2929,6 +3041,10 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
+   if (discr_tc)
+   {
+      PA.Jtr_needs_update = true;
+   }
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }
@@ -3084,6 +3200,56 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 }
 #endif
 
+void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssemblePA(fes);
+   }
+}
+
+void TMOPComboIntegrator::AssembleGradPA(const Vector &xe,
+                                         const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssembleGradPA(xe,fes);
+   }
+}
+
+void TMOPComboIntegrator::AssembleGradDiagonalPA(Vector &de) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssembleGradDiagonalPA(de);
+   }
+}
+
+void TMOPComboIntegrator::AddMultPA(const Vector &xe, Vector &ye) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultPA(xe, ye);
+   }
+}
+
+void TMOPComboIntegrator::AddMultGradPA(const Vector &re, Vector &ce) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultGradPA(re, ce);
+   }
+}
+
+double TMOPComboIntegrator::GetLocalStateEnergyPA(const Vector &xe) const
+{
+   double energy = 0.0;
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      energy += tmopi[i]->GetLocalStateEnergyPA(xe);
+   }
+   return energy;
+}
 
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,
