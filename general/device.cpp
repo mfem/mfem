@@ -367,8 +367,8 @@ void Device::UpdateMemoryTypeAndClass()
    if (device_option && !strncmp(device_option, "fast", 4))
    {
       deterministic_kernels = DETERMINISTIC_KERNELS::OFF;
-      device_version = atoi(device_option + 4);
-      printf("\033[32m[version:%d]\033[m\n",device_version);
+      device_kernels_version = atoi(device_option + 4);
+      printf("\033[32m[version:%d]\033[m\n",device_kernels_version);
       fflush(0);
    }
 
