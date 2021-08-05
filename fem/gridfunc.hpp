@@ -131,9 +131,7 @@ public:
        or set. */
    Vector &GetTrueVector() { return t_vec; }
 
-   /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
-   /// then `tv` will be set to point to the data of `*this`.
-   /** @warning This method breaks const-ness when all dofs are true. */
+   /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.

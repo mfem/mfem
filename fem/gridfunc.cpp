@@ -218,7 +218,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 
 void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
 {
-   if (!f->GetProlongationMatrix())
+   if (IsIdentityProlongation(f->GetProlongationMatrix()))
    {
       MakeRef(f, tv);
       t_vec.NewDataAndSize(tv, size);
@@ -232,7 +232,8 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
 
 void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
 {
-   if (!f->GetProlongationMatrix())
+   tv.UseDevice(true);
+   if (IsIdentityProlongation(f->GetProlongationMatrix()))
    {
       MakeRef(f, tv, tv_offset);
       t_vec.NewMemoryAndSize(data, size, false);
@@ -241,10 +242,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
    {
       MFEM_ASSERT(tv.Size() >= tv_offset + f->GetTrueVSize(), "");
       SetSpace(f); // works in parallel
-      tv.UseDevice(true);
-      const int tv_size = f->GetTrueVSize();
-      t_vec.NewMemoryAndSize(Memory<double>(tv.GetMemory(), tv_offset, tv_size),
-                             tv_size, true);
+      t_vec.MakeRef(tv, tv_offset, f->GetTrueVSize());
    }
 }
 
@@ -355,10 +353,10 @@ int GridFunction::CurlDim() const
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
-   if (!R)
+   if (!R || IsIdentityProlongation(fes->GetProlongationMatrix()))
    {
-      // R is identity -> make tv a reference to *this
-      tv.MakeRef(const_cast<GridFunction &>(*this), 0, size);
+      // R is identity
+      tv = *this; // no real copy if 'tv' and '*this' use the same data
    }
    else
    {
