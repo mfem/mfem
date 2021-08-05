@@ -89,7 +89,8 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
 #ifdef MFEM_USE_CEED
-   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
+                  "-no-a", "--no-algebraic",
                   "Use algebraic Ceed solver");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -197,15 +198,15 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // 10. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace. Initialize x with initial guess of zero,
-   //     which satisfies the boundary conditions.
+   // 10. Define the solution vector x as a parallel finite element grid
+   //     function corresponding to fespace. Initialize x with initial guess of
+   //     zero, which satisfies the boundary conditions.
    ParGridFunction x(&fespace);
    x = 0.0;
 
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    //a.AddDomainIntegrator(new DiffusionIntegrator(one));

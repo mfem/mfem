@@ -155,7 +155,8 @@ TEST_CASE("ParDerefine", "[Parallel]")
             fespace.Update();
             x.Update();
 
-            // Refine two elements on each process and then derefine, comparing x before and after.
+            // Refine two elements on each process and then derefine, comparing
+            // x before and after.
             Vector diff(x);
 
             Array<Refinement> refinements;
