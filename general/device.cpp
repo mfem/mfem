@@ -364,9 +364,12 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Enable the NON-DETERMINISTIC KERNELS shortcut when requested
-   if (device_option && !strcmp(device_option, "fast"))
+   if (device_option && !strncmp(device_option, "fast", 4))
    {
       deterministic_kernels = DETERMINISTIC_KERNELS::OFF;
+      device_version = atoi(device_option + 4);
+      printf("\033[32m[version:%d]\033[m\n",device_version);
+      fflush(0);
    }
 
    // Enable the DEBUG mode when requested

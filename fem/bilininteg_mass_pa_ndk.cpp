@@ -444,27 +444,34 @@ void NDK_PAMassApply(const int dim,
    double *y = Y.ReadWrite();
 
    assert(dim == 3);
-   const int id = (D1D << 4) | Q1D;
-
-#if 0
-#define NDK_PAMassApply3D NDK_SmemPAMassApply3D
-#else
-#define NDK_PAMassApply3D NDK_RegsPAMassApply3D
-#endif
+   const int ver = DeviceKernelsVersion();
+   const int id = (ver << 8) | (D1D << 4) | Q1D;
 
    switch (id) // orders 1~6
    {
-      case 0x23: return NDK_PAMassApply3D<2,3>(ndofs,NE,map,b,d,x,y);
-      case 0x24: return NDK_PAMassApply3D<2,4>(ndofs,NE,map,b,d,x,y);
-      case 0x34: return NDK_PAMassApply3D<3,4>(ndofs,NE,map,b,d,x,y);
-      case 0x36: return NDK_PAMassApply3D<3,6>(ndofs,NE,map,b,d,x,y);
-      case 0x45: return NDK_PAMassApply3D<4,5>(ndofs,NE,map,b,d,x,y);
-      case 0x46: return NDK_PAMassApply3D<4,6>(ndofs,NE,map,b,d,x,y);
-      case 0x48: return NDK_PAMassApply3D<4,8>(ndofs,NE,map,b,d,x,y);
-      case 0x56: return NDK_PAMassApply3D<5,6>(ndofs,NE,map,b,d,x,y);
-      case 0x58: return NDK_PAMassApply3D<5,8>(ndofs,NE,map,b,d,x,y);
-      case 0x67: return NDK_PAMassApply3D<6,7>(ndofs,NE,map,b,d,x,y);
-      case 0x78: return NDK_PAMassApply3D<7,8>(ndofs,NE,map,b,d,x,y);
+      case 0x023: return NDK_SmemPAMassApply3D<2,3>(ndofs,NE,map,b,d,x,y);
+      case 0x024: return NDK_SmemPAMassApply3D<2,4>(ndofs,NE,map,b,d,x,y);
+      case 0x034: return NDK_SmemPAMassApply3D<3,4>(ndofs,NE,map,b,d,x,y);
+      case 0x036: return NDK_SmemPAMassApply3D<3,6>(ndofs,NE,map,b,d,x,y);
+      case 0x045: return NDK_SmemPAMassApply3D<4,5>(ndofs,NE,map,b,d,x,y);
+      case 0x046: return NDK_SmemPAMassApply3D<4,6>(ndofs,NE,map,b,d,x,y);
+      case 0x048: return NDK_SmemPAMassApply3D<4,8>(ndofs,NE,map,b,d,x,y);
+      case 0x056: return NDK_SmemPAMassApply3D<5,6>(ndofs,NE,map,b,d,x,y);
+      case 0x058: return NDK_SmemPAMassApply3D<5,8>(ndofs,NE,map,b,d,x,y);
+      case 0x067: return NDK_SmemPAMassApply3D<6,7>(ndofs,NE,map,b,d,x,y);
+      case 0x078: return NDK_SmemPAMassApply3D<7,8>(ndofs,NE,map,b,d,x,y);
+
+      case 0x123: return NDK_RegsPAMassApply3D<2,3>(ndofs,NE,map,b,d,x,y);
+      case 0x124: return NDK_RegsPAMassApply3D<2,4>(ndofs,NE,map,b,d,x,y);
+      case 0x134: return NDK_RegsPAMassApply3D<3,4>(ndofs,NE,map,b,d,x,y);
+      case 0x136: return NDK_RegsPAMassApply3D<3,6>(ndofs,NE,map,b,d,x,y);
+      case 0x145: return NDK_RegsPAMassApply3D<4,5>(ndofs,NE,map,b,d,x,y);
+      case 0x146: return NDK_RegsPAMassApply3D<4,6>(ndofs,NE,map,b,d,x,y);
+      case 0x148: return NDK_RegsPAMassApply3D<4,8>(ndofs,NE,map,b,d,x,y);
+      case 0x156: return NDK_RegsPAMassApply3D<5,6>(ndofs,NE,map,b,d,x,y);
+      case 0x158: return NDK_RegsPAMassApply3D<5,8>(ndofs,NE,map,b,d,x,y);
+      case 0x167: return NDK_RegsPAMassApply3D<6,7>(ndofs,NE,map,b,d,x,y);
+      case 0x178: return NDK_RegsPAMassApply3D<7,8>(ndofs,NE,map,b,d,x,y);
       default: break;
    }
 
