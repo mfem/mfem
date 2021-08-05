@@ -3199,7 +3199,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       R = new HypreParVector(*A);
 
       hypre_ParCSRRelax_Cheby_Setup(*A, max_eig_est, min_eig_est, poly_fraction,
-                                    poly_order, 1, 0, poly_coeffs, diag);
+                                    poly_order, 1, 0, &poly_coeffs, &diag);
 
    }
    else if (type == 1001 || type == 1002)
@@ -3344,14 +3344,14 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
-                           x, *V, NULL, P, R, &poly_coeffs, diag);
+                           x, *V, NULL, *P, *R, poly_coeffs, diag);
       }
       else
       {
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
-                           x, *V, *Z, P, R, &poly_coeffs, diag);
+                           x, *V, *Z, *P, *R, poly_coeffs, diag);
       }
    }
 }
