@@ -2037,7 +2037,7 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
 }
 
 void CPDSolverDH::prepareVectorVisField(const ParComplexGridFunction &u,
-					ComplexGridFunction &v)
+                                        ComplexGridFunction &v)
 {
    if (kReCoef_ || kImCoef_)
    {
@@ -2065,24 +2065,24 @@ void CPDSolverDH::prepareVectorVisField(const ParComplexGridFunction &u,
 
 void CPDSolverDH::prepareVisFields()
 {
-  prepareVectorVisField(*h_, *h_v_);
-  prepareVectorVisField(*e_, *e_v_);
-  prepareVectorVisField(*d_, *d_v_);
+   prepareVectorVisField(*h_, *h_v_);
+   prepareVectorVisField(*e_, *e_v_);
+   prepareVectorVisField(*d_, *d_v_);
 
-  if (BCoef_)
-  {
-    // VectorGridFunctionCoefficient b_hat(b_hat_);
-    // VectorR2DCoef b_hat_3D(b_hat, *pmesh_);
+   if (BCoef_)
+   {
+      // VectorGridFunctionCoefficient b_hat(b_hat_);
+      // VectorR2DCoef b_hat_3D(b_hat, *pmesh_);
       VectorR2DCoef b_hat_3D(*BCoef_, *pmesh_);
       b_hat_v_->ProjectCoefficient(b_hat_3D);
-      
+
       VectorGridFunctionCoefficient e_r(&e_v_->real());
       VectorGridFunctionCoefficient e_i(&e_v_->imag());
       InnerProductCoefficient eb_r(e_r, *BCoef_);
       InnerProductCoefficient eb_i(e_i, *BCoef_);
 
       e_b_v_->ProjectCoefficient(eb_r, eb_i);
-  }
+   }
 }
 
 void
@@ -2148,9 +2148,9 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    if ( BCoef_)
    {
-       b_hat_v_ = new GridFunction(L2VFESpace3D_);
-       e_b_v_   = new ComplexGridFunction(L2FESpace3D_);
-      
+      b_hat_v_ = new GridFunction(L2VFESpace3D_);
+      e_b_v_   = new ComplexGridFunction(L2FESpace3D_);
+
       visit_dc.RegisterField("B_hat", b_hat_v_);
       visit_dc.RegisterField("Re_EB", &e_b_v_->real());
       visit_dc.RegisterField("Im_EB", &e_b_v_->imag());
@@ -2256,25 +2256,25 @@ CPDSolverDH::WriteVisItFields(int it)
 
       if ( BCoef_)
       {
-	/*
-	b_hat_->ProjectCoefficient(*BCoef_);
+         /*
+         b_hat_->ProjectCoefficient(*BCoef_);
 
-         VectorGridFunctionCoefficient e_r(&e_->real());
-         VectorGridFunctionCoefficient e_i(&e_->imag());
-         InnerProductCoefficient ebrCoef(e_r, *BCoef_);
-         InnerProductCoefficient ebiCoef(e_i, *BCoef_);
+               VectorGridFunctionCoefficient e_r(&e_->real());
+               VectorGridFunctionCoefficient e_i(&e_->imag());
+               InnerProductCoefficient ebrCoef(e_r, *BCoef_);
+               InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
-         e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-	*/
-	/*
-              MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
-              MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);
-              InnerProductCoefficient ReEpsParaCoef(*BCoef_, ReEpsB);
-              InnerProductCoefficient ImEpsParaCoef(*BCoef_, ImEpsB);
-
-              EpsPara_->ProjectCoefficient(ReEpsParaCoef, ImEpsParaCoef);
-              *EpsPara_ *= 1.0 / epsilon0_;
+               e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
          */
+         /*
+                    MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
+                    MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);
+                    InnerProductCoefficient ReEpsParaCoef(*BCoef_, ReEpsB);
+                    InnerProductCoefficient ImEpsParaCoef(*BCoef_, ImEpsB);
+
+                    EpsPara_->ProjectCoefficient(ReEpsParaCoef, ImEpsParaCoef);
+                    *EpsPara_ *= 1.0 / epsilon0_;
+               */
       }
 
       //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
@@ -2429,7 +2429,7 @@ CPDSolverDH::DisplayToGLVis()
    int offx = Ww+10, offy = Wh+45; // window offsets
 
    prepareVisFields();
-   /*   
+   /*
    if (kReCoef_ || kImCoef_)
    {
       cout << "Preparing H viz" << endl;
@@ -2573,14 +2573,14 @@ CPDSolverDH::DisplayToGLVis()
 
    if (BCoef_)
    {
-     /*
-      VectorGridFunctionCoefficient e_r(&e_v_->real());
-      VectorGridFunctionCoefficient e_i(&e_v_->imag());
-      InnerProductCoefficient ebrCoef(e_r, *BCoef_);
-      InnerProductCoefficient ebiCoef(e_i, *BCoef_);
+      /*
+       VectorGridFunctionCoefficient e_r(&e_v_->real());
+       VectorGridFunctionCoefficient e_i(&e_v_->imag());
+       InnerProductCoefficient ebrCoef(e_r, *BCoef_);
+       InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
-      e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-     */
+       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+      */
       ostringstream ebr_keys, ebi_keys;
       ebr_keys << "aaAc";
       ebi_keys << "aaAc";

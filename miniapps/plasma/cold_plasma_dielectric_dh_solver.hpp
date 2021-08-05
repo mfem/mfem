@@ -646,10 +646,10 @@ private:
                  ParComplexGridFunction & e);
 
    void prepareVectorVisField(const ParComplexGridFunction &u,
-			      ComplexGridFunction &v);
+                              ComplexGridFunction &v);
 
    void prepareVisFields();
-  
+
    int myid_;
    int num_procs_;
    int order_;
