@@ -508,8 +508,10 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                   hypre_ParCSRMatrixColStarts(A),
                                   0, 0, 0);
 
+#if HYPRE_ROWCOLPART_OWNER
    hypre_ParCSRMatrixSetRowStartsOwner(*Ae, 0);
    hypre_ParCSRMatrixSetColStartsOwner(*Ae, 0);
+#endif
 
    hypre_CSRMatrix *Ae_diag = hypre_ParCSRMatrixDiag(*Ae);
    hypre_CSRMatrix *Ae_offd = hypre_ParCSRMatrixOffd(*Ae);
@@ -1003,8 +1005,10 @@ void hypre_ParCSRMatrixSplit(hypre_ParCSRMatrix *A,
       hypre_ParCSRMatrixOwnsData(blocks[i]) = 1;
 
       /* only the first block will own the row/col_starts */
+#if HYPRE_ROWCOLPART_OWNER
       hypre_ParCSRMatrixOwnsRowStarts(blocks[i]) = !i;
       hypre_ParCSRMatrixOwnsColStarts(blocks[i]) = !i;
+#endif
    }
 }
 
@@ -1917,8 +1921,10 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    /* C owns diag, offd, and cmap. */
    hypre_ParCSRMatrixSetDataOwner(C, 1);
    /* C does not own row and column starts. */
+#if HYPRE_ROWCOLPART_OWNER
    hypre_ParCSRMatrixSetRowStartsOwner(C, 0);
    hypre_ParCSRMatrixSetColStartsOwner(C, 0);
+#endif
 
    return C;
 }
