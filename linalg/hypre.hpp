@@ -18,6 +18,10 @@
 
 #include <mpi.h>
 
+#ifndef HYPRE_USE_GERSHGORIN
+#define HYPRE_USE_GERSHGORIN (MFEM_HYPRE_VERSION > 22200)
+#endif
+
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 

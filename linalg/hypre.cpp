@@ -3144,8 +3144,12 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
       else
       {
+#if HYPRE_USE_GERSHGORIN
+         hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est, &min_eig_est);
+#else
          min_eig_est = 0;
          hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est);
+#endif
       }
       Z = new HypreParVector(*A);
    }
@@ -3159,8 +3163,12 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
       else
       {
+#if HYPRE_USE_GERSHGORIN
+         hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est, &min_eig_est);
+#else
          min_eig_est = 0;
          hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est);
+#endif
       }
 
       // The Taubin and FIR polynomials are defined on [0, 2]
