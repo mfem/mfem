@@ -182,12 +182,15 @@ protected:
    const int vdim; // number of vector components
    const bool byvdim; // fes.GetOrdering() == Ordering::byVDIM
    const int ndofs; // total number of dofs
-   const int dof1d; // dofs in 1 dimension (for tensor bases)
-   const int dof; // fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+   const int ndofs1d; // dofs in 1 dimension (for tensor bases)
+   const int ndofs_face; // fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
    // dof equal to dofs per face?
    const int elemDofs; // dofs per element
    const L2FaceValues m; // are face values double valued?
-   const int nfdofs; // total number of face dofs
+   const int numfacedofs; // total number of face dofs
+   const int num_values_per_point; // 2 for values and their derivatives, more for second derivatices, etc.
+                                   // higher derivatives not yet implemented
+
    Vector Bf;
    Vector Gf;
    Array<int> scatter_indices1;
@@ -230,9 +233,9 @@ public:
 
 // Return the face degrees of freedom returned in Lexicographic order.
 void GetFaceDofs(const int dim, const int face_id,
-                 const int dof1d, Array<int> &faceMap);
+                 const int ndofs1d, Array<int> &faceMap);
 void GetNormalDFaceDofStencil(const int dim, const int face_id,
-                 const int dof1d, Array<Array<int>> &faceMap);
+                 const int ndofs1d, Array<Array<int>> &faceMap);
                  
 // Convert from Native ordering to lexicographic ordering
 int ToLexOrdering(const int dim, const int face_id, const int size1d,
