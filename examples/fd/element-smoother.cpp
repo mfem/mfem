@@ -37,9 +37,11 @@ Array<int> ess_bdr, Coefficient * cf_ )
 
 
    Vector tovlp_count(fes->TrueVSize());
-   Pr->MultTranspose(ovlp_count,tovlp_count);
-   Pr->Mult(tovlp_count, ovlp_count);
-   
+   if (Pr)
+   {
+      Pr->MultTranspose(ovlp_count,tovlp_count);
+      Pr->Mult(tovlp_count, ovlp_count);
+   }
 
    DenseMatrix edge_counts;
    GetVertexToEdgeCount(pmesh,edge_counts);
@@ -54,12 +56,14 @@ Array<int> ess_bdr, Coefficient * cf_ )
 
    const Operator * Ph = aux_fes.GetProlongationMatrix();
 
-
-   for (int d=0; d<dim; d++)
+   if (Ph)
    {
-      temp.SetData(&data[d*aux_fes.GetVSize()]);
-      Ph->MultTranspose(temp,tedge_counts);
-      Ph->Mult(tedge_counts, temp);
+      for (int d=0; d<dim; d++)
+      {
+         temp.SetData(&data[d*aux_fes.GetVSize()]);
+         Ph->MultTranspose(temp,tedge_counts);
+         Ph->Mult(tedge_counts, temp);
+      }
    }
 
    for (int i = 0; i < vsize; i++)
@@ -302,8 +306,14 @@ void ElementSmoother::Mult(const Vector &r, Vector &z) const
    znew = 0.0;
 
    // const SparseMatrix * R = fes->GetRestrictionMatrix();
-   Pr->Mult(r,rnew);
-   // R->MultTranspose(r,rnew);
+   if (Pr)
+   {
+      Pr->Mult(r,rnew);
+   }
+   else
+   {
+      rnew = r;
+   }
    for (int iel=0; iel<nrelems; iel++)
    {
       if (!elem_inv[iel]) continue;
@@ -328,7 +338,14 @@ void ElementSmoother::Mult(const Vector &r, Vector &z) const
 
       znew.AddElementVector(*dofmap[iel],zloc);
    }
-   Pr->MultTranspose(znew,ztemp);
+   if (Pr)
+   {
+      Pr->MultTranspose(znew,ztemp);
+   }
+   else
+   {
+      ztemp = znew;
+   }
    // R->Mult(znew,ztemp);
    z += ztemp;
 }

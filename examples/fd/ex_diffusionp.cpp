@@ -336,6 +336,7 @@ int main(int argc, char *argv[])
    int max_iter = 2000;
    double rtol = 1e-8;
    StopWatch chrono;
+   // for (int i = 0; i<=6; i++)
    for (int i = 0; i<=6; i++)
    {
       OperatorPtr A;
