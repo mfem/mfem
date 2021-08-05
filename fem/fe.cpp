@@ -13724,7 +13724,7 @@ const double ND_R2D_SegmentElement::tk[4] = { 1.,0., 0.,1. };
 ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
-   : VectorFiniteElement(1, 2, 1, Geometry::SEGMENT, 2 * p + 1, p,
+   : VectorFiniteElement(1, 2, 2, Geometry::SEGMENT, 2 * p + 1, p,
                          H_CURL, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
@@ -13833,8 +13833,25 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
-      curl_shape(idx,0) = -dshape_cx(i);
+      curl_shape(idx,1) = -dshape_cx(i);
    }
+}
+
+void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
+                                              DenseMatrix &curl_shape) const
+{
+   CalcCurlShape(Trans.GetIntPoint(), curl_shape);
+   const DenseMatrix & J = Trans.Jacobian();
+   MFEM_ASSERT(J.Width() == 1 && J.Height() == 2,
+               "ND_R2D_FiniteElement cannot be embedded in "
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      double sx = curl_shape(i, 0);
+      curl_shape(i, 0) = sx * J(0, 0);
+      curl_shape(i, 1) = sx * J(1, 0);
+   }
+   curl_shape *= (1.0 / Trans.Weight());
 }
 
 void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,

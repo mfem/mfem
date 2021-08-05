@@ -3553,6 +3553,9 @@ public:
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
 
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
+
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation(*this, Trans, I); }
