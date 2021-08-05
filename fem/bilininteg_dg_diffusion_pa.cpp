@@ -50,8 +50,15 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
+   std::cout << "el.GetGeomType() = " << el.GetGeomType() << std::endl;
+   std::cout << "el.GetOrder() = " << el.GetOrder() << std::endl;
+
+   std::cout << "quad1D = " << quad1D << std::endl;
+   std::cout << "dofs1D = " << dofs1D << std::endl;
+
    const int nq = ( dim == 3 ) ? quad1D*quad1D : quad1D ;
 
+   std::cout << "nq = " << nq << std::endl;
    auto detJ = Reshape(facegeom->detJ.Read(), nq, nf); // assumes conforming mesh
    int NS = 2;
 
@@ -141,7 +148,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    auto op3 = Reshape(coeff_data_3.Write(), nq, NS, nf);
    
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
    
    f_ind = 0;
@@ -167,6 +174,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          *fes.GetTraceElement(e1, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
 
          double w = 0.0;
+         /*
          const IntegrationRule *ir = IntRule;
          if (ir == NULL)
          {
@@ -185,29 +193,31 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          else
          {
             std::cout << "ir is sometimes defined?" << std::endl;
-            std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//            std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
             //exit(1);
          }
+         */
+
 
 #ifdef MFEM_DEBUG
-         std::cout << " ir->GetNPoints() = " << ir->GetNPoints() << std::endl;
-         std::cout << " fes.GetNF() = " << fes.GetNF() << std::endl;
+//         std::cout << " ir->GetNPoints() = " << ir->GetNPoints() << std::endl;
+//         std::cout << " fes.GetNF() = " << fes.GetNF() << std::endl;
 #endif
 
          for (int p = 0; p < ir->GetNPoints(); p++)
          {
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
-            std::cout << " p = " << p << std::endl;
+            //std::cout << " p = " << p << std::endl;
 
             const IntegrationPoint &ip = ir->IntPoint(p);
             // Set the integration point in the face and the neighboring elements
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
             Trans.SetAllIntPoints(&ip);
@@ -218,29 +228,29 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                w /= 2;
             }
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
             op1(p,0,0,f_ind) =  beta*w*detJ(p,f_ind);
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
             op1(p,1,0,f_ind) = - beta*w*detJ(p,f_ind); 
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
             const double h0 = 1.0; // I think this is handled by w
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
             op3(p,0,f_ind) = -kappa*w/h0;
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
             op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
@@ -252,7 +262,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                const double h1 = 1.0; // I think this is handled by w
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
                op1(p,0,1,f_ind) =  beta*w*detJ(p,f_ind);
@@ -270,7 +280,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    }
 
 #ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
 }
@@ -377,6 +387,61 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
 
+#ifdef MFEM_DEBUG
+
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < D1D; q2++)
+         {
+            std::cout << "B( " << 1+q1 <<" , " << 1+q2 << " ) = " << B(q1,q2) << std::endl;
+         }
+      }
+
+
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         //for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            std::cout << "% B0 " << Bu0[q1][0] << " B1 " << Bu1[q1][0] << " BG0 " << BGu0[q1][0] << " BG1 " << BGu1[q1][0]  << std::endl;
+         }
+      }
+
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         //for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            std::cout 
+            << " op1("<<q1<<",0,0,"<<f<<") " <<  op1(q1,0,0,f) 
+            << " op1("<<q1<<",1,0,"<<f<<") " <<  op1(q1,1,0,f) 
+            //<< " op1("<<q1<<",0,1,"<<f<<") " <<  op1(q1,0,1,f) 
+            //<< " op1("<<q1<<",1,1,"<<f<<") " <<  op1(q1,1,1,f) 
+            << " D0 " << D0[q1][0] << " D1 " << D1[q1][0] << std::endl;
+         }
+      }
+
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         //for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            std::cout 
+            << " op2("<<q1<<",0,"<<f<<") " <<  op2(q1,0,f) 
+            << " op2("<<q1<<",1,"<<f<<") " <<  op2(q1,1,f) 
+            << " D0jumpu " << D0jumpu[q1][0] << " D1jumpu " << D1jumpu[q1][0] << std::endl;
+         }
+      }
+
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         //for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            std::cout 
+            << " op3("<<q1<<",0,"<<f<<") " <<  op3(q1,0,f) 
+            << " op3("<<q1<<",1,"<<f<<") " <<  op3(q1,1,f) 
+            << " D0 " << D0[q1][0] << " D1jumpu " << D1[q1][0] << std::endl;
+         }
+      }
+#endif
+
       // 3. Integrate along faces
       for (int d = 0; d < D1D; ++d)
       {
@@ -452,6 +517,13 @@ void PADGDiffusionApply3D(const int NF,
    auto x = Reshape(_x.Read(), D1D, D1D, VDIM, NS, NF, 2);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, NS, NF, 2);
 
+
+   if( D1D*D1D*VDIM*NS*NF*2 != _y.Size() )
+   {
+      std::cout << " QD1D*D1D*VDIM*NS*NF*2 = " << D1D*D1D*VDIM*NS*NF*2 << std::endl;
+      std::cout << " _y.Size() = " << _y.Size() << std::endl;
+      exit(1);
+   }
 /*
 #ifdef MFEM_DEBUG
    std::cout << " Q1D = " << Q1D  << std::endl;
@@ -482,6 +554,7 @@ void PADGDiffusionApply3D(const int NF,
       double Bu1[max_Q1D][max_D1D][VDIM];
       double BGu0[max_Q1D][max_D1D][VDIM];
       double BGu1[max_Q1D][max_D1D][VDIM];
+
       for (int q = 0; q < Q1D; ++q)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -493,16 +566,47 @@ void PADGDiffusionApply3D(const int NF,
                Bu1[q][d2][c] = 0;
                BGu0[q][d2][c] = 0;
                BGu1[q][d2][c] = 0;
+//               std::cout << "BEFORE  B0 " << Bu0[q][d2][0] << " B1 " << Bu1[q][d2][0] << " BG0 " << BGu0[q][d2][0] << " BG1 " << BGu1[q][d2][0]  << std::endl;
             }      
             for (int d1 = 0; d1 < D1D; ++d1)
             {
                const double b = B(q,d1);
                for (int c = 0; c < VDIM; c++)
                {
+ 
                   Bu0[q][d2][c] += b*x(d1,d2,c,0,f,0);
                   Bu1[q][d2][c] += b*x(d1,d2,c,1,f,0);
-                  BGu0[q][d2][c] += b*x(d1,d2,c,1,f,1);
+                  BGu0[q][d2][c] += b*x(d1,d2,c,0,f,1);
                   BGu1[q][d2][c] += b*x(d1,d2,c,1,f,1);
+
+#ifdef MFEM_DEBUG
+
+                  std::cout << "% max_Q1D  " << max_Q1D << std::endl;
+                  std::cout << "% max_D1D  " << max_D1D << std::endl;
+                  std::cout << "% VDIM  " << VDIM << std::endl;
+
+                  std::cout << "% q  " << q << std::endl;
+                  std::cout << "% d1  " << d1 << std::endl;
+                  std::cout << "% d2  " << d2 << std::endl;
+                  std::cout << "% c  " << c << std::endl;
+                  std::cout << "% " << d1 <<" "<< d2 <<" "<< 0 <<" "<< f 
+                  <<" unroll " << d1 + D1D*(d2 + D1D*( 0 + 2*( f + NF*1 ))) 
+                  << " b " << b 
+                  << " x " << x(d1,d2,c,0,f,0) << " x' " << x(d1,d2,c,0,f,1)
+                  << " b*x " << b*x(d1,d2,c,0,f,0) << " b*x' " << b*x(d1,d2,c,0,f,1) 
+                  << " BGu0[q][d2][c] " << BGu0[q][d2][c] 
+                  << std::endl; 
+                  std::cout << "% " << d1 <<" "<< d2 <<" "<< 1 <<" "<< f 
+                  <<" unroll " << d1 + D1D*(d2 + D1D*( 1 + 2*( f + NF*1 ))) 
+                  << " b " << b 
+                  << " x " << x(d1,d2,c,0,f,0) << " x' " << x(d1,d2,c,1,f,1)
+                  << " b*x " << b*x(d1,d2,c,0,f,0) << " b*x' " << b*x(d1,d2,c,1,f,1) 
+                  << " BGu1[q][d2][c] " << BGu1[q][d2][c] 
+                  << std::endl; 
+
+                  std::cout << "% B0 " << Bu0[q][d2][0] << " B1 " << Bu1[q][d2][0] << " BG0 " << BGu0[q][d2][0] << " BG1 " << BGu1[q][d2][0]  << std::endl;
+#endif
+
                }
             }
          }
@@ -536,17 +640,7 @@ void PADGDiffusionApply3D(const int NF,
             }
          }
       }
-/*
-#ifdef MFEM_DEBUG
-      for (int q1 = 0; q1 < Q1D; ++q1)
-      {
-         for (int q2 = 0; q2 < Q1D; q2++)
-         {
-            std::cout << "% BB0 " << BBu0[q1][q2][0] << " BB1 " << BBu1[q1][q2][0] << " BBG0 " << BBGu0[q1][q2][0] << " BBG1 " << BBGu1[q1][q2][0]  << std::endl;
-         }
-      }
-#endif
-*/
+
       // 2. Form numerical fluxes
       double D1[max_Q1D][max_Q1D][VDIM];
       double D0[max_Q1D][max_Q1D][VDIM];
@@ -570,17 +664,70 @@ void PADGDiffusionApply3D(const int NF,
          }
       }
 
-/*
+
 #ifdef MFEM_DEBUG
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            std::cout << "% B0 " << Bu0[q1][d2][0] << " B1 " << Bu1[q1][d2][0] << " BG0 " << BGu0[q1][d2][0] << " BG1 " << BGu1[q1][d2][0]  << std::endl;
+         }
+      }
+
+
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; q2++)
          {
-            std::cout << "%  op3("<<q1<<","<<q2<<",0,"<<f<<") " <<  op3(q1,q2,0,f) << " D0 " << D0[q1][q2][0] << " D1 " << D1[q1][q2][0] << " D0j " << D0jumpu[q1][q2][0] << " D1j " << D1jumpu[q1][q2][0]  << std::endl;
+            std::cout << "% BB0 " << BBu0[q1][q2][0] << " BB1 " << BBu1[q1][q2][0] << " BBG0 " << BBGu0[q1][q2][0] << " BBG1 " << BBGu1[q1][q2][0]  << std::endl;
          }
       }
+
+      if( true  )
+      {
+         for (int q1 = 0; q1 < Q1D; ++q1)
+         {
+            for (int q2 = 0; q2 < Q1D; q2++)
+            {
+               std::cout 
+               << " op1("<<q1<<","<<q2<<",0,0,"<<f<<") " <<  op1(q1,q2,0,0,f) 
+               << " op1("<<q1<<","<<q2<<",1,0,"<<f<<") " <<  op1(q1,q2,1,0,f) 
+              // << " op1("<<q1<<","<<q2<<",0,1,"<<f<<") " <<  op1(q1,q2,0,1,f) 
+              // << " op1("<<q1<<","<<q2<<",1,1,"<<f<<") " <<  op1(q1,q2,1,1,f) 
+               << " D0 " << D0[q1][q2][0] << " D1 " << D1[q1][q2][0] << std::endl;
+            }
+         }
+      }
+
+      if( false )
+      {
+         for (int q1 = 0; q1 < Q1D; ++q1)
+         {
+            for (int q2 = 0; q2 < Q1D; q2++)
+            {
+               std::cout 
+               << " op2("<<q1<<","<<q2<<",0,"<<f<<") " <<  op2(q1,q2,0,f) 
+               << " op2("<<q1<<","<<q2<<",1,"<<f<<") " <<  op2(q1,q2,1,f) 
+               << " D0jumpu " << D0jumpu[q1][q2][0] << " D1jumpu " << D1jumpu[q1][q2][0] << std::endl;
+            }
+         }
+      }
+
+      if( false )
+      {
+         for (int q1 = 0; q1 < Q1D; ++q1)
+         {
+            for (int q2 = 0; q2 < Q1D; q2++)
+            {
+               std::cout 
+               << " op3("<<q1<<","<<q2<<",0,"<<f<<") " <<  op3(q1,q2,0,f) 
+               << " op3("<<q1<<","<<q2<<",1,"<<f<<") " <<  op3(q1,q2,1,f) 
+               << " D0 " << D0[q1][q2][0] << " D1 " << D1[q1][q2][0] << std::endl;
+            }
+         }
+      }
+
 #endif
-*/
 
       // 3. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
       double BD1[max_Q1D][max_D1D][VDIM];
