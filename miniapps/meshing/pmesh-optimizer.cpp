@@ -42,70 +42,6 @@
 // 3D
 // make pmesh-optimizer;mpirun -np 4 pmesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
 
-
-
-// Sample runs:
-//   Adapted analytic shape:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -fd
-//   Adapted analytic shape+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
-//
-//   Adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
-//   Adapted discrete size 3D with PA:
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA).
-//   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
-//   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
-//   Adapted discrete size+aspect_ratio:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
-//   Adapted discrete aspect_ratio+orientation (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect ratio (3D):
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
-//
-//   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
-//   Adaptive limiting through the L-BFGS solver:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
-//   Adaptive limiting through FD (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
-//
-//   Blade shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
-//   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
-//   Blade limited shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
-//   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
-//   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
-//   ICF shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
-//   ICF limited shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10
-//   ICF combo shape + size (rings, slow convergence):
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1
-//   Mixed tet / cube / hex mesh with limiting:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
-//   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd
-//   2D non-conforming shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
-//
-//   2D untangling:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
-//   3D untangling (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
-//
-
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -395,7 +331,7 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+//      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Add benchmark transformation
@@ -444,7 +380,7 @@ int main (int argc, char *argv[])
          mesh_name << "perturbed.mesh";
          ofstream mesh_ofs(mesh_name.str().c_str());
          mesh_ofs.precision(8);
-         pmesh->PrintAsOne(mesh_ofs);
+//         pmesh->PrintAsOne(mesh_ofs);
       }
    }
 
@@ -1088,6 +1024,7 @@ int main (int argc, char *argv[])
    {
       std::cout << "Monitoring info      :" << endl <<
                 "Number of elements   :" << NEGlob << endl <<
+                "Number of procs      :" << num_procs << endl <<
                 "Polynomial degree    :" << mesh_poly_deg << endl <<
                 "Total TDofs          :" << NDofs << endl <<
                 std::setprecision(4) <<
@@ -1104,6 +1041,15 @@ int main (int argc, char *argv[])
                 processnewstatetime*100/solvertime <<  endl <<
                 "ComputeScale Time    :" << scalefactortime << " " <<
                 scalefactortime*100/solvertime <<  endl;
+       std::cout << "run_info: " << std::setprecision(4) << " " << 
+                    rs_levels << " " << mesh_poly_deg << " " << quad_order << " " << solver_type << " " << 
+		    solver_art_type << " " << lin_solver << " " << max_lin_iter << " " << 
+                    pa << " " << metric_id << " " << num_procs <<
+                    std::setprecision(10) << " " <<
+	            NEGlob << " " << NDofs << " " <<
+                    solver.GetNumIterations() << " " << solvertime << " " << vectortime*100/solvertime << " " <<
+                    gradtime*100/solvertime << " " << prectime*100/solvertime << " " << 
+                    processnewstatetime*100/solvertime << " " << scalefactortime*100/solvertime << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
@@ -1113,7 +1059,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+//      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 17. Compute the amount of energy decrease.
