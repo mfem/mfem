@@ -89,6 +89,7 @@ int main (int argc, char *argv[])
    bool pa               = false;
    bool benchmark       = false;
    int  benchmarkid      = 1;
+   double ls_scale       = 1.0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -206,6 +207,8 @@ int main (int argc, char *argv[])
                   "Apply benchmark modification.");
    args.AddOption(&benchmarkid, "-bm_id", "--bm_id",
                   "1 = kershaw, 2 is stretching.");
+   args.AddOption(&ls_scale, "-scale", "--scale",
+                  "Initial line search scale");
    args.Parse();
    if (!args.Good())
    {
@@ -982,6 +985,7 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   solver.SetInitialScale(ls_scale);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
