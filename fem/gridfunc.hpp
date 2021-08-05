@@ -470,6 +470,10 @@ public:
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
 
+   virtual double ComputeElementGradErrors(VectorCoefficient *exgrad,
+                                           Vector & errors,
+                                           const IntegrationRule *irs[] = NULL) const;
+
    /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
    virtual double ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const;
@@ -508,6 +512,10 @@ public:
    /// H1-norm for L2 elements
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeElementH1Errors(Coefficient *exsol,
+                                         VectorCoefficient *exgrad, Vector & errors,
+                                         const IntegrationRule *irs[] = NULL) const;
 
    /// Returns the error measured in H(div)-norm for RT elements
    virtual double ComputeHDivError(VectorCoefficient *exsol,

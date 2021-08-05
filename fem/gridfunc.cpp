@@ -2748,6 +2748,52 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
+double GridFunction::ComputeElementGradErrors(VectorCoefficient *exgrad,
+                                              Vector & errors,
+                                              const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector grad;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   Vector vec(dim);
+   errors.SetSize(fes->GetNE());
+   errors = 0.;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      Tr = fes->GetElementTransformation(i);
+      intorder = 2*fe->GetOrder() + 3; // <--------
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         GetGradient(*Tr,grad);
+         exgrad->Eval(vec,*Tr,ip);
+         vec-=grad;
+         errors[i] += ip.weight * Tr->Weight() * (vec * vec);
+      }
+      error += errors[i];
+      errors[i] = (errors[i] < 0.0) ? -sqrt(-errors[i]) : sqrt(errors[i]);
+   }
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+
+
 double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
                                       const IntegrationRule *irs[]) const
 {
@@ -2974,6 +3020,26 @@ double GridFunction::ComputeH1Error(Coefficient *exsol,
    double GradError = GridFunction::ComputeGradError(exgrad,irs);
    return sqrt(L2error*L2error + GradError*GradError);
 }
+
+double GridFunction::ComputeElementH1Errors(Coefficient *exsol,
+                                            VectorCoefficient *exgrad,
+                                            Vector & H1errors,
+                                            const IntegrationRule *irs[]) const
+{
+   int ne = this->fes->GetNE();
+   Vector L2Errors(ne), GradErrors(ne);
+   H1errors.SetSize(ne);
+   GridFunction::ComputeElementL2Errors(*exsol,L2Errors,irs);
+   double GradError = GridFunction::ComputeElementGradErrors(exgrad,GradErrors,
+                                                             irs);
+   double L2error = L2Errors.Norml2();
+   for (int i = 0; i<ne; i++)
+   {
+      H1errors[i] = sqrt(L2Errors[i]*L2Errors[i] + GradErrors[i]*GradErrors[i]);
+   }
+   return sqrt(L2error*L2error + GradError*GradError);
+}
+
 
 double GridFunction::ComputeHDivError(VectorCoefficient *exsol,
                                       Coefficient *exdiv,
