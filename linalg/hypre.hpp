@@ -16,6 +16,10 @@
 
 #ifdef MFEM_USE_MPI
 
+#ifndef HYPRE_ROWCOLPART_OWNER
+#define HYPRE_ROWCOLPART_OWNER (MFEM_HYPRE_VERSION < 22300)
+#endif
+
 #include <mpi.h>
 
 // Enable internal hypre timing routines
