@@ -762,11 +762,9 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
-   MFEM_VERIFY(nterms == 1, " High-order extension is not available for Neumann"
-               " boundary condition. Set nterms=1.\n");
-
    Array<DenseMatrix *> dkphi_dxk;
    DenseMatrix grad_phys;
+   Vector Factorial;
    Array<DenseMatrix *> grad_phys_dir;
 
    if (nterms > 0)
@@ -830,6 +828,13 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       for (int i = 0; i < grad_phys_dir.Size(); i++)
       {
          delete grad_phys_dir[i];
+      }
+
+      Factorial.SetSize(nterms);
+      Factorial(0) = 1;
+      for (int i = 1; i < nterms; i++)
+      {
+         Factorial(i) = Factorial(i-1)*(i+1);
       }
    }
 
@@ -924,6 +929,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
          }
          Vector q_hess_dot_d_work(ndof);
          T1.MultTranspose(Nhat, q_hess_dot_d_work);
+         q_hess_dot_d_work *= 1./Factorial(i);
          q_hess_dot_d_nhat += q_hess_dot_d_work;
       }
 
