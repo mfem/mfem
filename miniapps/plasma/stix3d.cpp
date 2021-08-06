@@ -752,24 +752,27 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient yCoef(yVec);
    VectorConstantCoefficient yNegCoef(yNegVec);
 
-   Array<ComplexVectorCoefficientByAttr> dbcs(3);
+   Array<ComplexVectorCoefficientByAttr*> dbcs(3);
 
    Array<int> dbcz(4); dbcz[0] = 1; dbcz[1] = 2; dbcz[2] = 3; dbcz[3] = 4;
-   dbcs[0].attr = dbcz;
-   dbcs[0].real = &zeroCoef;
-   dbcs[0].imag = &zeroCoef;
+   dbcs[0] = new ComplexVectorCoefficientByAttr;
+   dbcs[0]->attr = dbcz;
+   dbcs[0]->real = &zeroCoef;
+   dbcs[0]->imag = &zeroCoef;
 
    Array<int> dbcf(1); dbcf[0] = 5;
-   dbcs[1].attr = dbcf;
-   dbcs[1].real = &yCoef;
-   dbcs[1].imag = &zeroCoef;
+   dbcs[1] = new ComplexVectorCoefficientByAttr;
+   dbcs[1]->attr = dbcf;
+   dbcs[1]->real = &yCoef;
+   dbcs[1]->imag = &zeroCoef;
 
    Array<int> dbcb(1); dbcb[0] = 6;
-   dbcs[2].attr = dbcb;
-   dbcs[2].real = &yNegCoef;
-   dbcs[2].imag = &zeroCoef;
+   dbcs[2] = new ComplexVectorCoefficientByAttr;
+   dbcs[2]->attr = dbcb;
+   dbcs[2]->real = &yNegCoef;
+   dbcs[2]->imag = &zeroCoef;
 
-   Array<ComplexVectorCoefficientByAttr> nbcs(0);
+   Array<ComplexVectorCoefficientByAttr*> nbcs(0);
 
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 

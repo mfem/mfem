@@ -988,7 +988,7 @@ int main(int argc, char *argv[])
 
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0);
 
-   Array<ComplexVectorCoefficientByAttr> dbcs(dbcsSize);
+   Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
    Vector zeroVec(3); zeroVec = 0.0;
    Vector dbc1ReVec;
@@ -1040,30 +1040,33 @@ int main(int argc, char *argv[])
       int c = 0;
       if (peca.Size() > 0)
       {
-         dbcs[c].attr = peca;
-         dbcs[c].real = &zeroCoef;
-         dbcs[c].imag = &zeroCoef;
+	 dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = peca;
+         dbcs[c]->real = &zeroCoef;
+         dbcs[c]->imag = &zeroCoef;
          c++;
       }
       if (dbca1.Size() > 0)
       {
-         dbcs[c].attr = dbca1;
-         dbcs[c].real = &dbc1ReCoef;
-         dbcs[c].imag = &dbc1ImCoef;
+	 dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = dbca1;
+         dbcs[c]->real = &dbc1ReCoef;
+         dbcs[c]->imag = &dbc1ImCoef;
          c++;
       }
       if (dbca2.Size() > 0)
       {
-         dbcs[c].attr = dbca2;
-         dbcs[c].real = &dbc2ReCoef;
-         dbcs[c].imag = &dbc2ImCoef;
+	 dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = dbca2;
+         dbcs[c]->real = &dbc2ReCoef;
+         dbcs[c]->imag = &dbc2ImCoef;
          c++;
       }
    }
 
    int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0);
 
-   Array<ComplexVectorCoefficientByAttr> nbcs(nbcsSize);
+   Array<ComplexVectorCoefficientByAttr*> nbcs(nbcsSize);
 
    Vector nbc1ReVec;
    Vector nbc1ImVec;
@@ -1113,16 +1116,18 @@ int main(int argc, char *argv[])
       int c = 0;
       if (nbca1.Size() > 0)
       {
-         nbcs[c].attr = nbca1;
-         nbcs[c].real = &nbc1ReCoef;
-         nbcs[c].imag = &nbc1ImCoef;
+ 	 nbcs[c] = new ComplexVectorCoefficientByAttr;
+	 nbcs[c]->attr = nbca1;
+         nbcs[c]->real = &nbc1ReCoef;
+         nbcs[c]->imag = &nbc1ImCoef;
          c++;
       }
       if (nbca2.Size() > 0)
       {
-         nbcs[c].attr = nbca2;
-         nbcs[c].real = &nbc2ReCoef;
-         nbcs[c].imag = &nbc2ImCoef;
+ 	 nbcs[c] = new ComplexVectorCoefficientByAttr;
+         nbcs[c]->attr = nbca2;
+         nbcs[c]->real = &nbc2ReCoef;
+         nbcs[c]->imag = &nbc2ImCoef;
          c++;
       }
    }

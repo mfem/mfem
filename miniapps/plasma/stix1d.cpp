@@ -767,15 +767,16 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-   Array<ComplexVectorCoefficientByAttr> dbcs((dbca.Size()==0)?0:1);
+   Array<ComplexVectorCoefficientByAttr*> dbcs((dbca.Size()==0)?0:1);
    if (dbca.Size() > 0)
    {
-      dbcs[0].attr = dbca;
-      dbcs[0].real = &EReCoef;
-      dbcs[0].imag = &EImCoef;
+      dbcs[0] = new ComplexVectorCoefficientByAttr;
+      dbcs[0]->attr = dbca;
+      dbcs[0]->real = &EReCoef;
+      dbcs[0]->imag = &EImCoef;
    }
 
-   Array<ComplexVectorCoefficientByAttr> nbcs(0);
+   Array<ComplexVectorCoefficientByAttr*> nbcs(0);
 
    // Create the Magnetostatic solver
    if (mpi.Root() && logging > 0)
