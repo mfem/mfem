@@ -297,7 +297,7 @@ public:
                            int ls_cut_marker_ = ShiftedFaceMarker::SBElementType::CUT)
       :  vN(&vN_), uN(&u), vD(&vD_),
          elem_marker(&elem_marker_),
-         alpha(alpha_), nterms(nterms_),
+         nterms(nterms_),
          include_cut_cell(include_cut_cell_),
          NEproc(pmesh->GetNE()),
          par_shared_face_count(0),
