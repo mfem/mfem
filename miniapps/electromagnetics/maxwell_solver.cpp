@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -334,7 +334,7 @@ MaxwellSolver::~MaxwellSolver()
    }
 }
 
-HYPRE_Int
+HYPRE_BigInt
 MaxwellSolver::GetProblemSize()
 {
    return HCurlFESpace_->GlobalTrueVSize();
@@ -343,8 +343,8 @@ MaxwellSolver::GetProblemSize()
 void
 MaxwellSolver::PrintSizes()
 {
-   HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_nd = HCurlFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_rt = HDivFESpace_->GlobalTrueVSize();
    if ( myid_ == 0 )
    {
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;

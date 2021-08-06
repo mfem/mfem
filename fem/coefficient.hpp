@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -273,7 +273,7 @@ public:
    void SetDeltaCenter(const Vector& center);
 
    /// Set the scale value multiplying the delta function.
-   void SetScale(double _s) { scale = _s; }
+   void SetScale(double s_) { scale = s_; }
 
    /// Set a time-dependent function that multiplies the Scale().
    void SetFunction(double (*f)(double)) { tdf = f; }
@@ -281,7 +281,7 @@ public:
    /** @brief Set the tolerance used during projection onto GridFunction to
        identify the Mesh vertex where the Center() of the delta function
        lies. (default 1e-12)*/
-   void SetTol(double _tol) { tol = _tol; }
+   void SetTol(double tol_) { tol = tol_; }
 
    /// Set a weight Coefficient that multiplies the DeltaCoefficient.
    /** The weight Coefficient multiplies the value returned by EvalDelta() but
@@ -330,8 +330,8 @@ public:
    /** @brief Construct with a parent coefficient and an array with
        ones marking the attributes on which this coefficient should be
        active. */
-   RestrictedCoefficient(Coefficient &_c, Array<int> &attr)
-   { c = &_c; attr.Copy(active_attr); }
+   RestrictedCoefficient(Coefficient &c_, Array<int> &attr)
+   { c = &c_; attr.Copy(active_attr); }
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
@@ -607,41 +607,41 @@ protected:
    DeltaCoefficient d;
 
 public:
-   /// Construct with a vector of dimension @a _vdim.
-   VectorDeltaCoefficient(int _vdim)
-      : VectorCoefficient(_vdim), dir(_vdim), d() { }
+   /// Construct with a vector of dimension @a vdim_.
+   VectorDeltaCoefficient(int vdim_)
+      : VectorCoefficient(vdim_), dir(vdim_), d() { }
 
    /** @brief Construct with a Vector object representing the direction and a
        unit delta function centered at (0.0,0.0,0.0) */
-   VectorDeltaCoefficient(const Vector& _dir)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d() { }
+   VectorDeltaCoefficient(const Vector& dir_)
+      : VectorCoefficient(dir_.Size()), dir(dir_), d() { }
 
    /** @brief Construct with a Vector object representing the direction and a
        delta function scaled by @a s and centered at (x,0.0,0.0) */
-   VectorDeltaCoefficient(const Vector& _dir, double x, double s)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,s) { }
+   VectorDeltaCoefficient(const Vector& dir_, double x, double s)
+      : VectorCoefficient(dir_.Size()), dir(dir_), d(x,s) { }
 
    /** @brief Construct with a Vector object representing the direction and a
        delta function scaled by @a s and centered at (x,y,0.0) */
-   VectorDeltaCoefficient(const Vector& _dir, double x, double y, double s)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,s) { }
+   VectorDeltaCoefficient(const Vector& dir_, double x, double y, double s)
+      : VectorCoefficient(dir_.Size()), dir(dir_), d(x,y,s) { }
 
    /** @brief Construct with a Vector object representing the direction and a
        delta function scaled by @a s and centered at (x,y,z) */
-   VectorDeltaCoefficient(const Vector& _dir, double x, double y, double z,
+   VectorDeltaCoefficient(const Vector& dir_, double x, double y, double z,
                           double s)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,z,s) { }
+      : VectorCoefficient(dir_.Size()), dir(dir_), d(x,y,z,s) { }
 
    /// Replace the associated DeltaCoefficient with a new DeltaCoefficient.
    /** The new DeltaCoefficient cannot have a specified weight Coefficient, i.e.
        DeltaCoefficient::Weight() should return NULL. */
-   void SetDeltaCoefficient(const DeltaCoefficient& _d) { d = _d; }
+   void SetDeltaCoefficient(const DeltaCoefficient& d_) { d = d_; }
 
    /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
 
    void SetScale(double s) { d.SetScale(s); }
-   void SetDirection(const Vector& _d);
+   void SetDirection(const Vector& d_);
 
    void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
@@ -688,6 +688,7 @@ public:
                      const IntegrationRule &ir);
 };
 
+typedef VectorCoefficient DiagonalMatrixCoefficient;
 
 /// Base class for Matrix Coefficients that optionally depend on time and space.
 class MatrixCoefficient
@@ -695,7 +696,7 @@ class MatrixCoefficient
 protected:
    int height, width;
    double time;
-   bool symmetric;
+   bool symmetric;  // deprecated
 
 public:
    /// Construct a dim x dim matrix coefficient.
@@ -721,6 +722,7 @@ public:
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
+   /** @deprecated Use SymmetricMatrixCoefficient instead */
    bool IsSymmetric() const { return symmetric; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
@@ -731,11 +733,13 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
+   /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
        in the symmetric case, similarly to Eval. Matrix entry (i,j) is stored
        in K[j - i + os_i] for 0 <= i <= j < width, os_0 = 0,
        os_{i+1} = os_i + width - i. That is, K = {M(0,0), ..., M(0,w-1),
-       M(1,1), ..., M(1,w-1), ..., M(w-1,w-1) with w = width. */
+       M(1,1), ..., M(1,w-1), ..., M(w-1,w-1) with w = width.
+       @deprecated Use Eval() instead. */
    virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
                               const IntegrationPoint &ip)
    { mfem_error("MatrixCoefficient::EvalSymmetric"); }
@@ -767,7 +771,7 @@ class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
    std::function<void(const Vector &, DenseMatrix &)> Function;
-   std::function<void(const Vector &, Vector &)> SymmFunction;
+   std::function<void(const Vector &, Vector &)> SymmFunction;  // deprecated
    std::function<void(const Vector &, double, DenseMatrix &)> TDFunction;
 
    Coefficient *Q;
@@ -791,6 +795,18 @@ public:
       : MatrixCoefficient(m.Height(), m.Width()), Q(&q), mat(m)
    { }
 
+   /** @brief Define a time-independent symmetric square matrix coefficient from
+       a std function */
+   /** \param dim - the size of the matrix
+       \param SymmF - function used in EvalSymmetric
+       \param q - optional scalar Coefficient to scale the matrix coefficient
+       @deprecated Use another constructor without setting SymmFunction. */
+   MatrixFunctionCoefficient(int dim,
+                             std::function<void(const Vector &, Vector &)> SymmF,
+                             Coefficient *q = NULL)
+      : MatrixCoefficient(dim, true), SymmFunction(std::move(SymmF)), Q(q), mat(0)
+   { }
+
    /// Define a time-dependent square matrix coefficient from a std function
    /** \param dim - the size of the matrix
        \param TDF - time-dependent function
@@ -801,28 +817,17 @@ public:
       : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
-   /** @brief Define a time-independent symmetric square matrix coefficient from
-       a std function */
-   /** \param dim - the size of the matrix
-       \param SymmF - function used in EvalSymmetric
-       \param q - optional scalar Coefficient to scale the matrix coefficient */
-   MatrixFunctionCoefficient(int dim,
-                             std::function<void(const Vector &, Vector &)> SymmF,
-                             Coefficient *q = NULL)
-      : MatrixCoefficient(dim, true), SymmFunction(std::move(SymmF)), Q(q), mat(0)
-   { }
-
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /// Evaluate the symmetric matrix coefficient at @a ip.
+   /// (DEPRECATED) Evaluate the symmetric matrix coefficient at @a ip.
+   /** @deprecated Use Eval() instead. */
    virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
                               const IntegrationPoint &ip);
 
    virtual ~MatrixFunctionCoefficient() { }
 };
-
 
 
 /** @brief Matrix coefficient defined by a matrix of scalar coefficients.
@@ -896,15 +901,15 @@ private:
    double beta;
 
 public:
-   /// Constructor with one coefficient.  Result is _alpha * A + _beta * B
+   /// Constructor with one coefficient.  Result is alpha_ * A + beta_ * B
    SumCoefficient(double A, Coefficient &B,
-                  double _alpha = 1.0, double _beta = 1.0)
-      : aConst(A), a(NULL), b(&B), alpha(_alpha), beta(_beta) { }
+                  double alpha_ = 1.0, double beta_ = 1.0)
+      : aConst(A), a(NULL), b(&B), alpha(alpha_), beta(beta_) { }
 
-   /// Constructor with two coefficients.  Result is _alpha * A + _beta * B.
+   /// Constructor with two coefficients.  Result is alpha_ * A + beta_ * B.
    SumCoefficient(Coefficient &A, Coefficient &B,
-                  double _alpha = 1.0, double _beta = 1.0)
-      : aConst(0.0), a(&A), b(&B), alpha(_alpha), beta(_beta) { }
+                  double alpha_ = 1.0, double beta_ = 1.0)
+      : aConst(0.0), a(&A), b(&B), alpha(alpha_), beta(beta_) { }
 
    /// Reset the first term in the linear combination as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
@@ -922,12 +927,12 @@ public:
    Coefficient * GetBCoef() const { return b; }
 
    /// Reset the factor in front of the first term in the linear combination
-   void SetAlpha(double _alpha) { alpha = _alpha; }
+   void SetAlpha(double alpha_) { alpha = alpha_; }
    /// Return the factor in front of the first term in the linear combination
    double GetAlpha() const { return alpha; }
 
    /// Reset the factor in front of the second term in the linear combination
-   void SetBeta(double _beta) { beta = _beta; }
+   void SetBeta(double beta_) { beta = beta_; }
    /// Return the factor in front of the second term in the linear combination
    double GetBeta() const { return beta; }
 
@@ -939,6 +944,106 @@ public:
              + beta * b->Eval(T, ip);
    }
 };
+
+
+/// Base class for symmetric matrix coefficients that optionally depend on time and space.
+class SymmetricMatrixCoefficient
+{
+protected:
+   int dim;
+   double time;
+
+public:
+   /// Construct a dim x dim matrix coefficient.
+   explicit SymmetricMatrixCoefficient(int dimension)
+   { dim = dimension; time = 0.; }
+
+   /// Set the time for time dependent coefficients
+   void SetTime(double t) { time = t; }
+
+   /// Get the time for time dependent coefficients
+   double GetTime() { return time; }
+
+   /// Get the size of the matrix.
+   int GetSize() const { return dim; }
+
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip, storing the result in @a K. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip) = 0;
+
+   virtual ~SymmetricMatrixCoefficient() { }
+};
+
+
+/// A matrix coefficient that is constant in space and time.
+class SymmetricMatrixConstantCoefficient : public SymmetricMatrixCoefficient
+{
+private:
+   DenseSymmetricMatrix mat;
+
+public:
+   ///Construct using matrix @a m for the constant.
+   SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
+      : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
+   using SymmetricMatrixCoefficient::Eval;
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip) { M = mat; }
+};
+
+
+/** @brief A matrix coefficient with an optional scalar coefficient multiplier
+    \a q.  The matrix function can either be represented by a std function or
+    a constant matrix provided when constructing this object.  */
+class SymmetricMatrixFunctionCoefficient : public SymmetricMatrixCoefficient
+{
+private:
+   std::function<void(const Vector &, DenseSymmetricMatrix &)> Function;
+   std::function<void(const Vector &, double, DenseSymmetricMatrix &)> TDFunction;
+
+   Coefficient *Q;
+   DenseSymmetricMatrix mat;
+
+public:
+   /// Define a time-independent symmetric matrix coefficient from a std function
+   /** \param dim - the size of the matrix
+       \param F - time-independent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   SymmetricMatrixFunctionCoefficient(int dim,
+                                      std::function<void(const Vector &, DenseSymmetricMatrix &)> F,
+                                      Coefficient *q = nullptr)
+      : SymmetricMatrixCoefficient(dim), Function(std::move(F)), Q(q), mat(0)
+   { }
+
+   /// Define a constant matrix coefficient times a scalar Coefficient
+   /** \param m - constant matrix
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   SymmetricMatrixFunctionCoefficient(const DenseSymmetricMatrix &m,
+                                      Coefficient &q)
+      : SymmetricMatrixCoefficient(m.Height()), Q(&q), mat(m)
+   { }
+
+   /// Define a time-dependent square matrix coefficient from a std function
+   /** \param dim - the size of the matrix
+       \param TDF - time-dependent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   SymmetricMatrixFunctionCoefficient(int dim,
+                                      std::function<void(const Vector &, double, DenseSymmetricMatrix &)> TDF,
+                                      Coefficient *q = nullptr)
+      : SymmetricMatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
+   { }
+
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~SymmetricMatrixFunctionCoefficient() { }
+};
+
 
 /** @brief Scalar coefficient defined as the product of two scalar coefficients
     or a scalar and a scalar coefficient. */
@@ -1042,9 +1147,9 @@ private:
    double p;
 
 public:
-   /// Construct with a coefficient and a constant power @a _p.  Result is A^p.
-   PowerCoefficient(Coefficient &A, double _p)
-      : a(&A), p(_p) { }
+   /// Construct with a coefficient and a constant power @a p_.  Result is A^p.
+   PowerCoefficient(Coefficient &A, double p_)
+      : a(&A), p(p_) { }
 
    /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
@@ -1052,7 +1157,7 @@ public:
    Coefficient * GetACoef() const { return a; }
 
    /// Reset the exponent
-   void SetExponent(double _p) { p = _p; }
+   void SetExponent(double p_) { p = p_; }
    /// Return the exponent
    double GetExponent() const { return p; }
 
@@ -1191,14 +1296,14 @@ public:
    VectorSumCoefficient(int dim);
 
    /** Constructor with two vector coefficients.
-       Result is _alpha * A + _beta * B */
+       Result is alpha_ * A + beta_ * B */
    VectorSumCoefficient(VectorCoefficient &A, VectorCoefficient &B,
-                        double _alpha = 1.0, double _beta = 1.0);
+                        double alpha_ = 1.0, double beta_ = 1.0);
 
    /** Constructor with scalar coefficients.
-       Result is _alpha * _A + _beta * _B */
-   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
-                        Coefficient &_alpha, Coefficient &_beta);
+       Result is alpha_ * A_ + beta_ * B_ */
+   VectorSumCoefficient(VectorCoefficient &A_, VectorCoefficient &B_,
+                        Coefficient &alpha_, Coefficient &beta_);
 
    /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A) { ACoef = &A; }
@@ -1221,22 +1326,22 @@ public:
    Coefficient * GetBetaCoef() const { return betaCoef; }
 
    /// Reset the first vector as a constant
-   void SetA(const Vector &_A) { A = _A; ACoef = NULL; }
+   void SetA(const Vector &A_) { A = A_; ACoef = NULL; }
    /// Return the first vector constant
    const Vector & GetA() const { return A; }
 
    /// Reset the second vector as a constant
-   void SetB(const Vector &_B) { B = _B; BCoef = NULL; }
+   void SetB(const Vector &B_) { B = B_; BCoef = NULL; }
    /// Return the second vector constant
    const Vector & GetB() const { return B; }
 
    /// Reset the factor in front of the first vector coefficient as a constant
-   void SetAlpha(double _alpha) { alpha = _alpha; alphaCoef = NULL; }
+   void SetAlpha(double alpha_) { alpha = alpha_; alphaCoef = NULL; }
    /// Return the factor in front of the first vector coefficient
    double GetAlpha() const { return alpha; }
 
    /// Reset the factor in front of the second vector coefficient as a constant
-   void SetBeta(double _beta) { beta = _beta; betaCoef = NULL; }
+   void SetBeta(double beta_) { beta = beta_; betaCoef = NULL; }
    /// Return the factor in front of the second vector coefficient
    double GetBeta() const { return beta; }
 
@@ -1403,9 +1508,9 @@ private:
    mutable DenseMatrix ma;
 
 public:
-   /// Construct with the two coefficients.  Result is _alpha * A + _beta * B.
+   /// Construct with the two coefficients.  Result is alpha_ * A + beta_ * B.
    MatrixSumCoefficient(MatrixCoefficient &A, MatrixCoefficient &B,
-                        double _alpha = 1.0, double _beta = 1.0);
+                        double alpha_ = 1.0, double beta_ = 1.0);
 
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1418,12 +1523,12 @@ public:
    MatrixCoefficient * GetBCoef() const { return b; }
 
    /// Reset the factor in front of the first matrix coefficient
-   void SetAlpha(double _alpha) { alpha = _alpha; }
+   void SetAlpha(double alpha_) { alpha = alpha_; }
    /// Return the factor in front of the first matrix coefficient
    double GetAlpha() const { return alpha; }
 
    /// Reset the factor in front of the second matrix coefficient
-   void SetBeta(double _beta) { beta = _beta; }
+   void SetBeta(double beta_) { beta = beta_; }
    /// Return the factor in front of the second matrix coefficient
    double GetBeta() const { return beta; }
 
@@ -1596,7 +1701,7 @@ public:
    /** Set the starting index within the QuadFunc that'll be used to project
        outwards as well as the corresponding length. The projected length should
        have the bounds of 1 <= length <= (length QuadFunc - index). */
-   void SetComponent(int _index, int _length);
+   void SetComponent(int index_, int length_);
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
