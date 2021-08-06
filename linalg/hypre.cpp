@@ -3321,6 +3321,16 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       V = new HypreParVector(*A);
    }
 
+   if (P == NULL)
+   {
+      P = new HypreParVector(*A);
+   }
+
+   if (R == NULL)
+   {
+      R = new HypreParVector(*A);
+   }
+
    if (type == 1001)
    {
       for (int sweep = 0; sweep < relax_times; sweep++)
