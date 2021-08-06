@@ -666,6 +666,15 @@ void PADGDiffusionApply3D(const int NF,
 
 
 #ifdef MFEM_DEBUG
+
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < D1D; q2++)
+         {
+            std::cout << "B( " << 1+q1 <<" , " << 1+q2 << " ) = " << B(q1,q2) << std::endl;
+         }
+      }
+
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -683,7 +692,7 @@ void PADGDiffusionApply3D(const int NF,
          }
       }
 
-      if( true  )
+      if( false  )
       {
          for (int q1 = 0; q1 < Q1D; ++q1)
          {
@@ -713,7 +722,7 @@ void PADGDiffusionApply3D(const int NF,
          }
       }
 
-      if( false )
+      if( true )
       {
          for (int q1 = 0; q1 < Q1D; ++q1)
          {
