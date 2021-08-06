@@ -3034,12 +3034,17 @@ HypreSmoother::HypreSmoother() : Solver()
    l1_norms = NULL;
    pos_l1_norms = false;
    eig_est_cg_iter = 10;
-   B = X = V = Z = P = R = NULL;
+   B = X = V = Z;
+#if HYPRE_USE_SPLIT_CHEB_RELAX
+   P = R = NULL;
+#endif
    auxB.Reset(); auxX.Reset();
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    poly_coeffs = NULL;
    diag = NULL;
+#endif
    A_is_symmetric = false;
 }
 
@@ -3058,12 +3063,17 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
 
    l1_norms = NULL;
    pos_l1_norms = false;
-   B = X = V = Z = P = R = NULL;
+   B = X = V = Z;
+#if HYPRE_USE_SPLIT_CHEB_RELAX
+   P = R = NULL;
+#endif
    auxB.Reset(); auxX.Reset();
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    poly_coeffs = NULL;
    diag = NULL;
+#endif
    A_is_symmetric = false;
 
    SetOperator(A_);
@@ -3135,10 +3145,12 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (X) { delete X; }
    if (V) { delete V; }
    if (Z) { delete Z; }
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    if (P) { delete P; }
    if (R) { delete R; }
    if (poly_coeffs) { mfem_hypre_TFree_host(poly_coeffs); };
    if (diag) { mfem_hypre_TFree(diag); };
+#endif
    if (l1_norms)
    {
       mfem_hypre_TFree(l1_norms);
@@ -3146,9 +3158,12 @@ void HypreSmoother::SetOperator(const Operator &op)
    delete X0;
    delete X1;
 
-   X1 = X0 = Z = V = B = X = P = R = NULL;
+   X1 = X0 = Z = V = B = X;
+#if HYPRE_USE_SPLIT_CHEB_RELAX
+   P = R = NULL;
    poly_coeffs = NULL;
    diag = NULL;
+#endif
 
    auxB.Reset(); auxX.Reset();
 
@@ -3204,11 +3219,15 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
 
       Z = new HypreParVector(*A);
+#if HYPRE_USE_SPLIT_CHEB_RELAX
       P = new HypreParVector(*A);
       R = new HypreParVector(*A);
+#endif
 
+#if HYPRE_USE_SPLIT_CHEB_RELAX
       hypre_ParCSRRelax_Cheby_Setup(*A, max_eig_est, min_eig_est, poly_fraction,
                                     poly_order, 1, 0, &poly_coeffs, &diag);
+#endif
 
    }
    else if (type == 1001 || type == 1002)
@@ -3321,6 +3340,7 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       V = new HypreParVector(*A);
    }
 
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    if (P == NULL)
    {
       P = new HypreParVector(*A);
@@ -3330,6 +3350,7 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       R = new HypreParVector(*A);
    }
+#endif
 
    if (type == 1001)
    {
@@ -3360,17 +3381,31 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
 
       if (Z == NULL)
       {
+#if HYPRE_USE_SPLIT_CHEB_RELAX
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, NULL, *P, *R, poly_coeffs, diag);
+#else
+         hypre_ParCSRRelax(*A, b, hypre_type,
+                           relax_times, l1_norms, relax_weight, omega,
+                           max_eig_est, min_eig_est, poly_order, poly_fraction,
+                           x, *V, NULL);
+#endif
       }
       else
       {
+#if HYPRE_USE_SPLIT_CHEB_RELAX
          hypre_ParCSRRelax(*A, b, hypre_type,
                            relax_times, l1_norms, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, *Z, *P, *R, poly_coeffs, diag);
+#else
+         hypre_ParCSRRelax(*A, b, hypre_type,
+                           relax_times, l1_norms, relax_weight, omega,
+                           max_eig_est, min_eig_est, poly_order, poly_fraction,
+                           x, *V, *Z);
+#endif
       }
    }
 }
@@ -3453,8 +3488,10 @@ HypreSmoother::~HypreSmoother()
    if (X) { delete X; }
    if (V) { delete V; }
    if (Z) { delete Z; }
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    if (P) { delete P; }
    if (R) { delete R; }
+#endif
    if (l1_norms)
    {
       mfem_hypre_TFree(l1_norms);
@@ -3465,8 +3502,10 @@ HypreSmoother::~HypreSmoother()
    }
    if (X0) { delete X0; }
    if (X1) { delete X1; }
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    if (poly_coeffs) { mfem_hypre_TFree_host(poly_coeffs); };
    if (diag) { mfem_hypre_TFree(diag); };
+#endif
 }
 
 

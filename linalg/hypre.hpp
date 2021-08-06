@@ -26,6 +26,10 @@
 #define HYPRE_USE_GERSHGORIN (MFEM_HYPRE_VERSION > 22200)
 #endif
 
+#ifndef HYPRE_USE_SPLIT_CHEB_RELAX
+#define HYPRE_USE_SPLIT_CHEB_RELAX (MFEM_HYPRE_VERSION > 22200)
+#endif
+
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
@@ -860,8 +864,10 @@ protected:
    mutable HypreParVector *V, *Z;
    /// FIR Filter Temporary Vectors
    mutable HypreParVector *X0, *X1;
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    /// Chebyshev
    mutable HypreParVector *P, *R;
+#endif
 
    /** Smoother type from hypre_ParCSRRelax() in ams.c plus extensions, see the
        enumeration Type below. */
@@ -897,13 +903,17 @@ protected:
    /// Parameters for windowing function of FIR filter
    double window_params[3];
 
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    /// Coefficients of the smoothing polynomial
    /// Used to store diagonal of the matrix (Chebyshev Smoothing)
    double* diag;
+#endif
 
    /// Combined coefficients for windowing and Chebyshev polynomials.
    double* fir_coeffs;
+#if HYPRE_USE_SPLIT_CHEB_RELAX
    double* poly_coeffs;
+#endif
 
    /// A flag that indicates whether the linear system matrix A is symmetric
    bool A_is_symmetric;
