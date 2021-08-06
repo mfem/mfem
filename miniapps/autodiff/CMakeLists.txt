@@ -32,6 +32,11 @@ add_mfem_miniapp(seqadiff
 	${SEQADIFF_COMMON_FILES}
 	LIBRARIES mfem)
 
+add_mfem_miniapp(cmpadiff
+        MAIN cmp_test.cpp
+        ${SEQADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
 add_mfem_miniapp(seqtest
 	MAIN seq_test.cpp
 	${SEQADIFF_COMMON_FILES}
