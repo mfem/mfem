@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,13 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "catch.hpp"
 #include "mfem.hpp"
+#include "unit_tests.hpp"
 
 namespace mfem
 {
-
-constexpr double EPS = 1.e-12;
 
 TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
 {
@@ -23,18 +21,17 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
    int ne = 4;
    for (int order = 1; order <= 3; ++order)
    {
-      Mesh * mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
       FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
-      FiniteElementSpace R_space(mesh, hdiv_coll);
-      FiniteElementSpace W_space(mesh, l2_coll);
+      FiniteElementSpace R_space(&mesh, hdiv_coll);
+      FiniteElementSpace W_space(&mesh, l2_coll);
 
       int n = R_space.GetTrueVSize();
       int m = W_space.GetTrueVSize();
       MixedBilinearForm a(&R_space, &W_space);
       a.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-      a.Assemble();
-      a.Finalize();
       a.Assemble();
       a.Finalize();
 
@@ -63,7 +60,7 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
                 << ", error norm: "
                 << error << std::endl;
 
-      REQUIRE(error == Approx(EPS));
+      REQUIRE(error == MFEM_Approx(0.0));
 
       Y0.Randomize();
       X0.Randomize(1);
@@ -78,14 +75,12 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
                 << ", error norm: "
                 << error << std::endl;
 
-      REQUIRE(error == Approx(EPS));
+      REQUIRE(error == MFEM_Approx(0.0));
 
       delete Aabs;
       delete hdiv_coll;
       delete l2_coll;
-      delete mesh;
    }
 }
-
 
 } // namespace mfem

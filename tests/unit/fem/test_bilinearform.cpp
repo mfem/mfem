@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 #include <iostream>
 
@@ -22,7 +22,7 @@ TEST_CASE("Test order of boundary integrators",
    // Create a simple mesh
    int dim = 2, nx = 2, ny = 2, order = 2;
    Element::Type e_type = Element::QUADRILATERAL;
-   Mesh mesh(nx, ny, e_type);
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, e_type);
 
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);
@@ -60,8 +60,85 @@ TEST_CASE("Test order of boundary integrators",
 
       SparseMatrix *D = Add(1.0, A1234, -1.0, A4321);
 
-      REQUIRE(D->MaxNorm() == Approx(0.0));
+      REQUIRE(D->MaxNorm() == MFEM_Approx(0.0));
 
       delete D;
+   }
+}
+
+
+TEST_CASE("FormLinearSystem/SolutionScope",
+          "[BilinearForm]"
+          "[CUDA]")
+{
+   // Create a simple mesh and FE space
+   int dim = 2, nx = 2, ny = 2, order = 2;
+   Element::Type e_type = Element::QUADRILATERAL;
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, e_type);
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+   int bdr_dof;
+
+   // Solve a PDE on the conforming mesh and FE space defined above, storing the
+   // result in 'sol'.
+   auto SolvePDE = [&](AssemblyLevel al, GridFunction &sol)
+   {
+      // Linear form: rhs
+      ConstantCoefficient f(1.0);
+      LinearForm b(&fes);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.Assemble();
+      // Bilinear form: matrix
+      BilinearForm a(&fes);
+      a.AddDomainIntegrator(new DiffusionIntegrator);
+      a.SetAssemblyLevel(al);
+      a.Assemble();
+      // Setup b.c.
+      Array<int> ess_tdof_list;
+      REQUIRE(mesh.bdr_attributes.Max() > 0);
+      Array<int> bdr_attr_is_ess(mesh.bdr_attributes.Max());
+      bdr_attr_is_ess = 1;
+      fes.GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list);
+      REQUIRE(ess_tdof_list.Size() > 0);
+      // Setup (on host) solution initial guess satisfying the desired b.c.
+      ConstantCoefficient zero(0.0);
+      sol.ProjectCoefficient(zero); // performed on host
+      // Setup the linear system
+      Vector B, X;
+      OperatorPtr A;
+      const bool copy_interior = true; // interior(sol) --> interior(X)
+      a.FormLinearSystem(ess_tdof_list, sol, b, A, X, B, copy_interior);
+      // Solve the system
+      CGSolver cg;
+      cg.SetMaxIter(2000);
+      cg.SetRelTol(1e-8);
+      cg.SetAbsTol(0.0);
+      cg.SetPrintLevel(0);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      // Recover the solution
+      a.RecoverFEMSolution(X, b, sol);
+      // Initialize the bdr_dof to be checked
+      ess_tdof_list.HostRead();
+      bdr_dof = AsConst(ess_tdof_list)[0]; // here, L-dof is the same T-dof
+   };
+
+   // Legacy full assembly
+   {
+      GridFunction sol(&fes);
+      SolvePDE(AssemblyLevel::LEGACYFULL, sol);
+      // Make sure the solution is still accessible after 'X' is destoyed
+      sol.HostRead();
+      REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
+   }
+
+   // Partial assembly
+   {
+      GridFunction sol(&fes);
+      SolvePDE(AssemblyLevel::PARTIAL, sol);
+      // Make sure the solution is still accessible after 'X' is destoyed
+      sol.HostRead();
+      REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
 }

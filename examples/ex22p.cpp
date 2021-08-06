@@ -7,10 +7,12 @@
 //               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3
 //               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3 -p 2
+//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 1 -p 1 -pa
 //               mpirun -np 4 ex22p -m ../data/inline-tet.mesh -o 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
+//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Device sample runs:
@@ -165,7 +167,7 @@ int main(int argc, char *argv[])
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   device.Print();
+   if (myid == 0) { device.Print(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -211,7 +213,7 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -469,8 +471,6 @@ int main(int argc, char *argv[])
    // 14. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(U, b, u);
-   u.real().SyncMemory(u);
-   u.imag().SyncMemory(u);
 
    if (exact_sol)
    {

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -11,6 +11,7 @@
 
 set(SRCS
   element.cpp
+  gmsh.cpp
   hexahedron.cpp
   mesh.cpp
   mesh_operators.cpp
@@ -29,6 +30,7 @@ set(SRCS
 
 set(HDRS
   element.hpp
+  gmsh.hpp
   hexahedron.hpp
   mesh.hpp
   mesh_headers.hpp

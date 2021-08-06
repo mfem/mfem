@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,7 @@
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 #include "complex_fem.hpp"
+#include "convergence.hpp"
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
 #include "bilininteg.hpp"
@@ -40,6 +41,8 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
+#include "ceed/algebraic.hpp"
+#include "lor.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -59,6 +62,11 @@
 
 #ifdef MFEM_USE_ADIOS2
 #include "adios2datacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_FMS
+#include "fmsconvert.hpp"
+#include "fmsdatacollection.hpp"
 #endif
 
 #endif

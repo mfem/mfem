@@ -30,16 +30,16 @@ ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(VectorCoefficient &Er,
                                                      VectorCoefficient &Ei,
                                                      MatrixCoefficient &epsr,
                                                      MatrixCoefficient &epsi)
-   :  ErCoef_(Er),
-      EiCoef_(Ei),
-      epsrCoef_(epsr),
-      epsiCoef_(epsi),
-      Er_(3),
-      Ei_(3),
-      Dr_(3),
-      Di_(3),
-      eps_r_(3),
-      eps_i_(3)
+   : ErCoef_(Er),
+     EiCoef_(Ei),
+     epsrCoef_(epsr),
+     epsiCoef_(epsi),
+     Er_(3),
+     Ei_(3),
+     Dr_(3),
+     Di_(3),
+     eps_r_(3),
+     eps_i_(3)
 {}
 
 double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
@@ -246,9 +246,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      Coefficient * etaInvCoef,
                      VectorCoefficient * kCoef,
                      Array<int> & abcs,
-                     Array<ComplexVectorCoefficientByAttr> & dbcs,
-                     Array<ComplexVectorCoefficientByAttr> & nbcs,
-                     Array<ComplexCoefficientByAttr> & sbcs,
+                     Array<int> & sbcs,
+                     // Array<int> & dbcs,
+                     Array<ComplexVectorCoefficientByAttr*> & dbcs,
+                     Array<ComplexVectorCoefficientByAttr*> & nbcs,
+                     Array<ComplexCoefficientByAttr*> & sbcs,
                      // void   (*e_r_bc )(const Vector&, Vector&),
                      // void   (*e_i_bc )(const Vector&, Vector&),
                      // VectorCoefficient & EReCoef,
@@ -461,7 +463,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    ess_bdr_ = 0;
    if ( dbcs_->Size() > 0 )
    {
-      if ( dbcs_->Size() == 1 && (*dbcs_)[0].attr[0] == -1 )
+      if ( dbcs_->Size() == 1 && (*dbcs_)[0]->attr[0] == -1 )
       {
          ess_bdr_ = 1;
       }
@@ -469,9 +471,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       {
          for (int i=0; i<dbcs_->Size(); i++)
          {
-            for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
+            for (int j=0; j<(*dbcs_)[i]->attr.Size(); j++)
             {
-               ess_bdr_[(*dbcs_)[i].attr[j]-1] = 1;
+               ess_bdr_[(*dbcs_)[i]->attr[j]-1] = 1;
             }
          }
       }
@@ -577,21 +579,21 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    if (nbcs_->Size() > 0)
    {
-      nkbcs_ = new Array<ComplexVectorCoefficientByAttr>(nbcs_->Size());
+      nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
       for (int i=0; i<nbcs_->Size(); i++)
       {
-         (*nkbcs_)[i].attr = (*nbcs_)[i].attr;
-         (*nkbcs_)[i].attr_marker.SetSize(pmesh.bdr_attributes.Max());
-         (*nkbcs_)[i].attr_marker = 0;
-         for (int j=0; j<(*nbcs_)[i].attr.Size(); j++)
+         (*nkbcs_)[i]->attr = (*nbcs_)[i]->attr;
+         (*nkbcs_)[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
+         (*nkbcs_)[i]->attr_marker = 0;
+         for (int j=0; j<(*nbcs_)[i]->attr.Size(); j++)
          {
-            (*nkbcs_)[i].attr_marker[(*nbcs_)[i].attr[j] - 1] = 1;
+            (*nkbcs_)[i]->attr_marker[(*nbcs_)[i]->attr[j] - 1] = 1;
          }
 
-         (*nkbcs_)[i].real =
-            new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i].imag);
-         (*nkbcs_)[i].imag =
-            new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i].real);
+         (*nkbcs_)[i]->real =
+            new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i]->imag);
+         (*nkbcs_)[i]->imag =
+            new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i]->real);
       }
    }
    /*
@@ -734,7 +736,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
    //                               const_cast<VectorCoefficient&>(eiCoef_));
 
-   j_ = new ParComplexGridFunction(HCurlFESpace_);
+   j_ = new ParComplexGridFunction(HDivFESpace_);
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
@@ -746,9 +748,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       for (int i=0; i<nkbcs_->Size(); i++)
       {
          rhs_->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(*
-                                                                             (*nkbcs_)[i].real),
-                                     new VectorFEBoundaryTangentLFIntegrator(*(*nkbcs_)[i].imag),
-                                     (*nkbcs_)[i].attr_marker);
+                                                                             (*nkbcs_)[i]->real),
+                                     new VectorFEBoundaryTangentLFIntegrator(*(*nkbcs_)[i]->imag),
+                                     (*nkbcs_)[i]->attr_marker);
 
       }
    }
@@ -1165,6 +1167,26 @@ CPDSolver::Solve()
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
    double E_err = 1.0;
+
+   if (dbcs_->Size() > 0)
+   {
+      Array<int> attr_marker(pmesh_->bdr_attributes.Max());
+      for (int i = 0; i<dbcs_->Size(); i++)
+      {
+         attr_marker = 0;
+         for (int j=0; j<(*dbcs_)[i]->attr.Size(); j++)
+         {
+            attr_marker[(*dbcs_)[i]->attr[j] - 1] = 1;
+         }
+         /*
+              e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
+                                               *(*dbcs_)[i].imag,
+                                               attr_marker);
+         */
+         e_->ProjectCoefficient(*(*dbcs_)[i]->real,
+                                *(*dbcs_)[i]->imag);
+      }
+   }
 
    if (e_tmp_ == NULL)
    {

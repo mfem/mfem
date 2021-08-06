@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <type_traits>
 
 namespace mfem
 {
@@ -36,9 +37,9 @@ void Swap(Array<T> &, Array<T> &);
    Abstract data type Array.
 
    Array<T> is an automatically increasing array containing elements of the
-   generic type T, which must be a POD (plain old data) type. The allocated size
-   may be larger then the logical size of the array. The elements can be
-   accessed by the [] operator, the range is 0 to size-1.
+   generic type T, which must be a trivial type, see `std::is_trivial`. The
+   allocated size may be larger then the logical size of the array. The elements
+   can be accessed by the [] operator, the range is 0 to size-1.
 */
 template <class T>
 class Array
@@ -50,6 +51,11 @@ protected:
    int size;
 
    inline void GrowSize(int minsize);
+
+   static inline void TypeAssert()
+   {
+      static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   }
 
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
@@ -67,8 +73,8 @@ public:
    /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
        be deleted. */
-   inline Array(T *_data, int asize)
-   { data.Wrap(_data, asize, false); size = asize; }
+   inline Array(T *data_, int asize)
+   { data.Wrap(data_, asize, false); size = asize; }
 
    /// Copy constructor: deep copy from @a src
    /** This method supports source arrays using any MemoryType. */
@@ -78,8 +84,12 @@ public:
    template <typename CT>
    inline Array(const Array<CT> &src);
 
+   /// Deep copy from a braced init-list of convertible type
+   template <typename CT, int N>
+   explicit inline Array(const CT (&values)[N]);
+
    /// Destructor
-   inline ~Array() { data.Delete(); }
+   inline ~Array() { TypeAssert(); data.Delete(); }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
@@ -329,6 +339,10 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 }
 
 
+/// Utility function similar to std::as_const in c++17.
+template <typename T> const T &AsConst(T &a) { return a; }
+
+
 template <class T>
 class Array2D;
 
@@ -410,6 +424,8 @@ public:
 
    inline void operator=(const T &a)
    { array1d = a; }
+
+   inline Array2D& operator=(const Array2D &a) = default;
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
@@ -627,6 +643,12 @@ inline Array<T>::Array(const Array<CT> &src)
 {
    size > 0 ? data.New(size) : data.Reset();
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+}
+
+template <typename T> template <typename CT, int N>
+inline Array<T>::Array(const CT (&values)[N]) : Array(N)
+{
+   for (int i = 0; i < size; i++) { (*this)[i] = T(values[i]); }
 }
 
 template <class T>

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,9 +12,10 @@
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
-#include <ceed.h>
+#include "../fem/ceed/util.hpp"
 #endif
 
+#include <unordered_map>
 #include <string>
 #include <map>
 
@@ -33,13 +34,16 @@ occa::device occaDevice;
 
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
+
+ceed::BasisMap ceed_basis_map;
+ceed::RestrMap ceed_restr_map;
 #endif
 
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::HIP, Backend::DEBUG,
+   Backend::CEED_HIP, Backend::RAJA_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -48,7 +52,7 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
-   "hip", "debug",
+   "ceed-hip", "raja-hip", "hip", "debug",
    "occa-omp", "raja-omp", "omp",
    "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
@@ -61,15 +65,9 @@ Device Device::device_singleton;
 bool Device::device_env = false;
 bool Device::mem_host_env = false;
 bool Device::mem_device_env = false;
+bool Device::mem_types_set = false;
 
-Device::Device() : mode(Device::SEQUENTIAL),
-   backends(Backend::CPU),
-   destroy_mm(false),
-   mpi_gpu_aware(false),
-   host_mem_type(MemoryType::HOST),
-   host_mem_class(MemoryClass::HOST),
-   device_mem_type(MemoryType::HOST),
-   device_mem_class(MemoryClass::HOST)
+Device::Device()
 {
    if (getenv("MFEM_MEMORY") && !mem_host_env && !mem_device_env)
    {
@@ -154,6 +152,18 @@ Device::~Device()
    {
       free(device_option);
 #ifdef MFEM_USE_CEED
+      // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
+      for (auto entry : internal::ceed_basis_map)
+      {
+         CeedBasisDestroy(&entry.second);
+      }
+      internal::ceed_basis_map.clear();
+      for (auto entry : internal::ceed_restr_map)
+      {
+         CeedElemRestrictionDestroy(&entry.second);
+      }
+      internal::ceed_restr_map.clear();
+      // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
       mm.Destroy();
@@ -210,15 +220,24 @@ void Device::Configure(const std::string &device, const int dev)
       beg = end + 1;
    }
 
-   // OCCA_CUDA needs CUDA or RAJA_CUDA:
-   if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
+   // OCCA_CUDA and CEED_CUDA need CUDA or RAJA_CUDA:
+   if (Allows(Backend::OCCA_CUDA|Backend::CEED_CUDA) &&
+       !Allows(Backend::RAJA_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
-   if (Allows(Backend::CEED_CUDA))
+   // CEED_HIP needs HIP:
+   if (Allows(Backend::CEED_HIP))
    {
-      Get().MarkBackend(Backend::CUDA);
+      Get().MarkBackend(Backend::HIP);
    }
+   // OCCA_OMP will use OMP or RAJA_OMP unless MFEM_USE_OPENMP=NO:
+#ifdef MFEM_USE_OPENMP
+   if (Allows(Backend::OCCA_OMP) && !Allows(Backend::RAJA_OMP))
+   {
+      Get().MarkBackend(Backend::OMP);
+   }
+#endif
 
    // Perform setup.
    Get().Setup(dev);
@@ -231,6 +250,30 @@ void Device::Configure(const std::string &device, const int dev)
 
    // Only '*this' will call the MemoryManager::Destroy() method.
    destroy_mm = true;
+}
+
+// static method
+void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
+{
+   // If the device and/or the MemoryTypes are configured through the
+   // environment (variables 'MFEM_DEVICE', 'MFEM_MEMORY'), ignore calls to this
+   // method.
+   if (mem_host_env || mem_device_env || device_env) { return; }
+
+   MFEM_VERIFY(!IsConfigured(), "the default MemoryTypes can only be set before"
+               " Device construction and configuration");
+   MFEM_VERIFY(IsHostMemory(h_mt),
+               "invalid host MemoryType, h_mt = " << (int)h_mt);
+   MFEM_VERIFY(IsDeviceMemory(d_mt) || d_mt == h_mt,
+               "invalid device MemoryType, d_mt = " << (int)d_mt
+               << " (h_mt = " << (int)h_mt << ')');
+
+   Get().host_mem_type = h_mt;
+   Get().device_mem_type = d_mt;
+   mem_types_set = true;
+
+   // h_mt and d_mt will be set as dual to each other during configuration by
+   // the call mm.Configure(...) in UpdateMemoryTypeAndClass()
 }
 
 void Device::Print(std::ostream &out)
@@ -266,13 +309,20 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   const bool debug = Device::Allows(Backend::DEBUG);
+   const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
 
    const bool device = Device::Allows(Backend::DEVICE_MASK);
 
 #ifdef MFEM_USE_UMPIRE
    // If MFEM has been compiled with Umpire support, use it as the default
-   if (!mem_host_env) { host_mem_type = MemoryType::HOST_UMPIRE; }
+   if (!mem_host_env && !mem_types_set)
+   {
+      host_mem_type = MemoryType::HOST_UMPIRE;
+      if (!mem_device_env)
+      {
+         device_mem_type = MemoryType::HOST_UMPIRE;
+      }
+   }
 #endif
 
    // Enable the device memory type
@@ -294,7 +344,7 @@ void Device::UpdateMemoryTypeAndClass()
                   device_mem_type = MemoryType::DEVICE;
             }
          }
-         else
+         else if (!mem_types_set)
          {
 #ifndef MFEM_USE_UMPIRE
             device_mem_type = MemoryType::DEVICE;
@@ -319,6 +369,9 @@ void Device::UpdateMemoryTypeAndClass()
       host_mem_type = MemoryType::HOST_DEBUG;
       device_mem_type = MemoryType::DEVICE_DEBUG;
    }
+
+   MFEM_VERIFY(!device || IsDeviceMemory(device_mem_type),
+               "invalid device memory configuration!");
 
    // Update the memory manager with the new settings
    mm.Configure(host_mem_type, device_mem_type);
@@ -353,12 +406,9 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 static void HipDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_HIP
-   int deviceId;
-   MFEM_GPU_CHECK(hipGetDevice(&deviceId));
-   hipDeviceProp_t props;
-   MFEM_GPU_CHECK(hipGetDeviceProperties(&props, deviceId));
-   MFEM_VERIFY(dev==deviceId,"");
-   ngpu = 1;
+   MFEM_GPU_CHECK(hipGetDeviceCount(&ngpu));
+   MFEM_VERIFY(ngpu > 0, "No HIP device found!");
+   MFEM_GPU_CHECK(hipSetDevice(dev));
 #else
    MFEM_CONTRACT_VAR(dev);
    MFEM_CONTRACT_VAR(ngpu);
@@ -369,6 +419,8 @@ static void RajaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
    if (ngpu <= 0) { DeviceSetup(dev, ngpu); }
+#elif defined(MFEM_USE_HIP)
+   HipDeviceSetup(dev, ngpu);
 #else
    MFEM_CONTRACT_VAR(dev);
    MFEM_CONTRACT_VAR(ngpu);
@@ -435,12 +487,16 @@ static void CeedDeviceSetup(const char* ceed_spec)
    CeedInit(ceed_spec, &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self"))
+   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self") &&
+       strcmp(ceed_spec, "/gpu/hip"))
    {
       mfem::out << std::endl << "WARNING!!!\n"
                 "libCEED is not using the requested backend!!!\n"
                 "WARNING!!!\n" << std::endl;
    }
+#ifdef MFEM_DEBUG
+   CeedSetErrorHandler(internal::ceed, CeedErrorStore);
+#endif
 #else
    MFEM_CONTRACT_VAR(ceed_spec);
 #endif
@@ -473,12 +529,16 @@ void Device::Setup(const int device)
    MFEM_VERIFY(!Allows(Backend::CEED_MASK),
                "the CEED backends require MFEM built with MFEM_USE_CEED=YES");
 #else
-   MFEM_VERIFY(!Allows(Backend::CEED_CPU) || !Allows(Backend::CEED_CUDA),
+   int ceed_cpu  = Allows(Backend::CEED_CPU);
+   int ceed_cuda = Allows(Backend::CEED_CUDA);
+   int ceed_hip  = Allows(Backend::CEED_HIP);
+   MFEM_VERIFY(ceed_cpu + ceed_cuda + ceed_hip <= 1,
                "Only one CEED backend can be enabled at a time!");
 #endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::RAJA_CUDA) || Allows(Backend::RAJA_HIP))
+   { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_CPU))
@@ -504,7 +564,18 @@ void Device::Setup(const int device)
          CeedDeviceSetup(device_option);
       }
    }
-   if (Allows(Backend::DEBUG)) { ngpu = 1; }
+   if (Allows(Backend::CEED_HIP))
+   {
+      if (!device_option)
+      {
+         CeedDeviceSetup("/gpu/hip");
+      }
+      else
+      {
+         CeedDeviceSetup(device_option);
+      }
+   }
+   if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
 } // mfem

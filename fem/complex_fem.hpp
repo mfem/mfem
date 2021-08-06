@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -71,12 +71,12 @@ public:
    const GridFunction & real() const { return *gfr; }
    const GridFunction & imag() const { return *gfi; }
 
-   /// Update the memory location of the real and imaginary GridFunction @a gfr and @a gfi
-   /// to match the ComplexGridFunction.
+   /// Update the memory location of the real and imaginary GridFunction @a gfr
+   /// and @a gfi to match the ComplexGridFunction.
    void Sync() { gfr->SyncMemory(*this); gfi->SyncMemory(*this); }
 
-   /// Update the alias memory location of the real and imaginary GridFunction @a gfr and @a gfi
-   /// to match the ComplexGridFunction.
+   /// Update the alias memory location of the real and imaginary GridFunction
+   /// @a gfr and @a gfi to match the ComplexGridFunction.
    void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
 
    /// Destroys the grid function.
@@ -165,12 +165,12 @@ public:
    const LinearForm & real() const { return *lfr; }
    const LinearForm & imag() const { return *lfi; }
 
-   /// Update the memory location of the real and imaginary LinearForm @a lfr and @a lfi
-   /// to match the ComplexLinearForm.
+   /// Update the memory location of the real and imaginary LinearForm @a lfr
+   /// and @a lfi to match the ComplexLinearForm.
    void Sync() { lfr->SyncMemory(*this); lfi->SyncMemory(*this); }
 
-   /// Update the alias memory location of the real and imaginary LinearForm @a lfr and @a lfi
-   /// to match the ComplexLinearForm.
+   /// Update the alias memory location of the real and imaginary LinearForm @a
+   /// lfr and @a lfi to match the ComplexLinearForm.
    void SyncAlias() { lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
 
    void Update();
@@ -238,7 +238,8 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::FULL  (default)
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE
@@ -381,12 +382,12 @@ public:
    const ParGridFunction & real() const { return *pgfr; }
    const ParGridFunction & imag() const { return *pgfi; }
 
-   /// Update the memory location of the real and imaginary ParGridFunction @a pgfr and @a pgfi
-   /// to match the ParComplexGridFunction.
+   /// Update the memory location of the real and imaginary ParGridFunction @a
+   /// pgfr and @a pgfi to match the ParComplexGridFunction.
    void Sync() { pgfr->SyncMemory(*this); pgfi->SyncMemory(*this); }
 
-   /// Update the alias memory location of the real and imaginary ParGridFunction @a pgfr and @a pgfi
-   /// to match the ParComplexGridFunction.
+   /// Update the alias memory location of the real and imaginary
+   /// ParGridFunction @a pgfr and @a pgfi to match the ParComplexGridFunction.
    void SyncAlias() { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
 
 
@@ -432,7 +433,7 @@ protected:
    ParLinearForm * plfr;
    ParLinearForm * plfi;
 
-   HYPRE_Int * tdof_offsets;
+   HYPRE_BigInt * tdof_offsets;
 
 public:
 
@@ -500,12 +501,12 @@ public:
    const ParLinearForm & real() const { return *plfr; }
    const ParLinearForm & imag() const { return *plfi; }
 
-   /// Update the memory location of the real and imaginary ParLinearForm @a lfr and @a lfi
-   /// to match the ParComplexLinearForm.
+   /// Update the memory location of the real and imaginary ParLinearForm @a lfr
+   /// and @a lfi to match the ParComplexLinearForm.
    void Sync() { plfr->SyncMemory(*this); plfi->SyncMemory(*this); }
 
-   /// Update the alias memory location of the real and imaginary ParLinearForm @a plfr and @a plfi
-   /// to match the ParComplexLinearForm.
+   /// Update the alias memory location of the real and imaginary ParLinearForm
+   /// @a plfr and @a plfi to match the ParComplexLinearForm.
    void SyncAlias() { plfr->SyncAliasMemory(*this); plfi->SyncAliasMemory(*this); }
 
    void Update(ParFiniteElementSpace *pf = NULL);
@@ -575,7 +576,8 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::FULL  (default)
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE

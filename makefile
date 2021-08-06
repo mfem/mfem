@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40101
+MFEM_VERSION = 40301
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -36,6 +36,8 @@ MFEM makefile targets:
    make clean
    make distclean
    make style
+   make tags
+   make hooks
 
 Examples:
 
@@ -92,7 +94,11 @@ make distclean
    installation directory.
 make style
    Format the MFEM C++ source files using Artistic Style (astyle).
-
+make tags
+   Generate a vi or Emacs compatible TAGS file in ${MFEM_DIR}/TAGS. Requires
+   functional "etags" and "egrep" in the user ${PATH}.
+make hooks
+   Creates symlinks to the hooks in the `.git/hooks` directory.
 endef
 
 # Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
@@ -113,14 +119,14 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
+EXAMPLE_SUBDIRS = amgx ginkgo hiop petsc pumi sundials superlu
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing navier performance plasma tools toys nurbs gslib adjoint
+MINIAPP_SUBDIRS = common electromagnetics meshing navier performance plasma tools toys nurbs gslib adjoint solvers shifted mtop
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
-MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys)
+MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys shifted)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -168,7 +174,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda hip pcuda cudebug pcudebug hpc style
+ cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -203,27 +209,28 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
-   MFEM_HOST_CXX = $(CXX)
-   PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI SLEPC
+   HOST_CXX = $(CXX)
+   PKGS_NEED_MPI = SUPERLU MUMPS STRUMPACK PETSC PUMI SLEPC MKL_CPARDISO
    $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
-   MFEM_HOST_CXX = $(MPICXX)
+   HOST_CXX = $(MPICXX)
    INCFLAGS += $(HYPRE_OPT)
    ALL_LIBS += $(HYPRE_LIB)
 endif
 
 # Default configuration
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
-   MFEM_CXX ?= $(MFEM_HOST_CXX)
-   MFEM_HOST_CXX := $(MFEM_CXX)
+   MFEM_CXX ?= $(HOST_CXX)
+   MFEM_HOST_CXX ?= $(MFEM_CXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
+   MFEM_HOST_CXX ?= $(HOST_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(MFEM_HOST_CXX)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
@@ -236,9 +243,15 @@ endif
 
 # HIP configuration
 ifeq ($(MFEM_USE_HIP),YES)
+   ifeq ($(MFEM_USE_MPI),YES)
+      INCFLAGS += $(MPI_OPT)
+      ALL_LIBS += $(MPI_LIB)
+   endif
    MFEM_CXX ?= $(HIP_CXX)
-   ALL_LIBS += $(HIP_FLAGS)
-   # TODO: set XCOMPILER and XLINKER
+   MFEM_HOST_CXX ?= $(MFEM_CXX)
+   CXXFLAGS += $(HIP_FLAGS)
+   XLINKER   = $(HIP_XLINKER)
+   XCOMPILER = $(HIP_XCOMPILER)
    # HIP_OPT and HIP_LIB are added below
    # Compatibility test against MFEM_USE_CUDA
    ifeq ($(MFEM_USE_CUDA),YES)
@@ -259,9 +272,10 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
+MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE
+ OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER
+
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
 
@@ -317,15 +331,16 @@ endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
- MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
- MFEM_USE_ZLIB MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
- MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO\
- MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
- MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB\
+ MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
+ MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO MFEM_USE_SUPERLU\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
  MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
- MFEM_USE_ADIOS2 MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
+ MFEM_USE_CALIPER MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -359,7 +374,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -393,7 +408,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/libceed
+DIRS = general linalg linalg/simd mesh fem fem/ceed fem/qinterp fem/tmop
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -505,6 +520,17 @@ test test-noclean:
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
 
+.PHONY: test-miniapps
+test-miniapps:
+	@echo "Building all miniapps ..."
+	@$(MAKE) $(MAKEOVERRIDES_SAVE) miniapps
+	@ERR=0; for dir in $(MINIAPP_TEST_DIRS); do \
+	   echo "Running tests in $${dir} ..."; \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   ERR=1; fi; done; \
+	   if [ 0 -ne $${ERR} ]; then echo "Some miniapp tests failed."; \
+	   exit 1; else echo "All miniapp tests passed."; fi
+
 unittest: lib
 	$(MAKE) -C $(BLD)tests/unit test
 
@@ -528,7 +554,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
@@ -559,8 +585,8 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install libCEED q-function headers
-	mkdir -p $(PREFIX_INC)/mfem/fem/libceed
-	$(INSTALL) -m 640 $(SRC)fem/libceed/*.h $(PREFIX_INC)/mfem/fem/libceed
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed
+	$(INSTALL) -m 640 $(SRC)fem/ceed/*.h $(PREFIX_INC)/mfem/fem/ceed
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -627,14 +653,17 @@ status info:
 	$(info MFEM_USE_MESQUITE      = $(MFEM_USE_MESQUITE))
 	$(info MFEM_USE_SUITESPARSE   = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
+	$(info MFEM_USE_MUMPS         = $(MFEM_USE_MUMPS))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
+	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
 	$(info MFEM_USE_SLEPC         = $(MFEM_USE_SLEPC))
 	$(info MFEM_USE_MPFR          = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
+	$(info MFEM_USE_FMS           = $(MFEM_USE_FMS))
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
 	$(info MFEM_USE_HIOP          = $(MFEM_USE_HIOP))
@@ -643,10 +672,12 @@ status info:
 	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
+	$(info MFEM_USE_MKL_CPARDISO  = $(MFEM_USE_MKL_CPARDISO))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
@@ -673,9 +704,11 @@ status info:
 ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 2.05.1"
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
-FORMAT_FILES += "tests/unit/*.cpp"
-FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
+FORMAT_FILES += tests/unit/*.cpp
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
+FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
+FORMAT_LIST = $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
@@ -713,7 +746,7 @@ style:
 	 fi
 	@err_code=0;\
 	$(call mfem_check_command,\
-	    $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
+	    $(ASTYLE) $(FORMAT_LIST) | grep Formatted,\
 	    "No source files were changed",\
 	    "Please make sure the changes are committed");\
 	echo "Checking for use of std::cout...";\
@@ -726,6 +759,30 @@ style:
 	      grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
 	   "No use of std::cerr found", "Use mfem::err instead of std::cerr");\
 	exit $$err_code
+
+# Generate a TAGS table in $MFEM_DIR from all the tracked files
+.PHONY: tags
+tags:
+ifndef ETAGS_BIN
+	$(error Error could not find suitable 'etags', please install one \
+	using your package manager)
+else ifndef EGREP_BIN
+	$(error Error could not find suitable 'egrep', please install one \
+	using your package manager)
+endif
+	$(eval MFEM_TRACKED_SOURCE = $(shell git -C $(MFEM_REAL_DIR) ls-files |\
+	$(EGREP_BIN) '(\.[hc](pp)?)$$'))
+	@cd $(MFEM_REAL_DIR) && $(ETAGS_BIN) --class-qualify \
+	--declarations -o $(MFEM_REAL_DIR)/TAGS $(MFEM_TRACKED_SOURCE)
+
+# Creates symlinks to the hooks in the `.git/hooks` directory. Individual
+# hooks can be enabled by manually creating symlinks. Hooks can be customized
+# using hard copies (trading off with automated updates).
+.PHONY: hooks
+hooks:
+	@cd $(MFEM_DIR)/.git/hooks && \
+	ln -s ../../config/githooks/pre-commit pre-commit; \
+	ln -s ../../config/githooks/pre-push pre-push;
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:

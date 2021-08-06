@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,6 +24,7 @@
 #include "handle.hpp"
 #include "hypre.hpp"
 #include "ode.hpp"
+#include "../general/mem_manager.hpp"
 
 #include "petscconf.h"
 #if !defined(PETSC_USE_REAL_DOUBLE)
@@ -50,17 +51,28 @@ typedef int PetscClassId;
 typedef struct _p_PetscObject *PetscObject;
 #endif
 
-// forward declarations of PETSc objects
-typedef struct _p_Vec *Vec;
-typedef struct _p_Mat *Mat;
-typedef struct _p_KSP *KSP;
-typedef struct _p_PC *PC;
-typedef struct _p_SNES *SNES;
-typedef struct _p_TS *TS;
+// forward declarations of PETSc internal structs
+struct _p_Vec;
+struct _p_Mat;
+struct _p_KSP;
+struct _p_PC;
+struct _p_SNES;
+struct _p_TS;
 
 
 namespace mfem
 {
+
+// Declare aliases of PETSc's types inside the namespace mfem::petsc:
+namespace petsc
+{
+typedef struct ::_p_Vec  *Vec;
+typedef struct ::_p_Mat  *Mat;
+typedef struct ::_p_KSP  *KSP;
+typedef struct ::_p_PC   *PC;
+typedef struct ::_p_SNES *SNES;
+typedef struct ::_p_TS   *TS;
+}
 
 /// Convenience functions to initialize/finalize PETSc
 void MFEMInitializePetsc();
@@ -68,15 +80,83 @@ void MFEMInitializePetsc(int*,char***);
 void MFEMInitializePetsc(int*,char***,const char[],const char[]);
 void MFEMFinalizePetsc();
 
+/// Wrapper for synching PETSc's vector memory
+class PetscMemory : public Memory<double>
+{
+private:
+   Memory<double> *base;
+   bool read;
+   bool write;
+   bool usedev;
+public:
+   PetscMemory()                      { Reset(); base = nullptr; }
+   void SetHostValid() const          { flags |= VALID_HOST; }
+   void SetDeviceValid() const        { flags |= VALID_DEVICE; }
+   void SetHostInvalid() const        { flags &= ~VALID_HOST; }
+   void SetDeviceInvalid() const      { flags &= ~VALID_DEVICE; }
+   inline bool IsAliasForSync() const { return base && (flags & ALIAS); }
+
+   inline void MakeAliasForSync(const Memory<double> &base_, int offset_,
+                                int size_, bool usedev_)
+   {
+      MFEM_VERIFY(!IsAliasForSync(),"Already alias");
+      base = (Memory<double>*)&base_;
+      read = true;
+      write = false;
+      usedev = usedev_;
+      MakeAlias(base_,offset_,size_);
+   }
+   inline void MakeAliasForSync(Memory<double> &base_, int offset_, int size_,
+                                bool read_, bool write_, bool usedev_)
+   {
+      MFEM_VERIFY(!IsAliasForSync(),"Already alias");
+      base = (Memory<double>*)&base_;
+      read = read_;
+      write = write_;
+      usedev = usedev_;
+      MakeAlias(base_,offset_,size_);
+   }
+   inline void SyncBase()
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      base->Sync(*this);
+   }
+   inline void SyncBaseAndReset()
+   {
+      SyncBase();
+      base = nullptr;
+      Reset();
+   }
+   inline bool ReadRequested() const
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      return read;
+   }
+   inline bool WriteRequested() const
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      return write;
+   }
+   inline bool DeviceRequested() const
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      return usedev;
+   }
+   const double *GetHostPointer() const;
+   const double *GetDevicePointer() const;
+};
+
+/// Wrapper for PETSc's vector class
 class ParFiniteElementSpace;
 class PetscParMatrix;
 
-/// Wrapper for PETSc's vector class
 class PetscParVector : public Vector
 {
 protected:
    /// The actual PETSc object
-   Vec x;
+   petsc::Vec x;
+
+   mutable PetscMemory pdata;
 
    friend class PetscParMatrix;
    friend class PetscODESolver;
@@ -86,7 +166,13 @@ protected:
    friend class PetscBDDCSolver;
 
    // Set Vector::data and Vector::size from x
-   void _SetDataAndSize_();
+   void SetDataAndSize_();
+
+   // Set Vec type from Device type
+   void SetVecType_();
+
+   // Update Memory flags from PETSc offloadmask
+   void SetFlagsFromMask_() const;
 
 public:
    /// Creates vector with given global size and partitioning of the columns.
@@ -97,9 +183,9 @@ public:
    /** @brief Creates vector with given global size, partitioning of the
        columns, and data.
 
-       The data must be allocated and destroyed outside. If @a _data is NULL, a
+       The data must be allocated and destroyed outside. If @a data_ is NULL, a
        dummy vector without a valid data array will be created. */
-   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscScalar *_data,
+   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscScalar *data_,
                   PetscInt *col);
 
    /// Creates vector compatible with @a y
@@ -107,9 +193,9 @@ public:
 
    /** @brief Creates a PetscParVector from a Vector
        @param[in] comm  MPI communicator on which the new object lives
-       @param[in] _x    The mfem Vector (data is not shared)
-       @param[in] copy  Whether to copy the data in _x or not */
-   PetscParVector(MPI_Comm comm, const Vector &_x, bool copy = false);
+       @param[in] x_    The mfem Vector (data is not shared)
+       @param[in] copy  Whether to copy the data in x_ or not */
+   PetscParVector(MPI_Comm comm, const Vector &x_, bool copy = false);
 
    /** @brief Creates vector compatible with the Operator (i.e. in the domain
        of) @a op or its adjoint. */
@@ -127,7 +213,7 @@ public:
    /// Creates PetscParVector out of PETSc Vec object.
    /** @param[in] y    The PETSc Vec object.
        @param[in] ref  If true, we increase the reference count of @a y. */
-   explicit PetscParVector(Vec y, bool ref=false);
+   explicit PetscParVector(petsc::Vec y, bool ref=false);
 
    /// Create a true dof parallel vector on a given ParFiniteElementSpace
    explicit PetscParVector(ParFiniteElementSpace *pfes);
@@ -142,7 +228,7 @@ public:
    PetscInt GlobalSize() const;
 
    /// Typecasting to PETSc's Vec type
-   operator Vec() const { return x; }
+   operator petsc::Vec() const { return x; }
 
    /// Typecasting to PETSc object
    operator PetscObject() const { return (PetscObject)x; }
@@ -185,11 +271,35 @@ public:
        @note This method calls PETSc's VecResetArray() function. */
    void ResetArray();
 
+   /** @brief This requests write access from where the memory is valid
+       and temporarily replaces the corresponding array used by the PETSc Vec
+       The bool parameter indicates read/write request */
+   void PlaceMemory(Memory<double>&,bool=false);
+
+   /** @brief This requests read access from where the memory is valid
+       and temporarily replaces the corresponding array used by the PETSc Vec */
+   void PlaceMemory(const Memory<double>&);
+
+   /** @brief Completes the operation started with PlaceMemory */
+   void ResetMemory();
+
+   /** @brief Update PETSc's Vec after having accessed its data via GetMemory() */
+   void UpdateVecFromFlags();
+
    /// Set random values
    void Randomize(PetscInt seed = 0);
 
    /// Prints the vector (to stdout if @a fname is NULL)
    void Print(const char *fname = NULL, bool binary = false) const;
+
+   const double *Read(bool=true) const override;
+   const double *HostRead() const override;
+   double *Write(bool=true) override;
+   double *HostWrite() override;
+   double *ReadWrite(bool=true) override;
+   double *HostReadWrite() override;
+   bool UseDevice() const override;
+   void UseDevice(bool) const override;
 };
 
 
@@ -198,7 +308,7 @@ class PetscParMatrix : public Operator
 {
 protected:
    /// The actual PETSc object
-   Mat A;
+   petsc::Mat A;
 
    /// Auxiliary vectors for typecasting
    mutable PetscParVector *X, *Y;
@@ -214,13 +324,13 @@ protected:
 
        This does not take any reference to @a op, that should not be destroyed
        until @a B is needed. */
-   void MakeWrapper(MPI_Comm comm, const Operator* op, Mat *B);
+   void MakeWrapper(MPI_Comm comm, const Operator* op, petsc::Mat *B);
 
    /// Convert an mfem::Operator into a Mat @a B; @a op can be destroyed unless
    /// tid == PETSC_MATSHELL or tid == PETSC_MATHYPRE
    /// if op is a BlockOperator, the operator type is relevant to the individual
    /// blocks
-   void ConvertOperator(MPI_Comm comm, const Operator& op, Mat *B,
+   void ConvertOperator(MPI_Comm comm, const Operator& op, petsc::Mat *B,
                         Operator::Type tid);
 
    friend class PetscLinearSolver;
@@ -230,7 +340,9 @@ private:
    /// Constructs a block-diagonal Mat object
    void BlockDiagonalConstructor(MPI_Comm comm, PetscInt *row_starts,
                                  PetscInt *col_starts, SparseMatrix *diag,
-                                 bool assembled, Mat *A);
+                                 bool assembled, petsc::Mat *A);
+
+   void SetUpForDevice();
 
 public:
    /// Create an empty matrix to be used as a reference to an existing matrix.
@@ -239,7 +351,7 @@ public:
    /// Creates PetscParMatrix out of PETSc's Mat.
    /** @param[in]  a    The PETSc Mat object.
        @param[in]  ref  If true, we increase the reference count of @a a. */
-   PetscParMatrix(Mat a, bool ref=false);
+   PetscParMatrix(petsc::Mat a, bool ref=false);
 
    /** @brief Convert a PetscParMatrix @a pa with a new PETSc format @a tid.
        Note that if @a pa is already a PetscParMatrix of the same type as
@@ -248,8 +360,8 @@ public:
 
    /** @brief Creates a PetscParMatrix extracting the submatrix of @a A with
        @a rows row indices and @a cols column indices */
-   PetscParMatrix(const PetscParMatrix& A, const mfem::Array<PetscInt>& rows,
-                  const mfem::Array<PetscInt>& cols);
+   PetscParMatrix(const PetscParMatrix& A, const Array<PetscInt>& rows,
+                  const Array<PetscInt>& cols);
 
    /** @brief Convert a HypreParMatrix @a ha to a PetscParMatrix in the given
        PETSc format @a tid. */
@@ -305,7 +417,7 @@ public:
    virtual ~PetscParMatrix() { Destroy(); }
 
    /// Replace the inner Mat Object. The reference count of newA is increased
-   void SetMat(Mat newA);
+   void SetMat(petsc::Mat newA);
 
    /// @name Assignment operators
    ///@{
@@ -331,7 +443,7 @@ public:
    MPI_Comm GetComm() const;
 
    /// Typecasting to PETSc's Mat type
-   operator Mat() const { return A; }
+   operator petsc::Mat() const { return A; }
 
    /// Typecasting to PETSc object
    operator PetscObject() const { return (PetscObject)A; }
@@ -419,7 +531,7 @@ public:
 
    /** @brief Release the PETSc Mat object. If @a dereference is true, decrement
        the refcount of the Mat object. */
-   Mat ReleaseMat(bool dereference);
+   petsc::Mat ReleaseMat(bool dereference);
 
    Type GetType() const;
 };
@@ -459,10 +571,10 @@ public:
       TIME_DEPENDENT
    };
 
-   PetscBCHandler(Type _type = ZERO) :
-      bctype(_type), setup(false), eval_t(0.0),
+   PetscBCHandler(Type type_ = ZERO) :
+      bctype(type_), setup(false), eval_t(0.0),
       eval_t_cached(std::numeric_limits<double>::min()) {}
-   PetscBCHandler(Array<int>& ess_tdof_list, Type _type = ZERO);
+   PetscBCHandler(Array<int>& ess_tdof_list, Type type_ = ZERO);
 
    virtual ~PetscBCHandler() {}
 
@@ -470,7 +582,7 @@ public:
    Type GetType() const { return bctype; }
 
    /// Sets the type of boundary conditions
-   void SetType(enum Type _type) { bctype = _type; setup = false; }
+   void SetType(enum Type type_) { bctype = type_; setup = false; }
 
    /// Boundary conditions evaluation
    /** In the result vector, @a g, only values at the essential dofs need to be
@@ -522,8 +634,8 @@ class PetscPreconditionerFactory
 private:
    std::string name;
 public:
-   PetscPreconditionerFactory(const std::string &_name = "MFEM Factory")
-      : name(_name) { }
+   PetscPreconditionerFactory(const std::string &name_ = "MFEM Factory")
+      : name(name_) { }
    const char* GetName() { return name.c_str(); }
    virtual Solver *NewPreconditioner(const OperatorHandle& oh) = 0;
    virtual ~PetscPreconditionerFactory() {}
@@ -645,7 +757,7 @@ public:
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    /// Conversion function to PETSc's KSP type.
-   operator KSP() const { return (KSP)obj; }
+   operator petsc::KSP() const { return (petsc::KSP)obj; }
 };
 
 
@@ -681,7 +793,7 @@ public:
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    /// Conversion function to PETSc's PC type.
-   operator PC() const { return (PC)obj; }
+   operator petsc::PC() const { return (petsc::PC)obj; }
 };
 
 
@@ -749,6 +861,17 @@ public:
                          const std::string &prefix = std::string());
 };
 
+class PetscH2Solver : public PetscPreconditioner
+{
+private:
+   void H2SolverConstructor(ParFiniteElementSpace *fes);
+
+public:
+   PetscH2Solver(Operator &op,
+                 ParFiniteElementSpace *fes,
+                 const std::string &prefix = std::string());
+
+};
 
 /// Abstract class for PETSc's nonlinear solvers.
 class PetscNonlinearSolver : public PetscSolver, public Solver
@@ -785,11 +908,11 @@ public:
    /// F is the current function value, X the current solution
    /// D the previous step taken, and P the previous solution
    void SetUpdate(void (*update)(Operator *op, int it,
-                                 const mfem::Vector& F, const mfem::Vector& X,
-                                 const mfem::Vector& D, const mfem::Vector& P));
+                                 const Vector& F, const Vector& X,
+                                 const Vector& D, const Vector& P));
 
    /// Conversion function to PETSc's SNES type.
-   operator SNES() const { return (SNES)obj; }
+   operator petsc::SNES() const { return (petsc::SNES)obj; }
 };
 
 
@@ -797,7 +920,7 @@ public:
 class PetscODESolver : public PetscSolver, public ODESolver
 {
 public:
-   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the jacobians
+   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the Jacobians
    /// are linear and independent of time.
    enum Type
    {
@@ -824,7 +947,7 @@ public:
    virtual void Run(Vector &x, double &t, double &dt, double t_final);
 
    /// Conversion function to PETSc's TS type.
-   operator TS() const { return (TS)obj; }
+   operator petsc::TS() const { return (petsc::TS)obj; }
 };
 
 

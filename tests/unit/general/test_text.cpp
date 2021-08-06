@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include "general/text.hpp"
 
 TEST_CASE("String Manipulation", "[General]")
@@ -21,8 +21,12 @@ TEST_CASE("String Manipulation", "[General]")
    {
       SECTION("Integer")
       {
-         REQUIRE(to_int(to_string(12)) == 12);
-         REQUIRE(to_int(to_string(-1234)) == -1234);
+         // Catch workaround for nvcc compiler: see issue
+         // https://github.com/catchorg/Catch2/issues/2005
+         int i = to_int(to_string(12));
+         REQUIRE(i == 12);
+         int j = to_int(to_string(-1234));
+         REQUIRE(j == -1234);
       }
    }
 }

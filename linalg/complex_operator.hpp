@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,7 +100,7 @@ public:
    /** @brief Real or imaginary part accessor methods
 
        The following accessor methods should only be called if the requested
-       part of the opertor is known to exist.  This can be checked with
+       part of the operator is known to exist. This can be checked with
        hasRealPart() or hasImagPart().
    */
    virtual Operator & real();
@@ -196,15 +196,15 @@ public:
    mutable double Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
-       _use_long_ints = true. */
-   ComplexUMFPackSolver(bool _use_long_ints = false, bool transa_ = false)
-      : use_long_ints(_use_long_ints), transa(transa_) { Init(); }
+       use_long_ints_ = true. */
+   ComplexUMFPackSolver(bool use_long_ints_ = false, bool transa_ = false)
+      : use_long_ints(use_long_ints_), transa(transa_) { Init(); }
    /** @brief Factorize the given ComplexSparseMatrix using the defaults.
        For larger matrices, if the solver fails, set the parameter
-       @a _use_long_ints = true. */
-   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool _use_long_ints = false,
+       @a use_long_ints_ = true. */
+   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool use_long_ints_ = false,
                         bool transa_ = false)
-      : use_long_ints(_use_long_ints), transa(transa_) { Init(); SetOperator(A); }
+      : use_long_ints(use_long_ints_), transa(transa_) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be
        a ComplexSparseMatrix.
@@ -269,7 +269,7 @@ public:
        HypreParMatrix. The resulting matrix can be passed to solvers which
        require access to the matrix entries themselves, such as sparse direct
        solvers or Hypre preconditioners, rather than simply the action of the
-       opertor. Note that this combined operator requires roughly twice the
+       operator. Note that this combined operator requires roughly twice the
        memory of the block structured operator. */
    HypreParMatrix * GetSystemMatrix() const;
 
@@ -279,7 +279,7 @@ private:
    void getColStartStop(const HypreParMatrix * A_r,
                         const HypreParMatrix * A_i,
                         int & num_recv_procs,
-                        HYPRE_Int *& offd_col_start_stop) const;
+                        HYPRE_BigInt *& offd_col_start_stop) const;
 
    MPI_Comm comm_;
    int myid_;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -93,12 +93,20 @@
 
 // Enable MFEM functionality based on the SuperLU library.
 // #define MFEM_USE_SUPERLU
+// #define MFEM_USE_SUPERLU5
+
+// Enable MFEM functionality based on the MUMPS library.
+// #define MFEM_USE_MUMPS
+// #define MFEM_MUMPS_VERSION @MFEM_MUMPS_VERSION@
 
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
 // Enable MFEM features based on the Ginkgo library
 // #define MFEM_USE_GINKGO
+
+// Enable MFEM functionality based on the AmgX library.
+// #define MFEM_USE_AMGX
 
 // Enable secure socket streams based on the GNUTLS library
 // #define MFEM_USE_GNUTLS
@@ -108,6 +116,9 @@
 
 // Enable the use of SIMD in the high performance templated classes
 // #define MFEM_USE_SIMD
+
+// Enable FMS support
+// #define MFEM_USE_FMS
 
 // Enable Conduit support
 // #define MFEM_USE_CONDUIT
@@ -150,6 +161,9 @@
 // Enable functionality based on the libCEED library.
 // #define MFEM_USE_CEED
 
+// Enable functionality based on the Caliper library.
+// #define MFEM_USE_CALIPER
+
 // Enable functionality based on the Umpire library.
 // #define MFEM_USE_UMPIRE
 
@@ -162,5 +176,8 @@
 // Macro defined when PUMI is built with support for the Simmetrix SimModSuite
 // library.
 // #define MFEM_USE_SIMMETRIX
+
+// Enable interface to the MKL CPardiso library.
+// #define MFEM_USE_MKL_CPARDISO
 
 #endif // MFEM_CONFIG_HEADER

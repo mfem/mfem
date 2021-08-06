@@ -225,7 +225,99 @@ public:
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
 
+   const Vector & charges_;
+   const Vector & masses_;
+};
+
+class RectifiedSheathPotential : public SheathBase
+{
+public:
+   RectifiedSheathPotential(const BlockVector & density,
+                            const BlockVector & temp,
+                            const ParFiniteElementSpace & L2FESpace,
+                            const ParFiniteElementSpace & H1FESpace,
+                            double omega,
+                            const Vector & charges,
+                            const Vector & masses,
+                            bool realPart = true);
+
+   RectifiedSheathPotential(const SheathBase &sb,
+                            bool realPart = true)
+      : SheathBase(sb, realPart)
+   {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
 private:
+};
+
+class SheathImpedance: public SheathBase
+{
+public:
+   SheathImpedance(const ParGridFunction & B,
+                   const BlockVector & density,
+                   const BlockVector & temp,
+                   const ParFiniteElementSpace & L2FESpace,
+                   const ParFiniteElementSpace & H1FESpace,
+                   double omega,
+                   const Vector & charges,
+                   const Vector & masses,
+                   bool realPart = true);
+
+   SheathImpedance(const SheathBase &sb,
+                   const ParGridFunction & B,
+                   bool realPart = true)
+      : SheathBase(sb, realPart), B_(B) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+private:
+   const ParGridFunction & B_;
+};
+
+class StixCoefBase
+{
+public:
+   StixCoefBase(const ParGridFunction & B,
+                const BlockVector & density,
+                const BlockVector & temp,
+                const ParFiniteElementSpace & L2FESpace,
+                const ParFiniteElementSpace & H1FESpace,
+                double omega,
+                const Vector & charges,
+                const Vector & masses,
+                bool realPart = true);
+
+   // Copy constructor
+   StixCoefBase(StixCoefBase & s);
+
+   void SetRealPart() { realPart_ = true; }
+   void SetImaginaryPart() { realPart_ = false; }
+   bool GetRealPartFlag() const { return realPart_; }
+
+   void SetOmega(double omega) { omega_ = omega; }
+   double GetOmega() const { return omega_; }
+
+   const ParGridFunction & GetBField() const { return B_; }
+   const BlockVector & GetDensityFields() const { return density_; }
+   const BlockVector & GetTemperatureFields() const { return temp_; }
+   const ParFiniteElementSpace & GetDensityFESpace() const
+   { return L2FESpace_; }
+   const ParFiniteElementSpace & GetTemperatureFESpace() const
+   { return H1FESpace_; }
+   const Vector & GetCharges() const { return charges_; }
+   const Vector & GetMasses() const { return masses_; }
+
+protected:
+   double getBMagnitude(ElementTransformation &T,
+                        const IntegrationPoint &ip,
+                        double *theta = NULL, double *phi = NULL);
+   void   fillDensityVals(ElementTransformation &T,
+                          const IntegrationPoint &ip);
+   void   fillTemperatureVals(ElementTransformation &T,
+                              const IntegrationPoint &ip);
+
    const ParGridFunction & B_;
 };
 

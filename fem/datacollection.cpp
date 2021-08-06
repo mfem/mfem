@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,7 @@
 
 #include <cerrno>      // errno
 #include <sstream>
+#include <regex>
 
 #ifndef _WIN32
 #include <sys/stat.h>  // mkdir
@@ -563,6 +564,8 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 
 void VisItDataCollection::LoadMesh()
 {
+   // GetMeshFileName() uses 'serial', so we need to set it in advance.
+   serial = (format == SERIAL_FORMAT);
    std::string mesh_fname = GetMeshFileName();
    named_ifgzstream file(mesh_fname);
    // TODO: in parallel, check for errors on all processors
@@ -762,7 +765,8 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
    : DataCollection(collection_name, mesh_),
      levels_of_detail(1),
      pv_data_format(VTKFormat::BINARY),
-     high_order_output(false)
+     high_order_output(false),
+     restart_mode(false)
 {
 #ifdef MFEM_USE_ZLIB
    compression = -1; // default zlib compression level, equivalent to 6
@@ -840,17 +844,60 @@ void ParaViewDataCollection::Save()
    }
    // the directory is created
 
-   // create pvd file if needed
+   // create pvd file if needed. If we are not in restart mode, a new pvd file
+   // is always created. In restart mode, we keep any previously defined
+   // timestep values as long as they are less than the currently defined time.
+
    if (myid == 0 && !pvd_stream.is_open())
    {
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
-      pvd_stream.open(pvdname.c_str(),std::ios::out);
-      // initialize the file
-      pvd_stream << "<?xml version=\"1.0\"?>\n";
-      pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
-      pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
-      pvd_stream << "<Collection>" << std::endl;
+
+      std::ifstream pvd_in;
+      if (restart_mode && (pvd_in.open(pvdname,std::ios::binary),pvd_in.good()))
+      {
+         // PVD file exists and restart mode enabled: preserve existing time
+         // steps less than the current time.
+         std::fstream::pos_type pos_begin = pvd_in.tellg();
+         std::fstream::pos_type pos_end = pos_begin;
+
+         std::regex regexp("timestep=\"([^[:space:]]+)\".*file=\"Cycle(\\d+)");
+         std::smatch match;
+
+         std::string line;
+         while (getline(pvd_in,line))
+         {
+            if (regex_search(line,match,regexp))
+            {
+               MFEM_ASSERT(match.size() == 3, "Unable to parse DataSet");
+               double tvalue = std::stod(match[1]);
+               if (tvalue >= GetTime()) { break; }
+               int cvalue = std::stoi(match[2]);
+               MFEM_VERIFY(cvalue < GetCycle(), "Cycle " << GetCycle() <<
+                           " is too small for restart mode: trying to overwrite"
+                           " existing data.");
+               pos_end = pvd_in.tellg();
+            }
+         }
+         size_t count = pos_end - pos_begin;
+         std::vector<char> buf(count);
+         pvd_in.clear();
+         pvd_in.seekg(pos_begin);
+         pvd_in.read(buf.data(), count);
+         pvd_in.close();
+         pvd_stream.open(pvdname.c_str(),std::ios::out);
+         pvd_stream.write(buf.data(), count);
+      }
+      else
+      {
+         // initialize new pvd file
+         pvd_stream.open(pvdname.c_str(),std::ios::out);
+         // initialize the file
+         pvd_stream << "<?xml version=\"1.0\"?>\n";
+         pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
+         pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
+         pvd_stream << "<Collection>" << std::endl;
+      }
    }
 
    // define the vtu file
@@ -906,7 +953,7 @@ void ParaViewDataCollection::Save()
 
       // CELL DATA
       out << "<PCellData>\n";
-      out << "\t<PDataArray type=\"Int32\" Name=\"" << "material"
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
           << "\" NumberOfComponents=\"1\""
           << " format=\"" << GetDataFormatString() << "\"/>\n";
       out << "</PCellData>\n";
@@ -999,7 +1046,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             if (pv_data_format == VTKFormat::ASCII)
             {
-               out << val(j) << '\n';
+               out << ZeroSubnormal(val(j)) << '\n';
             }
             else if (pv_data_format == VTKFormat::BINARY)
             {
@@ -1032,7 +1079,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
             {
                if (pv_data_format == VTKFormat::ASCII)
                {
-                  out << vval(ii,jj) << ' ';
+                  out << ZeroSubnormal(vval(ii,jj)) << ' ';
                }
                else if (pv_data_format == VTKFormat::BINARY)
                {
@@ -1087,6 +1134,11 @@ void ParaViewDataCollection::SetCompression(bool compression_)
    {
       SetCompressionLevel(-1);
    }
+}
+
+void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
+{
+   restart_mode = restart_mode_;
 }
 
 const char *ParaViewDataCollection::GetDataFormatString() const

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,19 +14,24 @@
 #include <cmath>
 #endif
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <unordered_map>
+#include <cstring>
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
+
+#if defined(MFEM_SEDOV_MPI) && !defined(MFEM_USE_MPI)
+#error "Cannot use MFEM_SEDOV_MPI without MFEM_USE_MPI!"
+#endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-#define HYPRE_Int int
+#define HYPRE_BigInt int
 typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
@@ -98,22 +103,22 @@ struct Tensors1D
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMult2D(const int NE,
-                      const Array<double> &_B,
-                      const Array<double> &_Bt,
-                      const Array<double> &_Gt,
-                      const DenseTensor &_sJit,
-                      const Vector &_e,
-                      Vector &_v)
+                      const Array<double> &B_,
+                      const Array<double> &Bt_,
+                      const Array<double> &Gt_,
+                      const DenseTensor &sJit_,
+                      const Vector &e_,
+                      Vector &v_)
 {
-   auto b = Reshape(_B.Read(), Q1D, L1D);
-   auto bt = Reshape(_Bt.Read(), H1D, Q1D);
-   auto gt = Reshape(_Gt.Read(), H1D, Q1D);
-   auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*NE*2*2),
+   auto b = Reshape(B_.Read(), Q1D, L1D);
+   auto bt = Reshape(Bt_.Read(), H1D, Q1D);
+   auto gt = Reshape(Gt_.Read(), H1D, Q1D);
+   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*NE*2*2),
                        Q1D,Q1D,NE,2,2);
-   auto energy = Reshape(_e.Read(), L1D, L1D, NE);
+   auto energy = Reshape(e_.Read(), L1D, L1D, NE);
    const double eps1 = std::numeric_limits<double>::epsilon();
    const double eps2 = eps1*eps1;
-   auto velocity = Reshape(_v.Write(), D1D,D1D,2,NE);
+   auto velocity = Reshape(v_.Write(), D1D,D1D,2,NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
       const int z = MFEM_THREAD_ID(z);
@@ -241,22 +246,22 @@ void kSmemForceMult2D(const int NE,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMult3D(const int NE,
-                      const Array<double> &_B,
-                      const Array<double> &_Bt,
-                      const Array<double> &_Gt,
-                      const DenseTensor &_sJit,
-                      const Vector &_e,
-                      Vector &_v)
+                      const Array<double> &B_,
+                      const Array<double> &Bt_,
+                      const Array<double> &Gt_,
+                      const DenseTensor &sJit_,
+                      const Vector &e_,
+                      Vector &v_)
 {
-   auto b = Reshape(_B.Read(), Q1D, L1D);
-   auto bt = Reshape(_Bt.Read(), H1D, Q1D);
-   auto gt = Reshape(_Gt.Read(), H1D, Q1D);
-   auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
+   auto b = Reshape(B_.Read(), Q1D, L1D);
+   auto bt = Reshape(Bt_.Read(), H1D, Q1D);
+   auto gt = Reshape(Gt_.Read(), H1D, Q1D);
+   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
                        Q1D,Q1D,Q1D,NE,3,3);
-   auto energy = Reshape(_e.Read(), L1D, L1D, L1D, NE);
+   auto energy = Reshape(e_.Read(), L1D, L1D, L1D, NE);
    const double eps1 = std::numeric_limits<double>::epsilon();
    const double eps2 = eps1*eps1;
-   auto velocity = Reshape(_v.Write(), D1D, D1D, D1D, 3, NE);
+   auto velocity = Reshape(v_.Write(), D1D, D1D, D1D, 3, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int z = MFEM_THREAD_ID(z);
@@ -492,21 +497,21 @@ static void kForceMult(const int DIM,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMultTranspose2D(const int NE,
-                               const Array<double> &_Bt,
-                               const Array<double> &_B,
-                               const Array<double> &_G,
-                               const DenseTensor &_sJit,
-                               const Vector &_v,
-                               Vector &_e)
+                               const Array<double> &Bt_,
+                               const Array<double> &B_,
+                               const Array<double> &G_,
+                               const DenseTensor &sJit_,
+                               const Vector &v_,
+                               Vector &e_)
 {
    MFEM_VERIFY(D1D==H1D,"");
-   auto b = Reshape(_B.Read(), Q1D,H1D);
-   auto g = Reshape(_G.Read(), Q1D,H1D);
-   auto bt = Reshape(_Bt.Read(), L1D,Q1D);
-   auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*NE*2*2),
+   auto b = Reshape(B_.Read(), Q1D,H1D);
+   auto g = Reshape(G_.Read(), Q1D,H1D);
+   auto bt = Reshape(Bt_.Read(), L1D,Q1D);
+   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*NE*2*2),
                        Q1D, Q1D, NE, 2, 2);
-   auto velocity = Reshape(_v.Read(), D1D,D1D,2,NE);
-   auto energy = Reshape(_e.Write(), L1D, L1D, NE);
+   auto velocity = Reshape(v_.Read(), D1D,D1D,2,NE);
+   auto energy = Reshape(e_.Write(), L1D, L1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int z = MFEM_THREAD_ID(z);
@@ -632,21 +637,21 @@ void kSmemForceMultTranspose2D(const int NE,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMultTranspose3D(const int NE,
-                               const Array<double> &_Bt,
-                               const Array<double> &_B,
-                               const Array<double> &_G,
-                               const DenseTensor &_sJit,
-                               const Vector &_v,
-                               Vector &_e)
+                               const Array<double> &Bt_,
+                               const Array<double> &B_,
+                               const Array<double> &G_,
+                               const DenseTensor &sJit_,
+                               const Vector &v_,
+                               Vector &e_)
 {
    MFEM_VERIFY(D1D==H1D,"");
-   auto b = Reshape(_B.Read(), Q1D,H1D);
-   auto g = Reshape(_G.Read(), Q1D,H1D);
-   auto bt = Reshape(_Bt.Read(), L1D,Q1D);
-   auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
+   auto b = Reshape(B_.Read(), Q1D,H1D);
+   auto g = Reshape(G_.Read(), Q1D,H1D);
+   auto bt = Reshape(Bt_.Read(), L1D,Q1D);
+   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
                        Q1D, Q1D, Q1D, NE, 3, 3);
-   auto velocity = Reshape(_v.Read(), D1D, D1D, D1D, 3, NE);
-   auto energy = Reshape(_e.Write(), L1D, L1D, L1D, NE);
+   auto velocity = Reshape(v_.Read(), D1D, D1D, D1D, 3, NE);
+   auto energy = Reshape(e_.Write(), L1D, L1D, L1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int z = MFEM_THREAD_ID(z);
@@ -1070,7 +1075,8 @@ public:
 
    void Mult(const Vector &x, Vector &y) const
    {
-      ParGridFunction X;
+      // FIXME: why is 'x' being modified here (through 'X')?
+      Vector X;
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       if (ess_tdofs_count) { X.SetSubVector(ess_tdofs, 0.0); }
       massOperator->Mult(X, y);
@@ -1152,9 +1158,9 @@ public:
 struct TimingData
 {
    StopWatch sw_cgH1, sw_cgL2, sw_force, sw_qdata;
-   const HYPRE_Int L2dof;
-   HYPRE_Int H1iter, L2iter, quad_tstep;
-   TimingData(const HYPRE_Int l2d) :
+   const HYPRE_BigInt L2dof;
+   HYPRE_BigInt H1iter, L2iter, quad_tstep;
+   TimingData(const HYPRE_BigInt l2d) :
       L2dof(l2d), H1iter(0), L2iter(0), quad_tstep(0) { }
 };
 
@@ -1512,7 +1518,7 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    Vector* S_p = const_cast<Vector*>(&S);
    const int H1_size = H1.GetVSize();
    const int nqp1D = tensors1D->LQshape1D.Width();
-   const double h1order = (double) H1.GetOrder(0);
+   const double h1order = (double) H1.GetElementOrder(0);
    const double infinity = std::numeric_limits<double>::infinity();
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
@@ -1563,11 +1569,11 @@ protected:
    mutable ParFiniteElementSpace H1compFESpace;
    const int H1Vsize;
    const int H1TVSize;
-   const HYPRE_Int H1GTVSize;
+   const HYPRE_BigInt H1GTVSize;
    const int H1compTVSize;
    const int L2Vsize;
    const int L2TVSize;
-   const HYPRE_Int L2GTVSize;
+   const HYPRE_BigInt L2GTVSize;
    Array<int> block_offsets;
    mutable ParGridFunction x_gf;
    const Array<int> &ess_tdofs;
@@ -1644,8 +1650,9 @@ public:
       Me(l2dofs_cnt, l2dofs_cnt, nzones),
       Me_inv(l2dofs_cnt, l2dofs_cnt, nzones),
       integ_rule(IntRules.Get(h1_fes.GetMesh()->GetElementBaseGeometry(0),
-                              (order_q>0)? order_q :
-                              3*h1_fes.GetOrder(0) + l2_fes.GetOrder(0) - 1)),
+                              (order_q > 0) ? order_q :
+                              3*h1_fes.GetElementOrder(0)
+                              + l2_fes.GetElementOrder(0) - 1)),
       quad_data(dim, nzones, integ_rule.GetNPoints()),
       quad_data_is_current(false), forcemat_is_assembled(false),
       T1D(H1FESpace.GetFE(0)->GetOrder(), L2FESpace.GetFE(0)->GetOrder(),
@@ -1709,7 +1716,7 @@ public:
             quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
          default: MFEM_ABORT("Unknown zone type!");
       }
-      quad_data.h0 /= (double) H1FESpace.GetOrder(0);
+      quad_data.h0 /= (double) H1FESpace.GetElementOrder(0);
       {
          Vector d;
          (dim == 2) ? VMassPA->ComputeDiagonal2D(d) : VMassPA->ComputeDiagonal3D(d);
@@ -1933,22 +1940,22 @@ int sedov(int myid, int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return -1;
    }
-   Mesh *mesh;
+   Mesh mesh;
    if (strncmp(mesh_file, "none", 4))
    {
-      mesh = new Mesh(mesh_file, true, true);
-      dim = mesh->Dimension();
+      mesh = Mesh::LoadFromFile(mesh_file, true, true);
+      dim = mesh.Dimension();
    }
    else
    {
       if (dim == 2)
       {
          constexpr Element::Type QUAD = Element::QUADRILATERAL;
-         mesh = new Mesh(2, 2, QUAD, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian2D(2, 2, QUAD, true);
+         const int NBE = mesh.GetNBE();
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::SEGMENT, "");
             const int attr = (b < NBE/2) ? 2 : 1;
             bel->SetAttribute(attr);
@@ -1956,28 +1963,27 @@ int sedov(int myid, int argc, char *argv[])
       }
       if (dim == 3)
       {
-         mesh = new Mesh(2, 2, 2,Element::HEXAHEDRON, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian3D(2, 2, 2,Element::HEXAHEDRON);
+         const int NBE = mesh.GetNBE();
          MFEM_ASSERT(NBE==24,"");
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::QUADRILATERAL, "");
             const int attr = (b < NBE/3) ? 3 : (b < 2*NBE/3) ? 1 : 2;
             bel->SetAttribute(attr);
          }
       }
    }
-   dim = mesh->Dimension();
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   const int mesh_NE = mesh->GetNE();
+   dim = mesh.Dimension();
+   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
    ParMesh *pmesh = NULL;
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 #else
-   pmesh = new Mesh(*mesh);
+   pmesh = new Mesh(mesh);
 #endif
-   delete mesh;
+   mesh.Clear();
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
    int nzones = pmesh->GetNE(), nzones_min, nzones_max;
    MPI_Reduce(&nzones, &nzones_min, 1, MPI_INT, MPI_MIN, 0, pmesh->GetComm());
@@ -2000,8 +2006,8 @@ int sedov(int myid, int argc, char *argv[])
       }
    }
    ODESolver *ode_solver = new RK4Solver;
-   const HYPRE_Int H1GTVSize = H1FESpace.GlobalTrueVSize();
-   const HYPRE_Int L2GTVSize = L2FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt H1GTVSize = H1FESpace.GlobalTrueVSize();
+   const HYPRE_BigInt L2GTVSize = L2FESpace.GlobalTrueVSize();
    const int H1Vsize = H1FESpace.GetVSize();
    const int L2Vsize = L2FESpace.GetVSize();
    if (myid == 0)
@@ -2123,9 +2129,9 @@ int sedov(int myid, int argc, char *argv[])
       REQUIRE(order_v==2);
       REQUIRE(order_e==1);
       REQUIRE(ode_solver_type==4);
-      REQUIRE(t_final==Approx(0.6));
-      REQUIRE(cfl==Approx(0.5));
-      REQUIRE(cg_tol==Approx(1.e-14));
+      REQUIRE(t_final==MFEM_Approx(0.6));
+      REQUIRE(cfl==MFEM_Approx(0.5));
+      REQUIRE(cg_tol==MFEM_Approx(1.e-14));
       if (dim==2)
       {
          const double p1_05[2] = {3.508254945225794e+00,
@@ -2134,8 +2140,8 @@ int sedov(int myid, int argc, char *argv[])
          const double p1_15[2] = {2.756444596823211e+00,
                                   1.104093401469385e+01
                                  };
-         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
-         if (ti==15) {checks++; REQUIRE(stm==Approx(p1_15[rs_levels]));}
+         if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
+         if (ti==15) {checks++; REQUIRE(stm==MFEM_Approx(p1_15[rs_levels]));}
       }
       if (dim==3)
       {
@@ -2145,8 +2151,8 @@ int sedov(int myid, int argc, char *argv[])
          const double p1_28[2] = {7.521073677398005e+00,
                                   5.985720905709158e+01
                                  };
-         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
-         if (ti==28) {checks++; REQUIRE(stm==Approx(p1_28[rs_levels]));}
+         if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
+         if (ti==28) {checks++; REQUIRE(stm==MFEM_Approx(p1_28[rs_levels]));}
       }
    }
    REQUIRE(checks==2);
@@ -2189,7 +2195,7 @@ static void sedov_tests(int myid)
 }
 
 #if defined(MFEM_SEDOV_MPI)
-#ifndef MFEM_SEDOV_TESTS
+#ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
    sedov_tests(GlobalMPISession->WorldRank());
@@ -2197,6 +2203,15 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
+#if defined(HYPRE_USING_CUDA) && defined(MFEM_DEBUG)
+   if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
+   {
+      cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+           << "is NOT supported with the CUDA version of hypre.\n\n";
+      return;
+   }
+#endif
+
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
@@ -2204,7 +2219,7 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
 }
 #endif
 #else
-#ifndef MFEM_SEDOV_TESTS
+#ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov]")
 {
    sedov_tests(0);

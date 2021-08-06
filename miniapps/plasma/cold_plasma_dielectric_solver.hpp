@@ -227,9 +227,9 @@ public:
              VectorCoefficient * kCoef,
              Array<int> & abcs,
              // Array<int> & dbcs,
-             Array<ComplexVectorCoefficientByAttr> & dbcs,
-             Array<ComplexVectorCoefficientByAttr> & nbcs,
-             Array<ComplexCoefficientByAttr> & sbcs,
+             Array<ComplexVectorCoefficientByAttr*> & dbcs,
+             Array<ComplexVectorCoefficientByAttr*> & nbcs,
+             Array<ComplexCoefficientByAttr*> & sbcs,
              void (*j_r_src)(const Vector&, Vector&),
              void (*j_i_src)(const Vector&, Vector&),
              bool vis_u = false,
@@ -404,13 +404,13 @@ private:
    // void   (*e_i_bc_)(const Vector&, Vector&);
 
    // Array<int> * dbcs_;
-   Array<ComplexVectorCoefficientByAttr> * dbcs_;
+   Array<ComplexVectorCoefficientByAttr*> * dbcs_;
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
 
-   Array<ComplexVectorCoefficientByAttr> * nbcs_; // Surface current BCs
-   Array<ComplexVectorCoefficientByAttr> * nkbcs_; // Neumann BCs (-i*omega*K)
+   Array<ComplexVectorCoefficientByAttr*> * nbcs_; // Surface current BCs
+   Array<ComplexVectorCoefficientByAttr*> * nkbcs_; // Neumann BCs (-i*omega*K)
 
    Array<ComplexCoefficientByAttr> * sbcs_; // Sheath BCs
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -76,6 +76,9 @@ public:
    int Attribute, ElementNo, ElementType;
 
    ElementTransformation();
+
+   /** @brief Force the reevaluation of the Jacobian in the next call. */
+   void Reset() { EvalState = 0; }
 
    /** @brief Set the integration point @a ip that weights and Jacobians will
        be evaluated at. */
@@ -313,7 +316,7 @@ public:
 
    /// Set the desired print level, useful for debugging.
    /** The valid options are: -1 - never print (default); 0 - print only errors;
-       1 - print the first and last last iterations; 2 - print every iteration;
+       1 - print the first and last iterations; 2 - print every iteration;
        and 3 - print every iteration including point coordinates. */
    void SetPrintLevel(int pr_level) { print_level = pr_level; }
 
@@ -357,9 +360,17 @@ private:
    // Evaluate the Hessian of the transformation at the IntPoint and store it
    // in d2Fdx2.
    virtual const DenseMatrix &EvalHessian();
+
 public:
+   IsoparametricTransformation() : FElem(NULL) {}
+
    /// Set the element that will be used to compute the transformations
-   void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
+   void SetFE(const FiniteElement *FE)
+   {
+      MFEM_ASSERT(FE != NULL, "Must provide a valid FiniteElement object!");
+      EvalState = (FE != FElem) ? 0 : EvalState;
+      FElem = FE; geom = FE->GetGeomType();
+   }
 
    /// Get the current element used to compute the transformations
    const FiniteElement* GetFE() const { return FElem; }
@@ -374,12 +385,15 @@ public:
        the column-vector of all basis functions evaluated at \f$ \hat x \f$ .
        The columns of @a P represent the control points in physical space
        defining the transformation. */
-   void SetPointMat(const DenseMatrix &pm) { PointMat = pm; }
+   void SetPointMat(const DenseMatrix &pm) { PointMat = pm; EvalState = 0; }
 
    /// Return the stored point matrix.
    const DenseMatrix &GetPointMat() const { return PointMat; }
 
-   /// Write access to the stored point matrix. Use with caution.
+   /// @brief Write access to the stored point matrix. Use with caution.
+   /** If the point matrix is altered using this member function the Reset
+       function should also be called to force the reevaluation of the
+       Jacobian, etc.. */
    DenseMatrix &GetPointMat() { return PointMat; }
 
    /// Set the FiniteElement Geometry for the reference elements being used.

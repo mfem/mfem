@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -95,21 +95,27 @@ public:
 
    /** @brief Make the ParLinearForm reference external data on a new
        FiniteElementSpace. */
-   /** This method changes the FiniteElementSpace associated with the ParLinearForm
-       to @a *f and sets the data of the Vector @a v (plus the @a v_offset) as external
-       data in the ParLinearForm.
-       @note This version of the method will also perform bounds checks when
-       the build option MFEM_DEBUG is enabled. */
+   /** This method changes the FiniteElementSpace associated with the
+       ParLinearForm to @a *f and sets the data of the Vector @a v (plus the @a
+       v_offset) as external data in the ParLinearForm.
+
+       @note This version of the method will also perform bounds checks when the
+       build option MFEM_DEBUG is enabled. */
    virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
 
    /** @brief Make the ParLinearForm reference external data on a new
        ParFiniteElementSpace. */
-   /** This method changes the ParFiniteElementSpace associated with the ParLinearForm
-       to @a *pf and sets the data of the Vector @a v (plus the @a v_offset) as external
-       data in the ParLinearForm.
-       @note This version of the method will also perform bounds checks when
-       the build option MFEM_DEBUG is enabled. */
+   /** This method changes the ParFiniteElementSpace associated with the
+       ParLinearForm to @a *pf and sets the data of the Vector @a v (plus the @a
+       v_offset) as external data in the ParLinearForm.
+
+       @note This version of the method will also perform bounds checks when the
+       build option MFEM_DEBUG is enabled. */
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
+
+   void Assemble();
+
+   void AssembleSharedFaces();
 
    /// Assemble the vector on the true dofs, i.e. P^t v.
    void ParallelAssemble(Vector &tv);
@@ -118,10 +124,10 @@ public:
    HypreParVector *ParallelAssemble();
 
    /// Return the action of the ParLinearForm as a linear mapping.
-   /** Linear forms are linear functionals which map ParGridFunction%s to
-       the real numbers.  This method performs this mapping which in
-       this case is equivalent as an inner product of the ParLinearForm
-       and ParGridFunction. */
+   /** Linear forms are linear functionals which map ParGridFunction%s to the
+       real numbers. This method performs this mapping which in this case is
+       equivalent as an inner product of the ParLinearForm and
+       ParGridFunction. */
    double operator()(const ParGridFunction &gf) const
    {
       return InnerProduct(pfes->GetComm(), *this, gf);

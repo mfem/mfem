@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -20,7 +20,7 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
    {
       const int cheb_order = 2;
 
-      Mesh mesh(4, 4, 4, Element::HEXAHEDRON, true);
+      Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
       FiniteElementCollection *fec = new H1_FECollection(order, 3);
       FiniteElementSpace fespace(&mesh, fec);
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
@@ -38,7 +38,7 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       Vector diag(fespace.GetTrueVSize());
       aform.AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag, ess_tdof_list,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list,
                                                        cheb_order);
 
       int n = smoother->Width();
