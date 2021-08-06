@@ -97,7 +97,7 @@ public:
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
          "Open uniform", "Closed uniform", "Open half uniform",
-         "Seredipity", "Closed Gauss-Legendre",
+         "Serendipity", "Closed Gauss-Legendre",
          "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
@@ -1126,7 +1126,7 @@ public:
    { dofs = 1.0; }
 };
 
-/// A 1D quadractic finite element with uniformly spaced nodes
+/// A 1D quadratic finite element with uniformly spaced nodes
 class Quad1DFiniteElement : public NodalFiniteElement
 {
 public:
@@ -2239,6 +2239,11 @@ public:
                              const int cbtype, const int obtype,
                              const int M, const DofMapType dmtype);
 
+   // For 1D elements: there is only an "open basis", no "closed basis"
+   VectorTensorFiniteElement(const int dims, const int d, const int p,
+                             const int obtype, const int M,
+                             const DofMapType dmtype);
+
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const;
 
@@ -3311,11 +3316,9 @@ public:
 
 
 /// Arbitrary order Nedelec elements in 1D on a segment
-class ND_SegmentElement : public VectorFiniteElement
+class ND_SegmentElement : public VectorTensorFiniteElement
 {
    static const double tk[1];
-
-   Poly_1D::Basis &obasis1d;
    Array<int> dof2tk;
 
 public:
