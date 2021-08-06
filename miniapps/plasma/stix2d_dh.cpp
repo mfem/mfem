@@ -360,11 +360,15 @@ int main(int argc, char *argv[])
    Vector charges;
    Vector masses;
    Vector temps;
+   Vector minority;
+   Vector temp_charges;
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   Vector bpp;
    int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
@@ -426,6 +430,14 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+    args.AddOption((int*)&bpt, "-bp", "--Bfield-profile",
+                   "BField Profile Type: \n"
+                   "0 - Constant, 1 - Constant Gradient, "
+                   "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+    args.AddOption(&bpp, "-bpp", "--Bfield-profile-params",
+                   "BField Profile Parameters:\n"
+                   "  B_P: value at -1, value at 1, "
+                   "radius in x, radius in y, location of center, Bz, placeholder.");
    args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -453,13 +465,16 @@ int main(int argc, char *argv[])
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
                   "followed by 3 imaginary phase shifts");
-   // args.AddOption(&numbers, "-num", "--number-densites",
-   //               "Number densities of the various species");
+   //args.AddOption(&numbers, "-num", "--number-densites",
+                  //"Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
                   "Charges of the various species "
                   "(in units of electron charge)");
-   args.AddOption(&masses, "-m", "--masses",
-                  "Masses of the various species (in amu)");
+   //args.AddOption(&masses, "-mass", "--masses",
+                  //"Masses of the various species (in amu)");
+   args.AddOption(&minority, "-min", "--minority",
+                  "Minority Ion Species: charge, mass (amu), concentration."
+                  " Concentration being: n_min/n_e");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -568,91 +583,253 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
-   if (numbers.Size() == 0)
-   {
-      numbers.SetSize(2);
-      if (dpp.Size() == 0)
-      {
-         numbers[0] = 1.0e19;
-         numbers[1] = 1.0e19;
-      }
-      else
-      {
-         switch (dpt)
-         {
-            case PlasmaProfile::CONSTANT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
-               break;
-            case PlasmaProfile::GRADIENT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
-               break;
-            case PlasmaProfile::TANH:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
-               break;
-            case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
-               break;
-            default:
-               numbers[0] = 1.0e19;
-               numbers[1] = 1.0e19;
-               break;
-         }
-      }
-   }
+    
    if (dpp.Size() == 0)
    {
       dpp.SetSize(1);
       dpp[0] = 1.0e19;
    }
+    
    if (charges.Size() == 0)
    {
-      charges.SetSize(2);
-      charges[0] = -1.0;
-      charges[1] =  1.0;
+       if (minority.Size() == 0)
+       {
+           charges.SetSize(2);
+           charges[0] = -1.0;
+           charges[1] =  1.0;
+           
+           masses.SetSize(2);
+           masses[0] = me_u_;
+           masses[1] = 2.01410178;
+       }
+       else
+       {
+       charges.SetSize(3);
+       charges[0] = -1.0;
+       charges[1] =  1.0;
+       charges[2] = minority[0];
+       
+       masses.SetSize(3);
+       masses[0] = me_u_;
+       masses[1] = 2.01410178;
+       masses[2] = minority[1];
+       }
    }
-   if (masses.Size() == 0)
-   {
-      masses.SetSize(2);
-      masses[0] = me_u_;
-      masses[1] = 2.01410178;
-   }
+   if (minority.Size() == 0)
+    {
+        if (charges.Size() == 2)
+        {
+            numbers.SetSize(2);
+            masses.SetSize(2);
+            masses[0] = me_u_;
+            masses[1] = 2.01410178;
+            switch (dpt)
+            {
+               case PlasmaProfile::CONSTANT:
+                  numbers[0] = dpp[0];
+                  numbers[1] = dpp[0];
+                  break;
+               case PlasmaProfile::GRADIENT:
+                  numbers[0] = dpp[0];
+                  numbers[1] = dpp[0];
+                  break;
+               case PlasmaProfile::TANH:
+                  numbers[0] = dpp[1];
+                  numbers[1] = dpp[1];
+                  break;
+               case PlasmaProfile::ELLIPTIC_COS:
+                  numbers[0] = dpp[1];
+                  numbers[1] = dpp[1];
+                  break;
+                case PlasmaProfile::PARABOLIC:
+                   numbers[0] = dpp[1];
+                   numbers[1] = dpp[1];
+                   break;
+               default:
+                  numbers[0] = 1.0e19;
+                  numbers[1] = 1.0e19;
+                  break;
+            }
+        }
+        else
+        {
+            numbers.SetSize(3);
+            masses.SetSize(3);
+            masses[0] = me_u_;
+            masses[1] = 2.01410178;
+            masses[2] = 3.01604928;
+            switch (dpt)
+            {
+               case PlasmaProfile::CONSTANT:
+                  numbers[0] = dpp[0];
+                  numbers[1] = 0.5*dpp[0];
+                  numbers[2] = 0.5*dpp[0];
+                  break;
+               case PlasmaProfile::GRADIENT:
+                  numbers[0] = dpp[0];
+                  numbers[1] = 0.5*dpp[0];
+                  numbers[2] = 0.5*dpp[0];
+                  break;
+               case PlasmaProfile::TANH:
+                  numbers[0] = dpp[1];
+                  numbers[1] = 0.5*dpp[1];
+                  numbers[2] = 0.5*dpp[1];
+                  break;
+               case PlasmaProfile::ELLIPTIC_COS:
+                  numbers[0] = dpp[1];
+                  numbers[1] = 0.5*dpp[1];
+                  numbers[2] = 0.5*dpp[1];
+                  break;
+               case PlasmaProfile::PARABOLIC:
+                  numbers[0] = dpp[1];
+                  numbers[1] = 0.5*dpp[1];
+                  numbers[2] = 0.5*dpp[1];
+                  break;
+               default:
+                  numbers[0] = 1.0e19;
+                  numbers[1] = 0.5*1.0e19;
+                  numbers[2] = 0.5*1.0e19;
+                  break;
+            }
+        }
+    }
+    if (minority.Size() > 0)
+    {
+        if (charges.Size() == 2)
+            {
+                temp_charges.SetSize(3);
+                temp_charges[0] = charges[0];
+                temp_charges[1] = charges[1];
+                temp_charges[2] = minority[0];
+                charges.SetSize(3);
+                charges = temp_charges;
+                
+                numbers.SetSize(3);
+                masses.SetSize(3);
+                masses[0] = me_u_;
+                masses[1] = 2.01410178;
+                masses[2] = minority[1];
+                switch (dpt)
+                {
+                   case PlasmaProfile::CONSTANT:
+                      numbers[0] = dpp[0];
+                      numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
+                      numbers[2] = minority[2]*dpp[0];
+                      break;
+                   case PlasmaProfile::GRADIENT:
+                      numbers[0] = dpp[0];
+                      numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
+                      numbers[2] = minority[2]*dpp[0];
+                      break;
+                   case PlasmaProfile::TANH:
+                      numbers[0] = dpp[1];
+                      numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
+                      numbers[2] = minority[2]*dpp[1];
+                      break;
+                   case PlasmaProfile::ELLIPTIC_COS:
+                      numbers[0] = dpp[1];
+                      numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
+                      numbers[2] = minority[2]*dpp[1];
+                      break;
+                    case PlasmaProfile::PARABOLIC:
+                       numbers[0] = dpp[1];
+                       numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
+                       numbers[2] = minority[2]*dpp[1];
+                       break;
+                   default:
+                      numbers[0] = 1.0e19;
+                      numbers[1] = (1.0-minority[2]*minority[0])*1.0e19;
+                      numbers[2] = minority[2]*1.0e19;
+                      break;
+                }
+            }
+            else
+            {
+                temp_charges.SetSize(4);
+                temp_charges[0] = charges[0];
+                temp_charges[1] = charges[1];
+                temp_charges[2] = charges[2];
+                temp_charges[3] = minority[0];
+                charges.SetSize(4);
+                charges = temp_charges;
+                
+                numbers.SetSize(4);
+                masses.SetSize(4);
+                masses[0] = me_u_;
+                masses[1] = 2.01410178;
+                masses[2] = 3.01604928;
+                masses[3] = minority[1];
+                switch (dpt)
+                {
+                   case PlasmaProfile::CONSTANT:
+                      numbers[0] = dpp[0];
+                      numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+                      numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+                      numbers[3] = minority[2]*dpp[0];
+                      break;
+                   case PlasmaProfile::GRADIENT:
+                      numbers[0] = dpp[0];
+                      numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+                      numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+                      numbers[3] = minority[2]*dpp[0];
+                      break;
+                   case PlasmaProfile::TANH:
+                      numbers[0] = dpp[1];
+                      numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+                      numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+                      numbers[3] = minority[2]*dpp[1];
+                      break;
+                   case PlasmaProfile::ELLIPTIC_COS:
+                      numbers[0] = dpp[1];
+                      numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+                      numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+                      numbers[3] = minority[2]*dpp[1];
+                      break;
+                    case PlasmaProfile::PARABOLIC:
+                       numbers[0] = dpp[1];
+                       numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+                       numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+                       numbers[3] = minority[2]*dpp[1];
+                       break;
+                   default:
+                      numbers[0] = 1.0e19;
+                      numbers[1] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
+                      numbers[2] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
+                      numbers[3] = minority[2]*1.0e19;
+                      break;
+                }
+            }
+        }
    if (temps.Size() == 0)
    {
-      temps.SetSize(2);
+      temps.SetSize(numbers.Size());
       if (tpp.Size() == 0)
       {
          tpp.SetSize(1);
          tpp[0] = 1.0e3;
-         temps[0] = tpp[0];
-         temps[1] = tpp[0];
+         for (int i=0; i<numbers.Size(); i++){temps[i] = tpp[0];}
       }
       else
       {
          switch (tpt)
          {
             case PlasmaProfile::CONSTANT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               for (int i=0; i<numbers.Size(); i++){temps[i] = tpp[0];}
                break;
             case PlasmaProfile::GRADIENT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               for (int i=0; i<numbers.Size(); i++){temps[i] = tpp[0];}
                break;
             case PlasmaProfile::TANH:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               for (int i=0; i<numbers.Size(); i++){temps[i] = tpp[1];}
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               for (int i=0; i<numbers.Size(); i++){temps[i] = tpp[1];}
                break;
+             case PlasmaProfile::PARABOLIC:
+                for (int i=0; i<numbers.Size(); i++){temps[i] = tpp[1];}
+                break;
             default:
-               temps[0] = 1.0e3;
-               temps[1] = 1.0e3;
+               for (int i=0; i<numbers.Size(); i++){temps[i] = 1e3;}
                break;
          }
       }
@@ -801,7 +978,7 @@ int main(int argc, char *argv[])
    {
       cout << "Starting initialization." << endl;
    }
-
+/*
    double Bmag = BVec.Norml2();
    Vector BUnitVec(3);
    BUnitVec(0) = BVec(0)/Bmag;
@@ -810,6 +987,7 @@ int main(int argc, char *argv[])
 
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
+ */
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
@@ -820,8 +998,11 @@ int main(int argc, char *argv[])
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
+   BFieldProfile BCoef(bpt, bpp, false);
    BField.ProjectCoefficient(BCoef);
-
+    
+   BFieldProfile BUnitCoef(bpt, bpp, true);
+    
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
@@ -854,11 +1035,11 @@ int main(int argc, char *argv[])
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
       temperature_gf.ProjectCoefficient(tempCoef);
    }
-
    for (int i=0; i<charges.Size(); i++)
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
+      density_gf *= numbers[i]/numbers[0];
    }
 
    if (mpi.Root())
@@ -1323,6 +1504,7 @@ int main(int argc, char *argv[])
    {
       CPD.RegisterVisItFields(visit_dc);
 
+       /*
       auxFields.SetSize(2);
       auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
       auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
@@ -1335,6 +1517,13 @@ int main(int argc, char *argv[])
 
       visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
       visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
+        */
+       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+       visit_dc.RegisterField("Electron_Temp", &temperature_gf);
+       
+       density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+       visit_dc.RegisterField("Electron_Density", &density_gf);
+       
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 

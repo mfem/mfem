@@ -66,7 +66,19 @@ inline double nu_ei(double charge, double coul_log, double mass,
 }
 
 // Collisional frequency profile from Kohno et al 2017:
-inline double nu_art(double x) { return (3e11*exp(-x/0.1)); }
+inline double nu_art(double x)
+{
+    return (3e11*exp(-x/0.1));
+    //return (8e9*exp(-x/0.1));
+}
+
+void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   int nuprof,
+                                   bool realPart);
 
 std::complex<double> R_cold_plasma(double omega, double Bmag,
                                    const Vector & number,
@@ -526,13 +538,13 @@ public:
 class PlasmaProfile : public Coefficient
 {
 public:
-   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS};
+   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC};
 
 private:
    Type type_;
    Vector p_;
 
-   const int np_[4] = {1, 7, 9, 7};
+   const int np_[7] = {1, 7, 9, 7, 7};
 
    mutable Vector x_;
 
@@ -542,6 +554,29 @@ public:
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
 };
+
+class BFieldProfile : public VectorCoefficient
+{
+public:
+   enum Type {CONSTANT, B_P};
+    
+private:
+   Type type_;
+   Vector p_;
+   bool unit_;
+  
+
+   const int np_[2] = {3, 7};
+
+   mutable Vector x_;
+    
+public:
+    BFieldProfile(Type type, const Vector & params, bool unit);
+
+    void Eval(Vector &V, ElementTransformation &T,
+                const IntegrationPoint &ip);
+};
+
 
 } // namespace plasma
 

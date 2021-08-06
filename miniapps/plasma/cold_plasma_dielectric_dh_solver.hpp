@@ -137,59 +137,54 @@ private:
    mutable DenseMatrix eps_r_;
    mutable DenseMatrix eps_i_;
 };
-
-class PoyntingVectorReCoef : public VectorCoefficient
-{
-public:
-   PoyntingVectorReCoef(double omega,
-                        VectorCoefficient &Er, VectorCoefficient &Ei,
-                        VectorCoefficient &dEr, VectorCoefficient &dEi,
-                        Coefficient &muInv);
-
-   void Eval(Vector &S, ElementTransformation &T,
-             const IntegrationPoint &ip);
-
-private:
-   double omega_;
-
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   VectorCoefficient &dErCoef_;
-   VectorCoefficient &dEiCoef_;
-   Coefficient &muInvCoef_;
-
-   mutable Vector Er_;
-   mutable Vector Ei_;
-   mutable Vector Hr_;
-   mutable Vector Hi_;
-};
-
-class PoyntingVectorImCoef : public VectorCoefficient
-{
-public:
-   PoyntingVectorImCoef(double omega,
-                        VectorCoefficient &Er, VectorCoefficient &Ei,
-                        VectorCoefficient &dEr, VectorCoefficient &dEi,
-                        Coefficient &muInv);
-
-   void Eval(Vector &S, ElementTransformation &T,
-             const IntegrationPoint &ip);
-
-private:
-   double omega_;
-
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   VectorCoefficient &dErCoef_;
-   VectorCoefficient &dEiCoef_;
-   Coefficient &muInvCoef_;
-
-   mutable Vector Er_;
-   mutable Vector Ei_;
-   mutable Vector Hr_;
-   mutable Vector Hi_;
-};
 */
+class PoyntingVectorReCoefDH : public VectorCoefficient
+{
+public:
+   PoyntingVectorReCoefDH(double omega,
+                        VectorCoefficient &Er, VectorCoefficient &Ei,
+                        VectorCoefficient &Hr, VectorCoefficient &Hi);
+
+   void Eval(Vector &S, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &ErCoef_;
+   VectorCoefficient &EiCoef_;
+   VectorCoefficient &HrCoef_;
+   VectorCoefficient &HiCoef_;
+
+   mutable Vector Er_;
+   mutable Vector Ei_;
+   mutable Vector Hr_;
+   mutable Vector Hi_;
+};
+
+class PoyntingVectorImCoefDH : public VectorCoefficient
+{
+public:
+   PoyntingVectorImCoefDH(double omega,
+                        VectorCoefficient &Er, VectorCoefficient &Ei,
+                        VectorCoefficient &Hr, VectorCoefficient &Hi);
+
+   void Eval(Vector &S, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &ErCoef_;
+   VectorCoefficient &EiCoef_;
+   VectorCoefficient &HrCoef_;
+   VectorCoefficient &HiCoef_;
+
+   mutable Vector Er_;
+   mutable Vector Ei_;
+   mutable Vector Hr_;
+   mutable Vector Hi_;
+};
 
 class nxGradIntegrator : public BilinearFormIntegrator
 {
@@ -666,6 +661,7 @@ private:
    ParComplexLinearForm   * rhs0_; // RHS of sheath potential eqn (H1)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
+   ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
    ParComplexGridFunction * h_v_; // Complex magnetic field (L2^d)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
@@ -675,7 +671,7 @@ private:
    // ParGridFunction        * u_;   // Energy density (L2)
    // ParGridFunction        * uE_;  // Electric Energy density (L2)
    // ParGridFunction        * uB_;  // Magnetic Energy density (L2)
-   // ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
+   ParComplexGridFunction * S_;  // Poynting Vector (HCurl)
    ParComplexGridFunction * StixS_; // Stix S Coefficient (L2)
    ParComplexGridFunction * StixD_; // Stix D Coefficient (L2)
    ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
@@ -733,14 +729,14 @@ private:
    VectorGridFunctionCoefficient erCoef_;
    VectorGridFunctionCoefficient eiCoef_;
 
-   CurlGridFunctionCoefficient derCoef_;
-   CurlGridFunctionCoefficient deiCoef_;
+   VectorGridFunctionCoefficient hrCoef_;
+   VectorGridFunctionCoefficient hiCoef_;
 
    // EnergyDensityCoef     uCoef_;
    // ElectricEnergyDensityCoef uECoef_;
    // MagneticEnergyDensityCoef uBCoef_;
-   // PoyntingVectorReCoef SrCoef_;
-   // PoyntingVectorImCoef SiCoef_;
+   PoyntingVectorReCoefDH SrCoef_;
+   PoyntingVectorImCoefDH SiCoef_;
 
    // const VectorCoefficient & erCoef_;     // Electric Field Boundary Condition
    // const VectorCoefficient & eiCoef_;     // Electric Field Boundary Condition
