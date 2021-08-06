@@ -2738,7 +2738,8 @@ const IntegrationRule &DGTraceIntegrator::GetRule(
 const IntegrationRule &DGDiffusionIntegrator::GetRule(
    Geometry::Type geom, int order, FaceElementTransformations &T)
 {
-   int int_order = T.Elem1->OrderW() + 2*order;
+   int transelemW =  1;//T.Elem1->OrderW(); // what should this be?
+   int int_order = transelemW + 2*order;
    return IntRules.Get(geom, int_order);
 }
 
