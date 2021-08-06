@@ -3268,6 +3268,7 @@ void FiniteElementSpace::Update(bool want_transform)
       }
 
       delete old_elem_dof;
+      delete old_elem_fos;
    }
 }
 
