@@ -246,7 +246,6 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      Coefficient * etaInvCoef,
                      VectorCoefficient * kCoef,
                      Array<int> & abcs,
-                     Array<int> & sbcs,
                      // Array<int> & dbcs,
                      Array<ComplexVectorCoefficientByAttr*> & dbcs,
                      Array<ComplexVectorCoefficientByAttr*> & nbcs,
@@ -480,7 +479,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    if ( sbcs_->Size() > 0 )
    {
-      if ( sbcs_->Size() == 1 && (*sbcs_)[0].attr[0] == -1 )
+      if ( sbcs_->Size() == 1 && (*sbcs_)[0]->attr[0] == -1 )
       {
          ess_bdr_ = 1;
       }
@@ -488,9 +487,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       {
          for (int i=0; i<sbcs_->Size(); i++)
          {
-            for (int j=0; j<(*sbcs_)[i].attr.Size(); j++)
+            for (int j=0; j<(*sbcs_)[i]->attr.Size(); j++)
             {
-               ess_bdr_[(*sbcs_)[i].attr[j]-1] = 1;
+               ess_bdr_[(*sbcs_)[i]->attr[j]-1] = 1;
             }
          }
       }
@@ -679,14 +678,14 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
-         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+         ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
 
-         m0_->AddBoundaryIntegrator(new MassIntegrator, sbc.attr_marker);
+         m0_->AddBoundaryIntegrator(new MassIntegrator, sbc->attr_marker);
 
-         n20ZRe_->AddBoundaryIntegrator(new MassIntegrator(*sbc.real),
-                                        sbc.attr_marker);
-         n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc.imag),
-                                        sbc.attr_marker);
+         n20ZRe_->AddBoundaryIntegrator(new MassIntegrator(*sbc->real),
+                                        sbc->attr_marker);
+         n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc->imag),
+                                        sbc->attr_marker);
       }
    }
 
@@ -717,9 +716,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
-         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-         SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc.real);
-         SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc.imag);
+         ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
+         SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc->real);
+         SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc->imag);
 
          if (z_r) { z_r->SetPotential(*phi_); }
          if (z_i) { z_i->SetPotential(*phi_); }
@@ -1226,20 +1225,20 @@ CPDSolver::Solve()
          for (int i = 0; i<dbcs_->Size(); i++)
          {
             attr_marker = 0;
-            for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
+            for (int j=0; j<(*dbcs_)[i]->attr.Size(); j++)
             {
-               attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
+               attr_marker[(*dbcs_)[i]->attr[j] - 1] = 1;
             }
             // Determine marker array in vDoF space
             HCurlFESpace_->GetEssentialVDofs(attr_marker, ess_bdr_vdofs);
 
-            temp_->ProjectCoefficient(*(*dbcs_)[i].real);
+            temp_->ProjectCoefficient(*(*dbcs_)[i]->real);
             for (int j=0; j<ess_bdr_vdofs.Size(); j++)
             {
                if (ess_bdr_vdofs[j]) { e_->real()[j] = (*temp_)[j]; }
             }
 
-            temp_->ProjectCoefficient(*(*dbcs_)[i].imag);
+            temp_->ProjectCoefficient(*(*dbcs_)[i]->imag);
             for (int j=0; j<ess_bdr_vdofs.Size(); j++)
             {
                if (ess_bdr_vdofs[j]) { e_->imag()[j] = (*temp_)[j]; }
@@ -1557,10 +1556,10 @@ CPDSolver::Solve()
          sbc_marker = 0;
          for (int i=0; i<sbcs_->Size(); i++)
          {
-            ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-            for (int j=0; j<sbc.attr_marker.Size(); j++)
+            ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
+            for (int j=0; j<sbc->attr_marker.Size(); j++)
             {
-               sbc_marker[j] |= sbc.attr_marker[j];
+               sbc_marker[j] |= sbc->attr_marker[j];
             }
          }
 
@@ -1828,8 +1827,8 @@ CPDSolver::WriteVisItFields(int it)
       if ( rectPot_ )
       {
 
-         ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-         SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+         ComplexCoefficientByAttr * sbc = (*sbcs_)[0];
+         SheathBase * sb = dynamic_cast<SheathBase*>(sbc->real);
 
 
          if (sb != NULL)

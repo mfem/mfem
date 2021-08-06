@@ -792,14 +792,15 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr*> nbcs(0);
 
-   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   Array<ComplexCoefficientByAttr*> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-      sbcs[0].real = &PotentReCoef;
-      sbcs[0].imag = &PotentImCoef;
-      sbcs[0].attr = sbca;
-      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
-                   sbcs[0].attr_marker);
+      sbcs[0] = new ComplexCoefficientByAttr;
+      sbcs[0]->real = &PotentReCoef;
+      sbcs[0]->imag = &PotentImCoef;
+      sbcs[0]->attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0]->attr,
+                   sbcs[0]->attr_marker);
    }
 
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;

@@ -412,7 +412,7 @@ private:
    Array<ComplexVectorCoefficientByAttr*> * nbcs_; // Surface current BCs
    Array<ComplexVectorCoefficientByAttr*> * nkbcs_; // Neumann BCs (-i*omega*K)
 
-   Array<ComplexCoefficientByAttr> * sbcs_; // Sheath BCs
+   Array<ComplexCoefficientByAttr*> * sbcs_; // Sheath BCs
 
    VisItDataCollection * visit_dc_;
 

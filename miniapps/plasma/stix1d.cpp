@@ -785,14 +785,15 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr*> nbcs(0);
 
-   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   Array<ComplexCoefficientByAttr*> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-      sbcs[0].real = &z_r;
-      sbcs[0].imag = &z_i;
-      sbcs[0].attr = sbca;
-      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
-                   sbcs[0].attr_marker);
+      sbcs[0] = new ComplexCoefficientByAttr;
+      sbcs[0]->real = &z_r;
+      sbcs[0]->imag = &z_i;
+      sbcs[0]->attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0]->attr,
+                   sbcs[0]->attr_marker);
    }
 
    // Create the Magnetostatic solver
@@ -806,7 +807,7 @@ int main(int argc, char *argv[])
                  conv, *BCoef, epsilon_real, epsilon_imag, epsilon_abs,
                  muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs, nbcs,
+                 abcs, dbcs, nbcs, sbcs,
                  (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
@@ -820,14 +821,14 @@ int main(int argc, char *argv[])
 
    if ( visit )
    {
-      ExactReEField.ProjectCoefficient(EReCoef);
-      ExactImEField.ProjectCoefficient(EImCoef);
+     // ExactReEField.ProjectCoefficient(EReCoef);
+     // ExactImEField.ProjectCoefficient(EImCoef);
 
       CPD.RegisterVisItFields(visit_dc);
 
       // visit_dc.RegisterField("L", &LField);
-      visit_dc.RegisterField("Exact_Re_E", &ExactReEField);
-      visit_dc.RegisterField("Exact_Im_E", &ExactImEField);
+      // visit_dc.RegisterField("Exact_Re_E", &ExactReEField);
+      // visit_dc.RegisterField("Exact_Im_E", &ExactImEField);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 

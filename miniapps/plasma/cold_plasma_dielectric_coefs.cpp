@@ -407,7 +407,7 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
 
    double wpi = omega_p(density_val, charges_[1], masses_[1]);
 
-   double vnorm = Te / (charges_[1] * q_);
+   // double vnorm = Te / (charges_[1] * q_);
    double w_norm = omega_ / wpi;
 
    complex<double> phi = EvalSheathPotential(T, ip);
