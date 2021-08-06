@@ -36,7 +36,7 @@ class DiffusionResidual
 public:
     void operator ()(TParamVector& vparam, TStateVector& uu, TStateVector& rr)
     {
-        MFEM_ASSERT(residual_size==4,"DiffusionResidual residual_size should be equal to 4!")
+        MFEM_ASSERT(residual_size==4,"DiffusionResidual residual_size should be equal to 4!");
         MFEM_ASSERT(state_size==4,"ExampleFunctor state_size should be equal to 4!");
         MFEM_ASSERT(param_size==2,"ExampleFunctor param_size should be equal to 2!");
         auto kapa = vparam[0]; //diffusion coefficient
@@ -81,7 +81,6 @@ int main(int argc, char *argv[])
     state[3]=4.0; // state value
 
     mfem::QFunctionAutoDiff<DiffusionFunctional,4,2> adf;
-    mfem::QVectorFuncAutoDiff<DiffusionResidual,4,4,2> rdf;
 
     mfem::Vector rr0(4);
     mfem::DenseMatrix hh0(4,4);
@@ -100,6 +99,7 @@ MFEM_PERF_END("QHessian");
     rr0.Print(std::cout);
     hh0.Print(std::cout);
 
+    mfem::QVectorFuncAutoDiff<DiffusionResidual,4,4,2> rdf;
 MFEM_PERF_BEGIN("QJacobian");
     rdf.QJacobian(param, state, hh1);
 MFEM_PERF_END("QJacobian");
