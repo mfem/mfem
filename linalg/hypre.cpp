@@ -3034,7 +3034,7 @@ HypreSmoother::HypreSmoother() : Solver()
    l1_norms = NULL;
    pos_l1_norms = false;
    eig_est_cg_iter = 10;
-   B = X = V = Z;
+   B = X = V = Z = NULL;
 #if HYPRE_USE_SPLIT_CHEB_RELAX
    P = R = NULL;
 #endif
@@ -3063,7 +3063,7 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
 
    l1_norms = NULL;
    pos_l1_norms = false;
-   B = X = V = Z;
+   B = X = V = Z = NULL;
 #if HYPRE_USE_SPLIT_CHEB_RELAX
    P = R = NULL;
 #endif
@@ -3158,7 +3158,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    delete X0;
    delete X1;
 
-   X1 = X0 = Z = V = B = X;
+   X1 = X0 = Z = V = B = X = NULL;
 #if HYPRE_USE_SPLIT_CHEB_RELAX
    P = R = NULL;
    poly_coeffs = NULL;
