@@ -763,14 +763,7 @@ void PADGDiffusionApply3D(const int NF,
                   BD0[q1][d2][c] += b*D0[q1][q2][c];
                   BD1[q1][d2][c] += b*D1[q1][q2][c];
                   BD0jumpu[q1][d2][c] += b*D0jumpu[q1][q2][c];
-                  BD1jumpu[q1][d2][c] += b*D1jumpu[q1][q2][c];
-                  
-                  /*
-                  BD0[q1][d2][c] += b*D0[q2][q1][c];
-                  BD1[q1][d2][c] += b*D1[q2][q1][c];
-                  BD0jumpu[q1][d2][c] += b*D0jumpu[q2][q1][c];
-                  BD1jumpu[q1][d2][c] += b*D1jumpu[q2][q1][c];
-                  */
+                  BD1jumpu[q1][d2][c] += b*D1jumpu[q1][q2][c];                  
                }
             }
          }
