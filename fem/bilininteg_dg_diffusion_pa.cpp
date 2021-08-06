@@ -745,24 +745,32 @@ void PADGDiffusionApply3D(const int NF,
       double BD0jumpu[max_Q1D][max_D1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
-         for (int d = 0; d < D1D; ++d)
+         for (int d2 = 0; d2 < D1D; ++d2)
          {
             for (int c = 0; c < VDIM; c++)
             {
-               BD0[q1][d][c] = 0;
-               BD1[q1][d][c] = 0;
-               BD0jumpu[q1][d][c] = 0;
-               BD1jumpu[q1][d][c] = 0;
+               BD0[q1][d2][c] = 0;
+               BD1[q1][d2][c] = 0;
+               BD0jumpu[q1][d2][c] = 0;
+               BD1jumpu[q1][d2][c] = 0;
             }
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const double b = Bt(d,q2);
+               const double b = Bt(d2,q2);
                for (int c = 0; c < VDIM; c++)
                {
-                  BD0[q1][d][c] += b*D0[q1][q2][c];
-                  BD1[q1][d][c] += b*D1[q1][q2][c];
-                  BD0jumpu[q1][d][c] += b*D0jumpu[q1][q2][c];
-                  BD1jumpu[q1][d][c] += b*D1jumpu[q1][q2][c];
+                  
+                  BD0[q1][d2][c] += b*D0[q1][q2][c];
+                  BD1[q1][d2][c] += b*D1[q1][q2][c];
+                  BD0jumpu[q1][d2][c] += b*D0jumpu[q1][q2][c];
+                  BD1jumpu[q1][d2][c] += b*D1jumpu[q1][q2][c];
+                  
+                  /*
+                  BD0[q1][d2][c] += b*D0[q2][q1][c];
+                  BD1[q1][d2][c] += b*D1[q2][q1][c];
+                  BD0jumpu[q1][d2][c] += b*D0jumpu[q2][q1][c];
+                  BD1jumpu[q1][d2][c] += b*D1jumpu[q2][q1][c];
+                  */
                }
             }
          }
@@ -778,18 +786,45 @@ void PADGDiffusionApply3D(const int NF,
                double BBD1 = 0;
                double BBD0jumpu = 0;
                double BBD1jumpu = 0;
-               for (int q = 0; q < Q1D; ++q)
+               for (int q1 = 0; q1 < Q1D; ++q1)
                {
-                  const double b = Bt(d1,q);
-                  BBD0 += b*D0[q][d2][c];
-                  BBD1 += b*D1[q][d2][c];
-                  BBD0jumpu += b*D0jumpu[q][d2][c];
-                  BBD1jumpu += b*D1jumpu[q][d2][c];
+                  const double b = Bt(d1,q1);
+                  BBD0 += b*BD0[q1][d2][c];
+                  BBD1 += b*BD1[q1][d2][c];
+                  BBD0jumpu += b*BD0jumpu[q1][d2][c];
+                  BBD1jumpu += b*BD1jumpu[q1][d2][c];
+
+#ifdef MFEM_DEBUG
+                  std::cout << "% D0["<<q1<<"]["<<d2<<"] " << D0[q1][d2][0]
+                   << " D1["<<q1<<"]["<<d2<<"] " << D1[q1][d2][0] 
+                   << " b " << b
+                   << " BBD0["<<d1<<"]["<<d2<<"] " << BBD0
+                   << " BBD1["<<d1<<"]["<<d2<<"] " << BBD1
+                  << std::endl;
+
+                  std::cout << "% D0jumpu["<<q1<<"]["<<d2<<"] " << D0jumpu[q1][d2][0]
+                   << " D1jumpu["<<q1<<"]["<<d2<<"] " << D1jumpu[q1][d2][0] 
+                   << " b " << b
+                   << " BBD0jumpu["<<d1<<"]["<<d2<<"] " << BBD0jumpu
+                   << " BBD1jumpu["<<d1<<"]["<<d2<<"] " << BBD1jumpu
+                  << std::endl;
+#endif
                }
                y(d1,d2,c,0,f,0) = BBD0;
                y(d1,d2,c,1,f,0) = BBD1;
                y(d1,d2,c,0,f,1) = BBD0jumpu;
                y(d1,d2,c,1,f,1) = BBD1jumpu;
+
+#ifdef MFEM_DEBUG
+               std::cout << "% y("<<d1<<","<<d2<<","<<0<<","<<f<<","<<0<<") = " << BBD0 << std::endl;
+               std::cout << "% y("<<d1<<","<<d2<<","<<1<<","<<f<<","<<0<<") = " << BBD1 << std::endl;
+               std::cout << "% y("<<d1<<","<<d2<<","<<0<<","<<f<<","<<1<<") = " << BBD0jumpu << std::endl;
+               std::cout << "% y("<<d1<<","<<d2<<","<<1<<","<<f<<","<<1<<") = " << BBD1jumpu << std::endl;
+#endif                   
+
+
+
+
             }
          }
       }
