@@ -484,18 +484,14 @@ int main(int argc, char *argv[])
 
    // Add integrators corresponding to the shifted boundary method (SBM)
    // for Neumann boundaries.
-   // High-order extension is not available for Neumann boundary condition.
-   // Number of terms used for Taylor expansion must be set to 1.
-   const int neumann_ho_terms = 1;
    if (neumann_level_set_type > 0)
    {
       MFEM_VERIFY(!include_cut_cell, "include_cut_cell option must be set to"
                   " false for Neumann boundary conditions.");
-      std::cout << include_cut_cell << " k10inc\n";
       b.AddInteriorFaceIntegrator(new SBM2NeumannLFIntegrator(
-                                     &pmesh, *nbcCoef, alpha, *dist_vec,
+                                     &pmesh, *nbcCoef, *dist_vec,
                                      *normalbcCoef, elem_marker,
-                                     neumann_ho_terms, include_cut_cell,
+                                     ho_terms, include_cut_cell,
                                      ls_cut_marker));
       bf_neumann_marker.Append(ls_cut_marker);
       ls_cut_marker += 1;
@@ -527,13 +523,13 @@ int main(int argc, char *argv[])
    // Add neumann bilinearform integrator.
    if (neumann_level_set_type > 0)
    {
-      a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh, alpha,
+      a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh,
                                                             *dist_vec,
                                                             *normalbcCoef,
                                                             elem_marker,
                                                             bf_neumann_marker,
                                                             include_cut_cell,
-                                                            neumann_ho_terms));
+                                                            ho_terms));
    }
 
    // Assemble the bilinear form and the corresponding linear system,

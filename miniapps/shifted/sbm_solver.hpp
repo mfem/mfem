@@ -199,9 +199,10 @@ public:
 
 /// BilinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// A(u, w) = <[nabla u + nabla(nabla u).d].nhat (n.nhat), w> - <grad u.n, w>,
-/// where nhat is the normal vector at the true boundary, n is the normal vector
-/// at the surrogate boundary. Since this interior face integrator is applied to
+/// A(u,w) = <[nabla u + nabla(nabla u).d + h.o.t.].nhat(n.nhat),w>-<grad u.n,w>
+/// where h.o.t are the high-order terms due to Taylor expansion for nabla u,
+/// nhat is the normal vector at the true boundary, n is the normal vector at
+/// the surrogate boundary. Since this interior face integrator is applied to
 /// the surrogate boundary (see marking.hpp for notes on how the surrogate faces
 /// are determined and elements are marked), this integrator adds contribution
 /// to only the element that is adjacent to that face (Trans.Elem1 or
@@ -209,7 +210,6 @@ public:
 class SBM2NeumannIntegrator : public BilinearFormIntegrator
 {
 protected:
-   double alpha;
    ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // Marker indicating whether element is inside,
@@ -229,14 +229,13 @@ protected:
 
 public:
    SBM2NeumannIntegrator(const ParMesh *pmesh,
-                         const double alpha_,
                          VectorCoefficient &vD_,
                          ShiftedVectorFunctionCoefficient &vN_,
                          Array<int> &elem_marker_,
                          Array<int> &cut_marker_,
                          bool include_cut_cell_ = false,
                          int nterms_ = 1)
-      : alpha(alpha_), vN(&vN_), vD(&vD_),
+      : vN(&vN_), vD(&vD_),
         elem_marker(&elem_marker_),
         include_cut_cell(include_cut_cell_),
         nterms(nterms_),
@@ -277,7 +276,6 @@ protected:
    ShiftedFunctionCoefficient *uN; // Neumann condition on true boundary
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // Marker indicating whether element is inside,
-   double alpha;              // Nitsche parameter
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
    bool include_cut_cell;
@@ -291,7 +289,6 @@ protected:
 public:
    SBM2NeumannLFIntegrator(const ParMesh *pmesh,
                            ShiftedFunctionCoefficient &u,
-                           const double alpha_,
                            VectorCoefficient &vD_,
                            ShiftedVectorFunctionCoefficient &vN_,
                            Array<int> &elem_marker_,
