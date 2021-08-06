@@ -3240,6 +3240,7 @@ void FiniteElementSpace::Update(bool want_transform)
                // The RefinementOperator takes ownership of 'old_elem_dof', so
                // we no longer own it:
                old_elem_dof = NULL;
+               old_elem_fos = NULL;
             }
             else
             {
