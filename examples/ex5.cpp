@@ -29,7 +29,7 @@
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the BlockMatrix class, as
+//               The example demonstrates the use of the BlockOperator class, as
 //               well as the collective saving of several grid functions in
 //               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
@@ -197,6 +197,7 @@ int main(int argc, char *argv[])
       SparseMatrix &M(mVarf->SpMat());
       SparseMatrix &B(bVarf->SpMat());
       B *= -1.;
+      if (Device::IsEnabled()) { B.BuildTranspose(); }
       Bt = new TransposeOperator(&B);
 
       darcyOp.SetBlock(0,0, &M);
@@ -240,6 +241,7 @@ int main(int argc, char *argv[])
    {
       SparseMatrix &M(mVarf->SpMat());
       M.GetDiag(Md);
+      Md.HostReadWrite();
 
       SparseMatrix &B(bVarf->SpMat());
       MinvBt = Transpose(B);
@@ -287,12 +289,18 @@ int main(int argc, char *argv[])
    chrono.Stop();
 
    if (solver.GetConverged())
+   {
       std::cout << "MINRES converged in " << solver.GetNumIterations()
-                << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
+                << " iterations with a residual norm of "
+                << solver.GetFinalNorm() << ".\n";
+   }
    else
+   {
       std::cout << "MINRES did not converge in " << solver.GetNumIterations()
-                << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
-   std::cout << "MINRES solver took " << chrono.RealTime() << "s. \n";
+                << " iterations. Residual norm is " << solver.GetFinalNorm()
+                << ".\n";
+   }
+   std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
    // 12. Create the grid functions u and p. Compute the L2 error norms.
    GridFunction u, p;

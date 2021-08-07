@@ -136,7 +136,8 @@ public:
                        const Vector & charge,
                        const Vector & mass,
                        const Vector & temp,
-                       bool realPart = true);
+                       int nuprof,
+                       bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
@@ -149,6 +150,7 @@ public:
 private:
    char type_;
    bool realPart_;
+   int nuprof_;
    double omega_;
    double Bmag_;
    double Jy_;
@@ -208,6 +210,7 @@ int main(int argc, char *argv[])
    bool vis_u = false;
    bool visualization = true;
    bool visit = true;
+   bool convergence_test = false;
 
    double freq = 1.0e9;
    const char * wave_type = "R";
@@ -229,6 +232,7 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
@@ -270,6 +274,9 @@ int main(int argc, char *argv[])
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient.");
+   args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
+                  "Temperature Profile Type: \n"
+                  "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -349,6 +356,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&convergence_test, "-ctest", "--convergence-test", "-no-ctest",
+                  "--no-ctest", "Enable convergence test.");
    args.Parse();
    if (!args.Good())
    {
@@ -488,15 +497,15 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -639,6 +648,7 @@ int main(int argc, char *argv[])
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
 
    ParGridFunction BField(&HDivFESpace);
+
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
@@ -696,13 +706,13 @@ int main(int argc, char *argv[])
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density, temperature,
                                  L2FESpace, H1FESpace,
-                                 omega, charges, masses, true);
+                                 omega, charges, masses, nuprof, true);
    DielectricTensor epsilon_imag(BField, density, temperature,
                                  L2FESpace, H1FESpace,
-                                 omega, charges, masses, false);
+                                 omega, charges, masses, nuprof, false);
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
-                                   omega, charges, masses);
+                                   omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -711,9 +721,9 @@ int main(int argc, char *argv[])
                        omega, charges, masses, false);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
-                               numbers, charges, masses, temps, true);
+                               numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
-                               numbers, charges, masses, temps, false);
+                               numbers, charges, masses, temps, nuprof, false);
 
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
@@ -778,24 +788,26 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-   Array<ComplexVectorCoefficientByAttr> dbcs((dbca.Size()==0)?0:1);
+   Array<ComplexVectorCoefficientByAttr*> dbcs((dbca.Size()==0)?0:1);
    if (dbca.Size() > 0)
    {
-      dbcs[0].attr = dbca;
-      dbcs[0].real = &EReCoef;
-      dbcs[0].imag = &EImCoef;
+      dbcs[0] = new ComplexVectorCoefficientByAttr;
+      dbcs[0]->attr = dbca;
+      dbcs[0]->real = &EReCoef;
+      dbcs[0]->imag = &EImCoef;
    }
 
-   Array<ComplexVectorCoefficientByAttr> nbcs(0);
+   Array<ComplexVectorCoefficientByAttr*> nbcs(0);
 
-   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   Array<ComplexCoefficientByAttr*> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-      sbcs[0].real = &z_r;
-      sbcs[0].imag = &z_i;
-      sbcs[0].attr = sbca;
-      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
-                   sbcs[0].attr_marker);
+      sbcs[0] = new ComplexCoefficientByAttr;
+      sbcs[0]->real = &z_r;
+      sbcs[0]->imag = &z_i;
+      sbcs[0]->attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0]->attr,
+                   sbcs[0]->attr_marker);
    }
 
    // Create the Magnetostatic solver
@@ -824,7 +836,14 @@ int main(int argc, char *argv[])
 
    if ( visit )
    {
+      // ExactReEField.ProjectCoefficient(EReCoef);
+      // ExactImEField.ProjectCoefficient(EImCoef);
+
       CPD.RegisterVisItFields(visit_dc);
+
+      // visit_dc.RegisterField("L", &LField);
+      // visit_dc.RegisterField("Exact_Re_E", &ExactReEField);
+      // visit_dc.RegisterField("Exact_Im_E", &ExactImEField);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -855,6 +874,14 @@ int main(int argc, char *argv[])
       if (mpi.Root())
       {
          cout << "Global L2 Error " << glb_error << endl;
+         if ( convergence_test == true)
+         {
+            ofstream file;
+            file.open ("glb_error_"+std::to_string(order)+"_"+std::to_string(
+                          num_elements)+".txt");
+            file << glb_error;
+            file.close();
+         }
       }
 
       // Determine the current size of the linear system
@@ -1160,10 +1187,12 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
                                          const Vector & charge,
                                          const Vector & mass,
                                          const Vector & temp,
+                                         int nuprof,
                                          bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
+     nuprof_(nuprof),
      omega_(omega),
      Bmag_(B.Norml2()),
      Jy_(0.0),
@@ -1200,9 +1229,12 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
          break;
    }
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
+   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
 }
 
 void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,

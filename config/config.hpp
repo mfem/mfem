@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,6 +33,12 @@
 #ifdef _WIN32
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
 #define _USE_MATH_DEFINES
+#endif
+// On Cygwin the option -std=c++11 prevents the definition of M_PI. Defining
+// the following macro allows us to get M_PI and some needed functions, e.g.
+// posix_memalign(), strdup(), strerror_r().
+#ifdef __CYGWIN__
+#define _XOPEN_SOURCE 600
 #endif
 
 // Check dependencies:

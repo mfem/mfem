@@ -29,54 +29,54 @@ void StixCoefs_cold_plasma(Vector &V,
                            int nuprof,
                            bool realPart)
 {
-    V.SetSize(5);
-    complex<double> S(1.0, 0.0);
-    complex<double> P(1.0, 0.0);
-    complex<double> D(0.0, 0.0);
-    complex<double> R(1.0, 0.0);
-    complex<double> L(1.0, 0.0);
-    double n = number[0];
-    double q = charge[0];
-    double m = mass[0];
-    double Te = temp[0] * q_;
-    double coul_log = CoulombLog(n, Te);
-    double nuei = (nuprof == 0) ?
-                  nu_ei(q, coul_log, m, Te, n) :
-                  nu_art(temp[0]);
-    complex<double> collision_correction(1.0, nuei/omega);
+   V.SetSize(5);
+   complex<double> S(1.0, 0.0);
+   complex<double> P(1.0, 0.0);
+   complex<double> D(0.0, 0.0);
+   complex<double> R(1.0, 0.0);
+   complex<double> L(1.0, 0.0);
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(q, coul_log, m, Te, n) :
+                 nu_art(temp[0]);
+   complex<double> collision_correction(1.0, nuei/omega);
 
-    for (int i=0; i<number.Size(); i++)
-    {
-       double n = number[i];
-       double q = charge[i];
-       double m = mass[i];
-       complex<double> m_eff = m;
-       if ( i == 0) {m_eff = m*collision_correction;}
-       complex<double> w_c = omega_c(Bmag, q, m_eff);
-       complex<double> w_p = omega_p(n, q, m_eff);
-        
-       S -= w_p * w_p / (omega * omega - w_c * w_c);
-       P -= w_p * w_p / (omega * omega);
-       D += w_p * w_p * w_c / (omega * (omega * omega - w_c * w_c));
-       R -= w_p * w_p / (omega * (omega + w_c));
-       L -= w_p * w_p / (omega * (omega - w_c));
-    }
-    if (realPart)
-    {
-        V[0] = S.real();
-        V[1] = P.real();
-        V[2] = D.real();
-        V[3] = R.real();
-        V[4] = L.real();
-    }
-    else
-    {
-        V[0] = S.imag();
-        V[1] = P.imag();
-        V[2] = D.imag();
-        V[3] = R.imag();
-        V[4] = L.imag();
-    }
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      double q = charge[i];
+      double m = mass[i];
+      complex<double> m_eff = m;
+      if ( i == 0) {m_eff = m*collision_correction;}
+      complex<double> w_c = omega_c(Bmag, q, m_eff);
+      complex<double> w_p = omega_p(n, q, m_eff);
+
+      S -= w_p * w_p / (omega * omega - w_c * w_c);
+      P -= w_p * w_p / (omega * omega);
+      D += w_p * w_p * w_c / (omega * (omega * omega - w_c * w_c));
+      R -= w_p * w_p / (omega * (omega + w_c));
+      L -= w_p * w_p / (omega * (omega - w_c));
+   }
+   if (realPart)
+   {
+      V[0] = S.real();
+      V[1] = P.real();
+      V[2] = D.real();
+      V[3] = R.real();
+      V[4] = L.real();
+   }
+   else
+   {
+      V[0] = S.imag();
+      V[1] = P.imag();
+      V[2] = D.imag();
+      V[3] = R.imag();
+      V[4] = L.imag();
+   }
 }
 
 complex<double> R_cold_plasma(double omega,
@@ -587,7 +587,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    // Jim's newest parametrization (Myra et al 2017):
    //complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-                                             //masses_[0], masses_[1]);
+   //masses_[0], masses_[1]);
 
    // Fixed sheath impedance:
    //complex<double> zsheath_norm(0.6, 0.4);
@@ -1166,18 +1166,18 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          return pmin + (pmax - pmin) * (0.5 - 0.5 * cos(M_PI * sqrt(r)));
       }
       break;
-       case PARABOLIC:
-       {
-           double pmin = p_[0];
-           double pmax = p_[1];
-           double a = p_[2];
-           double b = p_[3];
-           Vector x0(&p_[4], 3);
-           
-           x_ -= x0;
-           double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
-           return pmax - (pmax - pmin) * r;
-       }
+      case PARABOLIC:
+      {
+         double pmin = p_[0];
+         double pmax = p_[1];
+         double a = p_[2];
+         double b = p_[3];
+         Vector x0(&p_[4], 3);
+
+         x_ -= x0;
+         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+         return pmax - (pmax - pmin) * r;
+      }
       default:
          return 0.0;
    }
@@ -1192,72 +1192,72 @@ BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit)
 }
 
 void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
-                           const IntegrationPoint &ip)
+                         const IntegrationPoint &ip)
 {
    V.SetSize(3);
    if (type_ != CONSTANT)
    {
-    T.Transform(ip, x_);
+      T.Transform(ip, x_);
    }
    switch (type_)
    {
       case CONSTANT:
          if (unit_)
          {
-           double bmag = pow( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2), 0.5);
-           V[0] = p_[0] / bmag;
-           V[1] = p_[1] / bmag;
-           V[2] = p_[2] / bmag;
+            double bmag = pow( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2), 0.5);
+            V[0] = p_[0] / bmag;
+            V[1] = p_[1] / bmag;
+            V[2] = p_[2] / bmag;
          }
-        else
-        {
-           V[0] = p_[0];
-           V[1] = p_[1];
-           V[2] = p_[2];
-        }
+         else
+         {
+            V[0] = p_[0];
+            V[1] = p_[1];
+            V[2] = p_[2];
+         }
          break;
-       case B_P:
-       {
-          double bp_abs = p_[0];
-          double a = p_[1];
-          double b = p_[2];
-          Vector x0(&p_[3], 3);
-          double bz = p_[6];
-          
-          x_ -= x0;
-          double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
-          double bp = bp_abs * sin(3 * sqrt(r));
-          bz *= 1.0/(0.68 + x_[0]);
-          double theta = atan2(x_[1], x_[0]);
-           
-          if (unit_)
-          {
-          double bmag = pow( pow(bp, 2) + pow(bz, 2), 0.5);
-          V[0] = -bp * sin(theta) / bmag;
-          V[1] = bp * cos(theta) / bmag;
-          V[2] = bz / bmag;
-          }
-          else
-          {
-          V[0] = -bp * sin(theta);
-          V[1] = bp * cos(theta);
-          V[2] = bz;
-          }
-       }
+      case B_P:
+      {
+         double bp_abs = p_[0];
+         double a = p_[1];
+         double b = p_[2];
+         Vector x0(&p_[3], 3);
+         double bz = p_[6];
+
+         x_ -= x0;
+         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+         double bp = bp_abs * sin(3 * sqrt(r));
+         bz *= 1.0/(0.68 + x_[0]);
+         double theta = atan2(x_[1], x_[0]);
+
+         if (unit_)
+         {
+            double bmag = pow( pow(bp, 2) + pow(bz, 2), 0.5);
+            V[0] = -bp * sin(theta) / bmag;
+            V[1] = bp * cos(theta) / bmag;
+            V[2] = bz / bmag;
+         }
+         else
+         {
+            V[0] = -bp * sin(theta);
+            V[1] = bp * cos(theta);
+            V[2] = bz;
+         }
+      }
       break;
       default:
-      if (unit_)
-      {
-        V[0] = 0.0;
-        V[1] = 0.0;
-        V[2] = 1.0;
-      }
-      else
-      {
-        V[0] = 0.0;
-        V[1] = 0.0;
-        V[2] = 5.4;
-      }
+         if (unit_)
+         {
+            V[0] = 0.0;
+            V[1] = 0.0;
+            V[2] = 1.0;
+         }
+         else
+         {
+            V[0] = 0.0;
+            V[1] = 0.0;
+            V[2] = 5.4;
+         }
    }
 }
 

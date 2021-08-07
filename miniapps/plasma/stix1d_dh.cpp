@@ -173,7 +173,8 @@ public:
                         const Vector & charge,
                         const Vector & mass,
                         const Vector & temp,
-                        bool realPart = true);
+                        int nuprof,
+                        bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
@@ -193,6 +194,7 @@ public:
 private:
    char type_;
    bool realPart_;
+   int nuprof_;
    double omega_;
    double Bmag_;
    double Jy_;
@@ -231,7 +233,8 @@ public:
                         const Vector & charge,
                         const Vector & mass,
                         const Vector & temp,
-                        bool realPart = true);
+                        int nuprof,
+                        bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
@@ -251,6 +254,7 @@ public:
 private:
    char type_;
    bool realPart_;
+   int nuprof_;
    double omega_;
    double Bmag_;
    double Jy_;
@@ -344,6 +348,7 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
@@ -406,6 +411,9 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
+                  "Temperature Profile Type: \n"
+                  "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -660,15 +668,15 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -899,13 +907,15 @@ int main(int argc, char *argv[])
    // Create tensor coefficients describing the dielectric permittivity
    InverseDielectricTensor epsilonInv_real(BField, density, temperature,
                                            L2FESpace, H1FESpace,
-                                           omega, charges, masses, true);
+                                           omega, charges, masses, nuprof,
+                                           true);
    InverseDielectricTensor epsilonInv_imag(BField, density, temperature,
                                            L2FESpace, H1FESpace,
-                                           omega, charges, masses, false);
+                                           omega, charges, masses, nuprof,
+                                           false);
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
-                                   omega, charges, masses);
+                                   omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -914,23 +924,23 @@ int main(int argc, char *argv[])
                        omega, charges, masses, false);
 
    ColdPlasmaPlaneWaveH HReCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, true);
+                                numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveH HImCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, false);
+                                numbers, charges, masses, temps, nuprof, false);
 
    ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, true);
+                                numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, false);
+                                numbers, charges, masses, temps, nuprof, false);
 
    if (check_eps_inv)
    {
       DielectricTensor epsilon_real(BField, density, temperature,
                                     L2FESpace, H1FESpace,
-                                    omega, charges, masses, true);
+                                    omega, charges, masses, nuprof, true);
       DielectricTensor epsilon_imag(BField, density, temperature,
                                     L2FESpace, H1FESpace,
-                                    omega, charges, masses, false);
+                                    omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
       DenseMatrix epsInvIm(3,3);
       DenseMatrix epsRe(3,3);
@@ -1168,7 +1178,7 @@ int main(int argc, char *argv[])
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
                   (dbcaw.Size() > 0);
 
-   Array<ComplexVectorCoefficientByAttr> dbcs(dbcsSize);
+   Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
    Vector zeroVec(3); zeroVec = 0.0;
    Vector dbc1ReVec;
@@ -1220,37 +1230,41 @@ int main(int argc, char *argv[])
       int c = 0;
       if (peca.Size() > 0)
       {
-         dbcs[c].attr = peca;
-         dbcs[c].real = &zeroCoef;
-         dbcs[c].imag = &zeroCoef;
+         dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = peca;
+         dbcs[c]->real = &zeroCoef;
+         dbcs[c]->imag = &zeroCoef;
          c++;
       }
       if (dbca1.Size() > 0)
       {
-         dbcs[c].attr = dbca1;
-         dbcs[c].real = &dbc1ReCoef;
-         dbcs[c].imag = &dbc1ImCoef;
+         dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = dbca1;
+         dbcs[c]->real = &dbc1ReCoef;
+         dbcs[c]->imag = &dbc1ImCoef;
          c++;
       }
       if (dbca2.Size() > 0)
       {
-         dbcs[c].attr = dbca2;
-         dbcs[c].real = &dbc2ReCoef;
-         dbcs[c].imag = &dbc2ImCoef;
+         dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = dbca2;
+         dbcs[c]->real = &dbc2ReCoef;
+         dbcs[c]->imag = &dbc2ImCoef;
          c++;
       }
       if (dbcaw.Size() > 0)
       {
-         dbcs[c].attr = dbcaw;
-         dbcs[c].real = &HReCoef;
-         dbcs[c].imag = &HImCoef;
+         dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = dbcaw;
+         dbcs[c]->real = &HReCoef;
+         dbcs[c]->imag = &HImCoef;
          c++;
       }
    }
 
    int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0) + (nbcaw.Size() > 0);
 
-   Array<ComplexVectorCoefficientByAttr> nbcs(nbcsSize);
+   Array<ComplexVectorCoefficientByAttr*> nbcs(nbcsSize);
 
    Vector nbc1ReVec;
    Vector nbc1ImVec;
@@ -1300,35 +1314,39 @@ int main(int argc, char *argv[])
       int c = 0;
       if (nbca1.Size() > 0)
       {
-         nbcs[c].attr = nbca1;
-         nbcs[c].real = &nbc1ReCoef;
-         nbcs[c].imag = &nbc1ImCoef;
+         nbcs[c] = new ComplexVectorCoefficientByAttr;
+         nbcs[c]->attr = nbca1;
+         nbcs[c]->real = &nbc1ReCoef;
+         nbcs[c]->imag = &nbc1ImCoef;
          c++;
       }
       if (nbca2.Size() > 0)
       {
-         nbcs[c].attr = nbca2;
-         nbcs[c].real = &nbc2ReCoef;
-         nbcs[c].imag = &nbc2ImCoef;
+         nbcs[c] = new ComplexVectorCoefficientByAttr;
+         nbcs[c]->attr = nbca2;
+         nbcs[c]->real = &nbc2ReCoef;
+         nbcs[c]->imag = &nbc2ImCoef;
          c++;
       }
       if (nbcaw.Size() > 0)
       {
-         nbcs[c].attr = nbcaw;
-         nbcs[c].real = &EReCoef;
-         nbcs[c].imag = &EImCoef;
+         nbcs[c] = new ComplexVectorCoefficientByAttr;
+         nbcs[c]->attr = nbcaw;
+         nbcs[c]->real = &EReCoef;
+         nbcs[c]->imag = &EImCoef;
          c++;
       }
    }
 
-   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   Array<ComplexCoefficientByAttr*> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-      sbcs[0].real = &z_r;
-      sbcs[0].imag = &z_i;
-      sbcs[0].attr = sbca;
-      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
-                   sbcs[0].attr_marker);
+      sbcs[0] = new ComplexCoefficientByAttr;
+      sbcs[0]->real = &z_r;
+      sbcs[0]->imag = &z_i;
+      sbcs[0]->attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0]->attr,
+                   sbcs[0]->attr_marker);
    }
 
    if (mpi.Root())
@@ -1732,10 +1750,12 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
                                            const Vector & charge,
                                            const Vector & mass,
                                            const Vector & temp,
+                                           int nuprof,
                                            bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
+     nuprof_(nuprof),
      omega_(omega),
      Bmag_(B.Norml2()),
      Jy_(0.0),
@@ -1779,9 +1799,11 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
+   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
@@ -1972,10 +1994,12 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
                                            const Vector & charge,
                                            const Vector & mass,
                                            const Vector & temp,
+                                           int nuprof,
                                            bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
+     nuprof_(nuprof),
      omega_(omega),
      Bmag_(B.Norml2()),
      Jy_(0.0),
@@ -2019,9 +2043,11 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
+   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {

@@ -233,9 +233,9 @@ public:
              VectorCoefficient * kReCoef,
              VectorCoefficient * kImCoef,
              Array<int> & abcs,
-             Array<ComplexVectorCoefficientByAttr> & dbcs,
-             Array<ComplexVectorCoefficientByAttr> & nbcs,
-             Array<ComplexCoefficientByAttr> & sbcs,
+             Array<ComplexVectorCoefficientByAttr*> & dbcs,
+             Array<ComplexVectorCoefficientByAttr*> & nbcs,
+             Array<ComplexCoefficientByAttr*> & sbcs,
              void (*j_r_src)(const Vector&, Vector&),
              void (*j_i_src)(const Vector&, Vector&),
              bool vis_u = false,
@@ -409,7 +409,7 @@ private:
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VFESpace_;
-   // H1_ParFESpace * H1FESpace_;
+   H1_ParFESpace * H1FESpace_;
    ND_ParFESpace * HCurlFESpace_;
    RT_ParFESpace * HDivFESpace_;
    RT_ParFESpace * HDivFESpace2p_;
@@ -428,23 +428,40 @@ private:
    ParDiscreteLinearOperator * kReCross_;
    ParDiscreteLinearOperator * kImCross_;
 
+   ParBilinearForm * m0_;
+   ParMixedBilinearForm * n20ZRe_;
+   ParMixedBilinearForm * n20ZIm_;
+
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
+   ParComplexGridFunction * e_tmp_; // Temporary complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * b_;   // Complex magnetic flux (HDiv)
+
+   ParGridFunction * temp_; // Temporary grid function (HCurl)
+   ParDiscreteGradOperator * grad_; // For Computing E = Grad phi
+   ParDiscreteLinearOperator * kOp_; // E += i k phi
+   ParComplexGridFunction * phi_; // Complex sheath potential (H1)
+   ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
+   ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
+   ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    ParGridFunction        * u_;   // Energy density (L2)
    ParGridFunction        * uE_;  // Electric Energy density (L2)
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)
    ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
+   ParComplexGridFunction * StixS_; // Stix S Coefficient (L2)
+   ParComplexGridFunction * StixD_; // Stix D Coefficient (L2)
+   ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
+   ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
-   VectorCoefficient * BCoef_;        // B Field Vector
+   VectorCoefficient * BCoef_;        // B Field Unit Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
@@ -453,13 +470,20 @@ private:
    VectorCoefficient * kReCoef_;        // Wave Vector
    VectorCoefficient * kImCoef_;        // Wave Vector
 
+   Coefficient * SReCoef_; // Stix S Coefficient
+   Coefficient * SImCoef_; // Stix S Coefficient
+   Coefficient * DReCoef_; // Stix D Coefficient
+   Coefficient * DImCoef_; // Stix D Coefficient
+   Coefficient * PReCoef_; // Stix P Coefficient
+   Coefficient * PImCoef_; // Stix P Coefficient
+
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
    Coefficient * abcCoef_;       // -omega eta^{-1}
-   Coefficient * sbcReCoef_;     //  omega Im(eta^{-1})
-   Coefficient * sbcImCoef_;     // -omega Re(eta^{-1})
+   // Coefficient * sbcReCoef_;     //  omega Im(eta^{-1})
+   // Coefficient * sbcImCoef_;     // -omega Re(eta^{-1})
    Coefficient * sinkx_;         // sin(ky * y + kz * z)
    Coefficient * coskx_;         // cos(ky * y + kz * z)
    Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
@@ -475,7 +499,6 @@ private:
    CrossCoefficient kmReCoef_;
    CrossCoefficient kmImCoef_;
 
-   // VectorCoefficient * negMuInvkCoef_; // -\vec{k}/mu
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
    VectorCoefficient * rhsrCoef_;     // Volume Current Density Function
@@ -502,13 +525,24 @@ private:
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_bdr_marker_;
 
-   Array<ComplexVectorCoefficientByAttr> * dbcs_;
+   // Array of 0's and 1's marking the location of sheath surfaces
+   // Array<int> sbc_marker_;
+
+   // Array of 0's and 1's marking the location of Dirichlet boundaries
+   Array<int> dbc_bdr_marker_;
+   // void   (*e_r_bc_)(const Vector&, Vector&);
+   // void   (*e_i_bc_)(const Vector&, Vector&);
+
+   // Array<int> * dbcs_;
+   Array<ComplexVectorCoefficientByAttr*> * dbcs_;
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
 
-   Array<ComplexVectorCoefficientByAttr> * nbcs_; // Surface current BCs
-   Array<ComplexVectorCoefficientByAttr> * nkbcs_; // Neumann BCs (-i*omega*K)
+   Array<ComplexVectorCoefficientByAttr*> * nbcs_; // Surface current BCs
+   Array<ComplexVectorCoefficientByAttr*> * nkbcs_; // Neumann BCs (-i*omega*K)
+
+   Array<ComplexCoefficientByAttr*> * sbcs_; // Sheath BCs
 
    VisItDataCollection * visit_dc_;
 

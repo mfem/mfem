@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,13 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_KERNELS_HPP
-#define MFEM_KERNELS_HPP
-
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
+#ifndef MFEM_LINALG_KERNELS_HPP
+#define MFEM_LINALG_KERNELS_HPP
 
 #include "../config/config.hpp"
 #include "../general/backends.hpp"
@@ -32,13 +27,105 @@
 
 // Many methods of the DenseMatrix class and some of the Vector class call these
 // kernels directly on the host, see the implementations in linalg/densemat.cpp
-// and linalag.vector.cpp.
+// and linalg/vector.cpp.
 
 namespace mfem
 {
 
 namespace kernels
 {
+
+/// Compute the square of the Euclidean distance to another vector
+template<int dim>
+MFEM_HOST_DEVICE inline double DistanceSquared(const double *x, const double *y)
+{
+   double d = 0.0;
+   for (int i = 0; i < dim; i++) { d += (x[i]-y[i])*(x[i]-y[i]); }
+   return d;
+}
+
+/// Creates n x n diagonal matrix with diagonal elements c
+template<int dim>
+MFEM_HOST_DEVICE inline void Diag(const double c, double *data)
+{
+   const int N = dim*dim;
+   for (int i = 0; i < N; i++) { data[i] = 0.0; }
+   for (int i = 0; i < dim; i++) { data[i*(dim+1)] = c; }
+}
+
+/// Vector subtraction operation: z = a * (x - y)
+template<int dim>
+MFEM_HOST_DEVICE inline void Subtract(const double a,
+                                      const double *x, const double *y,
+                                      double *z)
+{
+   for (int i = 0; i < dim; i++) { z[i] = a * (x[i] - y[i]); }
+}
+
+/// Dense matrix operation: VWt += v w^t
+template<int dim>
+MFEM_HOST_DEVICE inline void AddMultVWt(const double *v, const double *w,
+                                        double *VWt)
+{
+   for (int i = 0; i < dim; i++)
+   {
+      const double vi = v[i];
+      for (int j = 0; j < dim; j++) { VWt[i*dim+j] += vi * w[j]; }
+   }
+}
+
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+void FNorm(double &scale_factor, double &scaled_fnorm2, const T *data)
+{
+   int i, hw = H * W;
+   T max_norm = 0.0, entry, fnorm2;
+
+   for (i = 0; i < hw; i++)
+   {
+      entry = fabs(data[i]);
+      if (entry > max_norm)
+      {
+         max_norm = entry;
+      }
+   }
+
+   if (max_norm == 0.0)
+   {
+      scale_factor = scaled_fnorm2 = 0.0;
+      return;
+   }
+
+   fnorm2 = 0.0;
+   for (i = 0; i < hw; i++)
+   {
+      entry = data[i] / max_norm;
+      fnorm2 += entry * entry;
+   }
+
+   scale_factor = max_norm;
+   scaled_fnorm2 = fnorm2;
+}
+
+/// Compute the Frobenius norm of the matrix
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+double FNorm(const T *data)
+{
+   double s, n2;
+   kernels::FNorm<H,W>(s, n2, data);
+   return s*sqrt(n2);
+}
+
+/// Compute the square of the Frobenius norm of the matrix
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+double FNorm2(const T *data)
+{
+   double s, n2;
+   kernels::FNorm<H,W>(s, n2, data);
+   return s*s*n2;
+}
 
 /// Returns the l2 norm of the Vector with given @a size and @a data.
 template<typename T>
@@ -123,8 +210,8 @@ MFEM_HOST_DEVICE inline T Det(const T *data)
    return TDetHD<T>(ColumnMajorLayout2D<dim,dim>(), data);
 }
 
-/** @brief Return the inverse a matrix with given @a size and @a data into the
-    matrix with data @a inv_data. */
+/** @brief Return the inverse of a matrix with given @a size and @a data into
+   the matrix with data @a inv_data. */
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline
 void CalcInverse(const T *data, T *inv_data)
@@ -132,6 +219,15 @@ void CalcInverse(const T *data, T *inv_data)
    typedef ColumnMajorLayout2D<dim,dim> layout_t;
    const T det = TAdjDetHD<T>(layout_t(), data, layout_t(), inv_data);
    TAssignHD<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
+}
+
+/** @brief Return the adjugate of a matrix */
+template<int dim, typename T>
+MFEM_HOST_DEVICE inline
+void CalcAdjugate(const T *data, T *adj_data)
+{
+   typedef ColumnMajorLayout2D<dim,dim> layout_t;
+   TAdjugateHD<T>(layout_t(), data, layout_t(), adj_data);
 }
 
 /** @brief Compute C = A + alpha*B, where the matrices A, B and C are of size @a
@@ -148,6 +244,63 @@ void Add(const int height, const int width, const TALPHA alpha,
          const int n = i*width+j;
          Cdata[n] = Adata[n] + alpha * Bdata[n];
       }
+   }
+}
+
+/** @brief Compute C = alpha*A + beta*B, where the matrices A, B and C are of
+    size @a height x @a width with data @a Adata, @a Bdata and @a Cdata. */
+template<typename TALPHA, typename TBETA, typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width,
+         const TALPHA alpha, const TA *Adata,
+         const TBETA beta, const TB *Bdata,
+         TC *Cdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Cdata[i] = alpha * Adata[i] + beta * Bdata[i];
+   }
+}
+
+/** @brief Compute B += A, where the matrices A and B are of size
+    @a height x @a width with data @a Adata and @a Bdata. */
+template<typename TA, typename TB>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width, const TA *Adata, TB *Bdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Bdata[i] += Adata[i];
+   }
+}
+
+/** @brief Compute B +=alpha*A, where the matrices A and B are of size
+    @a height x @a width with data @a Adata and @a Bdata. */
+template<typename TA, typename TB>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width,
+         const double alpha, const TA *Adata, TB *Bdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Bdata[i] += alpha * Adata[i];
+   }
+}
+
+/** @brief Compute B = alpha*A, where the matrices A and B are of size
+    @a height x @a width with data @a Adata and @a Bdata. */
+template<typename TA, typename TB>
+MFEM_HOST_DEVICE inline
+void Set(const int height, const int width,
+         const double alpha, const TA *Adata, TB *Bdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Bdata[i] = alpha * Adata[i];
    }
 }
 
@@ -1419,4 +1572,4 @@ inline void LUSolve(const double *data, const int m, const int *ipiv,
 
 } // namespace mfem
 
-#endif // MFEM_KERNELS_HPP
+#endif // MFEM_LINALG_KERNELS_HPP

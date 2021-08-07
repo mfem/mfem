@@ -235,6 +235,7 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
@@ -285,6 +286,9 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
+                  "Temperature Profile Type: \n"
+                  "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -447,15 +451,15 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
-                                             charges, masses, temps);
+                                             charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -627,6 +631,7 @@ int main(int argc, char *argv[])
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
+   ParGridFunction potential_gf;
 
    BField.ProjectCoefficient(BCoef);
 
@@ -634,27 +639,39 @@ int main(int argc, char *argv[])
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
+   Array<int> potential_offsets(3);
    Array<int> temperature_offsets(numbers.Size() + 2);
 
    density_offsets[0] = 0;
+   potential_offsets[0] = 0;
    temperature_offsets[0] = 0;
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
       temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
    }
+   potential_offsets[1] = potential_offsets[0] + size_h1;
+   potential_offsets[2] = potential_offsets[1] + size_h1;
 
    BlockVector density(density_offsets);
+   BlockVector potential(potential_offsets);
    BlockVector temperature(temperature_offsets);
 
    PlasmaProfile tempCoef(tpt, tpp);
    PlasmaProfile rhoCoef(dpt, dpp);
+   ConstantCoefficient PotentReCoef(0.0);
+   ConstantCoefficient PotentImCoef(0.0);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
       temperature_gf.ProjectCoefficient(tempCoef);
    }
+
+   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(0));
+   potential_gf.ProjectCoefficient(PotentReCoef);
+   potential_gf.MakeRef(&H1FESpace, potential.GetBlock(1));
+   potential_gf.ProjectCoefficient(PotentImCoef);
 
    for (int i=0; i<charges.Size(); i++)
    {
@@ -678,12 +695,14 @@ int main(int argc, char *argv[])
    density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
    density_gf.ProjectCoefficient(rhoCoef3);
    */
+   /*
    for (int i=0; i<numbers.Size(); i++)
    {
       ConstantCoefficient rhoCoef(numbers[i]);
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
    }
+   */
 
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muInvCoef(1.0 / mu0_);
@@ -694,13 +713,13 @@ int main(int argc, char *argv[])
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density, temperature,
                                  L2FESpace, H1FESpace,
-                                 omega, charges, masses, true);
+                                 omega, charges, masses, nuprof, true);
    DielectricTensor epsilon_imag(BField, density, temperature,
                                  L2FESpace, H1FESpace,
-                                 omega, charges, masses, false);
+                                 omega, charges, masses, nuprof, false);
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
-                                   omega, charges, masses);
+                                   omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -789,33 +808,37 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient yCoef(yVec);
    VectorConstantCoefficient yNegCoef(yNegVec);
 
-   Array<ComplexVectorCoefficientByAttr> dbcs(3);
+   Array<ComplexVectorCoefficientByAttr*> dbcs(3);
 
    Array<int> dbcz(4); dbcz[0] = 1; dbcz[1] = 2; dbcz[2] = 3; dbcz[3] = 4;
-   dbcs[0].attr = dbcz;
-   dbcs[0].real = &zeroCoef;
-   dbcs[0].imag = &zeroCoef;
+   dbcs[0] = new ComplexVectorCoefficientByAttr;
+   dbcs[0]->attr = dbcz;
+   dbcs[0]->real = &zeroCoef;
+   dbcs[0]->imag = &zeroCoef;
 
    Array<int> dbcf(1); dbcf[0] = 5;
-   dbcs[1].attr = dbcf;
-   dbcs[1].real = &yCoef;
-   dbcs[1].imag = &zeroCoef;
+   dbcs[1] = new ComplexVectorCoefficientByAttr;
+   dbcs[1]->attr = dbcf;
+   dbcs[1]->real = &yCoef;
+   dbcs[1]->imag = &zeroCoef;
 
    Array<int> dbcb(1); dbcb[0] = 6;
-   dbcs[2].attr = dbcb;
-   dbcs[2].real = &yNegCoef;
-   dbcs[2].imag = &zeroCoef;
+   dbcs[2] = new ComplexVectorCoefficientByAttr;
+   dbcs[2]->attr = dbcb;
+   dbcs[2]->real = &yNegCoef;
+   dbcs[2]->imag = &zeroCoef;
 
-   Array<ComplexVectorCoefficientByAttr> nbcs(0);
+   Array<ComplexVectorCoefficientByAttr*> nbcs(0);
 
-   Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
+   Array<ComplexCoefficientByAttr*> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
-      sbcs[0].real = &z_r;
-      sbcs[0].imag = &z_i;
-      sbcs[0].attr = sbca;
-      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0].attr,
-                   sbcs[0].attr_marker);
+      sbcs[0] = new ComplexCoefficientByAttr;
+      sbcs[0]->real = &PotentReCoef;
+      sbcs[0]->imag = &PotentImCoef;
+      sbcs[0]->attr = sbca;
+      AttrToMarker(pmesh.bdr_attributes.Max(), sbcs[0]->attr,
+                   sbcs[0]->attr_marker);
    }
 
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;

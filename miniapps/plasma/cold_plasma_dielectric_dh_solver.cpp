@@ -156,10 +156,10 @@ double EnergyDensityCoef::Eval(ElementTransformation &T,
 }
  */
 PoyntingVectorReCoefDH::PoyntingVectorReCoefDH(double omega,
-                                           VectorCoefficient &Er,
-                                           VectorCoefficient &Ei,
-                                           VectorCoefficient &Hr,
-                                           VectorCoefficient &Hi)
+                                               VectorCoefficient &Er,
+                                               VectorCoefficient &Ei,
+                                               VectorCoefficient &Hr,
+                                               VectorCoefficient &Hi)
    : VectorCoefficient(3),
      omega_(omega),
      ErCoef_(Er),
@@ -173,13 +173,13 @@ PoyntingVectorReCoefDH::PoyntingVectorReCoefDH(double omega,
 {}
 
 void PoyntingVectorReCoefDH::Eval(Vector &S, ElementTransformation &T,
-                                const IntegrationPoint &ip)
+                                  const IntegrationPoint &ip)
 {
    ErCoef_.Eval(Er_, T, ip);
    EiCoef_.Eval(Ei_, T, ip);
 
-    HrCoef_.Eval(Hr_, T, ip);
-    HiCoef_.Eval(Hi_, T, ip);
+   HrCoef_.Eval(Hr_, T, ip);
+   HiCoef_.Eval(Hi_, T, ip);
 
    S.SetSize(3);
 
@@ -196,10 +196,10 @@ void PoyntingVectorReCoefDH::Eval(Vector &S, ElementTransformation &T,
 }
 
 PoyntingVectorImCoefDH::PoyntingVectorImCoefDH(double omega,
-                                           VectorCoefficient &Er,
-                                           VectorCoefficient &Ei,
-                                           VectorCoefficient &Hr,
-                                           VectorCoefficient &Hi)
+                                               VectorCoefficient &Er,
+                                               VectorCoefficient &Ei,
+                                               VectorCoefficient &Hr,
+                                               VectorCoefficient &Hi)
    : VectorCoefficient(3),
      omega_(omega),
      ErCoef_(Er),
@@ -213,13 +213,13 @@ PoyntingVectorImCoefDH::PoyntingVectorImCoefDH(double omega,
 {}
 
 void PoyntingVectorImCoefDH::Eval(Vector &S, ElementTransformation &T,
-                                const IntegrationPoint &ip)
+                                  const IntegrationPoint &ip)
 {
    ErCoef_.Eval(Er_, T, ip);
    EiCoef_.Eval(Ei_, T, ip);
 
-    HrCoef_.Eval(Hr_, T, ip);
-    HiCoef_.Eval(Hi_, T, ip);
+   HrCoef_.Eval(Hr_, T, ip);
+   HiCoef_.Eval(Hi_, T, ip);
 
    S.SetSize(3);
 
@@ -452,9 +452,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          VectorCoefficient * kReCoef,
                          VectorCoefficient * kImCoef,
                          Array<int> & abcs,
-                         Array<ComplexVectorCoefficientByAttr> & dbcs,
-                         Array<ComplexVectorCoefficientByAttr> & nbcs,
-                         Array<ComplexCoefficientByAttr> & sbcs,
+                         Array<ComplexVectorCoefficientByAttr*> & dbcs,
+                         Array<ComplexVectorCoefficientByAttr*> & nbcs,
+                         Array<ComplexCoefficientByAttr*> & sbcs,
                          void (*j_r_src)(const Vector&, Vector&),
                          void (*j_i_src)(const Vector&, Vector&),
                          bool vis_u, bool pa)
@@ -773,21 +773,21 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    if (nbcs_->Size() > 0)
    {
-      nkbcs_ = new Array<ComplexVectorCoefficientByAttr>(nbcs_->Size());
+      nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
       for (int i=0; i<nbcs_->Size(); i++)
       {
-         (*nkbcs_)[i].attr = (*nbcs_)[i].attr;
-         (*nkbcs_)[i].attr_marker.SetSize(pmesh.bdr_attributes.Max());
-         (*nkbcs_)[i].attr_marker = 0;
-         for (int j=0; j<(*nbcs_)[i].attr.Size(); j++)
+         (*nkbcs_)[i]->attr = (*nbcs_)[i]->attr;
+         (*nkbcs_)[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
+         (*nkbcs_)[i]->attr_marker = 0;
+         for (int j=0; j<(*nbcs_)[i]->attr.Size(); j++)
          {
-            (*nkbcs_)[i].attr_marker[(*nbcs_)[i].attr[j] - 1] = 1;
+            (*nkbcs_)[i]->attr_marker[(*nbcs_)[i]->attr[j] - 1] = 1;
          }
 
-         (*nkbcs_)[i].real =
-            new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i].imag);
-         (*nkbcs_)[i].imag =
-            new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i].real);
+         (*nkbcs_)[i]->real =
+            new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i]->imag);
+         (*nkbcs_)[i]->imag =
+            new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i]->real);
       }
    }
    /*
@@ -906,7 +906,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
-         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+         ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
          /*
               m0_->AddBoundaryIntegrator(new MassIntegrator, sbc.attr_marker);
 
@@ -916,25 +916,25 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                              sbc.attr_marker);
          */
          m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), NULL,
-                                    sbc.attr_marker);
-         nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
-                                       new VectorFECurlIntegrator(*sbc.imag),
-                                       sbc.attr_marker);
+                                    sbc->attr_marker);
+         nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc->real),
+                                       new VectorFECurlIntegrator(*sbc->imag),
+                                       sbc->attr_marker);
          if (kReCoef_)
          {
-            nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc.imag,
+            nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc->imag,
                                                             *kReCoef_, -1.0),
-                                          new zkxIntegrator(*sbc.real,
+                                          new zkxIntegrator(*sbc->real,
                                                             *kReCoef_,  1.0),
-                                          sbc.attr_marker);
+                                          sbc->attr_marker);
          }
          if (kImCoef_)
          {
-            nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc.real,
+            nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc->real,
                                                             *kImCoef_, -1.0),
-                                          new zkxIntegrator(*sbc.imag,
+                                          new zkxIntegrator(*sbc->imag,
                                                             *kImCoef_, -1.0),
-                                          sbc.attr_marker);
+                                          sbc->attr_marker);
          }
       }
    }
@@ -981,9 +981,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
-         ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-         SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc.real);
-         SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc.imag);
+         ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
+         SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc->real);
+         SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc->imag);
 
          if (z_r) { z_r->SetPotential(*phi_); }
          if (z_i) { z_i->SetPotential(*phi_); }
@@ -1003,10 +1003,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       for (int i=0; i<nkbcs_->Size(); i++)
       {
          rhs1_->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator
-                                      (*(*nkbcs_)[i].real),
+                                      (*(*nkbcs_)[i]->real),
                                       new VectorFEBoundaryTangentLFIntegrator
-                                      (*(*nkbcs_)[i].imag),
-                                      (*nkbcs_)[i].attr_marker);
+                                      (*(*nkbcs_)[i]->imag),
+                                      (*nkbcs_)[i]->attr_marker);
 
       }
    }
@@ -1036,14 +1036,14 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       deiCoef_.SetGridFunction(&e_->imag());
    }
    */
-    HDivFESpace2p_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
-    S_ = new ParComplexGridFunction(HDivFESpace2p_);
+   HDivFESpace2p_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
+   S_ = new ParComplexGridFunction(HDivFESpace2p_);
 
-    erCoef_.SetGridFunction(&e_->real());
-    eiCoef_.SetGridFunction(&e_->imag());
+   erCoef_.SetGridFunction(&e_->real());
+   eiCoef_.SetGridFunction(&e_->imag());
 
-    hrCoef_.SetGridFunction(&h_->real());
-    hiCoef_.SetGridFunction(&h_->imag());
+   hrCoef_.SetGridFunction(&h_->real());
+   hiCoef_.SetGridFunction(&h_->imag());
    {
       StixCoefBase * s = dynamic_cast<StixCoefBase*>(epsInvReCoef_);
 
@@ -1570,12 +1570,12 @@ CPDSolverDH::Solve()
       for (int i = 0; i<dbcs_->Size(); i++)
       {
          attr_marker = 0;
-         for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
+         for (int j=0; j<(*dbcs_)[i]->attr.Size(); j++)
          {
-            attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
+            attr_marker[(*dbcs_)[i]->attr[j] - 1] = 1;
          }
-         h_->ProjectCoefficient(*(*dbcs_)[i].real,
-                                *(*dbcs_)[i].imag);
+         h_->ProjectCoefficient(*(*dbcs_)[i]->real,
+                                *(*dbcs_)[i]->imag);
       }
       if (logging_ > 1)
       {
@@ -1694,14 +1694,14 @@ CPDSolverDH::Solve()
    }
 }
 
-void CPDSolverDH::collectBdrAttributes(const Array<AttributeArrays> & aa,
+void CPDSolverDH::collectBdrAttributes(const Array<AttributeArrays*> & aa,
                                        Array<int> & bdr_attr_marker)
 {
    bdr_attr_marker.SetSize(pmesh_->bdr_attributes.Max());
    bdr_attr_marker = 0;
    if ( aa.Size() > 0 )
    {
-      if ( aa.Size() == 1 && aa[0].attr[0] == -1 )
+      if ( aa.Size() == 1 && aa[0]->attr[0] == -1 )
       {
          bdr_attr_marker = 1;
       }
@@ -1709,9 +1709,9 @@ void CPDSolverDH::collectBdrAttributes(const Array<AttributeArrays> & aa,
       {
          for (int i=0; i<aa.Size(); i++)
          {
-            for (int j=0; j<aa[i].attr.Size(); j++)
+            for (int j=0; j<aa[i]->attr.Size(); j++)
             {
-               bdr_attr_marker[aa[i].attr[j]-1] = 1;
+               bdr_attr_marker[aa[i]->attr[j]-1] = 1;
             }
          }
       }
@@ -1969,7 +1969,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Re_StixP", &StixP_->real());
       visit_dc.RegisterField("Im_StixP", &StixP_->imag());
    }
-    
+
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
    // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
    // if ( k_ ) { visit_dc.RegisterField("K", k_); }
@@ -1998,7 +1998,7 @@ CPDSolverDH::WriteVisItFields(int it)
          S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
       */
-       S_->ProjectCoefficient(SrCoef_, SiCoef_);
+      S_->ProjectCoefficient(SrCoef_, SiCoef_);
       if ( StixS_ )
       {
          StixS_->ProjectCoefficient(*SReCoef_, *SImCoef_);
@@ -2009,8 +2009,8 @@ CPDSolverDH::WriteVisItFields(int it)
       if ( rectPot_ )
       {
 
-         ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-         SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+         ComplexCoefficientByAttr * sbc = (*sbcs_)[0];
+         SheathBase * sb = dynamic_cast<SheathBase*>(sbc->real);
 
 
          if (sb != NULL)
@@ -2025,7 +2025,7 @@ CPDSolverDH::WriteVisItFields(int it)
 
       if ( BCoef_)
       {
-          
+
          b_hat_->ProjectCoefficient(*BCoef_);
 
          VectorGridFunctionCoefficient e_r(&e_->real());
@@ -2040,7 +2040,7 @@ CPDSolverDH::WriteVisItFields(int it)
          MatrixSumCoefficient Ibb(identityM, bb);
          MatrixVectorProductCoefficient eperp_rCoef(Ibb, e_r);
          MatrixVectorProductCoefficient eperp_iCoef(Ibb, e_i);
-          
+
          e_perp_ ->ProjectCoefficient(eperp_rCoef, eperp_iCoef);
          /*
               MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
@@ -2298,7 +2298,7 @@ CPDSolverDH::DisplayToGLVis()
 
    }
 
-    
+
    if (BCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_v_->real());
@@ -2322,7 +2322,7 @@ CPDSolverDH::DisplayToGLVis()
                      Wx, Wy, Ww, Wh, ebi_keys.str().c_str());
       Wx += offx;
    }
-    
+
    /*
    Wx += offx;
    VisualizeField(*socks_["B"], vishost, visport,
@@ -2359,14 +2359,14 @@ CPDSolverDH::DisplayToGLVis()
                      j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
    }
    Wx = 0; Wy += offy; // next line
-    Wx += offx;
-    
-    S_->ProjectCoefficient(SrCoef_, SiCoef_);
-    VisualizeField(*socks_["Sr"], vishost, visport,
-                   S_->real(), "Poynting Vector, Re(S)", Wx, Wy, Ww, Wh);
-    Wx += offx;
-    VisualizeField(*socks_["Si"], vishost, visport,
-                   S_->imag(), "Poynting Vector, Im(S)", Wx, Wy, Ww, Wh);
+   Wx += offx;
+
+   S_->ProjectCoefficient(SrCoef_, SiCoef_);
+   VisualizeField(*socks_["Sr"], vishost, visport,
+                  S_->real(), "Poynting Vector, Re(S)", Wx, Wy, Ww, Wh);
+   Wx += offx;
+   VisualizeField(*socks_["Si"], vishost, visport,
+                  S_->imag(), "Poynting Vector, Im(S)", Wx, Wy, Ww, Wh);
    /*
    if ( u_ )
    {

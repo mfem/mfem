@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/diffusion.hpp"
+#include "ceed/diffusion.hpp"
 
 using namespace std;
 
@@ -351,6 +351,8 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -359,17 +361,19 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPADiffusionAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      MFEM_VERIFY(!VQ && !MQ && !SMQ,
+                  "Only scalar coefficient supported for DiffusionIntegrator"
+                  " with libCEED");
+      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      return;
    }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    const int sdim = mesh->SpaceDimension();
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
@@ -379,51 +383,54 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
    if (MQ)
    {
+      symmetric = false;
       MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
-      const int MQsymmDim = MQ->GetWidth() * (MQ->GetWidth() + 1) / 2;
 
-      const int MQdim = MQ->IsSymmetric() ? MQsymmDim : MQfullDim;
-      coeffDim = MQdim;
+      coeffDim = MQfullDim;
 
-      coeff.SetSize(MQdim * nq * ne);
-      symmetric = MQ ? MQ->IsSymmetric() : true;
+      coeff.SetSize(MQfullDim * nq * ne);
 
       DenseMatrix M;
-      Vector Msymm;
-      if (symmetric)
-      {
-         Msymm.SetSize(MQsymmDim);
-      }
-      else
-      {
-         M.SetSize(dim);
-      }
+      M.SetSize(dim);
 
-      auto C = Reshape(coeff.HostWrite(), MQdim, nq, ne);
+      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
       for (int e=0; e<ne; ++e)
       {
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (MQ->IsSymmetric())
-            {
-               MQ->EvalSymmetric(Msymm, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<MQsymmDim; ++i)
+            MQ->Eval(M, *tr, ir->IntPoint(p));
+            for (int i=0; i<dim; ++i)
+               for (int j=0; j<dim; ++j)
                {
-                  C(i, p, e) = Msymm[i];
+                  C(j+(i*dim), p, e) = M(i,j);
                }
-            }
-            else
-            {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
+         }
+      }
+   }
+   else if (SMQ)
+   {
+      MFEM_VERIFY(SMQ->GetSize() == dim, "");
+      coeffDim = symmDims;
+      coeff.SetSize(symmDims * nq * ne);
 
-               for (int i=0; i<dim; ++i)
-                  for (int j=0; j<dim; ++j)
-                  {
-                     C(j+(i*dim), p, e) = M(i,j);
-                  }
-            }
+      DenseSymmetricMatrix M;
+      M.SetSize(dim);
+
+      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
+
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            SMQ->Eval(M, *tr, ir->IntPoint(p));
+            int cnt = 0;
+            for (int i=0; i<dim; ++i)
+               for (int j=i; j<dim; ++j, ++cnt)
+               {
+                  C(cnt, p, e) = M(i,j);
+               }
          }
       }
    }
@@ -483,8 +490,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
    }
-   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
-                   Device::GetDeviceMemoryType());
+   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne, mt);
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }
@@ -915,7 +921,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
    {
@@ -1891,13 +1897,26 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {
       PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
                        maps->B, maps->G, maps->Bt, maps->Gt,
                        pa_data, x, y);
+   }
+}
+
+void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (symmetric)
+   {
+      AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
    }
 }
 

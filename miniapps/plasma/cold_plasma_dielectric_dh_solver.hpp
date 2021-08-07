@@ -142,8 +142,8 @@ class PoyntingVectorReCoefDH : public VectorCoefficient
 {
 public:
    PoyntingVectorReCoefDH(double omega,
-                        VectorCoefficient &Er, VectorCoefficient &Ei,
-                        VectorCoefficient &Hr, VectorCoefficient &Hi);
+                          VectorCoefficient &Er, VectorCoefficient &Ei,
+                          VectorCoefficient &Hr, VectorCoefficient &Hi);
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -166,8 +166,8 @@ class PoyntingVectorImCoefDH : public VectorCoefficient
 {
 public:
    PoyntingVectorImCoefDH(double omega,
-                        VectorCoefficient &Er, VectorCoefficient &Ei,
-                        VectorCoefficient &Hr, VectorCoefficient &Hi);
+                          VectorCoefficient &Er, VectorCoefficient &Ei,
+                          VectorCoefficient &Hr, VectorCoefficient &Hi);
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -307,9 +307,9 @@ public:
                VectorCoefficient * kReCoef,
                VectorCoefficient * kImCoef,
                Array<int> & abcs,
-               Array<ComplexVectorCoefficientByAttr> & dbcs,
-               Array<ComplexVectorCoefficientByAttr> & nbcs,
-               Array<ComplexCoefficientByAttr> & sbcs,
+               Array<ComplexVectorCoefficientByAttr*> & dbcs,
+               Array<ComplexVectorCoefficientByAttr*> & nbcs,
+               Array<ComplexCoefficientByAttr*> & sbcs,
                void (*j_r_src)(const Vector&, Vector&),
                void (*j_i_src)(const Vector&, Vector&),
                bool vis_u = false,
@@ -574,7 +574,7 @@ private:
       }
    };
 
-   void collectBdrAttributes(const Array<AttributeArrays> & aa,
+   void collectBdrAttributes(const Array<AttributeArrays*> & aa,
                              Array<int> & attr_marker);
 
    void locateTrueDBCDofs(const Array<int> & dbc_bdr_marker,
@@ -747,15 +747,15 @@ private:
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_bdr_marker_;
 
-   Array<ComplexVectorCoefficientByAttr> * dbcs_;
+   Array<ComplexVectorCoefficientByAttr*> * dbcs_;
    Array<int> dbc_bdr_marker_;
    Array<int> dbc_nd_tdofs_;
    Array<int> non_k_bdr_;
 
-   Array<ComplexVectorCoefficientByAttr> * nbcs_; // Surface current BCs
-   Array<ComplexVectorCoefficientByAttr> * nkbcs_; // Neumann BCs (-i*omega*K)
+   Array<ComplexVectorCoefficientByAttr*> * nbcs_; // Surface current BCs
+   Array<ComplexVectorCoefficientByAttr*> * nkbcs_; // Neumann BCs (-i*omega*K)
 
-   Array<ComplexCoefficientByAttr> * sbcs_; // Sheath BCs
+   Array<ComplexCoefficientByAttr*> * sbcs_; // Sheath BCs
    Array<int> sbc_bdr_marker_;
    Array<int> non_sbc_h1_tdofs_;
    Array<int> sbc_nd_tdofs_;

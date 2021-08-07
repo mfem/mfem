@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,11 +22,18 @@ namespace mfem
 TEST_CASE("HypreILU and HypreFGMRES wrappers",
           "[Parallel], [HypreILU], [HypreFGMRES]")
 {
+#ifdef HYPRE_USING_CUDA
+   std::cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+             << "is NOT supported with the CUDA version of hypre.\n\n";
+   return;
+#endif
+
    // Build a small diffusion problem to test the solver and preconditioner
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    int ne = 40;
-   Mesh mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian2D(
+                  ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 

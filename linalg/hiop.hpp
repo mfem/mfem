@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,7 @@ class HiopOptimizationProblem : public hiop::hiopInterfaceDenseConstraints
 private:
 
 #ifdef MFEM_USE_MPI
-   MPI_Comm comm_;
+   MPI_Comm comm;
 #endif
 
    // Problem info.
@@ -63,14 +63,14 @@ public:
    {
 #ifdef MFEM_USE_MPI
       // Used when HiOp with MPI support is called by a serial driver.
-      comm_ = MPI_COMM_WORLD;
+      comm = MPI_COMM_WORLD;
 #endif
    }
 
 #ifdef MFEM_USE_MPI
-   HiopOptimizationProblem(const MPI_Comm& _comm,
+   HiopOptimizationProblem(const MPI_Comm& comm_,
                            const OptimizationProblem &prob)
-      : comm_(_comm),
+      : comm(comm_),
         problem(prob),
         ntdofs_loc(prob.input_size), m_total(prob.GetNumConstraints()),
         ntdofs_glob(0),
@@ -79,7 +79,7 @@ public:
         constr_info_is_current(false)
    {
       MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_LONG_LONG_INT,
-                    MPI_SUM, comm_);
+                    MPI_SUM, comm);
    }
 #endif
 
@@ -140,6 +140,7 @@ public:
     *  idx_cons. The idx_cons is assumed to be of size num_cons.
     *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1, then
     *  one needs to do Jac[c][j] = d cons[c] / dx_j, j = 1 .. n_loc.
+    *  Jac is computed and stored in a contiguous vector (offset by rows).
     *
     *  Parameters: see eval_cons().
     *
@@ -149,7 +150,7 @@ public:
    virtual bool eval_Jac_cons(const long long &n, const long long &m,
                               const long long &num_cons,
                               const long long *idx_cons,
-                              const double *x, bool new_x, double **Jac);
+                              const double *x, bool new_x, double *Jac);
 
    /** Specifies column partitioning for distributed memory vectors.
     *  Process p owns vector entries with indices cols[p] to cols[p+1]-1,
@@ -162,7 +163,7 @@ public:
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm &comm_out)
    {
-      comm_out = comm_;
+      comm_out = comm;
       return true;
    }
 #endif
@@ -175,13 +176,13 @@ protected:
    HiopOptimizationProblem *hiop_problem;
 
 #ifdef MFEM_USE_MPI
-   MPI_Comm comm_;
+   MPI_Comm comm;
 #endif
 
 public:
    HiopNlpOptimizer();
 #ifdef MFEM_USE_MPI
-   HiopNlpOptimizer(MPI_Comm _comm);
+   HiopNlpOptimizer(MPI_Comm comm_);
 #endif
    virtual ~HiopNlpOptimizer();
 

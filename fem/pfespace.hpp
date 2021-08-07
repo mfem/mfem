@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,16 +54,16 @@ private:
    mutable Array<int> ldof_ltdof;
 
    /// Offsets for the dofs in each processor in global numbering.
-   mutable Array<HYPRE_Int> dof_offsets;
+   mutable Array<HYPRE_BigInt> dof_offsets;
 
    /// Offsets for the true dofs in each processor in global numbering.
-   mutable Array<HYPRE_Int> tdof_offsets;
+   mutable Array<HYPRE_BigInt> tdof_offsets;
 
    /// Offsets for the true dofs in neighbor processor in global numbering.
-   mutable Array<HYPRE_Int> tdof_nb_offsets;
+   mutable Array<HYPRE_BigInt> tdof_nb_offsets;
 
    /// Previous 'dof_offsets' (before Update()), column partition of T.
-   Array<HYPRE_Int> old_dof_offsets;
+   Array<HYPRE_BigInt> old_dof_offsets;
 
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
@@ -73,8 +73,19 @@ private:
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
 
+   /** Used to indicate that the space is nonconforming (even if the underlying
+       mesh has NULL @a ncmesh). This occurs in low-order preconditioning on
+       nonconforming meshes. */
+   bool nonconf_P;
+
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
+   /// Optimized action-only restriction operator for conforming meshes. Owned.
+   mutable Operator *Rconf;
+   /** Transpose of R or Rconf. For conforming mesh, this is a matrix-free
+       (Device)ConformingProlongationOperator, for a non-conforming mesh
+       this is a TransposeOperator wrapping R. */
+   mutable Operator *R_transpose;
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -143,8 +154,8 @@ private:
    HypreParMatrix*
    MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
                        int local_rows, int local_cols,
-                       Array<HYPRE_Int> &row_starts,
-                       Array<HYPRE_Int> &col_starts) const;
+                       Array<HYPRE_BigInt> &row_starts,
+                       Array<HYPRE_BigInt> &col_starts) const;
 
    /// Build the P and R matrices.
    void Build_Dof_TrueDof_Matrix() const;
@@ -154,8 +165,8 @@ private:
        and the DOF -> true DOF map ('dof_tdof'). Returns the number of
        vector true DOFs. All pointer arguments are optional and can be NULL. */
    int BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
-                                            Array<HYPRE_Int> &dof_offs,
-                                            Array<HYPRE_Int> &tdof_offs,
+                                            Array<HYPRE_BigInt> &dof_offs,
+                                            Array<HYPRE_BigInt> &tdof_offs,
                                             Array<int> *dof_tdof,
                                             bool partial = false) const;
 
@@ -172,6 +183,19 @@ private:
    HypreParMatrix* ParallelDerefinementMatrix(int old_ndofs,
                                               const Table *old_elem_dof);
 
+   /// Updates the internal mesh pointer. @warning @a new_mesh must be
+   /// <b>topologically identical</b> to the existing mesh. Used if the address
+   /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
+   virtual void UpdateMeshPointer(Mesh *new_mesh);
+
+   /// Copies the prolongation and restriction matrices from @a fes.
+   ///
+   /// Used for low order preconditioning on non-conforming meshes. If the DOFs
+   /// require a permutation, it will be supplied by non-NULL @a perm. NULL @a
+   /// perm indicates that no permutation is required.
+   virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
+                                               const Array<int> *perm);
+
 public:
    // Face-neighbor data
    // Number of face-neighbor dofs
@@ -181,7 +205,7 @@ public:
    // Face-neighbor to ldof in the face-neighbor numbering
    Table face_nbr_ldof;
    // The global ldof indices of the face-neighbor dofs
-   Array<HYPRE_Int> face_nbr_glob_dof_map;
+   Array<HYPRE_BigInt> face_nbr_glob_dof_map;
    // Local face-neighbor data: face-neighbor to ldof
    Table send_face_nbr_ldof;
 
@@ -244,11 +268,11 @@ public:
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
-   HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
-   HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
-   HYPRE_Int GlobalVSize() const
+   HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }
+   HYPRE_BigInt *GetTrueDofOffsets() const { return tdof_offsets; }
+   HYPRE_BigInt GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
-   HYPRE_Int GlobalTrueVSize() const
+   HYPRE_BigInt GlobalTrueVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumCols(); }
 
    /// Return the number of local vector true dofs.
@@ -262,14 +286,20 @@ public:
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
-   virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+   virtual int GetFaceDofs(int i, Array<int> &dofs, int variant = 0) const;
+
+   /** Returns pointer to the FiniteElement in the FiniteElementCollection
+       associated with i'th element in the mesh object. If @a i is greater than
+       or equal to the number of local mesh elements, @a i will be interpreted
+       as a shifted index of a face neighbor element. */
+   virtual const FiniteElement *GetFE(int i) const;
 
    /** Returns an Operator that converts L-vectors to E-vectors on each face.
        The parallel version is different from the serial one because of the
        presence of shared faces. Shared faces are treated as interior faces,
        the returned operator handles the communication needed to get the
        shared face values from other MPI ranks */
-   virtual const Operator *GetFaceRestriction(
+   virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering e_ordering, FaceType type,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
@@ -325,16 +355,26 @@ public:
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;
    /// Returns the global tdof number of the given local degree of freedom
-   HYPRE_Int GetGlobalTDofNumber(int ldof) const;
+   HYPRE_BigInt GetGlobalTDofNumber(int ldof) const;
    /** Returns the global tdof number of the given local degree of freedom in
        the scalar version of the current finite element space. The input should
        be a scalar local dof. */
-   HYPRE_Int GetGlobalScalarTDofNumber(int sldof);
+   HYPRE_BigInt GetGlobalScalarTDofNumber(int sldof);
 
-   HYPRE_Int GetMyDofOffset() const;
-   HYPRE_Int GetMyTDofOffset() const;
+   HYPRE_BigInt GetMyDofOffset() const;
+   HYPRE_BigInt GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
+   /** @brief Return logical transpose of restriction matrix, but in
+       non-assembled optimized matrix-free form.
+
+       The implementation is like GetProlongationMatrix, but it sets local
+       DOFs to the true DOF values if owned locally, otherwise zero. */
+   virtual const Operator *GetRestrictionTransposeOperator() const;
+   /** Get an Operator that performs the action of GetRestrictionMatrix(),
+       but potentially with a non-assembled optimized matrix-free
+       implementation. */
+   virtual const Operator *GetRestrictionOperator() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }
@@ -346,7 +386,7 @@ public:
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
-   const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 
@@ -354,8 +394,8 @@ public:
    void LoseDofOffsets() { dof_offsets.LoseData(); }
    void LoseTrueDofOffsets() { tdof_offsets.LoseData(); }
 
-   bool Conforming() const { return pmesh->pncmesh == NULL; }
-   bool Nonconforming() const { return pmesh->pncmesh != NULL; }
+   bool Conforming() const { return pmesh->pncmesh == NULL && !nonconf_P; }
+   bool Nonconforming() const { return pmesh->pncmesh != NULL || nonconf_P; }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the
@@ -389,9 +429,16 @@ class ConformingProlongationOperator : public Operator
 protected:
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
+   bool local;
 
 public:
-   ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   ConformingProlongationOperator(int lsize, const GroupCommunicator &gc_,
+                                  bool local_=false);
+
+   ConformingProlongationOperator(const ParFiniteElementSpace &pfes,
+                                  bool local_=false);
+
+   const GroupCommunicator &GetGroupCommunicator() const;
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -410,6 +457,7 @@ protected:
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
+
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
    void BcastBeginCopy(const Vector &src) const;
@@ -435,7 +483,11 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
-   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   DeviceConformingProlongationOperator(
+      const GroupCommunicator &gc_, const SparseMatrix *R, bool local_=false);
+
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
+                                        bool local_=false);
 
    virtual ~DeviceConformingProlongationOperator();
 
