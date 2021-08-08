@@ -158,8 +158,12 @@ void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
             }
 
             // Replace in all boundary elements with material mat.
-            dof_bdre.GetRow(dof, dof_boundaries);
-            const int dof_bdr_cnt = dof_boundaries.Size();
+            int dof_bdr_cnt = 0;
+            if (dof < n_bdr_dofs)
+            {
+               dof_bdre.GetRow(dof, dof_boundaries);
+               dof_bdr_cnt = dof_boundaries.Size();
+            }
             for (int b = 0; b < dof_bdr_cnt; b++)
             {
                int face_id = pmesh.GetBdrFace(dof_boundaries[b]);
