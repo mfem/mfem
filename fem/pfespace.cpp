@@ -3297,6 +3297,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
                // The RefinementOperator takes ownership of 'old_elem_dofs', so
                // we no longer own it:
                old_elem_dof = NULL;
+               old_elem_fos = NULL;
             }
             else
             {
@@ -3330,6 +3331,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
       }
 
       delete old_elem_dof;
+      delete old_elem_fos;
    }
 }
 
