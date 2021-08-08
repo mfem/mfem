@@ -293,12 +293,97 @@ public:
    const Array<int> & GetDirichletBDR() const { return dbc_attr; }
 };
 
+/** A RecyclingBC describes recombination at a boundary
+
+  In a Recycling boundary condition an ion species recombines with
+  electrons contained within the surface of the domain boundary and
+  the resulting neutral atoms are added to the population of neutrals.
+
+  We will assume that diffusion into the wall can be neglected
+  i.e. only advection of ions towards the wall will lead to
+  recycling. It is possible that some fraction of ions will remain
+  ionized. The `ion_frac` coefficient should return the fraction
+  (between 0 and 1) of incident ions which will be absorbed by the
+  boundary. The `neu_frac` coefficient should return the fraction of
+  incident ions which will be recycled as neutrals. In summary
+  `ion_frac` and `n eu_frac` should be chosen so that:
+   0 <= neu_frac <= ion_frac <= 1.
+
+*/
+class RecyclingBC
+{
+private:
+   int ion_index;
+   int vel_index;
+   int neu_index;
+
+   Array<CoefficientsByAttr*> bc; // Recycling BC data
+
+   common::CoefFactory * coefFact;
+
+   // void ReadBCs(std::istream &input);
+   void ReadBC(std::istream &input);
+
+   void ReadAttr(std::istream &input,
+                 Array<int> &attr);
+
+   void ReadCoefsByAttr(std::istream &input,
+                        CoefficientsByAttr &cba);
+
+public:
+   RecyclingBC()
+      : coefFact(NULL) {}
+
+   // RecyclingBC(common::CoefFactory &cf, std::istream &input)
+   //  : coefFact(&cf) { ReadBCs(input); }
+
+   ~RecyclingBC();
+
+   void SetTime(double t) const;
+
+   void LoadBCs(common::CoefFactory &cf, std::istream &input)
+   { coefFact = &cf; ReadBC(input); }
+
+   void AddRecyclingBC(int ion, int vel, int neu, const Array<int> & bdr,
+                       Coefficient & ion_frac, Coefficient & neu_frac);
+
+   int GetIonDensityIndex() const { return ion_index; }
+   int GetIonVelocityIndex() const { return vel_index; }
+   int GetNeutralDensityIndex() const { return neu_index; }
+
+   const Array<CoefficientsByAttr*> & GetRecyclingBCs() const { return bc; }
+};
+
+class CoupledBCs
+{
+public:
+   enum BCType {RECYCLING_BC};
+
+private:
+   Array<RecyclingBC*> rbcs_;
+
+   void ReadBCs(common::CoefFactory &cf, std::istream &input);
+
+public:
+   CoupledBCs() {}
+   ~CoupledBCs();
+
+   void LoadBCs(common::CoefFactory &cf, std::istream &input)
+   { ReadBCs(cf, input); }
+
+   int GetNumRecyclingBCs() const { return rbcs_.Size(); }
+   RecyclingBC & GetRecyclingBC(int i) { return *rbcs_[i]; }
+   const RecyclingBC & GetRecyclingBC(int i) const { return *rbcs_[i]; }
+};
+
 class TransportBCs
 {
 private:
    int neqn_;
    Array<AdvectionDiffusionBC*> bcs_;
    const Array<int> bdr_attr_;
+
+   CoupledBCs cbcs_;
 
    void ReadBCs(common::CoefFactory &cf, std::istream &input);
 
@@ -318,6 +403,9 @@ public:
 
    AdvectionDiffusionBC & operator[](int i) { return *bcs_[i]; }
    const AdvectionDiffusionBC & operator[](int i) const { return *bcs_[i]; }
+
+   CoupledBCs & GetCoupledBCs() { return cbcs_; }
+   const CoupledBCs & GetCoupledBCs() const { return cbcs_; }
 };
 /*
 class GeneralCoefficient
@@ -1024,6 +1112,80 @@ public:
    { return alpha * a->Eval_dTe(T, ip) + beta * b->Eval_dTe(T, ip); }
 };
 
+class StateVariableProductCoef : public StateVariableCoef
+{
+private:
+   StateVariableCoef *a;
+   StateVariableCoef *b;
+
+public:
+   // Result is A * B
+   StateVariableProductCoef(StateVariableCoef &A, StateVariableCoef &B)
+      : a(A.Clone()), b(B.Clone()) {}
+
+   ~StateVariableProductCoef()
+   {
+      if (a != NULL) { delete a; }
+      if (b != NULL) { delete b; }
+   }
+
+   virtual StateVariableProductCoef * Clone() const
+   {
+      return new StateVariableProductCoef(*a, *b);
+   }
+
+   void SetACoef(StateVariableCoef &A) { a = &A; }
+   StateVariableCoef * GetACoef() const { return a; }
+
+   void SetBCoef(StateVariableCoef &B) { b = &B; }
+   StateVariableCoef * GetBCoef() const { return b; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return a->NonTrivialValue(deriv) || b->NonTrivialValue(deriv);
+   }
+
+   /// Evaluate the coefficient
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
+   { return a->Eval_Func(T, ip) * b->Eval_Func(T, ip); }
+
+   virtual double Eval_dNn(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      return a->Eval_dNn(T, ip) * b->Eval_Func(T, ip) +
+             a->Eval_Func(T, ip) * b->Eval_dNn(T, ip);
+   }
+
+   virtual double Eval_dNi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      return a->Eval_dNi(T, ip) * b->Eval_Func(T, ip) +
+             a->Eval_Func(T, ip) * b->Eval_dNi(T, ip);
+   }
+
+   virtual double Eval_dVi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      return a->Eval_dVi(T, ip) * b->Eval_Func(T, ip) +
+             a->Eval_Func(T, ip) * b->Eval_dVi(T, ip);
+   }
+
+   virtual double Eval_dTi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      return a->Eval_dTi(T, ip) * b->Eval_Func(T, ip) +
+             a->Eval_Func(T, ip) * b->Eval_dTi(T, ip);
+   }
+
+   virtual double Eval_dTe(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      return a->Eval_dTe(T, ip) * b->Eval_Func(T, ip) +
+             a->Eval_Func(T, ip) * b->Eval_dTe(T, ip);
+   }
+};
+
 /** Given the electron temperature in eV this coefficient returns an
     approximation to the expected ionization rate in m^3/s.
 */
@@ -1330,8 +1492,10 @@ public:
    double Eval_Func(ElementTransformation &T,
                     const IntegrationPoint &ip)
    {
-      double ne = ne_->Eval(T, ip);
       double nn = nn_->Eval(T, ip);
+      if (nn < nn0_) { return 0.0; }
+
+      double ne = ne_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
       return s_ * ne * (nn - nn0_) * iz;
@@ -1340,6 +1504,9 @@ public:
    double Eval_dNn(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
+      double nn = nn_->Eval(T, ip);
+      if (nn < nn0_) { return 0.0; }
+
       double ne = ne_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
@@ -1350,6 +1517,8 @@ public:
                    const IntegrationPoint &ip)
    {
       double nn = nn_->Eval(T, ip);
+      if (nn < nn0_) { return 0.0; }
+
       double iz = iz_->Eval(T, ip);
 
       double dNe_dNi = ne_->GetAConst();
@@ -1360,8 +1529,10 @@ public:
    double Eval_dTe(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
-      double ne = ne_->Eval(T, ip);
       double nn = nn_->Eval(T, ip);
+      if (nn < nn0_) { return 0.0; }
+
+      double ne = ne_->Eval(T, ip);
 
       double diz_dTe = iz_->Eval_dTe(T, ip);
 
@@ -2607,8 +2778,8 @@ private:
                  const std::string &field_name,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
-                 int term_flag, int vis_flag, int logging = 0,
-                 const std::string & log_prefix = "");
+                 int term_flag, int vis_flag, int logging,
+                 const std::string & log_prefix);
 
 
    public:
@@ -2628,7 +2799,7 @@ private:
 
       inline bool CheckVisFlag(int flag) { return (vis_flag_>> flag) & 1; }
 
-      virtual int GetDefaultVisFlag() { return 1; }
+      virtual int GetDefaultVisFlag() = 0;
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -2642,7 +2813,8 @@ private:
    class TransportOp : public NLOperator
    {
    private:
-      Array<StateVariableCoef*> coefs_;
+      Array<StateVariableCoef*>    svscoefs_;
+      Array<StateVariableVecCoef*> svvcoefs_;
       Array<ProductCoefficient*>             dtSCoefs_;
       Array<ProductCoefficient*>             negdtSCoefs_;
       Array<ScalarVectorProductCoefficient*> dtVCoefs_;
@@ -2678,8 +2850,11 @@ private:
       StateVariableGridFunctionCoef &dTe0Coef_;
 
       const AdvectionDiffusionBC & bcs_;
+      const CoupledBCs & cbcs_;
 
       const EqnCoefficients & eqncoefs_;
+
+      VectorCoefficient & B3Coef_;
 
       Coefficient       * massCoef_;
       Coefficient       * diffusionCoef_;
@@ -2694,34 +2869,12 @@ private:
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
                   const AdvectionDiffusionBC & bcs,
+                  const CoupledBCs & cbcs,
                   const EqnCoefficients & coefs,
+                  VectorCoefficient & B3Coef,
                   int term_flag, int vis_flag,
-                  int logging = 0,
-                  const std::string & log_prefix = "")
-         : NLOperator(mpi, dg, index, eqn_name, field_name,
-                      yGF, kGF, term_flag, vis_flag, logging, log_prefix),
-           coefGF_(yGF[0]->ParFESpace()),
-           plasma_(plasma),
-           m_n_(plasma.m_n),
-           T_n_(plasma.T_n),
-           v_n_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
-           m_i_(plasma.m_i),
-           z_i_(plasma.z_i),
-           nnCoef_(*ykCoefPtrs_[NEUTRAL_DENSITY]),
-           niCoef_(*ykCoefPtrs_[ION_DENSITY]),
-           viCoef_(*ykCoefPtrs_[ION_PARA_VELOCITY]),
-           TiCoef_(*ykCoefPtrs_[ION_TEMPERATURE]),
-           TeCoef_(*ykCoefPtrs_[ELECTRON_TEMPERATURE]),
-           neCoef_(z_i_, niCoef_),
-           dTe0Coef_(*kCoefPtrs_[ELECTRON_TEMPERATURE]),
-           bcs_(bcs),
-           eqncoefs_(coefs),
-           massCoef_(NULL),
-           diffusionCoef_(NULL),
-           diffusionMatrixCoef_(NULL),
-           advectionCoef_(NULL),
-           sourceCoef_(NULL)
-      {}
+                  int logging,
+                  const std::string & log_prefix);
 
       /** Sets the time derivative on the left hand side of the equation to be:
              d MCoef / dt
@@ -2768,6 +2921,10 @@ private:
 
       void SetSourceTerm(Coefficient &SCoef);
       void SetSourceTerm(StateVariableCoef &SCoef);
+      void SetBdrSourceTerm(StateVariableCoef &SCoef,
+                            StateVariableVecCoef &VCoef);
+
+      void SetRecyclingBdrSourceTerm(const RecyclingBC & rbc);
 
    public:
       virtual ~TransportOp();
@@ -2830,7 +2987,8 @@ private:
       enum TermFlag {DIFFUSION_TERM = 0,
                      RECOMBINATION_SOURCE_TERM,
                      IONIZATION_SINK_TERM,
-                     SOURCE_TERM
+                     SOURCE_TERM,
+                     RECYCLING_BDR_SOURCE_TERM
                     };
       enum VisField {DIFFUSION_COEF = 0,
                      RECOMBINATION_SOURCE_COEF,
@@ -2844,6 +3002,8 @@ private:
 
       NeutralDiffusionCoef      DnCoef_;
       StateVariableStandardCoef DCoef_;
+
+      IonAdvectionCoef          ViCoef_;
 
       IonSinkCoef               SrcCoef_;
       IonSourceCoef             SizCoef_;
@@ -2859,10 +3019,12 @@ private:
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
                        const AdvectionDiffusionBC & bcs,
+                       const CoupledBCs & cbcs,
                        const EqnCoefficients & coefs,
-                       int term_flag = 3,
-                       int vis_flag = 0, int logging = 0,
-                       const std::string & log_prefix = "");
+                       VectorCoefficient & B3Coef,
+                       int term_flag,
+                       int vis_flag, int logging,
+                       const std::string & log_prefix);
 
       virtual ~NeutralDensityOp();
 
@@ -2870,7 +3032,7 @@ private:
 
       void Update();
 
-      int GetDefaultVisFlag() { return 7; }
+      virtual int GetDefaultVisFlag() { return 7; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -2924,7 +3086,8 @@ private:
                      ADVECTION_TERM,
                      IONIZATION_SOURCE_TERM,
                      RECOMBINATION_SINK_TERM,
-                     SOURCE_TERM
+                     SOURCE_TERM,
+                     RECYCLING_BDR_SINK_TERM
                     };
       enum VisField {DIFFUSION_PARA_COEF = 0,
                      DIFFUSION_PERP_COEF,
@@ -2961,11 +3124,12 @@ private:
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
                    const AdvectionDiffusionBC & bcs,
+                   const CoupledBCs & cbcs,
                    const EqnCoefficients & coefs,
-                   double DPerp,
                    VectorCoefficient & B3Coef,
-                   int term_flag = 7, int vis_flag = 0, int logging = 0,
-                   const std::string & log_prefix = "");
+                   double DPerp,
+                   int term_flag, int vis_flag, int logging,
+                   const std::string & log_prefix);
 
       virtual ~IonDensityOp();
 
@@ -2973,7 +3137,7 @@ private:
 
       void Update();
 
-      int GetDefaultVisFlag() { return 11; }
+      virtual int GetDefaultVisFlag() { return 11; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -3024,8 +3188,6 @@ private:
       double DPerpConst_;
       ConstantCoefficient DPerpCoef_;
 
-      VectorCoefficient * B3Coef_;
-
       IonMomentumParaCoef            momCoef_;
       IonMomentumParaDiffusionCoef   EtaParaCoef_;
       IonMomentumPerpDiffusionCoef   EtaPerpCoef_;
@@ -3057,12 +3219,13 @@ private:
                     ParFiniteElementSpace & vfes,
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                     const AdvectionDiffusionBC & bcs,
+                    const CoupledBCs & cbcs,
                     const EqnCoefficients & coefs,
+                    VectorCoefficient & B3Coef,
                     // int ion_charge, double ion_mass,
                     double DPerp,
-                    VectorCoefficient & B3Coef,
-                    int term_flag = 7, int vis_flag = 0, int logging = 0,
-                    const std::string & log_prefix = "");
+                    int term_flag, int vis_flag, int logging,
+                    const std::string & log_prefix);
 
       virtual ~IonMomentumOp();
 
@@ -3070,7 +3233,7 @@ private:
 
       void Update();
 
-      int GetDefaultVisFlag() { return 19; }
+      virtual int GetDefaultVisFlag() { return 19; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -3120,8 +3283,6 @@ private:
 
       ApproxIonizationRate     izCoef_;
 
-      VectorCoefficient *      B3Coef_;
-
       StaticPressureCoef               presCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
@@ -3137,17 +3298,20 @@ private:
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
                           const AdvectionDiffusionBC & bcs,
+                          const CoupledBCs & cbcs,
                           const EqnCoefficients & coefs,
-                          double ChiPerp,
                           VectorCoefficient & B3Coef,
-                          int term_flag = 0, int vis_flag = 0, int logging = 0,
-                          const std::string & log_prefix = "");
+                          double ChiPerp,
+                          int term_flag, int vis_flag, int logging,
+                          const std::string & log_prefix);
 
       virtual ~IonStaticPressureOp();
 
       virtual void SetTimeStep(double dt);
 
       void Update();
+
+      virtual int GetDefaultVisFlag() { return 4; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -3197,8 +3361,6 @@ private:
 
       ApproxIonizationRate     izCoef_;
 
-      VectorCoefficient *      B3Coef_;
-
       StaticPressureCoef               presCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
@@ -3214,12 +3376,13 @@ private:
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
                                const AdvectionDiffusionBC & bcs,
+                               const CoupledBCs & cbcs,
                                const EqnCoefficients & coefs,
-                               double ChiPerp,
                                VectorCoefficient & B3Coef,
-                               int term_flag = 0, int vis_flag = 0,
-                               int logging = 0,
-                               const std::string & log_prefix = "");
+                               double ChiPerp,
+                               int term_flag, int vis_flag,
+                               int logging,
+                               const std::string & log_prefix);
 
       virtual ~ElectronStaticPressureOp();
 
@@ -3230,6 +3393,8 @@ private:
       void PrepareDataFields();
 
       void Update();
+
+      virtual int GetDefaultVisFlag() { return 4; }
    };
 
    class DummyOp : public TransportOp
@@ -3240,11 +3405,14 @@ private:
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
               const AdvectionDiffusionBC & bcs,
-              const EqnCoefficients & coefs, int index,
+              const CoupledBCs & cbcs,
+              const EqnCoefficients & coefs,
+              VectorCoefficient & B3Coef,
+              int index,
               const std::string &eqn_name,
               const std::string &field_name,
-              int term_flag = 0, int vis_flag = 0,
-              int logging = 0, const std::string & log_prefix = "");
+              int term_flag, int vis_flag,
+              int logging, const std::string & log_prefix);
 
       virtual void SetTimeStep(double dt)
       {
@@ -3256,6 +3424,8 @@ private:
       }
 
       void Update();
+
+      virtual int GetDefaultVisFlag() { return 0; }
    };
 
    class CombinedOp : public Operator
@@ -3295,7 +3465,7 @@ private:
                  // int ion_charge, double ion_mass,
                  // double neutral_mass, double neutral_temp,
                  double DiPerp, double XiPerp, double XePerp,
-                 VectorCoefficient & B3Coef,
+                 // VectorCoefficient & B3Coef,
                  // std::vector<CoefficientByAttr> & Ti_dbc,
                  // std::vector<CoefficientByAttr> & Te_dbc,
                  const Array<int> & term_flags,
@@ -3341,6 +3511,7 @@ private:
 
    CombinedOp op_;
 
+   VectorCoefficient & B3Coef_;
    VectorXYCoefficient BxyCoef_;
    VectorZCoefficient  BzCoef_;
 
@@ -3366,7 +3537,6 @@ public:
                   const TransportBCs & bcs,
                   const TransportCoefs & coefs,
                   double Di_perp, double Xi_perp, double Xe_perp,
-                  VectorCoefficient & B3Coef,
                   const Array<int> & term_flags,
                   const Array<int> & vis_flags,
                   bool imex = true,

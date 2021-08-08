@@ -918,6 +918,8 @@ public:
    }
 };
 
+void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err);
+
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
@@ -1691,6 +1693,8 @@ int main(int argc, char *argv[])
          cout << "Using B field from " << eqdsk_file << endl;
       }
       B3Coef = new B3Coefficient(*nxGradPsiCoef);
+      eqnCoefs(5).GetVectorCoefficient(CommonCoefs::MAGNETIC_FIELD_COEF) =
+         B3Coef;
    }
    else
    {
@@ -1699,6 +1703,8 @@ int main(int argc, char *argv[])
          cout << "Using B field from TotBFunc" << endl;
       }
       B3Coef = new VectorFunctionCoefficient(3, TotBFunc);
+      eqnCoefs(5).GetVectorCoefficient(CommonCoefs::MAGNETIC_FIELD_COEF) =
+         B3Coef;
    }
 
    Array<double> coefNrm(5);
@@ -1828,7 +1834,7 @@ int main(int argc, char *argv[])
 
    DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes,
                        offsets, yGF, kGF,
-                       bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp, *B3Coef,
+                       bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp,
                        term_flags, vis_flags, imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
@@ -1917,18 +1923,24 @@ int main(int argc, char *argv[])
 
    if (max_elem_error < 0.0)
    {
-      const Vector init_errors = estimator.GetLocalErrors();
+      /*
+       const Vector & init_errors = estimator.GetLocalErrors();
 
-      double loc_max_error = init_errors.Max();
-      double loc_min_error = init_errors.Min();
+       double loc_max_error = init_errors.Max();
+       double loc_min_error = init_errors.Min();
 
+       double glb_max_error = -1.0;
+       double glb_min_error = -1.0;
+
+       MPI_Allreduce(&loc_max_error, &glb_max_error, 1,
+                     MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+       MPI_Allreduce(&loc_min_error, &glb_min_error, 1,
+                     MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+      */
       double glb_max_error = -1.0;
       double glb_min_error = -1.0;
 
-      MPI_Allreduce(&loc_max_error, &glb_max_error, 1,
-                    MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-      MPI_Allreduce(&loc_min_error, &glb_min_error, 1,
-                    MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+      ErrorEstRange(estimator, glb_min_error, glb_max_error);
 
       if (mpi.Root())
       {
@@ -2136,10 +2148,23 @@ int main(int argc, char *argv[])
          //     refined and finally it modifies the mesh. The Stop() method can be
          //     used to determine if a stopping criterion was met.
 
+         {
+            double min_err, max_err;
+            ErrorEstRange(estimator, min_err, max_err);
+
+            if (mpi.Root())
+            {
+               cout << "Range of error estimates at time " << t << ": "
+                    << min_err << " < elem err < " << max_err << endl;
+            }
+         }
+
+
+
          if (visualization)
          {
-            err.MakeRef(&fes_l2_o0,
-                        const_cast<double*>(&(estimator.GetLocalErrors())[0]));
+            const Vector & err_est = estimator.GetLocalErrors();
+            err.MakeRef(&fes_l2_o0, const_cast<double*>(&err_est[0]));
             ostringstream oss;
             oss << "Error estimate at time " << t;
             VisualizeField(eout, vishost, visport, err, oss.str().c_str(),
@@ -2349,6 +2374,22 @@ int main(int argc, char *argv[])
           CommonCoefs::MAGNETIC_FIELD_COEF) != B3Coef) { delete B3Coef; }
 
    return 0;
+}
+
+void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err)
+{
+   const Vector & errors = est.GetLocalErrors();
+
+   double loc_max_error = errors.Max();
+   double loc_min_error = errors.Min();
+
+   max_err = -1.0;
+   min_err = -1.0;
+
+   MPI_Allreduce(&loc_max_error, &max_err, 1,
+                 MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_min_error, &min_err, 1,
+                 MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 }
 
 // Initial condition
@@ -2668,6 +2709,27 @@ public:
    }
 };
 
+class Gaussian1D : public Coefficient
+{
+private:
+   int comp_;
+   double p0_;
+   double a_;
+   double b_;
+
+   mutable Vector x_;
+
+public:
+   Gaussian1D(double a, double b, double p0, int comp)
+      : comp_(comp), p0_(p0), a_(a), b_(b) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * exp(- b_ * pow(x_[comp_] - p0_, 2));
+   }
+};
+
 class Radius : public Coefficient
 {
 private:
@@ -2842,6 +2904,13 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       int n;
       input >> a >> b >> n;
       coef_idx = sCoefs.Append(new SinPhi(a, b, n));
+   }
+   else if (name == "Gaussian1D")
+   {
+      double a, b, p0;
+      int comp;
+      input >> a >> b >> p0 >> comp;
+      coef_idx = sCoefs.Append(new Gaussian1D(a, b, p0, comp));
    }
    else if (name == "AnnularTestSol")
    {
