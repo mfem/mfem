@@ -80,4 +80,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@true
+	@rm -rf mesh.* sol.* ParaView

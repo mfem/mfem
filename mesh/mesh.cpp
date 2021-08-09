@@ -75,7 +75,7 @@ void Mesh::GetElementCenter(int i, Vector &center)
 
 double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
-   DenseMatrix J(Dim);
+   DenseMatrix J(spaceDim,Dim);
 
    Geometry::Type geom = T->GetGeometryType();
    T->SetIntPoint(&Geometries.GetCenter(geom));
@@ -83,7 +83,7 @@ double Mesh::GetElementSize(ElementTransformation *T, int type)
 
    if (type == 0)
    {
-      return pow(fabs(J.Det()), 1./Dim);
+      return pow(fabs(J.Weight()), 1./Dim);
    }
    else if (type == 1)
    {
@@ -102,7 +102,7 @@ double Mesh::GetElementSize(int i, int type)
 
 double Mesh::GetElementSize(int i, const Vector &dir)
 {
-   DenseMatrix J(Dim);
+   DenseMatrix J(spaceDim,Dim);
    Vector d_hat(Dim);
    GetElementJacobian(i, J);
    J.MultTranspose(dir, d_hat);
@@ -4110,7 +4110,11 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    }
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+
+   // The check below is disabled because is fails for parallel meshes with
+   // interior "boundary" element that, when such "boundary" element is between
+   // two elements on different processors.
+   // MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
 
 Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
