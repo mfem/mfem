@@ -1496,6 +1496,7 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
                                        tspec_fes->FEColl(), ncomp);
 
    delete tspec_gf;
+   tspec.HostReadWrite();
    tspec_gf = new GridFunction(tspec_fesv, tspec);
 }
 
