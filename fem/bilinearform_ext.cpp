@@ -492,11 +492,18 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
    }
 
+   Vector xint = x;
+   Vector xbdy = x;
+   Vector yint = y;
+   Vector ybdy = y;
+   yint = 0.0;
+   ybdy = 0.0;
+
    Array<BilinearFormIntegrator*> &intNormalDerivFaceIntegrators = *a->GetNDFBFI();
    const int iNDFISz = intNormalDerivFaceIntegrators.Size();
    if (int_face_normD_restrict_lex && iNDFISz>0)
    {
-      int_face_normD_restrict_lex->Mult(x, faceNormDIntX);
+      int_face_normD_restrict_lex->Mult(xint, faceNormDIntX);
       if (faceNormDIntX.Size()>0)
       {
          faceNormDIntY = 0.0;
@@ -504,7 +511,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             intNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDIntX, faceNormDIntY);
          }
-         int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, y);
+         int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, yint);
       }
    }
 
@@ -512,7 +519,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();
    if (bdr_face_normD_restrict_lex && bNDFISz>0)
    {
-      bdr_face_normD_restrict_lex->Mult(x, faceNormDBdrX);
+      bdr_face_normD_restrict_lex->Mult(xbdy, faceNormDBdrX);
       if (faceNormDBdrX.Size()>0)
       {
          faceNormDBdrY = 0.0;
@@ -520,9 +527,28 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             bdrNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDBdrX, faceNormDBdrY);
          }
-         bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, y);
+         bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, ybdy);
       }
    }
+
+#ifdef MFEM_DEBUG
+
+   std::cout << "begin y" << std::endl;
+   y.Print(std::cout,1);
+   std::cout << "yint" << std::endl;
+   yint.Print(std::cout,1);
+   std::cout << "ybdy" << std::endl;
+   ybdy.Print(std::cout,1);
+#endif
+
+   y += ybdy;
+   y += yint;
+
+#ifdef MFEM_DEBUG
+   std::cout << "y after" << std::endl;
+   y.Print(std::cout,1);
+#endif
+
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
@@ -596,6 +622,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, y);
       }
    }
+
 
    Array<BilinearFormIntegrator*> &bdrNormalDerivFaceIntegrators = *a->GetNDBFBFI();
    const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();

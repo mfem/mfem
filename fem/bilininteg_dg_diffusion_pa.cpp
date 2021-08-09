@@ -216,47 +216,33 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             const IntegrationPoint &ip = ir->IntPoint(p);
             // Set the integration point in the face and the neighboring elements
 
-#ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
-
             Trans.SetAllIntPoints(&ip);
 
-
+#ifdef MFEM_DEBUG
+            // these factors aren't right
+            std::cout << "% f2ev( " << 0 << "," << f_ind << ") =  " << f2ev(0,f_ind)  << std::endl;
             std::cout << "% detJ( " << p << "," << f_ind << ") =  " << detJ(p,f_ind)  << std::endl;
             std::cout << "% Trans.Elem1->Weight() " <<  Trans.Elem1->Weight()  << std::endl;
+            std::cout << "% ip.weight " <<  ip.weight  << std::endl;
+#endif 
+
             double t2w = Trans.Elem1->Weight();
             double ipw = ip.weight;
             w = ipw;///t2w;
+
+            double betaw = f2ev(0,f_ind)*f2ev(0,f_ind)/(detJ(p,f_ind)*detJ(p,f_ind)*detJ(p,f_ind)*detJ(p,f_ind));
+            betaw = 1.0/betaw;
+
             if (int_type_match)
             {
                w /= 2;
             }
-#ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
 
-            op1(p,0,0,f_ind) =  beta*w*t2w;
-
-#ifdef MFEM_DEBUG
-    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
-            op1(p,1,0,f_ind) = - beta*w*t2w; 
-
-#ifdef MFEM_DEBUG
-    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
+            op1(p,0,0,f_ind) =  beta*w*t2w/detJ(p,f_ind)*betaw;
+            op1(p,1,0,f_ind) = - beta*w*t2w/detJ(p,f_ind)*betaw; 
 
             const double h0 = 1.0; // I think this is handled by w
-
-#ifdef MFEM_DEBUG
-    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
             op3(p,0,f_ind) = -kappa*w/h0;
-
-#ifdef MFEM_DEBUG
-    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
             op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
             if (int_type_match)
@@ -267,12 +253,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                w = ipw/2;///t2w;
                const double h1 = 1.0; // I think this is handled by w
 
-#ifdef MFEM_DEBUG
-    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
-
-               op1(p,0,1,f_ind) =  beta*w*t2w;//*detJ(p,f_ind);
-               op1(p,1,1,f_ind) = - beta*w*t2w;//*detJ(p,f_ind);
+               op1(p,0,1,f_ind) =  beta*w*t2w/detJ(p,f_ind)*betaw;
+               op1(p,1,1,f_ind) = - beta*w*t2w/detJ(p,f_ind)*betaw;
 
                op2(p,1,f_ind) =  sigma*w*detJ(p,f_ind);
                op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
@@ -394,7 +376,7 @@ void PADGDiffusionApply2D(const int NF,
       }
 
 #ifdef MFEM_DEBUG
-
+/*
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < D1D; q2++)
@@ -446,6 +428,7 @@ void PADGDiffusionApply2D(const int NF,
             << " D0 " << D0[q1][0] << " D1jumpu " << D1[q1][0] << std::endl;
          }
       }
+      */
 #endif
 
       // 3. Integrate along faces
@@ -664,10 +647,10 @@ void PADGDiffusionApply3D(const int NF,
                // need to have different op2 and op3 for each side, then use n
                const double jump_u = BBu1[q1][q2][c] - BBu0[q1][q2][c];
                const double jump_Gu = BBGu1[q1][q2][c] - BBGu0[q1][q2][c];
-               D0[q1][q2][c] = op1(q1,q2,0,0,f)*jump_Gu + 0*op3(q1,q2,0,f)*jump_u;
-               D1[q1][q2][c] = 0*op1(q1,q2,1,0,f)*jump_Gu + 0*op3(q1,q2,1,f)*jump_u;
-               D0jumpu[q1][q2][c] = 0*op2(q1,q2,0,f)*jump_u;
-               D1jumpu[q1][q2][c] = 0*op2(q1,q2,1,f)*jump_u;
+               D0[q1][q2][c] = op1(q1,q2,0,0,f)*jump_Gu + op3(q1,q2,0,f)*jump_u;
+               D1[q1][q2][c] = op1(q1,q2,1,0,f)*jump_Gu + op3(q1,q2,1,f)*jump_u;
+               D0jumpu[q1][q2][c] = op2(q1,q2,0,f)*jump_u;
+               D1jumpu[q1][q2][c] = op2(q1,q2,1,f)*jump_u;
             }
          }
       }
@@ -812,9 +795,9 @@ void PADGDiffusionApply3D(const int NF,
 #endif
                }
                y(d1,d2,c,0,f,0) = BBD0;
-               y(d1,d2,c,1,f,0) = 0*BBD1;
-               y(d1,d2,c,0,f,1) = 0*BBD0jumpu;
-               y(d1,d2,c,1,f,1) = 0*BBD1jumpu;
+               y(d1,d2,c,1,f,0) = BBD1;
+               y(d1,d2,c,0,f,1) = BBD0jumpu;
+               y(d1,d2,c,1,f,1) = BBD1jumpu;
 
 #ifdef MFEM_DEBUG
                std::cout << "% y("<<d1<<","<<d2<<","<<0<<","<<f<<","<<0<<") = " << BBD0 << std::endl;
