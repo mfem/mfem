@@ -110,7 +110,7 @@ void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
    Table new_elem_dof(elem_dof), new_bdre_dof(bdre_dof);
    Transpose(elem_dof, dof_elem);
    Transpose(bdre_dof, dof_bdre);
-   const int nrows = dof_elem.Size();
+   const int nrows = dof_elem.Size(), n_bdr_dofs = dof_bdre.Size();
    int ndofs = nrows;
    Array<int> dof_elements, dof_boundaries;
    if (print)
