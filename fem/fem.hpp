@@ -35,6 +35,7 @@
 #include "staticcond.hpp"
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
+#include "tmop_amr.hpp"
 #include "gslib.hpp"
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
