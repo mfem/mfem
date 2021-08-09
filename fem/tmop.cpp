@@ -1336,6 +1336,7 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
                                            ptspec_fes->FEColl(), ncomp);
 
    delete tspec_pgf;
+   tspec.HostReadWrite();
    tspec_pgf = new ParGridFunction(ptspec_fesv, tspec);
    tspec_gf = tspec_pgf;
 }
