@@ -33,6 +33,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    // If fespace == L2
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
+
+   // Ensure the face neighbor data is constructed
+   pfes.GetParMesh()->ExchangeFaceNbrData();
+
    const FiniteElement *fe = pfes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
