@@ -271,6 +271,11 @@ int main(int argc, char *argv[])
 
    if (h_metric_id < 0) { h_metric_id = metric_id; }
 
+   if (hradaptivity)
+   {
+      MFEM_VERIFY(strcmp(devopt,"cpu")==0, "HR-adaptivity is currently only"
+                  " supported on cpus.");
+   }
    Device device(devopt);
    device.Print();
 
