@@ -90,6 +90,7 @@ int main (int argc, char *argv[])
    bool benchmark       = false;
    int  benchmarkid      = 1;
    double ls_scale       = 1.0;
+   int partition_type = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -209,6 +210,15 @@ int main (int argc, char *argv[])
                   "1 = kershaw, 2 is stretching.");
    args.AddOption(&ls_scale, "-scale", "--scale",
                   "Initial line search scale");
+   args.AddOption(&partition_type, "-pt", "--partition",
+                     "Customized x/y/z Cartesian MPI partitioning of the serial mesh.\n\t"
+                     "Here x,y,z are relative task ratios in each direction.\n\t"
+                     "Example: with 48 mpi tasks and -pt 321, one would get a Cartesian\n\t"
+                     "partition of the serial mesh by (6,4,2) MPI tasks in (x,y,z).\n\t"
+                     "NOTE: the serially refined mesh must have the appropriate number\n\t"
+                     "of zones in each direction, e.g., the number of zones in direction x\n\t"
+                     "must be divisible by the number of MPI tasks in direction x.\n\t"
+                     "Available options: 11, 21, 111, 211, 221, 311, 321, 322, 432.");
    args.Parse();
    if (!args.Good())
    {
@@ -235,9 +245,56 @@ int main (int argc, char *argv[])
       cout << endl;
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 
+   // Parallel partitioning of the mesh.
+   ParMesh *pmesh = nullptr;
+   int unit = 1;
+   int *nxyz = new int[dim];
+   switch (partition_type)
+   {
+     case 0:
+        for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
+        break;
+     case 11:
+     case 111:
+        unit = static_cast<int>(floor(pow(num_procs, 1.0 / dim) + 1e-2));
+        for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
+        break;
+     default:
+        if (myid == 0)
+        {
+           cout << "Unknown partition type: " << partition_type << '\n';
+        }
+        delete mesh;
+        MPI_Finalize();
+        return 3;
+   }
+   int product = 1;
+   for (int d = 0; d < dim; d++) { product *= nxyz[d]; }
+   if (product == num_procs)
+   {
+     int *partitioning = mesh->CartesianPartitioning(nxyz);
+     pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
+     delete [] partitioning;
+   }
+   else
+   {
+     if (myid == 0)
+     {
+        cout << "Non-Cartesian partitioning through METIS will be used.\n";
+#ifndef MFEM_USE_METIS
+        cout << "MFEM was built without METIS. "
+             << "Adjust the number of tasks to use a Cartesian split." << endl;
+#endif
+     }
+#ifndef MFEM_USE_METIS
+     return 1;
+#endif
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   }
+   delete [] nxyz;
    delete mesh;
+
    for (int lev = 0; lev < rp_levels; lev++)
    {
       pmesh->UniformRefinement();
