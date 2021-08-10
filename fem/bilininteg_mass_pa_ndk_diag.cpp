@@ -242,15 +242,24 @@ void NDK_PAMassAssembleDiagonal(const int dim,
       case 0x067: return NDK_SmemPAMassDiag3D<6,7>(ND,NE,map,b,d,y);
       case 0x078: return NDK_SmemPAMassDiag3D<7,8>(ND,NE,map,b,d,y);
 
-      case 0x123: return NDK_RegsPAMassDiag3D<2,3>(ND,NE,map,b,d,y);
-      case 0x124: return NDK_RegsPAMassDiag3D<2,4>(ND,NE,map,b,d,y);
-      case 0x134: return NDK_RegsPAMassDiag3D<3,4>(ND,NE,map,b,d,y);
-      case 0x145: return NDK_RegsPAMassDiag3D<4,5>(ND,NE,map,b,d,y);
-      case 0x146: return NDK_RegsPAMassDiag3D<4,6>(ND,NE,map,b,d,y);
-      case 0x156: return NDK_RegsPAMassDiag3D<5,6>(ND,NE,map,b,d,y);
-      case 0x158: return NDK_RegsPAMassDiag3D<5,8>(ND,NE,map,b,d,y);
-      case 0x167: return NDK_RegsPAMassDiag3D<6,7>(ND,NE,map,b,d,y);
-      case 0x178: return NDK_RegsPAMassDiag3D<7,8>(ND,NE,map,b,d,y);
+      case 0x123:
+      case 0x223: return NDK_RegsPAMassDiag3D<2,3>(ND,NE,map,b,d,y);
+      case 0x124:
+      case 0x224: return NDK_RegsPAMassDiag3D<2,4>(ND,NE,map,b,d,y);
+      case 0x134:
+      case 0x234: return NDK_RegsPAMassDiag3D<3,4>(ND,NE,map,b,d,y);
+      case 0x145:
+      case 0x245: return NDK_RegsPAMassDiag3D<4,5>(ND,NE,map,b,d,y);
+      case 0x146:
+      case 0x246: return NDK_RegsPAMassDiag3D<4,6>(ND,NE,map,b,d,y);
+      case 0x156:
+      case 0x256: return NDK_RegsPAMassDiag3D<5,6>(ND,NE,map,b,d,y);
+      case 0x158:
+      case 0x258: return NDK_RegsPAMassDiag3D<5,8>(ND,NE,map,b,d,y);
+      case 0x167:
+      case 0x267: return NDK_RegsPAMassDiag3D<6,7>(ND,NE,map,b,d,y);
+      case 0x178:
+      case 0x278: return NDK_RegsPAMassDiag3D<7,8>(ND,NE,map,b,d,y);
       default: break;
    }
 
