@@ -92,7 +92,7 @@ void VisualizeL2(ParGridFunction &gf, int size, int x, int y)
    sol_sock.precision(8);
    sol_sock << "solution\n" << *pmesh << gf_l2;
    sol_sock << "window_geometry " << x << " " << y << " "
-                                  << size << " " << size << "\n"
+            << size << " " << size << "\n"
             << "window_title '" << "Y" << "'\n"
             << "keys mRjlc\n" << flush;
 }
@@ -105,7 +105,7 @@ void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
    // Duplicate DOFs on the material interface.
    // That is, the DOF touches different element attributes.
    const Table &elem_dof = pfes.GetElementToDofTable(),
-               &bdre_dof = pfes.GetBdrElementToDofTable();
+                &bdre_dof = pfes.GetBdrElementToDofTable();
    Table dof_elem, dof_bdre;
    Table new_elem_dof(elem_dof), new_bdre_dof(bdre_dof);
    Transpose(elem_dof, dof_elem);
@@ -138,7 +138,7 @@ void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
          // All other materials duplicate the dof.
          auto mat = dof_materials.cbegin();
          mat++;
-         while(mat != dof_materials.cend())
+         while (mat != dof_materials.cend())
          {
             // Replace in all elements with material mat.
             const int new_dof_id = ndofs;
@@ -208,7 +208,7 @@ void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
       sol_sock_x.precision(8);
       sol_sock_x << "solution\n" << pmesh << x_vis;
       sol_sock_x << "window_geometry " << 0 << " " << 0 << " "
-                                       << size << " " << size << "\n"
+                 << size << " " << size << "\n"
                  << "window_title '" << "X" << "'\n"
                  << "keys mRjlc\n" << flush;
    }

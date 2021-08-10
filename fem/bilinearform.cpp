@@ -1304,6 +1304,12 @@ void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
    trace_face_integs.Append (bfi);
 }
 
+
+void MixedBilinearForm::AddFaceIntegrator (BilinearFormIntegrator *bfi)
+{
+   face_integs.Append(bfi);
+}
+
 void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi)
 {
    boundary_trace_face_integs.Append(bfi);
@@ -1429,6 +1435,35 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          {
             trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
                                                      *test_fe2, *ftr, elemmat);
+            mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
+         }
+      }
+   }
+
+   if (face_integs.Size())
+   {
+      FaceElementTransformations *ftr;
+      Array<int> tr_vdofs2, te_vdofs2;
+
+      int nfaces = mesh->GetNumFaces();
+      for (int i = 0; i < nfaces; i++)
+      {
+         ftr = mesh->GetFaceElementTransformations(i);
+         trial_fes->GetElementVDofs(ftr->Elem1No, tr_vdofs);
+         test_fes->GetElementVDofs(ftr->Elem1No, te_vdofs);
+         if (ftr->Elem2No >= 0)
+         {
+            trial_fes->GetElementVDofs(ftr->Elem2No, tr_vdofs2);
+            test_fes->GetElementVDofs(ftr->Elem2No, te_vdofs2);
+            tr_vdofs.Append(tr_vdofs2);
+            te_vdofs.Append(te_vdofs2);
+         }
+
+         for (int k = 0; k < face_integs.Size(); k++)
+         {
+            face_integs[k]->AssembleFaceMatrix(*trial_fes->GetFE(ftr->Elem1No),
+                                               *test_fes->GetFE(ftr->Elem1No),
+                                               *ftr, elemmat);
             mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
          }
       }
@@ -1806,6 +1841,8 @@ MixedBilinearForm::~MixedBilinearForm()
       { delete boundary_integs[i]; }
       for (i = 0; i < trace_face_integs.Size(); i++)
       { delete trace_face_integs[i]; }
+      for (i = 0; i < face_integs.Size(); i++)
+      { delete face_integs[i]; }
       for (i = 0; i < boundary_trace_face_integs.Size(); i++)
       { delete boundary_trace_face_integs[i]; }
    }

@@ -492,6 +492,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
 void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
 {
    FTr->Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
+   FTr->Attribute = faces[FaceNo]->GetAttribute();
    FTr->ElementNo = FaceNo;
    FTr->ElementType = ElementTransformation::FACE;
    DenseMatrix &pm = FTr->GetPointMat();

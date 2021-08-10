@@ -99,6 +99,13 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
+void LinearForm::AddTraceFaceIntegrator(LinearFormIntegrator *tfi,
+                                        Array<int> &attr_list)
+{
+   trace_face_integs.Append(tfi);
+   trace_face_integs_attributes.Append(&attr_list);
+}
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;
@@ -234,6 +241,39 @@ void LinearForm::Assemble()
                                       *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
+         }
+      }
+   }
+
+   if (trace_face_integs.Size())
+   {
+      Mesh *mesh = fes->GetMesh();
+      FaceElementTransformations *tr;
+      const FiniteElement *fe_1, *fe_2;
+      Array<int> vdofs2;
+
+      const int nfaces = mesh->GetNumFaces();
+      for (int f = 0; f < nfaces; f++)
+      {
+         const int attr = mesh->GetFace(f)->GetAttribute();
+         tr   = mesh->GetFaceElementTransformations(f);
+         fe_1 = fes->GetFE(tr->Elem1No);
+         fes->GetElementVDofs(tr->Elem1No, vdofs);
+         if (tr->Elem2No >= 0)
+         {
+            fes->GetElementVDofs(tr->Elem2No, vdofs2);
+            vdofs.Append(vdofs2);
+            fe_2 = fes->GetFE(tr->Elem2No);
+         }
+         else
+         {
+            fe_2 = fe_1;
+         }
+
+         for (int k = 0; k < trace_face_integs.Size(); k++)
+         {
+            trace_face_integs[k]->AssembleRHSElementVect(*fe_1, *fe_2, *tr, elemvect);
+            AddElementVector(vdofs, elemvect);
          }
       }
    }

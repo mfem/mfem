@@ -54,6 +54,11 @@ protected:
    /// Set of Internal Face Integrators to be applied.
    Array<LinearFormIntegrator*> interior_face_integs;
 
+   /// Set of trace (all faces - both interior and boundary) integrators.
+   Array<LinearFormIntegrator *> trace_face_integs;
+   Array<Array<int> *>
+   trace_face_integs_attributes; ///< Entries are not owned.
+
    /// The element ids where the centers of the delta functions lie
    Array<int> domain_delta_integs_elem_id;
 
@@ -139,6 +144,13 @@ public:
    /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi);
 
+   /** @brief Add new Trace Face Integrator, restricted to the given face
+       attributes.
+       Assumes ownership of @a tfi. The array @a attr_list is stored
+       internally as a pointer to the given Array<int> object. */
+   void AddTraceFaceIntegrator(LinearFormIntegrator *tfi,
+                               Array<int> &attr_list);
+
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes.
 
@@ -164,6 +176,9 @@ public:
 
    /// Access all integrators added with AddBdrFaceIntegrator().
    Array<LinearFormIntegrator*> *GetFLFI() { return &boundary_face_integs; }
+
+   /// Access all integrators added with AddTraceFaceIntegrator().
+   Array<LinearFormIntegrator*> *GetTLFI() { return &trace_face_integs; }
 
    /// Access all integrators added with AddInteriorFaceIntegrator().
    Array<LinearFormIntegrator*> *GetIFLFI() { return &interior_face_integs; }
