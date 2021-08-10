@@ -2470,6 +2470,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                }
             }
 
+/*
             stencil_point_nor /= stencil_point_nor.Norml2();
             stencil_point_tan1 /= stencil_point_tan1.Norml2();
             if( dim == 3)
@@ -2486,13 +2487,13 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   stencil_point_neighbor_tan2 /= stencil_point_neighbor_tan2.Norml2();
                }
             }
-
-            const FaceGeometricFactors *geom = fes.GetMesh()->GetFaceGeometricFactors(
+*/
+            const FaceGeometricFactors *facegeom = fes.GetMesh()->GetFaceGeometricFactors(
                            ir_glob_face,
                            FaceGeometricFactors::DETERMINANTS |
                            FaceGeometricFactors::NORMALS, type);
 
-            auto truenor = Reshape(geom->normal.Read(), NPf, dim, nf);
+            auto truenor = Reshape(facegeom->normal.Read(), NPf, dim, nf);
 
             Vector facenorm; // change this to use gf*pts
             facenorm.SetSize(dim);
@@ -2509,7 +2510,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             }
 
             const int lid = GetLid(p, f_ind, ndofs_face);
-            double scaling = 1.0/geom->detJ(lid);
+            double scaling = 1.0;///facegeom->detJ(lid);
 
             Vector coeffs;
             coeffs.SetSize(dim);
@@ -2543,7 +2544,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 
                if(int_face_match)
                {
-                  double scaling = -1.0/geom->detJ(lid);
+                  double scaling = -1.0;///facegeom->detJ(lid);
                   
                   Vector coeffs;
                   coeffs.SetSize(dim);

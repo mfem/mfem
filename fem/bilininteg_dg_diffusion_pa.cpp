@@ -211,7 +211,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
     std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
-            //std::cout << " p = " << p << std::endl;
+            const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+            const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
             const IntegrationPoint &ip = ir->IntPoint(p);
             // Set the integration point in the face and the neighboring elements
@@ -220,30 +221,42 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
 
 #ifdef MFEM_DEBUG
             // these factors aren't right
+            // op1 op2 op3,... ?
+
             std::cout << "% f2ev( " << 0 << "," << f_ind << ") =  " << f2ev(0,f_ind)  << std::endl;
             std::cout << "% detJ( " << p << "," << f_ind << ") =  " << detJ(p,f_ind)  << std::endl;
             std::cout << "% Trans.Elem1->Weight() " <<  Trans.Elem1->Weight()  << std::endl;
             std::cout << "% ip.weight " <<  ip.weight  << std::endl;
 #endif 
+            Vector nor;
+            nor.SetSize(dim);
 
             double t2w = Trans.Elem1->Weight();
             double ipw = ip.weight;
             w = ipw;///t2w;
-
-            double betaw = f2ev(0,f_ind)*f2ev(0,f_ind)/(detJ(p,f_ind)*detJ(p,f_ind)*detJ(p,f_ind)*detJ(p,f_ind));
-            betaw = 1.0/betaw;
 
             if (int_type_match)
             {
                w /= 2;
             }
 
-            op1(p,0,0,f_ind) =  beta*w*t2w/detJ(p,f_ind)*betaw;
-            op1(p,1,0,f_ind) = - beta*w*t2w/detJ(p,f_ind)*betaw; 
+            if (dim == 1)
+            {
+               nor(0) = 2*eip1.x - 1.0;
+            }
+            else
+            {
+               CalcOrtho(Trans.Jacobian(), nor);
+            }
+            double nor_norm = nor.Norml2();
 
-            const double h0 = 1.0; // I think this is handled by w
-            op3(p,0,f_ind) = -kappa*w/h0;
+            op1(p,0,0,f_ind) =  beta*w*detJ(p,f_ind);
+            op1(p,1,0,f_ind) = -beta*w*detJ(p,f_ind);
+
             op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
+
+            const double h0 = nor_norm/Trans.Elem2->Jacobian().Det();//detJ(p,f_ind);            
+            op3(p,0,f_ind) = -kappa*w/h0;
 
             if (int_type_match)
             {
@@ -251,10 +264,21 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                double t2w = Trans.Elem2->Weight();
                double ipw = ip.weight;
                w = ipw/2;///t2w;
-               const double h1 = 1.0; // I think this is handled by w
 
-               op1(p,0,1,f_ind) =  beta*w*t2w/detJ(p,f_ind)*betaw;
-               op1(p,1,1,f_ind) = - beta*w*t2w/detJ(p,f_ind)*betaw;
+               if (dim == 1)
+               {
+                  nor(0) = 2*eip2.x - 1.0;
+               }
+               else 
+               {
+                  CalcOrtho(Trans.Jacobian(), nor);
+               }
+               double nor_norm = nor.Norml2();
+               // This h1 is the same as h0 !?              
+               const double h1 = nor_norm/Trans.Elem2->Jacobian().Det();//detJ(p,f_ind); 
+               
+               op1(p,0,1,f_ind) =  beta*w*detJ(p,f_ind);
+               op1(p,1,1,f_ind) = -beta*w*detJ(p,f_ind);
 
                op2(p,1,f_ind) =  sigma*w*detJ(p,f_ind);
                op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
@@ -348,8 +372,10 @@ void PADGDiffusionApply2D(const int NF,
             const double b = B(q,d);
             for (int c = 0; c < VDIM; c++)
             {
+               // x(...,0) is the solution restricted to the face
                Bu0[q][c] += b*x(d,c,0,f,0);
                Bu1[q][c] += b*x(d,c,1,f,0);
+               // x(...,1) is the derivative of the solution normal to the face
                BGu0[q][c] += b*x(d,c,0,f,1);
                BGu1[q][c] += b*x(d,c,1,f,1);
             }
@@ -562,9 +588,11 @@ void PADGDiffusionApply3D(const int NF,
                const double b = B(q,d1);
                for (int c = 0; c < VDIM; c++)
                {
- 
+
+                  // x(...,0) is the solution restricted to the face
                   Bu0[q][d2][c] += b*x(d1,d2,c,0,f,0);
                   Bu1[q][d2][c] += b*x(d1,d2,c,1,f,0);
+                  // x(...,1) is the derivative of the solution normal to the face
                   BGu0[q][d2][c] += b*x(d1,d2,c,0,f,1);
                   BGu1[q][d2][c] += b*x(d1,d2,c,1,f,1);
 
@@ -805,9 +833,6 @@ void PADGDiffusionApply3D(const int NF,
                std::cout << "% y("<<d1<<","<<d2<<","<<0<<","<<f<<","<<1<<") = " << BBD0jumpu << std::endl;
                std::cout << "% y("<<d1<<","<<d2<<","<<1<<","<<f<<","<<1<<") = " << BBD1jumpu << std::endl;
 #endif                   
-
-
-
 
             }
          }
