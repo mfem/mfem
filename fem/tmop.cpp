@@ -1336,7 +1336,6 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
                                            ptspec_fes->FEColl(), ncomp);
 
    delete tspec_pgf;
-   tspec.HostReadWrite();
    tspec_pgf = new ParGridFunction(ptspec_fesv, tspec);
    tspec_gf = tspec_pgf;
 }
@@ -1497,7 +1496,6 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
                                        tspec_fes->FEColl(), ncomp);
 
    delete tspec_gf;
-   tspec.HostReadWrite();
    tspec_gf = new GridFunction(tspec_fesv, tspec);
 }
 
