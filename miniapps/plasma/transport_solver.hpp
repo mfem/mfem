@@ -231,14 +231,16 @@ struct CoefficientsByAttr
 class AdvectionDiffusionBC
 {
 public:
-   enum BCType {DIRICHLET_BC, NEUMANN_BC, ROBIN_BC};
+   enum BCType {DIRICHLET_BC, NEUMANN_BC, ROBIN_BC, OUTFLOW_BC};
 
 private:
    Array<CoefficientByAttr*>  dbc; // Dirichlet BC data
    Array<CoefficientByAttr*>  nbc; // Neumann BC data
    Array<CoefficientsByAttr*> rbc; // Robin BC data
+   Array<CoefficientByAttr*>  obc; // Outflow BC data
    mutable Array<int>  hbc_attr; // Homogeneous Neumann BC boundary attributes
    Array<int>  dbc_attr; // Dirichlet BC boundary attributes
+   Array<int>  obc_attr; // Outflow BC boundary attributes
 
    std::set<int> bc_attr;
    const Array<int> & bdr_attr;
@@ -285,12 +287,24 @@ public:
    // Enforce du/dn + a u = b on boundaries with attributes in bdr
    void AddRobinBC(const Array<int> & bdr, Coefficient &a, Coefficient &b);
 
+   // Allows restricted outflow of the fluid through the boundary
+   /** An outflow boundary condition is zero on portions of the
+       boundary where the advection is directed into the domain. On
+       portions where the advection is directed outward a val = 1
+       would allow all incident fluid to flow out of the domain. If
+       val < 1 the outflow is restricted leading to a buildup of fluid
+       at the boundary.
+   */
+   void AddOutflowBC(const Array<int> & bdr, Coefficient &val);
+
    const Array<CoefficientByAttr*> & GetDirichletBCs() const { return dbc; }
    const Array<CoefficientByAttr*> & GetNeumannBCs() const { return nbc; }
    const Array<CoefficientsByAttr*> & GetRobinBCs() const { return rbc; }
+   const Array<CoefficientByAttr*> & GetOutflowBCs() const { return obc; }
 
    const Array<int> & GetHomogeneousNeumannBDR() const;
    const Array<int> & GetDirichletBDR() const { return dbc_attr; }
+   const Array<int> & GetOutflowBDR() const { return obc_attr; }
 };
 
 /** A RecyclingBC describes recombination at a boundary
@@ -2820,7 +2834,7 @@ private:
       Array<ScalarVectorProductCoefficient*> dtVCoefs_;
       Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
       Array<Coefficient*>       sCoefs_;
-      // Array<VectorCoefficient*> vCoefs_;
+      Array<VectorCoefficient*> vCoefs_;
       Array<MatrixCoefficient*> mCoefs_;
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
@@ -2917,13 +2931,15 @@ private:
              Div(VCoef y[index])
           where index is the index of the equation.
        */
-      void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
+      void SetAdvectionTerm(StateVariableVecCoef &VCoef/*, bool bc = false*/);
 
       void SetSourceTerm(Coefficient &SCoef);
       void SetSourceTerm(StateVariableCoef &SCoef);
       void SetBdrSourceTerm(StateVariableCoef &SCoef,
                             StateVariableVecCoef &VCoef);
 
+      void SetOutflowBdrTerm(StateVariableVecCoef &VCoef,
+                             const Array<CoefficientByAttr*> & obc);
       void SetRecyclingBdrSourceTerm(const RecyclingBC & rbc);
 
    public:

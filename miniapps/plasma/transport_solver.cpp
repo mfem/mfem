@@ -94,6 +94,14 @@ AdvectionDiffusionBC::~AdvectionDiffusionBC()
       }
       delete rbc[i];
    }
+   for (int i=0; i<obc.Size(); i++)
+   {
+      if (obc[i]->ownCoef)
+      {
+         delete obc[i]->coef;
+      }
+      delete obc[i];
+   }
 }
 
 void AdvectionDiffusionBC::SetTime(double t) const
@@ -122,6 +130,13 @@ void AdvectionDiffusionBC::SetTime(double t) const
          }
       }
    }
+   for (int i=0; i<obc.Size(); i++)
+   {
+      if (obc[i]->coef)
+      {
+         obc[i]->coef->SetTime(t);
+      }
+   }
 }
 
 const char * AdvectionDiffusionBC::GetBCTypeName(BCType bctype)
@@ -129,8 +144,9 @@ const char * AdvectionDiffusionBC::GetBCTypeName(BCType bctype)
    switch (bctype)
    {
       case DIRICHLET_BC: return "Dirichlet";
-      case NEUMANN_BC: return "Neumann";
-      case ROBIN_BC: return "Robin";
+      case   NEUMANN_BC: return "Neumann";
+      case     ROBIN_BC: return "Robin";
+      case   OUTFLOW_BC: return "Outflow";
    }
    return "Unknown";
 }
@@ -146,19 +162,36 @@ void AdvectionDiffusionBC::ReadAttr(std::istream &input,
    {
       int b = 0;
       input >> b;
-      if (bc_attr.count(b) == 0)
+      if (bctype != OUTFLOW_BC)
       {
-         bc_attr.insert(b);
-         if (bctype == DIRICHLET_BC)
+         if (bc_attr.count(b) == 0)
          {
-            dbc_attr.Append(b);
+            bc_attr.insert(b);
+            if (bctype == DIRICHLET_BC)
+            {
+               dbc_attr.Append(b);
+            }
+         }
+         else
+         {
+            MFEM_ABORT("Attempting to add a " << GetBCTypeName(bctype)
+                       << " BC on boundary " << b
+                       << " which already has a boundary condition defined.");
          }
       }
       else
       {
-         MFEM_ABORT("Attempting to add a " << GetBCTypeName(bctype)
-                    << " BC on boundary " << b
-                    << " which already has a boundary condition defined.");
+         if (obc_attr.Find(b) == -1)
+         {
+            obc_attr.Append(b);
+         }
+         else
+         {
+            MFEM_ABORT("Attempting to add a " << GetBCTypeName(bctype)
+                       << " BC on boundary " << b
+                       << " which already has an outflow boundary condition"
+                       << " defined.");
+         }
       }
       attr.Append(b);
    }
@@ -214,6 +247,12 @@ void AdvectionDiffusionBC::ReadBCs(std::istream &input)
          CoefficientsByAttr * c = new CoefficientsByAttr;
          ReadCoefsByAttr(input, ROBIN_BC, *c);
          rbc.Append(c);
+      }
+      else if (buff == "outflow")
+      {
+         CoefficientByAttr * c = new CoefficientByAttr;
+         ReadCoefByAttr(input, OUTFLOW_BC, *c);
+         obc.Append(c);
       }
    }
 }
@@ -285,6 +324,29 @@ void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
    c->ownCoefs.SetSize(2);
    c->ownCoefs = false;
    rbc.Append(c);
+}
+
+void AdvectionDiffusionBC::AddOutflowBC(const Array<int> & bdr,
+                                        Coefficient &val)
+{
+   for (int i=0; i<bdr.Size(); i++)
+   {
+      if (obc_attr.Find(bdr[i]) == -1)
+      {
+         obc_attr.Append(bdr[i]);
+      }
+      else
+      {
+         MFEM_ABORT("Attempting to add anoutflow BC on boundary " << bdr[i]
+                    << " which already has an outflow boundary condition"
+                    << " defined.");
+      }
+   }
+   CoefficientByAttr * c = new CoefficientByAttr;
+   c->attr = bdr;
+   c->coef = &val;
+   c->ownCoef = false;
+   obc.Append(c);
 }
 
 const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBDR() const
@@ -570,6 +632,16 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
          cbcs_.LoadBCs( cf, iss);
 
          delete [] buffer;
+      }
+      for (int i=0; i<cbcs_.GetNumRecyclingBCs(); i++)
+      {
+         const RecyclingBC & rbc = cbcs_.GetRecyclingBC(i);
+         int ion_index = rbc.GetIonDensityIndex();
+         const Array<CoefficientsByAttr*> & bc = rbc.GetRecyclingBCs();
+         for (int j=0; j<bc.Size(); j++)
+         {
+            bcs_[ion_index]->AddOutflowBC(bc[j]->attr, *bc[j]->coefs[0]);
+         }
       }
    }
 }
@@ -2817,12 +2889,10 @@ DGTransportTDO::TransportOp::~TransportOp()
    {
       delete sCoefs_[i];
    }
-   /*
    for (int i=0; i<vCoefs_.Size(); i++)
    {
       delete vCoefs_[i];
    }
-   */
    for (int i=0; i<mCoefs_.Size(); i++)
    {
       delete mCoefs_[i];
@@ -3379,8 +3449,8 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
                                         dg_.sigma,
                                         dg_.kappa,
                                         kappa2));
-   bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, 0.5));
-   bfbfi_marker_.Append(NULL);
+   // bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, 0.5));
+   // bfbfi_marker_.Append(NULL);
 
    if (blf_[index_] == NULL)
    {
@@ -3400,7 +3470,7 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
                               dg_.kappa,
                               kappa2));
 
-   blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef, 1.0, 0.5));
+   // blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef, 1.0, 0.5));
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
@@ -3473,8 +3543,9 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
    }
 }
 
-void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
-                                                   bool bc)
+void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef
+                                                   &VCoef/*,
+                              bool bc*/)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -3490,13 +3561,13 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
    // dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(VCoef));
    dbfi_.Append(new ConservativeConvectionIntegrator(VCoef, 1.0));
    fbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
-
+   /*
    if (bc)
    {
       bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
       bfbfi_marker_.Append(NULL);
    }
-
+   */
    if (blf_[index_] == NULL)
    {
       blf_[index_] = new ParBilinearForm(&fes_);
@@ -3507,12 +3578,13 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
       new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
    blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
                                                                  1.0, -0.5));
-
+   /*
    if (bc)
    {
-      blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-                                                               1.0, -0.5));
+     blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+                                                              1.0, -0.5));
    }
+   */
 }
 
 void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef)
@@ -3626,6 +3698,41 @@ void DGTransportTDO::TransportOp::SetBdrSourceTerm(StateVariableCoef &SCoef,
          //                                                            1.0, 0.5));
 
       }
+   }
+}
+
+void
+DGTransportTDO::TransportOp::SetOutflowBdrTerm(
+   StateVariableVecCoef &VCoef,
+   const Array<CoefficientByAttr*> & obc)
+{
+   if ( mpi_.Root() && logging_ > 0)
+   {
+      cout << eqn_name_ << ": Adding outflow boundary term" << endl;
+   }
+
+   for (int i=0; i<obc.Size(); i++)
+   {
+      ScalarVectorProductCoefficient * rVCoef =
+         new ScalarVectorProductCoefficient(*obc[i]->coef, VCoef);
+      vCoefs_.Append(rVCoef);
+
+      ScalarVectorProductCoefficient * dtrVCoef =
+         new ScalarVectorProductCoefficient(dt_, *rVCoef);
+      dtVCoefs_.Append(dtrVCoef);
+
+      bfbfi_.Append(new DGTraceIntegrator(*rVCoef, 1.0, 0.5));
+      bfbfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), obc[i]->attr,
+                   *bflfi_marker_.Last());
+
+      if (blf_[index_] == NULL)
+      {
+         blf_[index_] = new ParBilinearForm(&fes_);
+      }
+      blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtrVCoef,
+                                                               1.0, 0.5),
+                                         *bfbfi_marker_.Last());
    }
 }
 
@@ -4452,8 +4559,13 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
       if (this->CheckTermFlag(ADVECTION_TERM))
       {
          // Advection term: Div(v_i n_i)
-         SetAdvectionTerm(ViCoef_, true);
+         SetAdvectionTerm(ViCoef_/*, true*/);
       }
+   }
+
+   if (this->CheckTermFlag(ADVECTION_TERM) && bcs_.GetOutflowBCs().Size() > 0)
+   {
+      SetOutflowBdrTerm(ViCoef_, bcs_.GetOutflowBCs());
    }
 
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
@@ -4729,8 +4841,13 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       if (this->CheckTermFlag(ADVECTION_TERM))
       {
          // Advection term: Div(m_i n_i v_i v_i)
-         SetAdvectionTerm(miniViCoef_, true);
+         SetAdvectionTerm(miniViCoef_/*, true*/);
       }
+   }
+
+   if (this->CheckTermFlag(ADVECTION_TERM) && bcs_.GetOutflowBCs().Size() > 0)
+   {
+      SetOutflowBdrTerm(miniViCoef_, bcs_.GetOutflowBCs());
    }
    /*
    if (this->CheckTermFlag(DIFFUSION_TERM))
