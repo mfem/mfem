@@ -337,7 +337,7 @@ void AdvectionDiffusionBC::AddOutflowBC(const Array<int> & bdr,
       }
       else
       {
-         MFEM_ABORT("Attempting to add anoutflow BC on boundary " << bdr[i]
+         MFEM_ABORT("Attempting to add an outflow BC on boundary " << bdr[i]
                     << " which already has an outflow boundary condition"
                     << " defined.");
       }
@@ -3724,7 +3724,7 @@ DGTransportTDO::TransportOp::SetOutflowBdrTerm(
       bfbfi_.Append(new DGTraceIntegrator(*rVCoef, 1.0, 0.5));
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), obc[i]->attr,
-                   *bflfi_marker_.Last());
+                   *bfbfi_marker_.Last());
 
       if (blf_[index_] == NULL)
       {
