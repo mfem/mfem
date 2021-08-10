@@ -15,6 +15,10 @@ double lshape_exsol(const Vector &p);
 void   lshape_exgrad(const Vector &p, Vector &grad);
 double lshape_laplace(const Vector &p);
 
+double sinsin_exsol(const Vector &p);
+void   sinsin_exgrad(const Vector &p, Vector &grad);
+double sinsin_laplace(const Vector &p);
+
 int dim;
 const char* keys = "Rjlmc*******";
 
@@ -87,6 +91,10 @@ int main(int argc, char *argv[])
          exsol = new FunctionCoefficient(lshape_exsol);
          exgrad = new VectorFunctionCoefficient(dim, lshape_exgrad);
          rhs = new FunctionCoefficient(lshape_laplace);
+      case 1:
+         exsol = new FunctionCoefficient(sinsin_exsol);
+         exgrad = new VectorFunctionCoefficient(dim, sinsin_exgrad);
+         rhs = new FunctionCoefficient(sinsin_laplace);
       default:
          break;
    }
@@ -253,4 +261,23 @@ void lshape_exgrad(const Vector &p, Vector &grad)
 double lshape_laplace(const Vector &p)
 {
    return 0;
+}
+
+double sinsin_exsol(const Vector &p)
+{
+   double x = p(0), y = p(1);
+   return sin(M_PI * x) * sin(M_PI * y);
+}
+
+void sinsin_exgrad(const Vector &p, Vector &grad)
+{
+   double x = p(0), y = p(1);
+   grad(0) = M_PI * cos(M_PI * x) * sin(M_PI * y);
+   grad(1) = M_PI * sin(M_PI * x) * cos(M_PI * y);
+}
+
+double sinsin_laplace(const Vector &p)
+{
+   double x = p(0), y = p(1);
+   return 2 * M_PI * M_PI * sin(M_PI * x) * sin(M_PI * y);
 }
