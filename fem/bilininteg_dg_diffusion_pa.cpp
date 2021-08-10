@@ -135,7 +135,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    coeff_data_2 = 0.0;
    coeff_data_3 = 0.0;
 
-
 #ifdef MFEM_DEBUG
    std::cout << " nq = " << nq << std::endl;
    std::cout << " dim = " << dim << std::endl;
@@ -174,6 +173,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          *fes.GetTraceElement(e1, fes.GetMesh()->GetFaceBaseGeometry(f_ind));
 
          double w = 0.0;
+         double wq = 0.0;
          /*
          const IntegrationRule *ir = IntRule;
          if (ir == NULL)
@@ -198,19 +198,12 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          }
          */
 
-
 #ifdef MFEM_DEBUG
-//         std::cout << " ir->GetNPoints() = " << ir->GetNPoints() << std::endl;
-//         std::cout << " fes.GetNF() = " << fes.GetNF() << std::endl;
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
          for (int p = 0; p < ir->GetNPoints(); p++)
          {
-
-#ifdef MFEM_DEBUG
-    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
-
             const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
             const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
@@ -226,19 +219,26 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             std::cout << "% f2ev( " << 0 << "," << f_ind << ") =  " << f2ev(0,f_ind)  << std::endl;
             std::cout << "% detJ( " << p << "," << f_ind << ") =  " << detJ(p,f_ind)  << std::endl;
             std::cout << "% Trans.Elem1->Weight() " <<  Trans.Elem1->Weight()  << std::endl;
+            std::cout << "% Trans.Elem1->Jacobian().Det() " <<  Trans.Elem1->Jacobian().Det()  << std::endl;
             std::cout << "% ip.weight " <<  ip.weight  << std::endl;
 #endif 
             Vector nor;
             nor.SetSize(dim);
 
+#ifdef MFEM_DEBUG
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+#endif
+
             double t2w = Trans.Elem1->Weight();
             double ipw = ip.weight;
             w = ipw;///t2w;
+            wq = ipw;///t2w;
 
-            if (int_type_match)
-            {
-               w /= 2;
-            }
+#ifdef MFEM_DEBUG
+            std::cout << "% w " <<  w  << std::endl;
+            std::cout << "% wq " <<  wq  << std::endl;
+            std::cout << "% detJ(p,f_ind)/Trans.Elem1->Jacobian().Det() " <<  detJ(p,f_ind)/Trans.Elem1->Jacobian().Det() << std::endl;            
+#endif
 
             if (dim == 1)
             {
@@ -255,15 +255,24 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
 
             op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
-            const double h0 = nor_norm/Trans.Elem2->Jacobian().Det();//detJ(p,f_ind);            
-            op3(p,0,f_ind) = -kappa*w/h0;
+#ifdef MFEM_DEBUG
+            std::cout << "% nor.Norml2() " <<  nor.Norml2() << std::endl;
+            std::cout << "% nor_norm " <<  nor_norm  << std::endl;
+#endif
+
+            const double h0 = detJ(p,f_ind)/nor_norm;
+            op3(p,0,f_ind) = -kappa*wq/h0;
 
             if (int_type_match)
             {
+
+#ifdef MFEM_DEBUG
                std::cout << "% Trans.Elem2->Weight() " <<  Trans.Elem2->Weight()  << std::endl;
+#endif
                double t2w = Trans.Elem2->Weight();
                double ipw = ip.weight;
                w = ipw/2;///t2w;
+               wq = ipw/2/t2w;
 
                if (dim == 1)
                {
@@ -275,26 +284,21 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                }
                double nor_norm = nor.Norml2();
                // This h1 is the same as h0 !?              
-               const double h1 = nor_norm/Trans.Elem2->Jacobian().Det();//detJ(p,f_ind); 
-               
+               const double h1 = detJ(p,f_ind)/nor_norm;
+
                op1(p,0,1,f_ind) =  beta*w*detJ(p,f_ind);
                op1(p,1,1,f_ind) = -beta*w*detJ(p,f_ind);
 
                op2(p,1,f_ind) =  sigma*w*detJ(p,f_ind);
                op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
 
-               op3(p,0,f_ind) = kappa*w*(1.0/h0+1.0/h1)/2.0;
-               op3(p,1,f_ind) = kappa*w*(1.0/h0+1.0/h1)/2.0;
+               op3(p,0,f_ind) = kappa*wq*(1.0/h0+1.0/h1)/2.0;
+               op3(p,1,f_ind) = kappa*wq*(1.0/h0+1.0/h1)/2.0;
             }
          }
          f_ind++;
       }
    }
-
-#ifdef MFEM_DEBUG
-    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-#endif
-
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
