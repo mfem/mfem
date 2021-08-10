@@ -404,10 +404,10 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    static Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = 1.0;
+   double scale = init_scale;
    if (adaptive_line_search)
    {
-      scale = std::min(1.0, scale_history.Sum()*2.0/5);
+      scale = std::min(init_scale, scale_history.Sum()*2.0/5);
    }
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);

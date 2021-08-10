@@ -131,6 +131,7 @@ protected:
    bool adaptive_line_search = false;
    mutable Vector scale_history;
    mutable int iteration_count = 0;
+   mutable double init_scale = 1.0;
 
    const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
    {
@@ -216,6 +217,8 @@ public:
       }
    }
    virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
+
+   virtual void SetInitialScale(double scale_) { init_scale = scale_; }
 
    virtual void EnableAdaptiveLineSearch() { adaptive_line_search = true; }
 };
