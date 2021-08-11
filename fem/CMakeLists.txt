@@ -29,6 +29,7 @@ set(SRCS
   bilininteg_gradient.cpp
   bilininteg_mass_mf.cpp
   bilininteg_mass_pa.cpp
+  bilininteg_mass_pa_diag.cpp
   bilininteg_mass_pa_fast.cpp
   bilininteg_mass_pa_fast_amd.cpp
   bilininteg_mass_pa_fast_diag.cpp
