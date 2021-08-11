@@ -493,10 +493,12 @@ double viFunc(const Vector &x)
    }
 }
 
-class TransportCoefFactory : public CoefFactory
+class Transport2DCoefFactory : public TransportCoefFactory
 {
 public:
-   TransportCoefFactory() {}
+   Transport2DCoefFactory() {}
+   Transport2DCoefFactory(ParGridFunctionArray & pgfa)
+      : TransportCoefFactory(pgfa) {}
 
    Coefficient * GetScalarCoef(std::string &name, std::istream &input);
    VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);
@@ -937,7 +939,6 @@ int main(int argc, char *argv[])
    MPI_Session mpi(argc, argv);
    if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
-   TransportCoefFactory coefFact;
    SolverParams ttol;
    ttol.lin_abs_tol = 0.0;
    ttol.lin_rel_tol = 1e-12;
@@ -1368,6 +1369,44 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes(&pmesh, &fec);
    ParFiniteElementSpace vfes(&pmesh, &fec, 2);
 
+   // Finite element space for all variables together (full thermodynamic state)
+   int num_equations = 5;
+   ParFiniteElementSpace ffes(&pmesh, &fec, num_equations, Ordering::byNODES);
+
+   // The solution u has components {particle density, x-velocity,
+   // y-velocity, temperature} for each species (species loop is the outermost).
+   // These are stored contiguously in the BlockVector u_block.
+   Array<int> offsets(num_equations + 1);
+   for (int k = 0; k <= num_equations; k++)
+   {
+      offsets[k] = k * fes.GetNDofs();
+   }
+   ParGridFunction u(&ffes);
+
+   // Density, Velocity, and Energy grid functions on for visualization.
+   ParGridFunction  neu_density (&fes, u.GetData());
+   ParGridFunction  ion_density (&fes, u.GetData() + offsets[1]);
+   ParGridFunction para_velocity(&fes, u.GetData() + offsets[2]);
+   ParGridFunction  ion_energy  (&fes, u.GetData() + offsets[3]);
+   ParGridFunction elec_energy  (&fes, u.GetData() + offsets[4]);
+
+   ParGridFunctionArray yGF;
+   yGF.Append(&neu_density);
+   yGF.Append(&ion_density);
+   yGF.Append(&para_velocity);
+   yGF.Append(&ion_energy);
+   yGF.Append(&elec_energy);
+   yGF.SetOwner(false);
+
+   ParGridFunctionArray kGF;
+   for (int i=0; i<5; i++)
+   {
+      kGF.Append(new ParGridFunction(&fes, (double*)NULL));
+   }
+   kGF.SetOwner(true);
+
+   Transport2DCoefFactory coefFact(yGF);
+
    if (mpi.Root())
    {
       cout << "Configuring initial conditions" << endl;
@@ -1428,10 +1467,6 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
    ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
 
-   // Finite element space for all variables together (full thermodynamic state)
-   int num_equations = 5;
-   ParFiniteElementSpace ffes(&pmesh, &fec, num_equations, Ordering::byNODES);
-
    // This example depends on this ordering of the space.
    MFEM_ASSERT(ffes.GetOrdering() == Ordering::byNODES, "");
 
@@ -1444,16 +1479,6 @@ int main(int argc, char *argv[])
 
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
-
-   // The solution u has components {particle density, x-velocity,
-   // y-velocity, temperature} for each species (species loop is the outermost).
-   // These are stored contiguously in the BlockVector u_block.
-   Array<int> offsets(num_equations + 1);
-   for (int k = 0; k <= num_equations; k++)
-   {
-      offsets[k] = k * fes.GetNDofs();
-   }
-   ParGridFunction u(&ffes);
 
    // Determine the minimum element size.
    double hmin;
@@ -1493,30 +1518,8 @@ int main(int argc, char *argv[])
       case 2: ode_solver = new SDIRK534Solver; break;
    }
 
-   // Density, Velocity, and Energy grid functions on for visualization.
-   ParGridFunction  neu_density (&fes, u.GetData());
-   ParGridFunction  ion_density (&fes, u.GetData() + offsets[1]);
-   ParGridFunction para_velocity(&fes, u.GetData() + offsets[2]);
-   ParGridFunction  ion_energy  (&fes, u.GetData() + offsets[3]);
-   ParGridFunction elec_energy  (&fes, u.GetData() + offsets[4]);
-
    ParGridFunction psi(&fes_h1);
    ParGridFunction nxGradPsi_rt(&fes_rt);
-
-   ParGridFunctionArray yGF;
-   yGF.Append(&neu_density);
-   yGF.Append(&ion_density);
-   yGF.Append(&para_velocity);
-   yGF.Append(&ion_energy);
-   yGF.Append(&elec_energy);
-   yGF.SetOwner(false);
-
-   ParGridFunctionArray kGF;
-   for (int i=0; i<5; i++)
-   {
-      kGF.Append(new ParGridFunction(&fes, (double*)NULL));
-   }
-   kGF.SetOwner(true);
 
    para_velocity = 0.0;
 
@@ -2871,7 +2874,7 @@ public:
 };
 
 Coefficient *
-TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
+Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
    int coef_idx = -1;
    if (name == "Sinh1D")
@@ -2940,13 +2943,13 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else
    {
-      return CoefFactory::GetScalarCoef(name, input);
+      return TransportCoefFactory::GetScalarCoef(name, input);
    }
    return sCoefs[--coef_idx];
 }
 
 VectorCoefficient *
-TransportCoefFactory::GetVectorCoef(std::string &name, std::istream &input)
+Transport2DCoefFactory::GetVectorCoef(std::string &name, std::istream &input)
 {
    int coef_idx = -1;
    if (name == "CirculationVector")
@@ -2957,7 +2960,7 @@ TransportCoefFactory::GetVectorCoef(std::string &name, std::istream &input)
    }
    else
    {
-      return CoefFactory::GetVectorCoef(name, input);
+      return TransportCoefFactory::GetVectorCoef(name, input);
    }
    return vCoefs[--coef_idx];
 }

@@ -768,6 +768,16 @@ enum FieldType {INVALID = -1,
 
 std::string FieldSymbol(FieldType t);
 
+class TransportCoefFactory : public common::CoefFactory
+{
+public:
+   TransportCoefFactory() {}
+   TransportCoefFactory(ParGridFunctionArray & pgfa);
+
+   Coefficient * GetScalarCoef(std::string &name, std::istream &input);
+   VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);
+};
+
 class StateVariableFunc
 {
 public:
@@ -1198,6 +1208,69 @@ public:
       return a->Eval_dTe(T, ip) * b->Eval_Func(T, ip) +
              a->Eval_Func(T, ip) * b->Eval_dTe(T, ip);
    }
+};
+
+/** Given the ion and electron temperatures in eV this coefficient returns an
+    approximation to the sound speed in m/s.
+*/
+class SoundSpeedCoef : public StateVariableCoef
+{
+private:
+   double mi_;
+   Coefficient *TiCoef_;
+   Coefficient *TeCoef_;
+
+public:
+   SoundSpeedCoef(double ion_mass, Coefficient &TiCoef, Coefficient &TeCoef)
+      : mi_(ion_mass), TiCoef_(&TiCoef), TeCoef_(&TeCoef) {}
+
+   SoundSpeedCoef(const SoundSpeedCoef &other)
+   {
+      derivType_ = other.derivType_;
+      mi_        = other.mi_;
+      TiCoef_    = other.TiCoef_;
+      TeCoef_    = other.TeCoef_;
+   }
+
+   virtual SoundSpeedCoef * Clone() const
+   {
+      return new SoundSpeedCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_TEMPERATURE ||
+              deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double Ti = TiCoef_->Eval(T, ip);
+      double Te = TeCoef_->Eval(T, ip);
+
+      return sqrt(eV_ * (Ti + Te) / (amu_ * mi_));
+   }
+
+   double Eval_dTi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double Ti = TiCoef_->Eval(T, ip);
+      double Te = TeCoef_->Eval(T, ip);
+
+      return 0.5 * sqrt(eV_ / (amu_ * mi_ * (Ti + Te)));
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double Ti = TiCoef_->Eval(T, ip);
+      double Te = TeCoef_->Eval(T, ip);
+
+      return 0.5 * sqrt(eV_ / (amu_ * mi_ * (Ti + Te)));
+   }
+
 };
 
 /** Given the electron temperature in eV this coefficient returns an

@@ -1007,6 +1007,54 @@ CommonCoefs::CommonCoefs()
 {
    vCoefNames_[MAGNETIC_FIELD_COEF] = "magnetic_field_coef";
 }
+
+TransportCoefFactory::TransportCoefFactory(ParGridFunctionArray & pgfa)
+{
+   for (int i=0; i<pgfa.Size(); i++)
+   {
+      this->AddExternalGridFunction(*pgfa[i]);
+   }
+}
+
+Coefficient *
+TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
+{
+   int coef_idx = -1;
+   if (name == "SoundSpeedCoef")
+   {
+      double mi;
+      input >> mi;
+
+      string TiCoefName;
+      input >> TiCoefName;
+      Coefficient * TiCoef = this->GetScalarCoef(TiCoefName, input);
+
+      string TeCoefName;
+      input >> TeCoefName;
+      Coefficient * TeCoef = this->GetScalarCoef(TeCoefName, input);
+
+      coef_idx = sCoefs.Append(new SoundSpeedCoef(mi, *TiCoef, *TeCoef));
+   }
+   else
+   {
+      return CoefFactory::GetScalarCoef(name, input);
+   }
+   return sCoefs[--coef_idx];
+}
+
+VectorCoefficient *
+TransportCoefFactory::GetVectorCoef(std::string &name, std::istream &input)
+{
+   int coef_idx = -1;
+   if (name == "__dummy_name__")
+   {
+   }
+   else
+   {
+      return CoefFactory::GetVectorCoef(name, input);
+   }
+   return vCoefs[--coef_idx];
+}
 /*
 void ElectronStaticPressureCoefs::ReadCoefs(std::istream &input)
 {
