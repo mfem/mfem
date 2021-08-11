@@ -630,7 +630,7 @@ void NDK_PAMassApply(const int dim,
 
    switch (id) // orders 1~6
    {
-      // Fast '0' non-deterministic 3D mass kernel
+      // Fast '0': Legacy non-deterministic 3D mass kernel
       case 0x023: return NDK_SmemPAMassApply3D<2,3>(ND,NE,map,b,d,x,y);
       case 0x024: return NDK_SmemPAMassApply3D<2,4>(ND,NE,map,b,d,x,y);
       case 0x034: return NDK_SmemPAMassApply3D<3,4>(ND,NE,map,b,d,x,y);
@@ -643,7 +643,7 @@ void NDK_PAMassApply(const int dim,
       case 0x067: return NDK_SmemPAMassApply3D<6,7>(ND,NE,map,b,d,x,y);
       case 0x078: return NDK_SmemPAMassApply3D<7,8>(ND,NE,map,b,d,x,y);
 
-      // Fast '1' non-deterministic 3D mass kernel
+      // Fast '1': Legacy & half smem non-deterministic 3D mass kernel
       case 0x123: return NDK_SmRgPAMassApply3D<2,3>(ND,NE,map,b,d,x,y);
       case 0x124: return NDK_SmRgPAMassApply3D<2,4>(ND,NE,map,b,d,x,y);
       case 0x134: return NDK_SmRgPAMassApply3D<3,4>(ND,NE,map,b,d,x,y);
@@ -656,7 +656,7 @@ void NDK_PAMassApply(const int dim,
       case 0x167: return NDK_SmRgPAMassApply3D<6,7>(ND,NE,map,b,d,x,y);
       case 0x178: return NDK_SmRgPAMassApply3D<7,8>(ND,NE,map,b,d,x,y);
 
-      // Fast '2' non-deterministic 3D mass kernel
+      // Fast '2': libP non-deterministic 3D mass kernel
       case 0x223: return NDK_RegsPAMassApply3D<2,3>(ND,NE,map,b,d,x,y);
       case 0x224: return NDK_RegsPAMassApply3D<2,4>(ND,NE,map,b,d,x,y);
       case 0x234: return NDK_RegsPAMassApply3D<3,4>(ND,NE,map,b,d,x,y);

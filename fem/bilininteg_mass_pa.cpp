@@ -29,6 +29,17 @@ void NDK_PAMassApply(const int dim,
                      const Vector &X,
                      Vector &Y);
 
+void NDK_AMD_PAMassApply(const int dim,
+                         const int D1D,
+                         const int Q1D,
+                         const int NE,
+                         const FiniteElementSpace *fes,
+                         const DofToQuad *maps,
+                         const Vector &D,
+                         const Vector &X,
+                         Vector &Y);
+
+
 void NDK_PAMassAssembleDiagonal(const int dim,
                                 const int D1D,
                                 const int Q1D,
@@ -1258,9 +1269,20 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else if (DeviceCanUseNonDeterministicKernels())
    {
-      NDK_PAMassApply(dim, dofs1D, quad1D, ne,
-                      fespace, maps,
-                      pa_data, x, y);
+      const int version = DeviceKernelsVersion();
+      MFEM_VERIFY(version < 4, "Unsupported version!");
+      if (version < 3)
+      {
+         NDK_PAMassApply(dim, dofs1D, quad1D, ne,
+                         fespace, maps,
+                         pa_data, x, y);
+      }
+      else
+      {
+         NDK_AMD_PAMassApply(dim, dofs1D, quad1D, ne,
+                             fespace, maps,
+                             pa_data, x, y);
+      }
    }
    else
    {
