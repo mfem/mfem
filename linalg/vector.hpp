@@ -82,6 +82,11 @@ public:
    Vector(double *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
 
+   /** @brief Create a Vector referencing a sub-vector of the Vector @a base
+       starting at the given offset, @a base_offset, and size @a size_. */
+   Vector(Vector &base, int base_offset, int size_)
+      : data(base.data, base_offset, size_), size(size_) { }
+
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
