@@ -278,7 +278,15 @@ int main(int argc, char *argv[])
          tic_toc.Stop();
       }
    }
-   MFEM_VERIFY(cg.GetNumIterations() <= max_it, "");
+   // Final norm check
+   const double final_norm = cg.GetFinalNorm();
+   MFEM_VERIFY(final_norm < sqrt(rtol),
+               "FinalNorm (" << final_norm << ") Error!");
+   // Number of iteration check
+   const int num_iter = cg.GetNumIterations();
+   MFEM_VERIFY(num_iter <= max_it,
+               "NumIterations (" << num_iter << ") Error!");
+
    const double rt = tic_toc.RealTime();
    const double rt_min = rt, rt_max = rt;
    HYPRE_BigInt dofs = fespace.GlobalTrueVSize();

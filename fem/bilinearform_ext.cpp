@@ -389,11 +389,43 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (DeviceCanUseNonDeterministicKernels() || DeviceCanUseCeed() ||
        !elem_restrict)
    {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
+      // typically this is a large vector, so store on device
+      y.UseDevice(true);
+
+      // Scan to determine if DEFAULT kernels have to be run first
+      bool default_kernels = false;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AddMultPA(x, y);
+         default_kernels |=
+            integrators[i]->GetPAKernelType() == KernelType::DEFAULT;
+      }
+
+      // If DEFAULT kernels are present, start their computation
+      if (default_kernels)
+      {
+         elem_restrict->Mult(x, localX);
+         localY = 0.0;
+         for (int i = 0; i < iSz; ++i)
+         {
+            if (integrators[i]->GetPAKernelType() == KernelType::DEFAULT)
+            {
+               integrators[i]->AddMultPA(localX, localY);
+            }
+         }
+         elem_restrict->MultTranspose(localY, y);
+      }
+      else
+      {
+         // otherwise, initialize the y output
+         y = 0.0;
+      }
+
+      for (int i = 0; i < iSz; ++i)
+      {
+         if (integrators[i]->GetPAKernelType() == KernelType::L2L)
+         {
+            integrators[i]->AddMultPA(x, y);
+         }
       }
    }
    else

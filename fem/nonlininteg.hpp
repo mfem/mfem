@@ -21,6 +21,12 @@
 namespace mfem
 {
 
+enum class KernelType
+{
+   DEFAULT,   ///< Default kernel, working on E => E
+   L2L        ///< L => L kernels
+};
+
 /** @brief This class is used to express the local action of a general nonlinear
     finite element operator. In addition it may provide the capability to
     assemble the local gradient operator and to compute the local energy. */
@@ -33,6 +39,8 @@ protected:
    ceed::Operator* ceedOp;
 
    MemoryType pa_mt = MemoryType::DEFAULT;
+
+   KernelType pa_kt = KernelType::DEFAULT;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
       : IntRule(ir), ceedOp(NULL) { }
@@ -48,6 +56,10 @@ public:
    /// Set the memory type used for GeometricFactors and other large allocations
    /// in PA extensions.
    void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
+
+   /// Set the kernel type used in PA extensions.
+   void SetPAKernelType(KernelType mt) { pa_kt = mt; }
+   KernelType GetPAKernelType() const { return pa_kt; }
 
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }

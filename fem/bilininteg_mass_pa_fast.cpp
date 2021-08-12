@@ -419,6 +419,181 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
    });
 }
 
+// Fast '4' deterministic 3D mass kernel
+// Smem version melded toward registers
+template<int D1D, int Q1D>
+void SmRgPAMassApply3D(const int ndofs,
+                       const int NE,
+                       const int *map,
+                       const int *indices_,
+                       const int *offsets_,
+                       const double *b_,
+                       const double *d_,
+                       const double *x_,
+                       double *y_)
+{
+   MFEM_CONTRACT_VAR(indices_);
+   const auto MAP = Reshape(map, D1D,D1D,D1D, NE);
+   //const auto INDICES = Reshape(indices_, ndofs);
+   const auto OFFSETS = Reshape(offsets_, ndofs);
+   const auto B = Reshape(b_, Q1D, D1D);
+   const auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
+   const auto X = Reshape(x_, ndofs);
+   const auto X1 = Reshape(x_, D1D,D1D,D1D, NE);
+   auto Y = Reshape(y_, ndofs);
+   auto Y1 = Reshape(y_, D1D,D1D,D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   {
+      double u[Q1D];
+      MFEM_SHARED double s_B[Q1D][D1D];
+      MFEM_SHARED double s_q[Q1D][Q1D][Q1D];
+
+      // Load input, B & X interpolation
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            s_B[qx][dy] = B(qx,dy);
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
+            MFEM_UNROLL(D1D)
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double Bx = B(qx,dx);
+               MFEM_UNROLL(D1D)
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  const int gid = map ? MAP(dx,dy,dz,e) : 0;
+                  const int idx = gid >= 0 ? gid : -1 - gid;
+                  u[dz] += (map ? X(idx) : X1(dx,dy,dz,e)) * Bx;
+               }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { s_q[dz][dy][qx] = u[dz]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Y interpolation
+      MFEM_FOREACH_THREAD(dz,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_UNROLL(Q1D)
+            for (int qy = 0; qy < Q1D; ++qy) { u[qy] = 0.0; }
+            MFEM_UNROLL(D1D)
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double zyX = s_q[dz][dy][qx];
+               MFEM_UNROLL(D1D)
+               for (int qy = 0; qy < Q1D; ++qy) { u[qy] += zyX * s_B[qy][dy]; }
+            }
+            MFEM_UNROLL(Q1D)
+            for (int qy = 0; qy < Q1D; ++qy) { s_q[dz][qy][qx] = u[qy]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Z interpolation, Q-function & Zt projection
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            // Z interpolation
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               const double zYX = s_q[dz][qy][qx];
+               MFEM_UNROLL(Q1D)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] += zYX * s_B[qz][dz]; }
+            }
+
+            // Q-function
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               s_q[qz][qy][qx] = u[qz] * D(qx,qy,qz,e);
+            }
+
+            // Zt projection
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double ZYX = s_q[qz][qy][qx];
+               MFEM_UNROLL(D1D)
+               for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * s_B[qz][dz]; }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { s_q[dz][qy][qx] = u[dz]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Yt projection
+      MFEM_FOREACH_THREAD(dz,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
+            MFEM_UNROLL(Q1D)
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double zYX = s_q[dz][qy][qx];
+               MFEM_UNROLL(D1D)
+               for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * s_B[qy][dy]; }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dy = 0; dy < D1D; ++dy) { s_q[dz][dy][qx] = u[dy]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Xt projection & save output
+      MFEM_FOREACH_THREAD(dz,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,x,D1D)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
+            MFEM_UNROLL(Q1D)
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double zyX = s_q[dz][dy][qx];
+               MFEM_UNROLL(D1D)
+               for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * s_B[qx][dx]; }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double output = u[dx];
+               if (map)
+               {
+                  const int gid = MAP(dx,dy,dz,e);
+                  const int idx = gid >= 0 ? gid : -1 - gid;
+                  const int offset = OFFSETS[idx];
+                  const int nextOffset = OFFSETS[idx+1];
+                  const int n = nextOffset - offset;
+                  printf("%d:%.15e ",n,output);
+                  //assert(n==1);
+                  AtomicAdd(Y(idx), output);
+               }
+               else
+               {
+                  Y1(dx,dy,dz,e) += output;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
 // Fast '2' non-deterministic 3D mass kernel
 // Smem version with registers
 template<int D1D, int Q1D>
@@ -617,6 +792,8 @@ void NDK_PAMassApply(const int dim,
    const Operator *ERop = fes->GetElementRestriction(ordering);
    const ElementRestriction* ER = dynamic_cast<const ElementRestriction*>(ERop);
    const int *map = ER ? ER->GatherMap().Read() : nullptr;
+   const int *indices = ER ? ER->Indices().Read() : nullptr;
+   const int *offsets = ER ? ER->Offsets().Read() : nullptr;
    const double *b = maps->B.Read();
    const double *d = D.Read();
    const double *x = X.Read();
@@ -668,6 +845,17 @@ void NDK_PAMassApply(const int dim,
       case 0x258: return NDK_RegsPAMassApply3D<5,8>(ND,NE,map,b,d,x,y);
       case 0x267: return NDK_RegsPAMassApply3D<6,7>(ND,NE,map,b,d,x,y);
       case 0x278: return NDK_RegsPAMassApply3D<7,8>(ND,NE,map,b,d,x,y);
+
+      // Fast '3': libP + AMD specific non-deterministic 3D mass kernel
+      // in bilininteg_mass_pa_fast_amd.cpp
+
+      // Fast '4': Legacy & half smem deterministic 3D mass kernel
+      case 0x423: return SmRgPAMassApply3D<2,3>(ND,NE,
+                                                   map,indices,offsets,
+                                                   b,d,x,y);
+      case 0x456: return SmRgPAMassApply3D<5,6>(ND,NE,
+                                                   map,indices,offsets,
+                                                   b,d,x,y);
 
       default: break;
    }

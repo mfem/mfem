@@ -49,6 +49,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
+   // If device options allow non-deterministic kernels,
+   // set our integrator kernel type to 'L2L'
+   const bool ndk = Device::IsNonDeterministicKernelsEnabled();
+   SetPAKernelType(ndk ? KernelType::L2L : KernelType::DEFAULT);
+
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -850,6 +855,159 @@ static void SmemPAMassApply3D(const int NE,
    });
 }
 
+template<int D1D, int Q1D>
+void SmemPAMassApply3D_v1(const int NE,
+                          const Array<double> &b_,
+                          const Array<double> &bt_,
+                          const Vector &d_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   MFEM_CONTRACT_VAR(bt_);
+   MFEM_CONTRACT_VAR(d1d);
+   MFEM_CONTRACT_VAR(q1d);
+   const auto B = Reshape(b_.Read(), Q1D,D1D);
+   const auto D = Reshape(d_.Read(), Q1D,Q1D,Q1D, NE);
+   const auto X = Reshape(x_.Read(), D1D,D1D,D1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D,D1D,D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   {
+      double u[Q1D];
+      MFEM_SHARED double s_B[Q1D][D1D];
+      MFEM_SHARED double s_q[Q1D][Q1D][Q1D];
+
+      // Load input, B & X interpolation
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            s_B[qx][dy] = B(qx,dy);
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
+            MFEM_UNROLL(D1D)
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double Bx = B(qx,dx);
+               MFEM_UNROLL(D1D)
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  u[dz] += X(dx,dy,dz,e) * Bx;
+               }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { s_q[dz][dy][qx] = u[dz]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Y interpolation
+      MFEM_FOREACH_THREAD(dz,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_UNROLL(Q1D)
+            for (int qy = 0; qy < Q1D; ++qy) { u[qy] = 0.0; }
+            MFEM_UNROLL(D1D)
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double zyX = s_q[dz][dy][qx];
+               MFEM_UNROLL(D1D)
+               for (int qy = 0; qy < Q1D; ++qy) { u[qy] += zyX * s_B[qy][dy]; }
+            }
+            MFEM_UNROLL(Q1D)
+            for (int qy = 0; qy < Q1D; ++qy) { s_q[dz][qy][qx] = u[qy]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Z interpolation, Q-function & Zt projection
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            // Z interpolation
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               const double zYX = s_q[dz][qy][qx];
+               MFEM_UNROLL(Q1D)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] += zYX * s_B[qz][dz]; }
+            }
+
+            // Q-function
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               s_q[qz][qy][qx] = u[qz] * D(qx,qy,qz,e);
+            }
+
+            // Zt projection
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double ZYX = s_q[qz][qy][qx];
+               MFEM_UNROLL(D1D)
+               for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * s_B[qz][dz]; }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz) { s_q[dz][qy][qx] = u[dz]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Yt projection
+      MFEM_FOREACH_THREAD(dz,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
+            MFEM_UNROLL(Q1D)
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double zYX = s_q[dz][qy][qx];
+               MFEM_UNROLL(D1D)
+               for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * s_B[qy][dy]; }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dy = 0; dy < D1D; ++dy) { s_q[dz][dy][qx] = u[dy]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Xt projection & save output
+      MFEM_FOREACH_THREAD(dz,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,x,D1D)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
+            MFEM_UNROLL(Q1D)
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double zyX = s_q[dz][dy][qx];
+               MFEM_UNROLL(D1D)
+               for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * s_B[qx][dx]; }
+            }
+            MFEM_UNROLL(D1D)
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double output = u[dx];
+               Y(dx,dy,dz,e) += output;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
 static void PAMassApply(const int dim,
                         const int D1D,
                         const int Q1D,
@@ -900,28 +1058,43 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
+      const int ver = DeviceKernelsVersion();
+      const int id = (ver << 8) | (D1D << 4) | Q1D;
+      //static int ini = 0;
+      //if (!ini++) { printf("\033[33mkernel #0x%x\033[m\n",id); }
       switch (id)
       {
-         case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
-         case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
-         case 0x35: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
-         case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
-         case 0x37: return SmemPAMassApply3D<3,7>(NE,B,Bt,D,X,Y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
-         case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
-         case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
-         case 0x58: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
-         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
-         default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         case 0x023: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
+         case 0x024: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
+         case 0x034: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
+         case 0x035: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
+         case 0x036: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
+         case 0x037: return SmemPAMassApply3D<3,7>(NE,B,Bt,D,X,Y);
+         case 0x045: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
+         case 0x046: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
+         case 0x048: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
+         case 0x056: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
+         case 0x058: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
+         case 0x067: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
+         case 0x078: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
+         case 0x089: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
+         case 0x09A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
+
+         case 0x123: return SmemPAMassApply3D_v1<2,3>(NE,B,Bt,D,X,Y);
+         case 0x124: return SmemPAMassApply3D_v1<2,4>(NE,B,Bt,D,X,Y);
+         case 0x134: return SmemPAMassApply3D_v1<3,4>(NE,B,Bt,D,X,Y);
+         case 0x136: return SmemPAMassApply3D_v1<3,6>(NE,B,Bt,D,X,Y);
+         case 0x145: return SmemPAMassApply3D_v1<4,5>(NE,B,Bt,D,X,Y);
+         case 0x148: return SmemPAMassApply3D_v1<4,8>(NE,B,Bt,D,X,Y);
+         case 0x156: return SmemPAMassApply3D_v1<5,6>(NE,B,Bt,D,X,Y);
+         case 0x158: return SmemPAMassApply3D_v1<5,8>(NE,B,Bt,D,X,Y);
+         case 0x167: return SmemPAMassApply3D_v1<6,7>(NE,B,Bt,D,X,Y);
+         case 0x178: return SmemPAMassApply3D_v1<7,8>(NE,B,Bt,D,X,Y);
+
+         default:   break;//return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
-   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-   MFEM_ABORT("Unknown kernel.");
+   MFEM_ABORT("Unknown kernel 0x" << std::hex << id);
 }
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -933,18 +1106,18 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (DeviceCanUseNonDeterministicKernels())
    {
       const int version = DeviceKernelsVersion();
-      MFEM_VERIFY(version < 4, "Unsupported version!");
-      if (version < 3)
-      {
-         NDK_PAMassApply(dim, dofs1D, quad1D, ne,
-                         fespace, maps,
-                         pa_data, x, y);
-      }
-      else
+      MFEM_VERIFY(version < 5, "Unsupported version!");
+      if (version == 3)
       {
          NDK_AMD_PAMassApply(dim, dofs1D, quad1D, ne,
                              fespace, maps,
                              pa_data, x, y);
+      }
+      else
+      {
+         NDK_PAMassApply(dim, dofs1D, quad1D, ne,
+                         fespace, maps,
+                         pa_data, x, y);
       }
    }
    else
