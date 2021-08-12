@@ -2733,6 +2733,37 @@ public:
    }
 };
 
+/** A GaussianStep1D is a C^3 step function with a limiting value of
+    'a' below p0 and a limiting value of 'b' above p0. The parameter
+    'd' specifies the maximum magnitude of the derivative midway
+    between a and b.
+*/
+class GaussianStep1D : public Coefficient
+{
+private:
+   int comp_;
+   double p0_;
+   double a_;
+   double b_;
+   double d_;
+
+   mutable Vector x_;
+
+public:
+   GaussianStep1D(double a, double b, double d, double p0, int comp)
+      : comp_(comp), p0_(p0), a_(a), b_(b), d_(d) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      double c = 0.5 * (b_ - a_) * sqrt(M_E);
+      double u = 2.0 * d_ * (x_[comp_] - p0_) / fabs(b_ - a_);
+      return (x_[comp_] < p0_) ?
+             a_ + c * exp(-0.5 * pow(u - 1.0, 2)):
+             b_ - c * exp(-0.5 * pow(u + 1.0, 2));
+   }
+};
+
 class Radius : public Coefficient
 {
 private:
@@ -2914,6 +2945,13 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       int comp;
       input >> a >> b >> p0 >> comp;
       coef_idx = sCoefs.Append(new Gaussian1D(a, b, p0, comp));
+   }
+   else if (name == "GaussianStep1D")
+   {
+      double a, b, d, p0;
+      int comp;
+      input >> a >> b >> d >> p0 >> comp;
+      coef_idx = sCoefs.Append(new GaussianStep1D(a, b, d, p0, comp));
    }
    else if (name == "AnnularTestSol")
    {
