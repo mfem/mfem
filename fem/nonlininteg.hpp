@@ -32,16 +32,22 @@ protected:
    // CEED extension
    ceed::Operator* ceedOp;
 
+   MemoryType pa_mt = MemoryType::DEFAULT;
+
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
       : IntRule(ir), ceedOp(NULL) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
        let the integrator choose (when @a ir == NULL). */
-   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    /// Prescribe a fixed IntegrationRule to use.
-   void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
+   void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
+
+   /// Set the memory type used for GeometricFactors and other large allocations
+   /// in PA extensions.
+   void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
 
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }
@@ -115,7 +121,7 @@ public:
        @param[in,out] y  The result Vector: @f$ y += G x @f$. */
    virtual void AddMultGradPA(const Vector &x, Vector &y) const;
 
-   /// Method for computing the diagonal of the gradient with partial assmebly.
+   /// Method for computing the diagonal of the gradient with partial assembly.
    /** The result Vector @a diag is an E-Vector. This method can be called only
        after the method AssembleGradPA() has been called.
 

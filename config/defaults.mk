@@ -18,6 +18,9 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
+ETAGS_BIN = $(shell command -v etags 2> /dev/null)
+EGREP_BIN = $(shell command -v egrep 2> /dev/null)
+
 CXX = g++
 MPICXX = mpicxx
 
@@ -133,6 +136,7 @@ MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
+MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
@@ -171,6 +175,10 @@ LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
+ifeq (YES,$(MFEM_USE_CUDA))
+   # This is only necessary when hypre is built with cuda:
+   HYPRE_LIB += -lcusparse -lcurand
+endif
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
@@ -353,6 +361,11 @@ endif
 # MPFR library configuration
 MPFR_OPT =
 MPFR_LIB = -lmpfr
+
+# FMS and required libraries configuration
+FMS_DIR = $(MFEM_DIR)/../fms
+FMS_OPT = -I$(FMS_DIR)/include
+FMS_LIB = -Wl,-rpath,$(FMS_DIR)/lib -L$(FMS_DIR)/lib -lfms
 
 # Conduit and required libraries configuration
 CONDUIT_DIR = @MFEM_DIR@/../conduit
