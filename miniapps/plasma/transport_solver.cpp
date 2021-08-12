@@ -884,15 +884,18 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
    skip_comment_lines(input, '#');
 
    vector<ios::streampos> pos(nCoefs+1);
+   vector<int> ord(nCoefs+1);
    for (int i=0; i<=nCoefs; i++)
    {
       pos[i] = -1;
+      ord[i] = nCoefs;
    }
 
    enum CoefType {INVALID = -1, SCALAR, VECTOR, MATRIX};
    Array<CoefType> typ(nCoefs);
    typ = CoefType::INVALID;
 
+   int c = 0;
    while (input >> buff)
    {
       pos[nCoefs] = std::max(pos[nCoefs], input.tellg());
@@ -904,6 +907,7 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
          {
             pos[i] = input.tellg();
             typ[i] = SCALAR;
+            ord[c] = i; c++;
             break;
          }
       }
@@ -911,8 +915,9 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
       {
          if (buff == vCoefNames_[i])
          {
-            pos[i] = input.tellg();
-            typ[i] = VECTOR;
+            pos[i+nSCoefs] = input.tellg();
+            typ[i+nSCoefs] = VECTOR;
+            ord[c] = i+nSCoefs; c++;
             break;
          }
       }
@@ -920,22 +925,19 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
       {
          if (buff == mCoefNames_[i])
          {
-            pos[i] = input.tellg();
-            typ[i] = MATRIX;
+            pos[i+nSCoefs+nVCoefs] = input.tellg();
+            typ[i+nSCoefs+nVCoefs] = MATRIX;
+            ord[c] = i+nSCoefs+nVCoefs; c++;
             break;
          }
       }
    }
-   for (int i=nCoefs-1; i >= 0; i--)
-   {
-      if (pos[i] < 0) { pos[i] = pos[i+1]; }
-   }
 
    input.clear();
-   for (int i=0; i<nCoefs; i++)
+   for (int i=0; i<c; i++)
    {
-      input.seekg(pos[i], std::ios::beg);
-      int length = pos[i+1] - pos[i];
+      input.seekg(pos[ord[i]], std::ios::beg);
+      int length = pos[ord[i+1]] - pos[ord[i]];
       if (length > 0)
       {
          char * buffer = new char[length];
@@ -944,16 +946,16 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
          string buff_str(buffer, length);
 
          istringstream iss(buff_str);
-         switch (typ[i])
+         switch (typ[ord[i]])
          {
             case SCALAR:
-               sCoefs_[i] = coefFact->GetScalarCoef(iss);
+               sCoefs_[ord[i]] = coefFact->GetScalarCoef(iss);
                break;
             case VECTOR:
-               vCoefs_[i] = coefFact->GetVectorCoef(iss);
+               vCoefs_[ord[i]-nSCoefs] = coefFact->GetVectorCoef(iss);
                break;
             case MATRIX:
-               mCoefs_[i] = coefFact->GetMatrixCoef(iss);
+               mCoefs_[ord[i]-nSCoefs-nVCoefs] = coefFact->GetMatrixCoef(iss);
                break;
             default:
                MFEM_WARNING("Unrecognized coefficient type");
@@ -4368,7 +4370,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    }
    if (this->CheckTermFlag(RECYCLING_BDR_SOURCE_TERM))
    {
-      cout << "RECYCLING_BDR_SOURCE_TERM is on" << endl;
+      // cout << "RECYCLING_BDR_SOURCE_TERM is on" << endl;
       /*
        ScalarVectorProductCoefficient * dtVCoef =
          new ScalarVectorProductCoefficient(dt_, ViCoef_);
@@ -4381,13 +4383,13 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
        blf_[1]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef), -1.0, -0.5);
        */
       // SetBdrSourceTerm(niCoef_, ViCoef_);
-      cout << "Num recycling bcs " << cbcs_.GetNumRecyclingBCs() << endl;
+      // cout << "Num recycling bcs " << cbcs_.GetNumRecyclingBCs() << endl;
       for (int i=0; i<cbcs_.GetNumRecyclingBCs(); i++)
       {
          const RecyclingBC & rbc = cbcs_.GetRecyclingBC(i);
-         cout << i << " neutral index  " << rbc.GetNeutralDensityIndex() << endl;
-         cout << i << " ion index      " << rbc.GetIonDensityIndex() << endl;
-         cout << i << " velocity index " << rbc.GetIonVelocityIndex() << endl;
+         // cout << i << " neutral index  " << rbc.GetNeutralDensityIndex() << endl;
+         // cout << i << " ion index      " << rbc.GetIonDensityIndex() << endl;
+         // cout << i << " velocity index " << rbc.GetIonVelocityIndex() << endl;
          if (rbc.GetNeutralDensityIndex() == index_)
          {
             SetRecyclingBdrSourceTerm(rbc);

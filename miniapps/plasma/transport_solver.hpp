@@ -610,7 +610,7 @@ public:
 class IonMomentumCoefs : public EqnCoefficients
 {
 public:
-   enum sCoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+   enum sCoefNames {PARA_DIFFUSION_COEF = 0, PERP_DIFFUSION_COEF,
                     SOURCE_COEF, NUM_SCALAR_COEFS
                    };
 
@@ -620,7 +620,7 @@ public:
 class IonStaticPressureCoefs : public EqnCoefficients
 {
 public:
-   enum sCoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+   enum sCoefNames {PARA_DIFFUSION_COEF = 0, PERP_DIFFUSION_COEF,
                     SOURCE_COEF, NUM_SCALAR_COEFS
                    };
 
