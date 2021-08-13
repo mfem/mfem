@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40201
+MFEM_VERSION = 40301
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -210,27 +210,28 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
-   MFEM_HOST_CXX = $(CXX)
+   HOST_CXX = $(CXX)
    PKGS_NEED_MPI = SUPERLU MUMPS STRUMPACK PETSC PUMI SLEPC MKL_CPARDISO
    $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
-   MFEM_HOST_CXX = $(MPICXX)
+   HOST_CXX = $(MPICXX)
    INCFLAGS += $(HYPRE_OPT)
    ALL_LIBS += $(HYPRE_LIB)
 endif
 
 # Default configuration
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
-   MFEM_CXX ?= $(MFEM_HOST_CXX)
-   MFEM_HOST_CXX := $(MFEM_CXX)
+   MFEM_CXX ?= $(HOST_CXX)
+   MFEM_HOST_CXX ?= $(MFEM_CXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
+   MFEM_HOST_CXX ?= $(HOST_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(MFEM_HOST_CXX)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
@@ -250,7 +251,7 @@ ifeq ($(MFEM_USE_HIP),YES)
       ALL_LIBS += $(MPI_LIB)
    endif
    MFEM_CXX ?= $(HIP_CXX)
-   MFEM_HOST_CXX := $(MFEM_CXX)
+   MFEM_HOST_CXX ?= $(MFEM_CXX)
    CXXFLAGS += $(HIP_FLAGS)
    XLINKER   = $(HIP_XLINKER)
    XCOMPILER = $(HIP_XCOMPILER)
@@ -280,7 +281,7 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
+MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
  OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER
 
@@ -344,11 +345,11 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
- MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
- MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_OCCA\
- MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2\
- MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS MFEM_USE_CALIPER\
- MFEM_USE_JIT MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT\
+ MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
+ MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
+ MFEM_USE_CALIPER MFEM_USE_JIT MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -562,6 +563,17 @@ test test-noclean:
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
 
+.PHONY: test-miniapps
+test-miniapps:
+	@echo "Building all miniapps ..."
+	@$(MAKE) $(MAKEOVERRIDES_SAVE) miniapps
+	@ERR=0; for dir in $(MINIAPP_TEST_DIRS); do \
+	   echo "Running tests in $${dir} ..."; \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   ERR=1; fi; done; \
+	   if [ 0 -ne $${ERR} ]; then echo "Some miniapp tests failed."; \
+	   exit 1; else echo "All miniapp tests passed."; fi
+
 unittest: lib
 	$(MAKE) -C $(BLD)tests/unit test
 
@@ -698,6 +710,7 @@ status info:
 	$(info MFEM_USE_SLEPC         = $(MFEM_USE_SLEPC))
 	$(info MFEM_USE_MPFR          = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
+	$(info MFEM_USE_FMS           = $(MFEM_USE_FMS))
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
 	$(info MFEM_USE_HIOP          = $(MFEM_USE_HIOP))
