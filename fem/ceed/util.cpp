@@ -35,7 +35,7 @@ int DeviceKernelsVersion()
 
 bool DeviceCanUseNonDeterministicKernels()
 {
-   return Device::IsNonDeterministicKernelsEnabled();
+   return Device::FastKernelsEnabled();
 }
 
 bool DeviceCanUseCeed()
