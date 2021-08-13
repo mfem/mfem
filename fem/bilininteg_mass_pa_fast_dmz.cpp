@@ -76,7 +76,7 @@ void SmRgPAMassApply3D(const int ndofs,
 {
    MFEM_CONTRACT_VAR(indices_);
    const auto MAP = Reshape(map, D1D,D1D,D1D, NE);
-   const auto INDICES = Reshape(indices_, ndofs);
+   //const auto INDICES = Reshape(indices_, ndofs);
    const auto OFFSETS = Reshape(offsets_, ndofs);
    const auto B = Reshape(b_, Q1D, D1D);
    const auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
@@ -222,8 +222,7 @@ void SmRgPAMassApply3D(const int ndofs,
                   const int offset = OFFSETS[idx];
                   const int nextOffset = OFFSETS[idx+1];
                   const int n = nextOffset - offset;
-                  //printf("%d:%.15e ",n,output);
-                  //assert(n==1);
+                  printf("%d:%.15e ",n,output);
                   AtomicAdd(Y(idx), output);
                }
                else
