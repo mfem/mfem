@@ -363,7 +363,7 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::MANAGED;
    }
 
-   // Enable the NON-DETERMINISTIC KERNELS shortcut when requested
+   // Enable the non deterministic kernels shortcut when requested
    if (device_option && !strncmp(device_option, "fast", 4))
    {
       deterministic_kernels = DETERMINISTIC_KERNELS::OFF;

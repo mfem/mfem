@@ -34,7 +34,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q, action_type);
       return;
    }
    dim = mesh->Dimension();

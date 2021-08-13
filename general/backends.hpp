@@ -19,6 +19,8 @@
 #include <library_types.h>
 #include <cuda_runtime.h>
 #include <cuda.h>
+//#include <cuda_runtime_api.h>
+#include <cooperative_groups.h>
 #endif
 #include "cuda.hpp"
 
@@ -46,12 +48,16 @@
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
+#define MFEM_GRID_SYNC
 #endif
 
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
       (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
+#define MFEM_EXTERN_SHARED
+#define MFEM_GRID_SYNC
 #define MFEM_SYNC_THREAD
+#define MFEM_GRID_DIM(k) 1
 #define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1

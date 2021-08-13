@@ -21,10 +21,12 @@
 namespace mfem
 {
 
-enum class KernelType
+// E or L I/O vectors
+enum class ActionType
 {
-   DEFAULT,   ///< Default kernel, working on E => E
-   L2L        ///< L => L kernels
+   E2E,   ///< E => E kernels
+   L2E,   ///< L => E kernels
+   L2L    ///< L => L kernels
 };
 
 /** @brief This class is used to express the local action of a general nonlinear
@@ -38,9 +40,9 @@ protected:
    // CEED extension
    ceed::Operator* ceedOp;
 
-   MemoryType pa_mt = MemoryType::DEFAULT;
+   MemoryType memory_type = MemoryType::DEFAULT;
 
-   KernelType pa_kt = KernelType::DEFAULT;
+   ActionType action_type = ActionType::E2E;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
       : IntRule(ir), ceedOp(NULL) { }
@@ -54,12 +56,11 @@ public:
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
    /// Set the memory type used for GeometricFactors and other large allocations
-   /// in PA extensions.
-   void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
+   void SetMemoryType(MemoryType mt) { memory_type = mt; }
+   MFEM_DEPRECATED void SetPAMemoryType(MemoryType mt) { memory_type = mt; }
 
    /// Set the kernel type used in PA extensions.
-   void SetPAKernelType(KernelType mt) { pa_kt = mt; }
-   KernelType GetPAKernelType() const { return pa_kt; }
+   ActionType GetActionType() const { return action_type; }
 
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }

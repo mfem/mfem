@@ -183,7 +183,9 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   // 'Default' E2E kernel
    //a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   // Can be E2E, L2L, libCeed, etc.
    a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -232,7 +234,7 @@ int main(int argc, char *argv[])
          {
             const int myid = 0;
             const int max_it = 50;
-            const int print_lvl = -1;
+            const int print_lvl = /*-*/1;
             const double rtol = 1e-12;
 
             CGSolver cg;

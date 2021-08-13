@@ -40,19 +40,28 @@ void NDK_AMD_PAMassApply(const int dim,
                          const Vector &X,
                          Vector &Y);
 
+void NDK_DMZ_PAMassApply(const int dim,
+                         const int D1D,
+                         const int Q1D,
+                         const int NE,
+                         const FiniteElementSpace *fes,
+                         const DofToQuad *maps,
+                         const Vector &D,
+                         const Vector &X,
+                         Vector &Y);
+
 // PA Mass Integrator
 
 // PA Mass Assemble kernel
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
+   const MemoryType mt = (memory_type == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : memory_type;
 
-   // If device options allow non-deterministic kernels,
-   // set our integrator kernel type to 'L2L'
-   const bool ndk = Device::IsNonDeterministicKernelsEnabled();
-   SetPAKernelType(ndk ? KernelType::L2L : KernelType::DEFAULT);
+   // If device options allow fast kernels, set the action type to L2L
+   action_type =
+      Device::FastKernelsEnabled() ? ActionType::L2L : ActionType::E2E;
 
    // Assuming the same element type
    fespace = &fes;
@@ -64,7 +73,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q, action_type);
       return;
    }
    dim = mesh->Dimension();
@@ -1107,7 +1116,13 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const int version = DeviceKernelsVersion();
       MFEM_VERIFY(version < 5, "Unsupported version!");
-      if (version == 3)
+      if (version == 4)
+      {
+         NDK_DMZ_PAMassApply(dim, dofs1D, quad1D, ne,
+                             fespace, maps,
+                             pa_data, x, y);
+      }
+      else if (version == 3)
       {
          NDK_AMD_PAMassApply(dim, dofs1D, quad1D, ne,
                              fespace, maps,

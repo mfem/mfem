@@ -27,7 +27,8 @@ class PAMassIntegrator : public PAIntegrator
 public:
    PAMassIntegrator(const mfem::FiniteElementSpace &fes,
                     const mfem::IntegrationRule &irm,
-                    mfem::Coefficient *Q);
+                    mfem::Coefficient *Q,
+                    mfem::ActionType &action_type);
 };
 
 /// Represent a MassIntegrator with AssemblyLevel::None using libCEED.

@@ -384,59 +384,53 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integrators_size = integrators.Size();
 
-   const int iSz = integrators.Size();
-   if (DeviceCanUseNonDeterministicKernels() || DeviceCanUseCeed() ||
-       !elem_restrict)
+   // Scan the different action types we need to launch
+   bool E2E_actions = false,
+        L2L_actions = false;
+   for (int i = 0; i < integrators_size; ++i)
    {
-      // typically this is a large vector, so store on device
-      y.UseDevice(true);
+      const ActionType action_type = integrators[i]->GetActionType();
+      E2E_actions |= action_type == ActionType::E2E;
+      L2L_actions |= action_type == ActionType::L2L;
+   }
 
-      // Scan to determine if DEFAULT kernels have to be run first
-      bool default_kernels = false;
-      for (int i = 0; i < iSz; ++i)
-      {
-         default_kernels |=
-            integrators[i]->GetPAKernelType() == KernelType::DEFAULT;
-      }
+   //if (Device::FastKernelsEnabled() || DeviceCanUseCeed() || !elem_restrict)
 
-      // If DEFAULT kernels are present, start their computation
-      if (default_kernels)
+   // typically this is a large vector, so store on device
+   y.UseDevice(true);
+
+   // If E2E kernels are present, do their computation on local vectors
+   if (E2E_actions && elem_restrict)
+   {
+      elem_restrict->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < integrators_size; ++i)
       {
-         elem_restrict->Mult(x, localX);
-         localY = 0.0;
-         for (int i = 0; i < iSz; ++i)
+         if (integrators[i]->GetActionType() == ActionType::E2E)
          {
-            if (integrators[i]->GetPAKernelType() == KernelType::DEFAULT)
-            {
-               integrators[i]->AddMultPA(localX, localY);
-            }
+            integrators[i]->AddMultPA(localX, localY);
          }
-         elem_restrict->MultTranspose(localY, y);
       }
-      else
-      {
-         // otherwise, initialize the y output
-         y = 0.0;
-      }
+      elem_restrict->MultTranspose(localY, y);
+   }
+   else
+   {
+      // otherwise, initialize the y output
+      y = 0.0;
+   }
 
-      for (int i = 0; i < iSz; ++i)
+   // Continue with the computation of the L2L integrators
+   if (L2L_actions || !elem_restrict)
+   {
+      for (int i = 0; i < integrators_size; ++i)
       {
-         if (integrators[i]->GetPAKernelType() == KernelType::L2L)
+         if (integrators[i]->GetActionType() == ActionType::L2L || !elem_restrict)
          {
             integrators[i]->AddMultPA(x, y);
          }
       }
-   }
-   else
-   {
-      elem_restrict->Mult(x, localX);
-      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(localX, localY);
-      }
-      elem_restrict->MultTranspose(localY, y);
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();

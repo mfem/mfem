@@ -32,6 +32,7 @@ set(SRCS
   bilininteg_mass_pa_diag.cpp
   bilininteg_mass_pa_fast.cpp
   bilininteg_mass_pa_fast_amd.cpp
+  bilininteg_mass_pa_fast_dmz.cpp
   bilininteg_mass_pa_fast_diag.cpp
   bilininteg_mass_ea.cpp
   bilininteg_transpose_ea.cpp
