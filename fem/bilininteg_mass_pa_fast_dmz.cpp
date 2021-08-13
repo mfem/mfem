@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define MFEM_DEBUG_COLOR 206
-#include "../general/debug.hpp"
+//#define MFEM_DEBUG_COLOR 206
+//#include "../general/debug.hpp"
 
 #include "../general/forall.hpp"
 #include "gridfunc.hpp"
