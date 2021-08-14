@@ -24,21 +24,41 @@ namespace mfem {
 
 namespace ad {
 #ifdef MFEM_USE_ADFORWARD
+/// Forward AD type declaration
 typedef codi::RealForward ADFloatType;
+/// Vector type for AD-numbers
 typedef TADVector<ADFloatType> ADVectorType;
+/// Matrix type for AD-numbers
 typedef TADDenseMatrix<ADFloatType> ADMatrixType;
 #else
+/// Reverse AD type declaration
 typedef codi::RealReverse ADFloatType;
+/// Vector type for AD-numbers
 typedef TADVector<ADFloatType> ADVectorType;
+/// Matrix type for AD-numbers
 typedef TADDenseMatrix<ADFloatType> ADMatrixType;
 #endif
 }
 
-
+/// The class provides an evaluation of the Jacobian of a
+/// templated vector function provided in the constructor.
+/// The Jacobian is evaluated with the help of automatic
+/// differentiation (AD)
+/// https://en.wikipedia.org/wiki/Automatic_differentiation.
+/// The template parameters specify the size of the return
+/// vector (vector_size), the size of the input vector
+/// (state_size), and the size of the parameters supplied
+/// to the function.
 template<int vector_size=1, int state_size=1, int param_size=0>
 class VectorFuncAutoDiff
 {
 public:
+    /// F_ is user implemented function to be differentiated by VectorFuncAutoDiff.
+    /// The signature of the function is:
+    /// F_(mfem::Vector& parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
+    /// The parameters vector should have size param_size. The state_vector should have size
+    /// state_size, and the result vector should have size vector_size. All size parameters are
+    /// teplate parameters in VectorFuncAutoDiff.
     VectorFuncAutoDiff(std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
     {
             F=F_;
@@ -103,8 +123,19 @@ private:
     std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F;
 }; //VectorFuncAutoDiff
 
-
-template<template<typename, typename, typename, int, int, int> class CTD
+/// The class provides an evaluation of the Jacobian of a templated
+/// vector function provided as a functor TFunctor.  The Jacobian is
+/// evaluated with the help of automatic differentiation (AD)
+/// https://en.wikipedia.org/wiki/Automatic_differentiation.
+/// The template parameters specify the size of the return
+/// vector (vector_size), the size of the input vector (state_size),
+/// and the size of the parameters supplied to the function.
+/// The TFunctor functor is a template class with parameters [Float data type],
+/// [Vector type for the additional parameters],
+/// [Vector type for the state vector and the return residual].
+/// The integer template parameters are the same ones
+/// passed to QVectorFuncAutoDiff.
+template<template<typename, typename, typename, int, int, int> class TFunctor
          , int vector_size=1, int state_size=1, int param_size=0>
 class QVectorFuncAutoDiff
 {
@@ -113,12 +144,12 @@ public:
     /// values in vector uu. The result is returned in vector rr.
     void QVectorFunc(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector& rr)
     {
-        CTD<double,const mfem::Vector, mfem::Vector,
+        TFunctor<double,const mfem::Vector, mfem::Vector,
                         vector_size, state_size, param_size> tf;
         tf(vparam,uu,rr);
     }
 
-    /// Returns the gradient of CTD(...) in the dense matrix jac.
+    /// Returns the gradient of TFunctor(...) in the dense matrix jac.
     /// The dimensions of jac are vector_size x state_size, where state_size is the
     /// length of vector uu.
     void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
@@ -126,7 +157,7 @@ public:
 #ifdef MFEM_USE_ADFORWARD
         // use forward mode
 
-        CTD<ad::ADFloatType, const Vector, ad::ADVectorType,
+        TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
                         vector_size, state_size, param_size> tf;
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
@@ -150,7 +181,7 @@ public:
         }
 #else //end MFEM_USE_ADFORWARD
         // use reverse mode
-        CTD<ad::ADFloatType, const Vector, ad::ADVectorType,
+        TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
                 vector_size, state_size, param_size> tf;
 
         jac.SetSize(vector_size, state_size);
@@ -185,36 +216,49 @@ public:
     }
 };
 
-template<template<typename, typename, typename, int, int> class CTD
+/// The class provides an evaluation of the first derivatives
+/// and the Hessian of a templated scalar function provided as
+///  a functor TFunctor. Both the first and the second derivatives
+/// are evaluated with the help of automatic differentiation (AD)
+/// https://en.wikipedia.org/wiki/Automatic_differentiation.
+/// The template parameters specify the size of the input
+/// vector (state_size) and the size of the parameters
+/// supplied to the function. The TFunctor functor is a template
+/// class with parameters [Float data type],
+/// [Vector type for the additional parameters],
+/// [Vector type for the state vector and the return residual].
+/// The integer template parameters are the same ones passed
+/// to QFunctionAutoDiff.
+template<template<typename, typename, typename, int, int> class TFunctor
          , int state_size=1, int param_size=0>
 class QFunctionAutoDiff
 {
 public:
 
     /// Evaluates a function for arguments vparam and uu.
-    /// The evaluatin is based on the operator() in the
-    /// user provided functor CTD.
-    double QEval(const Vector &vparam, Vector &uu)
+    /// The evaluation is based on the operator() in the
+    /// user provided functor TFunctor.
+    double QEval(const mfem::Vector &vparam, mfem::Vector &uu)
     {
-        CTD<double, const Vector, Vector, state_size, param_size> tf;
+        TFunctor<double, const mfem::Vector, mfem::Vector, state_size, param_size> tf;
         return tf(vparam,uu);
     }
 
     /// Provides the same functionality as QGrad.
-    void QVectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
+    void QVectorFunc(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector &rr)
     {
         QGrad(vparam,uu,rr);
     }
 
-    /// Returns the first derivative of CTD(...) with
+    /// Returns the first derivative of TFunctor(...) with
     /// respect to the active arguments proved in vector uu.
     /// The length of rr is the same as for uu.
-    void QGrad(const Vector &vparam, Vector &uu, Vector &rr)
+    void QGrad(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector &rr)
     {
 
 #ifdef MFEM_USE_ADFORWARD
         // use forward mode
-        CTD<ad::ADFloatType, const Vector, ad::ADVectorType,
+        TFunctor<ad::ADFloatType, const mfem::Vector, ad::ADVectorType,
                         state_size, param_size> tf;
         rr.SetSize(state_size);
         {
@@ -238,7 +282,7 @@ public:
         typedef codi::RealReverse ADFType;
         typedef TADVector<ADFType> ADFVector;
 
-        CTD<ADFType, const Vector, ADFVector, state_size, param_size> tf;
+        TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> tf;
         {
             ADFVector aduu(state_size);
             ADFType rez;
@@ -272,7 +316,7 @@ public:
         QHessian(vparam,uu,jac);
     }
 
-    /// Returns the Hessian of CTD(...) in the dense matrix hh.
+    /// Returns the Hessian of TFunctor(...) in the dense matrix jac.
     /// The dimensions of jac are state_size x state_size, where state_size is the
     /// length of vector uu.
     void QHessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
@@ -287,7 +331,7 @@ public:
         typedef TADVector<ADSType>              ADSVector;
         typedef TADDenseMatrix<ADSType>         ADSDenseMatrix;
 
-        CTD<ADSType, const Vector, ADSVector, state_size, param_size> tf;
+        TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
 
         jac.SetSize(state_size);
         jac=0.0;
@@ -325,7 +369,7 @@ public:
         typedef TADVector<ADSType>              ADSVector;
         typedef TADDenseMatrix<ADSType>         ADSDenseMatrix;
 
-        CTD<ADSType, const Vector, ADSVector, state_size, param_size> tf;
+        TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
 
         jac.SetSize(state_size);
         jac=0.0;
@@ -378,11 +422,23 @@ public:
 namespace mfem {
 
 namespace ad {
+/// MFEM native forward AD-type
 typedef FDual<double> ADFloatType;
+/// Vector type for AD-type numbers
 typedef TADVector<ADFloatType> ADVectorType;
+/// Matrix type for AD-type numbers
 typedef TADDenseMatrix<ADFloatType> ADMatrixType;
 }
 
+/// The class provides an evaluation of the Jacobian of a
+/// templated vector function provided in the constructor.
+/// The Jacobian is evaluated with the help of automatic
+/// differentiation (AD)
+/// https://en.wikipedia.org/wiki/Automatic_differentiation.
+/// The template parameters specify the size of the return
+/// vector (vector_size), the size of the input vector
+/// (state_size), and the size of the parameters supplied
+/// to the function.
 template<int vector_size=1, int state_size=1, int param_size=0>
 class VectorFuncAutoDiff
 {
@@ -420,28 +476,42 @@ private:
 };
 
 
-template<template<typename, typename, typename, int, int, int> class CTD
+/// The class provides an evaluation of the Jacobian of a templated
+/// vector function provided as a functor TFunctor.  The Jacobian is
+/// evaluated with the help of automatic differentiation (AD)
+/// https://en.wikipedia.org/wiki/Automatic_differentiation.
+/// The template parameters specify the size of the return
+/// vector (vector_size), the size of the input vector (state_size),
+/// and the size of the parameters supplied to the function.
+/// The TFunctor functor is a template class with parameters [Float data type],
+/// [Vector type for the additional parameters],
+/// [Vector type for the state vector and the return residual].
+/// The integer template parameters are the same ones
+/// passed to QVectorFuncAutoDiff.
+template<template<typename, typename, typename, int, int, int> class TFunctor
          , int vector_size=1, int state_size=1, int param_size=0>
 class QVectorFuncAutoDiff
 {
 private:
     /// MFEM native forward AD-type
     typedef ad::FDual<double> ADFType;
+    /// Vector type for AD-type numbers
     typedef TADVector<ADFType> ADFVector;
+    /// Matrix type for AD-type numbers
     typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
 
 public:
     /// Returns a vector valued function rr for supplied passive arguments
     /// vparam and active arguments uu. The evaluation is based on the
-    /// user supplied CTD template class.
+    /// user supplied TFunctor template class.
     void QVectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
     {
-       CTD<double, const Vector, Vector,
+       TFunctor<double, const Vector, Vector,
                vector_size, state_size, param_size> func;
        func(vparam, uu, rr);
     }
 
-    /// Returns the gradient of CTD(...) residual in the dense matrix jac.
+    /// Returns the gradient of TFunctor(...) residual in the dense matrix jac.
     /// The dimensions of jac are vector_size x state_size, where state_size is the
     /// length of vector uu.
     void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
@@ -467,37 +537,54 @@ public:
     }
 
 private:
-    /// Evaluates the residual from CTD(...).
+    /// Evaluates the residual from TFunctor(...).
     /// Intended for internal use only.
     void QEval(const Vector &vparam, ADFVector &uu, ADFVector &rr)
     {
-       CTD<ADFType, const Vector, ADFVector,
+       TFunctor<ADFType, const Vector, ADFVector,
                vector_size, state_size, param_size> tf;
        tf(vparam, uu, rr);
     }
 };
 
-template<template<typename, typename, typename, int, int> class CTD
+/// The class provides an evaluation of the first derivatives
+/// and the Hessian of a templated scalar function provided as
+///  a functor TFunctor. Both the first and the second derivatives
+/// are evaluated with the help of automatic differentiation (AD)
+/// https://en.wikipedia.org/wiki/Automatic_differentiation.
+/// The template parameters specify the size of the input
+/// vector (state_size) and the size of the parameters
+/// supplied to the function. The TFunctor functor is a template
+/// class with parameters [Float data type],
+/// [Vector type for the additional parameters],
+/// [Vector type for the state vector and the return residual].
+/// The integer template parameters are the same ones passed
+/// to QFunctionAutoDiff.
+template<template<typename, typename, typename, int, int> class TFunctor
          , int state_size=1, int param_size=0>
 class QFunctionAutoDiff
 {
 private:
-    ///MFEM native AD-type for first derivatives
+    /// MFEM native AD-type for first derivatives
     typedef ad::FDual<double> ADFType;
+    /// Vector type for AD-numbers(first derivatives)
     typedef TADVector<ADFType> ADFVector;
+    /// Matrix type for AD-numbers(first derivatives)
     typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
-    ///MFEM native AD-type for second derivatives
+    /// MFEM native AD-type for second derivatives
     typedef ad::FDual<ADFType> ADSType;
+    /// Vector type for AD-numbers (second derivatives)
     typedef TADVector<ADSType> ADSVector;
+    /// Vector type fpr AD-numbers (second derivatives)
     typedef TADDenseMatrix<ADSType> ADSDenseMatrix;
 
 public:
     /// Evaluates a function for arguments vparam and uu.
     /// The evaluatin is based on the operator() in the
-    /// user provided functor CTD.
+    /// user provided functor TFunctor.
     double QEval(const Vector &vparam, Vector &uu)
     {
-        CTD<double, const Vector, Vector, state_size, param_size> tf;
+        TFunctor<double, const Vector, Vector, state_size, param_size> tf;
         return tf(vparam,uu);
     }
 
@@ -507,7 +594,7 @@ public:
         QGrad(vparam,uu,rr);
     }
 
-    /// Returns the first derivative of CTD(...) with
+    /// Returns the first derivative of TFunctor(...) with
     /// respect to the active arguments proved in vector uu.
     /// The length of rr is the same as for uu.
     void QGrad(const Vector &vparam, Vector &uu, Vector &rr)
@@ -531,7 +618,7 @@ public:
         QHessian(vparam,uu,jac);
     }
 
-    /// Returns the Hessian of CTD(...) in the dense matrix hh.
+    /// Returns the Hessian of TFunctor(...) in the dense matrix jac.
     /// The dimensions of jac are state_size x state_size, where state_size is the
     /// length of vector uu.
     void QHessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
@@ -564,19 +651,19 @@ public:
     }
 
 private:
-    /// Evaluates the first derivative of CTD(...).
+    /// Evaluates the first derivative of TFunctor(...).
     /// Intended for internal use only.
     ADFType QEval(const Vector &vparam, ADFVector &uu)
     {
-       CTD<ADFType, const Vector, ADFVector, state_size, param_size> tf;
+       TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> tf;
        return tf(vparam, uu);
     }
 
-    /// Evaluates the second derivative of CTD(...).
+    /// Evaluates the second derivative of TFunctor(...).
     /// Intended for internal use only.
     ADSType QEval(const Vector &vparam, ADSVector &uu)
     {
-       CTD<ADSType, const Vector, ADSVector, state_size, param_size> tf;
+       TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
        return tf(vparam, uu);
     }
 

@@ -37,7 +37,7 @@ public:
    /// is stored in vector rr with length equal to the length of vector uu.
    void operator()(TParamVector &vparam, TStateVector &uu, TStateVector &rr)
    {
-      MFEM_ASSERT(residual_size==4,"PLaplacianResidual residual_size should be equal to 4!")
+      MFEM_ASSERT(residual_size==4,"PLaplacianResidual residual_size should be equal to 4!");
       double pp = vparam[0];
       double ee = vparam[1];
       double ff = vparam[2];
@@ -57,6 +57,13 @@ public:
 /// vparam[0] - the p-Laplacian power, vparam[1] small value
 /// ensuring exsitance of an unique solution, and vparam[2] -
 /// the distributed extenal input to the PDE.
+/// The template parameter TDataType will be replaced by the compiler
+/// with the appropriate AD type for automatic differentiation.
+/// The TParamVector represents the vector type used for the
+/// parameter vector, and TStateVector the vector type used for the
+/// state vector. The template parameters state_size and param_size
+/// provide information for the size of the state and the parameters
+/// vectors.
 template<typename TDataType, typename TParamVector, typename TStateVector
          , int state_size, int param_size>
 class MyQFunctor
@@ -86,6 +93,13 @@ public:
 /// The integrator is based on a class QFunction utilized for
 /// evaluating the energy, the first derivative (residual) and
 /// the Hessian of the energy (the Jacobian of the residual).
+/// The template parameter CQVectAutoDiff represents the
+/// automatically differentiated energy or residual
+/// implemented by the user.
+/// CQVectAutoDiff::QVectorFunc(Vector parameters, Vector state,Vector residual)
+///  evaluates the residual at an integration point.
+/// CQVectAutoDiff::QJacobian(Vector parameters, Vector state, Matrix  hessian)
+/// evaluates the Hessian of the energy(the Jacobian of the residual).
 template<class CQVectAutoDiff>
 class pLaplaceAD : public NonlinearFormIntegrator
 {
@@ -101,6 +115,7 @@ public:
    {
       coeff = nullptr;
       pp = nullptr;
+      load = nullptr;
    }
 
    pLaplaceAD(Coefficient &pp_) : pp(&pp_), coeff(nullptr), load(nullptr) {}
@@ -116,16 +131,18 @@ public:
                                    const Vector &elfun) override
    {
       double energy = 0.0;
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
-      const IntegrationRule *ir = NULL;
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
+
 
       Vector shapef(ndof);
+      // derivatives in isoparametric coordinates
       DenseMatrix dshape_iso(ndof, ndim);
+      // derivatives in physical space
       DenseMatrix dshape_xyz(ndof, spaceDim);
       Vector grad(spaceDim);
 
@@ -137,12 +154,16 @@ public:
       vparam[1] = 1e-8; //default epsilon
       vparam[2] = 1.0;  //default load
 
+      // Calculates the functional/energy at an integration point.
+      //
+      MyQFunctor<double,Vector,Vector,4,3> qfunc;
+
       double w;
       double detJ;
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
          detJ = (square ? w : w * w);
@@ -179,8 +200,7 @@ public:
             uu[jj] = grad[jj] / detJ;
          }
          uu[3] = shapef * elfun;
-         // the energy is taken directly the the templated function
-         MyQFunctor<double,Vector,Vector,4,3> qfunc;
+         // the energy is taken directly from the templated function
          energy = energy + w * qfunc(vparam,uu);
       }
       return energy;
@@ -192,12 +212,11 @@ public:
                                       Vector &elvect) override
    {
 MFEM_PERF_BEGIN("AssembleElementVector");
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
-      const IntegrationRule *ir = NULL;
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       Vector shapef(ndof);
       DenseMatrix dshape_iso(ndof, ndim);
@@ -220,12 +239,11 @@ MFEM_PERF_BEGIN("AssembleElementVector");
 
       double w;
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
-         //detJ = (square ? w : w*w);
          w = ip.weight * w;
 
          el.CalcDShape(ip, dshape_iso);
@@ -271,12 +289,11 @@ MFEM_PERF_END("AssembleElementVector");
                                     DenseMatrix &elmat) override
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
-      const IntegrationRule *ir = NULL;
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       Vector shapef(ndof);
       DenseMatrix dshape_iso(ndof, ndim);
@@ -299,9 +316,9 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
 
       double w;
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
          w = ip.weight * w;
@@ -360,6 +377,7 @@ public:
    {
       coeff = nullptr;
       pp = nullptr;
+      load = nullptr;
    }
 
    pLaplace(Coefficient &pp_) : pp(&pp_), coeff(nullptr), load(nullptr) {}
@@ -375,13 +393,12 @@ public:
                                    const Vector &elfun) override
    {
       double energy = 0.0;
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
-      const IntegrationRule *ir = NULL;
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       Vector shapef(ndof);
       DenseMatrix dshape_iso(ndof, ndim);
@@ -394,9 +411,9 @@ public:
       double ppp = 2.0;
       double eee = 0.0;
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
          detJ = (square ? w : w * w);
@@ -442,13 +459,12 @@ public:
    {
 
 MFEM_PERF_BEGIN("AssembleElementVector");
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
-      const IntegrationRule *ir = NULL;
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       Vector shapef(ndof);
       DenseMatrix dshape_iso(ndof, ndim);
@@ -465,13 +481,13 @@ MFEM_PERF_BEGIN("AssembleElementVector");
       double ppp = 2.0;
       double eee = 0.0;
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
          detJ = (square ? w : w * w);
-         w = ip.weight * w; //w;
+         w = ip.weight * w;
 
          el.CalcDShape(ip, dshape_iso);
          el.CalcShape(ip, shapef);
@@ -496,7 +512,7 @@ MFEM_PERF_BEGIN("AssembleElementVector");
          {
             eee = coeff->Eval(trans, ip);
          }
-
+         //compute (norm of the gradient)^2 + epsilon^2
          aa = nrgrad * nrgrad + eee * eee;
          aa = std::pow(aa, (ppp - 2.0) / 2.0);
          dshape_xyz.Mult(grad, lvec);
@@ -517,32 +533,32 @@ MFEM_PERF_END("AssembleElementVector");
                                     DenseMatrix &elmat) override
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
-      const IntegrationRule *ir = NULL;
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       DenseMatrix dshape_iso(ndof, ndim);
       DenseMatrix dshape_xyz(ndof, spaceDim);
       Vector grad(spaceDim);
       Vector lvec(ndof);
+      // set the size of the element matrix
       elmat.SetSize(ndof, ndof);
       elmat = 0.0;
 
-      double w;
+      double w; // integration weight
       double detJ;
-      double nrgrad;
-      double aa0;
-      double aa1;
-      double ppp = 2.0;
-      double eee = 0.0;
+      double nrgrad; // norm of the gradient
+      double aa0; // original nonlinear diffusion coefficient
+      double aa1; // gradient of the above
+      double ppp = 2.0; // power in the P-Laplacian
+      double eee = 0.0; // regularization parameter
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
          detJ = (square ? w : w * w);
@@ -602,6 +618,7 @@ public:
    {
       coeff = nullptr;
       pp = nullptr;
+      load = nullptr;
    }
 
    pLaplaceSL(Coefficient &pp_) : pp(&pp_), coeff(nullptr), load(nullptr) {}
@@ -617,13 +634,12 @@ public:
                                    const Vector &elfun) override
    {
       double energy = 0.0;
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
-      const IntegrationRule *ir = NULL;
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       Vector shapef(ndof);
       DenseMatrix dshape_iso(ndof, ndim);
@@ -636,9 +652,9 @@ public:
       double ppp = 2.0;
       double eee = 0.0;
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
          detJ = (square ? w : w * w);
@@ -683,13 +699,12 @@ public:
                                       Vector &elvect) override
    {
 MFEM_PERF_BEGIN("AssembleElementVector");
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
-      const IntegrationRule *ir = NULL;
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       Vector shapef(ndof);
       DenseMatrix dshape_iso(ndof, ndim);
@@ -706,9 +721,9 @@ MFEM_PERF_BEGIN("AssembleElementVector");
       double ppp = 2.0;
       double eee = 0.0;
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          trans.SetIntPoint(&ip);
          w = trans.Weight();
          detJ = (square ? w : w * w);
@@ -758,13 +773,12 @@ MFEM_PERF_END("AssembleElementVector");
                                     DenseMatrix &elmat) override
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
-      int ndof = el.GetDof();
-      int ndim = el.GetDim();
-      int spaceDim = trans.GetSpaceDim();
+      const int ndof = el.GetDof();
+      const int ndim = el.GetDim();
+      const int spaceDim = trans.GetSpaceDim();
       bool square = (ndim == spaceDim);
-      const IntegrationRule *ir = NULL;
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
+      const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
 
       DenseMatrix dshape_iso(ndof, ndim);
       DenseMatrix dshape_xyz(ndof, spaceDim);
@@ -789,11 +803,11 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
          mfem::ad::ADFloatType aa;
          mfem::ad::ADVectorType lvec(ndof);
 
-         for (int i = 0; i < ir->GetNPoints(); i++)
+         for (int i = 0; i < ir.GetNPoints(); i++)
          {
              lvec=0.0;
 
-             const IntegrationPoint &ip = ir->IntPoint(i);
+             const IntegrationPoint &ip = ir.IntPoint(i);
              trans.SetIntPoint(&ip);
              w = trans.Weight();
              detJ = (square ? w : w * w);
