@@ -128,7 +128,7 @@ public:
       }
       else
       {
-         data = NULL;
+         data = nullptr;
       }
    }
 
@@ -146,7 +146,7 @@ public:
       }
       else
       {
-         data = NULL;
+         data = nullptr;
       }
    }
 
@@ -169,7 +169,7 @@ public:
       }
       else
       {
-         data = NULL;
+         data = nullptr;
       }
    }
 

@@ -37,6 +37,13 @@
 
 using namespace mfem;
 
+enum IntegratorType
+{
+  HandCodedIntegrator=0,
+  ADJacobianIntegrator=1,
+  ADHessianIntegrator=2
+};
+
 ///Non-linear solver for the p-Laplacian problem.
 class ParNLSolverPLaplacian
 {
@@ -85,21 +92,21 @@ public:
          input_ownership=false;
       }
 
-      nf=nullptr;
-      ns=nullptr;
+      nlform=nullptr;
+      nsolver=nullptr;
       gmres=nullptr;
       prec=nullptr;
 
       //set the default integrator
-      integ=0; //hand coded
+      integ=IntegratorType::HandCodedIntegrator;
    }
 
    ~ParNLSolverPLaplacian()
    {
-      if (nf!=nullptr) { delete nf;}
-      if (ns!=nullptr) { delete ns;}
-      if (prec!=nullptr) { delete prec;}
-      if (gmres!=nullptr) { delete gmres;}
+      delete nlform;
+      delete nsolver;
+      delete prec;
+      delete gmres;
       if (input_ownership) { delete plap_input;}
       delete plap_epsilon;
       delete plap_power;
@@ -108,7 +115,7 @@ public:
    ///Set the integrator.
    /// 0 - hand coded, 1 - AD based (compute only Heassian by AD),
    /// 2 - AD based (compute residual and Hessian by AD)
-   void SetIntegrator(int intr)
+   void SetIntegrator(IntegratorType intr)
    {
       integ=intr;
    }
@@ -157,30 +164,30 @@ public:
    /// On return the statev holds the solution to the problem.
    void Solve(Vector& statev)
    {
-      if (nf==nullptr)
+      if (nlform==nullptr)
       {
          AllocSolvers();
       }
       Vector b; //RHS is zero
-      ns->Mult(b, statev);
+      nsolver->Mult(b, statev);
    }
 
    ///Compute the energy
    double GetEnergy(Vector& statev)
    {
-      if (nf==nullptr)
+      if (nlform==nullptr)
       {
          //allocate the solvers
          AllocSolvers();
       }
-      return nf->GetEnergy(statev);
+      return nlform->GetEnergy(statev);
    }
 
 private:
    void AllocSolvers()
    {
-      if (nf!=nullptr) { delete nf;}
-      if (ns!=nullptr) { delete ns;}
+      if (nlform!=nullptr) { delete nlform;}
+      if (nsolver!=nullptr) { delete nsolver;}
       if (gmres!=nullptr) { delete gmres;}
       if (prec!=nullptr) { delete prec;}
 
@@ -188,21 +195,36 @@ private:
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
 
-      nf = new ParNonlinearForm(fespace);
-      if (integ==0)
+      nlform = new ParNonlinearForm(fespace);
+      if (integ==IntegratorType::HandCodedIntegrator)
       {
-         nf->AddDomainIntegrator(new pLaplace(*plap_power,*plap_epsilon,*plap_input));
+         nlform->AddDomainIntegrator(new pLaplace(*plap_power,*plap_epsilon,*plap_input));
       }
-      else if (integ==1)
+      else if (integ==IntegratorType::ADJacobianIntegrator)
       {
-         nf->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyVFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         // The template integrator is based on automatic differentiation.
+         // For ADJacobianIntegrator the residual (vector function) at an
+         // integration point is implemented as a functor by MyVFunctor.
+         // The vector function has a return size of four(4), four state
+         // arguments, and three(3) parameters. MyVFunctor is a template
+         // argument to the actual template class performing the
+         // differentiation - in this case, QVectorFuncAutoDiff.
+         // The derivatives are used in the integration loop in the integrator pLaplaceAD.
+         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyVFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
-      else if (integ==2)
+      else if (integ==IntegratorType::ADHessianIntegrator)
       {
-         nf->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyQFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         // The main difference from the previous case is that the user has
+         // to implement only a functional evaluation at an integration point.
+         // The implementation is in MyQFunctor, which takes four state
+         // arguments and three parameters. The residual vector is the first
+         // derivative of the energy/functional with respect to the state
+         // variables, and the Hessian is the second derivative. Automatic
+         // differentiation is used for evaluating both of them.
+         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyQFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
 
-      nf->SetEssentialBC(ess_bdr);
+      nlform->SetEssentialBC(ess_bdr);
 
       prec = new HypreBoomerAMG();
       prec->SetPrintLevel(print_level);
@@ -214,15 +236,15 @@ private:
       gmres->SetPrintLevel(print_level);
       gmres->SetPreconditioner(*prec);
 
-      ns = new NewtonSolver(lcomm);
+      nsolver = new NewtonSolver(lcomm);
 
-      ns->iterative_mode = true;
-      ns->SetSolver(*gmres);
-      ns->SetOperator(*nf);
-      ns->SetPrintLevel(print_level);
-      ns->SetRelTol(newton_rtol);
-      ns->SetAbsTol(newton_atol);
-      ns->SetMaxIter(newton_iter);
+      nsolver->iterative_mode = true;
+      nsolver->SetSolver(*gmres);
+      nsolver->SetOperator(*nlform);
+      nsolver->SetPrintLevel(print_level);
+      nsolver->SetRelTol(newton_rtol);
+      nsolver->SetAbsTol(newton_atol);
+      nsolver->SetMaxIter(newton_iter);
    }
 
    double newton_rtol;
@@ -241,6 +263,7 @@ private:
    Coefficient* plap_epsilon;
    //load(input) paramater
    Coefficient* plap_input;
+   //flag indicating the ownership of plap_input
    bool input_ownership;
 
    MPI_Comm lcomm;
@@ -248,12 +271,12 @@ private:
    ParMesh *mesh;
    ParFiniteElementSpace *fespace;
 
-   ParNonlinearForm *nf;
+   ParNonlinearForm *nlform;
 
    HypreBoomerAMG *prec;
    GMRESSolver *gmres;
-   NewtonSolver *ns;
-   int integ;
+   NewtonSolver *nsolver;
+   IntegratorType integ;
 
 };
 
@@ -283,7 +306,12 @@ int main(int argc, char *argv[])
    int newton_iter = 10;
    int print_level = 0;
    double pp = 2.0;
-   int integrator = 2; //use AD
+   IntegratorType integrator = IntegratorType::ADHessianIntegrator;
+   int int_integrator = integrator;
+   // ADHessianIntegrator = 2 - use AD for Residual and Hessian
+   // ADJacobianIntegrator = 1 - use AD for Hessian only
+   // HandCodedIntegrator = 0 - do not use AD (hand coded
+
    const char* cali_config = "runtime-report";
 
    OptionsParser args(argc, argv);
@@ -323,7 +351,7 @@ int main(int argc, char *argv[])
                   "--power-parameter",
                   "Power parameter (>=2.0) for the p-Laplacian.");
    args.AddOption((&print_level), "-prt", "--print-level", "Print level.");
-   args.AddOption(&integrator,
+   args.AddOption(&int_integrator,
                   "-int",
                   "--integrator",
                   "Integrator 0: standard; 1: AD for Hessian; 2: AD for residual and Hessian");
@@ -343,6 +371,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(std::cout);
    }
+   integrator = static_cast<IntegratorType>(int_integrator);
 
    StopWatch *timer = new StopWatch();
 

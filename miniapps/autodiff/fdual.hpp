@@ -19,7 +19,8 @@ namespace mfem
 {
 namespace ad
 {
-/** The FDual template class provides forward automatic differentiation
+/** The FDual template class provides forward
+  <a href="https://en.wikipedia.org/wiki/Automatic_differentiation">automatic differentiation</a>
    implementation based on dual numbers. The derivative of an arbitrary
  function double f(double a)  can be obtained by replacing the double
  type for the return value and the argument a  with FDual<double>, i.e.,
@@ -32,13 +33,13 @@ namespace ad
  math library, i.e., sin, cos, exp, log, ...
 
 New functions (non-member) can be eaily added to the class. Example:
-
+\code{.cpp}
 template<typename tbase>
 inline FDual<tbase> cos(const FDual<tbase> &f)
 {
    return FDual<tbase>(cos(f.real()), -f.dual() * sin(f.real()));
 }
-
+\endcode
 The real part of the return value consists of the standard real value
  of the function, i.e., cos(f.real()).
 
@@ -101,6 +102,11 @@ public:
    void real(const tbase &pr_) { pr = pr_; }
 
    void dual(const tbase &du_) { du = du_; }
+
+   void setReal(const tbase &pr_) { pr = pr_; }
+
+
+   void setDual(const tbase &du_) { du = du_; }
 
    FDual<tbase> &operator=(tbase sc_)
    {

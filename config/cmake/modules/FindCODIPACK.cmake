@@ -9,7 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-
+# Automatic differentiation using the CoDiPack library.
+#  www.scicomp.uni-kl.de/codi/
 # Sets the following variables:
 #   - CODIPACK_FOUND
 #   - CODIPACK_INCLUDE_DIRS
