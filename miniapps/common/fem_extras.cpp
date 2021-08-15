@@ -237,6 +237,16 @@ Coefficient * CoefFactory::GetScalarCoef(std::string &name,
       }
       coef_idx = sCoefs.Append(new RestrictedCoefficient(*rc, attr));
    }
+   else if (name == "ProductCoefficient")
+   {
+      Coefficient * a = this->GetScalarCoef(input);
+      Coefficient * b = this->GetScalarCoef(input);
+
+      if (a != NULL && b != NULL)
+      {
+         coef_idx = sCoefs.Append(new ProductCoefficient(*a, *b));
+      }
+   }
    else
    {
       return NULL;
