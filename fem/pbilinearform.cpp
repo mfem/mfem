@@ -325,7 +325,7 @@ const
 
    if (Ytmp.ParFESpace() != pfes)
    {
-     Ytmp.SetSpace(pfes);
+      Ytmp.SetSpace(pfes);
    }
 
    X.Distribute(&x);
