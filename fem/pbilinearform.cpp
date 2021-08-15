@@ -323,6 +323,11 @@ const
       Y.SetSpace(pfes);
    }
 
+   if (Ytmp.ParFESpace() != pfes)
+   {
+     Ytmp.SetSpace(pfes);
+   }
+
    X.Distribute(&x);
    if (ext)
    {
@@ -335,7 +340,8 @@ const
                   " implemented");
       mat->Mult(X, Y);
    }
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
+   pfes->GetProlongationMatrix()->MultTranspose(Y, Ytmp);
+   y.Add(a,Ytmp);
 }
 
 void ParBilinearForm::FormLinearSystem(
