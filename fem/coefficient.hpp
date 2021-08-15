@@ -1063,6 +1063,14 @@ public:
    ProductCoefficient(Coefficient &A, Coefficient &B)
       : aConst(0.0), a(&A), b(&B) { }
 
+   /// Set the time for time dependent coefficients
+   void SetTime(double t)
+   {
+      if (a) { a->SetTime(t); }
+      if (b) { b->SetTime(t); }
+      this->Coefficient::SetTime(t);
+   }
+
    /// Reset the first term in the product as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
    /// Return the first term in the product
