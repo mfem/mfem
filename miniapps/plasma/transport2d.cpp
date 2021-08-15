@@ -1382,6 +1382,7 @@ int main(int argc, char *argv[])
       offsets[k] = k * fes.GetNDofs();
    }
    ParGridFunction u(&ffes);
+   ParGridFunction du(&ffes); du = 0.0;
 
    // Density, Velocity, and Energy grid functions on for visualization.
    ParGridFunction  neu_density (&fes, u.GetData());
@@ -1401,7 +1402,8 @@ int main(int argc, char *argv[])
    ParGridFunctionArray kGF;
    for (int i=0; i<5; i++)
    {
-      kGF.Append(new ParGridFunction(&fes, (double*)NULL));
+      // kGF.Append(new ParGridFunction(&fes, (double*)NULL));
+      kGF.Append(new ParGridFunction(&fes, u.GetData() + offsets[i]));
    }
    kGF.SetOwner(true);
 
@@ -2764,6 +2766,48 @@ public:
    }
 };
 
+class OscillatingGaussian1D : public Coefficient
+{
+private:
+   int comp_;
+   double p0_;
+   double q0_;
+   double w_;
+   double a_;
+   double b_;
+
+   mutable Vector x_;
+
+public:
+   OscillatingGaussian1D(double a, double b, double p0, double q0, double w,
+                         int comp)
+      : comp_(comp), p0_(p0), q0_(q0), w_(w), a_(a), b_(b) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * exp(- b_ * pow(x_[comp_] - p0_ + q0_ * cos(w_ * time), 2));
+   }
+};
+
+class SineTime : public Coefficient
+{
+private:
+   double a_;
+   double b_;
+   double w_;
+   double t0_;
+
+public:
+   SineTime(double a, double b, double w, double t0)
+      : a_(a), b_(b), w_(w), t0_(t0) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return a_ * sin(w_ * (time - t0_)) + b_;
+   }
+};
+
 class Radius : public Coefficient
 {
 private:
@@ -2952,6 +2996,20 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       int comp;
       input >> a >> b >> d >> p0 >> comp;
       coef_idx = sCoefs.Append(new GaussianStep1D(a, b, d, p0, comp));
+   }
+   else if (name == "OscillatingGaussian1D")
+   {
+      double a, b, p0, q0, w;
+      int comp;
+      input >> a >> b >> p0 >> q0 >> w >> comp;
+      coef_idx = sCoefs.Append(new OscillatingGaussian1D(a, b, p0, q0, w,
+                                                         comp));
+   }
+   else if (name == "SineTime")
+   {
+      double a, b, w, t0;
+      input >> a >> b >> w >> t0;
+      coef_idx = sCoefs.Append(new SineTime(a, b, w, t0));
    }
    else if (name == "AnnularTestSol")
    {
