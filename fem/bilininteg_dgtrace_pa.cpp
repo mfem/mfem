@@ -485,11 +485,8 @@ void PADGTraceApply3D(const int NF,
          {
             for (int c = 0; c < VDIM; c++)
             {
-               /*
                DBBu[q1][q2][c] = op(q1,q2,0,0,f)*BBu0[q1][q2][c] +
                                  op(q1,q2,1,0,f)*BBu1[q1][q2][c];
-                                 */
-               DBBu[q1][q2][c] = BBu1[q1][q2][c] - BBu0[q1][q2][c];
             }
          }
       }
@@ -818,205 +815,8 @@ void PADGTraceApplyTranspose3D(const int NF,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, 2, 2, NF);
-   //auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
+   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
-
-   Vector fakex;
-   fakex.SetSize(192);
-fakex[	0	] = 	0	;
-fakex[	1	] = 	0	;
-fakex[	2	] = 	0.5	;
-fakex[	3	] = 	0.5	;
-fakex[	4	] = 	0	;
-fakex[	5	] = 	0	;
-fakex[	6	] = 	0	;
-fakex[	7	] = 	0	;
-fakex[	8	] = 	0	;
-fakex[	9	] = 	0	;
-fakex[	10	] = 	0	;
-fakex[	11	] = 	0	;
-fakex[	12	] = 	0	;
-fakex[	13	] = 	0	;
-fakex[	14	] = 	0	;
-fakex[	15	] = 	0	;
-fakex[	16	] = 	0	;
-fakex[	17	] = 	0.5	;
-fakex[	18	] = 	0	;
-fakex[	19	] = 	0.5	;
-fakex[	20	] = 	0	;
-fakex[	21	] = 	0	;
-fakex[	22	] = 	0	;
-fakex[	23	] = 	0	;
-fakex[	24	] = 	0	;
-fakex[	25	] = 	0	;
-fakex[	26	] = 	0.5	;
-fakex[	27	] = 	0.5	;
-fakex[	28	] = 	0	;
-fakex[	29	] = 	0	;
-fakex[	30	] = 	0	;
-fakex[	31	] = 	0	;
-fakex[	32	] = 	0	;
-fakex[	33	] = 	0	;
-fakex[	34	] = 	0	;
-fakex[	35	] = 	0	;
-fakex[	36	] = 	0	;
-fakex[	37	] = 	0	;
-fakex[	38	] = 	0	;
-fakex[	39	] = 	0	;
-fakex[	40	] = 	0	;
-fakex[	41	] = 	0.5	;
-fakex[	42	] = 	0	;
-fakex[	43	] = 	0.5	;
-fakex[	44	] = 	0	;
-fakex[	45	] = 	0	;
-fakex[	46	] = 	0	;
-fakex[	47	] = 	0	;
-fakex[	48	] = 	0.5	;
-fakex[	49	] = 	0.5	;
-fakex[	50	] = 	1	;
-fakex[	51	] = 	1	;
-fakex[	52	] = 	0	;
-fakex[	53	] = 	0	;
-fakex[	54	] = 	0	;
-fakex[	55	] = 	0	;
-fakex[	56	] = 	0.5	;
-fakex[	57	] = 	1	;
-fakex[	58	] = 	0.5	;
-fakex[	59	] = 	1	;
-fakex[	60	] = 	0	;
-fakex[	61	] = 	0	;
-fakex[	62	] = 	0	;
-fakex[	63	] = 	0	;
-fakex[	64	] = 	1	;
-fakex[	65	] = 	1	;
-fakex[	66	] = 	1	;
-fakex[	67	] = 	1	;
-fakex[	68	] = 	0	;
-fakex[	69	] = 	0	;
-fakex[	70	] = 	0	;
-fakex[	71	] = 	0	;
-fakex[	72	] = 	0.5	;
-fakex[	73	] = 	0.5	;
-fakex[	74	] = 	1	;
-fakex[	75	] = 	1	;
-fakex[	76	] = 	0	;
-fakex[	77	] = 	0	;
-fakex[	78	] = 	0	;
-fakex[	79	] = 	0	;
-fakex[	80	] = 	1	;
-fakex[	81	] = 	1	;
-fakex[	82	] = 	1	;
-fakex[	83	] = 	1	;
-fakex[	84	] = 	0	;
-fakex[	85	] = 	0	;
-fakex[	86	] = 	0	;
-fakex[	87	] = 	0	;
-fakex[	88	] = 	0.5	;
-fakex[	89	] = 	1	;
-fakex[	90	] = 	0.5	;
-fakex[	91	] = 	1	;
-fakex[	92	] = 	0	;
-fakex[	93	] = 	0	;
-fakex[	94	] = 	0	;
-fakex[	95	] = 	0	;
-fakex[	96	] = 	0	;
-fakex[	97	] = 	0	;
-fakex[	98	] = 	0	;
-fakex[	99	] = 	0	;
-fakex[	100	] = 	0	;
-fakex[	101	] = 	0	;
-fakex[	102	] = 	0	;
-fakex[	103	] = 	0	;
-fakex[	104	] = 	0	;
-fakex[	105	] = 	0.5	;
-fakex[	106	] = 	0	;
-fakex[	107	] = 	0.5	;
-fakex[	108	] = 	0	;
-fakex[	109	] = 	0	;
-fakex[	110	] = 	0	;
-fakex[	111	] = 	0	;
-fakex[	112	] = 	0	;
-fakex[	113	] = 	0	;
-fakex[	114	] = 	0.5	;
-fakex[	115	] = 	0.5	;
-fakex[	116	] = 	0	;
-fakex[	117	] = 	0	;
-fakex[	118	] = 	0	;
-fakex[	119	] = 	0	;
-fakex[	120	] = 	0	;
-fakex[	121	] = 	0	;
-fakex[	122	] = 	0	;
-fakex[	123	] = 	0	;
-fakex[	124	] = 	0	;
-fakex[	125	] = 	0	;
-fakex[	126	] = 	0	;
-fakex[	127	] = 	0	;
-fakex[	128	] = 	0	;
-fakex[	129	] = 	0.5	;
-fakex[	130	] = 	0	;
-fakex[	131	] = 	0.5	;
-fakex[	132	] = 	0	;
-fakex[	133	] = 	0	;
-fakex[	134	] = 	0	;
-fakex[	135	] = 	0	;
-fakex[	136	] = 	0	;
-fakex[	137	] = 	0	;
-fakex[	138	] = 	0.5	;
-fakex[	139	] = 	0.5	;
-fakex[	140	] = 	0	;
-fakex[	141	] = 	0	;
-fakex[	142	] = 	0	;
-fakex[	143	] = 	0	;
-fakex[	144	] = 	0.5	;
-fakex[	145	] = 	1	;
-fakex[	146	] = 	0.5	;
-fakex[	147	] = 	1	;
-fakex[	148	] = 	0	;
-fakex[	149	] = 	0	;
-fakex[	150	] = 	0	;
-fakex[	151	] = 	0	;
-fakex[	152	] = 	1	;
-fakex[	153	] = 	1	;
-fakex[	154	] = 	1	;
-fakex[	155	] = 	1	;
-fakex[	156	] = 	0	;
-fakex[	157	] = 	0	;
-fakex[	158	] = 	0	;
-fakex[	159	] = 	0	;
-fakex[	160	] = 	0.5	;
-fakex[	161	] = 	0.5	;
-fakex[	162	] = 	1	;
-fakex[	163	] = 	1	;
-fakex[	164	] = 	0	;
-fakex[	165	] = 	0	;
-fakex[	166	] = 	0	;
-fakex[	167	] = 	0	;
-fakex[	168	] = 	1	;
-fakex[	169	] = 	1	;
-fakex[	170	] = 	1	;
-fakex[	171	] = 	1	;
-fakex[	172	] = 	0	;
-fakex[	173	] = 	0	;
-fakex[	174	] = 	0	;
-fakex[	175	] = 	0	;
-fakex[	176	] = 	0.5	;
-fakex[	177	] = 	1	;
-fakex[	178	] = 	0.5	;
-fakex[	179	] = 	1	;
-fakex[	180	] = 	0	;
-fakex[	181	] = 	0	;
-fakex[	182	] = 	0	;
-fakex[	183	] = 	0	;
-fakex[	184	] = 	0.5	;
-fakex[	185	] = 	0.5	;
-fakex[	186	] = 	1	;
-fakex[	187	] = 	1	;
-fakex[	188	] = 	0	;
-fakex[	189	] = 	0	;
-fakex[	190	] = 	0	;
-fakex[	191	] = 	0	;
-
-   auto x = Reshape(fakex.Read(), D1D, D1D, VDIM, 2, NF);
 
    MFEM_FORALL(f, NF,
    {
@@ -1095,9 +895,8 @@ fakex[	191	] = 	0	;
             const double D11 = op(q1,q2,1,1,f);
             for (int c = 0; c < VDIM; c++)
             {
-               //DBu0[q1][q2][c] = D00*BBu0[q1][q2][c] + D01*BBu1[q1][q2][c];
-               DBu0[q1][q2][c] = BBu1[q1][q2][c] - BBu0[q1][q2][c];
-               //DBu1[q1][q2][c] = D10*BBu0[q1][q2][c] + D11*BBu1[q1][q2][c];
+               DBu0[q1][q2][c] = D00*BBu0[q1][q2][c] + D01*BBu1[q1][q2][c];
+               DBu1[q1][q2][c] = D10*BBu0[q1][q2][c] + D11*BBu1[q1][q2][c];
             }
          }
       }
@@ -1151,10 +950,6 @@ fakex[	191	] = 	0	;
          }
       }
    });
-
-
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   exit(1);
 }
 
 // Optimized PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
@@ -1176,209 +971,8 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, 2, 2, NF);
-   //auto x = Reshape(_x.Read(), D1D, D1D, 2, NF);
+   auto x = Reshape(_x.Read(), D1D, D1D, 2, NF);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, 2, NF);
-
-
-
-   Vector fakex;
-   fakex.SetSize(192);
-fakex[	0	] = 	0	;
-fakex[	1	] = 	0	;
-fakex[	2	] = 	0.5	;
-fakex[	3	] = 	0.5	;
-fakex[	4	] = 	0	;
-fakex[	5	] = 	0	;
-fakex[	6	] = 	0	;
-fakex[	7	] = 	0	;
-fakex[	8	] = 	0	;
-fakex[	9	] = 	0	;
-fakex[	10	] = 	0	;
-fakex[	11	] = 	0	;
-fakex[	12	] = 	0	;
-fakex[	13	] = 	0	;
-fakex[	14	] = 	0	;
-fakex[	15	] = 	0	;
-fakex[	16	] = 	0	;
-fakex[	17	] = 	0.5	;
-fakex[	18	] = 	0	;
-fakex[	19	] = 	0.5	;
-fakex[	20	] = 	0	;
-fakex[	21	] = 	0	;
-fakex[	22	] = 	0	;
-fakex[	23	] = 	0	;
-fakex[	24	] = 	0	;
-fakex[	25	] = 	0	;
-fakex[	26	] = 	0.5	;
-fakex[	27	] = 	0.5	;
-fakex[	28	] = 	0	;
-fakex[	29	] = 	0	;
-fakex[	30	] = 	0	;
-fakex[	31	] = 	0	;
-fakex[	32	] = 	0	;
-fakex[	33	] = 	0	;
-fakex[	34	] = 	0	;
-fakex[	35	] = 	0	;
-fakex[	36	] = 	0	;
-fakex[	37	] = 	0	;
-fakex[	38	] = 	0	;
-fakex[	39	] = 	0	;
-fakex[	40	] = 	0	;
-fakex[	41	] = 	0.5	;
-fakex[	42	] = 	0	;
-fakex[	43	] = 	0.5	;
-fakex[	44	] = 	0	;
-fakex[	45	] = 	0	;
-fakex[	46	] = 	0	;
-fakex[	47	] = 	0	;
-fakex[	48	] = 	0.5	;
-fakex[	49	] = 	0.5	;
-fakex[	50	] = 	1	;
-fakex[	51	] = 	1	;
-fakex[	52	] = 	0	;
-fakex[	53	] = 	0	;
-fakex[	54	] = 	0	;
-fakex[	55	] = 	0	;
-fakex[	56	] = 	0.5	;
-fakex[	57	] = 	1	;
-fakex[	58	] = 	0.5	;
-fakex[	59	] = 	1	;
-fakex[	60	] = 	0	;
-fakex[	61	] = 	0	;
-fakex[	62	] = 	0	;
-fakex[	63	] = 	0	;
-fakex[	64	] = 	1	;
-fakex[	65	] = 	1	;
-fakex[	66	] = 	1	;
-fakex[	67	] = 	1	;
-fakex[	68	] = 	0	;
-fakex[	69	] = 	0	;
-fakex[	70	] = 	0	;
-fakex[	71	] = 	0	;
-fakex[	72	] = 	0.5	;
-fakex[	73	] = 	0.5	;
-fakex[	74	] = 	1	;
-fakex[	75	] = 	1	;
-fakex[	76	] = 	0	;
-fakex[	77	] = 	0	;
-fakex[	78	] = 	0	;
-fakex[	79	] = 	0	;
-fakex[	80	] = 	1	;
-fakex[	81	] = 	1	;
-fakex[	82	] = 	1	;
-fakex[	83	] = 	1	;
-fakex[	84	] = 	0	;
-fakex[	85	] = 	0	;
-fakex[	86	] = 	0	;
-fakex[	87	] = 	0	;
-fakex[	88	] = 	0.5	;
-fakex[	89	] = 	1	;
-fakex[	90	] = 	0.5	;
-fakex[	91	] = 	1	;
-fakex[	92	] = 	0	;
-fakex[	93	] = 	0	;
-fakex[	94	] = 	0	;
-fakex[	95	] = 	0	;
-fakex[	96	] = 	0	;
-fakex[	97	] = 	0	;
-fakex[	98	] = 	0	;
-fakex[	99	] = 	0	;
-fakex[	100	] = 	0	;
-fakex[	101	] = 	0	;
-fakex[	102	] = 	0	;
-fakex[	103	] = 	0	;
-fakex[	104	] = 	0	;
-fakex[	105	] = 	0.5	;
-fakex[	106	] = 	0	;
-fakex[	107	] = 	0.5	;
-fakex[	108	] = 	0	;
-fakex[	109	] = 	0	;
-fakex[	110	] = 	0	;
-fakex[	111	] = 	0	;
-fakex[	112	] = 	0	;
-fakex[	113	] = 	0	;
-fakex[	114	] = 	0.5	;
-fakex[	115	] = 	0.5	;
-fakex[	116	] = 	0	;
-fakex[	117	] = 	0	;
-fakex[	118	] = 	0	;
-fakex[	119	] = 	0	;
-fakex[	120	] = 	0	;
-fakex[	121	] = 	0	;
-fakex[	122	] = 	0	;
-fakex[	123	] = 	0	;
-fakex[	124	] = 	0	;
-fakex[	125	] = 	0	;
-fakex[	126	] = 	0	;
-fakex[	127	] = 	0	;
-fakex[	128	] = 	0	;
-fakex[	129	] = 	0.5	;
-fakex[	130	] = 	0	;
-fakex[	131	] = 	0.5	;
-fakex[	132	] = 	0	;
-fakex[	133	] = 	0	;
-fakex[	134	] = 	0	;
-fakex[	135	] = 	0	;
-fakex[	136	] = 	0	;
-fakex[	137	] = 	0	;
-fakex[	138	] = 	0.5	;
-fakex[	139	] = 	0.5	;
-fakex[	140	] = 	0	;
-fakex[	141	] = 	0	;
-fakex[	142	] = 	0	;
-fakex[	143	] = 	0	;
-fakex[	144	] = 	0.5	;
-fakex[	145	] = 	1	;
-fakex[	146	] = 	0.5	;
-fakex[	147	] = 	1	;
-fakex[	148	] = 	0	;
-fakex[	149	] = 	0	;
-fakex[	150	] = 	0	;
-fakex[	151	] = 	0	;
-fakex[	152	] = 	1	;
-fakex[	153	] = 	1	;
-fakex[	154	] = 	1	;
-fakex[	155	] = 	1	;
-fakex[	156	] = 	0	;
-fakex[	157	] = 	0	;
-fakex[	158	] = 	0	;
-fakex[	159	] = 	0	;
-fakex[	160	] = 	0.5	;
-fakex[	161	] = 	0.5	;
-fakex[	162	] = 	1	;
-fakex[	163	] = 	1	;
-fakex[	164	] = 	0	;
-fakex[	165	] = 	0	;
-fakex[	166	] = 	0	;
-fakex[	167	] = 	0	;
-fakex[	168	] = 	1	;
-fakex[	169	] = 	1	;
-fakex[	170	] = 	1	;
-fakex[	171	] = 	1	;
-fakex[	172	] = 	0	;
-fakex[	173	] = 	0	;
-fakex[	174	] = 	0	;
-fakex[	175	] = 	0	;
-fakex[	176	] = 	0.5	;
-fakex[	177	] = 	1	;
-fakex[	178	] = 	0.5	;
-fakex[	179	] = 	1	;
-fakex[	180	] = 	0	;
-fakex[	181	] = 	0	;
-fakex[	182	] = 	0	;
-fakex[	183	] = 	0	;
-fakex[	184	] = 	0.5	;
-fakex[	185	] = 	0.5	;
-fakex[	186	] = 	1	;
-fakex[	187	] = 	1	;
-fakex[	188	] = 	0	;
-fakex[	189	] = 	0	;
-fakex[	190	] = 	0	;
-fakex[	191	] = 	0	;
-
-   auto x = Reshape(fakex.Read(), D1D, D1D, 2, NF);
-
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    MFEM_FORALL_2D(f, NF, Q1D, Q1D, NBZ,
    {
@@ -1430,7 +1024,6 @@ fakex[	191	] = 	0	;
             for (int d2 = 0; d2 < D1D; ++d2)
             {
                const double b = B(q2,d2);
-               std::cout << "%B(" << q2 <<","<< d2 <<") = " << b << std::endl;
                BBu0_ += b*Bu0[tidz][q1][d2];
                BBu1_ += b*Bu1[tidz][q1][d2];
             }
@@ -1451,8 +1044,8 @@ fakex[	191	] = 	0	;
             const double D11 = op(q1,q2,1,1,f+tidz);
             const double u0 = BBu0[tidz][q1][q2];
             const double u1 = BBu1[tidz][q1][q2];
-            //DBBu0[tidz][q1][q2] = D00*u0 + D01*u1;
-            DBBu1[tidz][q1][q2] = - u0/16.0 + u1/16.0;
+            DBBu0[tidz][q1][q2] = D00*u0 + D01*u1;
+            DBBu1[tidz][q1][q2] = D10*u0 + D11*u1;
          }
       }
       MFEM_SYNC_THREAD;
@@ -1492,8 +1085,6 @@ fakex[	191	] = 	0	;
          }
       }
    });
-
-
 }
 
 static void PADGTraceApplyTranspose(const int dim,
