@@ -17,7 +17,7 @@
 
 using namespace mfem;
 
-// Default macro to register vector tests
+// Default macro to register the tests
 #define MFEM_VECTOR_BENCHMARK(x) BENCHMARK(x)->RangeMultiplier(4)->Range(1,KB);
 
 // benchmark::CLASS generator with specific prefix
