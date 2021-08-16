@@ -105,6 +105,7 @@ set(SRCS
   tmop/tmop_pa_w3.cpp
   tmop/tmop_pa_w3_c0.cpp
   tmop_tools.cpp
+  tmop_amr.cpp
   gslib.cpp
   transfer.cpp
   lor.cpp
@@ -164,6 +165,7 @@ set(HDRS
   tmop.hpp
   tmop/tmop_pa.hpp
   tmop_tools.hpp
+  tmop_amr.hpp
   gslib.hpp
   transfer.hpp
   lor.hpp
@@ -182,6 +184,11 @@ endif()
 if (MFEM_USE_ADIOS2)
   list(APPEND SRCS adios2datacollection.cpp)
   list(APPEND HDRS adios2datacollection.hpp)
+endif()
+
+if (MFEM_USE_FMS)
+  list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
+  list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
 endif()
 
 if (MFEM_USE_MPI)

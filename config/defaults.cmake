@@ -45,6 +45,7 @@ option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
+option(MFEM_USE_FMS "Enable FMS usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
 option(MFEM_USE_HIOP "Enable HiOp" OFF)
@@ -97,6 +98,11 @@ set(HYPRE_DIR "${MFEM_DIR}/../hypre/src/hypre" CACHE PATH
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
 #     "Packages that HYPRE depends on.")
+if (MFEM_USE_CUDA)
+   # This is only necessary when hypre is built with cuda:
+   set(HYPRE_REQUIRED_LIBRARIES "-lcusparse" "-lcurand" CACHE STRING
+       "Libraries that HYPRE depends on.")
+endif()
 
 set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library.")
 
@@ -133,10 +139,10 @@ set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.2.0" CACHE PATH
     "Path to the MUMPS library.")
 # Packages required by MUMPS, depending on how it was compiled.
 set(MUMPS_REQUIRED_PACKAGES "MPI" "BLAS" "METIS" "ScaLAPACK" CACHE STRING
-    "Additional packages required by MUMPS.")    
+    "Additional packages required by MUMPS.")
 # If the MPI package does not find all required Fortran libraries:
 # set(MUMPS_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
-#     "Additional libraries required by MUMPS.")    
+#     "Additional libraries required by MUMPS.")
 
 set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
     "Path to the STRUMPACK library.")
@@ -187,6 +193,12 @@ set(SLEPC_DIR "${MFEM_DIR}/../slepc" CACHE PATH
 set(SLEPC_ARCH "arch-linux2-c-debug" CACHE STRING "SLEPC build architecture.")
 
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
+
+set(FMS_DIR "${MFEM_DIR}/../fms" CACHE PATH
+    "Path to the FMS library.")
+# If FMS is built with Conduit:
+# set(FMS_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+#     "Additional packages required by FMS.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
