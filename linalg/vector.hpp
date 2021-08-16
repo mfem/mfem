@@ -82,6 +82,11 @@ public:
    Vector(double *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
 
+   /** @brief Create a Vector referencing a sub-vector of the Vector @a base
+       starting at the given offset, @a base_offset, and size @a size_. */
+   Vector(Vector &base, int base_offset, int size_)
+      : data(base.data, base_offset, size_), size(size_) { }
+
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
@@ -229,10 +234,10 @@ public:
    const Memory<double> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) { GetMemory().Sync(v.GetMemory()); }
+   void SyncMemory(const Vector &v) const { GetMemory().Sync(v.GetMemory()); }
 
    /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const Vector &v)
+   void SyncAliasMemory(const Vector &v) const
    { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.

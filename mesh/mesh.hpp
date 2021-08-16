@@ -503,7 +503,7 @@ public:
    Mesh& operator=(Mesh &&mesh);
 
    /// Explicitly delete the copy assignment operator.
-   Mesh& operator=(Mesh &mesh) = delete;
+   Mesh& operator=(const Mesh &mesh) = delete;
 
    /** @name Named mesh constructors.
 
@@ -811,11 +811,6 @@ public:
    MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
-   /// A version of the above constructor for non-uniform refinement.
-   /** The input array @a ref_factors contains one refinement factor per element
-       of the input mesh. */
-   Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type);
-
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
@@ -877,17 +872,26 @@ public:
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
-       integration rule. */
-   /** If the device MemoryType parameter @a d_mt is specified, then the
-       returned object will use that type unless it was previously allocated
-       with a different type. */
+       integration rule.
+
+       The IntegrationRule used with GetGeometricFactors needs to remain valid
+       until the internally stored GeometricFactors objects are destroyed (by
+       either calling Mesh::DeleteGeometricFactors or the Mesh destructor). If
+       the device MemoryType parameter @a d_mt is specified, then the returned
+       object will use that type unless it was previously allocated with a
+       different type. */
    const GeometricFactors* GetGeometricFactors(
       const IntegrationRule& ir,
       const int flags,
       MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
-        to the given integration rule. */
+       to the given integration rule.
+
+       The IntegrationRule used with GetFaceGeometricFactors needs to remain
+       valid until the internally stored FaceGeometricFactors objects are
+       destroyed (by either calling Mesh::DeleteGeometricFactors or the Mesh
+       destructor). */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
                                                        const int flags,
                                                        FaceType type);
