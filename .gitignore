@@ -298,6 +298,10 @@ tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
 
+# Benchmark binaries
+tests/benchmarks/bench_vector
+tests/benchmarks/bench_virtuals
+
 # Test script output
 tests/scripts/*.err
 tests/scripts/*.out
