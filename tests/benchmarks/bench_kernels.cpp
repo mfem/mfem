@@ -13,7 +13,6 @@
 
 #include <cassert>
 #include <memory>
-#include <iomanip>
 
 #ifdef MFEM_USE_BENCHMARK
 
@@ -66,22 +65,16 @@ struct PA_3D_Kernels
 
       cg.SetRelTol(rtol);
       cg.SetOperator(*A);
-      {
-         Vector Y(X);
-         cg.SetMaxIter(2);
-         cg.SetPrintLevel(-1);
-         cg.Mult(B,Y);
-         MFEM_DEVICE_SYNC;
-      }
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
+      cg.iterative_mode = false;
+
       tic_toc.Clear();
    }
 
    // benchmark this problem
    void benchmark()
    {
-      X = 0.0;
       tic_toc.Start();
       cg.Mult(B,X);
       MFEM_DEVICE_SYNC;
