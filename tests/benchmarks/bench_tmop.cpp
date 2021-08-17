@@ -13,56 +13,68 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-template<typename Kernel> struct PA_3D_Kernels
-{
-   const int N, order;
-   const int dim = 3;
-   const double rtol = 1e-12;
-   const int max_it = 32;
-   const int print_lvl = -1;
+#include "fem/tmop.hpp"
 
+template<TargetConstructor::TargetType TC> struct AddMultPA_Kernel_3D
+{
+   const int N, order, quad_order, dim = 3;
    Mesh mesh;
    H1_FECollection fec;
-   FiniteElementSpace fes;
+   FiniteElementSpace fes, fes1;
+   NonlinearForm nlf;
    const int dofs;
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr;
-   ConstantCoefficient one;
+   Array<int> ess_tdof_list, ess_bdr;
+   ConstantCoefficient one, lim;
    LinearForm b;
-   GridFunction x;
-   BilinearForm a;
-   OperatorPtr A;
+   GridFunction x, d;
+   Operator *A;
    Vector B, X;
-   CGSolver cg;
    double mdof;
 
-   PA_3D_Kernels(int order):
+   AddMultPA_Kernel_3D(int order):
       N(Device::IsEnabled()?16:8),
       order(order),
+      quad_order(2*order),     // 0x22, 0x33, 0x44, 0x55, max 2.1926k MDOF/s
+      //quad_order(2*order+2), // 0x23, 0x34, 0x45, 0x56, max 1.3016k MDOF/s
       mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
       fec(order, dim),
-      fes(&mesh, &fec),
+      fes(&mesh, &fec, dim), // vector
+      fes1(&mesh, &fec), // scalar
+      nlf(&fes),
       dofs(fes.GetVSize()),
       ess_bdr(mesh.bdr_attributes.Max()),
       one((ess_bdr=1,fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list), 1.0)),
+      lim(1./M_PI),
       b(&fes),
       x(&fes),
-      a(&fes),
+      d(&fes1),
       mdof(0.0)
    {
       b.AddDomainIntegrator(new DomainLFIntegrator(one));
       b.Assemble();
 
-      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.AddDomainIntegrator(new Kernel(one));
-      a.Assemble();
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      mesh.SetNodalGridFunction(&x);
 
-      cg.SetRelTol(rtol);
-      cg.SetOperator(*A);
-      cg.SetMaxIter(max_it);
-      cg.SetPrintLevel(print_lvl);
-      cg.iterative_mode = false;
+      TMOP_QualityMetric *metric = new TMOP_Metric_302;
+      TargetConstructor::TargetType target_t = TC;
+      TargetConstructor *target_c = new TargetConstructor(target_t);
+      target_c->SetNodes(x);
+
+      const int geom_type = fes.GetFE(0)->GetGeomType();
+      //IntegrationRules *IntRulesLo =
+      //        new IntegrationRules(0, Quadrature1D::GaussLobatto);
+      //const IntegrationRule *ir = &IntRulesLo->Get(geom_type, quad_order);
+      const IntegrationRule *ir = &IntRules.Get(geom_type, quad_order);
+
+      TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
+      he_nlf_integ->SetIntegrationRule(*ir);
+      //he_nlf_integ->EnableNormalization(x);
+      //he_nlf_integ->EnableLimiting(x, d = 1.0, lim);
+
+      nlf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      nlf.AddDomainIntegrator(he_nlf_integ);
+      nlf.Setup();
+      nlf.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       tic_toc.Clear();
    }
@@ -70,10 +82,10 @@ template<typename Kernel> struct PA_3D_Kernels
    void benchmark()
    {
       tic_toc.Start();
-      cg.Mult(B,X);
+      nlf.Mult(B,X); // AddMultPA_Kernel_3D
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
-      mdof += (1e-6 * dofs) * cg.GetNumIterations();
+      mdof += (1e-6 * dofs);
    }
 
    double Mdof() const { return mdof; }
@@ -84,19 +96,18 @@ template<typename Kernel> struct PA_3D_Kernels
 /**
   Kernels
 */
-#define BENCHMARK_KERNEL(Kernel)\
-static void Kernel(bm::State &state){\
-   PA_3D_Kernels<Kernel##Integrator> ker(state.range(0));\
+#define BENCHMARK_TMOP_KERNEL(TC)\
+static void TMOP(bm::State &state){\
+   AddMultPA_Kernel_3D<TC> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
    state.counters["MDof/s"] = bm::Counter(ker.Mdofs());}\
-BENCHMARK(Kernel)->DenseRange(1,6);
+BENCHMARK(TMOP)->DenseRange(1,4);
 
 /**
-  Launch all benchmarks: Mass & Diffusion
+  Launch all benchmarks: AddMultPA_Kernel_3D
   */
-BENCHMARK_KERNEL(Mass)
-BENCHMARK_KERNEL(Diffusion)
+BENCHMARK_TMOP_KERNEL(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE)
 
 /**
  * @brief main entry point
