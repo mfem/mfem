@@ -72,6 +72,16 @@ BlockVector::BlockVector(double *data, const Array<int> & bOffsets):
    SetBlocks();
 }
 
+BlockVector::BlockVector(Vector &v, const Array<int> &bOffsets)
+   : Vector(),
+     numBlocks(bOffsets.Size()-1),
+     blockOffsets(bOffsets.GetData())
+{
+   MakeRef(v, 0, blockOffsets[numBlocks]);
+   blocks = new Vector[numBlocks];
+   SetBlocks();
+}
+
 void BlockVector::Update(double *data, const Array<int> & bOffsets)
 {
    NewDataAndSize(data, bOffsets.Last());
@@ -177,6 +187,22 @@ BlockVector::~BlockVector()
 void BlockVector::GetBlockView(int i, Vector & blockView)
 {
    blockView.MakeRef(*this, blockOffsets[i], BlockSize(i));
+}
+
+void BlockVector::SyncToBlocks() const
+{
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].SyncMemory(*this);
+   }
+}
+
+void BlockVector::SyncFromBlocks() const
+{
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].SyncAliasMemory(*this);
+   }
 }
 
 }
