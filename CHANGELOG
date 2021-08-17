@@ -281,6 +281,9 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
+- Coefficient::SetTime now propagates the new time into internally stored
+  Coefficient objects.
+
 API changes
 -----------
 - Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
