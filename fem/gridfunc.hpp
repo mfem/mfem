@@ -95,6 +95,12 @@ public:
       : Vector(data, f->GetVSize())
    { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
+   /** @brief Construct a GridFunction using previously allocated Vector @a base
+       starting at the given offset, @a base_offset. */
+   GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
+      : Vector(base, base_offset, f->GetVSize())
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
        Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
