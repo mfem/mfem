@@ -321,11 +321,7 @@ const
    {
       X.SetSpace(pfes);
       Y.SetSpace(pfes);
-   }
-
-   if (Ytmp.ParFESpace() != pfes)
-   {
-      Ytmp.SetSpace(pfes);
+      Ytmp.SetSize(pfes->GetTrueVSize());
    }
 
    X.Distribute(&x);

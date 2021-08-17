@@ -32,7 +32,8 @@ protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
    /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y, Ytmp;
+   mutable ParGridFunction X, Y;
+   Vector Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
 
