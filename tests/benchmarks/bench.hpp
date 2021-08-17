@@ -12,23 +12,21 @@
 #ifndef MFEM_TESTS_BENCH_HPP
 #define MFEM_TESTS_BENCH_HPP
 
-#include "config/config.hpp"
+#include "mfem.hpp"
 
 #ifdef MFEM_USE_BENCHMARK
 
 #include "benchmark/benchmark.h"
-#include "mfem.hpp"
-#include <ios>
 
 using namespace mfem;
-namespace bm = benchmark;
-namespace bmi = benchmark::internal;
+namespace bm = ::benchmark;
+namespace bmi = ::benchmark::internal;
 
 namespace benchmark
 {
 namespace internal
 {
-extern std::map<std::string, std::string>* global_context;
+extern std::map<std::string, std::string> *global_context;
 }
 }
 

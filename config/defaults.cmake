@@ -75,6 +75,7 @@ set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 option(MFEM_ENABLE_TESTING "Enable the ctest framework for testing" ON)
 option(MFEM_ENABLE_EXAMPLES "Build all of the examples" OFF)
 option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
+option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.
@@ -225,7 +226,8 @@ set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
-set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH "Path to Benchmark")
+set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH
+    "Path to Google Benchmark")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
