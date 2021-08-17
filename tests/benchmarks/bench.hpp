@@ -19,8 +19,8 @@
 #include "benchmark/benchmark.h"
 
 using namespace mfem;
-namespace bm = ::benchmark;
-namespace bmi = ::benchmark::internal;
+namespace bm = benchmark;
+namespace bmi = benchmark::internal;
 
 namespace benchmark
 {

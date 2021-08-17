@@ -11,14 +11,17 @@
 
 #include "bench.hpp"
 
-#include <cassert>
-#include <memory>
-
 #ifdef MFEM_USE_BENCHMARK
+
+#include <memory>
+#include <cassert>
+#include <functional>
+
+using Kernel = std::function<BilinearFormIntegrator*(Coefficient&)>;
 
 struct PA_3D_Kernels
 {
-   const int N, problem, order;
+   const int N, order;
    const int dim = 3;
    const double rtol = 1e-12;
    const int max_it = 32;
@@ -39,9 +42,8 @@ struct PA_3D_Kernels
    CGSolver cg;
    double mdof;
 
-   PA_3D_Kernels(int problem, int order):
+   PA_3D_Kernels(int order, Kernel kernel):
       N(Device::IsEnabled()?16:8),
-      problem(problem),
       order(order),
       mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
       fec(order, dim),
@@ -58,8 +60,7 @@ struct PA_3D_Kernels
       b.Assemble();
 
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      if (problem == 0) { a.AddDomainIntegrator(new MassIntegrator(one)); }
-      if (problem == 1) { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
+      a.AddDomainIntegrator(kernel(one));
       a.Assemble();
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
@@ -72,7 +73,6 @@ struct PA_3D_Kernels
       tic_toc.Clear();
    }
 
-   // benchmark this problem
    void benchmark()
    {
       tic_toc.Start();
@@ -88,78 +88,28 @@ struct PA_3D_Kernels
 };
 
 /**
- * @brief The Kernel::benchmark::Fixture struct
- */
-struct Kernel: public ::benchmark::Fixture
-{
-   std::unique_ptr<PA_3D_Kernels> ker;
-   ~Kernel() { assert(ker == nullptr); }
-
-   using ::benchmark::Fixture::SetUp;
-   void SetUp(const ::benchmark::State& state) BENCHMARK_OVERRIDE
-   {
-      if (state.thread_index == 0)
-      {
-         assert(!ker.get());
-         const int problem = state.range(0);
-         const int order = state.range(1);
-         ker.reset(new PA_3D_Kernels(problem, order));
-      }
-      tic_toc.Clear();
-   }
-
-   using ::benchmark::Fixture::TearDown;
-   void TearDown(const ::benchmark::State &state) BENCHMARK_OVERRIDE
-   {
-      if (state.thread_index == 0)
-      {
-         assert(ker.get());
-         ker.reset();
-      }
-   }
-};
-
-/**
-  Fixture kernels
+  Kernels
 */
-#define ORDERS {1,2,3,4,5,6}
-
-#define BENCHMARK_KERNEL_F(Name,Problem)\
-BENCHMARK_DEFINE_F(Kernel, Name)(benchmark::State &state){\
-   assert(ker.get());\
-   while (state.KeepRunning()) { ker->benchmark(); }\
-   state.counters["MDof"] = bm::Counter(ker->Mdof(), bm::Counter::kIsRate);\
-   state.counters["MDof/s"] = bm::Counter(ker->Mdofs());}\
-BENCHMARK_REGISTER_F(Kernel, Name)->ArgsProduct({{Problem},ORDERS});
-
-
-/**
-  Kernels w/o fixture
-*/
-#define BENCHMARK_KERNEL(Name,Problem)\
-static void Name(benchmark::State &state){\
-   const int problem = Problem;\
+#define BENCHMARK_KERNEL(K)\
+BilinearFormIntegrator *_##K##_(Coefficient &c) { return new K##Integrator(c); }\
+static void K(bm::State &state){\
    const int order = state.range(0);\
-   PA_3D_Kernels ker(problem, order);\
+   PA_3D_Kernels ker(order, _##K##_);\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
    state.counters["MDof/s"] = bm::Counter(ker.Mdofs());}\
-BENCHMARK(Name)->DenseRange(1,6);
+BENCHMARK(K)->DenseRange(1,6);
 
 /**
-  Launch all benchmarks w/ and w/o fixtures: mass & diffusion
+  Launch all benchmarks: Mass & Diffusion
   */
-BENCHMARK_KERNEL_F(Mass,0)
-BENCHMARK_KERNEL(Kernel_Mass,0)
-
-BENCHMARK_KERNEL_F(Diffusion,1)
-BENCHMARK_KERNEL(Kernel_Diffusion,1)
-
+BENCHMARK_KERNEL(Mass)
+BENCHMARK_KERNEL(Diffusion)
 
 /**
  * @brief main entry point
- * --benchmark_filter=Kernel/Mass/0/6
- * --benchmark_filter=Kernel_Mass/6
+ * --benchmark_filter=Mass/6
+ * --benchmark_filter=Diffusion/6
  * --benchmark_context=device=cpu
  */
 int main(int argc, char *argv[])
