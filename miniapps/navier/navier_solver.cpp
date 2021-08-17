@@ -1020,7 +1020,7 @@ void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)
 {
-   // Maxmium BDF order to use at current time step
+   // Maximum BDF order to use at current time step
    // step + 1 <= order <= max_bdf_order
    int bdf_order = std::min(step + 1, max_bdf_order);
 
