@@ -45,7 +45,7 @@ public:
    Coefficient() { time = 0.; }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -217,6 +217,9 @@ public:
                            double (*F)(double,double))
       : Q1(q1), Q2(q2), Transform2(F) { Transform1 = 0; }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -268,6 +271,9 @@ public:
       center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
       weight = NULL; sdim = 3; tdf = NULL;
    }
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Set the center location of the delta function.
    void SetDeltaCenter(const Vector& center);
@@ -333,6 +339,9 @@ public:
    RestrictedCoefficient(Coefficient &c_, Array<int> &attr)
    { c = &c_; attr.Copy(active_attr); }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    { return active_attr[T.Attribute-1] ? c->Eval(T, ip, GetTime()) : 0.0; }
@@ -350,7 +359,7 @@ public:
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -455,6 +464,9 @@ public:
    /** @brief Construct vector of dim coefficients.  The actual coefficients
        still need to be added with Set(). */
    explicit VectorArrayCoefficient(int dim);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Returns i'th coefficient.
    Coefficient* GetCoeff(int i) { return Coeff[i]; }
@@ -632,6 +644,9 @@ public:
                           double s)
       : VectorCoefficient(dir_.Size()), dir(dir_), d(x,y,z,s) { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Replace the associated DeltaCoefficient with a new DeltaCoefficient.
    /** The new DeltaCoefficient cannot have a specified weight Coefficient, i.e.
        DeltaCoefficient::Weight() should return NULL. */
@@ -677,6 +692,9 @@ public:
       : VectorCoefficient(vc.GetVDim())
    { c = &vc; attr.Copy(active_attr); }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -708,7 +726,7 @@ public:
       height(h), width(w), time(0.), symmetric(symm) { }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -844,6 +862,9 @@ public:
        actual coefficients still need to be added with Set(). */
    explicit MatrixArrayCoefficient (int dim);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
@@ -881,6 +902,9 @@ public:
       : MatrixCoefficient(mc.GetHeight(), mc.GetWidth())
    { c = &mc; attr.Copy(active_attr); }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -910,6 +934,9 @@ public:
    SumCoefficient(Coefficient &A, Coefficient &B,
                   double alpha_ = 1.0, double beta_ = 1.0)
       : aConst(0.0), a(&A), b(&B), alpha(alpha_), beta(beta_) { }
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first term in the linear combination as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
@@ -959,7 +986,7 @@ public:
    { dim = dimension; time = 0.; }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -1037,6 +1064,9 @@ public:
       : SymmetricMatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -1062,6 +1092,9 @@ public:
    /// Constructor with two coefficients.  Result is A * B.
    ProductCoefficient(Coefficient &A, Coefficient &B)
       : aConst(0.0), a(&A), b(&B) { }
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first term in the product as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
@@ -1108,6 +1141,9 @@ public:
    RatioCoefficient(Coefficient &A, double B)
       : aConst(0.0), bConst(B), a(&A), b(NULL) { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the numerator in the ratio as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
    /// Return the numerator of the ratio
@@ -1151,6 +1187,9 @@ public:
    PowerCoefficient(Coefficient &A, double p_)
       : a(&A), p(p_) { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the base coefficient
@@ -1181,6 +1220,9 @@ public:
    /// Construct with the two vector coefficients.  Result is \f$ A \cdot B \f$.
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the first vector in the inner product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector coefficient in the inner product
@@ -1210,6 +1252,9 @@ public:
    /// Constructor with two vector coefficients.  Result is \f$ A_x B_y - A_y * B_x; \f$.
    VectorRotProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the first vector in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector of the product
@@ -1236,6 +1281,9 @@ private:
 public:
    /// Construct with the matrix.
    DeterminantCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1279,6 +1327,9 @@ public:
        Result is alpha_ * A_ + beta_ * B_ */
    VectorSumCoefficient(VectorCoefficient &A_, VectorCoefficient &B_,
                         Coefficient &alpha_, Coefficient &beta_);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A) { ACoef = &A; }
@@ -1341,6 +1392,9 @@ public:
    /// Constructor with two coefficients.  Result is A * B.
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
    /// Return the scalar factor
@@ -1379,6 +1433,9 @@ public:
    */
    NormalizedVectorCoefficient(VectorCoefficient &A, double tol = 1e-6);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the vector coefficient
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the vector coefficient
@@ -1403,6 +1460,9 @@ private:
 public:
    /// Construct with the two coefficients.  Result is A x B.
    VectorCrossProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first term in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1434,6 +1494,9 @@ private:
 public:
    /// Constructor with two coefficients.  Result is A*B.
    MatrixVectorProductCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1487,6 +1550,9 @@ public:
    MatrixSumCoefficient(MatrixCoefficient &A, MatrixCoefficient &B,
                         double alpha_ = 1.0, double beta_ = 1.0);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the first matrix coefficient
@@ -1528,6 +1594,9 @@ public:
    /// Constructor with two coefficients.  Result is A*B.
    ScalarMatrixProductCoefficient(Coefficient &A, MatrixCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
    /// Return the scalar factor
@@ -1558,6 +1627,9 @@ public:
    /// Construct with the matrix coefficient.  Result is \f$ A^T \f$.
    TransposeMatrixCoefficient(MatrixCoefficient &A);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
@@ -1577,6 +1649,9 @@ private:
 public:
    /// Construct with the matrix coefficient.  Result is \f$ A^{-1} \f$.
    InverseMatrixCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1601,6 +1676,9 @@ private:
 public:
    /// Construct with two vector coefficients.  Result is \f$ A B^T \f$.
    OuterProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first vector in the outer product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1636,6 +1714,9 @@ private:
 public:
    CrossCrossCoefficient(double A, VectorCoefficient &K);
    CrossCrossCoefficient(Coefficient &A, VectorCoefficient &K);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
