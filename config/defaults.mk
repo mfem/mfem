@@ -141,6 +141,7 @@ MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
 MFEM_USE_GSLIB         = NO
+MFEM_USE_PARRSB         = NO
 MFEM_USE_CUDA          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
@@ -410,6 +411,11 @@ HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
 GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
 GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
+
+# PARRSB library
+PARRSB_DIR = @MFEM_DIR@/../parRSB/build
+PARRSB_OPT = -I$(PARRSB_DIR)/include
+PARRSB_LIB = -L$(PARRSB_DIR)/lib -lparRSB
 
 # CUDA library configuration
 CUDA_OPT =

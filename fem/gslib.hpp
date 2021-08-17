@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "gridfunc.hpp"
+#include "../mesh/pmesh.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -247,6 +248,40 @@ public:
 };
 
 } // namespace mfem
+
+#ifdef MFEM_USE_PARRSB
+
+namespace mfem
+{
+
+class MFEMPARRSB
+{
+public:
+   Mesh *m;
+#ifdef MFEM_USE_MPI
+   ParMesh *pm;
+#endif
+   bool serial;
+
+public:
+   MFEMPARRSB(Mesh &mesh) : m(&mesh), serial(true) { };
+
+#ifdef MFEM_USE_MPI
+   MFEMPARRSB(ParMesh &pmesh) : pm(&pmesh), serial(false) { };
+#endif
+
+   ~MFEMPARRSB();
+
+   void GetPartitioningSerial(MPI_Comm comm, Array<int> &partition);
+   void GetPartitioningParallel(Array<int> &partition);
+
+   void FreeData();
+};
+
+
+}
+
+#endif // MFEM_USE_PARRSB
 
 #endif // MFEM_USE_GSLIB
 

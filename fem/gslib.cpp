@@ -23,6 +23,7 @@
 namespace gslib
 {
 #include "gslib.h"
+#include "parRSBCPP.h"
 }
 
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
@@ -999,5 +1000,126 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
 
 
 } // namespace mfem
+
+
+#ifdef MFEM_USE_PARRSB
+
+namespace mfem
+{
+
+MFEMPARRSB::~MFEMPARRSB()
+{
+   //delete gsl_comm;
+   //delete cr;
+}
+
+void MFEMPARRSB::GetPartitioningSerial(MPI_Comm comm, Array<int> &partition)
+{
+    MFEM_VERIFY(serial, " Initialize with serial mesh.");
+    Array<long long> vertglob;
+    int geomtype = m->GetElementBaseGeometry(0);
+    int nvert;
+    if (geomtype == Geometry::SQUARE) {
+        nvert = 4;
+    }
+    else if (geomtype == Geometry::TRIANGLE) {
+        nvert = 3;
+    }
+    else if (geomtype == Geometry::CUBE) {
+        nvert = 8;
+    }
+    else if (geomtype == Geometry::TETRAHEDRON) {
+        nvert = 4;
+    }
+    else {
+        MFEM_ABORT(" Geometry type not currently supported.");
+    }
+    Vector coord(m->GetNE()*nvert*m->Dimension());
+
+    int n = 0;
+    for (int i = 0; i < m->GetNE(); i++) {
+        Array<int> vert;
+        m->GetElementVertices(i, vert);
+        for (int j = 0; j < vert.Size(); j++) {
+            vertglob.Append(vert[j]);
+            double *pos = m->GetVertex(vert[j]);
+            for (int d = 0; d < m->Dimension(); d++) {
+                coord[n++] = pos[d];
+            }
+        }
+    }
+
+
+    int myid;
+    MPI_Comm_rank(comm, &myid);
+    int nel = m->GetNE();
+    partition.SetSize(m->GetNE());
+    if (myid != 0) {
+        //vertglob.SetSize(0);
+        //coord.SetSize(0);
+        nel = 0;
+        //partition.SetSize(0);
+    }
+
+    gslib::parrsb_options options = gslib::parrsb_default_options;
+    parRSB_partMesh(partition, NULL, vertglob.GetData(),
+                    coord.GetData(), nel, nvert, options, comm);
+    partition.SetSize(m->GetNE());
+    MPI_Bcast(partition.GetData(), partition.Size(), MPI_INT, 0, comm);
+}
+
+void MFEMPARRSB::GetPartitioningParallel(Array<int> &partition)
+{
+    MFEM_VERIFY(!serial, " Initialize with parallel mesh.");
+    Array<long long> vertglob;
+    int geomtype = pm->GetElementBaseGeometry(0);
+    int nvert;
+    if (geomtype == Geometry::SQUARE) {
+        nvert = 4;
+    }
+    else if (geomtype == Geometry::TRIANGLE) {
+        nvert = 3;
+    }
+    else if (geomtype == Geometry::CUBE) {
+        nvert = 8;
+    }
+    else if (geomtype == Geometry::TETRAHEDRON) {
+        nvert = 4;
+    }
+    else {
+        MFEM_ABORT(" Geometry type not currently supported.");
+    }
+    Vector coord(pm->GetNE()*nvert*pm->Dimension());
+
+    Array<HYPRE_Int> gi;
+    pm->GetGlobalVertexIndices(gi);
+    int n = 0;
+    for (int i = 0; i < pm->GetNE(); i++) {
+        Array<int> vert;
+        pm->GetElementVertices(i, vert);
+        for (int j = 0; j < vert.Size(); j++) {
+            vertglob.Append(gi[vert[j]]);
+            double *pos = pm->GetVertex(vert[j]);
+            for (int d = 0; d < pm->Dimension(); d++) {
+                coord[n++] = pos[d];
+            }
+        }
+    }
+
+    partition.SetSize(pm->GetNE());
+    partition = -1;
+    gslib::parrsb_options options = gslib::parrsb_default_options;
+    parRSB_partMesh(partition, NULL, vertglob.GetData(),
+                    coord.GetData(), pm->GetNE(), nvert, options ,pm->GetComm());
+}
+
+void MFEMPARRSB::FreeData()
+{
+
+}
+
+}
+
+#endif // MFEM_USE_PARRSB
 
 #endif // MFEM_USE_GSLIB

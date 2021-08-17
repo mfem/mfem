@@ -144,6 +144,9 @@
 // Enable MFEM functionality based on the GSLIB library
 // #define MFEM_USE_GSLIB
 
+// Enable MFEM functionality based on the PARRSB library
+// #define MFEM_USE_PARRSB
+
 // Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 // #define MFEM_USE_CUDA
