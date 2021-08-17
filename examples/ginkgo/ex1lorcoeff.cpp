@@ -42,6 +42,7 @@
 #include "mfem.hpp"
 #include "../../general/forall.hpp"
 #include "multigridpc.hpp"
+#include <cuda_profiler_api.h>
 
 #include <fstream>
 #include <iostream>
@@ -97,6 +98,56 @@ int pcg_solve(const Operator &A, Solver &B, const Vector &b, Vector &x,
    it_time = tic_toc.RealTime();
 
    return pcg.GetNumIterations();
+}
+
+int gko_cg_solve(Ginkgo::GinkgoExecutor &exec, const Operator &A, Ginkgo::GinkgoPreconditioner &B, const Vector &b, Vector &x,
+                  int print_iter, int max_num_iter,
+                  double RTOLERANCE, double ATOLERANCE, double &it_time)
+{
+
+   Ginkgo::CGSolver pcg(exec, B);
+
+   pcg.SetPrintLevel(print_iter);
+   pcg.SetMaxIter(max_num_iter);
+   pcg.SetRelTol(RTOLERANCE);
+   pcg.SetAbsTol(ATOLERANCE);
+   pcg.SetOperator(A);
+
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   pcg.Mult(b, x);
+
+   tic_toc.Stop();
+   it_time = tic_toc.RealTime();
+
+   return pcg.GetNumIterations();
+
+}
+
+int gko_fcg_solve(Ginkgo::GinkgoExecutor &exec, const Operator &A, Ginkgo::GinkgoPreconditioner &B, const Vector &b, Vector &x,
+                  int print_iter, int max_num_iter,
+                  double RTOLERANCE, double ATOLERANCE, double &it_time)
+{
+
+   Ginkgo::FCGSolver pfcg(exec, B);
+
+   pfcg.SetPrintLevel(print_iter);
+   pfcg.SetMaxIter(max_num_iter);
+   pfcg.SetRelTol(RTOLERANCE);
+   pfcg.SetAbsTol(ATOLERANCE);
+   pfcg.SetOperator(A);
+
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   pfcg.Mult(b, x);
+
+   tic_toc.Stop();
+   it_time = tic_toc.RealTime();
+
+   return pfcg.GetNumIterations();
+
 }
 
 int gmres_solve(const Operator &A, const Vector &b, Vector &x,
@@ -555,6 +606,7 @@ int main(int argc, char *argv[])
            tic_toc.RealTime() << "\n";
 
       int max_iter = 15000;
+//      int max_iter = 1;
       if (pc_choice == GKO_BLOCK_JACOBI)
       {
 
@@ -659,7 +711,7 @@ int main(int argc, char *argv[])
          tic_toc.Clear();
          tic_toc.Start();
 
-         // All double
+//         cudaProfilerStart(); 
          Ginkgo::AMGPreconditioner M(exec, Ginkgo::AMGPreconditioner::JACOBI,
                                      1, 1, Ginkgo::AMGPreconditioner::JACOBI, 4, use_mixed_amg);
          M.SetOperator(*A_pc_mat);
@@ -669,7 +721,10 @@ int main(int argc, char *argv[])
               tic_toc.RealTime() << "\n";
 
          // Use preconditioned CG
-         total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+         total_its = pcg_solve(*A, M, B, X, 1, max_iter, 1e-12, 0.0, it_time);
+//         total_its = gko_fcg_solve(exec, *A, M, B, X, 1, max_iter, 1e-12, 0.0, it_time);
+//         total_its = gko_cg_solve(exec, *A, M, B, X, 1, max_iter, 1e-12, 0.0, it_time);
+//         cudaProfilerStop(); 
 
          cout << "Real time in PCG: " << it_time << "\n";
 
@@ -733,6 +788,8 @@ int main(int argc, char *argv[])
 
          // Use preconditioned CG
          total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+//         Ginkgo::MFEMPreconditioner M_gko(exec, M);
+//         total_its = gko_fcg_solve(exec, *A, M_gko, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
          cout << "Real time in PCG: " << it_time << "\n";
 #endif
@@ -829,6 +886,7 @@ int main(int argc, char *argv[])
    {
 
       int max_iter = 15000;
+   //   int max_iter = 1;
       total_its = cg_solve(*A, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
       cout << "Real time in CG: " << it_time << endl;
@@ -862,8 +920,12 @@ int main(int argc, char *argv[])
       mesh_lor->Print(mesh_lor_ofs);
 
       ofstream apc_lor_ofs("lor-mat.dat");
-      mesh_lor_ofs.precision(8);
+      apc_lor_ofs.precision(8);
       A_pc_mat->PrintCSR(apc_lor_ofs);
+
+      ofstream apc_lor_ofs_mm("lor-mat-mm.dat");
+      apc_lor_ofs_mm.precision(8);
+      A_pc_mat->PrintMM(apc_lor_ofs_mm);
    }
 
    // 14. Send the solution by socket to a GLVis server.

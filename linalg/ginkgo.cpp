@@ -1139,24 +1139,27 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
          auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
                              .with_max_block_size(static_cast<unsigned int>(1u))
                              .on(executor);
+//         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver), pre_sweeps, 0.9);
+     
          smoother_gen = gko::solver::Ir<double>::build()
                         .with_criteria(
                            gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
                         .with_solver(gko::share(inner_solver))
                         .with_relaxation_factor(0.9)
-                        .on(executor);
+                        .on(executor); 
          if (use_mixed_prec)
          {
             auto inner_solver_s = gko::preconditioner::Jacobi<float, int>::build()
                                   .with_max_block_size(static_cast<unsigned int>(1u))
                                   .on(executor);
-            smoother_gen_s = gko::solver::Ir<float>::build()
+          /*  smoother_gen_s = gko::solver::Ir<float>::build()
                              .with_criteria(
                                 gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
                              .with_solver(gko::share(inner_solver_s))
                              .with_relaxation_factor(0.9)
-                             .on(executor);
-         }
+                             .on(executor); */
+            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s), pre_sweeps, 0.9);
+         } 
          break;
       }
       case AMGPreconditioner::BLOCK_JACOBI :
@@ -1420,10 +1423,10 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
    }
 
    using amgx_pgm = gko::multigrid::AmgxPgm<double, int>;
-   auto mg_level_gen = amgx_pgm::build().on(executor);
+   auto mg_level_gen = amgx_pgm::build().with_deterministic(true).on(executor);
 
    using amgx_pgm_s = gko::multigrid::AmgxPgm<float, int>;
-   auto mg_level_gen_s = amgx_pgm_s::build().on(executor);
+   auto mg_level_gen_s = amgx_pgm_s::build().with_deterministic(true).on(executor);
 
    using mg = gko::solver::Multigrid;
    // Selector for the multigrid levels (double/single precision)
@@ -1438,7 +1441,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                     .with_min_coarse_rows(50u)
                     .with_pre_smoother(gko::share(smoother_gen), gko::share(smoother_gen_s))
                     .with_mg_level(gko::share(mg_level_gen), gko::share(mg_level_gen_s))
-                    .with_mg_level_index(selector)
+                    .with_level_selector(selector)
                     .with_coarsest_solver(gko::share(coarse_solver_gen))
                     .with_criteria(
                        gko::stop::Iteration::build().with_max_iters(1u).on(executor))
@@ -1448,7 +1451,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
    {
       precond_gen = mg::build()
                     .with_min_coarse_rows(50u)
-                    .with_pre_smoother(gko::share(coarse_solver_gen))
+                    .with_pre_smoother(gko::share(smoother_gen))
                     .with_mg_level(gko::share(mg_level_gen))
                     .with_coarsest_solver(gko::share(coarse_solver_gen))
                     .with_criteria(
