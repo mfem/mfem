@@ -2,17 +2,20 @@
 
 set -e
 
+install_dir=$HOME/local
+mkdir -p $install_dir
+
 # build and install mfem
 git clone https://github.com/mfem/mfem.git
 pushd mfem
 make serial SHARED=YES -j8
-make install PREFIX=/usr
+make install PREFIX=$install_dir
 popd
 
 # include xeus-glvis
 git clone https://github.com/GLVis/xeus-glvis.git
 pushd xeus-glvis
-target_dir=/usr/include/glvis
-mkdir -p $target_dir
-cp include/xglvis.hpp $target_dir
+glvis_dir=$install_dir/glvis
+mkdir -p $glvis_dir
+cp include/xglvis.hpp $glvis_dir
 popd
