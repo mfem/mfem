@@ -1,11 +1,10 @@
 #ifndef MFEM_IMEX
 #define MFEM_IMEX
 
+#include "../config/config.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
 #include <vector>
-
-using namespace std;
 
 namespace mfem
 {
@@ -45,12 +44,12 @@ public:
     /** Solve k = f(x+dt*k) for stage k, where f() is the implicit part of
         the operator. Used in Runge-Kutta methods. */
     virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k)
-    { mfem_error("IMEXTimeDependentOperator::ImplicitSolve() is not overridden!"); };
+    { mfem::mfem_error("IMEXTimeDependentOperator::ImplicitSolve() is not overridden!"); };
 
     /** Solve M*x - dtf(x, t) = b for solution x, where f() is the implicit
         part of the operator. Used in BDF methods. */
     virtual void ImplicitSolve2(const double dt, const Vector &b, Vector &x)
-    { mfem_error("IMEXTimeDependentOperator::ImplicitSolve2() is not overridden!"); };
+    { mfem::mfem_error("IMEXTimeDependentOperator::ImplicitSolve2() is not overridden!"); };
 
     /** Apply action mass matrix, y = M*x. 
         If not re-implemented, this method simply generates an error.
@@ -153,12 +152,14 @@ public:
     ~BDFData() { };
 
     int GetID() { return static_cast<int>(ID); };
-    void SetID(Type ID_, double alpha_=-1) {
+    void SetID(Type ID_, double alpha_=-1) 
+    {
         ID=ID_;
         alpha = alpha_;
         SetData();
     };
-    void Print() {
+    void Print()
+    {
         std::cout << "q     = " << q << "\n";
         std::cout << "alpha = " << alpha << "\n";
         std::cout << "A:\n";
@@ -185,7 +186,6 @@ private:
     void SetData();
     void InitData();
 };
-
 
 /** Class for IMEX-BDF methods, including classical IMEX-BDF and IMEX-
     Polynomial-BDF (IMEX-PBDF). IMEX-PBDF methods have an additional 
@@ -238,5 +238,7 @@ public:
     void Step(Vector &x, double &t, double &dt);
     void InterpolateGuess() {interpolate = true; };
 };
+
+}
 
 #endif

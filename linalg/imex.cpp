@@ -1,5 +1,8 @@
 #include "imex.hpp"
 
+namespace mfem
+{
+
 // Lagrange interpolating polynomials
 // q=2
 // (1-1/2(2+a))y1 + 1/2(2+a)y2
@@ -1161,4 +1164,6 @@ void BDFData::SetData()
     {
         z0(0) = 1;
     }
+}
+
 }
