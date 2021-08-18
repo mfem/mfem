@@ -520,6 +520,9 @@ MFEM_USE_CALIPER = YES/NO
    profiling at runtime with Caliper's configuration API. Alternatively, one
    can configure Caliper through environment variables or config files.
 
+MFEM_USE_BENCHMARK = YES/NO
+   Enables the google-benchmarks in the tests/benchmarks directory.
+
 MFEM_USE_FMS = YES/NO
    Enables support for the FMS library which consists of the DataCollection
    sub-class mfem::FMSDataCollection for I/O in FMS formats, see the header file

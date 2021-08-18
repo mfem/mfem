@@ -12,8 +12,8 @@ Version 4.3.1 (development)
 ===========================
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
-- Added initial support for benchmarks based on the google-benchmark library in
-  the tests/benchmarks directory.
+- Added initial support for google-benchmarks in the tests/benchmarks directory.
+  It can be enabled with MFEM_USE_BENCHMARK=YES.
 
 
 Version 4.3, released on July 29, 2021
