@@ -314,6 +314,7 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
    Vector shape_cz(p + 1), shape_oz(p);
+   Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
 
    if (obasis1d.IsIntegratedType())
@@ -653,6 +654,7 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
+   Vector dshape_cx, dshape_cy;
 #endif
 
    if (obasis1d.IsIntegratedType())
