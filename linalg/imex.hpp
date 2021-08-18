@@ -1,10 +1,14 @@
 #ifndef MFEM_IMEX
 #define MFEM_IMEX
 
-#include "mfem.hpp"
+#include "operator.hpp"
+#include "ode.hpp"
+#include <vector>
 
-using namespace mfem;
 using namespace std;
+
+namespace mfem
+{
 
 /** Class for spatial discretizations of a PDE resulting in the time-dependent, 
     nonlinear set of ODEs with implicit-explicit additive partition
