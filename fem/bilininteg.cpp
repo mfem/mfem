@@ -747,6 +747,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape(nd, dim), dshapedxt(nd, spaceDim);
    DenseMatrix dshapedxt_m(nd, MQ ? spaceDim : 0);
+   DenseMatrix M(MQ ? spaceDim : 0);
    Vector D(VQ ? VQ->GetVDim() : 0);
 #else
    dshape.SetSize(nd, dim);
