@@ -15,7 +15,7 @@ popd
 # include xeus-glvis
 git clone https://github.com/GLVis/xeus-glvis.git
 pushd xeus-glvis
-glvis_dir=$install_dir/glvis
+glvis_dir=$install_dir/include/glvis
 mkdir -p $glvis_dir
 cp include/xglvis.hpp $glvis_dir
 popd
