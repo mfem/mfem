@@ -3197,7 +3197,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
       else
       {
-// TODO: replace hypre_ParCSRMatrixOwnsRowStarts with MFEM_HYPRE_VERSION > 22200
+         // TODO: replace hypre_ParCSRMatrixOwnsRowStarts with MFEM_HYPRE_VERSION > 22200
 #ifdef hypre_ParCSRMatrixOwnsRowStarts
          min_eig_est = 0;
          hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est);
@@ -3217,7 +3217,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
       else
       {
-// TODO: replace hypre_ParCSRMatrixOwnsRowStarts with MFEM_HYPRE_VERSION > 22200
+         // TODO: replace hypre_ParCSRMatrixOwnsRowStarts with MFEM_HYPRE_VERSION > 22200
 #ifdef hypre_ParCSRMatrixOwnsRowStarts
          min_eig_est = 0;
          hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est);
