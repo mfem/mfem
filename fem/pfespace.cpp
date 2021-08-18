@@ -1278,12 +1278,17 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 {
+   P -> StealData();
+#ifdef hypre_ParCSRMatrixOwnsRowStarts
    hypre_ParCSRMatrix *csrP = (hypre_ParCSRMatrix*)(*P);
    hypre_ParCSRMatrixOwnsRowStarts(csrP) = 1;
    hypre_ParCSRMatrixOwnsColStarts(csrP) = 1;
-   P -> StealData();
    dof_offsets.LoseData();
    tdof_offsets.LoseData();
+#else
+   dof_offsets.DeleteAll();
+   tdof_offsets.DeleteAll();
+#endif
 }
 
 void ParFiniteElementSpace::ConstructTrueDofs()
