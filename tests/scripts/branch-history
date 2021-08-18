@@ -1,0 +1,211 @@
+#!/usr/bin/env perl
+
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+use strict;
+use File::Basename;
+use Cwd;
+
+# Print usage information and exit with status code passed as argument
+sub usage {
+  printf STDOUT <<EOF;
+
+   $0 [-h|--help]
+   $0 [-b <branch>] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../..]
+          -b <branch> is the branch to check [default: HEAD]
+          -h|--help   prints this usage information and exits
+
+   This script checks if the current branch history, defined as the commits that
+   will be merged in master (those shown in a GitHub PR), contains unusually
+   large files, unusually large number of changes in a commit, unusually large
+   number of commits, etc.
+
+   Example usage: $0
+
+EOF
+  exit $_[0];
+}
+
+my $mfem_dir = "../..";
+my $branch = "HEAD";
+
+while (my $opt = shift) {
+  if ($opt) {
+    if ($opt eq "-h" || $opt eq "--help") {
+      usage 0;
+    } elsif ($opt eq "-b") {
+      $branch = shift;
+    } else {
+      $mfem_dir = $opt;
+    }
+  }
+}
+
+my $cur_dir = getcwd;
+if (!chdir $mfem_dir) {
+  printf STDERR "Error: invalid value for mfem_dir: $mfem_dir\n";
+  usage 1;
+}
+
+# Maximum number of acceptable commits in the branch
+my $branch_max_commits = 200;
+# Maximum number of acceptable files changed in any commit in the branch
+my $commit_max_files_changed = 50;
+# Maximum acceptable size (in K) of any git blob in the branch
+my $max_blob_kb = 200;
+# Maximum acceptable size (in K) of any commit in the branch
+my $max_commit_kb = 400;
+# Maximum acceptable size (in K) of the sum of the commit sizes in the branch
+my $max_branch_kb = 1000;
+
+my $status = 0; # Return code
+
+# Get SHA hash of all commits in this branch
+my @commits = split /\n/, `git log --pretty=format:%H master..$branch`;
+
+# Check if total number of commits in this branch exceeds the maximum allowable
+my $ncommits = scalar @commits;
+if ($ncommits > $branch_max_commits) {
+  printf STDERR
+    "\033[31mNumber of commits in this branch (%d) exceeds maximum allowable (%d).\033[0m\n",
+    $ncommits, $branch_max_commits;
+  $status = 1;
+}
+
+# Print SHA in blue
+sub print_sha {
+  printf STDERR "\033[34m    ^---> SHA: %s\033[0m\n", $_[0];
+}
+
+sub formatSize {
+  my $size = shift;
+  my $exp = 0;
+  my $units = [qw(B KB MB GB TB PB)];
+  for (@$units) {
+    last if $size < 1024;
+    $size /= 1024;
+    $exp++;
+  }
+  return sprintf("%.2f %s", $size, $units->[$exp]);
+}
+
+# Loop over each commit in this branch, and check for large diffs
+my $total_size = 0;
+foreach my $sha (@commits) {
+  my @blobs = `git diff-tree -r -c --root --no-commit-id $sha`;
+  my $nfiles_changed = scalar @blobs;
+  if ($nfiles_changed > $commit_max_files_changed) {
+    printf STDERR
+      "\033[31mNumber of files changed in one commit (%d) exceeds maximum allowable (%d).\033[0m\n",
+      $nfiles_changed, $commit_max_files_changed;
+    print_sha($sha);
+    $status = 1;
+  }
+  # Accumulate size of each commit in bytes
+  my $commit_size = 0;
+  foreach my $blob (@blobs) {
+    my @blob_split = (split /\s/, $blob);
+    my $nfields = scalar @blob_split;
+    my $fname = "(no-filename)";
+    my $blob_size = 0;
+
+    if ($nfields == 6) {
+      # 0 or 1 parents
+      my $src = @blob_split[2];
+      my $dst = @blob_split[3];
+      my $mode = @blob_split[4];
+      $fname = @blob_split[5];
+      # File was added
+      if ($mode eq "A") { $blob_size += int(`git cat-file -s $dst`); }
+      # File was copied
+      elsif ($mode =~ m/C\d*/) { $blob_size += int(`git cat-file -s $dst`); }
+      elsif ($mode eq "D") { }
+      # File was modified, use the gzip'ed diff as a proxy of the required git storage
+      elsif ($mode =~ m/M\d*/) { $blob_size += int(`git diff -U0 --binary $src $dst | gzip -c | wc -c`); }
+      elsif ($mode =~ m/R\d*/) { }
+      elsif ($mode eq "T") { }
+      elsif ($mode eq "U") { }
+      else { die "Unknown git status letter." }
+    } elsif ($nfields == 8) {
+      # 2 parents
+      my $src1 = @blob_split[3];
+      my $src2 = @blob_split[4];
+      my $dst = @blob_split[5];
+      my $mode = @blob_split[6];
+      $fname = @blob_split[7];
+      if ($mode eq "AA") {
+        # File was added
+        $blob_size += int(`git cat-file -s $dst`); }
+      elsif ($mode eq "DD") { }
+      elsif ($mode eq "MM") {
+        # File was modified, use the gzip'ed diff as a proxy of the required git
+        # storage
+        my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
+        my $sz2 = int(`git diff -U0 --binary $src2 $dst | gzip -c | wc -c`);
+        $blob_size += $sz1 < $sz2 ? $sz1 : $sz2; }
+      elsif ($mode eq "AM") {
+        my $sz2 = int(`git diff -U0 --binary $src2 $dst | gzip -c | wc -c`);
+        $blob_size += $sz2; }
+      elsif ($mode eq "MA") {
+        my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
+        $blob_size += $sz1; }
+      else { die "Unknown git status letter: $mode, commit: $sha, file: $fname.\n\t" }
+    }
+
+    if ($blob_size > $max_blob_kb*1024) {
+      $status = 1;
+      printf STDERR "\033[31mLarge change of size %s in file %s.\033[0m\n", formatSize($blob_size), $fname;
+      print_sha($sha);
+    }
+    $commit_size += $blob_size;
+  }
+  if ($commit_size > $max_commit_kb*1024) {
+    $status = 1;
+    printf STDERR "\033[31mLarge commit of size %s.\033[0m\n", formatSize($commit_size);
+    print_sha($sha);
+  }
+  $total_size += $commit_size;
+}
+
+if ($total_size > $max_branch_kb*1024) {
+  printf STDERR "\033[31mLarge total branch size: %s.\033[0m\n", formatSize($total_size);
+  $status = 1;
+}
+
+if ($status) {
+  printf STDERR "\033[36mBranch $branch has errors.\033[0m\n";
+  chdir $cur_dir;
+  my $testname = basename $0;
+  open(my $f, '>', "$testname.msg");
+  print $f <<EOF;
+
+The failure of this script indicates that large files or a large number of files
+have been added or committed in the current branch history.
+
+This could be OK, in certain cases, but it could also be a sign that large files
+have accidentally been committed.
+
+To address this error, examine the listed files and commits to make sure all
+large changes were intentional. If there is a wrong commit that has to be
+deleted, please either:
+
+1) Recreate the branch without that commit.
+2) Indicate that the branch should be squash-merged
+
+or contact a member of the MFEM team for help if you have questions.
+
+EOF
+}
+
+exit $status;

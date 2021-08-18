@@ -1,19 +1,21 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NONLINEARFORM
 #define MFEM_NONLINEARFORM
 
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
+#include "nonlinearform_ext.hpp"
+#include "bilinearform.hpp"
 #include "gridfunc.hpp"
 
 namespace mfem
@@ -22,6 +24,14 @@ namespace mfem
 class NonlinearForm : public Operator
 {
 protected:
+   /// The assembly level.
+   AssemblyLevel assembly;
+
+   /// Extension for supporting different AssemblyLevel%s
+   /** For nonlinear operators, the "matrix" assembly levels usually do not make
+       sense, so only PARTIAL and NONE (matrix-free) are supported. */
+   NonlinearFormExtension *ext; // owned
+
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
 
@@ -36,6 +46,8 @@ protected:
    Array<Array<int>*>              bfnfi_marker; // not owned
 
    mutable SparseMatrix *Grad, *cGrad; // owned
+   /// Gradient Operator when not assembled as a matrix.
+   mutable OperatorHandle hGrad; // has internal ownership flag
 
    /// A list of all essential true dofs
    Array<int> ess_tdof_list;
@@ -59,10 +71,37 @@ public:
    /** As an Operator, the NonlinearForm has input and output size equal to the
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
-      : Operator(f->GetTrueVSize()), fes(f), Grad(NULL), cGrad(NULL),
+      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::LEGACY),
+        ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
+
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
+   /** For nonlinear operators, the "matrix" assembly levels usually do not make
+       sense, so only LEGACY, NONE (matrix-free) and PARTIAL are supported.
+
+       Currently, AssemblyLevel::LEGACY uses the standard nonlinear action
+       methods like AssembleElementVector of the NonlinearFormIntegrator class
+       which work only on CPU and do not utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator is
+       constructed as a SparseMatrix (or, in parallel, format such as
+       HypreParMatrix).
+
+       When using AssemblyLevel::PARTIAL, the action is performed using methods
+       like AddMultPA of the NonlinearFormIntegrator class which typically
+       support both CPU and GPU backends and utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator
+       also uses partial assembly with support for CPU and GPU backends.
+
+       When using AssemblyLevel::NONE, the action is performed using methods
+       like AddMultMF of the NonlinearFormIntegrator class which typically
+       support both CPU and GPU backends and utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator
+       is currently not supported.
+
+       This method must be called before "assembly" with Setup(). */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
@@ -71,9 +110,18 @@ public:
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
    { dnfi.Append(nlfi); }
 
+   /// Access all integrators added with AddDomainIntegrator().
+   Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
+   const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
+
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
+
+   /** @brief Access all interior face integrators added with
+       AddInteriorFaceIntegrator(). */
+   const Array<NonlinearFormIntegrator*> &GetInteriorFaceIntegrators() const
+   { return fnfi; }
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
@@ -85,6 +133,11 @@ public:
                              Array<int> &bdr_marker)
    { bfnfi.Append(nfi); bfnfi_marker.Append(&bdr_marker); }
 
+   /** @brief Access all boundary face integrators added with
+       AddBdrFaceIntegrator(). */
+   const Array<NonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
+   { return bfnfi; }
+
    /// Specify essential boundary conditions.
    /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
        the result internally for use by other methods. If the @a rhs pointer is
@@ -93,8 +146,8 @@ public:
        have zero entries at the essential true dofs. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
 
-   /// (DEPRECATED) Specify essential boundary conditions.
-   /** @deprecated Use either SetEssentialBC() or SetEssentialTrueDofs(). */
+   /// Specify essential boundary conditions.
+   /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 
    /// Specify essential boundary conditions.
@@ -144,13 +197,21 @@ public:
        set again. */
    virtual void Update();
 
+   /** @brief Setup the NonlinearForm: based on the current AssemblyLevel and
+       the current mesh, optionally, precompute and store data that will be
+       reused in subsequent call to Mult(). */
+   /** Typically, this method has to be called before Mult() when using
+       AssemblyLevel::PARTIAL, after calling Update(), or after modifying the
+       mesh coordinates. */
+   virtual void Setup();
+
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const { return P; }
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
 
-   /** @brief Destroy the NoninearForm including the owned
+   /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
    virtual ~NonlinearForm();
 };
@@ -178,24 +239,41 @@ protected:
        GridFunction-like block-vector data (e.g. in parallel). */
    mutable BlockVector xs, ys;
 
-   mutable Array2D<SparseMatrix*> Grads;
+   mutable Array2D<SparseMatrix*> Grads, cGrads;
    mutable BlockOperator *BlockGrad;
 
    // A list of the offsets
    Array<int> block_offsets;
    Array<int> block_trueOffsets;
 
-   // Essential vdofs: one list of vdofs for each space in 'fes'
-   Array<Array<int> *> ess_vdofs;
+   // Array of Arrays of tdofs for each space in 'fes'
+   Array<Array<int> *> ess_tdofs;
+
+   /// Array of pointers to the prolongation matrix of fes, may be NULL
+   Array<const Operator *> P;
+
+   /// Array of results of dynamic-casting P to SparseMatrix pointer
+   Array<const SparseMatrix *> cP;
+
+   /// Indicator if the Operator is part of a parallel run
+   bool is_serial = true;
+
+   /// Indicator if the Operator needs prolongation on assembly
+   bool needs_prolongation = false;
+
+   mutable BlockVector aux1, aux2;
+
+   const BlockVector &Prolongate(const BlockVector &bx) const;
 
    /// Specialized version of GetEnergy() for BlockVectors
    double GetEnergyBlocked(const BlockVector &bx) const;
 
    /// Specialized version of Mult() for BlockVector%s
+   /// Block L-Vector to Block L-Vector
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
 
    /// Specialized version of GetGradient() for BlockVector
-   Operator &GetGradientBlocked(const BlockVector &bx) const;
+   void ComputeGradientBlocked(const BlockVector &bx) const;
 
 public:
    /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().
@@ -240,8 +318,12 @@ public:
 
    virtual double GetEnergy(const Vector &x) const;
 
+   /// Method is only called in serial, the parallel version calls MultBlocked
+   /// directly.
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   /// Method is only called in serial, the parallel version calls
+   /// GetGradientBlocked directly.
    virtual Operator &GetGradient(const Vector &x) const;
 
    /// Destructor.

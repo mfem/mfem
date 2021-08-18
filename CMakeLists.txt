@@ -1,20 +1,24 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
-cmake_minimum_required(VERSION 2.8.11)
+# The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
+cmake_minimum_required(VERSION 3.1)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
 # Require C++11 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 11)
+if (MFEM_USE_GINKGO)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -50,7 +54,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.0.1)
+set(${PROJECT_NAME}_VERSION 4.3.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -87,10 +91,46 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 # Enable languages.
 enable_language(CXX)
 if (MFEM_USE_CUDA)
+   if (MFEM_USE_HIP)
+      message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
+   endif()
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+   # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
+   if (NOT CMAKE_CUDA_HOST_COMPILER)
+      set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
+   endif()
    enable_language(CUDA)
+   set(CMAKE_CUDA_STANDARD 11)
+   if (MFEM_USE_GINKGO)
+     set(CMAKE_CUDA_STANDARD 14)
+   endif()
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+   set(CMAKE_CUDA_EXTENSIONS OFF)
+   set(CUDA_FLAGS "--expt-extended-lambda")
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+      set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
+   elseif (NOT CMAKE_CUDA_ARCHITECTURES)
+      string(REGEX REPLACE "^sm_" "" ARCH_NUMBER "${CUDA_ARCH}")
+      if ("${CUDA_ARCH}" STREQUAL "sm_${ARCH_NUMBER}")
+         set(CMAKE_CUDA_ARCHITECTURES "${ARCH_NUMBER}")
+      else()
+         message(FATAL_ERROR "Unknown CUDA_ARCH: ${CUDA_ARCH}")
+      endif()
+   else()
+      set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+   endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
+   if (CMAKE_VERSION VERSION_LESS 3.12.0)
+      # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
+      # tested and may not actually need this (but should be ok to keep).
+      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
+      set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
+   endif()
+   set(CMAKE_CUDA_FLAGS "${CUDA_FLAGS}" CACHE STRING
+       "CUDA flags set for MFEM" FORCE)
+   set(CUSPARSE_FOUND TRUE)
+   set(CUSPARSE_LIBRARIES "cusparse")
 endif()
 
 if (XSDK_ENABLE_C)
@@ -139,6 +179,12 @@ endif()
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
+  if (MFEM_MPIEXEC)
+    set(MPIEXEC ${MFEM_MPIEXEC})
+  endif()
+  if (MFEM_MPIEXEC_NP)
+    set(MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
+  endif()
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
@@ -149,9 +195,13 @@ if (MFEM_USE_MPI)
       message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
     set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
+    if (MFEM_USE_SLEPC)
+      find_package(SLEPc REQUIRED config)
+      message(STATUS "Found SLEPc version ${SLEPC_VERSION}")
+    endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU MUMPS PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -164,8 +214,17 @@ if (MFEM_USE_METIS)
   find_package(METIS REQUIRED)
 endif()
 
-# GZSTREAM -> zlib
-if (MFEM_USE_GZSTREAM)
+if (MFEM_USE_GINKGO)
+  find_package(Ginkgo REQUIRED)
+  if (Ginkgo_FOUND)
+    get_target_property(Ginkgo_INCLUDE_DIRS
+      Ginkgo::ginkgo INTERFACE_INCLUDE_DIRECTORIES)
+    set(Ginkgo_LIBRARIES Ginkgo::ginkgo)
+  endif()
+endif()
+
+# zlib
+if (MFEM_USE_ZLIB)
   find_package(ZLIB REQUIRED)
 endif()
 
@@ -187,6 +246,7 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
     message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
   endif()
   find_package(OpenMP REQUIRED)
+  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -197,12 +257,14 @@ endif()
 
 # SUNDIALS
 if (MFEM_USE_SUNDIALS)
-  if (NOT MFEM_USE_MPI)
-    find_package(SUNDIALS REQUIRED NVector_Serial CVODE ARKODE KINSOL)
-  else()
-    find_package(SUNDIALS REQUIRED
-      NVector_Serial NVector_Parallel NVector_ParHyp CVODE ARKODE KINSOL)
+  set(SUNDIALS_COMPONENTS CVODES ARKODE KINSOL NVector_Serial)
+  if (MFEM_USE_MPI)
+    list(APPEND SUNDIALS_COMPONENTS NVector_Parallel NVector_MPIPlusX)
   endif()
+  if (MFEM_USE_CUDA)
+    list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
+  endif()
+  find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
 endif()
 
 # Mesquite
@@ -219,6 +281,15 @@ if (MFEM_USE_SUPERLU)
   endif()
 endif()
 
+# MUMPS can only be enabled in parallel
+if (MFEM_USE_MUMPS)
+  if (MFEM_USE_MPI)
+    find_package(MUMPS REQUIRED mumps_common pord)
+  else()
+    message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
+  endif()
+endif()
+
 # STRUMPACK can only be enabled in parallel
 if (MFEM_USE_STRUMPACK)
   if (MFEM_USE_MPI)
@@ -228,14 +299,14 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
-# Gecko
-if (MFEM_USE_GECKO)
-  find_package(Gecko REQUIRED)
-endif()
-
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
+endif()
+
+# GSLIB
+if (MFEM_USE_GSLIB)
+  find_package(GSLIB REQUIRED)
 endif()
 
 # NetCDF
@@ -248,13 +319,25 @@ if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
 endif()
 
+if (MFEM_USE_CEED)
+  find_package(libCEED REQUIRED)
+endif()
+
+if (MFEM_USE_AMGX)
+  find_package(AMGX REQUIRED)
+endif()
+
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
 endif()
 
+if (MFEM_USE_FMS)
+    find_package(FMS REQUIRED fms )
+endif()
+
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
-  find_package(Axom REQUIRED Sidre SLIC axom_utils)
+  find_package(Axom REQUIRED Axom)
 endif()
 
 # PUMI
@@ -273,19 +356,10 @@ if (MFEM_USE_PUMI)
   endif()
 endif()
 
-# CUDA
-if (MFEM_USE_CUDA)
-   set(CMAKE_CUDA_STANDARD 11)
-   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-   set(CMAKE_CUDA_EXTENSIONS OFF)
-   set(CMAKE_CUDA_FLAGS "-arch=${CUDA_ARCH} --expt-extended-lambda"
-       CACHE STRING "CUDA flags set for MFEM" FORCE)
-   if (MFEM_USE_MPI)
-      set(CUDA_CCBIN_COMPILER ${MPI_CXX_COMPILER})
-   else()
-      set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
-   endif()
-   string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
+# HiOp optimizer
+if (MFEM_USE_HIOP)
+  find_package(HIOP REQUIRED)
+  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
 endif()
 
 # OCCA
@@ -296,6 +370,39 @@ endif()
 # RAJA
 if (MFEM_USE_RAJA)
    find_package(RAJA REQUIRED)
+endif()
+
+# UMPIRE
+if (MFEM_USE_UMPIRE)
+   find_package(UMPIRE REQUIRED)
+endif()
+
+# Caliper
+if (MFEM_USE_CALIPER)
+  find_package(Caliper REQUIRED)
+endif()
+
+# AMD HIP
+if (MFEM_USE_HIP)
+  find_package(HIP REQUIRED)
+  if (HIP_ARCH)
+    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
+    list(APPEND HIP_HIPCC_FLAGS "--amdgpu-target=${HIP_ARCH}")
+    if (MFEM_USE_GINKGO)
+      list(APPEND HIP_HIPCC_FLAGS "-std=c++14")
+    endif()
+  endif()
+endif()
+
+# ADIOS2 for parallel I/O
+if (MFEM_USE_ADIOS2)
+   find_package(ADIOS2 REQUIRED)
+endif()
+
+if (MFEM_USE_MKL_CPARDISO)
+  if (MFEM_USE_MPI)
+   find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
+  endif()
 endif()
 
 # MFEM_TIMER_TYPE
@@ -321,9 +428,11 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
+set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+    SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
+    CUSPARSE MKL_CPARDISO AMGX CALIPER)
+
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -342,6 +451,9 @@ include_directories(${TPL_INCLUDE_DIRS})
 if (OPENMP_FOUND)
   message(STATUS "MFEM: using package OpenMP")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  if (MFEM_USE_CUDA)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+  endif()
 endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
@@ -361,9 +473,9 @@ foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
 endforeach()
 
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS SOURCES)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
+  set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
+elseif(MFEM_USE_HIP)
+  set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
 add_subdirectory(config)
@@ -382,7 +494,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
 # Declaring the library
-add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
@@ -425,6 +537,8 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 ")
   endforeach()
 endif()
+
+set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
@@ -476,16 +590,17 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 endif()
 
 # Add 'check' target - quick test
+set(MFEM_CHECK_TARGET_NAME ${MFEM_CUSTOM_TARGET_PREFIX}check)
 if (NOT MFEM_USE_MPI)
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1_ser\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1)
 else()
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1p\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1p)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1p)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -533,6 +648,13 @@ if (MFEM_USE_OCCA)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
     FILES_MATCHING PATTERN "*.okl")
+endif()
+
+# Install the libCEED files
+if (MFEM_USE_CEED)
+  install(DIRECTORY ${MFEM_SOURCE_DIRS}
+    DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
+    FILES_MATCHING PATTERN "fem/ceed/*.h")
 endif()
 
 # Install ${HEADERS}

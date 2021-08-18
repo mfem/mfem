@@ -279,4 +279,11 @@ void SnapNodes(Mesh &mesh)
          nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d);
       }
    }
+   if (mesh.Nonconforming())
+   {
+      // Snap hanging nodes to the master side.
+      Vector tnodes;
+      nodes.GetTrueDofs(tnodes);
+      nodes.SetFromTrueDofs(tnodes);
+   }
 }

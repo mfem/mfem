@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_DATACOLLECTION
 #define MFEM_DATACOLLECTION
@@ -19,6 +19,7 @@
 #endif
 #include <string>
 #include <map>
+#include <fstream>
 
 namespace mfem
 {
@@ -205,7 +206,7 @@ protected:
 
    /// Output mesh format: see the #Format enumeration
    int format;
-   bool compression;
+   int compression;
 
    /// Should the collection delete its mesh and fields
    bool own_data;
@@ -348,7 +349,7 @@ public:
    virtual void SetFormat(int fmt);
 
    /// Set the flag for use of gz compressed files
-   void SetCompression(bool comp);
+   virtual void SetCompression(bool comp);
 
    /// Set the path where the DataCollection will be saved.
    void SetPrefixPath(const std::string &prefix);
@@ -381,6 +382,10 @@ public:
    int Error() const { return error; }
    /// Reset the error state
    void ResetError(int err = NO_ERROR) { error = err; }
+
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
 };
 
 
@@ -390,9 +395,10 @@ class VisItFieldInfo
 public:
    std::string association;
    int num_components;
-   VisItFieldInfo() { association = ""; num_components = 0; }
-   VisItFieldInfo(std::string _association, int _num_components)
-   { association = _association; num_components = _num_components; }
+   int lod;
+   VisItFieldInfo() { association = ""; num_components = 0; lod = 1;}
+   VisItFieldInfo(std::string association_, int num_components_, int lod_ = 1)
+   { association = association_; num_components = num_components_; lod =lod_;}
 };
 
 /// Data collection with VisIt I/O routines
@@ -444,6 +450,12 @@ public:
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
 
+   /// Add a quadrature function to the collection and update the root file.
+   /** Visualization of quadrature function is not supported in VisIt(3.12).
+       A patch has been sent to VisIt developers in June 2020. */
+   virtual void RegisterQField(const std::string& q_field_name,
+                               QuadratureFunction *qf);
+
    /// Set VisIt parameter: default levels of detail for the MultiresControl
    void SetLevelsOfDetail(int levels_of_detail);
 
@@ -467,6 +479,81 @@ public:
    virtual ~VisItDataCollection() {}
 };
 
-}
 
+/// Helper class for ParaView visualization data
+class ParaViewDataCollection : public DataCollection
+{
+private:
+   int levels_of_detail;
+   std::fstream pvd_stream;
+   VTKFormat pv_data_format;
+   bool high_order_output;
+   bool restart_mode;
+
+protected:
+   void SaveDataVTU(std::ostream &out, int ref);
+   void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
+   void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
+   const char *GetDataFormatString() const;
+   const char *GetDataTypeString() const;
+
+   std::string  GenerateCollectionPath();
+   std::string  GenerateVTUFileName();
+   std::string  GenerateVTUFileName(int rank);
+   std::string  GenerateVTUPath();
+   std::string  GeneratePVDFileName();
+   std::string  GeneratePVTUFileName();
+   std::string  GeneratePVTUPath();
+
+public:
+   /// Constructor. The collection name is used when saving the data.
+   /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh().
+       Before saving the data collection, some parameters in the collection can
+       be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
+   ParaViewDataCollection(const std::string& collection_name,
+                          mfem::Mesh *mesh_ = NULL);
+
+   /// Set refinement levels - every element is uniformly split based on
+   /// levels_of_detail_
+   void SetLevelsOfDetail(int levels_of_detail_);
+
+   /// Save the collection - the directory name is constructed based on the
+   /// cycle value
+   virtual void Save() override;
+
+   /// Set the data format for the ParaView output files. Possible options are
+   /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
+   /// The ASCII and BINARY options output double precision data, whereas the
+   /// BINARY32 option outputs single precision data.
+   void SetDataFormat(VTKFormat fmt);
+
+   /// Set the zlib compression level. 0 indicates no compression, -1 indicates
+   /// the default compression level. Otherwise, specify a number between 1 and
+   /// 9, 1 being the fastest, and 9 being the best compression. Compression
+   /// only takes effect if the output format is BINARY or BINARY32. MFEM must
+   /// be compiled with MFEM_USE_ZLIB = YES.
+   void SetCompressionLevel(int compression_level_);
+
+   /// Enable or disable zlib compression. If the input is true, use the default
+   /// zlib compression level (unless the compression level has previously been
+   /// set by calling SetCompressionLevel).
+   void SetCompression(bool compression_) override;
+
+   /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
+   bool IsBinaryFormat() const;
+
+   /// Sets whether or not to output the data as high-order elements (false
+   /// by default). Reading high-order data requires ParaView 5.5 or later.
+   void SetHighOrderOutput(bool high_order_output_);
+
+   /// Enable or disable restart mode. If restart is enabled, new writes will
+   /// preserve timestep metadata for any solutions prior to the currently
+   /// defined time.
+   void UseRestartMode(bool restart_mode_);
+
+   /// Load the collection - not implemented in the ParaView writer
+   virtual void Load(int cycle_ = 0) override;
+};
+
+}
 #endif

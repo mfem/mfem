@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BLOCKOPERATOR
 #define MFEM_BLOCKOPERATOR
@@ -51,6 +51,12 @@ public:
     */
    BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
 
+   /// Copy assignment is not supported
+   BlockOperator &operator=(const BlockOperator &) = delete;
+
+   /// Move assignment is not supported
+   BlockOperator &operator=(BlockOperator &&) = delete;
+
    //! Add block op in the block-entry (iblock, iblock).
    /**
     * iblock: The block will be inserted in location (iblock, iblock).
@@ -76,6 +82,9 @@ public:
    //! Return a reference to block i,j
    Operator & GetBlock(int i, int j)
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
+   //! Return a reference to block i,j (const version)
+   const Operator & GetBlock(int i, int j) const
+   { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
    double GetBlockCoef(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return coef(i,j); }
@@ -85,8 +94,12 @@ public:
 
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
+   //! Read only access to the row offsets for block starts
+   const Array<int> & RowOffsets() const { return row_offsets; }
    //! Return the columns offsets for block starts
    Array<int> & ColOffsets() { return col_offsets; }
+   //! Read only access to the columns offsets for block starts
+   const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
@@ -153,8 +166,15 @@ public:
    Operator & GetDiagonalBlock(int iblock)
    { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
 
+   //! Return a reference to block i,i (const version).
+   const Operator & GetDiagonalBlock(int iblock) const
+   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
+
+   //! Read only access to the offsets for block starts
+   const Array<int> & Offsets() const { return offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
@@ -269,4 +289,5 @@ private:
 };
 
 }
+
 #endif /* MFEM_BLOCKOPERATOR */

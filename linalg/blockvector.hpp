@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BLOCKVECTOR
 #define MFEM_BLOCKVECTOR
@@ -72,6 +72,12 @@ public:
     */
    BlockVector(double *data, const Array<int> & bOffsets);
 
+   /// Wrap a Vector as a BlockVector
+   BlockVector(Vector &v, const Array<int> &bOffsets);
+
+   //! Return the number of blocks
+   int NumBlocks() const { return numBlocks; }
+
    //! Assignment operator. this and original must have the same block structure.
    BlockVector & operator=(const BlockVector & original);
    //! Set each entry of this equal to val
@@ -99,6 +105,8 @@ public:
     */
    void Update(double *data, const Array<int> & bOffsets);
 
+   void Update(Vector & data, const Array<int> & bOffsets);
+
    /// Update a BlockVector with new @a bOffsets and make sure it owns its data.
    /** The block-vector will be re-allocated if either:
        - the offsets @a bOffsets are different from the current offsets, or
@@ -112,6 +120,21 @@ public:
        - currently, the block-vector does not own its data, or
        - currently, the block-vector does not use MemoryType @a mt. */
    void Update(const Array<int> &bOffsets, MemoryType mt);
+
+   /** @brief Synchronize the memory location flags (i.e. the memory validity
+       flags) of the big/monolithic block-vector with its sub-vector blocks. The
+       big/monolithic vector has the correct memory location flags. */
+   /** This method will copy the data validity flags from the big/monolithic
+       block-vector to its sub-vector block. */
+   void SyncToBlocks() const;
+
+   /** @brief Synchronize the memory location flags (i.e. the memory validity
+       flags) of the big/monolithic block-vector with its sub-vector blocks. The
+       sub-vector blocks have the correct memory location flags. */
+   /** This method will copy/move the data of the sub-vector blocks (if
+       necessary) so that each block matches the memory location flags of the
+       big/monolithic block-vector. */
+   void SyncFromBlocks() const;
 };
 
 }

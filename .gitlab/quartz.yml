@@ -1,0 +1,184 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# GitLab pipelines configurations for the Quartz machine at LLNL
+
+.on_quartz:
+  tags:
+    - shell
+    - quartz
+  rules:
+    # Don't run quartz jobs if...
+    - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"'
+      when: never
+    # Don't run autotest update if...
+    - if: '$CI_JOB_NAME =~ /update_autotest/ && $AUTOTEST != "YES"'
+      when: never
+    # Don't run autotest update if...
+    - if: '$CI_JOB_NAME =~ /q_report/ && $AUTOTEST != "YES"'
+      when: never
+    # Report success on success status
+    - if: '$CI_JOB_NAME =~ /q_report_success/ && $AUTOTEST == "YES"'
+      when: on_success
+    # Report failure on failure status
+    - if: '$CI_JOB_NAME =~ /q_report_failure/ && $AUTOTEST == "YES"'
+      when: on_failure
+    # Always release resources
+    - if: '$CI_JOB_NAME =~ /release_resources/'
+      when: always
+    # Default is to run if previous stage succeeded
+    - when: on_success
+
+# This is a yaml anchor, it can be used to avoid duplication like here.
+# The code below will simply be pasted wherever the anchor is placed.
+.safe_create_rundir: &safe_create_rundir |
+  if ! mkdir ${rundir}; then
+    n=1
+    while ! mkdir ${rundir}_${n}
+    do
+      n=$((n+1))
+    done
+    rundir=${rundir}_${n}
+  fi
+
+# Allocate
+q_allocate_resources:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_allocate_resources
+  script:
+    - salloc --exclusive --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
+  timeout: 6h
+
+# Release
+q_release_resources:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+
+# Release
+q_report_success:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Can only run if all the quartz jobs passed"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
+q_report_failure:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: q_release_resources
+  script:
+    - echo "Runs if there was at least one failure on quartz"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
+# Spack helped builds
+# Generic quartz build job, extending build script
+.build_and_test_on_quartz:
+  extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
+  stage: q_build_and_test
+
+# Build MFEM
+debug_ser_gcc_4_9_3:
+  variables:
+    SPEC: "%gcc@4.9.3 +debug~mpi"
+  extends: .build_and_test_on_quartz
+
+debug_ser_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 +debug~mpi"
+  extends: .build_and_test_on_quartz
+
+debug_par_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 +debug+mpi"
+  extends: .build_and_test_on_quartz
+
+opt_ser_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 ~mpi"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_sundials:
+  variables:
+    SPEC: "%gcc@6.1.0 +sundials"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_petsc:
+  variables:
+    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_pumi:
+  variables:
+    SPEC: "%gcc@6.1.0 +pumi"
+  extends: .build_and_test_on_quartz
+
+# Baseline jobs form an independent set of jobs. We use `needs:[]` to specify
+# that "setup-baseline" can start immediately. Then, we have to use needs for
+# each one of the baseline jobs, otherwise they will wait for the rest of the
+# pipeline.
+
+baselinecheck_mfem_intel_quartz:
+  extends: [.baselinecheck_mfem, .on_quartz]
+  needs: [setup_baseline]
+
+update_autotest:
+  extends: [.on_quartz]
+  needs: [baselinecheck_mfem_intel_quartz]
+  stage: baseline_to_autotest
+  script:
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="quartz/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
+    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
+    - |
+      if [[ -f ${rundir}/*.err ]]
+      then
+        echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/*.err
+        cp ${rundir}/*.err ${rundir}/autotest-email.html
+      fi
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
+baselinepublish_mfem_quartz:
+  extends: [.on_quartz, .rebaseline_mfem]
+  needs: [baselinecheck_mfem_intel_quartz]

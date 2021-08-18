@@ -1,30 +1,30 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
-//You typically want to start by testing things one object at a time.
+// You typically want to start by testing things one object at a time.
 TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
 {
-   //This code is automatically re-executed for all of the sections.
+   // This code is automatically re-executed for all of the sections.
    IntegrationRules my_intrules(0, Quadrature1D::GaussLegendre);
    IntegrationRule single_point_rule(1);
    const IntegrationRule *ir;
 
-   //The tests will be reported in these sections.
-   //Each REQUIRE counts as an assertion.
-   //true = pass, false = fail
+   // The tests will be reported in these sections.
+   // Each REQUIRE counts as an assertion.
+   // true = pass, false = fail
    SECTION("can set int rules in empty container")
    {
       single_point_rule[0].weight = 1.0;
@@ -39,15 +39,15 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
 
    SECTION("user set int rules really are owned by the user")
    {
-      //Set up a custom int rule and put it in the container
+      // Set up a custom int rule and put it in the container
       single_point_rule[0].weight = 1.0;
       my_intrules.SetOwnRules(0);
       my_intrules.Set(Geometry::SEGMENT, 0, single_point_rule);
 
-      //Alter the int rule
+      // Alter the int rule
       single_point_rule[0].weight = 2.0;
 
-      //Test ownership by making sure that the int rule has changed
+      // Test ownership by making sure that the int rule has changed
       ir = &my_intrules.Get(Geometry::SEGMENT, 0);
       REQUIRE(ir->IntPoint(0).weight == 2.0);
    }
@@ -61,22 +61,31 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
       REQUIRE(ir->Size() == 1);
    }
 
-   //Can't really unit test these because it will crash due to
-   //a null pointer dereference if it doesn't work.  This will
-   //force the crash in the unit tests though.
+   // Can't really unit test these because it will crash due to
+   // a null pointer dereference if it doesn't work.  This will
+   // force the crash in the unit tests though.
    SECTION("resize of the SEGMENT int rule array")
    {
       ir = &my_intrules.Get(Geometry::SEGMENT, 100);
       REQUIRE(true);
    }
 
+   SECTION("setting the integration point index works")
+   {
+      ir = &my_intrules.Get(Geometry::CUBE, 5);
+      for (int i = 0; i < ir->Size(); i++)
+      {
+         REQUIRE(ir->IntPoint(i).index == i);
+      }
+   }
+
    SECTION("intrules up to order 16 accessible")
    {
       for (int order = 0; order <= 16; order ++)
       {
-         //Do this in reverse the usual order to make sure that
-         //the higher dimension cases are causing the their
-         //constituant lower dimension cases to lazily create properly.
+         // Do this in reverse the usual order to make sure that
+         // the higher dimension cases are causing their constituent
+         // lower dimension cases to lazily create properly.
          my_intrules.Get(Geometry::CUBE,        order);
          my_intrules.Get(Geometry::TETRAHEDRON, order);
          my_intrules.Get(Geometry::SQUARE,      order);
@@ -111,7 +120,7 @@ double poly3d(const IntegrationPoint &ip, int l, int m, int n)
 
 TEST_CASE("Simplex integration rules", "[SimplexRules]")
 {
-   //This code is automatically re-executed for all of the sections.
+   // This code is automatically re-executed for all of the sections.
    IntegrationRules my_intrules(0, Quadrature1D::GaussLegendre);
    IntegrationRule single_point_rule(1);
 
@@ -149,7 +158,7 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
                double exact = 1.0/binom[p][m]/(p + 1)/(p + 2);
                double relerr = 1. - integral/exact;
 
-               //If a test fails any INFO statements preceding the REQUIRE are displayed
+               // If a test fails any INFO statements preceding the REQUIRE are displayed
                INFO("p=" << p << ", m=" << m << ", n=" << n);
                REQUIRE(fabs(relerr) < 1e-11);
             }
@@ -181,7 +190,7 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
                   double exact = 1.0/binom[p][l+m]/binom[l+m][l]/(p+1)/(p+2)/(p+3);
                   double relerr = 1. - integral/exact;
 
-                  //If a test fails any INFO statements preceding the REQUIRE are displayed
+                  // If a test fails any INFO statements preceding the REQUIRE are displayed
                   INFO("p=" << p << ", l=" << l << ", m=" << m << ", n=" << n);
                   REQUIRE(fabs(relerr) < 1e-11);
                }

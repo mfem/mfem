@@ -16,11 +16,15 @@
 //               mpirun -np 4 ex15p -m ../data/ball-nurbs.mesh -tf 0.5
 //               mpirun -np 4 ex15p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex15p -m ../data/amr-quad.mesh
-//
-//               Conforming meshes (no load balancing and derefinement):
-//
 //               mpirun -np 4 ex15p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex15p -m ../data/escher.mesh -r 2 -tf 0.3
+//
+//               Different estimators:
+//
+//               mpirun -np 4 ex15p -est 0 -e 1e-4
+//               mpirun -np 4 ex15p -est 1 -e 1e-6
+//               mpirun -np 4 ex15p -est 1 -o 3 -tf 0.3
+//               mpirun -np 4 ex15p -est 2 -o 2
 //
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.
 //               The mesh is adapted to a time-dependent solution by refinement
@@ -31,8 +35,11 @@
 //               At each outer iteration the right hand side function is changed
 //               to mimic a time dependent problem.  Within each inner iteration
 //               the problem is solved on a sequence of meshes which are locally
-//               refined according to a simple ZZ error estimator.  At the end
-//               of the inner iteration the error estimates are also used to
+//               refined according to a chosen error estimator. Currently there
+//               are three error estimators supported: A L2 formulation of the
+//               Zienkiewicz-Zhu error estimator (0), a Kelly error indicator (1)
+//               and a traditional Zienkiewicz-Zhu error estimator (2). At the
+//               end of the inner iteration the error estimates are also used to
 //               identify any elements which may be over-refined and a single
 //               derefinement step is performed.  After each refinement or
 //               derefinement step a rebalance operation is performed to keep
@@ -90,6 +97,7 @@ int main(int argc, char *argv[])
    int nc_limit = 3;         // maximum level of hanging nodes
    bool visualization = true;
    bool visit = false;
+   int which_estimator = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -110,6 +118,9 @@ int main(int argc, char *argv[])
                   "Maximum level of hanging nodes.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&which_estimator, "-est", "--estimator",
+                  "Which estimator to use: "
+                  "0 = L2ZZ, 1 = Kelly, 2 = ZZ. Defaults to L2ZZ.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -212,22 +223,49 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("solution", &x);
    int vis_cycle = 0;
 
-   // 10. As in Example 6p, we set up a Zienkiewicz-Zhu estimator that will be
-   //     used to obtain element error indicators. The integrator needs to
-   //     provide the method ComputeElementFlux. We supply an L2 space for the
-   //     discontinuous flux and an H(div) space for the smoothed flux.
+   // 10. As in Example 6p, we set up an estimator that will be used to obtain
+   //     element error indicators. The integrator needs to provide the method
+   //     ComputeElementFlux. We supply an L2 space for the discontinuous flux
+   //     and an H(div) space for the smoothed flux.
    L2_FECollection flux_fec(order, dim);
-   ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, sdim);
    RT_FECollection smooth_flux_fec(order-1, dim);
-   ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
-   L2ZienkiewiczZhuEstimator estimator(*integ, x, flux_fes, smooth_flux_fes);
+   ErrorEstimator* estimator{nullptr};
+
+   switch (which_estimator)
+   {
+      case 1:
+      {
+         auto flux_fes = new ParFiniteElementSpace(&pmesh, &flux_fec, sdim);
+         estimator = new KellyErrorEstimator(*integ, x, flux_fes);
+         break;
+      }
+      case 2:
+      {
+         auto flux_fes = new ParFiniteElementSpace(&pmesh, &fec, sdim);
+         estimator = new ZienkiewiczZhuEstimator(*integ, x, flux_fes);
+         break;
+      }
+
+      default:
+         if (myid == 0)
+         {
+            std::cout << "Unknown estimator. Falling back to L2ZZ." << std::endl;
+         }
+      case 0:
+      {
+         auto flux_fes = new ParFiniteElementSpace(&pmesh, &flux_fec, sdim);
+         auto smooth_flux_fes = new ParFiniteElementSpace(&pmesh, &smooth_flux_fec);
+         estimator = new L2ZienkiewiczZhuEstimator(*integ, x, flux_fes, smooth_flux_fes);
+         break;
+      }
+   }
 
    // 11. As in Example 6p, we also need a refiner. This time the refinement
    //     strategy is based on a fixed threshold that is applied locally to each
    //     element. The global threshold is turned off by setting the total error
    //     fraction to zero. We also enforce a maximum refinement ratio between
    //     adjacent elements.
-   ThresholdRefiner refiner(estimator);
+   ThresholdRefiner refiner(*estimator);
    refiner.SetTotalErrorFraction(0.0); // use purely local threshold
    refiner.SetLocalErrorGoal(max_elem_error);
    refiner.PreferConformingRefinement();
@@ -236,7 +274,7 @@ int main(int argc, char *argv[])
    // 12. A derefiner selects groups of elements that can be coarsened to form
    //     a larger element. A conservative enough threshold needs to be set to
    //     prevent derefining elements that would immediately be refined again.
-   ThresholdDerefiner derefiner(estimator);
+   ThresholdDerefiner derefiner(*estimator);
    derefiner.SetThreshold(hysteresis * max_elem_error);
    derefiner.SetNCLimit(nc_limit);
 
@@ -263,7 +301,7 @@ int main(int argc, char *argv[])
       //     time step resolved to the prescribed tolerance in each element.
       for (int ref_it = 1; ; ref_it++)
       {
-         HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+         HYPRE_BigInt global_dofs = fespace.GlobalTrueVSize();
          if (myid == 0)
          {
             cout << "Iteration: " << ref_it << ", number of unknowns: "
@@ -319,7 +357,7 @@ int main(int argc, char *argv[])
          refiner.Apply(pmesh);
          if (myid == 0)
          {
-            cout << ", total error: " << estimator.GetTotalError() << endl;
+            cout << ", total error: " << estimator->GetTotalError() << endl;
          }
 
          // 21. Quit the AMR loop if the termination criterion has been met
@@ -348,6 +386,8 @@ int main(int argc, char *argv[])
          UpdateAndRebalance(pmesh, fespace, x, a, b);
       }
    }
+
+   delete estimator;
 
    // 25. Exit
    MPI_Finalize();

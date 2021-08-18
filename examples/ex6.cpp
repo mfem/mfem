@@ -14,11 +14,15 @@
 //               ex6 -m ../data/star-surf.mesh -o 2
 //               ex6 -m ../data/square-disc-surf.mesh -o 2
 //               ex6 -m ../data/amr-quad.mesh
+//               ex6 -m ../data/inline-segment.mesh -o 1 -md 100
 //
 // Device sample runs:
 //               ex6 -pa -d cuda
 //               ex6 -pa -d occa-cuda
 //               ex6 -pa -d raja-omp
+//               ex6 -pa -d ceed-cpu
+//             * ex6 -pa -d ceed-cuda
+//               ex6 -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -50,6 +54,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
+   int max_dofs = 50000;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -61,6 +66,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Stop after reaching this many degrees of freedom.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -105,7 +112,11 @@ int main(int argc, char *argv[])
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    BilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.SetDiagonalPolicy(Operator::DIAG_ONE);
+   }
    LinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -153,7 +164,6 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
@@ -196,9 +206,10 @@ int main(int argc, char *argv[])
          umf_solver.Mult(B, X);
 #endif
       }
-      else // No preconditioning for now in partial assembly mode.
+      else // Diagonal preconditioning in partial assembly mode.
       {
-         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
+         OperatorJacobiSmoother M(a, ess_tdof_list);
+         PCG(*A, M, B, X, 3, 2000, 1e-12, 0.0);
       }
 
       // 18. After solving the linear system, reconstruct the solution as a

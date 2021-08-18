@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TEMPLATE_CONFIG
 #define MFEM_TEMPLATE_CONFIG
@@ -29,19 +29,26 @@
 #define MFEM_ALWAYS_INLINE
 #endif
 
+// --- MFEM_VECTORIZE_LOOP (disabled)
+#if (__cplusplus >= 201103L) && !defined(MFEM_DEBUG) && defined(__GNUC__)
+//#define MFEM_VECTORIZE_LOOP _Pragma("GCC ivdep")
+#define MFEM_VECTORIZE_LOOP
+#else
+#define MFEM_VECTORIZE_LOOP
+#endif
+
+// MFEM_TEMPLATE_BLOCK_SIZE is the block size used by the template matrix-matrix
+// multiply, Mult_AB, defined in tmatrix.hpp. This parameter will generally
+// require tuning to determine good value. It is probably highly influenced by
+// the SIMD width when Mult_AB is used with a SIMD type like AutoSIMD.
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
-#define MFEM_SIMD_SIZE 32
+
 #define MFEM_TEMPLATE_ENABLE_SERIALIZE
 
 // #define MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
 // #define MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
 // #define MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
 #define MFEM_TEMPLATE_INTRULE_COEFF_PRECOMP
-
-// derived macros
-#define MFEM_ROUNDUP(val,base) ((((val)+(base)-1)/(base))*(base))
-#define MFEM_ALIGN_SIZE(size,type) \
-   MFEM_ROUNDUP(size,(MFEM_SIMD_SIZE)/sizeof(type))
 
 #ifdef MFEM_COUNT_FLOPS
 namespace mfem
