@@ -1,0 +1,9 @@
+# extends https://github.com/jupyterhub/repo2docker/blob/main/repo2docker/buildpacks/conda/environment.yml
+# see https://mybinder.readthedocs.io/en/latest/using/config_files.html#environment-yml-install-a-conda-environment
+channels:
+- conda-forge
+dependencies:
+- xeus-cling=0.12.1
+- xeus=1.0.4
+- xwidgets=0.25.0
+- widgetsnbextension=3.5.1
