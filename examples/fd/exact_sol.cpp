@@ -26,7 +26,7 @@ double lshape_rhs(const Vector & x)
 
 double wavefront_exact(const Vector & x)
 {
-
+   return 0.;
 }
 
 void wavefront_grad(const Vector & x, Vector & grad)
@@ -35,5 +35,5 @@ void wavefront_grad(const Vector & x, Vector & grad)
 }
 double wavefront_rhs(const Vector & x)
 {
-
+   return 0.;
 }

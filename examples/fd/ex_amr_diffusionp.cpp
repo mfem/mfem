@@ -27,11 +27,13 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    int order = 1;
+   int solver = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element order.");
+   args.AddOption(&solver, "-solver", "--solver", "Solver: 0:MG-Cheb-Jac, 1: MG-Cheb-ElemSmoother");
    args.AddOption(&init_geometric_refinements, "-ref", "--initial-geometric-refinements",
                   "Number of serial geometric refinements defining the coarse mesh.");
    args.AddOption(&pinit_geometric_refinements, "-pref", "--initial-geometric-refinements",
@@ -99,8 +101,8 @@ int main(int argc, char *argv[])
    ParBilinearForm a(fespace);
    a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    DiffusionIntegrator * aa = new DiffusionIntegrator(cf);
-   int order1 = fespace->GetElementOrder(0);
-   IntegrationRule *irs = TensorIntegrationRule(*fespace,order1); 
+   // int order1 = fespace->GetElementOrder(0);
+   IntegrationRule *irs = TensorIntegrationRule(*fespace,order); 
    aa->SetIntegrationRule(*irs);
    a.AddDomainIntegrator(aa);
 
@@ -142,9 +144,18 @@ int main(int argc, char *argv[])
    L2ZienkiewiczZhuEstimator estimator(*aa, x, flux_fes, *smooth_flux_fes);
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
+   refiner.SetNCLimit(1);
    StopWatch chrono;
    Array<double> ts0, ts1, tsol;
-   int ref_amr = 30;   
+   int ref_amr = 20;   
+   Array<int> iter;
+   Array<int> dofs;
+
+   ostringstream file_name;
+   file_name << "lshape-amr_" << order << ".csv";
+   ofstream conv(file_name.str().c_str());
+   conv << "DOFs " << ", " << "it-Cheb-Jac" << ", " << "it-ChebElemSmoother" << endl;
+
    for (int it = 0; it < ref_amr ; it++)
    {
       HYPRE_BigInt global_dofs = fespace->GlobalTrueVSize();
@@ -165,19 +176,27 @@ int main(int argc, char *argv[])
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
 
-  
-
       chrono.Clear();
       chrono.Start();
-      // Vector diag(fespace->GetTrueVSize());
-      // a.AssembleDiagonal(diag);
-      ElementSmoother S(fespace,ess_bdr, &cf); 
       chrono.Stop();
       ts0.Append(chrono.RealTime());
       chrono.Clear();
       chrono.Start();
-      // OperatorChebyshevSmoother prec(*A, diag,ess_tdof_list, 4, MPI_COMM_WORLD,10);
-      OperatorChebyshevSmoother prec(*A, S, 4, MPI_COMM_WORLD,10);
+      Solver * prec1 = nullptr;
+      Solver * prec2 = nullptr;
+      Solver * S = nullptr;
+      // if (solver)
+      // {
+         S = new ElementSmoother(fespace,ess_bdr, &cf); 
+         prec1 = new OperatorChebyshevSmoother(*A, *S, 4, MPI_COMM_WORLD,7);
+      // }
+      // else
+      // {
+         Vector diag(fespace->GetTrueVSize());
+         a.AssembleDiagonal(diag);
+         prec2 = new OperatorChebyshevSmoother(*A, diag,ess_tdof_list, 4, MPI_COMM_WORLD,10);
+      // }
+
       chrono.Stop();
       ts1.Append(chrono.RealTime());
 
@@ -192,14 +211,31 @@ int main(int argc, char *argv[])
       pcg.SetMaxIter(max_iter);
       pcg.SetRelTol(rtol);
       pcg.SetOperator(*A);
-      pcg.SetPreconditioner(prec);
+      pcg.SetPreconditioner(*prec1);
 
 
-      chrono.Clear();
-      chrono.Start();
+      // chrono.Clear();
+      // chrono.Start();
+      Vector Y = X;
+      pcg.Mult(B,Y);
+      int iter1 = pcg.GetNumIterations();
+
+
+      pcg.SetPreconditioner(*prec2);
       pcg.Mult(B,X);
-      chrono.Stop();
-      tsol.Append(chrono.RealTime());
+      int iter2 = pcg.GetNumIterations();
+
+      // chrono.Stop();
+      // tsol.Append(chrono.RealTime());
+      // iter.Append(pcg.GetNumIterations());
+      // dofs.Append(global_dofs);
+
+      delete S; 
+      delete prec1;
+      delete prec2;
+
+      conv << global_dofs << ", " << iter1 << ", " << iter2 << endl;
+
 
       a.RecoverFEMSolution(X,b,x);
 
@@ -225,11 +261,19 @@ int main(int argc, char *argv[])
       b.Update();
    }
 
+
+
    if (myid==0)
    {
       cout << "ts0 total  = " << ts0.Sum() << endl;
       cout << "ts1 total  = " << ts1.Sum() << endl;
       cout << "tsol total = " << tsol.Sum() << endl;
+   }
+
+   if (myid == 0)
+   {
+      cout << "num iterations = "; iter.Print(cout, iter.Size());
+      cout << "dofs = "; dofs.Print(cout, dofs.Size());
    }
 
    delete smooth_flux_fes;

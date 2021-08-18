@@ -44,7 +44,7 @@ Array<int> ess_bdr, Coefficient * cf_ )
    }
 
    DenseMatrix edge_counts;
-   GetVertexToEdgeCount(pmesh,edge_counts);
+   // GetVertexToEdgeCount(pmesh,edge_counts);
    double * data = edge_counts.GetData();
 
    // helper H1 fespace for communication of vertex info
@@ -54,17 +54,17 @@ Array<int> ess_bdr, Coefficient * cf_ )
    Vector temp(aux_fes.GetVSize());
 
 
-   const Operator * Ph = aux_fes.GetProlongationMatrix();
+   // const Operator * Ph = aux_fes.GetProlongationMatrix();
 
-   if (Ph)
-   {
-      for (int d=0; d<dim; d++)
-      {
-         temp.SetData(&data[d*aux_fes.GetVSize()]);
-         Ph->MultTranspose(temp,tedge_counts);
-         Ph->Mult(tedge_counts, temp);
-      }
-   }
+   // if (Ph)
+   // {
+   //    for (int d=0; d<dim; d++)
+   //    {
+   //       temp.SetData(&data[d*aux_fes.GetVSize()]);
+   //       Ph->MultTranspose(temp,tedge_counts);
+   //       Ph->Mult(tedge_counts, temp);
+   //    }
+   // }
 
    for (int i = 0; i < vsize; i++)
    {
@@ -197,10 +197,12 @@ Array<int> ess_bdr, Coefficient * cf_ )
             int vertex = vert[i];
             Array<int> vertdofs;
             fes->GetVertexDofs(vertex,vertdofs);
-            double count = edge_counts(vertdofs[0],ii); 
+            // double count = edge_counts(vertdofs[0],ii); 
 
-            Grad(i,i) *= count;
-            Mass(i,i) *= count;
+            // Grad(i,i) *= count;
+            // Mass(i,i) *= count;
+            Grad(i,i) *= 2.;
+            Mass(i,i) *= 2.;
          }
          const Array<int> &dmap =
          dynamic_cast<const TensorBasisElement&>(*fe).GetDofMap();

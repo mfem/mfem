@@ -69,7 +69,7 @@ private:
       CGSolver* pcg = new CGSolver(MPI_COMM_WORLD);
       pcg->SetPrintLevel(-1);
       pcg->SetMaxIter(10);
-      pcg->SetRelTol(sqrt(1e-4));
+      pcg->SetRelTol(sqrt(1e-8));
       pcg->SetAbsTol(0.0);
       pcg->SetOperator(*hypreCoarseMat);
       pcg->SetPreconditioner(*amg);
