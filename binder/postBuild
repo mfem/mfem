@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -e
+
+# build and install mfem
+git clone https://github.com/mfem/mfem.git
+pushd mfem
+make serial SHARED=YES -j8
+make install PREFIX=/usr
+popd
+
+# include xeus-glvis
+git clone https://github.com/GLVis/xeus-glvis.git
+pushd xeus-glvis
+target_dir=/usr/include/glvis
+mkdir -p $target_dir
+cp include/xglvis.hpp $target_dir
+popd
