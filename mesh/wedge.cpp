@@ -63,6 +63,4 @@ int Wedge::GetNFaces(int &nFaceVertices) const
    return 5;
 }
 
-LinearWedgeFiniteElement WedgeFE;
-
 }
