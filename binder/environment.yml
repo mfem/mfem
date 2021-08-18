@@ -9,4 +9,4 @@ dependencies:
 - widgetsnbextension=3.5.1
 - pip
 - pip:
-  - glvis=0.2.1
+  - glvis==0.2.1
