@@ -14625,6 +14625,14 @@ Linear2DFiniteElement TriangleFE;
 // Defined here to ensure it is constructed before 'Geometries'.
 Linear3DFiniteElement TetrahedronFE;
 
+// Object declared in mesh/wedge.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+LinearWedgeFiniteElement WedgeFE;
+
+// Object declared in mesh/pyramid.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+LinearPyramidFiniteElement PyramidFE;
+
 // Object declared in geom.hpp.
 // Construct 'Geometries' after 'TriangleFE' and 'TetrahedronFE'.
 Geometry Geometries;

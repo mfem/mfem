@@ -61,6 +61,4 @@ int Pyramid::GetNFaces(int &nFaceVertices) const
    return 5;
 }
 
-LinearPyramidFiniteElement PyramidFE;
-
 }
