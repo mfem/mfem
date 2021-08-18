@@ -175,7 +175,7 @@
 // Enable interface to the MKL CPardiso library.
 #cmakedefine MFEM_USE_MKL_CPARDISO
 
-// Enable MFEM functionality based on the Benchmark library
+// Enable MFEM functionality based on the Google Benchmark library.
 #cmakedefine MFEM_USE_BENCHMARK
 
 #endif // MFEM_CONFIG_HEADER

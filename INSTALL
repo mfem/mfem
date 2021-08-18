@@ -756,7 +756,7 @@ The specific libraries and their options are:
 - Benchmark, used when MFEM_USE_BENCHMARK = YES.
   URL: https://github.com/google/benchmark
   Options: BENCHMARK_DIR, BENCHMARK_LIB.
-  Versions: Benchmark >= 1.5.2.
+  Versions: Benchmark >= 1.5.6.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
