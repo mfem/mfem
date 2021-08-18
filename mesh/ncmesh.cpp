@@ -1926,7 +1926,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
 
       // recurse to subtrees; try to order leaf elements along a space-filling
       // curve by changing the order the children are visited at each level
-      if (el.Geom() == Geometry::TRIANGLE /*&& sfc_version > 0*/)
+      if (el.Geom() == Geometry::TRIANGLE)// && sfc_version > 0)
       {
          for (int i = 0; i < 4; i++)
          {
