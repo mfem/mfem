@@ -460,8 +460,8 @@ MFEM_USE_UMPIRE = YES/NO
    memory devices like NUMA and GPUs.
 
 MFEM_USE_BENCHMARK = YES/NO
-   Enables support for Umpire, a library to benchmark code snippets, similar to
-   unit tests.
+   Enables support for Google Benchmark, a library to support the benchmarking
+   of functions, similar to unit-tests.
 
 MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
