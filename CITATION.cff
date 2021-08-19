@@ -64,6 +64,6 @@ preferred-citation:
   month: 1
   start: 42 # First page number
   end: 74 # Last page number
-  title: "MFEM: A Modular Finite Element Library"
+  title: "MFEM: A Modular Finite Element Methods Library"
   volume: 81
   year: 2021
