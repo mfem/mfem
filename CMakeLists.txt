@@ -558,7 +558,8 @@ if (MFEM_ENABLE_TESTING)
 
   # Create a target for all benchmarks and, optionally, enable it.
   set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
-  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME} ${MFEM_ENABLE_BENCHMARKS})
+  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                  ${MFEM_ENABLE_GOOGLE_BENCHMARKS})
   add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
 endif()
 
