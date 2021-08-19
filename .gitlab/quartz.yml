@@ -31,8 +31,8 @@
     # Report failure on failure status
     - if: '$CI_JOB_NAME =~ /q_report_failure/ && $AUTOTEST == "YES"'
       when: on_failure
-    # Always release resources
-    - if: '$CI_JOB_NAME =~ /release_resources/'
+    # Always release resource
+    - if: '$CI_JOB_NAME =~ /release_resource/'
       when: always
     # Default is to run if previous stage succeeded
     - when: on_success
@@ -50,21 +50,21 @@
   fi
 
 # Allocate
-q_allocate_resources:
+q_allocate_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_allocate_resources
+  stage: q_allocate_resource
   script:
     - salloc --exclusive --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
 
 # Release
-q_release_resources:
+q_release_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_release_resources
+  stage: q_release_resource
   script:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
@@ -74,11 +74,11 @@ q_report_success:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_release_resources
+  stage: q_release_resource
   script:
     - echo "Can only run if all the quartz jobs passed"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
     - *safe_create_rundir
     - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
     - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
@@ -90,11 +90,11 @@ q_report_failure:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_release_resources
+  stage: q_release_resource
   script:
     - echo "Runs if there was at least one failure on quartz"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - rundir="gitlab/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
     - *safe_create_rundir
     - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
     - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
@@ -165,7 +165,7 @@ update_autotest:
   stage: baseline_to_autotest
   script:
     - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - rundir="quartz/$(date +%Y-%m-%d)-github-${CI_COMMIT_REF_SLUG}"
+    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-baseline-${CI_COMMIT_REF_SLUG}"
     - *safe_create_rundir
     - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
     # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).

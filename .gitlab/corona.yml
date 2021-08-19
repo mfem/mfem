@@ -1,0 +1,123 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# GitLab pipelines configurations for the Corona machine at LLNL
+
+.on_corona:
+  tags:
+    - shell
+    - corona
+  rules:
+    # Don’t run corona jobs if...
+    # Note: This makes corona an "opt-in" machine. Gitlab instances where
+    # corona jobs should run should set "ON_CORONA" to "ON".
+    - if: '$CI_COMMIT_BRANCH =~ /_cnone/ || $ON_CORONA != "ON"'
+      when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /update_autotest/ && $AUTOTEST != "YES"'
+      when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /c_report/ && $AUTOTEST != "YES"'
+      when: never
+    # Report success on success status
+    - if: '$CI_JOB_NAME =~ /c_report_success/ && $AUTOTEST == "YES"'
+      when: on_success
+    # Report failure on failure status
+    - if: '$CI_JOB_NAME =~ /c_report_failure/ && $AUTOTEST == "YES"'
+      when: on_failure
+    # Always release resource
+    - if: '$CI_JOB_NAME =~ /release_resource/'
+      when: always
+    # Default is to run if previous stage succeeded
+    - when: on_success
+
+# This is a yaml anchor, it can be used to avoid duplication like here.
+# The code below will simply be pasted wherever the anchor is placed.
+.safe_create_rundir: &safe_create_rundir |
+  if ! mkdir ${rundir}; then
+    n=1
+    while ! mkdir ${rundir}_${n}
+    do
+      n=$((n+1))
+    done
+    rundir=${rundir}_${n}
+  fi
+
+# Allocate
+c_allocate_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: c_allocate_resource
+  script:
+    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
+  timeout: 6h
+  needs: [setup]
+
+# Release
+c_release_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: c_release_resource
+  script:
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+  needs: [rocm_gcc_8.3.1]
+
+# Release
+c_report_success:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: c_release_resource
+  script:
+    - echo "Can only run if all the corona jobs passed"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - echo "The Corona jobs were successful" > ${rundir}/gitlab.out
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+  needs: [rocm_gcc_8.3.1]
+
+c_report_failure:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: c_release_resource
+  script:
+    - echo "Runs if there was at least one failure on corona"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - echo "There was an error while running CI on Corona" > ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+  needs: [rocm_gcc_8.3.1]
+
+# Spack helped builds
+# Generic corona build job, extending build script
+.build_and_test_on_corona:
+  extends: [.build_toss_3_x86_64_ib_corona_script, .on_corona]
+  stage: c_build_and_test
+
+# Build MFEM
+rocm_gcc_8.3.1:
+  variables:
+    SPEC: "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906"
+  extends: .build_and_test_on_corona
+  needs: [c_allocate_resource]
+
