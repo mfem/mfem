@@ -130,7 +130,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 
    OperatorHandle dA(A.Type()), Ph(A.Type()), hdA;
 
-   if (fbfi.Size() == 0)
+   if (interior_face_integs.Size() == 0)
    {
       // construct a parallel block-diagonal matrix 'A' based on 'a'
       dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
@@ -214,11 +214,12 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
          }
       }
       vdofs_all.Append(vdofs2);
-      for (int k = 0; k < fbfi.Size(); k++)
+      for (int k = 0; k < interior_face_integs.Size(); k++)
       {
-         fbfi[k]->AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
-                                     *pfes->GetFaceNbrFE(Elem2NbrNo),
-                                     *T, elemmat);
+         interior_face_integs[k]->
+         AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
+                            *pfes->GetFaceNbrFE(Elem2NbrNo),
+                            *T, elemmat);
          if (keep_nbr_block)
          {
             mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
@@ -233,7 +234,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (fbfi.Size())
+   if (interior_face_integs.Size())
    {
       pfes->ExchangeFaceNbrData();
       if (!ext && mat == NULL)
@@ -244,7 +245,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
 
    BilinearForm::Assemble(skip_zeros);
 
-   if (!ext && fbfi.Size() > 0)
+   if (!ext && interior_face_integs.Size() > 0)
    {
       AssembleSharedFaces(skip_zeros);
    }
@@ -316,9 +317,6 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
 void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
 const
 {
-   MFEM_VERIFY(fbfi.Size() == 0, "the case of interior face integrators is not"
-               " implemented");
-
    if (X.ParFESpace() != pfes)
    {
       X.SetSpace(pfes);
@@ -332,6 +330,9 @@ const
    }
    else
    {
+      MFEM_VERIFY(interior_face_integs.Size() == 0,
+                  "the case of interior face integrators is not"
+                  " implemented");
       mat->Mult(X, Y);
    }
    pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
@@ -471,7 +472,7 @@ void ParBilinearForm::RecoverFEMSolution(
    else
    {
       // Apply conforming prolongation
-      x.SetSize(P.Height());
+      x.SetSize(P.Height(), GetHypreMemoryType());
       P.Mult(X, x);
    }
 }
