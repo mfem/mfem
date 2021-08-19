@@ -83,8 +83,7 @@ TEST_CASE("DoF Transformation Classes",
 
       SECTION("Inner product of two primal vectors")
       {
-         // The matrix A in this case should be regarded as
-         // a BilinearForm.
+         // The matrix A in this case should be regarded as a BilinearForm.
          DenseMatrix tA;
          DenseMatrix At;
          DenseMatrix tAt;
@@ -104,8 +103,8 @@ TEST_CASE("DoF Transformation Classes",
       }
       SECTION("Inner product of a primal vector and a dual vector")
       {
-         // The matrix A in this case should be regarded as
-         // a DiscreteLinearOperator.
+         // The matrix A in this case should be regarded as a
+         // DiscreteLinearOperator.
          DenseMatrix tA;
          DenseMatrix At;
          DenseMatrix tAt;
@@ -160,8 +159,8 @@ TEST_CASE("DoF Transformation Functions",
 
    SECTION("TransformPrimal")
    {
-      // The matrix A in this case should be regarded as
-      // a DiscreteLinearOperator.
+      // The matrix A in this case should be regarded as a
+      // DiscreteLinearOperator.
 
       Vector v(Tq.Width());
       Vector f(Tp.Width());
@@ -193,8 +192,7 @@ TEST_CASE("DoF Transformation Functions",
    }
    SECTION("TransformDual")
    {
-      // The matrix A in this case should be regarded as
-      // a BilinearForm.
+      // The matrix A in this case should be regarded as a BilinearForm.
 
       Vector u(Tp.Width());
       Vector v(Tq.Width());
