@@ -545,7 +545,7 @@ int inline Get_dof_from_ijk(int i, int j, int k, int ndofs1d)
    return i + ndofs1d*j + ndofs1d*ndofs1d*k;
 }
 
-int inline Get_ijk_from_dof(int dof, int &i, int &j, int &k, int ndofs1d)
+void inline Get_ijk_from_dof(int dof, int &i, int &j, int &k, int ndofs1d)
 {
    i = dof % ndofs1d;
    j = dof/ndofs1d % ndofs1d;
@@ -1012,6 +1012,12 @@ void GetVectorCoefficients2D(Vector &v1,
    coeffs(0) = v2(1)*r(0) - v2(0)*r(1);
    coeffs(1) = v1(0)*r(1) - v1(1)*r(0);
 
+#ifdef MFEM_DEBUG
+   std::cout << "GetVectorCoefficients2D" << std::endl;
+   v1.Print();
+   v2.Print();
+#endif
+
    double detLHS = v1(0)*v2(1) - v1(1)*v2(0);
 
    if( abs(detLHS) < 1.0e-11 )
@@ -1038,6 +1044,13 @@ void GetVectorCoefficients3D(Vector &v1,
    double detLHS = v1(0)*v2(1)*v3(2) - v1(0)*v2(2)*v3(1) 
                      - v1(1)*v2(0)*v3(2) + v1(1)*v2(2)*v3(0)
                      + v1(2)*v2(0)*v3(1) - v1(2)*v2(1)*v3(0);
+
+#ifdef MFEM_DEBUG
+   std::cout << "GetVectorCoefficients3D" << std::endl;
+   v1.Print();
+   v2.Print();
+   v3.Print();
+#endif
 
    if( abs(detLHS) < 1.0e-11 )
    {
@@ -2226,15 +2239,21 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    const int dim = fes.GetMesh()->SpaceDimension();
 
    Vector bf;
-   Vector gf;
+   Vector gf_nor;
+   Vector gf_tan1;
+   Vector gf_tan2;
    // Initialize face restriction operators
    bf.SetSize(ndofs1d); 
-   gf.SetSize(ndofs1d);
+   gf_nor.SetSize(ndofs1d);
+   gf_tan1.SetSize(ndofs1d);
+   gf_tan2.SetSize(ndofs1d);
    // Needs to be ndofs1d* dofs_per_face *nf
    Bf.SetSize( ndofs1d*ndofs_face*nf*num_values_per_point, Device::GetMemoryType());
    Gf.SetSize( ndofs1d*ndofs_face*nf*num_values_per_point*3, Device::GetMemoryType());
    bf = 0.;
-   gf = 0.;
+   gf_nor = 0.;
+   gf_tan1 = 0.;
+   gf_tan2 = 0.;
    Bf = 0.;
    Gf = 0.;
    IntegrationPoint zero;
@@ -2287,8 +2306,8 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          const FiniteElement &elf1 = *fes.GetFE(e1);
          //const FiniteElement &elf2 = *fes.GetFE(e2);
 
-         elf1.Calc1DShape(zero, bf, gf);
-         gf *= -1.0;
+         elf1.Calc1DShape(zero, bf, gf_nor);
+         gf_nor *= -1.0;
 
          if (ir == NULL)
          {
@@ -2386,6 +2405,17 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                fes.GetMesh()->GetElementTransformation(e2)->Transform(pb_neighbor,this_stencil_point_neighbor);
             }
 
+            int tan1_id = p % NP1d; // is this correct?
+            IntegrationPoint &ip_loc_tan1 = ir_glob_1d.IntPoint(tan1_id);
+            elf1.Calc1DShape(ip_loc_tan1, bf, gf_tan1);
+
+            if( dim == 3 )
+            {
+               int tan2_id = (p/NP1d) % NP1d; // is this correct?
+               IntegrationPoint &ip_loc_tan2 = ir_glob_1d.IntPoint(tan2_id);
+               elf1.Calc1DShape(ip_loc_tan2, bf, gf_tan2);
+            }
+
             for (int l = 0; l < NP1d; l++)
             {
                const int pn  = facemapnorself[p*ndofs1d+l];
@@ -2415,15 +2445,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   fes.GetMesh()->GetElementTransformation(e1)->Transform(ip_tan2, this_stencil_point_tan2);
                }
                
-               this_stencil_point_nor *= gf(l);
+               this_stencil_point_nor *= gf_nor(l);
                stencil_point_nor += this_stencil_point_nor;
                
-               this_stencil_point_tan1 *= gf(l);
+               this_stencil_point_tan1 *= gf_tan1(l);
                stencil_point_tan1 += this_stencil_point_tan1;
 
                if( dim == 3 )
                {
-                  this_stencil_point_tan2 *= gf(l);
+                  this_stencil_point_tan2 *= gf_tan2(l);
                   stencil_point_tan2 += this_stencil_point_tan2;
                }
                if (int_face_match)
@@ -2456,15 +2486,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                      fes.GetMesh()->GetElementTransformation(e2)->Transform(ip_tan2_2, this_stencil_point_neighbor_tan2);
                   }
 
-                  this_stencil_point_neighbor_nor *= gf(l);
+                  this_stencil_point_neighbor_nor *= gf_nor(l);
                   stencil_point_neighbor_nor += this_stencil_point_neighbor_nor;
 
-                  this_stencil_point_neighbor_tan1 *= gf(l);
+                  this_stencil_point_neighbor_tan1 *= gf_tan1(l);
                   stencil_point_neighbor_tan1 += this_stencil_point_neighbor_tan1;
 
                   if( dim == 3)
                   {
-                     this_stencil_point_neighbor_tan2 *= gf(l);
+                     this_stencil_point_neighbor_tan2 *= gf_tan2(l);
                      stencil_point_neighbor_tan2 += this_stencil_point_neighbor_tan2;
                   }
                }
@@ -2487,7 +2517,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   stencil_point_neighbor_tan2 /= stencil_point_neighbor_tan2.Norml2();
                }
             }
-*/
+            */
             const FaceGeometricFactors *facegeom = fes.GetMesh()->GetFaceGeometricFactors(
                            ir_glob_face,
                            FaceGeometricFactors::DETERMINANTS |
@@ -2535,12 +2565,53 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             for( int i = 0 ; i < ndofs1d ; i++ )
             {
                u_face(i,p,f_ind,0) = bf(i);
-               dudn_face(i,p,f_ind,0,0) = gf(i)*coeffs(0);
-               dudn_face(i,p,f_ind,0,1) = gf(i)*coeffs(1);
+               dudn_face(i,p,f_ind,0,0) = gf_nor(i)*coeffs(0);
+               dudn_face(i,p,f_ind,0,1) = gf_tan1(i)*coeffs(1);
                if(dim==3)
                {
-                  dudn_face(i,p,f_ind,0,2) = gf(i)*coeffs(2);
+                  dudn_face(i,p,f_ind,0,2) = gf_tan2(i)*coeffs(2);
                }
+
+#ifdef MFEM_DEBUG
+               DenseMatrix adjJ;
+               adjJ.SetSize(dim);
+
+               Vector nor;
+               nor.SetSize(dim);
+
+               Vector nh;
+               nh.SetSize(dim);
+
+               CalcAdjugate(Trans0.Elem1->Jacobian(), adjJ);
+               CalcOrtho(Trans0.Jacobian(), nor);
+               adjJ.Mult(nor, nh);
+               double detJ = Trans0.Elem1->Jacobian().Det();
+               nh /= detJ;
+
+               std::cout << "------------------------------------ " << std::endl;
+               std::cout << "stencil_point_nor.Norml2() =  " << stencil_point_nor.Norml2() << std::endl;
+               std::cout << "stencil_point_tan1.Norml2() =  " << stencil_point_tan1.Norml2() << std::endl;
+               std::cout << "stencil_point_tan2.Norml2() =  " << stencil_point_tan2.Norml2() << std::endl;
+
+               std::cout << "facenorm.Print() " << std::endl;
+               facenorm.Print();
+               std::cout << "print coeffs vs nh " << std::endl;
+               coeffs.Print();
+               nh.Print();
+               std::cout << " Trans0.Elem1->Jacobian() = " << std::endl;
+               Trans0.Elem1->Jacobian().Print();
+
+               std::cout << " Trans0.Elem1->Jacobian()->det = " << detJ << std::endl;
+
+//               DenseMatrix &Jinv = Trans0.Elem1->Jacobian().Inverse();
+  //             std::cout << " J^-1 = " << std::endl;
+               //Jinv.Print();
+               std::cout << " adjJ = " << std::endl;
+               adjJ.Print();
+               std::cout << " detJ(lid) = " << facegeom->detJ(lid) << std::endl;
+               std::cout << " facedetJ/detJ = " << facegeom->detJ(lid)/detJ << std::endl;
+               
+#endif
 
                if(int_face_match)
                {
@@ -2566,12 +2637,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                      coeffs *= scaling;
                   }
 
+#ifdef MFEM_DEBUG
+                  std::cout << "------------------------------------ " << std::endl;
+#endif
                   u_face(i,p,f_ind,1) = bf(i);
-                  dudn_face(i,p,f_ind,1,0) = gf(i)*coeffs(0);
-                  dudn_face(i,p,f_ind,1,1) = gf(i)*coeffs(1);
+                  dudn_face(i,p,f_ind,1,0) = gf_nor(i)*coeffs(0);
+                  dudn_face(i,p,f_ind,1,1) = gf_tan1(i)*coeffs(1);
                   if(dim==3)
                   {
-                     dudn_face(i,p,f_ind,1,2) = gf(i)*coeffs(2);
+                     dudn_face(i,p,f_ind,1,2) = gf_tan2(i)*coeffs(2);
                   }
                }
             }
@@ -2771,8 +2845,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
-#if 0
-//def MFEM_DEBUG
+#ifdef MFEM_DEBUG
 
    std::cout << " scatter_indices " << std::endl;
    for (int i = 0; i < nf*ndofs_face ; i++)
@@ -2919,7 +2992,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   {
                      const int half_grad = ndofs1d*numfacedofs;
                      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation2, ndofs1d, d);
+                                                  orientation2, ndofs1d, d);
 
                      // double check all of this logic 
                      int gid = GetGid(pd, k, ndofs1d, e2, elem_dofs, facemapnorneighbor, elementMap);
@@ -2974,8 +3047,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       offsets_tan2[0] = 0;
    }
 
-#if  0
-//def MFEM_DEBUG
+#ifdef MFEM_DEBUG
    std::cout << " elementMap " << std::endl;
    for (int i = 0; i < elemDofs*ne ; i++)
    {
@@ -3004,6 +3076,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    std::cout << "end gather_indices " << std::endl;
 #endif
 
+#ifdef MFEM_DEBUG
 
    std::cout << " scatter_indices " << std::endl;
    for (int i = 0; i < scatter_indices.Size() ; i++)
@@ -3030,6 +3103,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       gather_indices[i] << std::endl;
    }
    std::cout << " done " << std::endl;
+#endif
    //exit(1);
 
 }
@@ -3207,9 +3281,8 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    std::cout << "end multT x " << std::endl;
 #endif
 
+#ifdef MFEM_DEBUG
    std::cout << " start mulTT " << std::endl;
-
-
 
    std::cout << " scatter_indices " << std::endl;
    for (int i = 0; i < scatter_indices.Size() ; i++)
@@ -3236,6 +3309,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
       gather_indices[i] << std::endl;
    }
    std::cout << " done " << std::endl;
+#endif
 
    auto u_face    = Reshape(Bf.Read(), ndofs1d, ndofs_face, nf, num_values_per_point);
    auto dudn_face = Reshape(Gf.Read(), ndofs1d, ndofs_face, nf, num_values_per_point, 3);
@@ -3356,7 +3430,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                }
             }
          }
-       /*
+
          offset = d_offsets_tan1[i];
          nextOffset = d_offsets_tan1[i + 1];
          for (int c = 0; c < vd; ++c)
@@ -3448,7 +3522,6 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                }
             }
          }
-         */
 
 
       });
