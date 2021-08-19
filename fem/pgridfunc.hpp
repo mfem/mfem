@@ -65,6 +65,11 @@ public:
    ParGridFunction(ParFiniteElementSpace *pf, double *data) :
       GridFunction(pf, data), pfes(pf) { }
 
+   /** @brief Construct a ParGridFunction using previously allocated Vector
+       @a base starting at the given offset, @a base_offset. */
+   ParGridFunction(ParFiniteElementSpace *pf, Vector &base, int base_offset = 0)
+      : GridFunction(pf, base, base_offset), pfes(pf) { }
+
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
        data from @a *gf is used as the local data of the ParGridFunction on each
