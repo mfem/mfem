@@ -60,7 +60,7 @@ preferred-citation:
     given-names: "Stefano"
     orcid: "https://orcid.org/0000-0002-0435-0433"
   doi: "10.1016/j.camwa.2020.06.009"
-  journal: "Computers and Mathematics with Applications"
+  journal: "Computers \\& Mathematics with Applications"
   month: 1
   start: 42 # First page number
   end: 74 # Last page number
