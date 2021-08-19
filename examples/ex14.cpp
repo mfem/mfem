@@ -387,6 +387,7 @@ int main(int argc, char *argv[])
          }
 */
 
+#ifdef MFEM_DEBUG
          std::cout << " %{ " << std::endl;
          std::cout << "               yout" << std::endl;
          yout.Print(mfem::out,1);
@@ -394,6 +395,7 @@ int main(int argc, char *argv[])
          youtfull.Print(mfem::out,1);
          std::cout << "               ydiff" << std::endl;
          ydiff.Print(mfem::out,1);
+#endif
 
       }
 
@@ -604,5 +606,5 @@ double x1(const Vector &x)
 
 double x2(const Vector &x)
 {
-   return x(0);
+   return 2.0*x(1);
 }
