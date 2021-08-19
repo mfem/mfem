@@ -221,6 +221,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             std::cout << "% Trans.Elem1->Weight() " <<  Trans.Elem1->Weight()  << std::endl;
             std::cout << "% Trans.Elem1->Jacobian().Det() " <<  Trans.Elem1->Jacobian().Det()  << std::endl;
             std::cout << "% ip.weight " <<  ip.weight  << std::endl;
+
+            std::cout << "% facedetJ/detJ = "  << detJ(p,f_ind)/Trans.Elem1->Jacobian().Det()  << std::endl;
 #endif 
             Vector nor;
             nor.SetSize(dim);
@@ -229,10 +231,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 #endif
 
-            double t2w = Trans.Elem1->Weight();
-            double ipw = ip.weight;
-            w = ipw;///t2w;
-            wq = ipw;///t2w;
 
 #ifdef MFEM_DEBUG
             std::cout << "% w " <<  w  << std::endl;
@@ -248,52 +246,64 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             {
                CalcOrtho(Trans.Jacobian(), nor);
             }
+
+            double h1 = detJ(p,f_ind)/Trans.Elem1->Jacobian().Det();
+
             double nor_norm = nor.Norml2();
-
-            op1(p,0,0,f_ind) =  beta*w*detJ(p,f_ind);
-            op1(p,1,0,f_ind) = -beta*w*detJ(p,f_ind);
-
-            op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
+            double nor_norm2 = nor_norm*nor_norm;
 
 #ifdef MFEM_DEBUG
             std::cout << "% nor.Norml2() " <<  nor.Norml2() << std::endl;
             std::cout << "% nor_norm " <<  nor_norm  << std::endl;
+            std::cout << "% nor_norm2 " <<  nor_norm2  << std::endl;
+
+            double h = detJ(p,f_ind)/nor_norm;
+
+            std::cout << "% h " <<  h << std::endl;
+
 #endif
 
-            const double h0 = detJ(p,f_ind)/nor_norm;
-            op3(p,0,f_ind) = -kappa*wq/h0;
-
-            if (int_type_match)
+            if (bdy_type_match)
             {
+
+               double t2w = Trans.Elem1->Weight();
+               double ipw = ip.weight;
+               w = ipw*detJ(p,f_ind);
+               wq = ipw/t2w*nor_norm2;
+
+               op1(p,0,0,f_ind) =  beta*w;///detJ(p,f_ind);
+               op1(p,1,0,f_ind) = -beta*w;///detJ(p,f_ind);
+               op1(p,0,1,f_ind) =  0.0;///detJ(p,f_ind);
+               op1(p,1,1,f_ind) =  0.0;///detJ(p,f_ind);
+
+               op2(p,0,f_ind) = -sigma*w;
+
+               op3(p,0,f_ind) = -kappa*wq;
+
+            }
+            else if (int_type_match)
+            {
+               double h2 = detJ(p,f_ind)/Trans.Elem2->Jacobian().Det();
 
 #ifdef MFEM_DEBUG
                std::cout << "% Trans.Elem2->Weight() " <<  Trans.Elem2->Weight()  << std::endl;
 #endif
                double t2w = Trans.Elem2->Weight();
                double ipw = ip.weight;
-               w = ipw/2;///t2w;
-               wq = ipw/2/t2w;
+               w = ipw/2.0*detJ(p,f_ind);
+               wq = ipw/t2w/2.0*nor_norm2;
 
-               if (dim == 1)
-               {
-                  nor(0) = 2*eip2.x - 1.0;
-               }
-               else 
-               {
-                  CalcOrtho(Trans.Jacobian(), nor);
-               }
-               double nor_norm = nor.Norml2();
-               // This h1 is the same as h0 !?              
-               const double h1 = detJ(p,f_ind)/nor_norm;
 
-               op1(p,0,1,f_ind) =  beta*w*detJ(p,f_ind);
-               op1(p,1,1,f_ind) = -beta*w*detJ(p,f_ind);
+               op1(p,0,0,f_ind) =  beta*w;
+               op1(p,1,0,f_ind) = -beta*w;
+               op1(p,0,1,f_ind) =  beta*w;
+               op1(p,1,1,f_ind) = -beta*w;
 
-               op2(p,1,f_ind) =  sigma*w*detJ(p,f_ind);
-               op2(p,0,f_ind) = -sigma*w*detJ(p,f_ind);
+               op2(p,1,f_ind) =  sigma*w;
+               op2(p,0,f_ind) = -sigma*w;
 
-               op3(p,0,f_ind) = kappa*wq*(1.0/h0+1.0/h1)/2.0;
-               op3(p,1,f_ind) = kappa*wq*(1.0/h0+1.0/h1)/2.0;
+               op3(p,0,f_ind) = -kappa*w*nor_norm2;
+               op3(p,1,f_ind) = kappa*w*nor_norm2;
             }
          }
          f_ind++;
@@ -406,7 +416,7 @@ void PADGDiffusionApply2D(const int NF,
       }
 
 #ifdef MFEM_DEBUG
-/*
+
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < D1D; q2++)
@@ -458,7 +468,6 @@ void PADGDiffusionApply2D(const int NF,
             << " D0 " << D0[q1][0] << " D1jumpu " << D1[q1][0] << std::endl;
          }
       }
-      */
 #endif
 
       // 3. Integrate along faces
