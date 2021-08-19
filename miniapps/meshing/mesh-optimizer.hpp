@@ -90,8 +90,6 @@ double discrete_aspr_2d(const Vector &x)
    double th = 22.5*M_PI/180.;
    double xn =  cos(th)*xc + sin(th)*yc;
    double yn = -sin(th)*xc + cos(th)*yc;
-   // double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-   // double stretch = 1/cos(th2);
    xc = xn; yc = yn;
 
    double tfac = 20;
@@ -223,6 +221,134 @@ public:
    }
 };
 
+class HRHessianCoefficient : public TMOPMatrixCoefficient
+{
+private:
+   int dim;
+   // 0 - size target in an annular region,
+   // 1 - size+aspect-ratio in an annular region,
+   // 2 - size+aspect-ratio target for a rotate sine wave.
+   int hr_target_type;
+
+public:
+   HRHessianCoefficient(int dim_, int hr_target_type_ = 0)
+      : TMOPMatrixCoefficient(dim_), dim(dim_),
+        hr_target_type(hr_target_type_) { }
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+      if (hr_target_type == 0) // size only circle
+      {
+         double small = 0.001, big = 0.01;
+         if (dim == 3) { small = 0.005, big = 0.1; }
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         double zc;
+         if (dim == 3) { zc = pos(2) - 0.5; }
+         double r = sqrt(xc*xc + yc*yc);
+         if (dim == 3) { r = sqrt(xc*xc + yc*yc + zc*zc); }
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         K = 0.0;
+         K(0, 0) = 1.0;
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+         K(0, 0) *= pow(val,0.5);
+         K(1, 1) *= pow(val,0.5);
+         if (dim == 3) { K(2, 2) = pow(val,0.5); }
+      }
+      else if (hr_target_type == 1) // circle with size and AR
+      {
+         const double small = 0.001, big = 0.01;
+         const double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         const double rv = xc*xc + yc*yc;
+         double r = 0;
+         if (rv>0.) {r = sqrt(rv);}
+
+         double r1 = 0.2; double r2 = 0.3; double sf=30.0;
+         const double szfac = 1;
+         const double asfac = 4;
+         const double eps2 = szfac/asfac;
+         const double eps1 = szfac;
+
+         double tan1 = std::tanh(sf*(r-r1)+1),
+                tan2 = std::tanh(sf*(r-r2)-1);
+         double wgt = 0.5*(tan1-tan2);
+
+         tan1 = std::tanh(sf*(r-r1)),
+         tan2 = std::tanh(sf*(r-r2));
+
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double szval = ind * small + (1.0 - ind) * big;
+
+         double th = std::atan2(yc,xc)*180./M_PI;
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         double maxval = eps2 + eps1*(1-wgt)*(1-wgt);
+         double minval = eps1;
+         double avgval = 0.5*(maxval+minval);
+         double ampval = 0.5*(maxval-minval);
+         double val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
+         double val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
+
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+         K(0,0) = val1;
+         K(1,1) = val2;
+
+         K(0,0) *= pow(szval,0.5);
+         K(1,1) *= pow(szval,0.5);
+      }
+      else if (hr_target_type == 2) // sharp rotated sine wave
+      {
+         double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         double th = 15.5*M_PI/180.;
+         double xn =  cos(th)*xc + sin(th)*yc;
+         double yn = -sin(th)*xc + cos(th)*yc;
+         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+         double stretch = 1/cos(th2);
+         xc = xn/stretch;
+         yc = yn;
+         double tfac = 20;
+         double s1 = 3;
+         double s2 = 2;
+         double yl1 = -0.025;
+         double yl2 =  0.025;
+         double wgt = std::tanh((tfac*(yc-yl1) + s2*std::sin(s1*M_PI*xc)) + 1) -
+                      std::tanh((tfac*(yc-yl2) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         const double eps2 = 25;
+         const double eps1 = 1;
+         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
+         K(0,0) = eps1;
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+      }
+      else { MFEM_ABORT("Unsupported option / wrong input."); }
+   }
+
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp)
+   {
+      K = 0.;
+   }
+};
+
 // Additional IntegrationRules that can be used with the --quad-type option.
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
@@ -252,13 +378,13 @@ double adapt_lim_fun(const Vector &x)
 
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
-   //Setup the Laplacian operator
+   // Setup the Laplacian operator
    BilinearForm *Lap = new BilinearForm(field.FESpace());
    Lap->AddDomainIntegrator(new DiffusionIntegrator());
    Lap->Assemble();
    Lap->Finalize();
 
-   //Setup the smoothing operator
+   // Setup the smoothing operator
    DSmoother *S = new DSmoother(0,1.0,smooth_steps);
    S->iterative_mode = true;
    S->SetOperator(Lap->SpMat());
@@ -274,7 +400,7 @@ void DiffuseField(GridFunction &field, int smooth_steps)
 #ifdef MFEM_USE_MPI
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
-   //Setup the Laplacian operator
+   // Setup the Laplacian operator
    ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
    Lap->AddDomainIntegrator(new DiffusionIntegrator());
    Lap->Assemble();
