@@ -24,12 +24,12 @@ namespace mfem
     transformations that map local degrees of freedom (DoFs), contained within
     individual elements, to global degrees of freedom, stored within
     GridFunction objects. These transformations are necessary to ensure that
-    basis functions in neighboring elements align corretly. Closely related but
+    basis functions in neighboring elements align correctly. Closely related but
     complementary transformations are required for the entries stored in
-    LinearForm and BilinearForm objects.  The DofTransformation class is
-    designed to apply the action of both of these types of DoF transformations.
+    LinearForm and BilinearForm objects. The DofTransformation class is designed
+    to apply the action of both of these types of DoF transformations.
 
-    Let the "primal transformation" be given by the operator T.  This means that
+    Let the "primal transformation" be given by the operator T. This means that
     given a local element vector v the data that must be placed into a
     GridFunction object is v_t = T * v.
 
@@ -38,21 +38,20 @@ namespace mfem
     e.g. v = T^{-1} * v_t.
 
     We need to preserve the action of our linear forms applied to primal
-    vectors.  In other words, if f is the local vector computed by a linear
+    vectors. In other words, if f is the local vector computed by a linear
     form then f * v = f_t * v_t (where "*" represents an inner product of
-    vectors).  This requires that f_t = T^{-T} * f i.e. the "dual transform" is
+    vectors). This requires that f_t = T^{-T} * f i.e. the "dual transform" is
     given by the transpose of the inverse of the primal transformation.
 
-    For bilinear forms we require that v^T * A * v = v_t^T * A_t * v_t.  This
-    implies that A_t = T^{-T} * A * T^{-1}.  This can be accomplished by
+    For bilinear forms we require that v^T * A * v = v_t^T * A_t * v_t. This
+    implies that A_t = T^{-T} * A * T^{-1}. This can be accomplished by
     performing dual transformations of the rows and columns of the matrix A.
 
     For discrete linear operators the range must be modified with the primal
-    transformation rather than the dual transformation because the result is
-    a primal vector rather than a dual vector.  This leads to the
-    transformation D_t = T * D * T^{-1}.  This can be accomplished by using
-    a primal transformation on the columns of D and a dual transformation on
-    its rows.
+    transformation rather than the dual transformation because the result is a
+    primal vector rather than a dual vector. This leads to the transformation
+    D_t = T * D * T^{-1}. This can be accomplished by using a primal
+    transformation on the columns of D and a dual transformation on its rows.
 */
 class DofTransformation
 {
@@ -80,7 +79,7 @@ public:
 
    inline const Array<int> & GetFaceOrientations() const { return Fo; }
 
-   /** Transform local DoFs to align with the global DoFs.  For example, this
+   /** Transform local DoFs to align with the global DoFs. For example, this
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
@@ -90,10 +89,10 @@ public:
    /// Transform groups of DoFs stored as dense matrices
    virtual void TransformPrimalCols(DenseMatrix &V) const;
 
-   /** Inverse transform local DoFs.  Used to transform DoFs from a global
-       vector back to their element-local form.  For example, this must be used
-       to transform the vector obtained using GridFunction::GetSubVector
-       before it can be used to compute a local interpolation.
+   /** Inverse transform local DoFs. Used to transform DoFs from a global vector
+       back to their element-local form. For example, this must be used to
+       transform the vector obtained using GridFunction::GetSubVector before it
+       can be used to compute a local interpolation.
    */
    virtual void InvTransformPrimal(double *v) const = 0;
    virtual void InvTransformPrimal(Vector &v) const;
@@ -114,8 +113,8 @@ public:
    virtual ~DofTransformation() {}
 };
 
-/** Transform a matrix of DoFs entries from different finite element spaces
-    as computed by a DiscreteInterpolator before copying into a
+/** Transform a matrix of DoFs entries from different finite element spaces as
+    computed by a DiscreteInterpolator before copying into a
     DiscreteLinearOperator.
 */
 void TransformPrimal(const DofTransformation *ran_dof_trans,
@@ -193,15 +192,14 @@ public:
 /** Abstract base class for high-order Nedelec spaces on elements with
     triangular faces.
 
-    The Nedelec DoFs on the interior of triangular faces come in pairs
-    which share an interpolation point but have different vector
-    directions.  These directions depend on the orientation of the
-    face and can therefore differ in neighboring elements.  The
-    mapping required to transform these DoFs can be implemented as
-    series of 2x2 linear transformations.  The raw data for these
-    linear transformations is stored in the T_data and TInv_data
-    arrays and can be accessed as DenseMatrices using the
-    GetFaceTransform() and GetFaceInverseTransform() methods.
+    The Nedelec DoFs on the interior of triangular faces come in pairs which
+    share an interpolation point but have different vector directions. These
+    directions depend on the orientation of the face and can therefore differ in
+    neighboring elements. The mapping required to transform these DoFs can be
+    implemented as series of 2x2 linear transformations. The raw data for these
+    linear transformations is stored in the T_data and TInv_data arrays and can
+    be accessed as DenseMatrices using the GetFaceTransform() and
+    GetFaceInverseTransform() methods.
 */
 class ND_DofTransformation : public DofTransformation
 {

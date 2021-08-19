@@ -3225,6 +3225,7 @@ void ParMesh::ReorientTetMesh()
    FinalizeParTopo();
 }
 */
+
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
    if (pncmesh)
