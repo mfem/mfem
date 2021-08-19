@@ -104,14 +104,11 @@ then
     build_root=$(pwd)
 fi
 
-build_dir="${build_root}/build_${hostconfig//.mk/}"
-
 # Build (also build when asked for testing, to make sure we test what we want)
 if [[ "${option}" != "--deps-only" ]]
 then
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "~ Host-config: ${hostconfig_path}"
-    echo "~ Build Dir:   ${build_dir}"
     echo "~ Project Dir: ${project_dir}"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
