@@ -661,7 +661,9 @@ void PADGDiffusionApply3D(const int NF,
             for (int d2 = 0; d2 < D1D; ++d2)
             {
                const double b = B(q2,d2);
+#ifdef MFEM_DEBUG
                std::cout << "%B(" << q2 <<","<< d2 <<") = " << b << std::endl;
+#endif
                for (int c = 0; c < VDIM; c++)
                {
                   BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
