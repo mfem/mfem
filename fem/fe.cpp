@@ -7955,6 +7955,25 @@ void RT0WdgFiniteElement::Project (
 
 RT0PyrFiniteElement::RT0PyrFiniteElement()
    : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV)
+void RT0WdgFiniteElement::ProjectCurl(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &curl) const
+{
+   DenseMatrix curl_shape(fe.GetDof(), dim);
+   Vector curl_k(fe.GetDof());
+
+   curl.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
+      curl_shape.Mult(nk[k], curl_k);
+      for (int j = 0; j < curl_k.Size(); j++)
+      {
+         curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
+      }
+   }
+}
+
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -8130,6 +8149,26 @@ void RT0PyrFiniteElement::Project (
          vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2] ) +
          vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2] ) +
          vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2] );
+   }
+}
+
+void RT0PyrFiniteElement::ProjectCurl(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &curl) const
+{
+   DenseMatrix curl_shape(fe.GetDof(), dim);
+   Vector curl_k(fe.GetDof());
+
+   curl.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
+      curl_shape.Mult(nk[k], curl_k);
+      if (!rt0 && k > 0) { curl_k *= 2.0; }
+      for (int j = 0; j < curl_k.Size(); j++)
+      {
+         curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
+      }
    }
 }
 
