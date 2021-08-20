@@ -43,6 +43,7 @@ set(SRCS
   complex_fem.cpp
   convergence.cpp
   datacollection.cpp
+  doftrans.cpp
   eltrans.cpp
   estimators.cpp
   fe.cpp
@@ -123,6 +124,7 @@ set(HDRS
   complex_fem.hpp
   convergence.hpp
   datacollection.hpp
+  doftrans.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
