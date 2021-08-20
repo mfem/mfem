@@ -255,7 +255,7 @@ public:
 };
 
 /// DoF transformation implementation for the Nedelec basis on wedge elements
-/** TODO: Implementation in the nd-prism-dev branch */
+/** TODO: (Under development) */
 class ND_WedgeDofTransformation : public ND_DofTransformation
 {
 public:
