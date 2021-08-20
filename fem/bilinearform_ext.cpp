@@ -433,7 +433,21 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
 
+#define timings_on 0
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+#if timings_on > 0
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "% timings for various kernels " << std::endl;
+   int num_timings = 20;
+   int timelines[20];
+   std::chrono::time_point<std::chrono::system_clock> timings[20] = {std::chrono::system_clock::now()};
+   int tid = 0;
+   timelines[tid] = __LINE__;
+   timings[tid++] = std::chrono::system_clock::now();
+#endif
+
 
    // exactly the same for PA
    // A = A_L
@@ -452,12 +466,24 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       // needs A = P^T A_L P
       elem_restrict->Mult(x, localX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(localX, localY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       }
       elem_restrict->MultTranspose(localY, y);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
@@ -491,9 +517,13 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
       }
    }
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
 
-   Vector xint = x;
-   Vector xbdy = x;
+   //Vector xint = x;
+   //Vector xbdy = x;
    Vector yint = y;
    Vector ybdy = y;
    yint = 0.0;
@@ -503,15 +533,28 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iNDFISz = intNormalDerivFaceIntegrators.Size();
    if (int_face_normD_restrict_lex && iNDFISz>0)
    {
-      int_face_normD_restrict_lex->Mult(xint, faceNormDIntX);
+      int_face_normD_restrict_lex->Mult(x, faceNormDIntX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
+
       if (faceNormDIntX.Size()>0)
       {
          faceNormDIntY = 0.0;
          for (int i = 0; i < iNDFISz; ++i)
          {
             intNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDIntX, faceNormDIntY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
          }
          int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, yint);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       }
    }
 
@@ -519,15 +562,27 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();
    if (bdr_face_normD_restrict_lex && bNDFISz>0)
    {
-      bdr_face_normD_restrict_lex->Mult(xbdy, faceNormDBdrX);
+      bdr_face_normD_restrict_lex->Mult(x, faceNormDBdrX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       if (faceNormDBdrX.Size()>0)
       {
          faceNormDBdrY = 0.0;
          for (int i = 0; i < bNDFISz; ++i)
          {
             bdrNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDBdrX, faceNormDBdrY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
          }
          bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, ybdy);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       }
    }
 
@@ -544,6 +599,30 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
    y += ybdy;
    y += yint;
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
+
+
+
+#if timings_on > 0 
+   double total = 0;
+   for(int k = 1 ; k < tid ; k++ )
+   {
+      auto time = std::chrono::duration_cast<std::chrono::microseconds>(timings[k]-timings[k-1]).count();
+      total += time;
+      std::cout << "lines  " << timelines[k-1] << " - " << timelines[k] << ": " << time << std::endl; 
+   }
+      std::cout << std::endl;
+
+   std::cout << "%  total " << total;
+   std::cout << std::endl;
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+#endif
+
 
 #ifdef MFEM_DEBUG
    std::cout << "y after" << std::endl;
