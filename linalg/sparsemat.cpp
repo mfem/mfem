@@ -2498,7 +2498,14 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
       }
       else
       {
-         MFEM_ABORT_KERNEL("L1 norm of row is zero.");
+	 if (useFabs)
+         {
+	    MFEM_ABORT_KERNEL("L1 norm of row is zero.");
+	 }
+	 else
+         {
+	    MFEM_ABORT_KERNEL("sum of row is zero.");
+	 }
       }
    });
 }
