@@ -2133,9 +2133,12 @@ class RT0PyrFiniteElement : public VectorFiniteElement
 private:
    static const double nk[5][3];
 
+   // If true match RT0TetFiniteElement rather than RT_TetrahedronElement(0)
+   bool rt0;
+
 public:
    /// Construct the RT0PyrFiniteElement
-   RT0PyrFiniteElement();
+   RT0PyrFiniteElement(bool rt0tets = true);
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;

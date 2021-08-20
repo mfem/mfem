@@ -7953,8 +7953,6 @@ void RT0WdgFiniteElement::Project (
    }
 }
 
-RT0PyrFiniteElement::RT0PyrFiniteElement()
-   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV)
 void RT0WdgFiniteElement::ProjectCurl(const FiniteElement &fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix &curl) const
@@ -7974,6 +7972,8 @@ void RT0WdgFiniteElement::ProjectCurl(const FiniteElement &fe,
    }
 }
 
+RT0PyrFiniteElement::RT0PyrFiniteElement(bool rt0tets)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV), rt0(rt0tets)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -8057,6 +8057,15 @@ void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    shape(4,0) = (x2 + z2 - x * z - 2.0) * ozi;
    shape(4,1) = - y * z * ozi;
    shape(4,2) = z;
+
+   if (!rt0)
+   {
+      for (int i=1; i<5; i++)
+         for (int j=0; j<3; j++)
+         {
+            shape(i, j) *= 0.5;
+         }
+   }
 }
 
 void RT0PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
@@ -8067,6 +8076,14 @@ void RT0PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(2) = 3.0;
    divshape(3) = 3.0;
    divshape(4) = 3.0;
+
+   if (!rt0)
+   {
+      for (int i=1; i<5; i++)
+      {
+         divshape(i) *= 0.5;
+      }
+   }
 }
 
 const double RT0PyrFiniteElement::nk[5][3] =
@@ -8149,6 +8166,7 @@ void RT0PyrFiniteElement::Project (
          vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2] ) +
          vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1]+Jinv(1,2)*nk[k][2] ) +
          vk[2] * ( Jinv(2,0)*nk[k][0]+Jinv(2,1)*nk[k][1]+Jinv(2,2)*nk[k][2] );
+      if (!rt0 && k > 0) { dofs[k] *= 2.0; }
    }
 }
 
