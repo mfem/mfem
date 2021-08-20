@@ -514,8 +514,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
             }
          }
       }
-      // Generate faces and edges so that we can define
-      // FE space on the mesh
+      // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
       FiniteElementCollection *fec;
