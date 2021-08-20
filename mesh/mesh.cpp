@@ -6355,7 +6355,6 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    return NULL;
 }
 
-/*
 // shift cyclically 3 integers so that the smallest is first
 static inline
 void Rotate3(int &a, int &b, int &c)
@@ -6441,7 +6440,6 @@ void Mesh::ReorientTetMesh()
       delete old_v_to_v;
    }
 }
-*/
 
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
