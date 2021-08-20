@@ -429,6 +429,7 @@ int main(int argc, char *argv[])
       }
       OperatorPtr Afull;
       Vector Bfull, Xfull;
+      Xfull = 1;
       
       afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
       OperatorJacobiSmoother Mfull(*afull, ess_tdof_list);
@@ -472,6 +473,7 @@ int main(int argc, char *argv[])
       }
       OperatorPtr A;
       Vector B, X;
+      X = 1;
       
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
       OperatorJacobiSmoother M(*a, ess_tdof_list);
