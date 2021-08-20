@@ -1020,7 +1020,7 @@ void GetVectorCoefficients2D(Vector &v1,
 
    double detLHS = v1(0)*v2(1) - v1(1)*v2(0);
 
-   if( abs(detLHS) < 1.0e-11 )
+   if( fabs(detLHS) < 1.0e-11 )
    {
       v1.Print();
       v2.Print();
@@ -1052,7 +1052,7 @@ void GetVectorCoefficients3D(Vector &v1,
    v3.Print();
 #endif
 
-   if( abs(detLHS) < 1.0e-11 )
+   if( fabs(detLHS) < 1.0e-11 )
    {
       v1.Print();
       v2.Print();
