@@ -7,6 +7,7 @@ meshes = ["../data/inline-quad.mesh",
             "../data/star.mesh",
             "../data/square-disc-nurbs.mesh",
             "../data/disc-nurbs.mesh",
+            #"../data/inline-hex.mesh",
             #"../data/pipe-nurbs.mesh",
             #"../data/amr-quad.mesh" # AMR!
             #"../data/fichera.mesh" #3D mesh, not yet implemented
