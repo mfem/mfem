@@ -285,6 +285,11 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
+/// Preconditioned conjugate gradient method. (tolerances are squared)
+CGSolver PCGr(const Operator &A, Solver &B, const Vector &b, Vector &x,
+         int print_iter = 0, int max_num_iter = 1000,
+         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+
 
 /// GMRES method
 class GMRESSolver : public IterativeSolver

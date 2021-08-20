@@ -744,6 +744,20 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
    pcg.Mult(b, x);
 }
 
+CGSolver PCGr(const Operator &A, Solver &B, const Vector &b, Vector &x,
+         int print_iter, int max_num_iter,
+         double RTOLERANCE, double ATOLERANCE)
+{
+   CGSolver pcg;
+   pcg.SetPrintLevel(print_iter);
+   pcg.SetMaxIter(max_num_iter);
+   pcg.SetRelTol(sqrt(RTOLERANCE));
+   pcg.SetAbsTol(sqrt(ATOLERANCE));
+   pcg.SetOperator(A);
+   pcg.SetPreconditioner(B);
+   pcg.Mult(b, x);
+   return pcg;
+}
 
 inline void GeneratePlaneRotation(double &dx, double &dy,
                                   double &cs, double &sn)

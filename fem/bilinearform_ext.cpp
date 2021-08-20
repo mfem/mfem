@@ -532,9 +532,10 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 
 #ifdef MFEM_DEBUG
-
    std::cout << "begin y" << std::endl;
    y.Print(std::cout,1);
+   std::cout << "faceNormDIntX" << std::endl;
+   faceNormDIntX.Print(std::cout,1);
    std::cout << "yint" << std::endl;
    yint.Print(std::cout,1);
    std::cout << "ybdy" << std::endl;
