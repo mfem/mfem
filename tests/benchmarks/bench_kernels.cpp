@@ -37,7 +37,7 @@ template<typename Kernel> struct PA_3D_Kernels
    double mdof;
 
    PA_3D_Kernels(int order):
-      N(Device::IsEnabled()?16:8),
+      N(Device::IsEnabled()?32:8),
       order(order),
       mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
       fec(order, dim),
@@ -65,6 +65,7 @@ template<typename Kernel> struct PA_3D_Kernels
       cg.iterative_mode = false;
 
       tic_toc.Clear();
+      MFEM_DEVICE_SYNC;
    }
 
    void benchmark()
@@ -90,7 +91,7 @@ static void Kernel(bm::State &state){\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
    state.counters["MDof/s"] = bm::Counter(ker.Mdofs());}\
-BENCHMARK(Kernel)->DenseRange(1,6);
+BENCHMARK(Kernel)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /**
   Launch all benchmarks: Mass & Diffusion
