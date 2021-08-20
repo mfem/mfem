@@ -29,14 +29,6 @@ class FiniteElementSpace;
 class IntegrationRule;
 class Vector;
 
-/** @brief Function that returns some device version number based on the
- *  device shortcut configuration. */
-int DeviceKernelsVersion();
-
-/** @brief Function that determines if non-deterministic kernels can be used,
- *   based on the "fast" device shortcut configuration. */
-bool DeviceCanUseNonDeterministicKernels();
-
 /** @brief Function that determines if a CEED kernel should be used, based on
     the current mfem::Device configuration. */
 bool DeviceCanUseCeed();

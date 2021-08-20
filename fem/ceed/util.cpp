@@ -28,16 +28,6 @@ typedef struct _stat struct_stat;
 namespace mfem
 {
 
-int DeviceKernelsVersion()
-{
-   return Device::DeviceKernelsVersion();
-}
-
-bool DeviceCanUseNonDeterministicKernels()
-{
-   return Device::FastKernelsEnabled();
-}
-
 bool DeviceCanUseCeed()
 {
    return Device::Allows(Backend::CEED_MASK);

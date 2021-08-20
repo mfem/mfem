@@ -40,16 +40,6 @@ void NDK_AMD_PAMassApply(const int dim,
                          const Vector &X,
                          Vector &Y);
 
-void NDK_DMZ_PAMassApply(const int dim,
-                         const int D1D,
-                         const int Q1D,
-                         const int NE,
-                         const FiniteElementSpace *fes,
-                         const DofToQuad *maps,
-                         const Vector &D,
-                         const Vector &X,
-                         Vector &Y);
-
 // PA Mass Integrator
 
 // PA Mass Assemble kernel
@@ -1067,7 +1057,7 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
-      const int ver = DeviceKernelsVersion();
+      const int ver = Device::KernelsVersion();
       const int id = (ver << 8) | (D1D << 4) | Q1D;
       //static int ini = 0;
       //if (!ini++) { printf("\033[33mkernel #0x%x\033[m\n",id); }
@@ -1112,17 +1102,11 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       ceedOp->AddMult(x, y);
    }
-   else if (DeviceCanUseNonDeterministicKernels())
+   else if (Device::FastKernelsEnabled())
    {
-      const int version = DeviceKernelsVersion();
-      MFEM_VERIFY(version < 5, "Unsupported version!");
-      if (version == 4)
-      {
-         NDK_DMZ_PAMassApply(dim, dofs1D, quad1D, ne,
-                             fespace, maps,
-                             pa_data, x, y);
-      }
-      else if (version == 3)
+      const int version = Device::KernelsVersion();
+      MFEM_VERIFY(version < 4, "Unsupported version!");
+      if (version == 3)
       {
          NDK_AMD_PAMassApply(dim, dofs1D, quad1D, ne,
                              fespace, maps,

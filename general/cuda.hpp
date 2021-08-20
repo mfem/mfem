@@ -42,13 +42,7 @@
 // Define the MFEM inner threading macros
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_SHARED __shared__
-#define MFEM_EXTERN_SHARED extern __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
-//#define MFEM_SYNC_THREAD cooperative_groups::this_thread_block().sync()
-#define MFEM_GRID_SYNC
-//#define MFEM_GRID_SYNC cooperative_groups::this_grid().sync()
-//#define MFEM_GRID_SYNC cooperative_groups::this_thread_block().sync()
-#define MFEM_GRID_DIM(k) gridDim.k
 #define MFEM_BLOCK_ID(k) blockIdx.k
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k

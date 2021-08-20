@@ -148,8 +148,8 @@ private:
    MemoryClass device_mem_class = MemoryClass::HOST;
 
    char *device_option = NULL;
-   /// Kernel version number set from the device shortcut
-   int device_kernels_version = 0;
+   /// Kernels version number set from the device shortcut
+   int kernels_version = 0;
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { return device_singleton; }
@@ -260,9 +260,9 @@ public:
    }
 
    /// Return the kernel version to use, set from the device shortcut.
-   static inline int DeviceKernelsVersion()
+   static inline int KernelsVersion()
    {
-      return Get().device_kernels_version;
+      return Get().kernels_version;
    }
 
    /// Get the device id of the configured device.

@@ -221,7 +221,7 @@ void NDK_AMD_PAMassApply(const int dim,
    double *y = Y.ReadWrite();
 
    assert(dim == 3);
-   const int ver = DeviceKernelsVersion();
+   const int ver = Device::KernelsVersion();
    const int id = (ver << 8) | (D1D << 4) | Q1D;
 
    //printf("\033[32mkernel #0x%x\033[m\n",id); fflush(0);

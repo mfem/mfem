@@ -329,18 +329,8 @@ void CuWrap3D(const int N, DBODY &&d_body,
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   //printf("\nCuKernel3D"); fflush(0);
    CuKernel3D<<<GRID,BLCK>>>(N,d_body);
-   /*MFEM_DEVICE_SYNC;
    MFEM_GPU_CHECK(cudaGetLastError());
-   printf("\ncudaLaunchKernel"); fflush(0);
-   void *args[] = { (void*)&N , (void*)&d_body};
-   MFEM_GPU_CHECK(cudaLaunchKernel((void*)CuKernel3D<DBODY>,
-                                   GRID, BLCK,
-                                   args));
-   MFEM_DEVICE_SYNC;
-   MFEM_GPU_CHECK(cudaGetLastError());
-   printf("\ndone"); fflush(0);*/
 }
 
 #endif // MFEM_USE_CUDA
