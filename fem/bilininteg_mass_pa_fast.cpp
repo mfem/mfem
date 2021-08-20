@@ -255,8 +255,8 @@ void NDK_SmemPAMassApply3D(const int ndofs,
 }
 
 // Fast '1' non-deterministic 3D mass kernel
-// Smem version melded toward registers
-template<int D1D, int Q1D>
+// Smem version melded toward registers + BZ-batch
+template<int D1D, int Q1D, int NBZ>
 void NDK_SmRgPAMassApply3D(const int ndofs,
                            const int NE,
                            const int *map,
@@ -273,18 +273,21 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
    auto Y = Reshape(y_, ndofs);
    auto Y1 = Reshape(y_, D1D,D1D,D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   MFEM_FORALL_3D(be, (NE+NBZ-1)/NBZ, Q1D, Q1D, NBZ,
    {
       double u[Q1D];
+      const int tz = MFEM_THREAD_ID(z);
+      const int e = be * MFEM_THREAD_SIZE(z) + tz;
+
       MFEM_SHARED double s_B[Q1D][D1D];
-      MFEM_SHARED double s_q[Q1D][Q1D][Q1D];
+      MFEM_SHARED double s_q[NBZ][Q1D][Q1D][Q1D];
 
       // Load input, B & X interpolation
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            s_B[qx][dy] = B(qx,dy);
+            if (tz == 0) { s_B[qx][dy] = B(qx,dy); }
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
             MFEM_UNROLL(D1D)
@@ -300,7 +303,7 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
                }
             }
             MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz) { s_q[dz][dy][qx] = u[dz]; }
+            for (int dz = 0; dz < D1D; ++dz) { s_q[tz][dz][dy][qx] = u[dz]; }
          }
       }
       MFEM_SYNC_THREAD;
@@ -315,12 +318,12 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
             MFEM_UNROLL(D1D)
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double zyX = s_q[dz][dy][qx];
+               const double zyX = s_q[tz][dz][dy][qx];
                MFEM_UNROLL(D1D)
                for (int qy = 0; qy < Q1D; ++qy) { u[qy] += zyX * s_B[qy][dy]; }
             }
             MFEM_UNROLL(Q1D)
-            for (int qy = 0; qy < Q1D; ++qy) { s_q[dz][qy][qx] = u[qy]; }
+            for (int qy = 0; qy < Q1D; ++qy) { s_q[tz][dz][qy][qx] = u[qy]; }
          }
       }
       MFEM_SYNC_THREAD;
@@ -336,7 +339,7 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               const double zYX = s_q[dz][qy][qx];
+               const double zYX = s_q[tz][dz][qy][qx];
                MFEM_UNROLL(Q1D)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] += zYX * s_B[qz][dz]; }
             }
@@ -345,7 +348,7 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               s_q[qz][qy][qx] = u[qz] * D(qx,qy,qz,e);
+               s_q[tz][qz][qy][qx] = u[qz] * D(qx,qy,qz,e);
             }
 
             // Zt projection
@@ -354,12 +357,12 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double ZYX = s_q[qz][qy][qx];
+               const double ZYX = s_q[tz][qz][qy][qx];
                MFEM_UNROLL(D1D)
                for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * s_B[qz][dz]; }
             }
             MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz) { s_q[dz][qy][qx] = u[dz]; }
+            for (int dz = 0; dz < D1D; ++dz) { s_q[tz][dz][qy][qx] = u[dz]; }
          }
       }
       MFEM_SYNC_THREAD;
@@ -374,12 +377,12 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
             MFEM_UNROLL(Q1D)
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double zYX = s_q[dz][qy][qx];
+               const double zYX = s_q[tz][dz][qy][qx];
                MFEM_UNROLL(D1D)
                for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * s_B[qy][dy]; }
             }
             MFEM_UNROLL(D1D)
-            for (int dy = 0; dy < D1D; ++dy) { s_q[dz][dy][qx] = u[dy]; }
+            for (int dy = 0; dy < D1D; ++dy) { s_q[tz][dz][dy][qx] = u[dy]; }
          }
       }
       MFEM_SYNC_THREAD;
@@ -394,7 +397,7 @@ void NDK_SmRgPAMassApply3D(const int ndofs,
             MFEM_UNROLL(Q1D)
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double zyX = s_q[dz][dy][qx];
+               const double zyX = s_q[tz][dz][dy][qx];
                MFEM_UNROLL(D1D)
                for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * s_B[qx][dx]; }
             }
@@ -643,18 +646,18 @@ void NDK_PAMassApply(const int dim,
       case 0x067: return NDK_SmemPAMassApply3D<6,7>(ND,NE,map,b,d,x,y);
       case 0x078: return NDK_SmemPAMassApply3D<7,8>(ND,NE,map,b,d,x,y);
 
-      // Fast '1': Legacy & half smem non-deterministic 3D mass kernel
-      case 0x123: return NDK_SmRgPAMassApply3D<2,3>(ND,NE,map,b,d,x,y);
-      case 0x124: return NDK_SmRgPAMassApply3D<2,4>(ND,NE,map,b,d,x,y);
-      case 0x134: return NDK_SmRgPAMassApply3D<3,4>(ND,NE,map,b,d,x,y);
-      case 0x136: return NDK_SmRgPAMassApply3D<3,6>(ND,NE,map,b,d,x,y);
-      case 0x145: return NDK_SmRgPAMassApply3D<4,5>(ND,NE,map,b,d,x,y);
-      case 0x146: return NDK_SmRgPAMassApply3D<4,6>(ND,NE,map,b,d,x,y);
-      case 0x148: return NDK_SmRgPAMassApply3D<4,8>(ND,NE,map,b,d,x,y);
-      case 0x156: return NDK_SmRgPAMassApply3D<5,6>(ND,NE,map,b,d,x,y);
-      case 0x158: return NDK_SmRgPAMassApply3D<5,8>(ND,NE,map,b,d,x,y);
-      case 0x167: return NDK_SmRgPAMassApply3D<6,7>(ND,NE,map,b,d,x,y);
-      case 0x178: return NDK_SmRgPAMassApply3D<7,8>(ND,NE,map,b,d,x,y);
+      // Fast '1': Legacy & half smem non-deterministic 3D mass kernel + Z-batch
+      case 0x123: return NDK_SmRgPAMassApply3D<2,3,32>(ND,NE,map,b,d,x,y);//1
+      case 0x124: return NDK_SmRgPAMassApply3D<2,4,16>(ND,NE,map,b,d,x,y);
+      case 0x134: return NDK_SmRgPAMassApply3D<3,4,16>(ND,NE,map,b,d,x,y);//2
+      case 0x136: return NDK_SmRgPAMassApply3D<3,6,8>(ND,NE,map,b,d,x,y);
+      case 0x145: return NDK_SmRgPAMassApply3D<4,5,4>(ND,NE,map,b,d,x,y);//3
+      case 0x146: return NDK_SmRgPAMassApply3D<4,6,4>(ND,NE,map,b,d,x,y);
+      case 0x148: return NDK_SmRgPAMassApply3D<4,8,4>(ND,NE,map,b,d,x,y);
+      case 0x156: return NDK_SmRgPAMassApply3D<5,6,4>(ND,NE,map,b,d,x,y);//4
+      case 0x158: return NDK_SmRgPAMassApply3D<5,8,1>(ND,NE,map,b,d,x,y);
+      case 0x167: return NDK_SmRgPAMassApply3D<6,7,1>(ND,NE,map,b,d,x,y);//5
+      case 0x178: return NDK_SmRgPAMassApply3D<7,8,1>(ND,NE,map,b,d,x,y);//6
 
       // Fast '2': libP non-deterministic 3D mass kernel
       case 0x223: return NDK_RegsPAMassApply3D<2,3>(ND,NE,map,b,d,x,y);

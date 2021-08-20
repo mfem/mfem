@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
          {
             const int myid = 0;
             const int max_it = 50;
-            const int print_lvl = /*-*/1;
+            const int print_lvl = -1;
             const double rtol = 1e-12;
 
             CGSolver cg;
