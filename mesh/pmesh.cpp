@@ -3008,7 +3008,6 @@ int ParMesh::GetSharedFace(int sface) const
    }
 }
 
-/*
 // shift cyclically 3 integers a, b, c, so that the smallest of
 // order[a], order[b], order[c] is first
 static inline
@@ -3224,7 +3223,6 @@ void ParMesh::ReorientTetMesh()
    // update sedge_ledge and sface_lface.
    FinalizeParTopo();
 }
-*/
 
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
