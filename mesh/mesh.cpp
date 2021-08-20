@@ -3974,6 +3974,12 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
       }
    }
 
+   if (Dim > 2)
+   {
+      GetElementToFaceTable(false);
+      GenerateFaces();
+   }
+
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh.GetNBE(); el++)
    {
@@ -7640,6 +7646,8 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
    // Map from edge-index to vertex-index, needed for ReorientTetMesh() for
    // parallel meshes.
+   // Note: with the removal of ReorientTetMesh() this may no longer
+   // be needed.  Unfortunately, it's hard to be sure.
    Array<int> e2v;
    if (HasGeometry(Geometry::TETRAHEDRON))
    {
