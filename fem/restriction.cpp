@@ -3128,10 +3128,12 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    int num_derivatives = 2; 
    y = 0.0;
 
+#ifdef MFEM_DEBUG
    std::cout << " nf = " << nf << std::endl;
    std::cout << " ndofs1d = " << ndofs1d << std::endl;
    std::cout << " ndofs_face = " << ndofs_face << std::endl;
    std::cout << " ndofs1d*ndofs1d = " << ndofs1d*ndofs1d << std::endl;
+#endif
 
    if (m==L2FaceValues::DoubleValued)
    {
@@ -3147,8 +3149,6 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), ndofs_face, vd, num_sides, nf, num_derivatives);
-
-      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       // Loop over all face dofs
       MFEM_FORALL(i, ndofs_face*vd*nf,
@@ -3194,10 +3194,6 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
             }
          }
       });
-
-
-      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
 
       MFEM_FORALL(i, ndofs1d*ndofs_face*vd*nf,
       {
@@ -3530,9 +3526,6 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    {
       mfem_error("not yet implemented.");
    }
-
-
-   std::cout << " end mulTT " << std::endl;
 
 #ifdef MFEM_DEBUG
    std::cout << "multT y " << std::endl;
