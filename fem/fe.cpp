@@ -6876,10 +6876,9 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    if (oz <= tol)
    {
-      // We must return the limit of the basis functions as z->1.  In
-      // order to remain inside the pyramid in this limit the x and y
-      // coordinates must be approaching 0. The resulting limiting
-      // basis function values are:
+      // We must return the limit of the basis functions as z->1.  In order to
+      // remain inside the pyramid in this limit the x and y coordinates must
+      // be approaching 0. The resulting limiting basis function values are:
       shape(0,0) =   0.;
       shape(0,1) =   0.;
       shape(0,2) =   0.;
@@ -6961,10 +6960,10 @@ const
 
    if (oz <= tol)
    {
-      // We must return the limit of the basis function derivatives as
-      // z->1.  In order to remain inside the pyramid in this limit
-      // the x and y coordinates must be approaching 0. The resulting
-      // limiting basis function values are:
+      // We must return the limit of the basis function derivatives as z->1.
+      // In order to remain inside the pyramid in this limit the x and y
+      // coordinates must be approaching 0. The resulting limiting basis
+      // function values are:
       curl_shape(0,0) =   0.;
       curl_shape(0,1) = - 2.;
       curl_shape(0,2) =   1.;
@@ -7989,13 +7988,12 @@ void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    if (oz <= tol)
    {
-      // We must return the limit of the basis functions as z->1.  In
-      // order to remain inside the pyramid in this limit the x and y
-      // coordinates must be approaching 0. Unfortunately we obtain
-      // different limits if we approach (0,0,1) from different
-      // directions. The values provided below are the limits of the
-      // average over the square cross section [0,epsilon]x[0,epsilon]
-      // at the height z = 1-epsilon as epsilon -> 0.
+      // We must return the limit of the basis functions as z->1.  In order to
+      // remain inside the pyramid in this limit the x and y coordinates must
+      // be approaching 0. Unfortunately we obtain different limits if we
+      // approach (0,0,1) from different directions. The values provided below
+      // are the limits of the average over the square cross section
+      // [0,epsilon]x[0,epsilon] at the height z = 1-epsilon as epsilon -> 0.
       shape(0,0) =   0.0;
       shape(0,1) =   0.0;
       shape(0,2) =   0.0;
