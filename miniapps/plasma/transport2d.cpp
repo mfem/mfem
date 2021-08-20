@@ -2126,6 +2126,7 @@ int main(int argc, char *argv[])
       if (visit)
       {
          cycle++;
+         oper.PrepareDataFields();
          dc->SetCycle(cycle);
          dc->SetTime(t);
          dc->Save();
@@ -2735,6 +2736,32 @@ public:
    }
 };
 
+class Gaussian : public Coefficient
+{
+private:
+   double x0_;
+   double y0_;
+   double z0_;
+   double a_;
+   double b_;
+   double d_;
+
+   mutable Vector x_;
+
+public:
+   Gaussian(double a, double b, double d, double x0, double y0, double z0)
+      : x0_(x0), y0_(y0), z0_(z0), a_(a), b_(b), d_(d) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      x_[0] -= x0_;
+      if (x_.Size() > 1) { x_[1] -= y0_; }
+      if (x_.Size() > 2) { x_[2] -= z0_; }
+      return a_ * exp(- d_ * (x_ * x_)) + b_;
+   }
+};
+
 /** A GaussianStep1D is a C^3 step function with a limiting value of
     'a' below p0 and a limiting value of 'b' above p0. The parameter
     'd' specifies the maximum magnitude of the derivative midway
@@ -2788,6 +2815,13 @@ public:
       T.Transform(ip, x_);
       return a_ * exp(- b_ * pow(x_[comp_] - p0_ + q0_ * cos(w_ * time), 2));
    }
+   /*
+   void SetTime(double t)
+   {
+     cout << "OscillatingGaussian1D::SetTime(" << t << ")" << endl;
+     this->Coefficient::SetTime(t);
+   }
+   */
 };
 
 class SineTime : public Coefficient
@@ -2806,6 +2840,13 @@ public:
    {
       return a_ * sin(w_ * (time - t0_)) + b_;
    }
+   /*
+   void SetTime(double t)
+   {
+     cout << "SineTime::SetTime(" << t << ")" << endl;
+     this->Coefficient::SetTime(t);
+   }
+   */
 };
 
 class Radius : public Coefficient
@@ -2989,6 +3030,12 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       int comp;
       input >> a >> b >> p0 >> comp;
       coef_idx = sCoefs.Append(new Gaussian1D(a, b, p0, comp));
+   }
+   else if (name == "Gaussian")
+   {
+      double a, b, d, x0, y0, z0;
+      input >> a >> b >> d >> x0 >> y0 >> z0;
+      coef_idx = sCoefs.Append(new Gaussian(a, b, d, x0, y0, z0));
    }
    else if (name == "GaussianStep1D")
    {

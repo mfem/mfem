@@ -2619,7 +2619,8 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
          fbfi_[0]->AssembleFaceMatrix(fe1, fe2, *ftrans, elmat_);
          for (int k = 1; k < fbfi_.Size(); k++)
          {
-            fbfi_[k]->AssembleFaceMatrix(fe1, fe2, *ftrans, elmat_);
+            fbfi_[k]->AssembleFaceMatrix(fe1, fe2, *ftrans, elmat_k_);
+            elmat_ += elmat_k_;
          }
 
          int ndof  = vdofs_.Size();
