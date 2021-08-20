@@ -88,7 +88,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 {
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
-#ifdef hypre_ParVectorOwnsPartitioning
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
    // The data will be destroyed by hypre (this is the default)
@@ -107,7 +107,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_SeqVectorSetDataOwner(x_loc,0);
-#ifdef hypre_ParVectorOwnsPartitioning
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
    double tmp = 0.0;
@@ -132,7 +132,7 @@ HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
    x = hypre_ParVectorCreate(y.x -> comm, y.x -> global_size,
                              y.x -> partitioning);
    hypre_ParVectorInitialize(x);
-#ifdef hypre_ParVectorOwnsPartitioning
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
    hypre_ParVectorSetDataOwner(x,1);
@@ -168,7 +168,7 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    x = hypre_ParVectorCreate(pfes->GetComm(), pfes->GlobalTrueVSize(),
                              pfes->GetTrueDofOffsets());
    hypre_ParVectorInitialize(x);
-#ifdef hypre_ParVectorOwnsPartitioning
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
    // The data will be destroyed by hypre (this is the default)
@@ -691,7 +691,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts,
                                 row_starts, 0, diag->NumNonZeroElems(), 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
 #endif
@@ -736,7 +736,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                 row_starts, col_starts,
                                 0, diag->NumNonZeroElems(), 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
 #endif
@@ -782,7 +782,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                 offd->Width(), diag->NumNonZeroElems(),
                                 offd->NumNonZeroElems());
    hypre_ParCSRMatrixSetDataOwner(A,1);
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
 #endif
@@ -831,7 +831,7 @@ HypreParMatrix::HypreParMatrix(
    A = hypre_ParCSRMatrixCreate(comm, global_num_rows, global_num_cols,
                                 row_starts, col_starts, offd_num_cols, 0, 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
 #endif
@@ -947,7 +947,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    A = hypre_ParCSRMatrixCreate(comm, global_num_rows, global_num_cols,
                                 row_starts, col_starts, 0, nnz, 0);
    hypre_ParCSRMatrixSetDataOwner(A,1);
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
 #endif
@@ -1007,7 +1007,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    }
 
    hypre_ParCSRMatrixSetDataOwner(A,1);
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixSetRowStartsOwner(A,0);
    hypre_ParCSRMatrixSetColStartsOwner(A,0);
 #endif
@@ -1197,7 +1197,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
-#ifndef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION > 22200
    mfem_hypre_TFree_host(row_starts);
    if (rows != cols)
    {
@@ -1290,7 +1290,7 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 
 void HypreParMatrix::CopyRowStarts()
 {
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    if (!A || hypre_ParCSRMatrixOwnsRowStarts(A) ||
        (hypre_ParCSRMatrixRowStarts(A) == hypre_ParCSRMatrixColStarts(A) &&
         hypre_ParCSRMatrixOwnsColStarts(A)))
@@ -1330,7 +1330,7 @@ void HypreParMatrix::CopyRowStarts()
 
 void HypreParMatrix::CopyColStarts()
 {
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    if (!A || hypre_ParCSRMatrixOwnsColStarts(A) ||
        (hypre_ParCSRMatrixRowStarts(A) == hypre_ParCSRMatrixColStarts(A) &&
         hypre_ParCSRMatrixOwnsRowStarts(A)))
@@ -1822,7 +1822,7 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
                          DA_diag, DA_offd, new_col_map_offd,
                          own_diag_offd);
 
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    // Give ownership of row_starts, col_starts, and col_map_offd to DA
    hypre_ParCSRMatrixSetRowStartsOwner(DA->A, 1);
    hypre_ParCSRMatrixSetColStartsOwner(DA->A, 1);
@@ -1984,7 +1984,7 @@ void HypreParMatrix::Threshold(double threshold)
    row_starts = hypre_ParCSRMatrixRowStarts(A);
    col_starts = hypre_ParCSRMatrixColStarts(A);
 
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    bool old_owns_row = hypre_ParCSRMatrixOwnsRowStarts(A);
    bool old_owns_col = hypre_ParCSRMatrixOwnsColStarts(A);
 #endif
@@ -1994,7 +1994,7 @@ void HypreParMatrix::Threshold(double threshold)
                                            global_num_cols,
                                            row_starts, col_starts,
                                            0, 0, 0);
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
    hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
    hypre_ParCSRMatrixOwnsRowStarts(A) = 0;
@@ -2034,7 +2034,7 @@ void HypreParMatrix::Threshold(double threshold)
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
    /* Make sure that the first entry in each row is the diagonal one. */
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    if (row_starts == col_starts)
 #else
    if ((row_starts[0] == col_starts[0]) &&
@@ -2548,14 +2548,14 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       // hypre_ParCSRMatrixRAPKT
    }
 #else
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
 #endif
 
    hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
 
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
       from P (even if it does not own them)! */
    hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
@@ -2585,7 +2585,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
       hypre_ParCSRMatrixDestroy(Q);
    }
 #else
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
    HYPRE_Int Rt_owns_its_col_starts =
@@ -2594,7 +2594,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 
    hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
 
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
       from Rt and P (even if they do not own them)! */
    hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
@@ -3197,8 +3197,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
       else
       {
-         // TODO: replace #ifdef hypre_ParCSRMatrixOwnsRowStarts with #if MFEM_HYPRE_VERSION <= 22200
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
          min_eig_est = 0;
          hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est);
 #else
@@ -3217,8 +3216,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       }
       else
       {
-         // TODO: replace #ifdef hypre_ParCSRMatrixOwnsRowStarts with #if MFEM_HYPRE_VERSION <= 22200
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
          min_eig_est = 0;
          hypre_ParCSRMaxEigEstimate(*A, poly_scale, &max_eig_est);
 #else

@@ -787,7 +787,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            2 * num_cols_offd, cmap,
                                            true);
 
-#ifdef hypre_ParCSRMatrixOwnsRowStarts
+#if MFEM_HYPRE_VERSION <= 22200
    // Give the new matrix ownership of row_starts and col_starts
    hypre_ParCSRMatrix *hA = (hypre_ParCSRMatrix*)(*A);
 
