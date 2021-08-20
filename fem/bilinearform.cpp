@@ -1329,12 +1329,10 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       return;
    }
 
-   // Array<int> tr_vdofs, te_vdofs;
    ElementTransformation *eltrans;
    DofTransformation * dom_dof_trans;
    DofTransformation * ran_dof_trans;
    DenseMatrix elmat;
-   // DenseMatrix totelemmat, elemmat;
 
    Mesh *mesh = test_fes -> GetMesh();
 
