@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
       std::cout << "               ||ydiff|| = " << errnorm << std::endl;
       std::cout << "----------------------------------" << std::endl;
       std::cout << " %} " << std::endl;
-      exit(1);
+      //exit(1);
    }
 
    int print_iter = 3;
@@ -436,16 +436,25 @@ int main(int argc, char *argv[])
       std::chrono::time_point<std::chrono::system_clock> StartTime;
       std::chrono::time_point<std::chrono::system_clock> EndTime;
 
+
+      CGSolver pcg;
+      pcg.SetPrintLevel(print_iter);
+      pcg.SetMaxIter(max_num_iter);
+      pcg.SetRelTol(sqrt(rtol));
+      pcg.SetAbsTol(sqrt(atol));
+      pcg.SetOperator(*Afull);
+      pcg.SetPreconditioner(Mfull);
+
       StartTime = std::chrono::system_clock::now();
 
-      auto solver = PCGr(*Afull, Mfull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
+      pcg.Mult(Bfull, Xfull);
 
       EndTime = std::chrono::system_clock::now();
 
       auto timefull = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
       std::cout << "full solver time (ms): " << double(timefull)/1000.0 << std::endl;
-      double iters = solver.GetNumIterations();
+      double iters = pcg.GetNumIterations();
       std::cout << "update rate (iters/ms): " << iters/timefull << std::endl;
 
       std::cout << "----------------------------------" << std::endl;
@@ -470,16 +479,27 @@ int main(int argc, char *argv[])
       std::chrono::time_point<std::chrono::system_clock> StartTime;
       std::chrono::time_point<std::chrono::system_clock> EndTime;
 
+
+
+      CGSolver pcg2;
+      pcg2.SetPrintLevel(print_iter);
+      pcg2.SetMaxIter(max_num_iter);
+      pcg2.SetRelTol(sqrt(rtol));
+      pcg2.SetAbsTol(sqrt(atol));
+      pcg2.SetOperator(*A);
+      pcg2.SetPreconditioner(M);
+
       StartTime = std::chrono::system_clock::now();
 
-      auto solver = PCGr(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
+      pcg2.Mult(B, X);
+      //auto solver = PCGr(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
 
       EndTime = std::chrono::system_clock::now();
 
       auto timepa = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
       std::cout << "pa   solver time (ms): " << double(timepa)/1000.0 << std::endl;
-      double iters = solver.GetNumIterations();
+      double iters = pcg2.GetNumIterations();
       std::cout << "update rate (iters/ms): " << iters/timepa << std::endl;
 
       std::cout << "----------------------------------" << std::endl;
