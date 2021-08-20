@@ -2112,9 +2112,12 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
       }
+      L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
+
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
+      L2_Elements[Geometry::PYRAMID]->SetMapType(map_type);
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
@@ -2235,6 +2238,21 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    }
 }
 
+const FiniteElement *
+L2_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 0)
+   {
+      return L2_Elements[GeomType];
+   }
+   else
+   {
+      MFEM_ABORT("L2 Pyramid basis functions are not yet supported "
+                 "for order > 0.");
+      return NULL;
+   }
+}
+
 const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                    int Or) const
 {
@@ -2326,6 +2344,12 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
 
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
+
+      RT_Elements[Geometry::PRISM] = new RT0WdgFiniteElement;
+      RT_dof[Geometry::PRISM] = 0;
+
+      RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
+      RT_dof[Geometry::PYRAMID] = 0;
    }
    else
    {
@@ -2466,6 +2490,22 @@ void RT_FECollection::InitFaces(const int p, const int dim,
             }
          }
       }
+   }
+}
+
+const FiniteElement *
+RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if ((GeomType != Geometry::PRISM && GeomType != Geometry::PYRAMID) ||
+       this->GetOrder() == 1)
+   {
+      return RT_Elements[GeomType];
+   }
+   else
+   {
+      MFEM_ABORT("RT Wedge and Pyramid basis functions are not yet supported "
+                 "for order > 0.");
+      return NULL;
    }
 }
 
@@ -2716,6 +2756,28 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       // TODO: cb_type and ob_type for tets
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
+
+      ND_Elements[Geometry::PRISM] = new Nedelec1WdgFiniteElement;
+      ND_dof[Geometry::PRISM] = 0;
+
+      ND_Elements[Geometry::PYRAMID] = new Nedelec1PyrFiniteElement;
+      ND_dof[Geometry::PYRAMID] = 0;
+   }
+}
+
+const FiniteElement *
+ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if ((GeomType != Geometry::PRISM && GeomType != Geometry::PYRAMID) ||
+       this->GetOrder() == 1)
+   {
+      return ND_Elements[GeomType];
+   }
+   else
+   {
+      MFEM_ABORT("ND Wedge and Pyramid basis functions are not yet supported "
+                 "for order > 1.");
+      return NULL;
    }
 }
 

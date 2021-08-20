@@ -301,10 +301,7 @@ public:
                    const int map_type = FiniteElement::VALUE);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const
-   {
-      return L2_Elements[GeomType];
-   }
+      Geometry::Type GeomType) const;
    virtual int DofForGeometry(Geometry::Type GeomType) const
    {
       if (L2_Elements[GeomType])
@@ -370,8 +367,7 @@ public:
                    const int ob_type = BasisType::GaussLegendre);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const
-   { return RT_Elements[GeomType]; }
+      Geometry::Type GeomType) const;
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return RT_dof[GeomType]; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
@@ -429,8 +425,7 @@ public:
                    const int ob_type = BasisType::GaussLegendre);
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const
-   { return ND_Elements[GeomType]; }
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return ND_dof[GeomType]; }
