@@ -367,16 +367,16 @@ void Device::UpdateMemoryTypeAndClass()
    if (device_option && !strncmp(device_option, "fast", 4))
    {
       deterministic_kernels = DETERMINISTIC_KERNELS::OFF;
-      device_kernels_version = atoi(device_option + 4);
-      printf("\033[32m[version:%d]\033[m\n",device_kernels_version);
+      kernels_version = atoi(device_option + 4);
+      printf("\033[32m[version:%d]\033[m\n", kernels_version);
       fflush(0);
    }
 
    // Enable the version shortcut when requested
    if (device_option && !strncmp(device_option, "ver", 3))
    {
-      device_kernels_version = atoi(device_option + 3);
-      printf("\033[32m[version:%d]\033[m\n",device_kernels_version);
+      kernels_version = atoi(device_option + 3);
+      printf("\033[32m[version:%d]\033[m\n", kernels_version);
       fflush(0);
    }
 

@@ -672,9 +672,6 @@ void NDK_PAMassApply(const int dim,
       // Fast '3': libP + AMD specific non-deterministic 3D mass kernel
       // in bilininteg_mass_pa_fast_amd.cpp
 
-      // Fast '4': Legacy & half smem deterministic 3D mass kernel
-      // in bilininteg_mass_pa_fast_dmz.cpp
-
       default: break;
    }
 
