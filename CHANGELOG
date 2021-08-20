@@ -12,8 +12,13 @@ Version 4.3.1 (development)
 ===========================
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
-- Updated hypre interface according to changes in version 2.22.1 of
-  hypre. ADS solver is fully working on GPUs now.
+- Updated the hypre interface according to changes in hypre-2.22.1. The ADS solver is now fully working on GPUs.
+
+- Tetrahedral meshes no longer need to be reordered to support high order
+  Nedelec basis functions. This will allow future support for Nedelec basis
+  functions on wedges and pyramids which are not amenable to reordering. The
+  ReorientTetMesh method of the Mesh and ParMesh classes has been deprecated.
+
 
 Version 4.3, released on July 29, 2021
 ======================================

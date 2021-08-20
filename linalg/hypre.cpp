@@ -5058,11 +5058,11 @@ HypreADS::HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
 void HypreADS::Init(ParFiniteElementSpace *face_fespace)
 {
    int cycle_type       = 11;
-   int rlx_type         = 2;
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
 #ifndef HYPRE_USING_CUDA
+   int rlx_type         = 2;
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
    int amg_rlx_type     = 8;
@@ -5070,6 +5070,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
 #else
+   int rlx_type         = 1;
    int amg_coarsen_type = 8;
    int amg_agg_levels   = 0;
    int amg_rlx_type     = 18;
