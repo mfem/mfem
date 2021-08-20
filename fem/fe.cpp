@@ -3375,10 +3375,9 @@ void LinearPyramidFiniteElement::CalcShape(const IntegrationPoint &ip,
 
    if (oz <= tol)
    {
-      // We must return the limit of the basis functions as z->1.  In
-      // order to remain inside the pyramid in this limit the x and y
-      // coordinates must be approaching 0. The resulting limiting
-      // basis function values are:
+      // We must return the limit of the basis functions as z->1.  In order to
+      // remain inside the pyramid in this limit the x and y coordinates must
+      // be approaching 0. The resulting limiting basis function values are:
       shape(0) = 0.;
       shape(1) = 0.;
       shape(2) = 0.;
@@ -3406,12 +3405,11 @@ void LinearPyramidFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
    if (oz <= tol)
    {
-      // At the apex of the pyramid the gradients of the basis
-      // functions are multivalued and depend on the direction from
-      // which the limit is taken. The following values correspond to
-      // the average of the gradients taken over all possible
-      // directions approaching the apex of the pyramid from within
-      // its interior.
+      // At the apex of the pyramid the gradients of the basis functions are
+      // multivalued and depend on the direction from which the limit is taken.
+      // The following values correspond to the average of the gradients taken
+      // over all possible directions approaching the apex of the pyramid from
+      // within its interior.
       dshape(0,0) = - 0.5;
       dshape(0,1) = - 0.5;
       dshape(0,2) = - 0.75;
