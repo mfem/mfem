@@ -12,6 +12,11 @@ Version 4.3.1 (development)
 ===========================
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
+- Adding lowest order Nedelec and Raviart-Thomas basis functions on wedge
+  shaped elements.
+
+- Adding lowest order H1, Nedelec, Raviart-Thomas, and L2 basis functions
+  pyramid shaped elements.
 
 Version 4.3, released on July 29, 2021
 ======================================
