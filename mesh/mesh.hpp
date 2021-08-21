@@ -841,10 +841,16 @@ public:
 
    /** @brief Get the mesh generator/type.
 
+       The purpose of this is to be able to quickly tell what type of elements
+       one has in the mesh. Examination of this bitmask along with knowledge
+       of the mesh dimension can be used to identify which element types are
+       present.
+
        @return A bitmask:
        - bit 0 - simplices are present in the mesh (triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
-       - bit 2 - the mesh has wedge or pyramid elements.
+       - bit 2 - the mesh has wedge elements.
+       - bit 3 - the mesh has pyramid elements.
 
        In parallel, the result takes into account elements on all processors.
    */
