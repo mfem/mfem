@@ -3654,7 +3654,7 @@ void Mesh::SetMeshGen()
             mesh_geoms |= (1 << Geometry::TRIANGLE);
             mesh_geoms |= (1 << Geometry::SEGMENT);
             mesh_geoms |= (1 << Geometry::POINT);
-            meshgen |= 4;
+            meshgen |= 8;
             break;
 
          default:
@@ -9033,7 +9033,7 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    else if (nonconforming < 0)
    {
       // determine if nonconforming refinement is suitable
-      if ((meshgen & 2) || (meshgen & 4))
+      if ((meshgen & 2) || (meshgen & 4) || (meshgen & 8))
       {
          nonconforming = 1; // tensor product elements and wedges
       }
