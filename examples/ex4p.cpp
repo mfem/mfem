@@ -19,6 +19,8 @@
 //               mpirun -np 3 ex4p -m ../data/amr-quad.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
+//               mpirun -np 4 ex4p -m ../data/ref-prism.mesh -o 1
+//               mpirun -np 4 ex4p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
 //
 // Device sample runs:
