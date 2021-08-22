@@ -1245,7 +1245,7 @@ public:
        satisfy: v0 < min(v1, v2).
 
        @note Refinement does not work after a call to this method! */
-   virtual void ReorientTetMesh();
+   MFEM_DEPRECATED virtual void ReorientTetMesh();
 
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
