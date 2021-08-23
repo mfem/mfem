@@ -879,16 +879,14 @@ static void PADGDiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {  
-         /*
-         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,op,x,y);
-         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,op,x,y);
-         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,op,x,y);
-         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,op,x,y);
-         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,op,x,y);
-         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,op,x,y);
-         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,op,x,y);
-         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,op,x,y);
-         */
+         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
          default:   return PADGDiffusionApply2D(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y,D1D,Q1D);
       }
    }
@@ -897,13 +895,13 @@ static void PADGDiffusionApply(const int dim,
       switch ((D1D << 4 ) | Q1D)
       {
          /*
-         case 0x23: return SmemPADGDiffusionApply3D<2,3,1>(NF,B,Bt,op,x,y);
-         case 0x34: return SmemPADGDiffusionApply3D<3,4,2>(NF,B,Bt,op,x,y);
-         case 0x45: return SmemPADGDiffusionApply3D<4,5,2>(NF,B,Bt,op,x,y);
-         case 0x56: return SmemPADGDiffusionApply3D<5,6,1>(NF,B,Bt,op,x,y);
-         case 0x67: return SmemPADGDiffusionApply3D<6,7,1>(NF,B,Bt,op,x,y);
-         case 0x78: return SmemPADGDiffusionApply3D<7,8,1>(NF,B,Bt,op,x,y);
-         case 0x89: return SmemPADGDiffusionApply3D<8,9,1>(NF,B,Bt,op,x,y);
+         case 0x23: return SmemPADGDiffusionApply3D<2,3,1>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x34: return SmemPADGDiffusionApply3D<3,4,2>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x45: return SmemPADGDiffusionApply3D<4,5,2>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x56: return SmemPADGDiffusionApply3D<5,6,1>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x67: return SmemPADGDiffusionApply3D<6,7,1>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x78: return SmemPADGDiffusionApply3D<7,8,1>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
+         case 0x89: return SmemPADGDiffusionApply3D<8,9,1>(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y);
          */
          default:   return PADGDiffusionApply3D(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y,D1D,Q1D);
       }
