@@ -2,7 +2,9 @@
 
 set -e
 
-install_dir=$HOME/local
+# cling is installed here (in bin) and will look in {dir}/include and {dir}/lib
+# without extra intervention
+install_dir=/srv/conda/envs/notebook
 mkdir -p $install_dir
 
 # build and install mfem
