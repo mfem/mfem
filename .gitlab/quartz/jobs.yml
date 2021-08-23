@@ -1,0 +1,53 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# GitLab jobs for the Quartz machine at LLNL
+
+debug_ser_gcc_4_9_3:
+  variables:
+    SPEC: "%gcc@4.9.3 +debug~mpi"
+  extends: .build_and_test_on_quartz
+
+debug_ser_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 +debug~mpi"
+  extends: .build_and_test_on_quartz
+
+debug_par_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 +debug+mpi"
+  extends: .build_and_test_on_quartz
+
+opt_ser_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 ~mpi"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_sundials:
+  variables:
+    SPEC: "%gcc@6.1.0 +sundials"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_petsc:
+  variables:
+    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_pumi:
+  variables:
+    SPEC: "%gcc@6.1.0 +pumi"
+  extends: .build_and_test_on_quartz
+

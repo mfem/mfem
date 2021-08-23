@@ -1,0 +1,66 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# GitLab pipelines configurations for the Corona machine at LLNL
+
+.on_corona:
+  tags:
+    - shell
+    - corona
+  rules:
+    # Don’t run corona jobs if...
+    # Note: This makes corona an "opt-in" machine. Gitlab instances where
+    # corona jobs should run should set "ON_CORONA" to "ON".
+    - if: '$CI_COMMIT_BRANCH =~ /_cnone/ || $ON_CORONA != "ON"'
+      when: never
+    # Don’t run autotest update if...
+    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "YES"'
+      when: never
+    # Report success on success status
+    - if: '$CI_JOB_NAME =~ /report_job_success/ && $AUTOTEST == "YES"'
+      when: on_success
+    # Report failure on failure status
+    - if: '$CI_JOB_NAME =~ /report_job_failure/ && $AUTOTEST == "YES"'
+      when: on_failure
+    # Always release resource
+    - if: '$CI_JOB_NAME =~ /release_resource/'
+      when: always
+    # Default is to run if previous stage succeeded
+    - when: on_success
+
+# Allocate
+c_allocate_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: allocate_resource
+  script:
+    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
+  timeout: 6h
+  needs: [setup]
+
+# Release
+c_release_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: release_resource
+  script:
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+  needs: [rocm_gcc_8.3.1]
+
+# Spack helped builds
+# Generic corona build job, extending build script
+.build_and_test_on_corona:
+  extends: [.build_toss_3_x86_64_ib_corona_script, .on_corona]
+  stage: build_and_test
+

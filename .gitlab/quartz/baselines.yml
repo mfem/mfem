@@ -1,0 +1,23 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# Baseline jobs form an independent set of jobs. We use `needs:[]` to specify
+# that "setup-baseline" can start immediately. Then, we have to use needs for
+# each one of the baseline jobs, otherwise they will wait for the rest of the
+# pipeline.
+
+baselinecheck_mfem_intel_quartz:
+  extends: [.baselinecheck_mfem, .on_quartz]
+  needs: [setup_baseline]
+
+baselinepublish_mfem_quartz:
+  extends: [.on_quartz, .rebaseline_mfem]
+  needs: [baselinecheck_mfem_intel_quartz]
