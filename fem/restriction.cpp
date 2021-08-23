@@ -3226,11 +3226,13 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    auto dudn_face = Reshape(Gf.Read(), ndofs1d, ndofs_face, nf, 2, 3);
    int num_sides = 2; 
    int num_derivatives = 2; 
+
+// -1 old, 0 both, 1 new
+#define restrict_use 0
+
+#if restrict_use < 1
+
    y = 0.0;
-
-#define restrict_old 0
-
-#if restrict_old == 1
 
    if (m==L2FaceValues::DoubleValued)
    {
@@ -3327,11 +3329,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 
 #endif
 
-#ifdef MFEM_DEBUG
-   std::cout << " restrict y" << std::endl;
-   y.Print(std::cout,1);
-   std::cout << " end restrict y" << std::endl;
-#endif
+
+#if restrict_use > -1 
 
 #ifdef MFEM_DEBUG
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
@@ -3339,8 +3338,6 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    y_old = y;
    y = 0.0;
 #endif
-
-#if restrict_old < 1
 
    int D1D = ndofs1d;
    int end = D1D - 1;
@@ -3352,19 +3349,9 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 
    if (m==L2FaceValues::DoubleValued)
    {
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y_new = Reshape(y.Write(), ndofs_face, vd, num_sides, nf, num_derivatives);
 
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
 /*
       // Loop over all face dofs
       MFEM_FORALL(i, ndofs_face*vd*nf,
@@ -3395,27 +3382,31 @@ timings[tid++] = std::chrono::system_clock::now();
       });
       */
 
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
 
-
-   auto jac_face_factor = Reshape( jac_face_factors.Read(), dim, ndofs_face, num_faces_per_element, ne);
-   int elem_dofs = (dim==3)? D1D*D1D*D1D : D1D*D1D;
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
+      auto jac_face_factor = Reshape( jac_face_factors.Read(), dim, ndofs_face, num_faces_per_element, ne);
+      int elem_dofs = (dim==3)? D1D*D1D*D1D : D1D*D1D;
 
       if(dim == 2)
       {
-         MFEM_ABORT(" you haven't updated this yet to be like dim==3");
-
          // Loop over all elements
          MFEM_FORALL(e, ne,
          {
+            /*
+            // may not need this
+            bool skip = true;
+            for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
+            {
+               if( map_elements_to_sides[num_faces_per_element*e + face_id] != -1 )
+               {
+                  skip = false;
+               }
+            }
+            if(skip)
+            {
+               continue;
+            }
+            */
+
             double u[max_D1D][max_D1D][vdim];
 
             // Roll element dofs into tensor form
@@ -3428,27 +3419,6 @@ timings[tid++] = std::chrono::system_clock::now();
                   for (int c = 0; c < vdim; c++)
                   {
                      u[d1][d2][c] = d_x(t?c:idx, t?idx:c);
-                  }
-               }
-            }
-
-            // Apply derivative operator to each dimension
-            // todo - maybe rewrite this to improve stride
-            double Gxu[max_D1D][max_D1D][vdim];
-            double Gyu[max_D1D][max_D1D][vdim];
-            for (int d1 = 0; d1 < D1D; d1++)
-            {
-               for (int d2 = 0; d2 < D1D; d2++)
-               {
-                  for (int c = 0; c < vdim; c++)
-                  {
-                     Gxu[d1][d2][c] = 0.0;
-                     Gyu[d1][d2][c] = 0.0;
-                     for (int p = 0; p < D1D; p++)
-                     {
-                        Gxu[d1][d2][c] += Ge_(d1,p,e)*u[p][d2][c];
-                        Gyu[d1][d2][c] += Ge_(d2,p,e)*u[d1][p][c];
-                     }
                   }
                }
             }
@@ -3473,38 +3443,58 @@ timings[tid++] = std::chrono::system_clock::now();
                   R1yu[d1][c] = u[d1][end][c];
                }
             }
-
-            // Restrict derivatives to each face
-            double R0xGxu[max_D1D][vdim];
+            
             double R0yGxu[max_D1D][vdim];
-
             double R0xGyu[max_D1D][vdim];
-            double R0yGyu[max_D1D][vdim];
-            
-            double R1xGxu[max_D1D][vdim];
             double R1yGxu[max_D1D][vdim];
-
             double R1xGyu[max_D1D][vdim];
-            double R1yGyu[max_D1D][vdim];
             
+            // Apply derivative operator to each dimension
+            // todo - maybe rewrite this to improve stride
             for (int d1 = 0; d1 < D1D; d1++)
             {
                for (int c = 0; c < vdim; c++)
                {
-                  // xi = 0 faces
-                  R0xGxu[d1][c] = Gxu[0][d1][c];
-                  R0yGxu[d1][c] = Gxu[d1][0][c];
+                  R0yGxu[d1][c] = 0;
+                  R0xGyu[d1][c] = 0;
+                  R1yGxu[d1][c] = 0;
+                  R1xGyu[d1][c] = 0;
 
-                  R0xGyu[d1][c] = Gyu[0][d1][c];
-                  R0yGyu[d1][c] = Gyu[d1][0][c];
+                  for (int p = 0; p < D1D; p++)
+                  {
+                     double G = Ge_(d1,p,e);
+                     // xi = 0 faces
+                     R0yGxu[d1][c] += G*R0yu[p][c];
+                     R0xGyu[d1][c] += G*R0xu[p][c];
+                     
+                     // xi = 1 faces
+                     R1yGxu[d1][c] += G*R1yu[p][c];
+                     R1xGyu[d1][c] += G*R1xu[p][c];
+                  }
+               }
+            }
 
-                  // xi = 1 faces
-                  R1xGxu[d1][c] = Gxu[end][d1][c];
-                  R1yGxu[d1][c] = Gxu[d1][end][c];
+            double R0xGxu[max_D1D][vdim];
+            double R0yGyu[max_D1D][vdim];
+            double R1xGxu[max_D1D][vdim];
+            double R1yGyu[max_D1D][vdim];
 
-                  R1xGyu[d1][c] = Gyu[end][d1][c];
-                  R1yGyu[d1][c] = Gyu[d1][end][c];
-               }               
+            for (int d1 = 0; d1 < D1D; d1++)
+            {
+               for (int c = 0; c < vdim; c++)
+               {
+                  R0xGxu[d1][c] = 0;
+                  R0yGyu[d1][c] = 0;
+                  R1xGxu[d1][c] = 0;
+                  R1yGyu[d1][c] = 0;
+                  for (int p = 0; p < D1D; p++)
+                  {
+                     R0xGxu[d1][c] += Ge_(0,p,e)*u[p][d1][c];
+                     R0yGyu[d1][c] += Ge_(0,p,e)*u[d1][p][c];
+                     R1xGxu[d1][c] += Ge_(end,p,e)*u[p][d1][c];
+                     R1yGyu[d1][c] += Ge_(end,p,e)*u[d1][p][c];
+                  }
+               }
             }
 
             // y = 0 face
@@ -3519,6 +3509,7 @@ timings[tid++] = std::chrono::system_clock::now();
                double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
+                  d_y_new(fdof , c, side, face, 0) += R0yu[d1][c];
                   double dnormal = 0;
                   dnormal += face_pt_adj_x*R0yGxu[d1][c];
                   dnormal += face_pt_adj_y*R0yGyu[d1][c];
@@ -3527,7 +3518,7 @@ timings[tid++] = std::chrono::system_clock::now();
             }
 
             // x = 1 face
-            face_id = 0;
+            face_id = 1;
             face = map_elements_to_faces[num_faces_per_element*e + face_id];
             side = map_elements_to_sides[num_faces_per_element*e + face_id];
             if(side>=0)
@@ -3538,6 +3529,7 @@ timings[tid++] = std::chrono::system_clock::now();
                double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
+                  d_y_new(fdof , c, side, face, 0) += R1xu[d1][c];
                   double dnormal = 0;
                   dnormal += face_pt_adj_x*R1xGxu[d1][c];
                   dnormal += face_pt_adj_y*R1xGyu[d1][c];
@@ -3546,7 +3538,7 @@ timings[tid++] = std::chrono::system_clock::now();
             }
 
             // y = 1 face
-            face_id = 0;
+            face_id = 2;
             face = map_elements_to_faces[num_faces_per_element*e + face_id];
             side = map_elements_to_sides[num_faces_per_element*e + face_id];
             if(side>=0)
@@ -3557,6 +3549,7 @@ timings[tid++] = std::chrono::system_clock::now();
                double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
+                  d_y_new(fdof , c, side, face, 0) += R1yu[d1][c];
                   double dnormal = 0;
                   dnormal += face_pt_adj_x*R1yGxu[d1][c];
                   dnormal += face_pt_adj_y*R1yGyu[d1][c];
@@ -3564,9 +3557,8 @@ timings[tid++] = std::chrono::system_clock::now();
                }
             }
 
-
             // x = 0 face
-            face_id = 0;
+            face_id = 3;
             face = map_elements_to_faces[num_faces_per_element*e + face_id];
             side = map_elements_to_sides[num_faces_per_element*e + face_id];
             if(side>=0)
@@ -3577,6 +3569,7 @@ timings[tid++] = std::chrono::system_clock::now();
                double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
+                  d_y_new(fdof , c, side, face, 0) += R0xu[d1][c];
                   double dnormal = 0;
                   dnormal += face_pt_adj_x*R0xGxu[d1][c];
                   dnormal += face_pt_adj_y*R0xGyu[d1][c];
@@ -3588,10 +3581,10 @@ timings[tid++] = std::chrono::system_clock::now();
       else if(dim == 3)
       {
          // Loop over all elements
-         //MFEM_FORALL(e, ne,
-         for( int e = 0 ; e < ne ; e++ )
+         MFEM_FORALL(e, ne,
          {
-
+            /*
+            // may not need this
             bool skip = true;
             for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
             {
@@ -3604,11 +3597,7 @@ timings[tid++] = std::chrono::system_clock::now();
             {
                continue;
             }
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
+            */
 
             double u[max_D1D][max_D1D][max_D1D][vdim];
 
@@ -3628,11 +3617,6 @@ timings[tid++] = std::chrono::system_clock::now();
                   }
                }
             }
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
 
             // Restrict to faces
             double R0xu[max_D1D][max_D1D][vdim];
@@ -3682,11 +3666,6 @@ timings[tid++] = std::chrono::system_clock::now();
 
             // Apply derivative operator to each dimension
             // todo - maybe rewrite this to improve stride
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
             for (int d1 = 0; d1 < D1D; d1++)
             {
                for (int d2 = 0; d2 < D1D; d2++)
@@ -3732,11 +3711,6 @@ timings[tid++] = std::chrono::system_clock::now();
                   }
                }
             }
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
 
             double R0xGxu[max_D1D][max_D1D][vdim];
             double R0yGyu[max_D1D][max_D1D][vdim];
@@ -3943,7 +3917,7 @@ timings[tid++] = std::chrono::system_clock::now();
                   }
                }
             }
-         }//);
+         });
       }
    }
    else
@@ -3966,6 +3940,13 @@ timings[tid++] = std::chrono::system_clock::now();
    std::cout << "mult error " << std::endl << ydiff.Normlinf() << std::endl;
 #endif
 
+#endif
+
+
+#ifdef MFEM_DEBUG
+   std::cout << " restrict y" << std::endl;
+   y.Print(std::cout,1);
+   std::cout << " end restrict y" << std::endl;
 #endif
 
 
@@ -3998,9 +3979,10 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_indices_tan1 = gather_indices_tan1.Read();
    auto d_indices_tan2 = gather_indices_tan2.Read();
 
-#define restrict_transpose_old 0
+// -1 old, 0 both, 1 new 
+#define restrict_transpose_use 0
 
-#if restrict_transpose_old == 1
+#if restrict_transpose_use < 1
 
    if (m == L2FaceValues::DoubleValued)
    {
@@ -4132,13 +4114,18 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    std::cout << "end multT y " << std::endl;
 #endif
 
-#ifdef MFEM_DEBUG
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   Vector y_old;
-   y_old = y;
-#endif
 
-#if restrict_transpose_old < 1
+#if restrict_transpose_use > -1
+
+   #ifdef MFEM_DEBUG
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      Vector y_old;
+      y_old = y;
+   #endif
+
+   y = 0.0;
+
+
    int D1D = ndofs1d;
    int end = D1D - 1;
    auto Ge_ = Reshape(Ge.Read(), D1D, D1D, ne);
@@ -4162,13 +4149,131 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 
       if(dim == 2)
       {
-         MFEM_ABORT(" you haven't updated this yet to be like dim==3");
+         // Loop over all elements
+         MFEM_FORALL(e, ne,
+         {
+            double u[max_D1D][max_D1D][vdim];
+            for (int d1 = 0; d1 < D1D; d1++)
+            {
+               for (int d2 = 0; d2 < D1D; d2++)
+               {
+                  for (int c = 0; c < vdim; c++)
+                  {
+                     u[d1][d2][c] = 0.;
+                  }
+               }
+            }
+
+            for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
+            {
+               int face = map_elements_to_faces[num_faces_per_element*e + face_id];
+               int side = map_elements_to_sides[num_faces_per_element*e + face_id];
+               if(side>=0)
+               {
+                  double Ru[max_D1D][vdim];
+                  double RGxu[max_D1D][vdim];
+                  double RGyu[max_D1D][vdim];
+                  for (int d1 = 0; d1 < D1D; d1++)
+                  {
+                     int fdof = d1;
+                     if(side==1)
+                     {
+                        fdof = map_side_permutations[ndofs_face*face + fdof];
+                     }
+                     double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
+                     double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
+                     for (int c = 0; c < vdim; c++)
+                     {
+                        double u  = d_x(fdof, c, side, face, 0);
+                        double du = d_x(fdof, c, side, face, 1);
+                        Ru[d1][c] = u;
+                        RGxu[d1][c] = face_pt_adj_x*du;
+                        RGyu[d1][c] = face_pt_adj_y*du;
+                     }
+                  }
+
+                  switch(face_id)
+                  {
+                     case 0: // y = 0 face
+                        for (int d1 = 0; d1 < D1D; d1++)
+                        {
+                           for (int c = 0; c < vdim; c++)
+                           {
+                              u[d1][0][c] += Ru[d1][c];
+                              for (int p = 0; p < D1D; p++)
+                              {
+                                 u[d1][0][c] += Get_(d1,p,e)*RGxu[p][c];
+                                 u[d1][p][c] += Get_(0,p,e)*RGyu[d1][c];
+                              }
+                           }
+                        }
+                        break;
+                     case 1: // x = 1 face
+                        for (int d1 = 0; d1 < D1D; d1++)
+                        {
+                           for (int c = 0; c < vdim; c++)
+                           {
+                              u[end][d1][c] += Ru[d1][c];
+                              for (int p = 0; p < D1D; p++)
+                              {
+                                 u[p][d1][c] += Get_(end,p,e)*RGxu[d1][c];
+                                 u[end][d1][c] += Get_(d1,p,e)*RGyu[p][c];
+                              }
+                           }
+                        }
+                        break;
+                     case 2: // y = 1  
+                        for (int d1 = 0; d1 < D1D; d1++)
+                        {
+                           for (int c = 0; c < vdim; c++)
+                           {
+                              u[d1][end][c] += Ru[d1][c];
+                              for (int p = 0; p < D1D; p++)
+                              {
+                                 u[d1][end][c] += Get_(d1,p,e)*RGxu[p][c];
+                                 u[d1][p][c] += Get_(end,p,e)*RGyu[d1][c];
+                              }
+                           }
+                        }
+                        break;
+                     case 3: // x = 0 face 
+                        for (int d1 = 0; d1 < D1D; d1++)
+                        {
+                           for (int c = 0; c < vdim; c++)
+                           {
+                              u[0][d1][c] += Ru[d1][c];
+                              for (int p = 0; p < D1D; p++)
+                              {
+                                 u[p][d1][c] += Get_(0,p,e)*RGxu[d1][c];
+                                 u[0][d1][c] += Get_(d1,p,e)*RGyu[p][c];
+                              }
+                           }
+                        }
+                        break;
+                  }
+               }
+            }
+
+            // Unroll element dofs from tensor form
+            for (int d1 = 0; d1 < D1D; d1++)
+            {
+               for (int d2 = 0; d2 < D1D; d2++)
+               {
+                  int did = d1 + D1D*d2;
+                  int idx = elementMap[e*elem_dofs + did];
+                  for (int c = 0; c < vdim; c++)
+                  {
+                     // does this need to be atomic?
+                     d_y(t?c:idx, t?idx:c) += u[d1][d2][c];
+                  }
+               }
+            }
+         });
       }
       if(dim == 3)
       {
          // Loop over all elements
-         //MFEM_FORALL(e, ne,
-         for( int e = 0 ; e < ne ; e++ )
+         MFEM_FORALL(e, ne,
          {
             double u[max_D1D][max_D1D][max_D1D][vdim];
             for (int d1 = 0; d1 < D1D; d1++)
@@ -4350,9 +4455,8 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                   }
                }
             }
-         }//);
+         });
       }
-
    }
    else
    {

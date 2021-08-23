@@ -970,7 +970,7 @@ const Operator *FiniteElementSpace::GetFaceNormalDerivRestriction(
       }
       else
       {
-         res = new H1FaceRestriction(*this, e_ordering, type);
+         MFEM_ABORT("Not yet implemented");
       }
       L2FnormD[key] = res;
       return res;
