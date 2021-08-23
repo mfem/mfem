@@ -19,4 +19,3 @@ include:
   - local: .gitlab/common.yml
   - local: .gitlab/quartz/templates.yml
   - local: .gitlab/quartz/baselines.yml
-  - local: .gitlab/quartz/reports.yml
