@@ -7,6 +7,10 @@ generated and use it to build MFEM before running the tests.
 This process is straightforward to reproduce. However the steps are not easy
 to extract from the CI configuration, hence this article.
 
+**WARNING**
+
+This will only work on the same machines as used for CI.
+
 **NOTE**
 
 The `build_and_test` script controlling the build of MFEM and its dependencies
