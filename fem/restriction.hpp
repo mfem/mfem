@@ -177,6 +177,7 @@ class L2FaceNormalDRestriction : public Operator
 {
 protected:
    const FiniteElementSpace &fes;
+   const int dim;
    const int nf; // number of faces
    const int ne; // number of elements
    const int vdim; // number of vector components
@@ -190,7 +191,8 @@ protected:
    const int numfacedofs; // total number of face dofs
    const int num_values_per_point; // 2 for values and their derivatives, more for second derivatices, etc.
                                    // higher derivatives not yet implemented
-
+   const int num_faces_per_element;
+    
    Vector Bf;
    Vector Gf;
    Array<int> scatter_indices;
@@ -209,6 +211,13 @@ protected:
    Array<int> gather_indices_nor;
    Array<int> gather_indices_tan1;
    Array<int> gather_indices_tan2;
+
+   Array<int> map_elements_to_faces;
+   Array<int> map_elements_to_sides;
+   Array<int> map_side_permutations;
+   Vector Ge;
+   Vector jac_face_factors;
+
    L2FaceNormalDRestriction(const FiniteElementSpace&,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
