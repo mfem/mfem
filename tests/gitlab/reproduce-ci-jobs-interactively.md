@@ -72,6 +72,7 @@ python ./tests/uberenv/uberenv.py --spec="%gcc@6.1.0 +sundials"
 This is essentially the command the CI script runs in the end.
 
 **NOTE**
+
 When using this command, the configuration file will be in the mfem root dir.
 
 ## Build and test MFEM
@@ -99,6 +100,7 @@ file. We could even use `--test-only` option, which would also build MFEM to
 make sure to use the provided configuration file.
 
 **NOTE**
+
 The CI script can be used without option only if no configuration file is
 present in the `host-configs` directory. That is because in this CI mode, we
 only build one set of dependencies and MFEM target per clone of MFEM / CI job.
