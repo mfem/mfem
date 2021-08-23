@@ -1,0 +1,58 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# This is a yaml anchor, it can be used to avoid duplication like here.
+# The code below will simply be pasted wherever the anchor is placed.
+.safe_create_rundir: &safe_create_rundir |
+  if ! mkdir ${rundir}; then
+    n=1
+    while ! mkdir ${rundir}_${n}
+    do
+      n=$((n+1))
+    done
+    rundir=${rundir}_${n}
+  fi
+
+# Release
+c_report_job_success:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: release_resource
+  script:
+    - echo "Can only run if all the corona jobs passed"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - echo "The Corona jobs were successful" > ${rundir}/gitlab.out
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+  needs: [rocm_gcc_8.3.1]
+
+c_report_job_failure:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: release_resource
+  script:
+    - echo "Runs if there was at least one failure on corona"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - echo "There was an error while running CI on Corona" > ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+  needs: [rocm_gcc_8.3.1]
+
