@@ -18,6 +18,28 @@ baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
   needs: [setup_baseline]
 
+# Baseline jobs reports (for jobs in quartz-baselines.yml)
+q_report_baseline:
+  extends: [.on_quartz]
+  needs: [baselinecheck_mfem_intel_quartz]
+  stage: baseline_report
+  script:
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-baseline-${CI_COMMIT_REF_SLUG}"
+    - *safe_create_rundir
+    - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
+    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
+    - |
+      if [[ -f ${rundir}/*.err ]]
+      then
+        echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/*.err
+        cp ${rundir}/*.err ${rundir}/autotest-email.html
+      fi
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
 baselinepublish_mfem_quartz:
   extends: [.on_quartz, .rebaseline_mfem]
   needs: [baselinecheck_mfem_intel_quartz]
+
