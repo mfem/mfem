@@ -7,8 +7,7 @@ generated and use it to build MFEM before running the tests.
 This process is straightforward to reproduce. However the steps are not easy
 to extract from the CI configuration, hence this article.
 
----
-** Note **
+**NOTE**
 
 The `build_and_test` script controlling the build of MFEM and its dependencies
 has two modes:
@@ -18,8 +17,6 @@ has two modes:
 - The Interactive mode, presented here, where we first build the dependencies
   and then use a configuration file in `host-configs` directory to configure
   MFEM build.
-
----
 
 ## Prerequisite: Retrieve Uberenv
 
@@ -57,7 +54,6 @@ As a result, dependencies will be installed under `uberenv_libs`.
 A configuration file `hc-<infos>.mk` will be generated in `host-configs`, or
 directly in mfem root directory when not using `--deps-only`.
 
----
 **NOTE**
 
 The `build_and_test` script behaves slightly differently between CI context and
@@ -67,8 +63,6 @@ quartz, ruby or corona, the script will build and install dependencies in
 the installation to persist. Installation will happen locally to the uberenv
 directory if not in CI context.
 
----
-
 ### Calling uberenv directly
 
 ```bash
@@ -77,12 +71,8 @@ python ./tests/uberenv/uberenv.py --spec="%gcc@6.1.0 +sundials"
 
 This is essentially the command the CI script runs in the end.
 
----
-** Note **
-
+**NOTE**
 When using this command, the configuration file will be in the mfem root dir.
-
----
 
 ## Build and test MFEM
 
@@ -108,12 +98,8 @@ We can also use the CI script to only build mfem from a given configuration
 file. We could even use `--test-only` option, which would also build MFEM to
 make sure to use the provided configuration file.
 
----
-** Note **
-
+**NOTE**
 The CI script can be used without option only if no configuration file is
 present in the `host-configs` directory. That is because in this CI mode, we
 only build one set of dependencies and MFEM target per clone of MFEM / CI job.
-
----
 
