@@ -1022,6 +1022,7 @@ void GetVectorCoefficients2D(Vector &v1,
 
    if( fabs(detLHS) < 1.0e-11 )
    {
+      std::cout << "fabs(detLHS) = " << fabs(detLHS) << std::endl;
       v1.Print();
       v2.Print();
       MFEM_ABORT("v1,v2 not linearly independent!");      
@@ -1054,6 +1055,7 @@ void GetVectorCoefficients3D(Vector &v1,
 
    if( fabs(detLHS) < 1.0e-11 )
    {
+      std::cout << "fabs(detLHS) = " << fabs(detLHS) << std::endl;
       v1.Print();
       v2.Print();
       v3.Print();
