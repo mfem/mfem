@@ -39,15 +39,3 @@
 .build_and_test_on_quartz:
   extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
   stage: build_and_test
-
-# This is a yaml anchor, it can be used to avoid duplication like here.
-# The code below will simply be pasted wherever the anchor is placed.
-.safe_create_rundir: &safe_create_rundir |
-  if ! mkdir ${rundir}; then
-    n=1
-    while ! mkdir ${rundir}_${n}
-    do
-      n=$((n+1))
-    done
-    rundir=${rundir}_${n}
-  fi
