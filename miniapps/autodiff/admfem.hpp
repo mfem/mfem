@@ -423,7 +423,7 @@ namespace mfem {
 
 namespace ad {
 /// MFEM native forward AD-type
-typedef FDual<double> ADFloatType;
+typedef FDualNumber<double> ADFloatType;
 /// Vector type for AD-type numbers
 typedef TAutoDiffVector<ADFloatType> ADVectorType;
 /// Matrix type for AD-type numbers
@@ -494,7 +494,7 @@ class QVectorFuncAutoDiff
 {
 private:
     /// MFEM native forward AD-type
-    typedef ad::FDual<double> ADFType;
+    typedef ad::FDualNumber<double> ADFType;
     /// Vector type for AD-type numbers
     typedef TAutoDiffVector<ADFType> ADFVector;
     /// Matrix type for AD-type numbers
@@ -566,13 +566,13 @@ class QFunctionAutoDiff
 {
 private:
     /// MFEM native AD-type for first derivatives
-    typedef ad::FDual<double> ADFType;
+    typedef ad::FDualNumber<double> ADFType;
     /// Vector type for AD-numbers(first derivatives)
     typedef TAutoDiffVector<ADFType> ADFVector;
     /// Matrix type for AD-numbers(first derivatives)
     typedef TAutoDiffDenseMatrix<ADFType> ADFDenseMatrix;
     /// MFEM native AD-type for second derivatives
-    typedef ad::FDual<ADFType> ADSType;
+    typedef ad::FDualNumber<ADFType> ADSType;
     /// Vector type for AD-numbers (second derivatives)
     typedef TAutoDiffVector<ADSType> ADSVector;
     /// Vector type fpr AD-numbers (second derivatives)
