@@ -25,7 +25,7 @@
 namespace mfem
 {
 /// Templated vector data type.
-/** The main goal of the TADVector class is to serve as a data
+/** The main goal of the TAutoDiffVector class is to serve as a data
   container for representing vectors in classes, methods, and
   functions utilized with automatic differentiation (AD). The
   functionality/interface is copied from the standard MFEM dense
@@ -33,12 +33,12 @@ namespace mfem
   vector class in combination with AD during the development phase.
   The AD parts can be replaced with optimized code once the initial
   development of the application is complete.  The common interface
-  between TADVector and Vector will ease the transition from AD to
+  between TAutoDiffVector and Vector will ease the transition from AD to
   hand-optimized code as it does not require a change in the
-  interface or the code structure. TADVector is intended to be
+  interface or the code structure. TAutoDiffVector is intended to be
   utilized for dense serial vectors. */
 template<typename dtype>
-class TADVector
+class TAutoDiffVector
 {
 protected:
    dtype *data;
@@ -47,7 +47,7 @@ protected:
 
 public:
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   TADVector()
+   TAutoDiffVector()
    {
       data = nullptr;
       size = 0;
@@ -55,7 +55,7 @@ public:
    }
 
    /// Copy constructor. Allocates a new data array and copies the data.
-   TADVector(const TADVector<dtype> &v)
+   TAutoDiffVector(const TAutoDiffVector<dtype> &v)
    {
       const int s = v.Size();
       if (s > 0)
@@ -76,7 +76,7 @@ public:
       }
    }
 
-   TADVector(const Vector &v)
+   TAutoDiffVector(const Vector &v)
    {
       const int s = v.Size();
       if (s > 0)
@@ -99,7 +99,7 @@ public:
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
-   explicit TADVector(int s)
+   explicit TAutoDiffVector(int s)
    {
       if (s > 0)
       {
@@ -118,7 +118,7 @@ public:
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   TADVector(dtype *_data, int _size)
+   TAutoDiffVector(dtype *_data, int _size)
    {
       if (capacity > 0)
       {
@@ -222,14 +222,14 @@ public:
    void NewDataAndSize(dtype *d, int s) { SetDataAndSize(d, s); }
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
-   inline void MakeRef(TADVector<dtype> &base, int offset, int size_)
+   inline void MakeRef(TAutoDiffVector<dtype> &base, int offset, int size_)
    {
       NewDataAndSize(base.GetData() + offset, size_);
    }
 
    /** @brief Reset the Vector to be a reference to a sub-vector of @a base
        without changing its current size. */
-   inline void MakeRef(TADVector<dtype> &base, int offset)
+   inline void MakeRef(TAutoDiffVector<dtype> &base, int offset)
    {
       int tsiz = size;
       NewDataAndSize(base.GetData() + offset, tsiz);
@@ -325,7 +325,7 @@ public:
    }
 
    /// Return the inner-product.
-   dtype operator*(const TADVector<dtype> &v) const
+   dtype operator*(const TAutoDiffVector<dtype> &v) const
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
       dtype dot = 0.0;
@@ -348,7 +348,7 @@ public:
    }
 
    /// Copy Size() entries from @a v.
-   TADVector<dtype> &operator=(const dtype *v)
+   TAutoDiffVector<dtype> &operator=(const dtype *v)
    {
       for (int i = 0; i < size; i++)
       {
@@ -360,7 +360,7 @@ public:
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
        assignemnt operator. */
-   TADVector<dtype> &operator=(const TADVector<dtype> &v)
+   TAutoDiffVector<dtype> &operator=(const TAutoDiffVector<dtype> &v)
    {
       SetSize(v.Size());
       for (int i = 0; i < size; i++)
@@ -370,7 +370,7 @@ public:
       return *this;
    }
 
-   TADVector<dtype> &operator=(const Vector &v)
+   TAutoDiffVector<dtype> &operator=(const Vector &v)
    {
       SetSize(v.Size());
       for (int i = 0; i < size; i++)
@@ -382,7 +382,7 @@ public:
 
    /// Redefine '=' for vector = constant.
    template<typename ivtype>
-   TADVector &operator=(ivtype value)
+   TAutoDiffVector &operator=(ivtype value)
    {
       for (int i = 0; i < size; i++)
       {
@@ -392,7 +392,7 @@ public:
    }
 
    template<typename ivtype>
-   TADVector &operator*=(ivtype c)
+   TAutoDiffVector &operator*=(ivtype c)
    {
       for (int i = 0; i < size; i++)
       {
@@ -402,7 +402,7 @@ public:
    }
 
    template<typename ivtype>
-   TADVector &operator/=(ivtype c)
+   TAutoDiffVector &operator/=(ivtype c)
    {
       for (int i = 0; i < size; i++)
       {
@@ -411,7 +411,7 @@ public:
       return *this;
    }
 
-   TADVector &operator-=(const TADVector<dtype> &v)
+   TAutoDiffVector &operator-=(const TAutoDiffVector<dtype> &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
       for (int i = 0; i < size; i++)
@@ -422,7 +422,7 @@ public:
    }
 
    template<typename ivtype>
-   TADVector &operator-=(ivtype v)
+   TAutoDiffVector &operator-=(ivtype v)
    {
       for (int i = 0; i < size; i++)
       {
@@ -431,7 +431,7 @@ public:
       return *this;
    }
 
-   TADVector &operator+=(const TADVector<dtype> &v)
+   TAutoDiffVector &operator+=(const TAutoDiffVector<dtype> &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
       for (int i = 0; i < size; i++)
@@ -442,7 +442,7 @@ public:
    }
 
    template<typename ivtype>
-   TADVector &operator+=(ivtype v)
+   TAutoDiffVector &operator+=(ivtype v)
    {
       for (int i = 0; i < size; i++)
       {
@@ -453,7 +453,7 @@ public:
 
    /// (*this) += a * Va
    template<typename ivtype, typename vtype>
-   TADVector &Add(const ivtype a, const vtype &v)
+   TAutoDiffVector &Add(const ivtype a, const vtype &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
       for (int i = 0; i < size; i++)
@@ -465,7 +465,7 @@ public:
 
    /// (*this) = a * x
    template<typename ivtype, typename vtype>
-   TADVector &Set(const ivtype a, const vtype &v)
+   TAutoDiffVector &Set(const ivtype a, const vtype &v)
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
       for (int i = 0; i < size; i++)
@@ -495,7 +495,7 @@ public:
    }
 
    /// Swap the contents of two Vectors
-   inline void Swap(TADVector<dtype> &other)
+   inline void Swap(TAutoDiffVector<dtype> &other)
    {
       Swap(data, other.data);
       Swap(size, other.size);
@@ -504,7 +504,7 @@ public:
 
    /// Set v = v1 + v2.
    template<typename vtype1, typename vtype2>
-   friend void add(const vtype1 &v1, const vtype2 &v2, TADVector<dtype> &v)
+   friend void add(const vtype1 &v1, const vtype2 &v2, TAutoDiffVector<dtype> &v)
    {
       MFEM_ASSERT(v1.Size() == v.Size(), "incompatible Vectors!");
       MFEM_ASSERT(v2.Size() == v.Size(), "incompatible Vectors!");
@@ -519,7 +519,7 @@ public:
    friend void add(const vtype1 &v1,
                    dtype alpha,
                    const vtype2 &v2,
-                   TADVector<dtype> &v)
+                   TAutoDiffVector<dtype> &v)
    {
       MFEM_ASSERT(v1.Size() == v.Size(), "incompatible Vectors!");
       MFEM_ASSERT(v2.Size() == v.Size(), "incompatible Vectors!");
@@ -534,7 +534,7 @@ public:
                    const vtype1 &x,
                    const dtype b,
                    const vtype2 &y,
-                   TADVector<dtype> &z)
+                   TAutoDiffVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -549,7 +549,7 @@ public:
    friend void add(const dtype a,
                    const vtype1 &x,
                    const vtype2 &y,
-                   TADVector<dtype> &z)
+                   TAutoDiffVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -561,7 +561,7 @@ public:
    }
 
    template<typename vtype1, typename vtype2>
-   friend void subtract(const vtype1 &x, const vtype2 &y, TADVector<dtype> &z)
+   friend void subtract(const vtype1 &x, const vtype2 &y, TAutoDiffVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -575,7 +575,7 @@ public:
    friend void subtract(const ivtype a,
                         const vtype1 &x,
                         const vtype2 &y,
-                        TADVector<dtype> &z)
+                        TAutoDiffVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
@@ -586,7 +586,7 @@ public:
    }
 
    /// Destroys vector.
-   ~TADVector() { delete[] data; }
+   ~TAutoDiffVector() { delete[] data; }
 
    /// Prints vector to stream out.
    void Print(std::ostream &out = mfem::out, int width = 8) const
