@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # We define the following GitLab pipeline variables:
-varialbes:
+variables:
 
 # The path to the shared resource between all jobs. For example, external
 # repositories like 'tests' and 'tpls' are cloned here. Also, 'tpls' is built
