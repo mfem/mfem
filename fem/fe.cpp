@@ -3272,8 +3272,9 @@ const
 }
 
 
+// TODO: use a FunctionSpace specific to wedges instead of Qk.
 LinearWedgeFiniteElement::LinearWedgeFiniteElement()
-   : NodalFiniteElement(3, Geometry::PRISM, 6, 1)
+   : NodalFiniteElement(3, Geometry::PRISM, 6, 1, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -10602,6 +10603,7 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
+// TODO: use a FunctionSpace specific to wedges instead of Qk.
 H1_WedgeElement::H1_WedgeElement(const int p,
                                  const int btype)
    : NodalFiniteElement(3, Geometry::PRISM, ((p + 1)*(p + 1)*(p + 2))/2,
