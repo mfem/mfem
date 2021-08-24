@@ -3,7 +3,8 @@
 set -e
 
 # cling is installed here (in bin) and will look in {dir}/include and {dir}/lib
-# without extra intervention
+# without extra intervention (jk it doesn't look in {dir}/lib unless something
+# has been #included from {dir}/include first...)
 install_dir=/srv/conda/envs/notebook
 mkdir -p $install_dir
 
@@ -17,5 +18,5 @@ popd
 # include xeus-glvis
 git clone https://github.com/GLVis/xeus-glvis.git
 pushd xeus-glvis
-make install prefix=$install_dir/include/glvis
+make install prefix=$install_dir
 popd
