@@ -27,16 +27,16 @@ namespace ad {
 /// Forward AD type declaration
 typedef codi::RealForward ADFloatType;
 /// Vector type for AD-numbers
-typedef TADVector<ADFloatType> ADVectorType;
+typedef TAutoDiffVector<ADFloatType> ADVectorType;
 /// Matrix type for AD-numbers
-typedef TADDenseMatrix<ADFloatType> ADMatrixType;
+typedef TAutoDiffDenseMatrix<ADFloatType> ADMatrixType;
 #else
 /// Reverse AD type declaration
 typedef codi::RealReverse ADFloatType;
 /// Vector type for AD-numbers
-typedef TADVector<ADFloatType> ADVectorType;
+typedef TAutoDiffVector<ADFloatType> ADVectorType;
 /// Matrix type for AD-numbers
-typedef TADDenseMatrix<ADFloatType> ADMatrixType;
+typedef TAutoDiffDenseMatrix<ADFloatType> ADMatrixType;
 #endif
 }
 
@@ -280,7 +280,7 @@ public:
 
 #else
         typedef codi::RealReverse ADFType;
-        typedef TADVector<ADFType> ADFVector;
+        typedef TAutoDiffVector<ADFType> ADFVector;
 
         TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> tf;
         {
@@ -324,12 +324,12 @@ public:
 #ifdef MFEM_USE_ADFORWARD
         // use forward-forward mode
         typedef codi::RealForwardGen<double>    ADFType;
-        typedef TADVector<ADFType>              ADFVector;
-        typedef TADDenseMatrix<ADFType>         ADFDenseMatrix;
+        typedef TAutoDiffVector<ADFType>              ADFVector;
+        typedef TAutoDiffDenseMatrix<ADFType>         ADFDenseMatrix;
 
         typedef codi::RealForwardGen<ADFType>   ADSType;
-        typedef TADVector<ADSType>              ADSVector;
-        typedef TADDenseMatrix<ADSType>         ADSDenseMatrix;
+        typedef TAutoDiffVector<ADSType>              ADSVector;
+        typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
 
         TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
 
@@ -362,12 +362,12 @@ public:
 #else
         //use mixed forward and reverse mode
         typedef codi::RealForwardGen<double> ADFType;
-        typedef TADVector<ADFType>           ADFVector;
-        typedef TADDenseMatrix<ADFType>      ADFDenseMatrix;
+        typedef TAutoDiffVector<ADFType>           ADFVector;
+        typedef TAutoDiffDenseMatrix<ADFType>      ADFDenseMatrix;
 
         typedef codi::RealReverseGen<ADFType>   ADSType;
-        typedef TADVector<ADSType>              ADSVector;
-        typedef TADDenseMatrix<ADSType>         ADSDenseMatrix;
+        typedef TAutoDiffVector<ADSType>              ADSVector;
+        typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
 
         TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
 
@@ -425,9 +425,9 @@ namespace ad {
 /// MFEM native forward AD-type
 typedef FDual<double> ADFloatType;
 /// Vector type for AD-type numbers
-typedef TADVector<ADFloatType> ADVectorType;
+typedef TAutoDiffVector<ADFloatType> ADVectorType;
 /// Matrix type for AD-type numbers
-typedef TADDenseMatrix<ADFloatType> ADMatrixType;
+typedef TAutoDiffDenseMatrix<ADFloatType> ADMatrixType;
 }
 
 /// The class provides an evaluation of the Jacobian of a
@@ -496,9 +496,9 @@ private:
     /// MFEM native forward AD-type
     typedef ad::FDual<double> ADFType;
     /// Vector type for AD-type numbers
-    typedef TADVector<ADFType> ADFVector;
+    typedef TAutoDiffVector<ADFType> ADFVector;
     /// Matrix type for AD-type numbers
-    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
+    typedef TAutoDiffDenseMatrix<ADFType> ADFDenseMatrix;
 
 public:
     /// Returns a vector valued function rr for supplied passive arguments
@@ -568,15 +568,15 @@ private:
     /// MFEM native AD-type for first derivatives
     typedef ad::FDual<double> ADFType;
     /// Vector type for AD-numbers(first derivatives)
-    typedef TADVector<ADFType> ADFVector;
+    typedef TAutoDiffVector<ADFType> ADFVector;
     /// Matrix type for AD-numbers(first derivatives)
-    typedef TADDenseMatrix<ADFType> ADFDenseMatrix;
+    typedef TAutoDiffDenseMatrix<ADFType> ADFDenseMatrix;
     /// MFEM native AD-type for second derivatives
     typedef ad::FDual<ADFType> ADSType;
     /// Vector type for AD-numbers (second derivatives)
-    typedef TADVector<ADSType> ADSVector;
+    typedef TAutoDiffVector<ADSType> ADSVector;
     /// Vector type fpr AD-numbers (second derivatives)
-    typedef TADDenseMatrix<ADSType> ADSDenseMatrix;
+    typedef TAutoDiffDenseMatrix<ADSType> ADSDenseMatrix;
 
 public:
     /// Evaluates a function for arguments vparam and uu.

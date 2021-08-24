@@ -602,7 +602,7 @@ MFEM_PERF_END("AssembleElementGrad");
 /// The tangent matrix is computed using the residual of the
 /// element. The template argument should be equal to the size of
 /// the residual vector (element vector), i.e., the user should
-/// specify the sizeres to match the exact vector size for the
+/// specify the size to match the exact vector size for the
 ///  considered order of the shape functions.
 
 template<int sizeres=10>
