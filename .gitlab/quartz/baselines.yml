@@ -14,6 +14,18 @@
 # each one of the baseline jobs, otherwise they will wait for the rest of the
 # pipeline.
 
+# This is a yaml anchor, it can be used to avoid duplication like here.
+# The code below will simply be pasted wherever the anchor is placed.
+.safe_create_rundir: &safe_create_rundir |
+  if ! mkdir ${rundir}; then
+    n=1
+    while ! mkdir ${rundir}_${n}
+    do
+      n=$((n+1))
+    done
+    rundir=${rundir}_${n}
+  fi
+
 baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
   needs: [setup_baseline]
@@ -42,4 +54,3 @@ q_report_baseline:
 baselinepublish_mfem_quartz:
   extends: [.on_quartz, .rebaseline_mfem]
   needs: [baselinecheck_mfem_intel_quartz]
-
