@@ -39,3 +39,6 @@
 .build_and_test_on_quartz:
   extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
   stage: build_and_test
+
+include:
+  - local: .gitlab/common.yml
