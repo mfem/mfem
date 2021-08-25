@@ -64,6 +64,8 @@ public:
             F=F_;
     }
 
+    /// Evaluates the Jacobian of the vector function F_ for a set of parameters (vparam) and
+    /// state vector uu. The Jacobian (jac) has dimensions [vector_size x state_size].
     void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
 #ifdef MFEM_USE_ADFORWARD
@@ -443,12 +445,19 @@ template<int vector_size=1, int state_size=1, int param_size=0>
 class VectorFuncAutoDiff
 {
 public:
+    /// F_ is user implemented function to be differentiated by VectorFuncAutoDiff.
+    /// The signature of the function is:
+    /// F_(mfem::Vector& parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
+    /// The parameters vector should have size param_size. The state_vector should have size
+    /// state_size, and the result vector should have size vector_size. All size parameters are
+    /// teplate parameters in VectorFuncAutoDiff. 	
     VectorFuncAutoDiff(std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
     {
             F=F_;
     }
 
-public:
+    /// Evaluates the Jacobian of the vector function F_ for a set of parameters (vparam) and
+    /// state vector uu. The Jacobian (jac) has dimensions [vector_size x state_size].
     void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
         jac.SetSize(vector_size, state_size);
@@ -487,7 +496,27 @@ private:
 /// [Vector type for the additional parameters],
 /// [Vector type for the state vector and the return residual].
 /// The integer template parameters are the same ones
-/// passed to QVectorFuncAutoDiff.
+/// passed to QVectorFuncAutoDiff. \n
+/// Example: f={sin(a*x*y), cos(b*x*y*z), x*x+y*x} \n
+/// The vector function has vector_size=3, and state_size=3, i.e., it has 
+/// three arguments [x,y,z]. The parameters are [a,b] and the vector has 
+/// size 2.  The functor class will have the following form 
+/// \code{.cpp}
+/// template<typename TDataType, typename TParamVector, typename TStateVector,
+///         int residual_size, int state_size, int param_size>
+/// class MyVectorFunction{
+/// public:
+/// TDataType operator() (TParamVector& vparam, TStateVector& uu, TStateVector& rr)
+/// {
+///    auto a=vparam[0];
+///    auto b=vparam[1];
+///    rr[0]=sin(a*uu[0]*uu[1]);     
+///    rr[1]=cos(b*uu[0]*uu[1]*uu[2]);
+///    rr[2]=uu[0]*uu[0]+uu[0]*uu[1];
+/// }
+//
+/// };
+/// \endcode
 template<template<typename, typename, typename, int, int, int> class TFunctor
          , int vector_size=1, int state_size=1, int param_size=0>
 class QVectorFuncAutoDiff
