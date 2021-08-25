@@ -408,10 +408,6 @@ protected:
 class NCL2FaceRestriction : public L2FaceRestriction
 {
 protected:
-   Array<int> interp_config; // interpolator index for each face
-   int nc_size; // number of non-conforming interpolators
-   Vector interpolators; // face_dofs x face_dofs x nc_size
-
    NCL2FaceRestriction(const FiniteElementSpace&,
                        const FaceType,
                        const L2FaceValues m = L2FaceValues::DoubleValued);
@@ -505,7 +501,60 @@ public:
                                          Vector &ea_data) const override;
 
 protected:
+
+   /// TODO: doc
+   struct InterpConfig
+   {
+      int config;
+
+      // Conforming face
+      InterpConfig() : config(-1) { }
+
+      // Non-conforming face, if nc_index is given assumes side==1
+      InterpConfig(int config) : config(config) { }
+
+      // Non-conforming face
+      InterpConfig(int side, int nc_index)
+         : config(side==1?nc_index: -1 - nc_index)
+      { }
+
+      MFEM_HOST_DEVICE
+      InterpConfig &operator=(const InterpConfig &rhs)
+      {
+         this->config = rhs.config;
+         return *this;
+      }
+
+      MFEM_HOST_DEVICE
+      int GetNonConformingSide() const
+      {
+         // MFEM_ASSERT(config!=-1, "This face is conforming.");
+         return config<-1? 0 : 1;
+      }
+
+      MFEM_HOST_DEVICE
+      int GetInterpolatorIndex() const
+      {
+         // MFEM_ASSERT(config!=-1, "This face is conforming.");
+         return config<-1? -1-config : config;
+      }
+   };
+
+   Array<InterpConfig> interp_config; // interpolator index for each face
+   int nc_size; // number of non-conforming interpolators
+   Vector interpolators; // face_dofs x face_dofs x nc_size
    static const int conforming = -1; // helper value
+
+   void RegisterFaceConformingInterpolation(const Mesh::FaceInformation &info,
+                                            int face_index);
+
+   using Key = std::pair<const DenseMatrix*,int>; // TODO
+   using Map = std::map<Key, std::pair<int,const DenseMatrix*>>; // TODO
+
+   void RegisterFaceCoarseToFineInterpolation(int face_index,
+                                              const Mesh::FaceInformation &info,
+                                              Map &interp_map,
+                                              int &nc_cpt);
 
    /** @brief Returns the interpolation operator from a master (coarse) face to
        a slave (fine) face.
