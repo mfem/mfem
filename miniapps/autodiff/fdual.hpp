@@ -102,17 +102,22 @@ public:
       du = du_;
    }
 
+   /// Set the primal value.
    void prim(const tbase &pr_) { pr = pr_; }
 
+   /// Set the primal value.
    void real(const tbase &pr_) { pr = pr_; }
 
+   /// Set the dual value.
    void dual(const tbase &du_) { du = du_; }
 
+   /// Set the primal value.
    void setReal(const tbase &pr_) { pr = pr_; }
 
-
+   /// Set the dual value.
    void setDual(const tbase &du_) { du = du_; }
 
+   /// operator =
    FDualNumber<tbase> &operator=(tbase sc_)
    {
       pr = sc_;
@@ -120,18 +125,21 @@ public:
       return *this;
    }
 
+   /// operator +=
    FDualNumber<tbase> &operator+=(tbase sc_)
    {
       pr = pr + sc_;
       return *this;
    }
 
+   /// operator -=
    FDualNumber<tbase> &operator-=(tbase sc_)
    {
       pr = pr - sc_;
       return *this;
    }
 
+   /// operator *=
    FDualNumber<tbase> &operator*=(tbase sc_)
    {
       pr = pr * sc_;
@@ -139,6 +147,7 @@ public:
       return *this;
    }
 
+   /// operator /=
    FDualNumber<tbase> &operator/=(tbase sc_)
    {
       pr = pr / sc_;
@@ -146,6 +155,7 @@ public:
       return *this;
    }
 
+   /// operator =
    FDualNumber<tbase> &operator=(const FDualNumber<tbase> &f)
    {
       pr = f.real();
@@ -153,6 +163,7 @@ public:
       return *this;
    }
 
+   /// operator +=
    FDualNumber<tbase> &operator+=(const FDualNumber<tbase> &f)
    {
       pr += f.real();
@@ -160,6 +171,7 @@ public:
       return *this;
    }
 
+   /// operator -=
    FDualNumber<tbase> &operator-=(const FDualNumber<tbase> &f)
    {
       pr -= f.real();
@@ -167,6 +179,7 @@ public:
       return *this;
    }
 
+   /// operator *=
    FDualNumber<tbase> &operator*=(const FDualNumber<tbase> &f)
    {
       du = du * f.real();
@@ -175,6 +188,7 @@ public:
       return *this;
    }
 
+   /// operator /=
    FDualNumber<tbase> &operator/=(const FDualNumber<tbase> &f_)
    {
       pr = pr / f_.real();
@@ -184,146 +198,169 @@ public:
    }
 };
 
-// non-member functions
-// boolean operations
+/// non-member functions
+/// boolean operation ==
 template<typename tbase>
 inline bool operator==(const FDualNumber<tbase> &a1, const FDualNumber<tbase> &a2)
 {
    return a1.real() == a2.real();
 }
 
+/// boolean operation ==
 template<typename tbase>
 inline bool operator==(tbase a, const FDualNumber<tbase> &f_)
 {
    return a == f_.real();
 }
 
+/// boolean operation ==
 template<typename tbase>
 inline bool operator==(const FDualNumber<tbase> &a, tbase b)
 {
    return a.real() == b;
 }
 
+/// boolean operation <
 template<typename tbase>
 inline bool operator<(const FDualNumber<tbase> &f1, const FDualNumber<tbase> &f2)
 {
    return f1.real() < f2.real();
 }
 
+/// boolean operation <
 template<typename tbase>
 inline bool operator<(const FDualNumber<tbase> &f, tbase a)
 {
    return f.real() < a;
 }
 
+/// boolean operation <
 template<typename tbase>
 inline bool operator<(tbase a, const FDualNumber<tbase> &f)
 {
    return a < f.real();
 }
 
+/// boolean operation >
 template<typename tbase>
 inline bool operator>(const FDualNumber<tbase> &f1, const FDualNumber<tbase> &f2)
 {
    return f1.real() > f2.real();
 }
 
+/// boolean operation >
 template<typename tbase>
 inline bool operator>(const FDualNumber<tbase> &f, tbase a)
 {
    return f.real() > a;
 }
 
+/// boolean operation >
 template<typename tbase>
 inline bool operator>(tbase a, const FDualNumber<tbase> &f)
 {
    return (a > f.real());
 }
 
+/// Negate the real and the dual parts.
 template<typename tbase>
 inline FDualNumber<tbase> operator-(const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(-f.real(), -f.dual());
 }
 
+/// [dual number] - [base number]
 template<typename tbase>
 inline FDualNumber<tbase> operator-(const FDualNumber<tbase> &f, tbase a)
 {
    return FDualNumber<tbase>(f.real() - a, f.dual());
 }
 
+/// [dual number<dual number>] - [base number]
 template<typename tbase>
 inline FDualNumber<FDualNumber<tbase>> operator-(const FDualNumber<FDualNumber<tbase>> &f, tbase a)
 {
    return FDualNumber<FDualNumber<tbase>>(f.real() - a, f.dual());
 }
 
+/// [dual number] + [base number]
 template<typename tbase>
 inline FDualNumber<tbase> operator+(const FDualNumber<tbase> &f, tbase a)
 {
    return FDualNumber<tbase>(f.real() + a, f.dual());
 }
 
+/// [dual number<dual number>] + [base number]
 template<typename tbase>
 inline FDualNumber<FDualNumber<tbase>> operator+(const FDualNumber<FDualNumber<tbase>> &f, tbase a)
 {
    return FDualNumber<FDualNumber<tbase>>(f.real() + a, f.dual());
 }
 
+/// [dual number] * [base number]
 template<typename tbase>
 inline FDualNumber<tbase> operator*(const FDualNumber<tbase> &f, tbase a)
 {
    return FDualNumber<tbase>(f.real() * a, f.dual() * a);
 }
 
+/// [dual number] / [base number]
 template<typename tbase>
 inline FDualNumber<tbase> operator/(const FDualNumber<tbase> &f, tbase a)
 {
    return FDualNumber<tbase>(f.real() / a, f.dual() / a);
 }
 
+/// [dual number<dual number>] / [base number]
 template<typename tbase>
 inline FDualNumber<FDualNumber<tbase>> operator/(const FDualNumber<FDualNumber<tbase>> &f, tbase a)
 {
    return FDualNumber<FDualNumber<tbase>>(f.real() / a, f.dual() / a);
 }
 
+/// [base number] + [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator+(tbase a, const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(a + f.real(), f.dual());
 }
 
+/// [base number] + [dual number<dual number>]
 template<typename tbase>
 inline FDualNumber<FDualNumber<tbase>> operator+(tbase a, const FDualNumber<FDualNumber<tbase>> &f)
 {
    return FDualNumber<FDualNumber<tbase>>(a + f.real(), f.dual());
 }
 
+/// [base number] - [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator-(tbase a, const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(a - f.real(), -f.dual());
 }
 
+/// [base number] - [dual number<dual number>]
 template<typename tbase>
 inline FDualNumber<FDualNumber<tbase>> operator-(tbase a, const FDualNumber<FDualNumber<tbase>> &f)
 {
    return FDualNumber<FDualNumber<tbase>>(a - f.real(), -f.dual());
 }
 
+/// [base number] * [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator*(tbase a, const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(f.real() * a, f.dual() * a);
 }
 
+/// [base number] * [dual number<dual number>]
 template<typename tbase>
 inline FDualNumber<FDualNumber<tbase>> operator*(tbase a, const FDualNumber<FDualNumber<tbase>> &f)
 {
    return FDualNumber<FDualNumber<tbase>>(f.real() * a, f.dual() * a);
 }
 
+/// [base number] / [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator/(tbase a, const FDualNumber<tbase> &f)
 {
@@ -331,18 +368,21 @@ inline FDualNumber<tbase> operator/(tbase a, const FDualNumber<tbase> &f)
    return FDualNumber<tbase>(a, -a * f.dual() / f.real());
 }
 
+/// [dual number] + [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator+(const FDualNumber<tbase> &f1, const FDualNumber<tbase> &f2)
 {
    return FDualNumber<tbase>(f1.real() + f2.real(), f1.dual() + f2.dual());
 }
 
+/// [dual number] - [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator-(const FDualNumber<tbase> &f1, const FDualNumber<tbase> &f2)
 {
    return FDualNumber<tbase>(f1.real() - f2.real(), f1.dual() - f2.dual());
 }
 
+/// [dual number] * [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator*(const FDualNumber<tbase> &f1, const FDualNumber<tbase> &f2)
 {
@@ -350,6 +390,7 @@ inline FDualNumber<tbase> operator*(const FDualNumber<tbase> &f1, const FDualNum
                        f1.real() * f2.dual() + f1.dual() * f2.real());
 }
 
+/// [dual number] / [dual number]
 template<typename tbase>
 inline FDualNumber<tbase> operator/(const FDualNumber<tbase> &f1, const FDualNumber<tbase> &f2)
 {
@@ -358,6 +399,7 @@ inline FDualNumber<tbase> operator/(const FDualNumber<tbase> &f1, const FDualNum
    return FDualNumber<tbase>(b, (f1.dual() - f2.dual() * b) * a);
 }
 
+/// acos([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> acos(const FDualNumber<tbase> &f)
 {
@@ -365,6 +407,7 @@ inline FDualNumber<tbase> acos(const FDualNumber<tbase> &f)
                        -f.dual() / sqrt(tbase(1) - f.real() * f.real()));
 }
 
+/// acos([dual number<double>])
 template<>
 inline FDualNumber<double> acos(const FDualNumber<double> &f)
 {
@@ -372,6 +415,7 @@ inline FDualNumber<double> acos(const FDualNumber<double> &f)
                         -f.dual() / std::sqrt(double(1) - f.real() * f.real()));
 }
 
+/// asin([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> asin(const FDualNumber<tbase> &f)
 {
@@ -379,6 +423,7 @@ inline FDualNumber<tbase> asin(const FDualNumber<tbase> &f)
                        f.dual() / sqrt(tbase(1) - f.real() * f.real()));
 }
 
+/// asin([dual number<double>])
 template<>
 inline FDualNumber<double> asin(const FDualNumber<double> &f)
 {
@@ -386,6 +431,7 @@ inline FDualNumber<double> asin(const FDualNumber<double> &f)
                         f.dual() / std::sqrt(double(1) - f.real() * f.real()));
 }
 
+/// atan([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> atan(const FDualNumber<tbase> &f)
 {
@@ -393,6 +439,7 @@ inline FDualNumber<tbase> atan(const FDualNumber<tbase> &f)
                        f.dual() / (tbase(1) + f.real() * f.real()));
 }
 
+/// atan([dual number<double>])
 template<>
 inline FDualNumber<double> atan(const FDualNumber<double> &f)
 {
@@ -400,30 +447,35 @@ inline FDualNumber<double> atan(const FDualNumber<double> &f)
                         f.dual() / (double(1) + f.real() * f.real()));
 }
 
+/// cos([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> cos(const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(cos(f.real()), -f.dual() * sin(f.real()));
 }
 
+/// cos([dual number<double>])
 template<>
 inline FDualNumber<double> cos(const FDualNumber<double> &f)
 {
    return FDualNumber<double>(std::cos(f.real()), -f.dual() * std::sin(f.real()));
 }
 
+/// cosh([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> cosh(const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(cosh(f.real()), f.dual() * sinh(f.real()));
 }
 
+/// cosh([dual number<double>])
 template<>
 inline FDualNumber<double> cosh(const FDualNumber<double> &f)
 {
    return FDualNumber<double>(std::cosh(f.real()), f.dual() * std::sinh(f.real()));
 }
 
+/// exp([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> exp(const FDualNumber<tbase> &f)
 {
@@ -431,6 +483,7 @@ inline FDualNumber<tbase> exp(const FDualNumber<tbase> &f)
    return FDualNumber<tbase>(x, f.dual() * x);
 }
 
+/// exp([dual number<double>])
 template<>
 inline FDualNumber<double> exp(const FDualNumber<double> &f)
 {
@@ -438,78 +491,91 @@ inline FDualNumber<double> exp(const FDualNumber<double> &f)
    return FDualNumber<double>(x, f.dual() * x);
 }
 
+/// log([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> log(const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(log(f.real()), f.dual() / f.real());
 }
 
+/// log([dual number<double>])
 template<>
 inline FDualNumber<double> log(const FDualNumber<double> &f)
 {
    return FDualNumber<double>(std::log(f.real()), f.dual() / f.real());
 }
 
+/// log10([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> log10(const FDualNumber<tbase> &f)
 {
    return log(f) / log(tbase(10));
 }
 
+/// log10([dual number<double>])
 template<>
 inline FDualNumber<double> log10(const FDualNumber<double> &f)
 {
    return log(f) / std::log(double(10));
 }
 
+/// pow([dual number],[dual number])
 template<typename tbase>
 inline FDualNumber<tbase> pow(const FDualNumber<tbase> &a, const FDualNumber<tbase> &b)
 {
    return exp(log(a) * b);
 }
 
+/// pow([dual number], [base number])
 template<typename tbase, typename tbase1>
 inline FDualNumber<tbase> pow(const FDualNumber<tbase> &a, const tbase1 &b)
 {
    return exp(log(a) * tbase(b));
 }
 
+/// pow([base number], [dual number])
 template<typename tbase, typename tbase1>
 inline FDualNumber<tbase> pow(const tbase1 &a, const FDualNumber<tbase> &b)
 {
    return exp(log(tbase(a)) * b);
 }
 
+/// pow([base number], [dual number<double>])
 template<>
 inline FDualNumber<double> pow(const double &a, const FDualNumber<double> &b)
 {
    return exp(std::log(a) * b);
 }
 
+/// sin([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> sin(const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(sin(f.real()), f.dual() * cos(f.real()));
 }
 
+/// sin([dual number<double>])
 template<>
 inline FDualNumber<double> sin(const FDualNumber<double> &f)
 {
    return FDualNumber<double>(std::sin(f.real()), f.dual() * std::cos(f.real()));
 }
 
+/// sinh([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> sinh(const FDualNumber<tbase> &f)
 {
    return FDualNumber<tbase>(sinh(f.real()), f.dual() * cosh(f.real()));
 }
 
+/// sinh([dual number<double>])
 template<>
 inline FDualNumber<double> sinh(const FDualNumber<double> &f)
 {
    return FDualNumber<double>(std::sinh(f.real()), f.dual() * std::cosh(f.real()));
 }
 
+/// sqrt([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> sqrt(const FDualNumber<tbase> &f)
 {
@@ -517,6 +583,7 @@ inline FDualNumber<tbase> sqrt(const FDualNumber<tbase> &f)
    return FDualNumber<tbase>(a, f.dual() / (tbase(2) * a));
 }
 
+/// sqrt([dual number<double>])
 template<>
 inline FDualNumber<double> sqrt(const FDualNumber<double> &f)
 {
@@ -524,6 +591,7 @@ inline FDualNumber<double> sqrt(const FDualNumber<double> &f)
    return FDualNumber<double>(a, f.dual() / (double(2) * a));
 }
 
+/// tan([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> tan(const FDualNumber<tbase> &f)
 {
@@ -531,6 +599,7 @@ inline FDualNumber<tbase> tan(const FDualNumber<tbase> &f)
    return FDualNumber<tbase>(a, f.dual() * (tbase(1) + a * a));
 }
 
+/// tan([dual number<double>])
 template<>
 inline FDualNumber<double> tan(const FDualNumber<double> &f)
 {
@@ -538,6 +607,7 @@ inline FDualNumber<double> tan(const FDualNumber<double> &f)
    return FDualNumber<double>(a, f.dual() * (double(1) + a * a));
 }
 
+/// tanh([dual number])
 template<typename tbase>
 inline FDualNumber<tbase> tanh(const FDualNumber<tbase> &f)
 {
@@ -545,6 +615,7 @@ inline FDualNumber<tbase> tanh(const FDualNumber<tbase> &f)
    return FDualNumber<tbase>(a, f.dual() * (tbase(1) - a * a));
 }
 
+/// tanh([dual number<double>])
 template<>
 inline FDualNumber<double> tanh(const FDualNumber<double> &f)
 {
