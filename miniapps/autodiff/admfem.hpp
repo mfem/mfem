@@ -146,9 +146,7 @@ public:
     /// values in vector uu. The result is returned in vector rr.
     void QVectorFunc(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector& rr)
     {
-        TFunctor<double,const mfem::Vector, mfem::Vector,
-                        vector_size, state_size, param_size> tf;
-        tf(vparam,uu,rr);
+        rf(vparam,uu,rr);
     }
 
     /// Returns the gradient of TFunctor(...) in the dense matrix jac.
@@ -158,9 +156,6 @@ public:
     {
 #ifdef MFEM_USE_ADFORWARD
         // use forward mode
-
-        TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
-                        vector_size, state_size, param_size> tf;
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
         {
@@ -183,9 +178,6 @@ public:
         }
 #else //end MFEM_USE_ADFORWARD
         // use reverse mode
-        TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
-                vector_size, state_size, param_size> tf;
-
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
         {
@@ -216,6 +208,15 @@ public:
         }
 #endif
     }
+private:
+   
+
+    TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
+                vector_size, state_size, param_size> tf;
+
+    TFunctor<double,const mfem::Vector, mfem::Vector,
+                        vector_size, state_size, param_size> rf;
+
 };
 
 /// The class provides an evaluation of the first derivatives
@@ -242,8 +243,7 @@ public:
     /// user provided functor TFunctor.
     double QEval(const mfem::Vector &vparam, mfem::Vector &uu)
     {
-        TFunctor<double, const mfem::Vector, mfem::Vector, state_size, param_size> tf;
-        return tf(vparam,uu);
+        return rf(vparam,uu);
     }
 
     /// Provides the same functionality as QGrad.
@@ -260,8 +260,6 @@ public:
 
 #ifdef MFEM_USE_ADFORWARD
         // use forward mode
-        TFunctor<ad::ADFloatType, const mfem::Vector, ad::ADVectorType,
-                        state_size, param_size> tf;
         rr.SetSize(state_size);
         {
             ad::ADVectorType aduu(state_size);
@@ -281,19 +279,15 @@ public:
         }
 
 #else
-        typedef codi::RealReverse ADFType;
-        typedef TAutoDiffVector<ADFType> ADFVector;
-
-        TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> tf;
         {
-            ADFVector aduu(state_size);
-            ADFType rez;
+            ad::ADVectorType aduu(state_size);
+            ad::ADFloatType rez;
             for(int i=0;i<state_size;i++){
                 aduu[i]=uu[i];
             }
 
-            ADFType::TapeType& tape =ADFType::getGlobalTape();
-            typename ADFType::TapeType::Position pos=tape.getPosition();
+            ad::ADFloatType::TapeType& tape =ad::ADFloatType::getGlobalTape();
+            typename ad::ADFloatType::TapeType::Position pos=tape.getPosition();
 
             tape.setActive();
             for(int ii=0;ii<state_size;ii++){ tape.registerInput(aduu[ii]); }
@@ -318,6 +312,27 @@ public:
         QHessian(vparam,uu,jac);
     }
 
+#ifdef MFEM_USE_ADFORWARD
+    // use forward-forward mode
+    typedef codi::RealForwardGen<double>    ADFType;
+    typedef TAutoDiffVector<ADFType>              ADFVector;
+    typedef TAutoDiffDenseMatrix<ADFType>         ADFDenseMatrix;
+
+    typedef codi::RealForwardGen<ADFType>   ADSType;
+    typedef TAutoDiffVector<ADSType>              ADSVector;
+    typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
+#else
+    //use mixed forward and reverse mode
+    typedef codi::RealForwardGen<double> ADFType;
+    typedef TAutoDiffVector<ADFType>           ADFVector;
+    typedef TAutoDiffDenseMatrix<ADFType>      ADFDenseMatrix;
+
+    typedef codi::RealReverseGen<ADFType>   ADSType;
+    typedef TAutoDiffVector<ADSType>              ADSVector;
+    typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
+#endif
+
+
     /// Returns the Hessian of TFunctor(...) in the dense matrix jac.
     /// The dimensions of jac are state_size x state_size, where state_size is the
     /// length of vector uu.
@@ -325,16 +340,6 @@ public:
     {
 #ifdef MFEM_USE_ADFORWARD
         // use forward-forward mode
-        typedef codi::RealForwardGen<double>    ADFType;
-        typedef TAutoDiffVector<ADFType>              ADFVector;
-        typedef TAutoDiffDenseMatrix<ADFType>         ADFDenseMatrix;
-
-        typedef codi::RealForwardGen<ADFType>   ADSType;
-        typedef TAutoDiffVector<ADSType>              ADSVector;
-        typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
-
-        TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
-
         jac.SetSize(state_size);
         jac=0.0;
         {
@@ -353,7 +358,7 @@ public:
                 for(int jj=0; jj<(ii+1); jj++)
                 {
                     aduu[jj].gradient().value()=1.0;
-                    ADSType rez=tf(vparam,aduu);
+                    ADSType rez=sf(vparam,aduu);
                     jac(ii,jj)=rez.gradient().gradient();
                     jac(jj,ii)=jac(ii,jj);
                     aduu[jj].gradient().value()=0.0;
@@ -363,16 +368,6 @@ public:
         }
 #else
         //use mixed forward and reverse mode
-        typedef codi::RealForwardGen<double> ADFType;
-        typedef TAutoDiffVector<ADFType>           ADFVector;
-        typedef TAutoDiffDenseMatrix<ADFType>      ADFDenseMatrix;
-
-        typedef codi::RealReverseGen<ADFType>   ADSType;
-        typedef TAutoDiffVector<ADSType>              ADSVector;
-        typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
-
-        TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
-
         jac.SetSize(state_size);
         jac=0.0;
         {
@@ -397,7 +392,7 @@ public:
                     tape.registerInput(aduu[jj]);
                 }
 
-                rez=tf(vparam,aduu);
+                rez=sf(vparam,aduu);
                 tape.registerOutput(rez);
                 tape.setPassive();
 
@@ -415,6 +410,15 @@ public:
         }
 #endif
     }
+private:
+    TFunctor<double, const mfem::Vector, 
+	    mfem::Vector, state_size, param_size> rf;
+
+    TFunctor<ad::ADFloatType, const mfem::Vector,
+	    ad::ADVectorType, state_size, param_size> tf;
+
+    TFunctor<ADSType, const mfem::Vector, ADSVector, 
+	    state_size, param_size> sf;
 };
 
 }
@@ -535,8 +539,6 @@ public:
     /// user supplied TFunctor template class.
     void QVectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
     {
-       TFunctor<double, const Vector, Vector,
-               vector_size, state_size, param_size> func;
        func(vparam, uu, rr);
     }
 
@@ -570,10 +572,15 @@ private:
     /// Intended for internal use only.
     void QEval(const Vector &vparam, ADFVector &uu, ADFVector &rr)
     {
-       TFunctor<ADFType, const Vector, ADFVector,
-               vector_size, state_size, param_size> tf;
        tf(vparam, uu, rr);
     }
+
+    TFunctor<double, const Vector, Vector,
+               vector_size, state_size, param_size> func;
+
+    TFunctor<ADFType, const Vector, ADFVector,
+               vector_size, state_size, param_size> tf;
+
 };
 
 /// The class provides an evaluation of the first derivatives
@@ -613,7 +620,6 @@ public:
     /// user provided functor TFunctor.
     double QEval(const Vector &vparam, Vector &uu)
     {
-        TFunctor<double, const Vector, Vector, state_size, param_size> tf;
         return tf(vparam,uu);
     }
 
@@ -635,7 +641,7 @@ public:
         for (int ii = 0; ii < n; ii++)
         {
            aduu[ii].dual(1.0);
-           rez = QEval(vparam, aduu);
+           rez = ff(vparam, aduu);
            rr[ii] = rez.dual();
            aduu[ii].dual(0.0);
         }
@@ -669,7 +675,7 @@ public:
               for (int jj = 0; jj < (ii + 1); jj++)
               {
                  aduu[jj].dual(ADFType(1.0, 0.0));
-                 ADSType rez = QEval(vparam, aduu);
+                 ADSType rez = sf(vparam, aduu);
                  jac(ii, jj) = rez.dual().dual();
                  jac(jj, ii) = rez.dual().dual();
                  aduu[jj].dual(ADFType(0.0, 0.0));
@@ -680,21 +686,9 @@ public:
     }
 
 private:
-    /// Evaluates the first derivative of TFunctor(...).
-    /// Intended for internal use only.
-    ADFType QEval(const Vector &vparam, ADFVector &uu)
-    {
-       TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> tf;
-       return tf(vparam, uu);
-    }
-
-    /// Evaluates the second derivative of TFunctor(...).
-    /// Intended for internal use only.
-    ADSType QEval(const Vector &vparam, ADSVector &uu)
-    {
-       TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> tf;
-       return tf(vparam, uu);
-    }
+    TFunctor<double, const Vector, Vector, state_size, param_size> tf;
+    TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> ff;
+    TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> sf;
 
 };
 }//end namespace mfem
