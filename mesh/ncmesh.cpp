@@ -1624,43 +1624,62 @@ void NCMesh::DerefineElement(int elem)
       }
    }
 
-   int fa[6];
-   int rt1 = el.ref_type - 1;
+   int faces_attribute[6];
+   int ref_type_key = el.ref_type - 1;
 
    for (int i = 0; i < 8; i++) { el.node[i] = -1; }
 
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
    {
-      for (int i = 0; i < 8; i++)
+      // Sets corner nodes from childs
+      constexpr int nb_cube_childs = 8;
+      for (int i = 0; i < nb_cube_childs; i++)
       {
-         Element &ch = elements[child[hex_deref_table[rt1][i]]];
+         const int child_local_index = hex_deref_table[ref_type_key][i];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
       }
-      for (int i = 0; i < 6; i++)
+      // Sets faces attributes from childs' faces
+      constexpr int nb_cube_face = 6;
+      for (int i = 0; i < nb_cube_face; i++)
       {
-         Element &ch = elements[child[hex_deref_table[rt1][i + 8]]];
+         const int child_local_index = hex_deref_table[ref_type_key]
+                                                      [i + nb_cube_childs];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
-         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                                         ch.node[fv[2]], ch.node[fv[3]])
+                                         ->attribute;
       }
    }
    else if (el.Geom() == Geometry::PRISM)
    {
-      MFEM_ASSERT(prism_deref_table[rt1][0] != -1, "invalid prism refinement");
-      for (int i = 0; i < 6; i++)
+      MFEM_ASSERT(prism_deref_table[ref_type_key][0] != -1,
+                  "invalid prism refinement");
+      constexpr int nb_prism_childs = 6;
+      for (int i = 0; i < nb_prism_childs; i++)
       {
-         Element &ch = elements[child[prism_deref_table[rt1][i]]];
+         const int child_local_index = prism_deref_table[ref_type_key][i];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
       }
       el.node[6] = el.node[7] = -1;
 
-      for (int i = 0; i < 5; i++)
+      constexpr int nb_prism_face = 5;
+      for (int i = 0; i < nb_prism_face; i++)
       {
-         Element &ch = elements[child[prism_deref_table[rt1][i + 6]]];
+         const int child_local_index = prism_deref_table[ref_type_key]
+                                                        [i + nb_prism_childs];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
-         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                                         ch.node[fv[2]], ch.node[fv[3]])
+                                         ->attribute;
       }
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
@@ -1671,43 +1690,55 @@ void NCMesh::DerefineElement(int elem)
          Element& ch2 = elements[child[(i+1) & 0x3]];
          el.node[i] = ch1.node[i];
          const int* fv = GI[el.Geom()].faces[i];
-         fa[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
-                            ch2.node[fv[2]], ch2.node[fv[3]])->attribute;
+         faces_attribute[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
+                                         ch2.node[fv[2]], ch2.node[fv[3]])
+                                         ->attribute;
       }
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
-      for (int i = 0; i < 4; i++)
+      constexpr int nb_square_childs = 4;
+      for (int i = 0; i < nb_square_childs; i++)
       {
-         Element &ch = elements[child[quad_deref_table[rt1][i]]];
+         const int child_local_index = quad_deref_table[ref_type_key][i];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
       }
-      for (int i = 0; i < 4; i++)
+      constexpr int nb_square_face = 4;
+      for (int i = 0; i < nb_square_face; i++)
       {
-         Element &ch = elements[child[quad_deref_table[rt1][i + 4]]];
+         const int child_local_index = quad_deref_table[ref_type_key]
+                                                       [i + nb_square_childs];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
-         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                                         ch.node[fv[2]], ch.node[fv[3]])
+                                         ->attribute;
       }
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      for (int i = 0; i < 3; i++)
+      constexpr int nb_triangle_childs = 3;
+      for (int i = 0; i < nb_triangle_childs; i++)
       {
          Element& ch = elements[child[i]];
          el.node[i] = ch.node[i];
          const int* fv = GI[el.Geom()].faces[i];
-         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                                         ch.node[fv[2]], ch.node[fv[3]])
+                                         ->attribute;
       }
    }
    else if (el.Geom() == Geometry::SEGMENT)
    {
-      for (int i = 0; i < 2; i++)
+      constexpr int nb_segment_childs = 2;
+      for (int i = 0; i < nb_segment_childs; i++)
       {
          int ni = elements[child[i]].node[i];
          el.node[i] = ni;
-         fa[i] = faces.Find(ni, ni, ni, ni)->attribute;
+         faces_attribute[i] = faces.Find(ni, ni, ni, ni)->attribute;
       }
    }
    else
@@ -1897,7 +1928,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
    {
       if (el.rank >= 0) // skip elements beyond the ghost layer in parallel
       {
-         if (el.rank == MyRank)
+         if (!IsGhost(el))
          {
             leaf_elements.Append(elem);
          }
@@ -1918,7 +1949,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
          el.index = -1;
       }
    }
-   else
+   else // Refined element
    {
       // in non-leaf elements, the 'rank' and 'index' members have no meaning
       el.rank = -1;
@@ -1944,7 +1975,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
             CollectLeafElements(el.child[ch], st, ghosts, counter);
          }
       }
-      else // no SFC tables yet for remaining cases
+      else // no space filling curve tables yet for remaining cases
       {
          for (int i = 0; i < 8; i++)
          {
@@ -1961,7 +1992,8 @@ void NCMesh::UpdateLeafElements()
 {
    Array<int> ghosts;
 
-   // collect leaf elements from all roots
+   // collect leaf elements in leaf_elements and ghosts elements in ghosts from
+   // all roots
    leaf_elements.SetSize(0);
    for (int i = 0, counter = 0; i < root_state.Size(); i++)
    {
