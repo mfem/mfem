@@ -1,0 +1,34 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# The setup_baseline job in setup stage_baseline doesn't rely on MFEM git repo.
+# It prepares a pipeline-wide working directory downloading/updating external
+# repos. TODO: updating tests and tpls is not necessary anymore since pipelines
+# are now using unique directories so repo are never shared with another
+# pipeline. This is not memory efficient (we keep a lot of data), hence this
+# reminder.
+# Note: This job can start immediately.
+setup_baseline:
+  tags:
+    - shell
+    - quartz
+  stage: setup
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
+    - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
+    - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
+    - cd tpls && git pull && cd ..
+    - cd tests && git pull && cd ..
+    - cd ${AUTOTEST_ROOT}
+    - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
+    - cd autotest && git pull && cd ..

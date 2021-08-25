@@ -43,46 +43,6 @@ variables:
   ARTIFACTS_DIR: artifacts
   SLURM_OVERLAP: 1
 
-# setup clones the mfem/data repo in ${BUILD_ROOT}. The build_and_test script
-# then symlinks the repo to the parent directory of the MFEM source directory.
-# Unit tests that depend on the mfem/data repo will then detect that this
-# directory is present and be enabled.
-setup:
-  tags:
-    - shell
-    - quartz
-  stage: setup
-  variables:
-    GIT_STRATEGY: none
-  script:
-    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
-    - if [ ! -d data ]; then git clone ${MFEM_DATA_REPO}; fi
-
-# The setup_baseline job in setup stage_baseline doesn't rely on MFEM git repo.
-# It prepares a pipeline-wide working directory downloading/updating external
-# repos. TODO: updating tests and tpls is not necessary anymore since pipelines
-# are now using unique directories so repo are never shared with another
-# pipeline. This is not memory efficient (we keep a lot of data), hence this
-# reminder.
-# Note: This job can start immediately.
-setup_baseline:
-  tags:
-    - shell
-    - quartz
-  stage: setup_baseline
-  variables:
-    GIT_STRATEGY: none
-  script:
-    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
-    - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
-    - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
-    - cd tpls && git pull && cd ..
-    - cd tests && git pull && cd ..
-    - cd ${AUTOTEST_ROOT}
-    - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
-    - cd autotest && git pull && cd ..
-  needs: []
-
 .build_toss_3_x86_64_ib_script:
   script:
     - export THREADS=12

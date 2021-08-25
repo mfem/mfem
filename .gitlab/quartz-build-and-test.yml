@@ -15,7 +15,102 @@ stages:
   - build_and_test
   - release_resource
 
+# Allocate
+q_allocate_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: allocate_resource
+  script:
+    - salloc --exclusive --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
+  timeout: 6h
+
+# GitLab jobs for the Quartz machine at LLNL
+debug_ser_gcc_4_9_3:
+  variables:
+    SPEC: "%gcc@4.9.3 +debug~mpi"
+  extends: .build_and_test_on_quartz
+
+debug_ser_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 +debug~mpi"
+  extends: .build_and_test_on_quartz
+
+debug_par_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 +debug+mpi"
+  extends: .build_and_test_on_quartz
+
+opt_ser_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0 ~mpi"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0:
+  variables:
+    SPEC: "%gcc@6.1.0"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_sundials:
+  variables:
+    SPEC: "%gcc@6.1.0 +sundials"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_petsc:
+  variables:
+    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps"
+  extends: .build_and_test_on_quartz
+
+opt_par_gcc_6_1_0_pumi:
+  variables:
+    SPEC: "%gcc@6.1.0 +pumi"
+  extends: .build_and_test_on_quartz
+
+# Release
+q_release_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: release_resource
+  script:
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+
+# Jobs report
+q_report_job_success:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: release_resource
+  script:
+    - echo "Can only run if all the quartz jobs passed"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
+    - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
+q_report_job_failure:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: release_resource
+  script:
+    - echo "Runs if there was at least one failure on quartz"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
+    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
 include:
-  - local: .gitlab/common.yml
-  - local: .gitlab/quartz/templates.yml
-  - local: .gitlab/quartz/jobs.yml
+  - local: .gitlab/configs/common.yml
+  - local: .gitlab/configs/quartz-templates.yml
+  - local: .gitlab/configs/setup-build-and-test.yml

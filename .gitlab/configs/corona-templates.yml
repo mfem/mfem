@@ -36,28 +36,6 @@
     # Default is to run if previous stage succeeded
     - when: on_success
 
-# Allocate
-c_allocate_resource:
-  variables:
-    GIT_STRATEGY: none
-  extends: .on_corona
-  stage: allocate_resource
-  script:
-    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
-  timeout: 6h
-  needs: [setup]
-
-# Release
-c_release_resource:
-  variables:
-    GIT_STRATEGY: none
-  extends: .on_corona
-  stage: release_resource
-  script:
-    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
-    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
-  needs: [rocm_gcc_8.3.1]
-
 # Spack helped builds
 # Generic corona build job, extending build script
 .build_and_test_on_corona:
