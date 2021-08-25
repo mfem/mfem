@@ -123,11 +123,16 @@ public:
 
    virtual ~NCMesh();
 
+   /// Return the dimension of the NCMesh.
    int Dimension() const { return Dim; }
+   /// Return the space dimension of the NCMesh.
    int SpaceDimension() const { return spaceDim; }
 
+   /// Return the number of vertices in the NCMesh.
    int GetNVertices() const { return NVertices; }
+   /// Return the number of edges in the NCMesh.
    int GetNEdges() const { return NEdges; }
+   /// Return the number of (2D) faces in the NCMesh.
    int GetNFaces() const { return NFaces; }
 
    /** Perform the given batch of refinements. Please note that in the presence
@@ -520,8 +525,34 @@ protected: // implementation
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
 
 
+   /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
+
+   /** @brief This method assigns indices to vertices (Node::vert_index) that
+       will be seen by the Mesh class and the rest of MFEM.
+
+       We must be careful to:
+       1. Stay compatible with the conforming code, which expects top-level
+          (original) vertices to be indexed first, otherwise GridFunctions
+          defined on a conforming mesh would no longer be valid when the
+          mesh is converted to an NC mesh.
+
+       2. Make sure serial NCMesh is compatible with the parallel ParNCMesh,
+          so it is possible to read parallel partial solutions in serial code
+          (e.g., serial GLVis). This means handling ghost elements, if present.
+
+       3. Assign vertices in a globally consistent order for parallel meshes:
+          if two vertices i,j are shared by two ranks r1,r2, and i<j on r1,
+          then i<j on r2 as well. This is true for top-level vertices but also
+          for the remaining shared vertices thanks to the globally consistent
+          SFC ordering of the leaf elements. This property reduces communication
+          and simplifies ParNCMesh. */
    void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
+
+   /** Collect the leaf elements in leaf_elements, and the ghost elements in
+       ghosts. Compute and set the element indices of @a elements. On quad and
+       hex refined elements tries to order leaf elements along a space-filling
+       curve according to the given @a state variable. */
    void CollectLeafElements(int elem, int state, Array<int> &ghosts,
                             int &counter);
 
@@ -531,11 +562,17 @@ protected: // implementation
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
+   /** Compute the Geometry::Type present in the root elements (coarse elements)
+       and set @a Geoms bitmask accordingly. */
    void InitGeomFlags();
 
+   /// Return true if the mesh contains prism elements.
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+
+   /// Return true if the mesh contains tetrahedral elements.
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
+   /// Return true if the Element @a el is a ghost element.
    bool IsGhost(const Element &el) const { return el.rank != MyRank; }
 
 
@@ -547,9 +584,14 @@ protected: // implementation
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
+   /** Refine the element @a elem with the refinement @a ref_type 
+       (c.f. Refinement::enum) */
    void RefineElement(int elem, char ref_type);
+
+   /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);
 
+   // Add an Element @a el to the NCMesh, optimized to reuse freed elements.
    int AddElement(const Element &el)
    {
       if (free_element_ids.Size())
@@ -561,6 +603,8 @@ protected: // implementation
       }
       return elements.Append(el);
    }
+
+   // Free the element with index @a id.
    void FreeElement(int id)
    {
       free_element_ids.Append(id);
