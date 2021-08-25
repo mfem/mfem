@@ -42,6 +42,11 @@ public:
       double ee = vparam[1];
       double ff = vparam[2];
 
+      //The vector rr holds the gradients of the following expression:
+      //(u_x^2+u_y^2+u_z^2+\varepsilon^2)^(p/2)-f.u,
+      //where u_x,u_y,u_z are the gradients of the scalar field u.
+      //The state vector is defined as uu=[u_x,u_y,u_z,u].
+
       TDataType norm2 = uu[0] * uu[0] + uu[1] * uu[1] + uu[2] * uu[2];
       TDataType tvar = pow(ee * ee + norm2, (pp - 2.0) / 2.0);
 
@@ -587,6 +592,7 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
          //calculate the gradient
          dshape_xyz.MultTranspose(elfun, grad);
          nrgrad = grad.Norml2() / detJ;
+	 //(u_x^2+u_y^2+u_z^2+\varepsilon^2)
          aa0 = nrgrad * nrgrad + eee * eee;
          aa1 = std::pow(aa0, (ppp - 2.0) / 2.0);
          aa0 = (ppp - 2.0) * std::pow(aa0, (ppp - 4.0) / 2.0);
