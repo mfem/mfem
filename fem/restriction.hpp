@@ -116,13 +116,21 @@ protected:
    const bool byvdim;
    const int ndofs; // Total number of dofs
    const int dof; // Number of dofs on each face
+   const int elem_dofs; // Number of dofs in each element
    const int nfdofs; // Total number of face E-vector dofs
    Array<int> scatter_indices; // Scattering indices for element 1 on each face
    Array<int> offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
 
+   /** @brief Initialize an H1FaceRestriction.
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] type     Request internal or boundary faces dofs */
+   H1FaceRestriction(const FiniteElementSpace& fes,
+                     const FaceType type);
+
 public:
-   /** @brief Constructs an H1FaceRestriction.
+   /** @brief Construct an H1FaceRestriction.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific ordering
@@ -141,7 +149,7 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -153,7 +161,36 @@ public:
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
        @param[out] y The L-vector degrees of freedom. */
-   void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+protected:
+   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
+                                        const FaceType type);
+
+   void ComputeGatherIndices(const ElementDofOrdering ordering,
+                             const FaceType type);
+
+   mutable Array<int> face_map; // Used in the computation of GetFaceDofs
+
+   /** @brief Set the scattering indices of elem1, and increment the offsets for
+       the face described by the info.
+
+       @param[in] info The face information of the current face.
+       @param[in] face_index The interior/boundary face index.
+    */
+   void SetFaceDofsScatterIndices(const Mesh::FaceInformation &info,
+                                  const int face_index,
+                                  const ElementDofOrdering ordering);
+
+   /** @brief Set the gathering indices of elem1 for the interior face described
+       by the info.
+
+       @param[in] info The face information of the current face.
+       @param[in] face_index The interior/boundary face index.
+    */
+   void SetFaceDofsGatherIndices(const Mesh::FaceInformation &info,
+                                 const int face_index,
+                                 const ElementDofOrdering ordering);
 };
 
 /// Operator that extracts Face degrees of freedom for L2 spaces.
@@ -302,6 +339,9 @@ protected:
 
    /** @brief Set the scattering indices of elem2 for the shared face described
        by the info.
+
+      Note: This method uses a trick to differentiate dof location inter/shared,
+      the gid index is shifted by ndofs for shared dofs.
 
        @param[in] info The face information of the current face.
        @param[in] face_index The interior/boundary face index.
