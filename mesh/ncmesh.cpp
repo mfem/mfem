@@ -2352,7 +2352,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
             else
             {
                MFEM_ASSERT(nc_elem.geom == Geometry::SEGMENT, "");
-               auto* point = (Segment*) mesh.NewElement(Geometry::POINT);
+               auto* point = (mfem::Point*) mesh.NewElement(Geometry::POINT);
                point->SetAttribute(face->attribute);
                point->GetVertices()[0] = nodes[node[fv[0]]].vert_index;
                mesh.boundary.Append(point);
