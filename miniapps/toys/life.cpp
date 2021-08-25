@@ -21,16 +21,14 @@
 //
 // Compile with: make life
 //
-// Sample runs: life
-//              life -nx 30
-//              life -nx 100 -ny 100 -r 0.3
-//              life -g '2 3 0'
-//              life -b '10 10 0' -g '2 2 0'
-//              life -b '10 10 1' -g '2 2 0'
-//              life -sp '8 10 0 1 1 1 2 1 1 1'
-//              life -nx 30 -sp '11 11 1 1 1 1 1 1 1 1 2
-//                                     1 0 1 1 1 1 0 1 2
-//                                     1 1 1 1 1 1 1 1'
+// Sample runs:  life
+//               life -nx 30
+//               life -nx 100 -ny 100 -r 0.3
+//               life -g '2 3 0'
+//               life -b '10 10 0' -g '2 2 0'
+//               life -b '10 10 1' -g '2 2 0'
+//               life -sp '8 10 0 1 1 1 2 1 1 1'
+//               life -nx 30 -sp '11 11 1 1 1 1 1 1 1 1 2 1 0 1 1 1 1 0 1 2 1 1 1 1 1 1 1 1'
 
 #include "mfem.hpp"
 #include <algorithm>
