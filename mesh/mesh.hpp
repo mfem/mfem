@@ -168,7 +168,7 @@ protected:
          2. On non-conforming faces elem1 is always the slave element
          The case of shared non-conforming faces is incompatible with the local
          face being also the master face. For this reason ghost faces only
-         assume elem1 to be the local face.
+         assume elem1 to be the local face, and thus the master face.
        - It seems that ghost faces are only used for shared non-conforming faces
          where elem1 is master and local. I think non-conforming faces where the
          local face is slave are treated through conforming shared faces. (This
@@ -942,7 +942,7 @@ public:
    int GetNFbyType(FaceType type) const;
 
    /** @brief Return the PointMatrix of NCFace index @a i. */
-   const DenseMatrix* GetNCFacesPtMat(int i)
+   const DenseMatrix* GetNCFacesPtMat(int i) const
    {
       return nc_faces_info[i].PointMatrix;
    }
