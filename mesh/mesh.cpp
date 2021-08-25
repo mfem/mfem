@@ -1056,45 +1056,67 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
    info.ncface = ncface;
    // The following figures out info.location, info.conformity,
    // info.elem_2_index, and info.elem_2_orientation.
-   if (e2>=0)
+   if (f < GetNumFaces()) // Non-ghost face
    {
-      info.location = FaceLocation::Interior;
-      info.elem_2_index = e2;
-      if (ncface==-1)
+      if (e2>=0)
       {
-         info.conformity = FaceConformity::Conforming;
-         info.elem_2_orientation = inf2%64;
+         info.location = FaceLocation::Interior;
+         info.elem_2_index = e2;
+         if (ncface==-1)
+         {
+            info.conformity = FaceConformity::Conforming;
+            info.elem_2_orientation = inf2%64;
+         }
+         else // ncface >= 0
+         {
+            info.conformity = FaceConformity::NonConformingSlave;
+            info.elem_2_orientation = nc_faces_orientation[ncface];
+         }
       }
-      else // ncface >= 0
+      else // e2<0
       {
-         info.conformity = FaceConformity::NonConformingSlave;
-         info.elem_2_orientation = nc_faces_orientation[ncface];
+         info.elem_2_orientation = inf2%64;
+         if (ncface==-1)
+         {
+            info.conformity = FaceConformity::Conforming;
+            if (inf2<0)
+            {
+               info.location = FaceLocation::Boundary;
+               info.elem_2_index = e2;
+            }
+            else // inf2 >= 0
+            {
+               info.location = FaceLocation::Shared;
+               info.elem_2_index = -1 - e2;
+            }
+         }
+         else // ncface >= 0
+         {
+            info.location = e2==-1 ?
+                           FaceLocation::Interior :
+                           FaceLocation::Shared;
+            info.conformity = FaceConformity::NonConformingMaster;
+            info.elem_2_index = e2==-1 ? e2 : -1 - e2;
+         }
       }
    }
-   else // e2<0
+   else // Ghost face
    {
-      info.elem_2_orientation = inf2%64;
-      if (ncface==-1)
+      info.location = FaceLocation::Shared;
+      if (e1==-1)
       {
-         info.conformity = FaceConformity::Conforming;
-         if (inf2<0)
-         {
-            info.location = FaceLocation::Boundary;
-            info.elem_2_index = e2;
-         }
-         else // inf2 >= 0
-         {
-            info.location = FaceLocation::Shared;
-            info.elem_2_index = -1 - e2;
-         }
-      }
-      else // ncface >= 0
-      {
-         info.location = e2==-1 ?
-                         FaceLocation::Interior :
-                         FaceLocation::Shared;
          info.conformity = FaceConformity::NonConformingMaster;
-         info.elem_2_index = e2==-1 ? e2 : -1 - e2;
+         info.elem_2_index = -1;
+         info.elem_2_orientation = -1;
+      }
+      else
+      {
+         info.conformity = FaceConformity::NonConformingSlave;
+         // info.elem_2_index = info.elem_1_index;
+         // info.elem_2_orientation = info.elem_1_orientation;
+         info.elem_2_index = -1 - e2; // We overwrite elem1 index
+         info.elem_2_orientation = inf2%64;
+         // std::swap(info.elem_2_local_face, info.elem_1_local_face);
       }
    }
    return info;
