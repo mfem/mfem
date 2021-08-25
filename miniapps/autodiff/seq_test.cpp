@@ -39,12 +39,12 @@ public:
         MFEM_ASSERT(residual_size==4,"DiffusionResidual residual_size should be equal to 4!");
         MFEM_ASSERT(state_size==4,"ExampleFunctor state_size should be equal to 4!");
         MFEM_ASSERT(param_size==2,"ExampleFunctor param_size should be equal to 2!");
-        auto kapa = vparam[0]; //diffusion coefficient
+        auto kappa = vparam[0]; //diffusion coefficient
         auto load = vparam[1]; //volumetric influx
 
-        rr[0] = kapa * uu[0];
-        rr[1] = kapa * uu[1];
-        rr[2] = kapa * uu[2];
+        rr[0] = kappa * uu[0];
+        rr[1] = kappa * uu[1];
+        rr[2] = kappa * uu[2];
         rr[3] = -load;
     }
 };

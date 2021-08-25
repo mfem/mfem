@@ -65,57 +65,57 @@ public:
     }
 
     /// Evaluates the Jacobian of the vector function F_ for a set of parameters (vparam) and
-    /// state vector uu. The Jacobian (jac) has dimensions [vector_size x state_size].
-    void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    /// state vector vstate. The Jacobian (jac) has dimensions [vector_size x state_size].
+    void QJacobian(mfem::Vector &vparam, mfem::Vector &vstate, mfem::DenseMatrix &jac)
     {
 #ifdef MFEM_USE_ADFORWARD
         // use forward mode
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
         {
-            ad::ADVectorType aduu(state_size);
-            ad::ADVectorType rr(vector_size);
+            ad::ADVectorType ad_state(state_size);
+            ad::ADVectorType ad_result(vector_size);
             for(int i=0;i<state_size;i++){
-                aduu[i].setValue(uu[i]);
-                aduu[i].setGradient(0.0);
+                ad_state[i].setValue(vstate[i]);
+                ad_state[i].setGradient(0.0);
             }
             for(int ii=0;ii<state_size;ii++){
-                aduu[ii].setGradient(1.0);
-                F(vparam,aduu,rr);
+                ad_state[ii].setGradient(1.0);
+                F(vparam,ad_state,ad_result);
                 for(int jj=0;jj<vector_size;jj++)
                 {
-                    jac(jj,ii)=rr[jj].getGradient();
+                    jac(jj,ii)=ad_result[jj].getGradient();
                 }
-                aduu[ii].setGradient(0.0);
+                ad_state[ii].setGradient(0.0);
             }
         }
 #else // use reverse mode
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
         {
-            ad::ADVectorType aduu(state_size);
-            ad::ADVectorType rr(vector_size);
+            ad::ADVectorType ad_state(state_size);
+            ad::ADVectorType ad_result(vector_size);
             for(int i=0;i<state_size;i++){
-                aduu[i]=uu[i];
+                ad_state[i]=vstate[i];
             }
 
             ad::ADFloatType::TapeType& tape =ad::ADFloatType::getGlobalTape();
             typename ad::ADFloatType::TapeType::Position pos=tape.getPosition();
 
             tape.setActive();
-            for(int ii=0;ii<state_size;ii++){ tape.registerInput(aduu[ii]); }
-            F(vparam,aduu,rr);
-            for(int ii=0;ii<vector_size;ii++){ tape.registerOutput(rr[ii]); }
+            for(int ii=0;ii<state_size;ii++){ tape.registerInput(ad_state[ii]); }
+            F(vparam,ad_state,ad_result);
+            for(int ii=0;ii<vector_size;ii++){ tape.registerOutput(ad_result[ii]); }
             tape.setPassive();
 
             for(int jj=0;jj<vector_size;jj++){
-                rr[jj].setGradient(1.0);
+                ad_result[jj].setGradient(1.0);
                 tape.evaluate();
                 for(int ii=0;ii<state_size;ii++){
-                    jac(jj,ii)=aduu[ii].getGradient();
+                    jac(jj,ii)=ad_state[ii].getGradient();
                 }
                 tape.clearAdjoints();
-                rr[jj].setGradient(0.0);
+                ad_result[jj].setGradient(0.0);
             }
             tape.reset(pos);
         }

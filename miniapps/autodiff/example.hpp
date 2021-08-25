@@ -116,13 +116,29 @@ public:
       coeff = nullptr;
       pp = nullptr;
       load = nullptr;
+
+      vparam.SetSize(3);
+      vparam[0] = 2.0;  // default power
+      vparam[1] = 1e-8; // default epsilon
+      vparam[2] = 1.0;  // default load
    }
 
-   pLaplaceAD(Coefficient &pp_) : pp(&pp_), coeff(nullptr), load(nullptr) {}
+   pLaplaceAD(Coefficient &pp_) : pp(&pp_), coeff(nullptr), load(nullptr) {
+      vparam.SetSize(3);	   
+      vparam[0] = 2.0;  // default power
+      vparam[1] = 1e-8; // default epsilon
+      vparam[2] = 1.0;  // default load
+
+   }
 
    pLaplaceAD(Coefficient &pp_, Coefficient &q, Coefficient &ld_)
       : pp(&pp_), coeff(&q), load(&ld_)
-   {}
+   {
+      vparam.SetSize(3);	   
+      vparam[0] = 2.0;  // default power
+      vparam[1] = 1e-8; // default epsilon
+      vparam[2] = 1.0;  // default load
+   }
 
    virtual ~pLaplaceAD() {}
 
@@ -146,16 +162,11 @@ public:
       DenseMatrix dshape_xyz(ndof, spaceDim);
       Vector grad(spaceDim);
 
-      Vector vparam(3); //[power, epsilon, load]
       Vector uu(4);     //[diff_x,diff_y,diff_z,u]
 
       uu = 0.0;
-      vparam[0] = 2.0;  //default power
-      vparam[1] = 1e-8; //default epsilon
-      vparam[2] = 1.0;  //default load
 
       // Calculates the functional/energy at an integration point.
-      //
       MyQFunctor<double,Vector,Vector,4,3> qfunc;
 
       double w;
@@ -226,17 +237,10 @@ MFEM_PERF_BEGIN("AssembleElementVector");
       elvect = 0.0;
 
       DenseMatrix B(ndof, 4); //[diff_x,diff_y,diff_z, shape]
-      Vector vparam(3);       //[power, epsilon, load]
       Vector uu(4);           //[diff_x,diff_y,diff_z,u]
       Vector du(4);
       B = 0.0;
       uu = 0.0;
-      //initialize the parameters - keep the same order
-      //utilized in the pLapIntegrator definition
-      vparam[0] = 2.0;  //default power
-      vparam[1] = 1e-8; //default epsilon
-      vparam[2] = 1.0;  //default load
-
       double w;
 
       for (int i = 0; i < ir.GetNPoints(); i++)
@@ -303,16 +307,10 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
 
       DenseMatrix B(ndof, 4); // [diff_x,diff_y,diff_z, shape]
       DenseMatrix A(ndof, 4);
-      Vector vparam(3); // [power, epsilon, load]
       Vector uu(4);     // [diff_x,diff_y,diff_z,u]
       DenseMatrix duu(4, 4);
       B = 0.0;
       uu = 0.0;
-      // initialize the parameters - keep the same order
-      // utilized in the pLapIntegrator definition
-      vparam[0] = 2.0;  // default power
-      vparam[1] = 1e-8; // default epsilon
-      vparam[2] = 1.0;  // default load
 
       double w;
 
@@ -360,6 +358,10 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
       } // end integration loop
 MFEM_PERF_END("AssembleElementGrad");
    }
+
+private:
+   Vector vparam; // [power, epsilon, load]
+
 };
 
 ///Implements hand-coded integrator for a p-Laplacian problem.
