@@ -1294,6 +1294,11 @@ public:
          }
       }
 
+      bool IsConforming() const
+      {
+         return conformity==Mesh::FaceConformity::Conforming;
+      }
+
       bool IsGhost() const
       {
          return location==Mesh::FaceLocation::Shared &&
