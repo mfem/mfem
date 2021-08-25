@@ -67,18 +67,23 @@ public:
    FDualNumber(fltyp &f) : pr(f), du(0)
    {}
 
+   /// The constructor utilized in nested definition of dual numbers.
+   /// It is used for second and higher order derivatives.
    template<class fltyp,
             class = typename std::enable_if<std::is_arithmetic<fltyp>::value>::type>
    FDualNumber(const fltyp &f) : pr(f), du(0)
    {}
 
-   /// Standard constructor with user supplied inpur for both parts of the dual number.
+   /// Standard constructor with user supplied input for both parts of the dual number.
    FDualNumber(tbase &pr_, tbase &du_) : pr(pr_), du(du_) {}
 
+   /// Standard constructor with user supplied input for both parts of the dual number.
    FDualNumber(const tbase &pr_, const tbase &du_) : pr(pr_), du(du_) {}
 
+   /// Standard constructor with user supplied dual number.
    FDualNumber(FDualNumber<tbase> &nm) : pr(nm.pr), du(nm.du) {}
 
+   /// Standard constructor with user supplied dual number.
    FDualNumber(const FDualNumber<tbase> &nm) : pr(nm.pr), du(nm.du) {}
 
    /// Return the real value of the dual number.
