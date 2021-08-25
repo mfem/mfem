@@ -15,8 +15,71 @@ stages:
   - build_and_test
   - release_resource
 
+# Allocate
+c_allocate_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: allocate_resource
+  script:
+    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
+  timeout: 6h
+  needs: [setup]
+
+# Build and test jobs, simply provide a spec
+rocm_gcc_8.3.1:
+  variables:
+    SPEC: "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906"
+  extends: .build_and_test_on_corona
+  needs: [c_allocate_resource]
+
+# Release
+c_release_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: release_resource
+  script:
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+  needs: [rocm_gcc_8.3.1]
+
+# Reports
+c_report_job_success:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: release_resource
+  script:
+    - echo "Can only run if all the corona jobs passed"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
+    - echo "The Corona jobs were successful" > ${rundir}/gitlab.out
+    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+  needs: [rocm_gcc_8.3.1]
+
+c_report_job_failure:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: release_resource
+  script:
+    - echo "Runs if there was at least one failure on corona"
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
+    - echo "There was an error while running CI on Corona" > ${rundir}/gitlab.err
+    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on corona with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+  needs: [rocm_gcc_8.3.1]
+
 include:
-  - local: .gitlab/common.yml
-  - local: .gitlab/corona/templates.yml
-  - local: .gitlab/corona/jobs.yml
-  - local: .gitlab/corona/reports.yml
+  - local: .gitlab/configs/common.yml
+  - local: .gitlab/configs/corona-templates.yml
+  - local: .gitlab/configs/setup-build-and-test.yml

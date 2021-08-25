@@ -9,9 +9,18 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Build and test jobs, simply provide a spec
-rocm_gcc_8.3.1:
+# setup clones the mfem/data repo in ${BUILD_ROOT}. The build_and_test script
+# then symlinks the repo to the parent directory of the MFEM source directory.
+# Unit tests that depend on the mfem/data repo will then detect that this
+# directory is present and be enabled.
+setup:
+  tags:
+    - shell
+    - quartz
+  stage: setup
   variables:
-    SPEC: "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906"
-  extends: .build_and_test_on_corona
-  needs: [c_allocate_resource]
+    GIT_STRATEGY: none
+  script:
+    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
+    - if [ ! -d data ]; then git clone ${MFEM_DATA_REPO}; fi
+

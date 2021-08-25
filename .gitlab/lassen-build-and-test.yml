@@ -13,7 +13,12 @@ stages:
   - setup
   - build_and_test
 
+opt_mpi_cuda_xl_16_1_1_8:
+  variables:
+    SPEC: "%xl@16.1.1.8 +mpi +cuda cuda_arch=70"
+  extends: .build_and_test_on_lassen
+
 include:
-  - local: .gitlab/common.yml
-  - local: .gitlab/lassen/templates.yml
-  - local: .gitlab/lassen/jobs.yml
+  - local: .gitlab/configs/common.yml
+  - local: .gitlab/configs/lassen-templates.yml
+  - local: .gitlab/configs/setup-build-and-test.yml
