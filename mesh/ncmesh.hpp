@@ -34,12 +34,14 @@ namespace mfem
     in the X, Y and Z directions, respectively (Z is ignored for quads). */
 struct Refinement
 {
+   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
    Refinement() = default;
 
-   Refinement(int index, int type = 7) : index(index), ref_type(type) {}
+   Refinement(int index, int type = Refinement::XYZ)
+      : index(index), ref_type(type) {}
 };
 
 /// Defines the position of a fine element within a coarse element.

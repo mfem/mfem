@@ -942,7 +942,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       //     +-----------+           *--X
       //    0             1
 
-      if (ref_type == 1) // split along X axis
+      if (ref_type == Refinement::X) // split along X axis
       {
          int mid01 = GetMidEdgeNode(no[0], no[1]);
          int mid23 = GetMidEdgeNode(no[2], no[3]);
@@ -962,7 +962,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckAnisoFace(no[4], no[5], no[6], no[7], mid45, mid67);
          CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01);
       }
-      else if (ref_type == 2) // split along Y axis
+      else if (ref_type == Refinement::Y) // split along Y axis
       {
          int mid12 = GetMidEdgeNode(no[1], no[2]);
          int mid30 = GetMidEdgeNode(no[3], no[0]);
@@ -982,7 +982,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckAnisoFace(no[5], no[6], no[7], no[4], mid56, mid74);
          CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12);
       }
-      else if (ref_type == 4) // split along Z axis
+      else if (ref_type == Refinement::Z) // split along Z axis
       {
          int mid04 = GetMidEdgeNode(no[0], no[4]);
          int mid15 = GetMidEdgeNode(no[1], no[5]);
@@ -1002,7 +1002,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckAnisoFace(no[6], no[2], no[3], no[7], mid26, mid37);
          CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04);
       }
-      else if (ref_type == 3) // XY split
+      else if (ref_type == Refinement::XY) // XY split
       {
          int mid01 = GetMidEdgeNode(no[0], no[1]);
          int mid12 = GetMidEdgeNode(no[1], no[2]);
@@ -1041,7 +1041,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30, midf0);
          CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);
       }
-      else if (ref_type == 5) // XZ split
+      else if (ref_type == Refinement::XZ) // XZ split
       {
          int mid01 = GetMidEdgeNode(no[0], no[1]);
          int mid23 = GetMidEdgeNode(no[2], no[3]);
@@ -1080,7 +1080,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckIsoFace(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04, midf1);
          CheckIsoFace(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26, midf3);
       }
-      else if (ref_type == 6) // YZ split
+      else if (ref_type == Refinement::YZ) // YZ split
       {
          int mid12 = GetMidEdgeNode(no[1], no[2]);
          int mid30 = GetMidEdgeNode(no[3], no[0]);
@@ -1119,7 +1119,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckIsoFace(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15, midf2);
          CheckIsoFace(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37, midf4);
       }
-      else if (ref_type == 7) // full isotropic refinement
+      else if (ref_type == Refinement::XYZ) // full isotropic refinement
       {
          int mid01 = GetMidEdgeNode(no[0], no[1]);
          int mid12 = GetMidEdgeNode(no[1], no[2]);
@@ -1189,7 +1189,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          MFEM_ABORT("invalid refinement type.");
       }
 
-      if (ref_type != 7) { Iso = false; }
+      if (ref_type != Refinement::XYZ) { Iso = false; }
    }
    else if (el.Geom() == Geometry::PRISM)
    {
@@ -1209,7 +1209,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
       if (ref_type < 4) // XY refinement (split in 4 wedges)
       {
-         ref_type = 3; // for consistence
+         ref_type = Refinement::XY; // for consistence
 
          int mid01 = GetMidEdgeNode(no[0], no[1]);
          int mid12 = GetMidEdgeNode(no[1], no[2]);
@@ -1239,7 +1239,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
          CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
       }
-      else if (ref_type == 4) // Z refinement only (split in 2 wedges)
+      else if (ref_type == Refinement::Z) // Z refinement only (split in 2 wedges)
       {
          int mid03 = GetMidEdgeNode(no[0], no[3]);
          int mid14 = GetMidEdgeNode(no[1], no[4]);
@@ -1259,7 +1259,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       }
       else if (ref_type > 4) // full isotropic refinement (split in 8 wedges)
       {
-         ref_type = 7; // for consistence
+         ref_type = Refinement::XYZ; // for consistence
 
          int mid01 = GetMidEdgeNode(no[0], no[1]);
          int mid12 = GetMidEdgeNode(no[1], no[2]);
@@ -1318,7 +1318,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          MFEM_ABORT("invalid refinement type.");
       }
 
-      if (ref_type != 7) { Iso = false; }
+      if (ref_type != Refinement::XYZ) { Iso = false; }
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
@@ -1335,7 +1335,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       //     +------------+     *--X
       //    0              1
 
-      ref_type = 7; // for consistence
+      ref_type = Refinement::XYZ; // for consistence
 
       int mid01 = GetMidEdgeNode(no[0], no[1]);
       int mid12 = GetMidEdgeNode(no[1], no[2]);
@@ -1412,7 +1412,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    {
       ref_type &= 0x3; // ignore Z bit
 
-      if (ref_type == 1) // X split
+      if (ref_type == Refinement::X) // X split
       {
          int mid01 = nodes.GetId(no[0], no[1]);
          int mid23 = nodes.GetId(no[2], no[3]);
@@ -1423,7 +1423,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          child[1] = NewQuadrilateral(mid01, no[1], no[2], mid23,
                                      attr, fa[0], fa[1], fa[2], -1);
       }
-      else if (ref_type == 2) // Y split
+      else if (ref_type == Refinement::Y) // Y split
       {
          int mid12 = nodes.GetId(no[1], no[2]);
          int mid30 = nodes.GetId(no[3], no[0]);
@@ -1434,7 +1434,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          child[1] = NewQuadrilateral(mid30, mid12, no[2], no[3],
                                      attr, -1, fa[1], fa[2], fa[3]);
       }
-      else if (ref_type == 3) // iso split
+      else if (ref_type == Refinement::XY) // iso split
       {
          int mid01 = nodes.GetId(no[0], no[1]);
          int mid12 = nodes.GetId(no[1], no[2]);
@@ -1460,11 +1460,11 @@ void NCMesh::RefineElement(int elem, char ref_type)
          MFEM_ABORT("Invalid refinement type.");
       }
 
-      if (ref_type != 3) { Iso = false; }
+      if (ref_type != Refinement::XY) { Iso = false; }
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      ref_type = 3; // for consistence
+      ref_type = Refinement::XY; // for consistence
 
       // isotropic split - the only ref_type available for triangles
       int mid01 = nodes.GetId(no[0], no[1]);
@@ -1478,7 +1478,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
    else if (el.Geom() == Geometry::SEGMENT)
    {
-      ref_type = 1; // for consistence
+      ref_type = Refinement::X; // for consistence
 
       int mid = nodes.GetId(no[0], no[1]);
       child[0] = NewSegment(no[0], mid, attr, fa[0], -1);
@@ -1926,7 +1926,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
 
       // recurse to subtrees; try to order leaf elements along a space-filling
       // curve by changing the order the children are visited at each level
-      if (el.Geom() == Geometry::SQUARE && el.ref_type == 3)
+      if (el.Geom() == Geometry::SQUARE && el.ref_type == Refinement::XY)
       {
          for (int i = 0; i < 4; i++)
          {
@@ -1935,7 +1935,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
             CollectLeafElements(el.child[ch], st, ghosts, counter);
          }
       }
-      else if (el.Geom() == Geometry::CUBE && el.ref_type == 7)
+      else if (el.Geom() == Geometry::CUBE && el.ref_type == Refinement::XYZ)
       {
          for (int i = 0; i < 8; i++)
          {
