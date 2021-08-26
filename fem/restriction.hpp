@@ -579,6 +579,26 @@ protected:
    Vector interpolators; // face_dofs x face_dofs x nc_size
    static const int conforming = -1; // helper value
 
+   /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
+       for the gathering: E-vector to L-vector, and the interpolators from
+       coarse to fine face for master non-comforming faces.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
+                                        const FaceType type);
+
+   /** @brief Compute the gather indices: E-vector to L-vector.
+
+       Note: Requires the gather offsets to be computed.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeGatherIndices(const ElementDofOrdering ordering,
+                             const FaceType type);
+
    /** @brief Register the face with @a info and index @a face_index as a
        conforming face for the interpolation of the degrees of freedom.
 
