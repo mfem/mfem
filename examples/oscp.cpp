@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&osc_threshold, "-e", "--error",
-                  "relative data oscillation threshold");
+                  "relative data oscillation threshold.");
    args.AddOption(&enriched_order, "-eo", "--enriched_order",
                   "Enriched quadrature order.");
    args.AddOption(&nc_simplices, "-ns", "--nonconforming-simplices",
