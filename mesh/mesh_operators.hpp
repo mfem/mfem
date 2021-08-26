@@ -360,7 +360,7 @@ public:
       return PreprocessMesh(mesh, max_it);
    }
 
-   /// Set the refinement threshold. The default value is 1.0e-3.
+   /// Set the refinement threshold. The default value is 1.0e-2.
    void SetThreshold(double threshold_) { threshold = threshold_; }
 
    /** @brief Set the maximum number of elements stopping criterion: stop when
