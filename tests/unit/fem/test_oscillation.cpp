@@ -74,8 +74,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionX);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh);
       double osc = coeffrefiner.GetOsc();
 
@@ -86,8 +85,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionY);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh);
       double osc = coeffrefiner.GetOsc();
 
@@ -98,8 +96,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionX);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh);
       double osc = coeffrefiner.GetOsc();
@@ -111,8 +108,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionY);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh);
       double osc = coeffrefiner.GetOsc();
@@ -191,8 +187,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionX);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
 
@@ -203,8 +198,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionY);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
 
@@ -215,8 +209,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionX);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
@@ -228,8 +221,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionY);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
@@ -263,8 +255,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionX);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
 
@@ -275,8 +266,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionY);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
 
@@ -287,8 +277,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::SmoothSolutionZ);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
 
@@ -299,8 +288,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionX);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
@@ -312,8 +300,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionY);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
@@ -325,8 +312,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
    {
       FunctionCoefficient u_analytic(testhelper_osc::NonsmoothSolutionZ);
 
-      CoefficientRefiner coeffrefiner(order);
-      coeffrefiner.SetCoefficient(u_analytic);
+      CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
       double osc = coeffrefiner.GetOsc();
