@@ -1248,7 +1248,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                                 .with_max_block_size(static_cast<unsigned int>(1u))
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
-                                                                   coarse_solver_its, 0.9);
+                                                                   coarse_solve_its, 0.9);
          }
          else
          {
@@ -1256,7 +1256,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                                 .with_max_block_size(static_cast<unsigned int>(1u))
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
-                                                                       inner_solver), coarse_solver_its, 0.9);
+                                                                       inner_solver), coarse_solve_its, 0.9);
          }
          break;
       }
@@ -1267,14 +1267,14 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver = gko::preconditioner::Jacobi<float, int>::build()
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
-                                                                   coarse_solver_its, 0.9);
+                                                                   coarse_solve_its, 0.9);
          }
          else
          {
             auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
-                                                                       inner_solver), coarse_solver_its, 0.9);
+                                                                       inner_solver), coarse_solve_its, 0.9);
          }
          break;
       }
@@ -1291,7 +1291,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
-                                                                   coarse_solver_its, 0.9);
+                                                                   coarse_solve_its, 0.9);
          }
          else
          {
@@ -1304,7 +1304,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
-                                                                       inner_solver), coarse_solver_its, 0.9);
+                                                                       inner_solver), coarse_solve_its, 0.9);
          }
          break;
       }
@@ -1321,7 +1321,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
-                                                                   coarse_solver_its, 0.9);
+                                                                   coarse_solve_its, 0.9);
          }
          else
          {
@@ -1334,7 +1334,7 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
-                                                                       inner_solver), coarse_solver_its, 0.9);
+                                                                       inner_solver), coarse_solve_its, 0.9);
          }
          break;
       }
