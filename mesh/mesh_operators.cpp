@@ -167,7 +167,6 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 {
    int rank = 0;
    MFEM_VERIFY(max_it > 0, "max_it must be strictly positive")
-   MFEM_VERIFY(coeff, "Coefficient is not set for CoefficientRefiner object")
 
    int dim = mesh.Dimension();
    L2_FECollection l2fec(order, dim);
