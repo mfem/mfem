@@ -1139,49 +1139,31 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
          auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
                              .with_max_block_size(static_cast<unsigned int>(1u))
                              .on(executor);
-//         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver), pre_sweeps, 0.9);
-     
-         smoother_gen = gko::solver::Ir<double>::build()
-                        .with_criteria(
-                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                        .with_solver(gko::share(inner_solver))
-                        .with_relaxation_factor(0.9)
-                        .on(executor); 
+         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver),
+                                                            pre_sweeps, 0.9);
+
          if (use_mixed_prec)
          {
             auto inner_solver_s = gko::preconditioner::Jacobi<float, int>::build()
                                   .with_max_block_size(static_cast<unsigned int>(1u))
                                   .on(executor);
-          /*  smoother_gen_s = gko::solver::Ir<float>::build()
-                             .with_criteria(
-                                gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                             .with_solver(gko::share(inner_solver_s))
-                             .with_relaxation_factor(0.9)
-                             .on(executor); */
-            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s), pre_sweeps, 0.9);
-         } 
+            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
+                                                                pre_sweeps, 0.9);
+         }
          break;
       }
       case AMGPreconditioner::BLOCK_JACOBI :
       {
          auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
                              .on(executor);
-         smoother_gen = gko::solver::Ir<double>::build()
-                        .with_criteria(
-                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                        .with_solver(gko::share(inner_solver))
-                        .with_relaxation_factor(0.9)
-                        .on(executor);
+         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver),
+                                                            pre_sweeps, 0.9);
          if (use_mixed_prec)
          {
             auto inner_solver_s = gko::preconditioner::Jacobi<float, int>::build()
                                   .on(executor);
-            smoother_gen_s = gko::solver::Ir<float>::build()
-                             .with_criteria(
-                                gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                             .with_solver(gko::share(inner_solver_s))
-                             .with_relaxation_factor(0.9)
-                             .on(executor);
+            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
+                                                                pre_sweeps, 0.9);
          }
          break;
       }
@@ -1195,12 +1177,9 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
          auto inner_solver = gko::preconditioner::Ic<>::build()
                              .with_factorization_factory(fact_factory)
                              .on(executor);
-         smoother_gen = gko::solver::Ir<double>::build()
-                        .with_criteria(
-                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                        .with_solver(gko::share(inner_solver))
-                        .with_relaxation_factor(0.9)
-                        .on(executor);
+         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver),
+                                                            pre_sweeps, 0.9);
+
          if (use_mixed_prec)
          {
             using ic_fact_type = gko::factorization::Ic<float, int>;
@@ -1211,12 +1190,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver_s = gko::preconditioner::Ic<>::build()
                                   .with_factorization_factory(fact_factory_s)
                                   .on(executor);
-            smoother_gen_s = gko::solver::Ir<float>::build()
-                             .with_criteria(
-                                gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                             .with_solver(gko::share(inner_solver_s))
-                             .with_relaxation_factor(0.9)
-                             .on(executor);
+            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
+                                                                pre_sweeps, 0.9);
          }
          break;
       }
@@ -1230,12 +1205,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
          auto inner_solver = gko::preconditioner::Ic<>::build()
                              .with_factorization_factory(fact_factory)
                              .on(executor);
-         smoother_gen = gko::solver::Ir<double>::build()
-                        .with_criteria(
-                           gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                        .with_solver(gko::share(inner_solver))
-                        .with_relaxation_factor(0.9)
-                        .on(executor);
+         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver),
+                                                            pre_sweeps, 0.9);
          if (use_mixed_prec)
          {
             using ic_fact_type = gko::factorization::ParIc<float, int>;
@@ -1246,12 +1217,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver_s = gko::preconditioner::Ic<>::build()
                                   .with_factorization_factory(fact_factory_s)
                                   .on(executor);
-            smoother_gen = gko::solver::Ir<float>::build()
-                           .with_criteria(
-                              gko::stop::Iteration::build().with_max_iters(pre_sweeps).on(executor))
-                           .with_solver(gko::share(inner_solver_s))
-                           .with_relaxation_factor(0.9)
-                           .on(executor);
+            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
+                                                                pre_sweeps, 0.9);
          }
          break;
       }
@@ -1280,24 +1247,16 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver = gko::preconditioner::Jacobi<float, int>::build()
                                 .with_max_block_size(static_cast<unsigned int>(1u))
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<float>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
+                                                                   coarse_solver_its, 0.9);
          }
          else
          {
             auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
                                 .with_max_block_size(static_cast<unsigned int>(1u))
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<double>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
+                                                                       inner_solver), coarse_solver_its, 0.9);
          }
          break;
       }
@@ -1307,23 +1266,15 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
          {
             auto inner_solver = gko::preconditioner::Jacobi<float, int>::build()
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<float>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
+                                                                   coarse_solver_its, 0.9);
          }
          else
          {
             auto inner_solver = gko::preconditioner::Jacobi<double, int>::build()
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<double>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
+                                                                       inner_solver), coarse_solver_its, 0.9);
          }
          break;
       }
@@ -1339,12 +1290,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver = gko::preconditioner::Ic<>::build()
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<float>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
+                                                                   coarse_solver_its, 0.9);
          }
          else
          {
@@ -1356,12 +1303,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver = gko::preconditioner::Ic<>::build()
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<double>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
+                                                                       inner_solver), coarse_solver_its, 0.9);
          }
          break;
       }
@@ -1377,12 +1320,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver = gko::preconditioner::Ic<>::build()
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<float>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
+                                                                   coarse_solver_its, 0.9);
          }
          else
          {
@@ -1394,12 +1333,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
             auto inner_solver = gko::preconditioner::Ic<>::build()
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
-            coarse_solver_gen = gko::solver::Ir<double>::build()
-                                .with_criteria(
-                                   gko::stop::Iteration::build().with_max_iters(coarse_solve_its).on(executor))
-                                .with_solver(gko::share(inner_solver))
-                                .with_relaxation_factor(0.9)
-                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
+                                                                       inner_solver), coarse_solver_its, 0.9);
          }
          break;
       }
@@ -1438,7 +1373,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
    if (use_mixed_prec)
    {
       precond_gen = mg::build()
-                    .with_min_coarse_rows(50u)
+                    .with_min_coarse_rows(64u)
+                    //                    .with_max_levels(9u)
                     .with_pre_smoother(gko::share(smoother_gen), gko::share(smoother_gen_s))
                     .with_mg_level(gko::share(mg_level_gen), gko::share(mg_level_gen_s))
                     .with_level_selector(selector)
@@ -1450,7 +1386,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
    else
    {
       precond_gen = mg::build()
-                    .with_min_coarse_rows(50u)
+                    .with_min_coarse_rows(64u)
+                    //                    .with_max_levels(9u)
                     .with_pre_smoother(gko::share(smoother_gen))
                     .with_mg_level(gko::share(mg_level_gen))
                     .with_coarsest_solver(gko::share(coarse_solver_gen))
