@@ -1086,76 +1086,9 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    }
    // End of verifications
 
-   Mesh &mesh = *fes.GetMesh();
-   // Initialization of the offsets
-   for (int i = 0; i <= ndofs; ++i)
-   {
-      offsets[i] = 0;
-   }
+   ComputeScatterIndicesAndOffsets(e_ordering,type);
 
-   // Computation of scatter indices and offsets
-   int f_ind=0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (info.location==Mesh::FaceLocation::Shared)
-      {
-         MFEM_ABORT("Unexpected shared face in L2FaceRestriction.");
-      }
-      if (info.IsOfFaceType(type))
-      {
-         SetFaceDofsScatterIndices1(info,f_ind);
-         if (m==L2FaceValues::DoubleValued)
-         {
-            if (type==FaceType::Interior && info.IsInterior())
-            {
-               PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
-            }
-            else if (type==FaceType::Boundary && info.IsBoundary())
-            {
-               SetBoundaryDofsScatterIndices2(info,f_ind);
-            }
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-
-   // Summation of the offsets
-   for (int i = 1; i <= ndofs; ++i)
-   {
-      offsets[i] += offsets[i - 1];
-   }
-
-   // Computation of gather_indices
-   f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (info.location==Mesh::FaceLocation::Shared)
-      {
-         MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction.");
-      }
-      if (info.IsOfFaceType(type))
-      {
-         SetFaceDofsGatherIndices1(info,f_ind);
-         if (m==L2FaceValues::DoubleValued &&
-             type==FaceType::Interior &&
-             info.location==Mesh::FaceLocation::Interior)
-         {
-            PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-
-   // Reset offsets to their correct value
-   for (int i = ndofs; i > 0; --i)
-   {
-      offsets[i] = offsets[i - 1];
-   }
-   offsets[0] = 0;
+   ComputeGatherIndices(e_ordering, type);
 }
 
 void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -1366,6 +1299,84 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
          }
       });
    }
+}
+
+void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   // Initialization of the offsets
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+
+   // Computation of scatter indices and offsets
+   int f_ind=0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      MFEM_ASSERT(info.location!=Mesh::FaceLocation::Shared,
+                  "Unexpected shared face in L2FaceRestriction.");
+      if (info.IsOfFaceType(type))
+      {
+         SetFaceDofsScatterIndices1(info,f_ind);
+         if (m==L2FaceValues::DoubleValued)
+         {
+            if (type==FaceType::Interior && info.IsInterior())
+            {
+               PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
+            }
+            else if (type==FaceType::Boundary && info.IsBoundary())
+            {
+               SetBoundaryDofsScatterIndices2(info,f_ind);
+            }
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Summation of the offsets
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+}
+
+void L2FaceRestriction::ComputeGatherIndices(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   // Computation of gather_indices
+   int f_ind = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      MFEM_ASSERT(info.location!=Mesh::FaceLocation::Shared,
+                  "Unexpected shared face in L2FaceRestriction.");
+      if (info.IsOfFaceType(type))
+      {
+         SetFaceDofsGatherIndices1(info,f_ind);
+         if (m==L2FaceValues::DoubleValued &&
+             type==FaceType::Interior &&
+             info.location==Mesh::FaceLocation::Interior)
+         {
+            PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Reset offsets to their correct value
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
 }
 
 void L2FaceRestriction::SetFaceDofsScatterIndices1(
@@ -1683,7 +1694,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                MFEM_ASSERT(e_ordering == ElementDofOrdering::LEXICOGRAPHIC,
                            "The following interpolation operator is "
                            "lexicographic.");
-               RegisterFaceCoarseToFineInterpolation(f_ind,info,interp_map,
+               RegisterFaceCoarseToFineInterpolation(info,f_ind,interp_map,
                                                      nc_cpt);
                // Contrary to the conforming case, there is no need to call
                // PermuteFaceL2, the permutation is achieved by the
@@ -1722,11 +1733,8 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       {
          continue;
       }
-      if (info.location==Mesh::FaceLocation::Shared)
-      {
-         MFEM_ABORT("Unexpected shared face in NCL2FaceRestriction. Use "
-                    "ParNCL2FaceRestriction");
-      }
+      MFEM_ASSERT(info.location!=Mesh::FaceLocation::Shared,
+                  "Unexpected shared face in NCL2FaceRestriction.");
       if ( info.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(info,f_ind);
@@ -1796,7 +1804,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int nc_side = conf.GetNonConformingSide();
+         const int nc_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          for (int side = 0; side < 2; side++)
          {
@@ -1897,7 +1905,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int nc_side = conf.GetNonConformingSide();
+         const int nc_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          if ( interp_index!=conforming )
          {
@@ -2021,8 +2029,8 @@ void NCL2FaceRestriction::RegisterFaceConformingInterpolation(
 }
 
 void NCL2FaceRestriction::RegisterFaceCoarseToFineInterpolation(
-   int face_index,
    const Mesh::FaceInformation &info,
+   int face_index,
    Map &interp_map,
    int &nc_cpt)
 {

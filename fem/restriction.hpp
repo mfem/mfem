@@ -133,7 +133,7 @@ public:
    /** @brief Construct an H1FaceRestriction.
 
        @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] ordering Request a specific ordering
+       @param[in] ordering Request a specific element ordering
        @param[in] type     Request internal or boundary faces dofs */
    H1FaceRestriction(const FiniteElementSpace& fes,
                      const ElementDofOrdering ordering,
@@ -164,9 +164,22 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const override;
 
 protected:
+   /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
+       for the gathering: E-vector to L-vector. 
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
    void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
                                         const FaceType type);
 
+   /** @brief Compute the gather indices: E-vector to L-vector.
+
+       Note: Requires the gather offsets to be computed.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
 
@@ -306,6 +319,25 @@ public:
                                                  Vector &ea_data) const;
 
 protected:
+   /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
+       for the gathering: E-vector to L-vector. 
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
+                                        const FaceType type);
+
+   /** @brief Compute the gather indices: E-vector to L-vector.
+
+       Note: Requires the gather offsets to be computed.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeGatherIndices(const ElementDofOrdering ordering,
+                             const FaceType type);
+
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
 
@@ -502,7 +534,8 @@ public:
 
 protected:
 
-   /// TODO: doc
+   /** This class stores which side is the master non-conforming side and the
+       index of the interpolator. */
    struct InterpConfig
    {
       int config;
@@ -510,7 +543,8 @@ protected:
       // Conforming face
       InterpConfig() : config(-1) { }
 
-      // Non-conforming face, if nc_index is given assumes side==1
+      // Non-conforming face, if nc_index is given assumes side==1 (always true
+      // except for ghost faces)
       InterpConfig(int config) : config(config) { }
 
       // Non-conforming face
@@ -526,7 +560,7 @@ protected:
       }
 
       MFEM_HOST_DEVICE
-      int GetNonConformingSide() const
+      int GetNonConformingMasterSide() const
       {
          // MFEM_ASSERT(config!=-1, "This face is conforming.");
          return config<-1? 0 : 1;
@@ -545,14 +579,32 @@ protected:
    Vector interpolators; // face_dofs x face_dofs x nc_size
    static const int conforming = -1; // helper value
 
+   /** @brief Register the face with @a info and index @a face_index as a
+       conforming face for the interpolation of the degrees of freedom.
+
+       @param[in] info The face information of the current face.
+       @param[in] face_index The interior/boundary face index.
+    */
    void RegisterFaceConformingInterpolation(const Mesh::FaceInformation &info,
                                             int face_index);
 
-   using Key = std::pair<const DenseMatrix*,int>; // TODO
-   using Map = std::map<Key, std::pair<int,const DenseMatrix*>>; // TODO
+   /** The interpolators are associated to a key of containing the address of
+       PointMatrix and a local face identifiant. */
+   using Key = std::pair<const DenseMatrix*,int>;
+   /// The temporary map used to store the different interpolators.
+   using Map = std::map<Key, std::pair<int,const DenseMatrix*>>;
 
-   void RegisterFaceCoarseToFineInterpolation(int face_index,
-                                              const Mesh::FaceInformation &info,
+   /** @brief Register the face with @a info and index @a face_index as a
+       conforming face for the interpolation of the degrees of freedom.
+
+       @param[in] info The face information of the current face.
+       @param[in] face_index The interior/boundary face index.
+       @param[in,out] interp_map The map that stores the interpolators.
+       @param[in,out] nc_cpt A counter that stores the number of different
+                             interpolators. Used as index for each interpolator.
+    */
+   void RegisterFaceCoarseToFineInterpolation(const Mesh::FaceInformation &info,
+                                              int face_index,
                                               Map &interp_map,
                                               int &nc_cpt);
 
@@ -578,10 +630,10 @@ protected:
     @param[in] dim The dimension of the space
     @param[in] face_id The local face identifiant
     @param[in] dof1d The 1D number of degrees of freedom for each dimension
-    @param[out] faceMap The map that maps each face dof to an element dof
+    @param[out] face_map The map that maps each face dof to an element dof
 */
 void GetFaceDofs(const int dim, const int face_id,
-                 const int dof1d, Array<int> &faceMap);
+                 const int dof1d, Array<int> &face_map);
 
 /** @brief Convert a dof face index from Native ordering to lexicographic
     ordering for quads and hexes.
