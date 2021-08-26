@@ -102,12 +102,12 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 
             // Verify that the global indices range from 0 to globalN-1.
             {
-               const HYPRE_Int localMin = gi.Min();
-               const HYPRE_Int localMax = gi.Max();
+               const HYPRE_BigInt localMin = gi.Min();
+               const HYPRE_BigInt localMax = gi.Max();
 
                HYPRE_BigInt globalMin, globalMax;
-               MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_INT, MPI_MIN, MPI_COMM_WORLD);
-               MPI_Allreduce(&localMax, &globalMax, 1, HYPRE_MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+               MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_BIG_INT, MPI_MIN, MPI_COMM_WORLD);
+               MPI_Allreduce(&localMax, &globalMax, 1, HYPRE_MPI_BIG_INT, MPI_MAX, MPI_COMM_WORLD);
 
                REQUIRE((globalMin == 0 && globalMax == globalN-1));
             }

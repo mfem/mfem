@@ -2355,7 +2355,7 @@ inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
    HYPRE_BigInt  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
    int size = hypre_CSRMatrixNumCols(hypre_ParCSRMatrixOffd(A));
-   Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
+   Memory<HYPRE_BigInt>(A_col_map_offd, size, true).Delete();
 }
 
 void HypreParMatrix::Destroy()

@@ -780,14 +780,14 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    else
    {
       // Some shared dofs will be linear combinations of others
-      int ldof  = GetVSize();
-      int ltdof = TrueVSize();
+      HYPRE_BigInt ldof  = GetVSize();
+      HYPRE_BigInt ltdof = TrueVSize();
 
-      HYPRE_Int gdof  = -1;
-      HYPRE_Int gtdof = -1;
+      HYPRE_BigInt gdof  = -1;
+      HYPRE_BigInt gtdof = -1;
 
-      MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
-      MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
+      MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
+      MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
 
       // Ensure face orientations have been communicated
       pmesh->ExchangeFaceNbrData();
