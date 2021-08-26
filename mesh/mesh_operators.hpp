@@ -393,7 +393,7 @@ public:
    void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
 
    // Return the value of the global relative data oscillation
-   double GetOsc() { return global_osc; }
+   const double GetOsc() { return global_osc; }
 
    // Return the local relative data oscillation errors
    Vector GetLocalOscs()
