@@ -335,7 +335,7 @@ protected:
    Array<int> mesh_refinements;
    Vector element_oscs;
    Coefficient *coeff = NULL;
-   GridFunction *gf;
+   GridFunction *gf = NULL;
    const IntegrationRule *ir_default[Geometry::NumGeom];
    const IntegrationRule **irs = NULL;
 
