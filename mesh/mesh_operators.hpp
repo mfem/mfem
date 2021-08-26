@@ -349,7 +349,7 @@ public:
    {
       // function f
       coeff = &coeff_;
-      
+
       // order of the projection Π
       order = order_;
    }
