@@ -549,15 +549,14 @@ function go()
    local cmd_line="${1##+( )}"
    cmd_line="${cmd_line%%+( )}"
    shopt -u extglob
-   eval local cmd=(${cmd_line})
    local res=""
    echo $sep
    echo "<${group}>" "${cmd_line}"
    echo $sep
    if [ "${timing}" == "yes" ]; then
-      timed_run "${cmd[@]}"
+      timed_run eval "${cmd_line}"
    else
-      "${cmd[@]}"
+      eval "${cmd_line}"
    fi
    if [ "$?" -eq 0 ]; then
       res="${green}  OK  ${none}"

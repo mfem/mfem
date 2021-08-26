@@ -33,8 +33,8 @@
 //
 // Sample runs:
 //
-//    mpirun -np 8 block-solvers-compare -r 2 -o 0
-//    mpirun -np 8 block-solvers-compare -m anisotropic.mesh -c anisotropic.coeff -be anisotropic.bdr
+//    mpirun -np 8 block-solvers -r 2 -o 0
+//    mpirun -np 8 block-solvers -m anisotropic.mesh -c anisotropic.coeff -eb anisotropic.bdr
 //
 //
 // NOTE:  The coefficient file (provided through -c) defines a piecewise constant
