@@ -396,7 +396,7 @@ public:
    const double GetOsc() { return global_osc; }
 
    // Return the local relative data oscillation errors
-   Vector GetLocalOscs()
+   const Vector & GetLocalOscs() const
    {
       MFEM_ASSERT(element_oscs.Size() > 0,
                   "Local oscillations have not been computed yet")
