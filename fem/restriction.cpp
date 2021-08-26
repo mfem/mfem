@@ -1432,7 +1432,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    const int face_index)
 {
    MFEM_ASSERT(info.location==Mesh::FaceLocation::Interior &&
-               info.conformity==Mesh::FaceConformity::Conforming,
+               info.IsConforming(),
                "This method should only be used on interior conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -1493,7 +1493,7 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
 {
 #ifdef MFEM_USE_MPI
    MFEM_ASSERT(info.location==Mesh::FaceLocation::Shared &&
-               info.conformity==Mesh::FaceConformity::Conforming,
+               info.IsConforming(),
                "This method should only be used on conforming shared faces.");
    const int elem_index = info.elem_2_index;
    const int face_id1 = info.elem_1_local_face;
@@ -1589,7 +1589,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    const int face_index)
 {
    MFEM_ASSERT(info.location==Mesh::FaceLocation::Interior &&
-               info.conformity==Mesh::FaceConformity::Conforming,
+               info.IsConforming(),
                "This method should only be used on interior conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -1658,129 +1658,9 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    }
    // End of verifications
 
-   Mesh &mesh = *fes.GetMesh();
-   int nc_cpt = 0;
-   std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
+   ComputeScatterIndicesAndOffsets(e_ordering, type);
 
-   // Initialization of the offsets
-   for (int i = 0; i <= ndofs; ++i)
-   {
-      offsets[i] = 0;
-   }
-
-   // Computation of scatter and offsets indices
-   int f_ind=0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      // We skip non-conforming master faces, as they will be treated by the
-      // slave faces.
-      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
-      {
-         continue;
-      }
-      if ( type==FaceType::Interior && info.IsInterior() )
-      {
-         SetFaceDofsScatterIndices1(info,f_ind);
-         if ( m==L2FaceValues::DoubleValued )
-         {
-            if ( info.IsConforming() )
-            {
-               RegisterFaceConformingInterpolation(info,f_ind);
-               PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
-            }
-            else // Non-conforming face
-            {
-               MFEM_ASSERT(e_ordering == ElementDofOrdering::LEXICOGRAPHIC,
-                           "The following interpolation operator is "
-                           "lexicographic.");
-               RegisterFaceCoarseToFineInterpolation(info,f_ind,interp_map,
-                                                     nc_cpt);
-               // Contrary to the conforming case, there is no need to call
-               // PermuteFaceL2, the permutation is achieved by the
-               // interpolation operator for simplicity.
-               SetFaceDofsScatterIndices2(info,f_ind);
-            }
-         }
-         f_ind++;
-      }
-      else if ( type==FaceType::Boundary && info.IsBoundary() )
-      {
-         SetFaceDofsScatterIndices1(info,f_ind);
-         if ( m==L2FaceValues::DoubleValued )
-         {
-            SetBoundaryDofsScatterIndices2(info,f_ind);
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
-               (type==FaceType::Interior? "interior" : "boundary") <<
-               " faces: " << f_ind << " vs " << nf );
-
-   // Summation of the offsets
-   for (int i = 1; i <= ndofs; ++i)
-   {
-      offsets[i] += offsets[i - 1];
-   }
-
-   // Computation of gather_indices
-   f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
-      {
-         continue;
-      }
-      MFEM_ASSERT(info.location!=Mesh::FaceLocation::Shared,
-                  "Unexpected shared face in NCL2FaceRestriction.");
-      if ( info.IsOfFaceType(type) )
-      {
-         SetFaceDofsGatherIndices1(info,f_ind);
-         if (m==L2FaceValues::DoubleValued &&
-             type==FaceType::Interior &&
-             info.IsInterior())
-         {
-            if (info.conformity==Mesh::FaceConformity::Conforming)
-            {
-               PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
-            }
-            else
-            {
-               SetFaceDofsGatherIndices2(info,f_ind);
-            }
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
-               (type==FaceType::Interior? "interior" : "boundary") <<
-               " faces: " << f_ind << " vs " << nf );
-
-   // Switch back offsets to their correct value
-   for (int i = ndofs; i > 0; --i)
-   {
-      offsets[i] = offsets[i - 1];
-   }
-   offsets[0] = 0;
-
-   // Transform the interpolation matrix map into a contiguous memory structure.
-   nc_size = interp_map.size();
-   interpolators.SetSize(dof*dof*nc_size);
-   auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
-   for (auto val : interp_map)
-   {
-      const int idx = val.second.first;
-      for (int i = 0; i < dof; i++)
-      {
-         for (int j = 0; j < dof; j++)
-         {
-            interp(i,j,idx) = (*val.second.second)(i,j);
-         }
-      }
-      delete val.second.second;
-   }
+   ComputeGatherIndices(e_ordering, type);
 }
 
 void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -2017,6 +1897,141 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
          MFEM_ABORT("Unsupported dimension.");
          return 0;
    }
+}
+
+void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   int nc_cpt = 0; // Counter for the number of non-conforming interpolators.
+   // A temporary map storing the interpolators needed.
+   std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
+
+   // Initialization of the offsets
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+
+   // Computation of scatter and offsets indices
+   int f_ind=0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      // We skip non-conforming master faces, as they will be treated by the
+      // slave faces.
+      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
+      {
+         continue;
+      }
+      if ( type==FaceType::Interior && info.IsInterior() )
+      {
+         SetFaceDofsScatterIndices1(info,f_ind);
+         if ( m==L2FaceValues::DoubleValued )
+         {
+            if ( info.IsConforming() )
+            {
+               RegisterFaceConformingInterpolation(info,f_ind);
+               PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
+            }
+            else // Non-conforming face
+            {
+               MFEM_ASSERT(ordering == ElementDofOrdering::LEXICOGRAPHIC,
+                           "The following interpolation operator is "
+                           "lexicographic.");
+               RegisterFaceCoarseToFineInterpolation(info,f_ind,interp_map,
+                                                     nc_cpt);
+               // Contrary to the conforming case, there is no need to call
+               // PermuteFaceL2, the permutation is achieved by the
+               // interpolation operator for simplicity.
+               SetFaceDofsScatterIndices2(info,f_ind);
+            }
+         }
+         f_ind++;
+      }
+      else if ( type==FaceType::Boundary && info.IsBoundary() )
+      {
+         SetFaceDofsScatterIndices1(info,f_ind);
+         if ( m==L2FaceValues::DoubleValued )
+         {
+            SetBoundaryDofsScatterIndices2(info,f_ind);
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
+               (type==FaceType::Interior? "interior" : "boundary") <<
+               " faces: " << f_ind << " vs " << nf );
+
+   // Summation of the offsets
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+
+   // Transform the interpolation matrix map into a contiguous memory structure.
+   nc_size = interp_map.size();
+   interpolators.SetSize(dof*dof*nc_size);
+   auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
+   for (auto val : interp_map)
+   {
+      const int idx = val.second.first;
+      for (int i = 0; i < dof; i++)
+      {
+         for (int j = 0; j < dof; j++)
+         {
+            interp(i,j,idx) = (*val.second.second)(i,j);
+         }
+      }
+      delete val.second.second;
+   }
+}
+
+void NCL2FaceRestriction::ComputeGatherIndices(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   // Computation of gather_indices
+   int f_ind = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      MFEM_ASSERT(info.location!=Mesh::FaceLocation::Shared,
+                  "Unexpected shared face in NCL2FaceRestriction.");
+      if ( info.IsOfFaceType(type) )
+      {
+         SetFaceDofsGatherIndices1(info,f_ind);
+         if (m==L2FaceValues::DoubleValued &&
+             type==FaceType::Interior &&
+             info.IsInterior())
+         {
+            if (info.IsConforming())
+            {
+               PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
+            }
+            else
+            {
+               // Contrary to the conforming case, there is no need to call
+               // PermuteFaceL2, the permutation is achieved by the
+               // interpolation operator for simplicity.
+               SetFaceDofsGatherIndices2(info,f_ind);
+            }
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
+               (type==FaceType::Interior? "interior" : "boundary") <<
+               " faces: " << f_ind << " vs " << nf );
+
+   // Switch back offsets to their correct value
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
 }
 
 void NCL2FaceRestriction::RegisterFaceConformingInterpolation(
