@@ -174,6 +174,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
    FiniteElementSpace* l2fes = NULL;
 
    bool par = false;
+   GridFunction *gf = NULL;
 
 #ifdef MFEM_USE_MPI
    ParMesh* pmesh = dynamic_cast<ParMesh*>(&mesh);
