@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient affine_coeff(affine_function);
    FunctionCoefficient jump_coeff(jump_function);
    FunctionCoefficient singular_coeff(singular_function);
-   CoefficientRefiner coeffrefiner(order);
+   CoefficientRefiner coeffrefiner(affine_coeff,order);
 
    // 6. Connect to GLVis.
    char vishost[] = "localhost";
@@ -195,7 +195,6 @@ int main(int argc, char *argv[])
    // 9. Preprocess mesh to control osc (piecewise-affine function).
    //    This is mostly just a verification check. The oscillation should
    //    be zero if the function is mesh-conforming and order > 0.
-   coeffrefiner.SetCoefficient(affine_coeff);
    coeffrefiner.PreprocessMesh(pmesh);
 
    int globalNE = pmesh.GetGlobalNE();
@@ -209,7 +208,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Preprocess mesh to control osc (jump function).
-   coeffrefiner.SetCoefficient(jump_coeff);
+   coeffrefiner.ResetCoefficient(jump_coeff);
    coeffrefiner.PreprocessMesh(pmesh);
 
    globalNE = pmesh.GetGlobalNE();
@@ -223,7 +222,7 @@ int main(int argc, char *argv[])
    }
 
    // 11. Preprocess mesh to control osc (singular function).
-   coeffrefiner.SetCoefficient(singular_coeff);
+   coeffrefiner.ResetCoefficient(singular_coeff);
    coeffrefiner.PreprocessMesh(pmesh);
 
    globalNE = pmesh.GetGlobalNE();

@@ -331,7 +331,7 @@ protected:
    int order;
    long max_elements = std::numeric_limits<long>::max();
    double threshold = 1.0e-2;
-   double global_osc = 0.0;
+   double global_osc = NAN;
    Array<int> mesh_refinements;
    Vector element_oscs;
    Coefficient *coeff = NULL;
@@ -345,7 +345,14 @@ protected:
 
 public:
    /// Constructor
-   CoefficientRefiner(int order_) : order(order_) { }
+   CoefficientRefiner(Coefficient &coeff_, int order_)
+   {
+      // function f
+      coeff = &coeff_;
+      
+      // order of the projection Π
+      order = order_;
+   }
 
    /** @brief Apply the operator to the mesh max_it times or until tolerance
     *  achieved.
@@ -367,11 +374,11 @@ public:
        LONG_MAX. */
    void SetMaxElements(long max_elements_) { max_elements = max_elements_; }
 
-   /// Set the function f
-   void SetCoefficient(Coefficient &coeff_)
+   /// Reset the function f
+   void ResetCoefficient(Coefficient &coeff_)
    {
       element_oscs.Destroy();
-      global_osc = 0.0;
+      global_osc = NAN;
       coeff = &coeff_;
    }
 
