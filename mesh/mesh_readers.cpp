@@ -2374,6 +2374,12 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                        " for all curves, surfaces, or volumes in your"
                        " Gmsh geometry to values which are >= 1.");
          }
+         else if (has_nonpositive_phys_domain)
+         {
+            mfem::out << "\nGmsh reader: all element attributes were zero.\n"
+                      << "MFEM only supports positive element attributes.\n"
+                      << "Setting element attributes to 1.\n\n";
+         }
 
          if (!elements_3D.empty())
          {
