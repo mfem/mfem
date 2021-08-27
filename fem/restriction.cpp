@@ -1937,11 +1937,8 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
             }
             else // Non-conforming face
             {
-               MFEM_ASSERT(ordering == ElementDofOrdering::LEXICOGRAPHIC,
-                           "The following interpolation operator is "
-                           "lexicographic.");
-               RegisterFaceCoarseToFineInterpolation(face,f_ind,interp_map,
-                                                     nc_cpt);
+               RegisterFaceCoarseToFineInterpolation(face,f_ind,ordering,
+                                                     interp_map,nc_cpt);
                // Contrary to the conforming case, there is no need to call
                // PermuteFaceL2, the permutation is achieved by the
                // interpolation operator for simplicity.
@@ -2038,7 +2035,7 @@ void NCL2FaceRestriction::RegisterFaceConformingInterpolation(
    const Mesh::FaceInformation &face,
    int face_index)
 {
-   MFEM_ASSERT(face.IsConforming()==true,
+   MFEM_ASSERT(face.IsConforming(),
                "Registering face as conforming even though it is not.");
    interp_config[face_index] = conforming;
 }
@@ -2046,12 +2043,12 @@ void NCL2FaceRestriction::RegisterFaceConformingInterpolation(
 void NCL2FaceRestriction::RegisterFaceCoarseToFineInterpolation(
    const Mesh::FaceInformation &face,
    int face_index,
+   ElementDofOrdering ordering,
    Map &interp_map,
    int &nc_cpt)
 {
-   // MFEM_ASSERT(e_ordering == ElementDofOrdering::LEXICOGRAPHIC,
-   //             "The following interpolation operator is only implemented for"
-   //             "lexicographic ordering.");
+   MFEM_ASSERT(!face.IsConforming(),
+               "Registering face as non-conforming even though it is not.");
    const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
    // In the case of non-conforming slave shared face the master face is elem1.
    const int nc_side =
@@ -2066,7 +2063,7 @@ void NCL2FaceRestriction::RegisterFaceCoarseToFineInterpolation(
    if (itr == interp_map.end())
    {
       const DenseMatrix* interpolator =
-         ComputeCoarseToFineInterpolation(face,ptMat);
+         ComputeCoarseToFineInterpolation(face,ptMat,ordering);
       interp_map[key] = {nc_cpt, interpolator};
       interp_config[face_index] = {nc_side, nc_cpt};
       nc_cpt++;
@@ -2079,8 +2076,12 @@ void NCL2FaceRestriction::RegisterFaceCoarseToFineInterpolation(
 
 const DenseMatrix* NCL2FaceRestriction::ComputeCoarseToFineInterpolation(
    const Mesh::FaceInformation &face,
-   const DenseMatrix* ptMat)
+   const DenseMatrix* ptMat,
+   ElementDofOrdering ordering)
 {
+   MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
+               "The following interpolation operator is only implemented for"
+               "lexicographic ordering.");
    int face_id1 = face.elem_1_local_face;
    int face_id2 = face.elem_2_local_face;
    int orientation = face.elem_2_orientation;
