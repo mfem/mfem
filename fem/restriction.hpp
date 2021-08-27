@@ -318,7 +318,7 @@ public:
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
 
-protected:
+private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector. 
 
@@ -338,8 +338,8 @@ protected:
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
 
+protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
-
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the info.
@@ -404,6 +404,8 @@ protected:
    /** @brief Set the gathering indices of elem1 for the interior face described
        by the info.
 
+       Note: This function modifies the offsets.
+
        @param[in] info The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
@@ -412,6 +414,8 @@ protected:
 
    /** @brief Set the gathering indices of elem2 for the interior face described
        by the info.
+
+       Note: This function modifies the offsets.
 
        @param[in] info The face information of the current face.
        @param[in] face_index The interior/boundary face index.
@@ -422,6 +426,8 @@ protected:
    /** @brief Permute and set the gathering indices of elem2 for the interior
        face described by the info. The permutation orders the dofs of elem2 as
        the ones of elem1.
+
+       Note: This function modifies the offsets.
 
        @param[in] info The face information of the current face.
        @param[in] face_index The interior/boundary face index.
@@ -532,6 +538,27 @@ public:
    void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                          Vector &ea_data) const override;
 
+private:
+   /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
+       for the gathering: E-vector to L-vector, and the interpolators from
+       coarse to fine face for master non-comforming faces.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
+                                        const FaceType type);
+
+   /** @brief Compute the gather indices: E-vector to L-vector.
+
+       Note: Requires the gather offsets to be computed.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeGatherIndices(const ElementDofOrdering ordering,
+                             const FaceType type);
+
 protected:
 
    /** This class stores which side is the master non-conforming side and the
@@ -579,26 +606,6 @@ protected:
    Vector interpolators; // face_dofs x face_dofs x nc_size
    static const int conforming = -1; // helper value
 
-   /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
-       for the gathering: E-vector to L-vector, and the interpolators from
-       coarse to fine face for master non-comforming faces.
-
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
-   */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
-                                        const FaceType type);
-
-   /** @brief Compute the gather indices: E-vector to L-vector.
-
-       Note: Requires the gather offsets to be computed.
-
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
-   */
-   void ComputeGatherIndices(const ElementDofOrdering ordering,
-                             const FaceType type);
-
    /** @brief Register the face with @a info and index @a face_index as a
        conforming face for the interpolation of the degrees of freedom.
 
@@ -619,12 +626,14 @@ protected:
 
        @param[in] info The face information of the current face.
        @param[in] face_index The interior/boundary face index.
+       @param[in] ordering  Request a specific element ordering.
        @param[in,out] interp_map The map that stores the interpolators.
        @param[in,out] nc_cpt A counter that stores the number of different
                              interpolators. Used as index for each interpolator.
     */
    void RegisterFaceCoarseToFineInterpolation(const Mesh::FaceInformation &info,
                                               int face_index,
+                                              ElementDofOrdering ordering,
                                               Map &interp_map,
                                               int &nc_cpt);
 
@@ -636,12 +645,14 @@ protected:
                         of the fine face in the coarse face. This PointMatrix is
                         usually obtained from the mesh through the method
                         GetNCFacesPtMat.
+       @param[in] ordering  Request a specific element ordering.
        @return The dense matrix corresponding to the interpolation of the face
                degrees of freedom of the master (coarse) face to the slave
                (fine) face. */
    const DenseMatrix* ComputeCoarseToFineInterpolation(
       const Mesh::FaceInformation &info,
-      const DenseMatrix* ptMat);
+      const DenseMatrix* ptMat,
+      ElementDofOrdering ordering);
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the
