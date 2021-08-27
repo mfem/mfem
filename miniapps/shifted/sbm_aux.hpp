@@ -10,8 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include <fstream>
-#include <iostream>
 
 using namespace std;
 using namespace mfem;
@@ -22,26 +20,21 @@ double point_inside_trigon(const Vector px, Vector p1, Vector p2, Vector p3)
    Vector v1 = p2; v1 -=p1;
    Vector v2 = p3; v2 -=p1;
    double p, q;
-   p = ((px(0)*v2(1)-px(1)*v2(0))-(v0(0)*v2(1)-v0(1)*v2(0)))/(v1(0)*v2(1)-v1(1)*v2(
-                                                                 0));
-   q = -((px(0)*v1(1)-px(1)*v1(0))-(v0(0)*v1(1)-v0(1)*v1(0)))/(v1(0)*v2(1)-v1(
-                                                                  1)*v2(0));
+   p = ((px(0)*v2(1)-px(1)*v2(0))-(v0(0)*v2(1)-v0(1)*v2(0))) /
+       (v1(0)*v2(1)-v1(1)*v2(0));
+   q = -((px(0)*v1(1)-px(1)*v1(0))-(v0(0)*v1(1)-v0(1)*v1(0))) /
+       (v1(0)*v2(1)-v1(1)*v2(0));
 
-   if (p > 0 && q > 0 && 1-p-q > 0)
-   {
-      return -1.0;
-   }
-   return 1.0;
+   return (p > 0 && q > 0 && 1-p-q > 0) ? -1.0 : 1.0;
 }
 
 /// Analytic distance to the 0 level set. Positive value if the point is inside
 /// the domain, and negative value if outside.
 double dist_value(const Vector &x, const int type)
 {
-
-   double ring_radius = 0.2;
    if (type == 1 || type == 2) // circle of radius 0.2 - centered at 0.5, 0.5
    {
+      const double ring_radius = 0.2;
       Vector xc(x.Size());
       xc = 0.5;
       xc -= x;
@@ -116,7 +109,7 @@ double dist_value(const Vector &x, const int type)
    return 0.;
 }
 
-/// Level set coefficient - +1 inside the domain, -1 outside, 0 at the boundary.
+/// Level set coefficient: +1 inside the true domain, -1 outside.
 class Dist_Level_Set_Coefficient : public Coefficient
 {
 private:
@@ -131,12 +124,11 @@ public:
       Vector x(3);
       T.Transform(ip, x);
       double dist = dist_value(x, type);
-      if (dist >= 0.) { return 1.; }
-      else { return -1.; }
+      return (dist >= 0.0) ? 1.0 : -1.0;
    }
 };
 
-/// Level set coefficient - +1 inside the domain, -1 outside, 0 at the boundary.
+/// Combination of level sets: +1 inside the true domain, -1 outside.
 class Combo_Level_Set_Coefficient : public Coefficient
 {
 private:
@@ -152,15 +144,14 @@ public:
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      MFEM_VERIFY(dls.Size() > 0, "Add at-least 1 Dist_level_Set_Coefficient to"
-                  " the Combo.");
+      MFEM_VERIFY(dls.Size() > 0,
+                  "Add at least 1 Dist_level_Set_Coefficient to the Combo.");
       double dist = dls[0]->Eval(T, ip);
       for (int j = 1; j < dls.Size(); j++)
       {
          dist = min(dist, dls[j]->Eval(T, ip));
       }
-      if (dist >= 0.) { return 1.; }
-      else { return -1.; }
+      return (dist >= 0.0) ? 1.0 : -1.0;
    }
 };
 

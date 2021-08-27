@@ -33,8 +33,7 @@ public:
    ShiftedFunctionCoefficient(double constant_)
       : constant(constant_), constantcoefficient(true) { }
 
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       if (constantcoefficient) { return constant; }
       Vector transip;

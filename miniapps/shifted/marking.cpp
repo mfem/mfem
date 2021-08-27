@@ -14,10 +14,9 @@
 namespace mfem
 {
 
-void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
+void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
+                                     Array<int> &elem_marker)
 {
-   MFEM_VERIFY(ls_func, "Level-set function to be used for marking has not "
-               "been specified. Check ShiftedFaceMarker constructor.");
    elem_marker.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
    if (!initial_marking_done) { elem_marker = SBElementType::INSIDE; }
    else { level_set_index += 1; }
@@ -31,7 +30,7 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       ElementTransformation *Tr = pmesh.GetElementTransformation(i);
       const IntegrationRule &ir =
          IntRulesLo.Get(pmesh.GetElementBaseGeometry(i), 4*Tr->OrderJ());
-      ls_func->GetValues(i, ir, vals);
+      ls_func.GetValues(i, ir, vals);
 
       int count = 0;
       for (int j = 0; j < ir.GetNPoints(); j++)
@@ -62,8 +61,7 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       ElementTransformation *eltr =
          pmesh.GetFaceNbrElementTransformation(Elem2NbrNo);
       const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(0),
-                        4*eltr->OrderJ());
+         IntRulesLo.Get(pmesh.GetElementBaseGeometry(0), 4*eltr->OrderJ());
 
       const int nip = ir.GetNPoints();
       vals.SetSize(nip);
@@ -71,7 +69,7 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         vals[j] = ls_func->GetValue(tr->Elem2No, ip);
+         vals[j] = ls_func.GetValue(tr->Elem2No, ip);
          if (vals[j] <= 0.) { count++; }
       }
 
@@ -89,13 +87,6 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker)
       }
    }
    initial_marking_done = true;
-}
-
-void ShiftedFaceMarker::MarkElements(ParGridFunction &ls,
-                                     Array<int> &elem_marker)
-{
-   SetLevelSetFunction(ls);
-   MarkElements(elem_marker);
 }
 
 void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,

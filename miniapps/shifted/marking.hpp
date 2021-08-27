@@ -23,7 +23,6 @@ class ShiftedFaceMarker
 {
 protected:
    ParMesh &pmesh;                    // Mesh whose elements have to be marked.
-   ParGridFunction *ls_func;          // Gridfunction to be used for marking.
    ParFiniteElementSpace *pfes_sltn;  // FESpace associated with the solution.
    bool include_cut_cell;             // Flag indicating wether cut-cells
    // will be included in assembly.
@@ -46,21 +45,14 @@ public:
    /// to discern between different level-sets.
    enum SBElementType {INSIDE = 0, OUTSIDE = 1, CUT = 2};
 
-   ShiftedFaceMarker(ParMesh &pm, ParGridFunction &ls,
-                     ParFiniteElementSpace &pfes, bool include_cut_cell_)
-      : pmesh(pm), ls_func(&ls), pfes_sltn(&pfes),
-        include_cut_cell(include_cut_cell_), initial_marking_done(false),
-        level_set_index(0) { }
-
    ShiftedFaceMarker(ParMesh &pm, ParFiniteElementSpace &pfes,
                      bool include_cut_cell_)
-      : pmesh(pm), ls_func(NULL), pfes_sltn(&pfes),
+      : pmesh(pm), pfes_sltn(&pfes),
         include_cut_cell(include_cut_cell_), initial_marking_done(false),
         level_set_index(0) { }
 
    /// Mark all the elements in the mesh using the @a SBElementType
-   void MarkElements(Array<int> &elem_marker);
-   void MarkElements(ParGridFunction &ls, Array<int> &elem_marker);
+   void MarkElements(const ParGridFunction &ls_func, Array<int> &elem_marker);
 
    /// List dofs associated with the surrogate boundary.
    /// If @a include_cut_cell = false, the surrogate boundary includes faces
@@ -81,8 +73,6 @@ public:
                            const Array<int> &sface_dof_list,
                            Array<int> &ess_tdof_list,
                            Array<int> &ess_shift_bdr) const;
-
-   void SetLevelSetFunction(ParGridFunction &ls) { ls_func = &ls; }
 };
 
 } // namespace mfem
