@@ -318,23 +318,6 @@ void KellyErrorEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 
 #ifdef MFEM_USE_MPI
-   if (!isParallel)
-#endif // MFEM_USE_MPI
-   {
-      // Finalize element errors
-      for (int e = 0; e < xfes->GetNE(); e++)
-      {
-         auto factor = compute_element_coefficient(mesh, e);
-         // The sqrt belongs to the norm and hₑ to the indicator.
-         error_estimates(e) = sqrt(factor * error_estimates(e));
-      }
-
-      total_error = error_estimates.Norml2();
-      delete flux;
-      return;
-   }
-
-#ifdef MFEM_USE_MPI
 
    // 3. Add error contribution from shared interior faces
    // Synchronize face data.
@@ -456,7 +439,20 @@ void KellyErrorEstimator::ComputeEstimates()
    MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
                  MPI_SUM, pfes->GetComm());
    total_error = sqrt(total_error);
+   return;
 #endif // MFEM_USE_MPI
+
+// Finalize element errors (if serial)
+for (int e = 0; e < xfes->GetNE(); e++)
+{
+   auto factor = compute_element_coefficient(mesh, e);
+   // The sqrt belongs to the norm and hₑ to the indicator.
+   error_estimates(e) = sqrt(factor * error_estimates(e));
+}
+
+total_error = error_estimates.Norml2();
+delete flux;
+
 }
 
 void LpErrorEstimator::ComputeEstimates()

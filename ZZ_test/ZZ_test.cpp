@@ -32,10 +32,11 @@ int main(int argc, char *argv[])
    int nc_limit = 1;
    const char *device_config = "cpu";
    bool visualization = false;
+   int which_estimator = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem type: 0 = L-shaped, 1 = inner layer.");
+                  "Problem type: 0 = canonical L-shaped solution, 1 = sinusoid.");
    args.AddOption(&order, "-o", "--order",
                   "Initial mesh finite element order (polynomial degree).");
    args.AddOption(&ref_threshold, "-rt", "--ref-threshold",
@@ -45,6 +46,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&which_estimator, "-est", "--estimator",
+                  "Which estimator to use: "
+                  "0 = ZZ, 1 = Kelly. Defaults to ZZ.");
    args.Parse();
    if (!args.Good())
    {
@@ -59,10 +63,10 @@ int main(int argc, char *argv[])
    device.Print();
 
    const char *mesh_file;
-   if (problem == 0)
-   {
+   // if (problem == 0)
+   // {
       mesh_file = "l-shape-benchmark.mesh";
-   }
+   // }
 
    // 2. Read the (serial) mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -72,8 +76,8 @@ int main(int argc, char *argv[])
 
    // Define a finite element space on the mesh.
    H1_FECollection fec(order, dim);
+   L2_FECollection l2fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
-   FiniteElementSpace flux_fespace(&mesh, &fec, dim);
 
    // Define the solution vector x as a finite element grid function
    // corresponding to fespace.
@@ -87,16 +91,21 @@ int main(int argc, char *argv[])
 
    switch (problem)
    {
-      case 0:
-         exsol = new FunctionCoefficient(lshape_exsol);
-         exgrad = new VectorFunctionCoefficient(dim, lshape_exgrad);
-         rhs = new FunctionCoefficient(lshape_laplace);
       case 1:
+      {
          exsol = new FunctionCoefficient(sinsin_exsol);
          exgrad = new VectorFunctionCoefficient(dim, sinsin_exgrad);
          rhs = new FunctionCoefficient(sinsin_laplace);
-      default:
          break;
+      }
+      default:
+      case 0:
+      {
+         exsol = new FunctionCoefficient(lshape_exsol);
+         exgrad = new VectorFunctionCoefficient(dim, lshape_exgrad);
+         rhs = new FunctionCoefficient(lshape_laplace);
+         break;
+      }
    }
 
    // Set up the linear form b(.) and the bilinear form a(.,.).
@@ -123,8 +132,8 @@ int main(int argc, char *argv[])
       cout << "\n Press enter to advance... " << endl;
    }
 
-   cout << setw(3) << "\nRef. " << setw(9) << "DOFs " << setw(15) << "H^1_0 error" << setw(15) << "ZZ error " << setw(12) << "H^1_0 rate" << setw(12) << "ZZ rate " <<  endl;
-   conv << "DOFs " << ", " << "H^1_0 error" << ", " << "ZZ error " << endl;
+   cout << setw(4) << "\nRef." << setw(12) << "DOFs" << setw(21) << "H^1_0 error" << setw(21) << "error estimate" << setw(18) << "H^1_0 rate" << setw(18) << "estimator rate" <<  endl;
+   conv << "DOFs " << ", " << "H^1_0 error" << ", " << "error estimate" << endl;
 
    double old_num_dofs = 0.0;
    double old_H10_error = 0.0;
@@ -159,12 +168,29 @@ int main(int argc, char *argv[])
 
       // Calculate the total error in the H^1_0 norm.
       double H10_error = x.ComputeGradError(exgrad);
-
       DiffusionIntegrator di;
-      ZienkiewiczZhuEstimator zz(di, x, flux_fespace);
-      double ZZ_error = zz.GetTotalError();
-      const Vector &zzerr = zz.GetLocalErrors();
-      ZZ_error = zzerr.Norml2();
+
+      ErrorEstimator* estimator{nullptr};
+      switch (which_estimator)
+      {
+         case 1:
+         {
+            auto flux_fes = new FiniteElementSpace(&mesh, &l2fec, dim);
+            estimator = new KellyErrorEstimator(di, x, flux_fes);
+            break;
+         }
+
+         default:
+            std::cout << "Unknown estimator. Falling back to ZZ." << std::endl;
+         case 0:
+         {
+            auto flux_fes = new FiniteElementSpace(&mesh, &fec, dim);
+            estimator = new ZienkiewiczZhuEstimator(di, x, flux_fes);
+            break;
+         }
+      }
+      const Vector &zzerr = estimator->GetLocalErrors();
+      double ZZ_error = estimator->GetTotalError();
 
       // estimate convergence rate
       double H10_rate = 0.0;
@@ -175,7 +201,7 @@ int main(int argc, char *argv[])
           ZZ_rate  = log(ZZ_error/old_ZZ_error)   / log(old_num_dofs/num_dofs);
       }
 
-      cout << setw(3) << it << setw(9) << num_dofs << setw(15) << H10_error << setw(15) << ZZ_error << setw(12) << H10_rate << setw(12) << ZZ_rate << endl;
+      cout << setw(4) << it << setw(12) << num_dofs << setw(21) << H10_error << setw(21) << ZZ_error << setw(18) << H10_rate << setw(18) << ZZ_rate << endl;
 
       // Send solution by socket to the GLVis server.
       if (visualization)
