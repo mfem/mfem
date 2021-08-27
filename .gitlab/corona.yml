@@ -17,8 +17,10 @@
     - corona
   rules:
     # Don’t run corona jobs if...
-    # Note: This makes corona an "opt-in" machine. Gitlab instances where
-    # corona jobs should run should set "ON_CORONA" to "ON".
+    # Note: This makes corona an "opt-in" machine. To activate builds on corona
+    # for a given GitLab clone of MFEM, go to Setting/CI-CD/variables, and set
+    # "ON_CORONA" to "ON". An LC account on for corona is required to trigger a
+    # pipeline there.
     - if: '$CI_COMMIT_BRANCH =~ /_cnone/ || $ON_CORONA != "ON"'
       when: never
     # Don’t run autotest update if...
