@@ -231,28 +231,29 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
-   MFEM_PERF_BEGIN("Solve A X = B");
-   Solver *prec = NULL;
-   if (pa)
    {
-      if (UsesTensorBasis(fespace))
+      MFEM_PERF_SCOPE("Solve A X=B");
+      Solver *prec = NULL;
+      if (pa)
       {
-         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         if (UsesTensorBasis(fespace))
+         {
+            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         }
       }
+      else
+      {
+         prec = new HypreBoomerAMG;
+      }
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
    }
-   else
-   {
-      prec = new HypreBoomerAMG;
-   }
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   delete prec;
-   MFEM_PERF_END("Solve A X = B");
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);

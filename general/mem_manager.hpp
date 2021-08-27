@@ -922,6 +922,11 @@ inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
+   MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
+   MFEM_ASSERT(0 <= size, "invalid size = " << size);
+   MFEM_ASSERT(offset + size <= base.capacity,
+               "invalid offset + size = " << offset + size
+               << " > base capacity = " << base.capacity);
    capacity = size;
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
