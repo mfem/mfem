@@ -996,7 +996,7 @@ void DiffusionIntegrator::ComputeElementFlux
 #endif
    vec.SetSize(dim);
    vecdxt.SetSize(spaceDim);
-   pointflux.SetSize(MQ ? spaceDim : 0);
+   pointflux.SetSize(MQ || VQ ? spaceDim : 0);
 
    const IntegrationRule &ir = fluxelem.GetNodes();
    fnd = ir.GetNPoints();
