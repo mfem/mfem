@@ -9,7 +9,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# GitLab pipelines configurations for the Corona machine at LLNL
+# GitLab pipeline configuration for the Corona machine at LLNL
 
 .on_corona:
   tags:
