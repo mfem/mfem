@@ -442,16 +442,16 @@ void KellyErrorEstimator::ComputeEstimates()
    return;
 #endif // MFEM_USE_MPI
 
-// Finalize element errors (if serial)
-for (int e = 0; e < xfes->GetNE(); e++)
-{
-   auto factor = compute_element_coefficient(mesh, e);
-   // The sqrt belongs to the norm and hₑ to the indicator.
-   error_estimates(e) = sqrt(factor * error_estimates(e));
-}
+   // Finalize element errors (if serial)
+   for (int e = 0; e < xfes->GetNE(); e++)
+   {
+      auto factor = compute_element_coefficient(mesh, e);
+      // The sqrt belongs to the norm and hₑ to the indicator.
+      error_estimates(e) = sqrt(factor * error_estimates(e));
+   }
 
-total_error = error_estimates.Norml2();
-delete flux;
+   total_error = error_estimates.Norml2();
+   delete flux;
 
 }
 
