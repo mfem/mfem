@@ -164,8 +164,8 @@ int main(int argc, char *argv[])
    Vector vxyz;
 
    // Set the nodal grid function for the mesh, and modify the nodal positions
-   // for dirichlet_level_set_type = 3 such that some of the mesh elements are intersected
-   // by the true boundary (y = 0).
+   // for dirichlet_level_set_type = 3 such that some of the mesh elements are
+   // intersected by the true boundary (y = 0).
    ParFiniteElementSpace pfespace_mesh(&pmesh, &fec, dim);
    pmesh.SetNodalFESpace(&pfespace_mesh);
    ParGridFunction x_mesh(&pfespace_mesh);
@@ -191,7 +191,6 @@ int main(int argc, char *argv[])
    // Define the solution vector x as a finite element grid function
    // corresponding to pfespace.
    ParGridFunction x(&pfespace);
-   ParGridFunction combo_level_set_val(&pfespace);
 
    // Determine if each element in the ParMesh is inside the actual domain,
    // partially cut by its boundary, or completely outside the domain.
@@ -471,7 +470,6 @@ int main(int argc, char *argv[])
 
    if (dirichlet_level_set_type_combo == 6)
    {
-
       b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoefCombo,
                                                                 alpha, *dist_vec,
                                                                 elem_marker,
@@ -629,6 +627,9 @@ int main(int argc, char *argv[])
          std::cout << "Global L2 error: " << global_error << endl;
       }
    }
+
+   const double norm = x.ComputeL1Error(one);
+   if (myid == 0) { std::cout << setprecision(8) << norm << std::endl; }
 
    // Free the used memory.
    delete prec;
