@@ -50,8 +50,11 @@
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 int problem;
 
+// The dim and hence number of equations is taken from the mesh.
+int dim;
+int num_equation;
+
 // Equation constant parameters.
-const int num_equation = 4;
 const double specific_heat_ratio = 1.4;
 const double gas_constant = 1.0;
 
@@ -112,7 +115,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
-   MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
+   num_equation = 2+dim;
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -162,12 +165,44 @@ int main(int argc, char *argv[])
    BlockVector u_block(offsets);
 
    // Momentum grid function on dfes for visualization.
-   GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
+   GridFunction rho(&fes, u_block.GetData() + offsets[0]);
+   GridFunction rho_u(&dfes, u_block.GetData() + offsets[1]);
+   GridFunction rho_e(&fes, u_block.GetData() + offsets[2]);
 
    // Initialize the state.
    VectorFunctionCoefficient u0(num_equation, InitialCondition);
    GridFunction sol(&vfes, u_block.GetData());
    sol.ProjectCoefficient(u0);
+
+   if (1) {
+     Array<int> els;
+     els.Append(0);
+     mesh.EnsureNCMesh();
+     mesh.GeneralRefinement(els);
+
+     fes.Update();
+     dfes.Update();
+     vfes.Update();
+
+     rho.Update();
+     rho_u.Update();
+     rho_e.Update();
+
+     for (int k = 0; k <= num_equation; k++) {
+       offsets[k] = k * vfes.GetNDofs();
+     }
+     u_block.Update(offsets);
+
+     Vector& sub0 = u_block.GetBlock(0);
+     Vector& sub1 = u_block.GetBlock(1);
+     Vector& sub2 = u_block.GetBlock(2);
+
+     sub0 = rho;
+     sub1 = rho_u;
+     sub2 = rho_e;
+
+     sol.MakeRef(&vfes, u_block.GetData());
+   }
 
    // Output the initial solution.
    {
@@ -219,7 +254,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << mesh << mom;
+         sout << "solution\n" << mesh << rho_u;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -275,7 +310,7 @@ int main(int argc, char *argv[])
          cout << "time step: " << ti << ", time: " << t << endl;
          if (visualization)
          {
-            sout << "solution\n" << mesh << mom << flush;
+            sout << "solution\n" << mesh << rho_u << flush;
          }
       }
    }

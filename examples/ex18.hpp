@@ -11,7 +11,8 @@ extern int problem;
 // Maximum characteristic speed (updated by integrators)
 extern double max_char_speed;
 
-extern const int num_equation;
+extern int num_equation;
+
 extern const double specific_heat_ratio;
 extern const double gas_constant;
 
@@ -385,6 +386,8 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
                                         FaceElementTransformations &Tr,
                                         const Vector &elfun, Vector &elvect)
 {
+  int dim = el1.GetDim();
+
    // Compute the term <F.n(u),[w]> on the interior faces.
    const int dof1 = el1.GetDof();
    const int dof2 = el2.GetDof();
@@ -424,16 +427,25 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
       Tr.SetAllIntPoints(&ip); // set face and element int. points
 
+      const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
+
       // Calculate basis functions on both elements at the face
-      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
-      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+      el1.CalcShape(eip1, shape1);
+      el2.CalcShape(eip2, shape2);
 
       // Interpolate elfun at the point
       elfun1_mat.MultTranspose(shape1, funval1);
       elfun2_mat.MultTranspose(shape2, funval2);
 
       // Get the normal vector and the flux on the face
-      CalcOrtho(Tr.Jacobian(), nor);
+      if (1 == dim) {
+	nor(0) = 2*eip1.x - 1.0;
+      }
+      else {
+	CalcOrtho(Tr.Jacobian(), nor);
+      }
+
       const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       // Update max char speed
@@ -504,62 +516,85 @@ bool StateIsPhysical(const Vector &state, const int dim)
 // Initial condition
 void InitialCondition(const Vector &x, Vector &y)
 {
-   MFEM_ASSERT(x.Size() == 2, "");
+  int dim = x.Size();
 
-   double radius = 0, Minf = 0, beta = 0;
-   if (problem == 1)
-   {
-      // "Fast vortex"
-      radius = 0.2;
-      Minf = 0.5;
-      beta = 1. / 5.;
-   }
-   else if (problem == 2)
-   {
-      // "Slow vortex"
-      radius = 0.2;
-      Minf = 0.05;
-      beta = 1. / 50.;
-   }
-   else
-   {
-      mfem_error("Cannot recognize problem."
-                 "Options are: 1 - fast vortex, 2 - slow vortex");
-   }
+  if (dim == 1) {
+    double rho = 1.0;
+    double u = 0.0;
+    double e = 1.0;
 
-   const double xc = 0.0, yc = 0.0;
+    if (x(0) < 0.5) {
+      rho = 1.0;
+      e = 1.01;
+    }
 
-   // Nice units
-   const double vel_inf = 1.;
-   const double den_inf = 1.;
+    int neq = 0;
+    y(neq++) = rho;
+    y(neq++) = rho * u;
+    y(neq++) = rho * e;
+  }
+  else {
 
-   // Derive remainder of background state from this and Minf
-   const double pres_inf = (den_inf / specific_heat_ratio) * (vel_inf / Minf) *
-                           (vel_inf / Minf);
-   const double temp_inf = pres_inf / (den_inf * gas_constant);
+    MFEM_ASSERT(x.Size() == 2, "");
 
-   double r2rad = 0.0;
-   r2rad += (x(0) - xc) * (x(0) - xc);
-   r2rad += (x(1) - yc) * (x(1) - yc);
-   r2rad /= (radius * radius);
+    double radius = 0, Minf = 0, beta = 0;
+    if (problem == 1)
+      {
+	// "Fast vortex"
+	radius = 0.2;
+	Minf = 0.5;
+	beta = 1. / 5.;
+      }
+    else if (problem == 2)
+      {
+	// "Slow vortex"
+	radius = 0.2;
+	Minf = 0.05;
+	beta = 1. / 50.;
+      }
+    else
+      {
+	mfem_error("Cannot recognize problem."
+		   "Options are: 1 - fast vortex, 2 - slow vortex");
+      }
 
-   const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
+    const double xc = 0.0, yc = 0.0;
 
-   const double velX = vel_inf * (1 - beta * (x(1) - yc) / radius * exp(
-                                     -0.5 * r2rad));
-   const double velY = vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
-   const double vel2 = velX * velX + velY * velY;
+    // Nice units
+    const double vel_inf = 1.;
+    const double den_inf = 1.;
 
-   const double specific_heat = gas_constant * specific_heat_ratio * shrinv1;
-   const double temp = temp_inf - 0.5 * (vel_inf * beta) *
-                       (vel_inf * beta) / specific_heat * exp(-r2rad);
+    // Derive remainder of background state from this and Minf
+    const double pres_inf = (den_inf / specific_heat_ratio) * (vel_inf / Minf) *
+      (vel_inf / Minf);
+    const double temp_inf = pres_inf / (den_inf * gas_constant);
 
-   const double den = den_inf * pow(temp/temp_inf, shrinv1);
-   const double pres = den * gas_constant * temp;
-   const double energy = shrinv1 * pres / den + 0.5 * vel2;
+    double r2rad = 0.0;
+    r2rad += (x(0) - xc) * (x(0) - xc);
+    r2rad += (x(1) - yc) * (x(1) - yc);
+    r2rad /= (radius * radius);
 
-   y(0) = den;
-   y(1) = den * velX;
-   y(2) = den * velY;
-   y(3) = den * energy;
+    const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
+
+    const double velX = vel_inf * (1 - beta * (x(1) - yc) / radius * exp(
+									 -0.5 * r2rad));
+    const double velY = vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
+    const double vel2 = velX * velX + velY * velY;
+
+    const double specific_heat = gas_constant * specific_heat_ratio * shrinv1;
+    const double temp = temp_inf - 0.5 * (vel_inf * beta) *
+      (vel_inf * beta) / specific_heat * exp(-r2rad);
+
+    const double den = den_inf * pow(temp/temp_inf, shrinv1);
+    const double pres = den * gas_constant * temp;
+    const double energy = shrinv1 * pres / den + 0.5 * vel2;
+
+    int neq = 0;
+    y(neq++) = den;
+    y(neq++) = den * velX;
+    y(neq++) = den * velY;
+    y(neq++) = den * energy;
+
+  } // 2d
+
 }
