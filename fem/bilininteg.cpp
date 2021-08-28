@@ -1012,36 +1012,45 @@ void DiffusionIntegrator::ComputeElementFlux
       CalcInverse(Trans.Jacobian(), invdfdx);
       invdfdx.MultTranspose(vec, vecdxt);
 
-      if (!MQ && !VQ)
+      if (with_coef)
       {
-         if (Q && with_coef)
+         if (!MQ && !VQ)
          {
-            vecdxt *= Q->Eval(Trans,ip);
+            if (Q)
+            {
+               vecdxt *= Q->Eval(Trans,ip);
+            }
+            for (j = 0; j < spaceDim; j++)
+            {
+               flux(fnd*j+i) = vecdxt(j);
+            }
          }
-         for (j = 0; j < spaceDim; j++)
+         else
          {
-            flux(fnd*j+i) = vecdxt(j);
+            if (MQ)
+            {
+               MQ->Eval(M, Trans, ip);
+               M.Mult(vecdxt, pointflux);
+            }
+            else
+            {
+               VQ->Eval(D, Trans, ip);
+               for (int j=0; j<spaceDim; ++j)
+               {
+                  pointflux[j] = D[j] * vecdxt[j];
+               }
+            }
+            for (j = 0; j < spaceDim; j++)
+            {
+               flux(fnd*j+i) = pointflux(j);
+            }
          }
       }
       else
       {
-         if (MQ)
-         {
-            MQ->Eval(M, Trans, ip);
-            M.Mult(vecdxt, pointflux);
-         }
-         else
-         {
-            VQ->Eval(D, Trans, ip);
-            for (int j=0; j<spaceDim; ++j)
-            {
-               pointflux[j] = D[j] * vecdxt[j];
-            }
-
-         }
          for (j = 0; j < spaceDim; j++)
          {
-            flux(fnd*j+i) = pointflux(j);
+            flux(fnd*j+i) = vecdxt(j);
          }
       }
    }
