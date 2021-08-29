@@ -25,7 +25,8 @@ private:
 
    FiniteElementSpace &vfes;
    Operator &A;
-   SparseMatrix &Aflux;
+   MixedBilinearForm& Aflux;
+   //SparseMatrix &Aflux;
    DenseTensor Me_inv;
 
    mutable Vector state;
@@ -37,9 +38,12 @@ private:
 
 public:
    FE_Evolution(FiniteElementSpace &vfes_,
-                Operator &A_, SparseMatrix &Aflux_);
+                Operator &A_,
+                MixedBilinearForm &Aflux_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
+
+   void Update();
 
    virtual ~FE_Evolution() { }
 };
@@ -101,7 +105,7 @@ public:
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_,
-                           Operator &A_, SparseMatrix &Aflux_)
+                           Operator &A_, MixedBilinearForm &Aflux_)
    : TimeDependentOperator(A_.Height()),
      dim(vfes_.GetFE(0)->GetDim()),
      vfes(vfes_),
@@ -124,6 +128,32 @@ FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_,
       inv.Factor();
       inv.GetInverseMatrix(Me_inv(i));
    }
+   //Aflux.Assemble();
+}
+
+void FE_Evolution::Update()
+{
+   height = width = A.Height();
+
+   Me_inv.SetSize(vfes.GetFE(0)->GetDof(),
+                  vfes.GetFE(0)->GetDof(),
+                  vfes.GetNE());
+
+   Aflux.Assemble();
+
+   // Standard local assembly and inversion for energy mass matrices.
+   const int dof = vfes.GetFE(0)->GetDof();
+   DenseMatrix Me(dof);
+   DenseMatrixInverse inv(&Me);
+   MassIntegrator mi;
+   for (int i = 0; i < vfes.GetNE(); i++)
+   {
+      mi.AssembleElementMatrix(*vfes.GetFE(i), *vfes.GetElementTransformation(i), Me);
+      inv.Factor();
+      inv.GetInverseMatrix(Me_inv(i));
+   }
+
+   z.SetSize(A.Height());
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -519,14 +549,17 @@ void InitialCondition(const Vector &x, Vector &y)
   int dim = x.Size();
 
   if (dim == 1) {
-    double rho = 1.0;
-    double u = 0.0;
-    double e = 1.0;
 
-    if (x(0) < 0.5) {
-      rho = 1.0;
-      e = 1.01;
-    }
+     double xc = x[0]-0.5;
+
+     double rho = 1.0;
+     double u = 0.0;
+     double e = 1.0+0.1*exp(-xc*xc);
+
+    // if (x(0) < 0.5) {
+    //   rho = 1.0;
+    //   e = 1.05*(;
+    // }
 
     int neq = 0;
     y(neq++) = rho;
