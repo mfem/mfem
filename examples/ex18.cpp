@@ -61,6 +61,44 @@ const double gas_constant = 1.0;
 // Maximum characteristic speed (updated by integrators)
 double max_char_speed;
 
+void amr_update(FiniteElementSpace& fes,
+                FiniteElementSpace& dfes,
+                FiniteElementSpace& vfes,
+                BlockVector& u_block,
+                GridFunction& rho,
+                GridFunction& rho_u,
+                GridFunction& rho_e,
+                GridFunction& sol)
+{
+   fes.Update();
+   dfes.Update();
+   vfes.Update();
+
+   rho.Update();
+   rho_u.Update();
+   rho_e.Update();
+
+   Array<int> offsets(num_equation + 1);
+   for (int k = 0; k <= num_equation; k++) {
+      offsets[k] = k * vfes.GetNDofs();
+   }
+   u_block.Update(offsets);
+
+   Vector& sub0 = u_block.GetBlock(0);
+   Vector& sub1 = u_block.GetBlock(1);
+   Vector& sub2 = u_block.GetBlock(2);
+
+   sub0 = rho;
+   sub1 = rho_u;
+   sub2 = rho_e;
+
+   sol.MakeRef(&vfes, u_block.GetData());
+
+   rho.MakeRef(&fes, u_block.GetData() + offsets[0]);
+   rho_u.MakeRef(&dfes, u_block.GetData() + offsets[1]);
+   rho_e.MakeRef(&fes, u_block.GetData() + offsets[2]);
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -72,8 +110,10 @@ int main(int argc, char *argv[])
    double t_final = 2.0;
    double dt = -0.01;
    double cfl = 0.3;
-   bool visualization = true;
+   bool visualization = false;
    int vis_steps = 50;
+   Array<int> rseq;
+   int nseq = 0;
 
    int precision = 8;
    cout.precision(precision);
@@ -101,6 +141,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&rseq, "-rseq", "--refine-sequence",
+                  "Element sequence to refine.");
+   printf("rseq size = %d\n",rseq.Size());
 
    args.Parse();
    if (!args.Good())
@@ -113,6 +156,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
    Mesh mesh(mesh_file, 1, 1);
+   mesh.EnsureNCMesh();
    const int dim = mesh.Dimension();
 
    num_equation = 2+dim;
@@ -174,36 +218,6 @@ int main(int argc, char *argv[])
    GridFunction sol(&vfes, u_block.GetData());
    sol.ProjectCoefficient(u0);
 
-   if (1) {
-     Array<int> els;
-     els.Append(0);
-     mesh.EnsureNCMesh();
-     mesh.GeneralRefinement(els);
-
-     fes.Update();
-     dfes.Update();
-     vfes.Update();
-
-     rho.Update();
-     rho_u.Update();
-     rho_e.Update();
-
-     for (int k = 0; k <= num_equation; k++) {
-       offsets[k] = k * vfes.GetNDofs();
-     }
-     u_block.Update(offsets);
-
-     Vector& sub0 = u_block.GetBlock(0);
-     Vector& sub1 = u_block.GetBlock(1);
-     Vector& sub2 = u_block.GetBlock(2);
-
-     sub0 = rho;
-     sub1 = rho_u;
-     sub2 = rho_e;
-
-     sol.MakeRef(&vfes, u_block.GetData());
-   }
-
    // Output the initial solution.
    {
       ofstream mesh_ofs("vortex.mesh");
@@ -234,7 +248,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution euler(vfes, A, Aflux.SpMat());
+   FE_Evolution euler(vfes, A, Aflux);
 
    // Visualize the density
    socketstream sout;
@@ -295,6 +309,40 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
+      // adapt mesh to new element
+      if (rseq.Size()) {
+         // Derefine all
+         printf("derefine all\n");
+         Array<double> mock_error(mesh.GetNE());
+         mock_error = 0.0;
+         mesh.DerefineByError(mock_error, 1.0);
+         amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
+         A.Update();
+         Aflux.Update();
+         Aflux.Assemble();
+         euler.Update();
+         ode_solver->Init(euler);
+
+         printf("now refine next element in seq %d\n",rseq[nseq]);
+
+         Array<int> els;
+         els.Append(rseq[nseq++]);
+         mesh.GeneralRefinement(els);
+
+         {
+            ofstream mesh_ofs("vortex-refined.mesh");
+            mesh_ofs.precision(precision);
+            mesh_ofs << mesh;
+         }
+
+         amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
+         A.Update();
+         Aflux.Update();
+         Aflux.Assemble();
+         euler.Update();
+         ode_solver->Init(euler);
+      }
+
       double dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
@@ -313,6 +361,7 @@ int main(int argc, char *argv[])
             sout << "solution\n" << mesh << rho_u << flush;
          }
       }
+
    }
 
    tic_toc.Stop();
@@ -320,21 +369,66 @@ int main(int argc, char *argv[])
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m vortex.mesh -g vortex-1-final.gf".
-   for (int k = 0; k < num_equation; k++)
    {
-      GridFunction uk(&fes, u_block.GetBlock(k));
-      ostringstream sol_name;
-      sol_name << "vortex-" << k << "-final.gf";
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(precision);
-      sol_ofs << uk;
+      ofstream mesh_ofs("vortex-final.mesh");
+      mesh_ofs.precision(precision);
+      mesh_ofs << mesh;
+
+
+      for (int k = 0; k < num_equation; k++)
+      {
+         GridFunction uk(&fes, u_block.GetBlock(k));
+         ostringstream sol_name;
+         sol_name << "vortex-" << k << "-final.gf";
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(precision);
+         sol_ofs << uk;
+      }
    }
 
    // 10. Compute the L2 solution error summed for all components.
-   if (t_final == 2.0)
+   if (rseq.Size())
    {
-      const double error = sol.ComputeLpError(2, u0);
-      cout << "Solution error: " << error << endl;
+      const CoarseFineTransformations& cft = mesh.GetRefinementTransforms();
+      Table c2f;
+      cft.GetCoarseToFineMap(mesh, c2f);
+
+      // Refine to the reference mesh by refining every coarse el that
+      // wasn't refined.
+      Array<int> row;
+      Array<int> refs;
+      for (int i = 0; i < c2f.Size(); i++) {
+         c2f.GetRow(i,row);
+         if (row.Size() == 1) {
+            printf("element %i was coarse, refining for comparison\n",row[0]);
+            refs.Append(row[0]);
+         }
+         else {
+            for (int j = 0; j < row.Size(); j++) {
+               printf("element %i was already fine\n",row[j]);
+            }
+         }
+      }
+
+      mesh.GeneralRefinement(refs);
+      printf("mesh.GetNE() = %d\n",mesh.GetNE());
+      amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
+
+      Mesh mesh_ref("reference.mesh");
+      ifstream rho_ifs("reference-rho.gf");
+      ifstream rho_u_ifs("reference-rho-u.gf");
+      ifstream rho_e_ifs("reference-rho-e.gf");
+      GridFunction rho_ref(&mesh_ref, rho_ifs);
+      GridFunction rho_u_ref(&mesh_ref, rho_u_ifs);
+      GridFunction rho_e_ref(&mesh_ref, rho_e_ifs);
+      rho_ref.Print();
+      rho.Print();
+
+      GridFunctionCoefficient rho_ref_coeff(&rho_ref);
+      const double err = rho.ComputeL2Error(rho_ref_coeff);
+      printf("err %e\n",err);
+      // const double error = sol.ComputeLpError(2, u0);
+      // cout << "Solution error: " << error << endl;
    }
 
    // Free the used memory.
