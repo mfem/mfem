@@ -550,11 +550,39 @@ void InitialCondition(const Vector &x, Vector &y)
 
   if (dim == 1) {
 
-     double xc = x[0]-0.5;
+     double rho;
+     double u;
+     double e;
 
-     double rho = 1.0;
-     double u = 0.0;
-     double e = 1.0+0.1*exp(-xc*xc);
+     if (problem == 1) {
+
+        double xc = x[0]-0.5;
+        rho = 1.0;
+        u = 0.0;
+        e = 1.0+0.1*exp(-xc*xc);
+
+     }
+     else {
+
+        u = 0.0;
+        double gamma = 1.4;
+        double gm1 = gamma -1.0;
+        
+        double rhoL = 1.0;
+        double pL = 1.0;
+
+        double rhoR = 0.125;
+        double pR = 0.1;
+
+        if (x[0] < 0.5) {
+           rho = rhoL;
+           e = 1./gm1*pL/rhoL;
+        }
+        else {
+           rho = rhoR;
+           e = 1./gm1*pR/rhoR;
+        }
+     }
 
     // if (x(0) < 0.5) {
     //   rho = 1.0;

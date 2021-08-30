@@ -42,6 +42,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <set>
 
 // Classes FE_Evolution, RiemannSolver, DomainIntegrator and FaceIntegrator
 // shared between the serial and parallel version of the example.
@@ -99,6 +100,68 @@ void amr_update(FiniteElementSpace& fes,
    rho_e.MakeRef(&fes, u_block.GetData() + offsets[2]);
 }
 
+double estimate_dt(double cfl, Mesh& mesh,
+                   GridFunction& sol, NonlinearForm& A, int order)
+{
+   // Determine the minimum element size.
+   double hmin = 0.0;
+   hmin = mesh.GetElementSize(0, 1);
+   for (int i = 1; i < mesh.GetNE(); i++)
+   {
+      hmin = min(mesh.GetElementSize(i, 1), hmin);
+   }
+
+   double dt = -0.01;
+   // Find a safe dt, using a temporary vector. Calling Mult() computes the
+   // maximum char speed at all quadrature points on all faces.
+   Vector z(A.Width());
+   max_char_speed = 0.;
+   A.Mult(sol, z);
+   dt = cfl * hmin / max_char_speed / (2*order+1);
+
+   return dt;
+}
+
+void show_maps(Mesh& mesh, vector<int>& coarse_map, vector<int>& fine_map)
+{
+   for (int i = 0; i < mesh.GetNE(); i++) {
+      int depth = mesh.ncmesh->GetElementDepth(i);
+      if (depth == 0) {
+         printf("| %2d  ",i);
+      }
+      else {
+         printf("|%2d|%2d",i,i+1);
+         i++;
+      }
+   }
+   printf("| mesh i\n");
+
+   for (size_t i = 0; i < coarse_map.size(); i++) {
+      printf("| %2d  ",coarse_map[i]);
+   }
+   printf("| coarse map\n");
+
+   for (size_t i = 0; i < coarse_map.size(); i++) {
+      printf("| %2d  ",fine_map[i]);
+   }
+   printf("| fine map\n");
+
+   for (size_t i = 0; i < coarse_map.size(); i++) {
+      printf("| %2lu  ",i);
+   }
+   printf("| ref idx\n");
+
+   // some validation checks
+   for (size_t i = 0; i < coarse_map.size(); i++) {
+      //printf("checking reference index %d\n",i);
+      if (coarse_map[i] > -1) assert(  fine_map[i] == -1);
+      if (fine_map[i]   > -1) assert(coarse_map[i] == -1);
+      if (coarse_map[i] > -1) assert(mesh.ncmesh->GetElementDepth(coarse_map[i]) == 0);
+      if (fine_map[i]   > -1) assert(mesh.ncmesh->GetElementDepth(fine_map[i])   == 1);
+      if (fine_map[i]   > -1) assert(mesh.ncmesh->GetElementDepth(fine_map[i]+1) == 1);
+   }
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -114,6 +177,7 @@ int main(int argc, char *argv[])
    int vis_steps = 50;
    Array<int> rseq;
    int nseq = 0;
+   int regrid_period = 1;
 
    int precision = 8;
    cout.precision(precision);
@@ -143,7 +207,8 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.AddOption(&rseq, "-rseq", "--refine-sequence",
                   "Element sequence to refine.");
-   printf("rseq size = %d\n",rseq.Size());
+   args.AddOption(&regrid_period, "-rp", "--regrid-period",
+                  "Timesteps per regrid.");
 
    args.Parse();
    if (!args.Good())
@@ -152,6 +217,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   printf("dt = %f\n",dt);
 
    // 2. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
@@ -276,17 +343,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Determine the minimum element size.
-   double hmin = 0.0;
-   if (cfl > 0)
-   {
-      hmin = mesh.GetElementSize(0, 1);
-      for (int i = 1; i < mesh.GetNE(); i++)
-      {
-         hmin = min(mesh.GetElementSize(i, 1), hmin);
-      }
-   }
-
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
@@ -295,61 +351,278 @@ int main(int argc, char *argv[])
    euler.SetTime(t);
    ode_solver->Init(euler);
 
-   if (cfl > 0)
-   {
-      // Find a safe dt, using a temporary vector. Calling Mult() computes the
-      // maximum char speed at all quadrature points on all faces.
-      Vector z(A.Width());
-      max_char_speed = 0.;
-      A.Mult(sol, z);
-      dt = cfl * hmin / max_char_speed / (2*order+1);
+   // map from base coarse numbering to current coarse numbering.
+   // -1 entries for elements that are currently refined.
+   vector<int> coarse_map(mesh.GetNE());
+   for (size_t i = 0; i < coarse_map.size(); ++i) {
+      coarse_map[i] = i;
    }
 
+   // map from base coarse numbering to current fine numbering. The
+   // second element is always this index+1.
+   // -1 entries for elements that are currently coarse.
+   vector<int> fine_map(mesh.GetNE());
+   for (size_t i = 0; i < fine_map.size(); ++i) {
+      fine_map[i] = -1;
+   }
+
+   //show_maps(mesh,coarse_map,fine_map);
+   
+   // vector<int> coarse_map(mesh.GetNE());
+   // for (int i = 0; i < coarse_map.size(); ++i) {
+   //    coarse_map[i] = i;
+   // }
+   
+   // the elements that are currently refined
+   set<int> cur_ref_set; // in base numbering
+   
    // Integrate in time.
    bool done = false;
    for (int ti = 0; !done; )
    {
       // adapt mesh to new element
-      if (rseq.Size()) {
-         // Derefine all
-         printf("derefine all\n");
-         Array<double> mock_error(mesh.GetNE());
-         mock_error = 0.0;
-         mesh.DerefineByError(mock_error, 1.0);
-         amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
-         A.Update();
-         Aflux.Update();
-         Aflux.Assemble();
-         euler.Update();
-         ode_solver->Init(euler);
+      if (rseq.Size() && !(ti % regrid_period )) {
 
-         printf("now refine next element in seq %d\n",rseq[nseq]);
+         //printf("*** begin refinement ***\n");
+         set<int> new_ref_set; // in base numbering
 
+         // use base numbering
+         int ne = 8;
+         int el1 = rseq[nseq++];
+         int el2 = el1-1;
+         int el3 = el1+1;
+         el2 = (el2 + ne) % ne;
+         el3 = (el3 + ne) % ne;
+         new_ref_set.insert(el1);
+         //new_ref_set.insert(el2);
+         new_ref_set.insert(el3);
+
+         // The coarsen set is elements from cur_ref_set not in new_ref_set
+         set<int> coarsen_set;
+         std::set_difference(cur_ref_set.begin(), cur_ref_set.end(),
+                             new_ref_set.begin(), new_ref_set.end(),
+                             std::inserter(coarsen_set, coarsen_set.begin()));
+
+         // The refine set is elements from new_ref_set not in cur_ref_set
+         set<int> refine_set;
+         std::set_difference(new_ref_set.begin(), new_ref_set.end(),
+                             cur_ref_set.begin(), cur_ref_set.end(),
+                             std::inserter(refine_set, refine_set.begin()));
+
+         set<int>::iterator it;
+         
+         // printf("cur_ref set\n");
+         // 
+         // for (it = cur_ref_set.begin(); it != cur_ref_set.end(); ++it) {
+         //    const int& i = *it;
+         //    printf("%d ",i);
+         // }
+         // printf("\n");
+
+         // printf("new_ref set\n");
+         // for (it = new_ref_set.begin(); it != new_ref_set.end(); ++it) {
+         //    const int& i = *it;
+         //    printf("%d ",i);
+         // }
+         // printf("\n");
+
+         // printf("refine set: ");
+         // for (it = refine_set.begin(); it != refine_set.end(); ++it) {
+         //    const int& i = *it;
+         //    printf("%d ",i);
+         // }
+         // printf("\n");
+
+         // printf("coarsen set: ");
+         // for (it = coarsen_set.begin(); it != coarsen_set.end(); ++it) {
+         //    const int& i = *it;
+         //    printf("%d ",i);
+         // }
+         // printf("\n");
+
+
+         // Perform any new refinements. Translate into current numbering.
          Array<int> els;
-         els.Append(rseq[nseq++]);
-         mesh.GeneralRefinement(els);
+         for (it = refine_set.begin(); it != refine_set.end(); ++it) {
+            const int& i = *it;
+            assert(coarse_map[i] >= 0);
+            //printf("adding %d -> %d to be refined\n",i,coarse_map[i]);
+            els.Append(coarse_map[i]);
+         }
+         
+         if (els.Size()) {
+            //printf("  ** start refinements **\n");
+            mesh.GeneralRefinement(els);
 
+            const CoarseFineTransformations &cft = mesh.GetRefinementTransforms();
+            //printf("updating coarse_map and fine_map after refinement\n");
+            Table c2f;
+            cft.GetCoarseToFineMap(mesh, c2f);
+            Array<int> row;
+            for (size_t i = 0; i < coarse_map.size(); ++i) {
+
+               int old = coarse_map[i];
+               if (old > -1) {
+                  // was coarse
+                  c2f.GetRow(old,row);
+                  if (row.Size() == 1) {
+                     // was coarse, still coarse
+                     coarse_map[i] = row[0];
+                  }
+                  else {
+                     // was coarse, now fine
+                     coarse_map[i] = -1;
+                     fine_map[i] = row[0];
+                  }
+               }
+               else {
+                  // was fine, still fine
+                  old = fine_map[i];
+                  assert(old != -1);
+                  c2f.GetRow(old,row);
+                  assert(row.Size() == 1);
+                  fine_map[i] = row[0];
+               }
+            }
+
+            // printf("new coarse_map is:\n");
+            // for (size_t i = 0; i < coarse_map.size(); i++) {
+            //    printf("%lu -> %d\n",i,coarse_map[i]);
+            // }
+            // printf("new fine_map is:\n");
+            // for (size_t i = 0; i < fine_map.size(); i++) {
+            //    printf("%lu -> %d\n",i,fine_map[i]);
+            // }
+
+            amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
+            A.Update();
+            Aflux.Update();
+            Aflux.Assemble();
+            euler.Update();
+            ode_solver->Init(euler);
+            //printf("  ** done refinements **\n");
+
+            //printf("maps after refinement\n");
+            //show_maps(mesh,coarse_map,fine_map);
+         }
+
+         
+         cur_ref_set = new_ref_set;
+
+         // Perform any new derefinements
+         if (coarsen_set.size()) {
+
+            //printf("  ** start derefinements **\n");
+
+            Array<double> mock_error(mesh.GetNE());
+            mock_error = 1.0;
+
+            // We only mark one of the fine elements, but that's fine
+            // because we can set the threshold low enough to always
+            // derefine.
+            for (it = coarsen_set.begin(); it != coarsen_set.end(); ++it) {
+               const int& i = *it;
+               //printf("coarsening ref idx %d\n",i);
+               assert(coarse_map[i] == -1);
+               int i1 = fine_map[i];
+               //printf("which is fine element %d (and +1)\n",i1);
+               assert(i1 >= 0);
+               mock_error[i1] = 0.0;
+               //printf("setting mock error to 0.0 in %d\n",i1);
+            }
+            mesh.DerefineByError(mock_error, 2.0);
+            amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
+            A.Update();
+            Aflux.Update();
+            Aflux.Assemble();
+            euler.Update();
+            ode_solver->Init(euler);
+
+            //printf("updating coarse_map and fine_map after derefinement\n");
+
+            const CoarseFineTransformations& cft = mesh.ncmesh->GetDerefinementTransforms();
+
+            Table c2f;
+            cft.GetCoarseToFineMap(mesh, c2f);
+            //c2f.Print();
+
+            Array<int> row;
+            map<int,int> old2new;
+            for (int i = 0; i < c2f.Size(); ++i) {
+               c2f.GetRow(i,row);
+               for (int j = 0; j < row.Size(); j++) {
+                  old2new[row[j]] = i;
+               }
+            }
+
+            // map<int,int>::iterator it;
+            // printf("old2new\n");
+            // for (it = old2new.begin(); it != old2new.end(); ++it) {
+            //    printf("%d -> %d\n",it->first,it->second);
+            // }
+
+            for (size_t i = 0; i < coarse_map.size(); i++) {
+               //printf("ref i = %lu\n",i);
+               int jfine = fine_map[i];
+               int jcoarse = coarse_map[i];
+               //printf("mesh j old grid (fine) = %d\n",jfine);
+               if (jfine > -1) {
+                  int newj = old2new[jfine];
+                  //printf("mesh j new grid (coarse) = %d\n",newj);
+                  c2f.GetRow(newj,row);
+                  if (row.Size() > 1) {
+                     //printf("  was fine, now coarse\n");
+                     // was fine, now coarse
+                     coarse_map[i] = newj;
+                     fine_map[i] = -1;
+                  }
+                  else {
+                     //printf("  was fine, still fine\n");
+                     // was fine, still fine
+                     fine_map[i] = newj;
+                  }
+               }   
+               //printf("mesh j old grid coarse = %d\n",jcoarse);
+               if (jcoarse > -1) {
+                  int newj = old2new[jcoarse];
+                  coarse_map[i] = newj;
+               }
+            }
+               
+            // printf("new coarse_map is:\n");
+            // for (size_t i = 0; i < coarse_map.size(); i++) {
+            //    printf("%lu -> %d\n",i,coarse_map[i]);
+            // }
+            // printf("new fine_map is:\n");
+            // for (size_t i = 0; i < fine_map.size(); i++) {
+            //    printf("%lu -> %d\n",i,fine_map[i]);
+            // }
+            
+            //printf("  ** done derefinements **\n");
+
+            //printf("maps after derefinement\n");
+            //show_maps(mesh,coarse_map,fine_map);
+            
+         }
+
+         
+         
          {
             ofstream mesh_ofs("vortex-refined.mesh");
             mesh_ofs.precision(precision);
             mesh_ofs << mesh;
          }
 
-         amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
-         A.Update();
-         Aflux.Update();
-         Aflux.Assemble();
-         euler.Update();
-         ode_solver->Init(euler);
       }
 
+      if (cfl > 0) {
+         dt = estimate_dt(cfl, mesh, sol, A, order);
+      }
+      
       double dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
-      if (cfl > 0)
-      {
-         dt = cfl * hmin / max_char_speed / (2*order+1);
-      }
+
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -389,29 +662,20 @@ int main(int argc, char *argv[])
    // 10. Compute the L2 solution error summed for all components.
    if (rseq.Size())
    {
-      const CoarseFineTransformations& cft = mesh.GetRefinementTransforms();
-      Table c2f;
-      cft.GetCoarseToFineMap(mesh, c2f);
+      // const CoarseFineTransformations& cft = mesh.GetRefinementTransforms();
+      // Table c2f;
+      // cft.GetCoarseToFineMap(mesh, c2f);
 
       // Refine to the reference mesh by refining every coarse el that
       // wasn't refined.
-      Array<int> row;
       Array<int> refs;
-      for (int i = 0; i < c2f.Size(); i++) {
-         c2f.GetRow(i,row);
-         if (row.Size() == 1) {
-            printf("element %i was coarse, refining for comparison\n",row[0]);
-            refs.Append(row[0]);
-         }
-         else {
-            for (int j = 0; j < row.Size(); j++) {
-               printf("element %i was already fine\n",row[j]);
-            }
+      for (int i = 0; i < mesh.GetNE(); i++) {
+         if (mesh.ncmesh->GetElementDepth(i) == 0) {
+            refs.Append(i);
          }
       }
-
       mesh.GeneralRefinement(refs);
-      printf("mesh.GetNE() = %d\n",mesh.GetNE());
+      
       amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
 
       Mesh mesh_ref("reference.mesh");
