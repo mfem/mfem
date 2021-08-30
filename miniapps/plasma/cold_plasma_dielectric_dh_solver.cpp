@@ -606,19 +606,22 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
    L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
 
+   if (BCoef_ || kReCoef_ || kImCoef_)
+   {
+      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
+                                      pmesh_->SpaceDimension());
+   }
    if (BCoef_)
    {
       e_b_ = new ParComplexGridFunction(L2FESpace_);
       *e_b_ = 0.0;
-      e_perp_ = new ParComplexGridFunction(L2FESpace_);
+      e_perp_ = new ParComplexGridFunction(L2VFESpace_);
       *e_perp_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
       EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
    if (kReCoef_ || kImCoef_)
    {
-      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
-                                      pmesh_->SpaceDimension());
       e_t_ = new ParGridFunction(L2VFESpace_);
       h_v_ = new ParComplexGridFunction(L2VFESpace_);
       e_v_ = new ParComplexGridFunction(L2VFESpace_);
