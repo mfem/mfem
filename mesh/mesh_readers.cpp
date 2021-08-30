@@ -352,6 +352,11 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
 const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
+// see Pyramid::edges & Mesh::GenerateFaces
+// https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
+const int Mesh::vtk_quadratic_pyramid[13] =
+{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
 // see Wedge::edges & Mesh::GenerateFaces
 // https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
 const int Mesh::vtk_quadratic_wedge[18] =
@@ -514,8 +519,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
             }
          }
       }
-      // Generate faces and edges so that we can define
-      // FE space on the mesh
+      // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
       FiniteElementCollection *fec;
@@ -546,6 +550,8 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   vtk_mfem = vtk_quadratic_hex; break;
                case Geometry::PRISM:
                   vtk_mfem = vtk_quadratic_wedge; break;
+               case Geometry::PYRAMID:
+                  vtk_mfem = vtk_quadratic_pyramid; break;
                default:
                   vtk_mfem = NULL; // suppress a warning
                   break;
@@ -1394,6 +1400,10 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
          {
             type = Element::WEDGE;
          }
+         else if (eltype == "pyramid")
+         {
+            type = Element::PYRAMID;
+         }
          else if (eltype == "tet")
          {
             type = Element::TETRAHEDRON;
@@ -1448,7 +1458,7 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
       Make2D(nx, ny, type, sx, sy, generate_edges, true);
    }
    else if (type == Element::TETRAHEDRON || type == Element::WEDGE ||
-            type == Element::HEXAHEDRON)
+            type == Element::HEXAHEDRON  || type == Element::PYRAMID)
    {
       MFEM_VERIFY(nx > 0 && ny > 0 && nz > 0 &&
                   sx > 0.0 && sy > 0.0 && sz > 0.0,
@@ -2445,6 +2455,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             // initialize mesh_geoms so we can create Nodes FE space below
             this->SetMeshGen();
 
+            // Generate faces and edges so that we can define
+            // FE space on the mesh
+            this->FinalizeTopology();
+
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
@@ -2666,6 +2680,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Convert nodes to discontinuous GridFunction (if they aren't already)
          if (mesh_order == 1)
          {
+            this->FinalizeTopology();
             this->SetMeshGen();
             this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
          }
