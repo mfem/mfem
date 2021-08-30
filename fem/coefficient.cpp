@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
 // Implementation of Coefficient class
 
 #include "fem.hpp"
@@ -200,12 +199,12 @@ void GradientGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
-#ifdef MFEM_USE_MPI 
-   const ParGridFunction *pgf = dynamic_cast<const ParGridFunction*>(GridFunc); 
-   if (pgf) pgf->GetGradient(T, V); 
-   else GridFunc->GetGradient(T, V);
-#else 
-   GridFunc->GetGradient(T,V); 
+#ifdef MFEM_USE_MPI
+   const ParGridFunction *pgf = dynamic_cast<const ParGridFunction*>(GridFunc);
+   if (pgf) { pgf->GetGradient(T, V); }
+   else { GridFunc->GetGradient(T, V); }
+#else
+   GridFunc->GetGradient(T,V);
 #endif
 }
 
@@ -213,10 +212,10 @@ void GradientGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
 #ifdef MFEM_USE_MPI
-   const ParGridFunction *pgf = dynamic_cast<const ParGridFunction*>(GridFunc); 
-   if (pgf) pgf->GetGradients(T, ir, M); 
-   else GridFunc->GetGradients(T, ir, M);
-#else 
+   const ParGridFunction *pgf = dynamic_cast<const ParGridFunction*>(GridFunc);
+   if (pgf) { pgf->GetGradients(T, ir, M); }
+   else { GridFunc->GetGradients(T, ir, M); }
+#else
    GridFunc->GetGradients(T, ir, M);
 #endif
 }
