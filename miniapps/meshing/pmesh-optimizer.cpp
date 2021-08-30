@@ -230,6 +230,10 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
+   quad_order = mesh_poly_deg + 4;
+//   quad_order = 8;
+//   quad_order = mesh_poly_deg*2;
+
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++)
@@ -260,6 +264,14 @@ int main (int argc, char *argv[])
         unit = static_cast<int>(floor(pow(num_procs, 1.0 / dim) + 1e-2));
         for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
         break;
+      case 211: // 3D.
+         unit = static_cast<int>(floor(pow(num_procs / 2, 1.0 / 3) + 1e-2));
+         nxyz[0] = 2 * unit; nxyz[1] = 1 * unit; nxyz[2] = 1 * unit;
+         break;
+      case 221: // 3D.
+         unit = static_cast<int>(floor(pow(num_procs / 4, 1.0 / 3) + 1e-2));
+         nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = 1 * unit;
+         break;
      default:
         if (myid == 0)
         {
