@@ -306,7 +306,7 @@ TEST_CASE("ParaView restart mode", "[ParaView]")
    VerifyDataset(dataset, 1.0);
    dataset = dataset->NextSiblingElement();
    VerifyDataset(dataset, 1.5);
-   REQUIRE(dataset->NextSiblingElement() == NULL);
+   REQUIRE(dataset->NextSiblingElement() == nullptr);
 
    // Clean up
    for (int c=0; c<=2; ++c)
