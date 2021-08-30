@@ -587,11 +587,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
 
 DenseMatrix &DenseMatrix::operator+=(const double *m)
 {
-   const int hw = Height()*Width();
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] += m[i];
-   }
+   kernels::Add(Height(), Width(), m, (double*)data);
    return *this;
 }
 
@@ -1941,12 +1937,7 @@ void Add(const DenseMatrix &A, const DenseMatrix &B,
 void Add(double alpha, const double *A,
          double beta,  const double *B, DenseMatrix &C)
 {
-   const int m = C.Height()*C.Width();
-   double *C_data = C.GetData();
-   for (int i = 0; i < m; i++)
-   {
-      C_data[i] = alpha*A[i] + beta*B[i];
-   }
+   kernels::Add(C.Height(), C.Width(), alpha, A, beta, B, C.Data());
 }
 
 void Add(double alpha, const DenseMatrix &A,
@@ -3515,6 +3506,13 @@ DenseTensor &DenseTensor::operator=(double c)
    {
       tdata[i] = c;
    }
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator=(const DenseTensor &other)
+{
+   DenseTensor new_tensor(other);
+   Swap(new_tensor);
    return *this;
 }
 

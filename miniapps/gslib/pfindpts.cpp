@@ -35,7 +35,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-wedge.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -o 2
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
-
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -no-vis -sr0
 
 #include "mfem.hpp"
 
@@ -74,6 +74,7 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int fieldtype         = 0;
    int ncomp             = 1;
+   bool search_on_rank_0 = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -94,6 +95,9 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&search_on_rank_0, "-sr0", "--search-on-r0", "-no-sr0",
+                  "--no-search-on-r0",
+                  "Enable search only on rank 0 (disable to search points on all tasks).");
    args.Parse();
    if (!args.Good())
    {
@@ -211,7 +215,7 @@ int main (int argc, char *argv[])
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
    const int pts_cnt_1D = 10;
-   const int pts_cnt = pow(pts_cnt_1D, dim);
+   int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
    {
@@ -237,6 +241,12 @@ int main (int argc, char *argv[])
       }
    }
 
+   if ( (myid != 0) && (search_on_rank_0) )
+   {
+      pts_cnt = 0;
+      vxyz.Destroy();
+   }
+
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(MPI_COMM_WORLD);
@@ -246,36 +256,37 @@ int main (int argc, char *argv[])
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
 
-   int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-   double max_err = 0.0, max_dist = 0.0;
-   Vector pos(dim);
-   int npt = 0;
-   for (int j = 0; j < vec_dim; j++)
+   // Print the results for task 0 since either 1) all tasks have the
+   // same set of points or 2) only task 0 has any points.
+   if (myid == 0 )
    {
-      for (int i = 0; i < pts_cnt; i++)
+      int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
+      double max_err = 0.0, max_dist = 0.0;
+      Vector pos(dim);
+      int npt = 0;
+      for (int j = 0; j < vec_dim; j++)
       {
-         if (j == 0)
+         for (int i = 0; i < pts_cnt; i++)
          {
-            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
-         }
+            if (j == 0)
+            {
+               (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+            }
 
-         if (code_out[i] < 2)
-         {
-            for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
-            Vector exact_val(vec_dim);
-            F_exact(pos, exact_val);
-            max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals(npt)));
-            max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1 && j == 0) { face_pts++; }
+            if (code_out[i] < 2)
+            {
+               for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
+               Vector exact_val(vec_dim);
+               F_exact(pos, exact_val);
+               max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals(npt)));
+               max_dist = std::max(max_dist, dist_p_out(i));
+               if (code_out[i] == 1 && j == 0) { face_pts++; }
+            }
+            else { if (j == 0) { not_found++; } }
+            npt++;
          }
-         else { if (j == 0) { not_found++; } }
-         npt++;
       }
-   }
 
-   // Print the results for task 0 since all tasks have the same set of points.
-   if (myid == 0)
-   {
       cout << setprecision(16)
            << "Searched unique points: " << pts_cnt
            << "\nFound on local mesh:  " << found_loc

@@ -34,6 +34,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
    nx = irx.GetNPoints();
    ny = iry.GetNPoints();
    SetSize(nx * ny);
+   SetPointIndices();
 
    for (j = 0; j < ny; j++)
    {
@@ -48,8 +49,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
          ip.weight = ipx.weight * ipy.weight;
       }
    }
-
-   SetPointIndices();
 }
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
@@ -59,6 +58,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    const int ny = iry.GetNPoints();
    const int nz = irz.GetNPoints();
    SetSize(nx*ny*nz);
+   SetPointIndices();
 
    for (int iz = 0; iz < nz; ++iz)
    {
@@ -78,8 +78,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
          }
       }
    }
-
-   SetPointIndices();
 }
 
 const Array<double> &IntegrationRule::GetWeights() const
@@ -125,6 +123,7 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    }
    np /= f;
    SetSize(np);
+   SetPointIndices();
 
    int pt = 0;
    for (int i = 0; i <= s; i++)
@@ -375,6 +374,7 @@ public:
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    switch (np)
    {
@@ -477,6 +477,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
    */
 
    ir->SetSize(np);
+   ir->SetPointIndices();
    if ( np == 1 )
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -576,6 +577,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 void QuadratureFunctions1D::OpenUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    // The Newton-Cotes quadrature is based on weights that integrate exactly the
    // interpolatory polynomial through the equally spaced quadrature points.
@@ -591,6 +593,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
                                           IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
    if ( np == 1 ) // allow this case as "closed"
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -608,6 +611,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
 void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    // Open half points: the centers of np uniform intervals
    for (int i = 0; i < np ; ++i)
@@ -621,6 +625,7 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
    ir->IntPoint(0).x = 0.0;
    ir->IntPoint(np-1).x = 1.0;
 
@@ -878,8 +883,8 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
-IntegrationRules::IntegrationRules(int Ref, int _type):
-   quad_type(_type)
+IntegrationRules::IntegrationRules(int Ref, int type_):
+   quad_type(type_)
 {
    refined = Ref;
 
@@ -905,6 +910,9 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
    TetrahedronIntRules.SetSize(32, h_mt);
    TetrahedronIntRules = NULL;
 
+   PyramidIntRules.SetSize(32, h_mt);
+   PyramidIntRules = NULL;
+
    PrismIntRules.SetSize(32, h_mt);
    PrismIntRules = NULL;
 
@@ -925,6 +933,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
       default:
          mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -971,6 +980,7 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -1014,6 +1024,7 @@ IntegrationRules::~IntegrationRules()
    DeleteIntRuleArray(TetrahedronIntRules);
    DeleteIntRuleArray(CubeIntRules);
    DeleteIntRuleArray(PrismIntRules);
+   DeleteIntRuleArray(PyramidIntRules);
 }
 
 
@@ -1036,6 +1047,8 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return CubeIntegrationRule(Order);
       case Geometry::PRISM:
          return PrismIntegrationRule(Order);
+      case Geometry::PYRAMID:
+         return PyramidIntegrationRule(Order);
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          return NULL;
@@ -1080,35 +1093,35 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
       {
          // Gauss-Legendre is exact for 2*n-1
          n = Order/2 + 1;
-         quad_func.GaussLegendre(n, ir);
+         QuadratureFunctions1D::GaussLegendre(n, ir);
          break;
       }
       case Quadrature1D::GaussLobatto:
       {
          // Gauss-Lobatto is exact for 2*n-3
          n = Order/2 + 2;
-         quad_func.GaussLobatto(n, ir);
+         QuadratureFunctions1D::GaussLobatto(n, ir);
          break;
       }
       case Quadrature1D::OpenUniform:
       {
          // Open Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.OpenUniform(n, ir);
+         QuadratureFunctions1D::OpenUniform(n, ir);
          break;
       }
       case Quadrature1D::ClosedUniform:
       {
          // Closed Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.ClosedUniform(n, ir);
+         QuadratureFunctions1D::ClosedUniform(n, ir);
          break;
       }
       case Quadrature1D::OpenHalfUniform:
       {
          // Open half Newton Cotes is exact for n-(n+1)%2 = n-1+n%2
          n = Order | 1; // n is always odd
-         quad_func.OpenHalfUniform(n, ir);
+         QuadratureFunctions1D::OpenHalfUniform(n, ir);
          break;
       }
       default:
@@ -1641,6 +1654,30 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          TetrahedronIntRules[i-1] = TetrahedronIntRules[i] = ir;
          return ir;
    }
+}
+
+// Integration rules for reference pyramid
+IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
+{
+   // This is a simple integration rule adapted from an integration
+   // rule for a cube which seems to be adequate for now. When we
+   // implement high order finite elements for pyramids we should
+   // revisit this and see if we can improve upon it.
+   const IntegrationRule &irc = Get(Geometry::CUBE, Order);
+   int npts = irc.GetNPoints();
+   AllocIntRule(PyramidIntRules, Order);
+   PyramidIntRules[Order] = new IntegrationRule(npts);
+
+   for (int k=0; k<npts; k++)
+   {
+      const IntegrationPoint & ipc = irc.IntPoint(k);
+      IntegrationPoint & ipp = PyramidIntRules[Order]->IntPoint(k);
+      ipp.x = ipc.x * (1.0 - ipc.z);
+      ipp.y = ipc.y * (1.0 - ipc.z);
+      ipp.z = ipc.z;
+      ipp.weight = ipc.weight / 3.0;
+   }
+   return PyramidIntRules[Order];
 }
 
 // Integration rules for reference prism

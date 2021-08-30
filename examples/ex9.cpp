@@ -16,6 +16,8 @@
 //    ex9 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
 //    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+//    ex9 -m ../data/periodic-square.msh -p 0 -r 2 -dt 0.005 -tf 2
+//    ex9 -m ../data/periodic-cube.msh -p 0 -r 1 -o 2 -tf 2
 //
 // Device sample runs:
 //    ex9 -pa
@@ -130,7 +132,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
+   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -447,8 +449,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
+FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
+   : TimeDependentOperator(M_.Height()), M(M_), K(K_), b(b_), z(M_.Height())
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
