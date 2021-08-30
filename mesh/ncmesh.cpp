@@ -1762,7 +1762,7 @@ void NCMesh::DerefineElement(int elem)
       FreeElement(child[i]);
    }
 
-   RegisterFaces(elem, fa);
+   RegisterFaces(elem, faces_attribute);
 
    // delete unused faces
    childFaces.Sort();
