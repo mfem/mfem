@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int ref_levels = 2;
+   int ref_levels = 2, seed = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -85,6 +85,7 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&ref_levels, "-r", "--ref-levels",
                   "Number of refinement levels");
+   args.AddOption(&seed, "-s", "--seed", "Random seed");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -118,9 +119,9 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // Reorder mesh
-   Array<int> ordering;
+   /*Array<int> ordering;
    mesh.GetGeckoElementOrdering(ordering);
-   mesh.ReorderElements(ordering);
+   mesh.ReorderElements(ordering);*/
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -128,14 +129,23 @@ int main(int argc, char *argv[])
    //    elements.
    mesh.EnsureNCMesh(true);
    {
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh.UniformRefinement();
-         mesh.RandomRefinement(0.5);
+         mesh.RandomRefinement(0.5, true);
       }
    }
    delete mesh.ncmesh;
    mesh.ncmesh = NULL;
+
+   // Reorder mesh
+   if (order)
+   {
+      Array<int> ordering;
+      mesh.GetHilbertElementOrdering(ordering);
+      mesh.ReorderElements(ordering);
+   }
 
 #if 0
    // 5. Define a finite element space on the mesh. Here we use continuous
@@ -257,7 +267,8 @@ int main(int argc, char *argv[])
    GridFunction x(&fespace);
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      x(i) = i;
+      //x(i) = i;
+      x(i) = i * 9 / mesh.GetNE();
    }
 
    (void) algebraic_ceed;
