@@ -33,6 +33,9 @@ int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
       case Geometry::PRISM:
          return max(GetNumDof(Geometry::TRIANGLE, p),
                     GetNumDof(Geometry::SQUARE, p));
+      case Geometry::PYRAMID:
+         return max(GetNumDof(Geometry::TRIANGLE, p),
+                    GetNumDof(Geometry::SQUARE, p));
       default:
          MFEM_ABORT("unknown geometry type");
    }
@@ -574,6 +577,7 @@ LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
@@ -591,6 +595,7 @@ int LinearFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
       case Geometry::PRISM:       return 0;
+      case Geometry::PYRAMID:     return 0;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
@@ -1240,6 +1245,7 @@ Const3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
@@ -1257,6 +1263,7 @@ int Const3DFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return 1;
       case Geometry::CUBE:        return 1;
       case Geometry::PRISM:       return 1;
+      case Geometry::PYRAMID:     return 1;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
@@ -1277,6 +1284,8 @@ LinearDiscont3DFECollection::FiniteElementForGeometry(
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
+      case Geometry::PRISM:       return &WedgeFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("LinearDiscont3DFECollection: unknown geometry type.");
@@ -1293,6 +1302,8 @@ int LinearDiscont3DFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return 0;
       case Geometry::SQUARE:      return 0;
       case Geometry::TETRAHEDRON: return 4;
+      case Geometry::PYRAMID:     return 5;
+      case Geometry::PRISM:       return 6;
       case Geometry::CUBE:        return 8;
       default:
          mfem_error ("LinearDiscont3DFECollection: unknown geometry type.");
@@ -1394,6 +1405,8 @@ ND1_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    {
       case Geometry::CUBE:        return &HexahedronFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
       default:
          mfem_error ("ND1_3DFECollection: unknown geometry type.");
    }
@@ -1410,6 +1423,8 @@ int ND1_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::SQUARE:      return 0;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
+      case Geometry::PRISM:       return 0;
+      case Geometry::PYRAMID:     return 0;
       default:
          mfem_error ("ND1_3DFECollection: unknown geometry type.");
    }
@@ -1439,6 +1454,8 @@ RT0_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::CUBE:        return &HexahedronFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
       default:
          mfem_error ("RT0_3DFECollection: unknown geometry type.");
    }
@@ -1455,6 +1472,8 @@ int RT0_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::SQUARE:      return 1;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
+      case Geometry::PRISM:       return 0;
+      case Geometry::PYRAMID:     return 0;
       default:
          mfem_error ("RT0_3DFECollection: unknown geometry type.");
    }
@@ -1730,6 +1749,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
+         H1_dof[Geometry::PYRAMID] = 0;
          if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
@@ -1743,6 +1763,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
          }
+         H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
 
          const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
          TetDofOrd[0] = new int[24*TetDof];
@@ -1834,6 +1855,21 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             }
          }
       }
+   }
+}
+
+const FiniteElement *
+H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+   {
+      return H1_Elements[GeomType];
+   }
+   else
+   {
+      MFEM_ABORT("H1 Pyramid basis functions are not yet supported "
+                 "for order > 1.");
+      return NULL;
    }
 }
 
@@ -2076,9 +2112,12 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
       }
+      L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
+
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
+      L2_Elements[Geometry::PYRAMID]->SetMapType(map_type);
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
@@ -2199,6 +2238,21 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    }
 }
 
+const FiniteElement *
+L2_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 0)
+   {
+      return L2_Elements[GeomType];
+   }
+   else
+   {
+      MFEM_ABORT("L2 Pyramid basis functions are not yet supported "
+                 "for order > 0.");
+      return NULL;
+   }
+}
+
 const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                    int Or) const
 {
@@ -2290,6 +2344,12 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
 
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
+
+      RT_Elements[Geometry::PRISM] = new RT0WdgFiniteElement;
+      RT_dof[Geometry::PRISM] = 0;
+
+      RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
+      RT_dof[Geometry::PYRAMID] = 0;
    }
    else
    {
@@ -2430,6 +2490,22 @@ void RT_FECollection::InitFaces(const int p, const int dim,
             }
          }
       }
+   }
+}
+
+const FiniteElement *
+RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if ((GeomType != Geometry::PRISM && GeomType != Geometry::PYRAMID) ||
+       this->GetOrder() == 1)
+   {
+      return RT_Elements[GeomType];
+   }
+   else
+   {
+      MFEM_ABORT("RT Wedge and Pyramid basis functions are not yet supported "
+                 "for order > 0.");
+      return NULL;
    }
 }
 
@@ -2693,6 +2769,28 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       // TODO: cb_type and ob_type for tets
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
+
+      ND_Elements[Geometry::PRISM] = new Nedelec1WdgFiniteElement;
+      ND_dof[Geometry::PRISM] = 0;
+
+      ND_Elements[Geometry::PYRAMID] = new Nedelec1PyrFiniteElement;
+      ND_dof[Geometry::PYRAMID] = 0;
+   }
+}
+
+const FiniteElement *
+ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if ((GeomType != Geometry::PRISM && GeomType != Geometry::PYRAMID) ||
+       this->GetOrder() == 1)
+   {
+      return ND_Elements[GeomType];
+   }
+   else
+   {
+      MFEM_ABORT("ND Wedge and Pyramid basis functions are not yet supported "
+                 "for order > 1.");
+      return NULL;
    }
 }
 
