@@ -200,13 +200,25 @@ void GradientGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
-   GridFunc->GetGradient(T, V);
+#ifdef MFEM_USE_MPI 
+   const ParGridFunction *pgf = dynamic_cast<const ParGridFunction*>(GridFunc); 
+   if (pgf) pgf->GetGradient(T, V); 
+   else GridFunc->GetGradient(T, V);
+#else 
+   GridFunc->GetGradient(T,V); 
+#endif
 }
 
 void GradientGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
+#ifdef MFEM_USE_MPI
+   const ParGridFunction *pgf = dynamic_cast<const ParGridFunction*>(GridFunc); 
+   if (pgf) pgf->GetGradients(T, ir, M); 
+   else GridFunc->GetGradients(T, ir, M);
+#else 
    GridFunc->GetGradients(T, ir, M);
+#endif
 }
 
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient(
