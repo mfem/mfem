@@ -12,6 +12,13 @@ Version 4.3.1 (development)
 ===========================
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
+- Adding lowest order Nedelec and Raviart-Thomas basis functions on wedge
+  shaped elements.
+
+- Added initial support for meshes with pyramidal elements, including several
+  pyramidal meshes in the data/ directory and support for the lowest order H1,
+  Nedelec, Raviart-Thomas, and L2 basis functions on pyramids.
+
 - Updated the hypre interface according to changes in hypre-2.22.1. The ADS
   solver is now fully working on GPUs.
 
