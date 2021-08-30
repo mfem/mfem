@@ -572,148 +572,10 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
       }
    }
    // End of verifications
-   Mesh &mesh = *fes.GetMesh();
-   int nc_cpt = 0;
-   using Key = std::pair<const DenseMatrix*,int>;
-   std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
-   // Initialization of the offsets
-   for (int i = 0; i <= ndofs; ++i)
-   {
-      offsets[i] = 0;
-   }
-   // Computation of scatter and offsets indices
-   int f_ind=0;
-   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      // We skip non-conforming master faces, as they will be treated by the
-      // slave faces.
-      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
-      {
-         continue;
-      }
-      if (type==FaceType::Interior && info.IsInterior())
-      {
-         SetFaceDofsScatterIndices1(info,f_ind);
-         if ( m==L2FaceValues::DoubleValued )
-         {
-            if ( info.conformity==Mesh::FaceConformity::Conforming )
-            {
-               interp_config[f_ind] = conforming;
-               if (info.location==Mesh::FaceLocation::Interior)
-               {
-                  PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
-               }
-               else if (info.location==Mesh::FaceLocation::Shared)
-               {
-                  PermuteAndSetSharedFaceDofsScatterIndices2(info,f_ind);
-               }
-            }
-            else // Non-conforming face
-            {
-               MFEM_ASSERT(e_ordering == ElementDofOrdering::LEXICOGRAPHIC,
-                           "The following interpolation operator is "
-                           "lexicographic.");
-               const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(info.ncface);
-               const int face_key = info.elem_1_local_face +
-                                    6*info.elem_2_local_face;
-               Key key(ptMat, face_key);
-               auto itr = interp_map.find(key);
-               if (itr==interp_map.end())
-               {
-                  const DenseMatrix* interpolator =
-                     ComputeCoarseToFineInterpolation(info,ptMat);
-                  interp_map[key] = {nc_cpt, interpolator};
-                  interp_config[f_ind] = nc_cpt;
-                  nc_cpt++;
-               }
-               else
-               {
-                  interp_config[f_ind] = itr->second.first;
-               }
-               if (info.location==Mesh::FaceLocation::Interior)
-               {
-                  SetFaceDofsScatterIndices2(info,f_ind);
-               }
-               else if (info.location==Mesh::FaceLocation::Shared)
-               {
-                  SetSharedFaceDofsScatterIndices2(info,f_ind);
-               }
-            }
-         }
-         f_ind++;
-      }
-      else if (type==FaceType::Boundary && info.IsBoundary())
-      {
-         SetFaceDofsScatterIndices1(info,f_ind);
-         if ( m==L2FaceValues::DoubleValued )
-         {
-            SetBoundaryDofsScatterIndices2(info,f_ind);
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
-               (type==FaceType::Interior? "interior" : "boundary") <<
-               " faces: " << f_ind << " vs " << nf );
-   // Summation of the offsets
-   for (int i = 1; i <= ndofs; ++i)
-   {
-      offsets[i] += offsets[i - 1];
-   }
-   // Computation of gather_indices
-   f_ind = 0;
-   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (info.conformity==Mesh::FaceConformity::NonConformingMaster)
-      {
-         continue;
-      }
-      if (info.IsOfFaceType(type))
-      {
-         SetFaceDofsGatherIndices1(info,f_ind);
-         if (m==L2FaceValues::DoubleValued &&
-             type==FaceType::Interior &&
-             info.location==Mesh::FaceLocation::Interior)
-         {
-            if (info.conformity==Mesh::FaceConformity::Conforming)
-            {
-               PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
-            }
-            else
-            {
-               SetFaceDofsGatherIndices2(info,f_ind);
-            }
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
-               (type==FaceType::Interior? "interior" : "boundary") <<
-               " faces: " << f_ind << " vs " << nf );
-   // Switch back offsets to their correct value
-   for (int i = ndofs; i > 0; --i)
-   {
-      offsets[i] = offsets[i - 1];
-   }
-   offsets[0] = 0;
-   // Transform the interpolation matrix map into a contiguous memory structure.
-   nc_size = interp_map.size();
-   interpolators.SetSize(dof*dof*nc_size);
-   auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
-   for (auto val : interp_map)
-   {
-      const int idx = val.second.first;
-      for (int i = 0; i < dof; i++)
-      {
-         for (int j = 0; j < dof; j++)
-         {
-            interp(i,j,idx) = (*val.second.second)(i,j);
-         }
-      }
-      delete val.second.second;
-   }
+
+   ComputeScatterIndicesAndOffsets(e_ordering, type);
+
+   ComputeGatherIndices(e_ordering, type);
 }
 
 void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -747,10 +609,12 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
       {
          MFEM_SHARED double dofs[max_nd];
+         const InterpConfig conf = interp_config_ptr[face];
+         const int nc_side = conf.GetNonConformingMasterSide();
+         const int interp_index = conf.GetInterpolatorIndex();
          for (int side = 0; side < 2; side++)
          {
-            const int config = side==0 ? conforming : interp_config_ptr[face];
-            if ( config==conforming ) // No interpolation needed
+            if ( interp_index==conforming || side!=nc_side )
             {
                MFEM_FOREACH_THREAD(dof,x,nd)
                {
@@ -809,7 +673,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      double res = 0.0;
                      for (int dofIn = 0; dofIn<nd; dofIn++)
                      {
-                        res += interp(dofOut, dofIn, config)*dofs[dofIn];
+                        res += interp(dofOut, dofIn, interp_index)*dofs[dofIn];
                      }
                      d_y(dofOut, c, side, face) = res;
                   }
@@ -846,14 +710,69 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, nf);
-      MFEM_FORALL(i, nfdofs,
+      auto interp_config_ptr = interp_config.Read();
+      auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      static constexpr int max_nd = 16*16;
+      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nd, 1, 1,
       {
-         const int dof = i % nd;
-         const int face = i / nd;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
+         MFEM_SHARED double dofs[max_nd];
+         const InterpConfig conf = interp_config_ptr[face];
+         const int nc_side = conf.GetNonConformingMasterSide();
+         const int interp_index = conf.GetInterpolatorIndex();
+         const int side = 0;
+         if ( interp_index==conforming || side!=nc_side )
          {
-            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
+            MFEM_FOREACH_THREAD(dof,x,nd)
+            {
+               const int i = face*nd + dof;
+               const int idx = d_indices1[i];
+               if (idx>-1 && idx<threshold) // interior face
+               {
+                  for (int c = 0; c < vd; ++c)
+                  {
+                     d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+                  }
+               }
+               else // true boundary
+               {
+                  for (int c = 0; c < vd; ++c)
+                  {
+                     d_y(dof, c, face) = 0.0;
+                  }
+               }
+            }
+         }
+         else // Interpolation from coarse to fine
+         {
+            for (int c = 0; c < vd; ++c)
+            {
+               MFEM_FOREACH_THREAD(dof,x,nd)
+               {
+                  const int i = face*nd + dof;
+                  const int idx = d_indices1[i];
+                  if (idx>-1 && idx<threshold) // interior face
+                  {
+                     dofs[dof] = d_x(t?c:idx, t?idx:c);
+                  }
+                  else // true boundary
+                  {
+                     dofs[dof] = 0.0;
+                  }
+               }
+               MFEM_SYNC_THREAD;
+               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               for (int dofOut = 0; dofOut<nd; dofOut++)
+               {
+                  double res = 0.0;
+                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  {
+                     res += interp(dofOut, dofIn, interp_index)*dofs[dofIn];
+                  }
+                  d_y(dofOut, c, face) = res;
+               }
+               MFEM_SYNC_THREAD;
+            }
          }
       });
    }
@@ -883,6 +802,155 @@ void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
                                           SparseMatrix &face_mat) const
 {
    MFEM_ABORT("Not yet implemented.");
+}
+
+void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   int nc_cpt = 0;
+   std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
+
+   // Initialization of the offsets
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+
+   // Computation of scatter and offsets indices
+   int f_ind=0;
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if (type==FaceType::Interior && face.IsInterior())
+      {
+         if ( face.IsConforming() )
+         {
+            RegisterFaceConformingInterpolation(face,f_ind);
+            SetFaceDofsScatterIndices1(face,f_ind);
+            if ( m==L2FaceValues::DoubleValued )
+            {
+               if (face.IsShared())
+               {
+                  PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
+               }
+               else
+               {
+                  PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
+               }
+            }
+         }
+         else // Non-conforming face
+         {
+            if (face.IsShared())
+            {
+               // We swap elem1 and elem2 to have elem1 slave and elem2 master
+               face.SwapElem1AndElem2(); // TODO: check that this is correct.
+               SetSharedFaceDofsScatterIndices1(face,f_ind);
+            }
+            else
+            {
+               SetFaceDofsScatterIndices1(face,f_ind);
+            }
+            RegisterFaceCoarseToFineInterpolation(face,f_ind,ordering,
+                                                  interp_map,nc_cpt);
+            SetFaceDofsScatterIndices2(face,f_ind);
+            // if (face.IsInterior())
+            // {
+            //    SetFaceDofsScatterIndices2(face,f_ind);
+            // }
+            // else if (face.IsShared())
+            // {
+            //    SetSharedFaceDofsScatterIndices2(face,f_ind);
+            // }
+         }
+         f_ind++;
+      }
+      else if (type==FaceType::Boundary && face.IsBoundary())
+      {
+         SetFaceDofsScatterIndices1(face,f_ind);
+         if ( m==L2FaceValues::DoubleValued )
+         {
+            SetBoundaryDofsScatterIndices2(face,f_ind);
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
+               (type==FaceType::Interior? "interior" : "boundary") <<
+               " faces: " << f_ind << " vs " << nf );
+
+   // Summation of the offsets
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+
+   // Transform the interpolation matrix map into a contiguous memory structure.
+   // TODO: put in a function?
+   nc_size = interp_map.size();
+   interpolators.SetSize(dof*dof*nc_size);
+   auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
+   for (auto val : interp_map)
+   {
+      const int idx = val.second.first;
+      for (int i = 0; i < dof; i++)
+      {
+         for (int j = 0; j < dof; j++)
+         {
+            interp(i,j,idx) = (*val.second.second)(i,j);
+         }
+      }
+      delete val.second.second;
+   }
+}
+
+void ParNCL2FaceRestriction::ComputeGatherIndices(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   // Computation of gather_indices
+   int f_ind = 0;
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if (face.IsOfFaceType(type))
+      {
+         // I should probably shift by nfdofs on ghost faces
+         if (m==L2FaceValues::DoubleValued && face.IsGhost())
+         {
+            /* TODO: code */
+         }
+         SetFaceDofsGatherIndices1(face,f_ind);
+         if (m==L2FaceValues::DoubleValued &&
+             type==FaceType::Interior &&
+             face.IsInterior() &&
+             !face.IsShared())
+         {
+            if (face.IsConforming())
+            {
+               PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
+            }
+            else
+            {
+               SetFaceDofsGatherIndices2(face,f_ind);
+            }
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
+               (type==FaceType::Interior? "interior" : "boundary") <<
+               " faces: " << f_ind << " vs " << nf );
+
+   // Switch back offsets to their correct value
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
 }
 
 } // namespace mfem
