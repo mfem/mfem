@@ -2040,7 +2040,7 @@ CPDSolverDH::WriteVisItFields(int it)
 
          IdentityMatrixCoefficient identityM(3);
          OuterProductCoefficient bb(*BCoef_, *BCoef_);
-         MatrixSumCoefficient Ibb(identityM, bb);
+         MatrixSumCoefficient Ibb(identityM, bb, 1.0, -1.0);
          MatrixVectorProductCoefficient eperp_rCoef(Ibb, e_r);
          MatrixVectorProductCoefficient eperp_iCoef(Ibb, e_i);
 
