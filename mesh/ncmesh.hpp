@@ -70,7 +70,11 @@ struct CoarseFineTransformations
                            Table &coarse_to_fine,
                            Array<int> &coarse_to_ref_type,
                            Table &ref_type_to_matrix,
-                           Array<Geometry::Type> &ref_type_to_geom) const;
+                           Array<Geometry::Type> &ref_type_to_geom,
+                           bool get_coarse_to_fine_only = false) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine) const;
 
    void Clear();
    bool IsInitialized() const;
@@ -134,6 +138,7 @@ public:
    int GetNEdges() const { return NEdges; }
    /// Return the number of (2D) faces in the NCMesh.
    int GetNFaces() const { return NFaces; }
+   virtual int GetNGhostElements() const { return 0; }
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -163,7 +168,6 @@ public:
        derefinements may have to be skipped to preserve mesh consistency. */
    virtual void Derefine(const Array<int> &derefs);
 
-
    // master/slave lists
 
    /// Identifies a vertex/edge/face in both Mesh and NCMesh.
@@ -176,7 +180,8 @@ public:
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
 
-      MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
+      MeshId() = default;
+      MeshId(int index, int element, int local, int geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
    };
 

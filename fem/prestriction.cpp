@@ -63,116 +63,6 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       }
    }
    // End of verifications
-   Mesh &mesh = *fes.GetMesh();
-   // Initialization of the offsets
-   for (int i = 0; i <= ndofs; ++i)
-   {
-      offsets[i] = 0;
-   }
-   // Computation of scatter indices and offsets
-   int f_ind=0;
-   for (int f = 0; f < pfes.GetNF(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (type==FaceType::Interior && info.IsInterior())
-      {
-         SetFaceDofsScatterIndices1(info,f_ind);
-         if (m==L2FaceValues::DoubleValued)
-         {
-            if (info.location==Mesh::FaceLocation::Interior)
-            {
-               PermuteAndSetFaceDofsScatterIndices2(info,f_ind);
-            }
-            else if (info.location==Mesh::FaceLocation::Shared)
-            {
-               PermuteAndSetSharedFaceDofsScatterIndices2(info,f_ind);
-            }
-         }
-         f_ind++;
-      }
-      else if (type==FaceType::Boundary && info.IsBoundary())
-      {
-         SetFaceDofsScatterIndices1(info,f_ind);
-         if (m==L2FaceValues::DoubleValued)
-         {
-            SetBoundaryDofsScatterIndices2(info,f_ind);
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-   // Summation of the offsets
-   for (int i = 1; i <= ndofs; ++i)
-   {
-      offsets[i] += offsets[i - 1];
-   }
-   // Computation of gather_indices
-   f_ind = 0;
-   for (int f = 0; f < pfes.GetNF(); ++f)
-   {
-      Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (info.IsOfFaceType(type))
-      {
-         SetFaceDofsGatherIndices1(info,f_ind);
-         if (m==L2FaceValues::DoubleValued &&
-             type==FaceType::Interior &&
-             info.location==Mesh::FaceLocation::Interior)
-         {
-            PermuteAndSetFaceDofsGatherIndices2(info,f_ind);
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-   // Reset offsets to their correct value
-   for (int i = ndofs; i > 0; --i)
-   {
-      offsets[i] = offsets[i - 1];
-   }
-   offsets[0] = 0;
-}
-
-
-ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                           ElementDofOrdering e_ordering,
-                                           FaceType type,
-                                           L2FaceValues m)
-   : L2FaceRestriction(fes, type, m)
-{
-   if (nf==0) { return; }
-   // If fespace == L2
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
-   const FiniteElement *fe = pfes.GetFE(0);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "ParL2FaceRestriction.");
-   MFEM_VERIFY(pfes.GetMesh()->Conforming(),
-               "Non-conforming meshes not yet supported with partial assembly.");
-   // Assuming all finite elements are using Gauss-Lobatto dofs
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
-   width = pfes.GetVSize();
-   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if (!dof_reorder)
-   {
-      MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
-   }
-   if (dof_reorder && nf > 0)
-   {
-      for (int f = 0; f < pfes.GetNF(); ++f)
-      {
-         const FiniteElement *fe =
-            pfes.GetTraceElement(f, pfes.GetMesh()->GetFaceBaseGeometry(f));
-         const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fe);
-         if (el) { continue; }
-         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
-      }
-   }
-   // End of verifications
 
    ComputeScatterIndicesAndOffsets(e_ordering, type);
 
@@ -845,9 +735,10 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
          {
             if (face.IsShared())
             {
+               // TODO: not sure what should happen.
                // We swap elem1 and elem2 to have elem1 slave and elem2 master
-               face.SwapElem1AndElem2(); // TODO: check that this is correct.
-               SetSharedFaceDofsScatterIndices1(face,f_ind);
+               // face.SwapElem1AndElem2(); // TODO: check that this is correct.
+               // SetSharedFaceDofsScatterIndices1(face,f_ind);
             }
             else
             {

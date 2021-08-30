@@ -21,10 +21,6 @@ namespace mfem
 class FiniteElementSpace;
 enum class ElementDofOrdering;
 
-/** An enum type to specify if only e1 value is requested (SingleValued) or both
-    e1 and e2 (DoubleValued). */
-enum class L2FaceValues : bool {SingleValued, DoubleValued};
-
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
@@ -104,10 +100,75 @@ public:
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
-/// Operator that extracts Face degrees of freedom for H1 spaces.
+/** An enum type to specify if only e1 value is requested (SingleValued) or both
+    e1 and e2 (DoubleValued). */
+enum class L2FaceValues : bool {SingleValued, DoubleValued};
+
+/** @brief Base class for operators that extracts Face degrees of freedom.
+
+    In order to compute quantities on the faces of a mesh, it is often useful to
+    extract the degrees of freedom on the faces of the elements. This class
+    provides an interface for such operations.
+
+    If the FiniteElementSpace is ordered by Ordering::byVDIM, then the expected
+    format for the L-vector is (vdim x ndofs), otherwise if Ordering::byNODES
+    the expected format is (ndofs x vdim), where ndofs is the total number of
+    degrees of freedom.
+    Since FiniteElementSpace can either be continuous or discontinuous, the
+    degrees of freedom on a face can either be single valued or double valued,
+    this is what we refer to as the multiplicity and is represented by the
+    L2FaceValues enum type.
+    The format of the output face E-vector of degrees of freedom is
+    (face_dofs x vdim x multiplicity x nfaces), where face_dofs is the number of
+    degrees of freedom on each face, and nfaces the number of faces of the
+    requested FaceType (see FiniteElementSpace::GetNFbyType).
+
+    @note Objects of this type are typically created and owned by
+    FiniteElementSpace objects, see FiniteElementSpace::GetFaceRestriction(). */
+class FaceRestriction : public Operator
+{
+public:
+   FaceRestriction(): Operator() { }
+
+   FaceRestriction(int h, int w): Operator(h, w) { }
+
+   virtual ~FaceRestriction() { }
+
+   /** @brief Extract the face degrees of freedom from @a x into @a y.
+
+       @param[in]  x The L-vector of degrees of freedom.
+       @param[out] y The degrees of freedom on the face, corresponding to a face
+                     E-vector.
+   */
+   void Mult(const Vector &x, Vector &y) const override = 0;
+
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y.
+
+       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+   */
+   virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
+
+   /** @brief Set the face degrees of freedom in the element degrees of freedom
+       @a y to the values given in @a x.
+
+       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+   */
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTranspose(x, y);
+   }
+};
+
+/// Operator that extracts Face degrees of freedom for H1 FiniteElementSpaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class H1FaceRestriction : public Operator
+class H1FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -161,7 +222,7 @@ public:
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
        @param[out] y The L-vector degrees of freedom. */
-   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
 
 protected:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
@@ -209,7 +270,7 @@ protected:
 /// Operator that extracts Face degrees of freedom for L2 spaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class L2FaceRestriction : public Operator
+class L2FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -269,7 +330,7 @@ public:
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
        @param[out] y The L-vector degrees of freedom. */
-   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction.
@@ -488,7 +549,7 @@ public:
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
        @param[out] y The L-vector degrees of freedom. */
-   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this NCL2FaceRestriction.
@@ -568,7 +629,8 @@ protected:
       int config;
 
       // Conforming face
-      InterpConfig() : config(-1) { }
+      // InterpConfig() : config(-1) { } // TODO: try to make this work with is_trivial
+      InterpConfig() = default;
 
       // Non-conforming face, if nc_index is given assumes side==1 (always true
       // except for ghost faces)
@@ -578,6 +640,9 @@ protected:
       InterpConfig(int side, int nc_index)
          : config(side==1?nc_index: -1 - nc_index)
       { }
+
+      MFEM_HOST_DEVICE
+      InterpConfig(const InterpConfig&) = default;
 
       MFEM_HOST_DEVICE
       InterpConfig &operator=(const InterpConfig &rhs)

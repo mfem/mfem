@@ -175,6 +175,11 @@ void BilinearFormIntegrator::AssembleFaceVector(
    elmat.Mult(elfun, elvect);
 }
 
+void TransposeIntegrator::SetIntRule(const IntegrationRule *ir)
+{
+   IntRule = ir;
+   bfi->SetIntRule(ir);
+}
 
 void TransposeIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
@@ -202,6 +207,12 @@ void TransposeIntegrator::AssembleFaceMatrix (
    elmat.Transpose (bfi_elmat);
 }
 
+void LumpedIntegrator::SetIntRule(const IntegrationRule *ir)
+{
+   IntRule = ir;
+   bfi->SetIntRule(ir);
+}
+
 void LumpedIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
@@ -209,11 +220,26 @@ void LumpedIntegrator::AssembleElementMatrix (
    elmat.Lump();
 }
 
+void InverseIntegrator::SetIntRule(const IntegrationRule *ir)
+{
+   IntRule = ir;
+   integrator->SetIntRule(ir);
+}
+
 void InverseIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
    integrator->AssembleElementMatrix(el, Trans, elmat);
    elmat.Invert();
+}
+
+void SumIntegrator::SetIntRule(const IntegrationRule *ir)
+{
+   IntRule = ir;
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->SetIntRule(ir);
+   }
 }
 
 void SumIntegrator::AssembleElementMatrix(
@@ -1342,10 +1368,9 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    }
 }
 
-const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
-                                                     &trial_fe,
-                                                     const FiniteElement &test_fe,
-                                                     ElementTransformation &Trans)
+const IntegrationRule &ConvectionIntegrator::GetRule(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans)
 {
    int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
 
@@ -1752,15 +1777,16 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
    int dim = trial_fe.GetDim();
    int trial_nd = trial_fe.GetDof();
    int test_nd = test_fe.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
 
    int i, l;
    double det;
 
    elmat.SetSize (test_nd,trial_nd);
    dshape.SetSize (trial_nd,dim);
-   dshapedxt.SetSize(trial_nd,dim);
+   dshapedxt.SetSize(trial_nd, spaceDim);
    dshapedxi.SetSize(trial_nd);
-   invdfdx.SetSize(dim);
+   invdfdx.SetSize(dim, spaceDim);
    shape.SetSize (test_nd);
 
    const IntegrationRule *ir = IntRule;

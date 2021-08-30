@@ -39,7 +39,7 @@ IterativeSolver::IterativeSolver()
 }
 
 #ifdef MFEM_USE_MPI
-IterativeSolver::IterativeSolver(MPI_Comm _comm)
+IterativeSolver::IterativeSolver(MPI_Comm comm_)
    : Solver(0, true)
 {
    oper = NULL;
@@ -48,7 +48,7 @@ IterativeSolver::IterativeSolver(MPI_Comm _comm)
    print_level = -1;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
-   comm = _comm;
+   comm = comm_;
 }
 #endif
 
@@ -232,7 +232,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_FORALL(i, height, Y[i] += DI[i] * R[i]; );
 }
 
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, double max_eig_estimate_)
@@ -246,15 +246,15 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
    coeffs(order),
    ess_tdof_list(ess_tdofs),
    residual(N),
-   oper(oper_) { Setup(); }
+   oper(&oper_) { Setup(); }
 
 #ifdef MFEM_USE_MPI
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
 #else
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, int power_iterations, double power_tolerance)
@@ -267,7 +267,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
      coeffs(order),
      ess_tdof_list(ess_tdofs),
      residual(N),
-     oper(oper_)
+     oper(&oper_)
 {
    OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
    ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
@@ -283,6 +283,28 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
 
    Setup();
 }
+
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, double max_eig_estimate_)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
+
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
+                               power_iterations, power_tolerance) { }
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, int power_iterations, double power_tolerance)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
+                               power_tolerance) { }
+#endif
 
 void OperatorChebyshevSmoother::Setup()
 {
@@ -584,9 +606,11 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 void CGSolver::UpdateVectors()
 {
-   r.SetSize(width);
-   d.SetSize(width);
-   z.SetSize(width);
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+
+   r.SetSize(width, mt); r.UseDevice(true);
+   d.SetSize(width, mt); d.UseDevice(true);
+   z.SetSize(width, mt); z.UseDevice(true);
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
@@ -594,6 +618,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
+   x.UseDevice(true);
    if (iterative_mode)
    {
       oper->Mult(x, r);
@@ -1621,7 +1646,6 @@ void NewtonSolver::SetOperator(const Operator &op)
    width = op.Width();
    MFEM_ASSERT(height == width, "square Operator is required.");
 
-   xcur.SetSize(width);
    r.SetSize(width);
    c.SetSize(width);
 }
@@ -1635,12 +1659,12 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
-   ProcessNewState(x);
-
    if (!iterative_mode)
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    oper->Mult(x, r);
    if (have_b)
@@ -1822,6 +1846,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    {
       x = 0.0;
    }
+
+   ProcessNewState(x);
 
    // r = F(x)-b
    oper->Mult(x, r);
@@ -2139,16 +2165,16 @@ void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
    problem = &prob;
 }
 
-void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
+void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
 {
-   lo.SetDataAndSize(_lo.GetData(), _lo.Size());
-   hi.SetDataAndSize(_hi.GetData(), _hi.Size());
+   lo.SetDataAndSize(lo_.GetData(), lo_.Size());
+   hi.SetDataAndSize(hi_.GetData(), hi_.Size());
 }
 
-void SLBQPOptimizer::SetLinearConstraint(const Vector &_w, double _a)
+void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
 {
-   w.SetDataAndSize(_w.GetData(), _w.Size());
-   a = _a;
+   w.SetDataAndSize(w_.GetData(), w_.Size());
+   a = a_;
 }
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
@@ -2532,7 +2558,7 @@ BlockILU::BlockILU(int block_size_,
      reordering(reordering_)
 { }
 
-BlockILU::BlockILU(Operator &op,
+BlockILU::BlockILU(const Operator &op,
                    int block_size_,
                    Reordering reordering_,
                    int k_fill_)
@@ -3132,7 +3158,7 @@ KLUSolver::~KLUSolver()
 DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
                                            const SparseMatrix &block_dof_)
    : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
-     block_solvers(block_dof.NumRows())
+     block_solvers(new DenseMatrixInverse[block_dof.NumRows()])
 {
    DenseMatrix sub_A;
    for (int i = 0; i < block_dof.NumRows(); ++i)

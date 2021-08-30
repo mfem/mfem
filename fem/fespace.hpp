@@ -16,6 +16,7 @@
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"
+#include "doftrans.hpp"
 #include "restriction.hpp"
 #include <iostream>
 #include <unordered_map>
@@ -89,6 +90,7 @@ class FiniteElementSpace
    friend class InterpolationGridTransfer;
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
+   friend class LORBase;
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -127,7 +129,9 @@ protected:
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
+   mutable Table *elem_fos; // face orientations by element index
    mutable Table *bdr_elem_dof; // owned (except in NURBS FE space)
+   mutable Table *bdr_elem_fos; // bdr face orientations by bdr element index
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
    Array<int> dof_elem_array, dof_ldof_array;
@@ -135,6 +139,9 @@ protected:
    NURBSExtension *NURBSext;
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
+
+   Array<DofTransformation*> DoFTrans;
+   mutable VDofTransformation VDoFTrans;
 
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
@@ -163,7 +170,7 @@ protected:
                 + 8 * (int)std::get<3>(k);
       }
    };
-   using map_L2F = std::unordered_map<const key_face,Operator*,key_hash>;
+   using map_L2F = std::unordered_map<const key_face,FaceRestriction*,key_hash>;
    mutable map_L2F L2F;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
@@ -187,6 +194,9 @@ protected:
 
    void Construct();
    void Destroy();
+
+   void ConstructDoFTrans();
+   void DestroyDoFTrans();
 
    void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
@@ -282,12 +292,19 @@ protected:
       const FiniteElementSpace* fespace;
       DenseTensor localP[Geometry::NumGeom];
       Table* old_elem_dof; // Owned.
+      Table* old_elem_fos; // Owned.
+
+      Array<DofTransformation*> old_DoFTrans;
+      mutable VDofTransformation old_VDoFTrans;
+
+      void ConstructDoFTrans();
 
    public:
       /** Construct the operator based on the elem_dof table of the original
           (coarse) space. The class takes ownership of the table. */
       RefinementOperator(const FiniteElementSpace* fespace,
-                         Table *old_elem_dof/*takes ownership*/, int old_ndofs);
+                         Table *old_elem_dof/*takes ownership*/,
+                         Table *old_elem_fos/*takes ownership*/, int old_ndofs);
       RefinementOperator(const FiniteElementSpace *fespace,
                          const FiniteElementSpace *coarse_fes);
       virtual void Mult(const Vector &x, Vector &y) const;
@@ -301,6 +318,7 @@ protected:
       const FiniteElementSpace *fine_fes; // Not owned.
       DenseTensor localR[Geometry::NumGeom];
       Table *coarse_elem_dof; // Owned.
+      // Table *coarse_elem_fos; // Owned.
       Table coarse_to_fine;
       Array<int> coarse_to_ref_type;
       Array<Geometry::Type> ref_type_to_geom;
@@ -322,6 +340,7 @@ protected:
        the same vector dimension, vdim. */
    SparseMatrix *RefinementMatrix_main(const int coarse_ndofs,
                                        const Table &coarse_elem_dof,
+                                       const Table *coarse_elem_fos,
                                        const DenseTensor localP[]) const;
 
    void GetLocalRefinementMatrices(Geometry::Type geom,
@@ -332,10 +351,12 @@ protected:
    /** Calculate explicit GridFunction interpolation matrix (after mesh
        refinement). NOTE: consider using the RefinementOperator class instead
        of the fully assembled matrix, which can take a lot of memory. */
-   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof);
+   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof,
+                                  const Table* old_elem_fos);
 
    /// Calculate GridFunction restriction matrix after mesh derefinement.
-   SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
+   SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof,
+                                    const Table* old_elem_fos);
 
    /** @brief Return in @a localP the local refinement matrices that map
        between fespaces after mesh refinement. */
@@ -360,6 +381,14 @@ protected:
 
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
+
+   /// @brief Copies the prolongation and restriction matrices from @a fes.
+   ///
+   /// Used for low order preconditioning on non-conforming meshes. If the DOFs
+   /// require a permutation, it will be supplied by non-NULL @a perm. NULL @a
+   /// perm indicates that no permutation is required.
+   virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
+                                               const Array<int> *perm);
 
 public:
    /** @brief Default constructor: the object is invalid until initialized using
@@ -404,8 +433,8 @@ public:
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
-   bool Conforming() const { return mesh->Conforming(); }
-   bool Nonconforming() const { return mesh->Nonconforming(); }
+   bool Conforming() const { return mesh->Conforming() && cP == NULL; }
+   bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
 
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
@@ -479,7 +508,7 @@ public:
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   virtual const Operator *GetFaceRestriction(
+   virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering e_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
@@ -605,10 +634,11 @@ public:
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
 
    /// Returns indices of degrees of freedom of element 'elem'.
-   virtual void GetElementDofs(int elem, Array<int> &dofs) const;
+   virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
    /// Returns indices of degrees of freedom for boundary element 'bel'.
-   virtual void GetBdrElementDofs(int bel, Array<int> &dofs) const;
+   virtual DofTransformation *GetBdrElementDofs(int bel,
+                                                Array<int> &dofs) const;
 
    /** @brief Returns the indices of the degrees of freedom for the specified
        face, including the DOFs for the edges and the vertices of the face. */
@@ -638,6 +668,13 @@ public:
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
 
+   /** @brief Returns the indices of all of the VDofs for the specified
+       dimension 'vd'. */
+   /** The 'ndofs' parameter defines the number of Dofs in the
+       FiniteElementSpace. If 'ndofs' is -1 (the default value), then the
+       number of Dofs is determined by the FiniteElementSpace. */
+   void GetVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
+
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
 
    void DofsToVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
@@ -650,10 +687,10 @@ public:
    static void AdjustVDofs(Array<int> &vdofs);
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   void GetElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
-   void GetBdrElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th face element (2D and 3D).
    void GetFaceVDofs(int i, Array<int> &vdofs) const;
@@ -678,6 +715,8 @@ public:
        simply the sequence `0,1,2,...`; if there are any signed DOFs their sign
        is preserved. */
    void ReorderElementToDofTable();
+
+   const Table *GetElementToFaceOrientationTable() const { return elem_fos; }
 
    /** @brief Return a reference to the internal Table that stores the lists of
        scalar dofs, for each mesh element, as returned by GetElementDofs(). */

@@ -22,12 +22,13 @@
 
 # Spack helped builds
 # Generic lassen build job, extending build script
+# Note: Lassen jobs can start as soon as the setup job is complete.
 .build_and_test_on_lassen:
   extends: [.build_blueos_3_ppc64le_ib_script, .on_lassen]
   stage: l_build_and_test
-  needs: []
+  needs: [setup]
 
 opt_mpi_cuda_xl_16_1_1_8:
   variables:
-    SPEC: "%xl@16.1.1.8 +mpi +cuda cuda_arch=sm_70"
+    SPEC: "%xl@16.1.1.8 +mpi +cuda cuda_arch=70"
   extends: .build_and_test_on_lassen
