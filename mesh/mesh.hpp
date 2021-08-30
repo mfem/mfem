@@ -1275,6 +1275,11 @@ public:
                  location==Mesh::FaceLocation::Shared);
       }
 
+      bool IsShared() const
+      {
+          return location == Mesh::FaceLocation::Shared;
+      }
+
       /** @brief return true if the face is a boundary face, and not a
           non-conforming master face. */
       bool IsBoundary() const
