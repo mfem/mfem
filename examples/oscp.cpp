@@ -61,7 +61,6 @@ double affine_function(const Vector &p)
 double jump_function(const Vector &p)
 {
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
-   if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 5; }
    return 5;
 }
 
