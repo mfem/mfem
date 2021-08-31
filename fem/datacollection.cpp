@@ -988,6 +988,7 @@ void ParaViewDataCollection::Save()
       pvd_stream << "<DataSet timestep=\"" << GetTime();  // GetCycle();
       pvd_stream << "\" group=\"\" part=\"" << 0 << "\" file=\"";
       pvd_stream << fname << "\"/>\n";
+      pvd_stream.flush();
       std::fstream::pos_type pos = pvd_stream.tellp();
       pvd_stream << "</Collection>\n";
       pvd_stream << "</VTKFile>" << std::endl;
