@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient affine_coeff(affine_function);
    FunctionCoefficient jump_coeff(jump_function);
    FunctionCoefficient singular_coeff(singular_function);
-   CoefficientRefiner coeffrefiner(affine_coeff,order);
+   CoefficientRefiner coeffrefiner(affine_coeff, order);
 
    // 4. Connect to GLVis.
    char vishost[] = "localhost";
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
    // 5. Define custom integration rule (optional).
    const IntegrationRule *irs[Geometry::NumGeom];
    int order_quad = 2*order + enriched_order;
-   for (int i=0; i < Geometry::NumGeom; ++i)
+   for (int i = 0; i < Geometry::NumGeom; ++i)
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
