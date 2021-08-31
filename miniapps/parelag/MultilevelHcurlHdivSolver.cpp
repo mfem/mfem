@@ -724,7 +724,8 @@ int main(int argc, char *argv[])
          tmp *= -1.0;
          tmp += B;
 
-         double local_norm = tmp.Norml2() * tmp.Norml2();
+         double local_norm = tmp.Norml2();
+         local_norm *= local_norm;
          double global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, comm);
