@@ -34,10 +34,10 @@
 //   Problem 1: Circular hole of radius 0.2 at the center of the domain.
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
 //     Dirichlet boundary condition
-//     mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 1
+//     mpirun -np 4 diffusion -rs 3 -o 1 -vis -lst 1
 //     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
 //     Neumann boundary condition
-//     mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst -1 -ho 1 -nlst 1
+//     mpirun -np 4 diffusion -rs 3 -o 1 -vis -nlst 1 -ho 1
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
 //              Solves -nabla^2 u = f with inhomogeneous boundary conditions, and
@@ -46,7 +46,7 @@
 //     Dirichlet boundary condition
 //     mpirun -np 4 diffusion -rs 2 -o 2 -vis -lst 2
 //     Neumann boundary condition (inhomogeneous condition derived using exact solution)
-//     mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst -1 -ho 1 -nlst 2
+//     mpirun -np 4 diffusion -rs 2 -o 2 -vis -nlst 2 -ho 1
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
 //              Solves -nabla^2 u = f with inhomogeneous boundary conditions,
@@ -66,7 +66,7 @@
 //   Problem 5: Circular hole with homogeneous Neumann, triangular hole with
 //            inhomogeneous Dirichlet, and square hole with homogeneous Dirichlet
 //            boundary condition.
-//     mpirun -np 1 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dlstc 6
+//     mpirun -np 4 diffusion -rs 3 -o 1 -vis -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dc
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -97,9 +97,9 @@ int main(int argc, char *argv[])
    int order = 2;
    bool visualization = true;
    int ser_ref_levels = 0;
-   int dirichlet_level_set_type = 1;
-   int dirichlet_level_set_type_combo = -1;
+   int dirichlet_level_set_type = -1;
    int neumann_level_set_type = -1;
+   bool dirichlet_combo = false;
    int ho_terms = 0;
    double alpha = 1;
    bool include_cut_cell = false;
@@ -119,6 +119,9 @@ int main(int argc, char *argv[])
                   "level-set-type.");
    args.AddOption(&neumann_level_set_type, "-nlst", "--neumann-level-set-type",
                   "neumann-level-set-type.");
+   args.AddOption(&dirichlet_combo, "-dc", "--dcombo",
+                  "no-dc", "--no-dcombo",
+                  "Combination of two Dirichlet level sets.");
    args.AddOption(&ho_terms, "-ho", "--high-order",
                   "Additional high-order terms to include");
    args.AddOption(&alpha, "-alpha", "--alpha",
@@ -126,9 +129,6 @@ int main(int argc, char *argv[])
    args.AddOption(&include_cut_cell, "-cut", "--cut", "-no-cut-cell",
                   "--no-cut-cell",
                   "Include or not include elements cut by true boundary.");
-   args.AddOption(&dirichlet_level_set_type_combo, "-dlstc",
-                  "--level-set-type-combo", "level-set-type-combo.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -140,6 +140,11 @@ int main(int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   MFEM_VERIFY(dirichlet_level_set_type >= 0 || neumann_level_set_type >= 0,
+               "The level set and type of BC are not specified.");
+   MFEM_VERIFY((neumann_level_set_type >= 0 && ho_terms < 1) == false,
+               "Shifted Neumann BC requires extra terms, i.e., -ho >= 1.");
 
    // Enable hardware devices such as GPUs, and programming models such as CUDA,
    // OCCA, RAJA and OpenMP based on command line options.
@@ -198,7 +203,6 @@ int main(int argc, char *argv[])
    Dist_Level_Set_Coefficient *dirichlet_dist_coef = NULL;
    Dist_Level_Set_Coefficient *dirichlet_dist_coef_2 = NULL;
    Dist_Level_Set_Coefficient *neumann_dist_coef = NULL;
-   // Create a Combo level set coefficient
    Combo_Level_Set_Coefficient combo_dist_coef;
 
    ShiftedFaceMarker marker(pmesh, pfespace, include_cut_cell);
@@ -221,14 +225,13 @@ int main(int argc, char *argv[])
    }
 
    // Second Dirichlet level-set.
-   if (dirichlet_level_set_type_combo == 6)
+   if (dirichlet_combo)
    {
       MFEM_VERIFY(dirichlet_level_set_type == 5,
                   "The combo level set example has been only set for"
                   " dirichlet_level_set_type == 5.");
       ParGridFunction dirichlet_level_set_val(&pfespace);
-      dirichlet_dist_coef_2 = new Dist_Level_Set_Coefficient(
-         dirichlet_level_set_type_combo);
+      dirichlet_dist_coef_2 = new Dist_Level_Set_Coefficient(6);
       dirichlet_level_set_val.ProjectCoefficient(*dirichlet_dist_coef_2);
       dirichlet_level_set_val.ExchangeFaceNbrData();
       marker.MarkElements(dirichlet_level_set_val, elem_marker);
@@ -411,7 +414,7 @@ int main(int argc, char *argv[])
    }
 
    ShiftedFunctionCoefficient *dbcCoefCombo = NULL;
-   if (dirichlet_level_set_type_combo == 6)
+   if (dirichlet_combo)
    {
       dbcCoefCombo = new ShiftedFunctionCoefficient(0.015);
    }
@@ -468,7 +471,7 @@ int main(int argc, char *argv[])
       ls_cut_marker += 1;
    }
 
-   if (dirichlet_level_set_type_combo == 6)
+   if (dirichlet_combo)
    {
       b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoefCombo,
                                                                 alpha, *dist_vec,
@@ -566,9 +569,9 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.SaveAsOne(sol_ofs);
 
-   // Save the solution in ParaView format
    if (visualization)
    {
+      // Save the solution in ParaView format.
       ParaViewDataCollection dacol("ParaViewDiffusion", &pmesh);
       dacol.SetLevelsOfDetail(order);
       dacol.RegisterField("distance", &distance);
@@ -576,12 +579,8 @@ int main(int argc, char *argv[])
       dacol.SetTime(1.0);
       dacol.SetCycle(1);
       dacol.Save();
-   }
 
-
-   // Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
+      // Send the solution by socket to a GLVis server.
       char vishost[] = "localhost";
       int  visport   = 19916, s = 350;
       socketstream sol_sock;
