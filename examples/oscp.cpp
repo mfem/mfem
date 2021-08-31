@@ -62,7 +62,7 @@ double jump_function(const Vector &p)
 {
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
    if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 5; }
-   return 0;
+   return 5;
 }
 
 // Singular function derived from the Laplacian of the "steep wavefront"
@@ -152,10 +152,9 @@ int main(int argc, char *argv[])
    }
 
    // 3. Make sure the mesh is in the non-conforming mode to enable local
-   //    refinement of quadrilaterals/hexahedra, and the above partitioning
-   //    algorithm. Simplices can be refined either in conforming or in non-
-   //    conforming mode. The conforming mode however does not support
-   //    dynamic partitioning.
+   //    refinement of quadrilaterals/hexahedra. Simplices can be refined
+   //    either in conforming or in non-conforming mode. The conforming
+   //    mode however does not support dynamic partitioning.
    mesh.EnsureNCMesh(nc_simplices);
 
    // 4. Define a parallel mesh by partitioning the serial mesh.
