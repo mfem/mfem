@@ -307,6 +307,7 @@ public:
    virtual void Reset() { estimator.Reset(); }
 };
 
+
 /** @brief Refinement operator to control data oscillation.
 
     This class computes osc_K(f) := || h ⋅ (I - Π) f ||_K  at each element K.
@@ -315,14 +316,15 @@ public:
     \code
        osc_K(f) > threshold ⋅ ||f|| / sqrt(n_el),
     \endcode
-    are refined. Here, threshold is a postive parameter, ||⋅|| is the L2-norm
+    are refined. Here, threshold is a positive parameter, ||⋅|| is the L2-norm
     over the entire domain Ω, and n_el is the number of elements in the mesh.
 
     Note that if osc(f) = threshold ⋅ ||f|| / sqrt(n_el) for each K, then
     \code
-       osc(f) = sqrt( sum_K osc_K^2(f)) = threshold ⋅ ||f||.
+       osc(f) = sqrt(sum_K osc_K^2(f)) = threshold ⋅ ||f||.
     \endcode
-    This is the reason for the 1/sqrt(n_el) factor. */
+    This is the reason for the 1/sqrt(n_el) factor.
+*/
 class CoefficientRefiner : public MeshOperator
 {
 protected:
@@ -412,6 +414,7 @@ public:
    /// Reset
    virtual void Reset();
 };
+
 
 /** @brief ParMesh rebalancing operator.
 
