@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// We recommend viewing MFEM's examples 3 and 4 before viewing this miniapp.
+
 #include <fstream>
 #include <sstream>
 #include <ostream>
@@ -43,21 +45,28 @@ int main(int argc, char *argv[])
    if (!myid)
       cout << "-- This is an example of using a geometric-like multilevel "
            "hierarchy, constructed by ParElag,\n"
-           "-- to solve a finite element H(div) form: "
+           "-- to solve respective finite element H(curl) and H(div) forms: \n"
+           "(alpha curl u, curl v) + (beta u, v);\n"
            "(alpha div u, div v) + (beta u, v).\n\n";
 
    // Get basic parameters from command line.
-   const char *xml_file_c = "MultilevelHdivSolver_cube_example_parameters.xml";
+   const char *xml_file_c = NULL;
+   bool hcurl = true;
    bool visualize = false;
    double tolSVD = 1e-3;
    OptionsParser args(argc, argv);
    args.AddOption(&xml_file_c, "-f", "--xml-file",
                   "XML parameter list (an XML file with detailed parameters).");
+   args.AddOption(&hcurl, "-curl", "--hcurl", "-div", "--hdiv",
+                  "Whether the H(curl) or H(div) form is being solved.");
    args.AddOption(&visualize, "-v", "--visualize", "-nv", "--no-visualize",
                   "Use GLVis to visualize the final solution and the "
                   "agglomerates.");
    args.AddOption(&tolSVD, "-s", "--svd-tol",
-                  "SVD tolerance.");
+                  "SVD tolerance. It is used for filtering out local linear "
+                  "dependencies in the basis construction and extension "
+                  "process in ParElag. Namely, right singular vectors with "
+                  "singular values smaller than this tolerance are removed.");
    args.Parse();
    if (!args.Good())
    {
@@ -66,6 +75,22 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       return EXIT_FAILURE;
+   }
+   if (!xml_file_c)
+   {
+      if (hcurl)
+      {
+         xml_file_c = "MultilevelHcurlSolver_cube_example_parameters.xml";
+      }
+      else
+      {
+         xml_file_c = "MultilevelHdivSolver_cube_example_parameters.xml";
+      }
+      if (!myid)
+      {
+         cout << "No XML parameter list provided! Using default "
+              << xml_file_c << "." << endl;
+      }
    }
    if (!myid)
    {
@@ -172,7 +197,7 @@ int main(int argc, char *argv[])
       {
          if (!myid)
          {
-            cout << "Serially refining mesh: " << l + 1 << "...\n";
+            cout << "Refining mesh in serial: " << l + 1 << "...\n";
          }
          mesh->UniformRefinement();
       }
@@ -184,7 +209,7 @@ int main(int argc, char *argv[])
          {
             if (!myid)
             {
-               cout << "Serially refining mesh: " << ser_ref_levels + 1
+               cout << "Refining mesh in serial: " << ser_ref_levels + 1
                     << "...\n";
             }
             mesh->UniformRefinement();
@@ -205,7 +230,7 @@ int main(int argc, char *argv[])
    }
 
    // Mark essential boundary attributes.
-   MFEM_ASSERT(par_ess_attr.size() <= 1 ||
+   MFEM_VERIFY(par_ess_attr.size() <= 1 ||
                par_ess_attr.size() == (unsigned) pmesh->bdr_attributes.Max(),
                "Incorrect size of the essential attributes vector in parameters"
                " input.");
@@ -228,11 +253,11 @@ int main(int argc, char *argv[])
    }
 
    // Initialize piecewise constant coefficients in the form.
-   MFEM_ASSERT(alpha_vals.size() <= 1 ||
+   MFEM_VERIFY(alpha_vals.size() <= 1 ||
                alpha_vals.size() == (unsigned) pmesh->attributes.Max(),
                "Incorrect size of the 'alpha' local values vector in parameters"
                " input.");
-   MFEM_ASSERT(alpha_vals.size() <= 1 ||
+   MFEM_VERIFY(alpha_vals.size() <= 1 ||
                alpha_vals.size() == (unsigned) pmesh->attributes.Max(),
                "Incorrect size of the 'alpha' local values vector in parameters"
                " input.");
@@ -277,11 +302,12 @@ int main(int argc, char *argv[])
    // This is mainly because AMS and ADS (at least the way ParElag uses them)
    // are bound to be used in 3D. Note that, for the purpose of demonstration,
    // some of the code below is still constructed in a way that is applicable in
-   // 2D as well, taking into account that case as well.
-   MFEM_ASSERT(nDimensions == 3, "Only 3D problems are supported.");
+   // 2D as well, taking into account that case as well. Also, in 2D, ParElag
+   // defaults to H(div) interpretation of form 1.
+   MFEM_VERIFY(nDimensions == 3, "Only 3D problems are currently supported.");
 
    const int nLevels = amge_levels <= 0 ? par_ref_levels + 1 : amge_levels;
-   MFEM_ASSERT(nLevels <= par_ref_levels + 1,
+   MFEM_VERIFY(nLevels <= par_ref_levels + 1,
                "Number of AMGe levels too high relative to parallel"
                " refinements.");
    vector<int> level_nElements(nLevels);
@@ -289,7 +315,7 @@ int main(int argc, char *argv[])
    {
       if (!myid)
       {
-         cout << "Parallelly refining mesh: " << l + 1
+         cout << "Refining mesh in parallel: " << l + 1
               << (par_ref_levels - l > nLevels ? " (not in hierarchy)"
                   : " (in hierarchy)")
               << "...\n";
@@ -416,7 +442,9 @@ int main(int argc, char *argv[])
 
    vector<shared_ptr<DeRhamSequence>> sequence(topology.size());
 
-   const int jform = nDimensions - 1; // This is the H(div) form.
+   const int jform = DeRhamSequence::GetForm(nDimensions,
+                                             hcurl ? DeRhamSequence::HCURL :
+                                                     DeRhamSequence::HDIV);
    if (nDimensions == 3)
    {
       sequence[0] = make_shared<DeRhamSequence3D_FE>(topology[0], pmesh.get(),
@@ -424,12 +452,22 @@ int main(int argc, char *argv[])
    }
    else
    {
-      MFEM_ASSERT(nDimensions == 2, "Only 2D or 3D problems are supported.");
+      MFEM_VERIFY(nDimensions == 2, "Only 2D or 3D problems are supported "
+                                    " by the utilized ParElag.");
+      if (hcurl)
+      {
+         MFEM_ABORT("No H(curl) 2D interpretation of form 1 is implemented.");
+      }
       sequence[0] = make_shared<DeRhamSequence2D_Hdiv_FE>(topology[0],
                                                           pmesh.get(), feorder,
                                                           true, false);
    }
 
+   // To build H(curl) (form 1 in 3D), it is needed to obtain all forms and
+   // spaces with larger indices. To use the so called "Hiptmair smoothers", a
+   // one form lower is needed (H1, form 0). Anyway, to use AMS all forms and
+   // spaces to H1 (0 form) are needed. Therefore, the entire de Rham complex is
+   // constructed.
    // To build H(div) (form 2 in 3D), it is needed to obtain all forms and
    // spaces with larger indices. To use the so called "Hiptmair smoothers", a
    // one form lower is needed (H(curl), form 1, in 3D). To use AMS and ADS, all
@@ -438,7 +476,7 @@ int main(int argc, char *argv[])
    sequence[0]->SetjformStart(0);
 
    DeRhamSequenceFE *DRSequence_FE = sequence[0]->FemSequence();
-   MFEM_ASSERT(DRSequence_FE,
+   MFEM_VERIFY(DRSequence_FE,
                "Failed to obtain the fine-level de Rham sequence.");
 
    if (!myid)
@@ -462,8 +500,16 @@ int main(int argc, char *argv[])
 
    DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform,
                                         make_unique<VectorFEMassIntegrator>(beta), false);
-   DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1,
-                                        make_unique<MassIntegrator>(alpha), true);
+   if (hcurl && nDimensions == 3)
+   {
+      DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1,
+                                           make_unique<VectorFEMassIntegrator>(alpha), true);
+   }
+   else
+   {
+      DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1,
+                                           make_unique<MassIntegrator>(alpha), true);
+   }
 
    if (!myid)
    {
@@ -532,16 +578,26 @@ int main(int argc, char *argv[])
    unique_ptr<Vector> sol = move(solgf);
 
    // Create the parallel linear system.
-   const SharingMap& hdiv_dofTrueDof =
+   const SharingMap& hcurlhdiv_dofTrueDof =
       sequence[0]->GetDofHandler(jform)->GetDofTrueDof();
 
    // System RHS, B. It is defined on the true dofs owned by the process.
-   Vector B(hdiv_dofTrueDof.GetTrueLocalSize());
+   Vector B(hcurlhdiv_dofTrueDof.GetTrueLocalSize());
 
    // System matrix, A.
    shared_ptr<HypreParMatrix> A;
    {
       // Get the mass and derivative operators.
+      // For H(curl):
+      // M1 represents the form (beta u, v) on H(curl) vector fields.
+      // M2 represents the form (alpha u, v) on H(div) vector fields, in 3D.
+      // D1 is the curl operator from H(curl) vector fields to H(div) vector
+      // fields, in 3D.
+      // In 2D, instead of considering H(div) vector fields, L2 scalar fields
+      // are to be considered.
+      // Thus, D1^T * M2 * D1 represents the form (alpha curl u, curl v) on
+      // H(curl) vector fields.
+      // For H(div):
       // M1 represents the form (beta u, v) on H(div) vector fields.
       // M2 represents the form (alpha u, v) on L2 scalar fields.
       // D1 is the divergence operator from H(div) vector fields to L2 scalar
@@ -552,10 +608,11 @@ int main(int argc, char *argv[])
            M2 = sequence[0]->ComputeMassOperator(jform + 1);
       auto D1 = sequence[0]->GetDerivativeOperator(jform);
 
-      // spA = D1^T * M2 * D1 + M1 represents the form:
-      // (alpha div u, div v) + (beta u, v)
-      // on H(div) vector fields. This is local, i.e. on all known dofs for the
-      // process.
+      // spA = D1^T * M2 * D1 + M1 represents the respective H(curl) or H(div)
+      // form:
+      //    (alpha curl u, curl v) + (beta u, v), on H(curl) vector fields;
+      //    (alpha div u, div v) + (beta u, v), on H(div) vector fields.
+      // This is local, i.e. on all known dofs for the process.
       auto spA = ToUnique(Add(*M1, *ToUnique(RAP(*D1, *M2, *D1))));
 
       // Eliminate the boundary conditions
@@ -572,15 +629,15 @@ int main(int argc, char *argv[])
          }
       }
 
-      A = Assemble(hdiv_dofTrueDof, *spA, hdiv_dofTrueDof);
-      hdiv_dofTrueDof.Assemble(*rhs, B);
+      A = Assemble(hcurlhdiv_dofTrueDof, *spA, hcurlhdiv_dofTrueDof);
+      hcurlhdiv_dofTrueDof.Assemble(*rhs, B);
    }
    if (!myid)
    {
       cout << "A size: " << A->GetGlobalNumRows() << 'x'
            << A->GetGlobalNumCols() << '\n' << " A NNZ: " << A->NNZ() << '\n';
    }
-   MFEM_ASSERT(B.Size() == A->Height(),
+   MFEM_VERIFY(B.Size() == A->Height(),
                "Matrix and vector size are incompatible.");
    assemble_timer.Stop();
 
@@ -608,7 +665,7 @@ int main(int argc, char *argv[])
       solver_state->SetBoundaryLabels(ess_attr);
       solver_state->SetForms({jform});
 
-      // Build the silver.
+      // Build the solver.
       Timer build_timer = TimeManager::AddTimer(std::string("Solver \"").
                                                 append(solver_name).
                                                 append("\" -- Build"));
@@ -639,7 +696,8 @@ int main(int argc, char *argv[])
          tmp *= -1.0;
          tmp += B;
 
-         double local_norm = tmp.Norml2() * tmp.Norml2();
+         double local_norm = tmp.Norml2();
+         local_norm *= local_norm;
          double global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, comm);
@@ -684,7 +742,7 @@ int main(int argc, char *argv[])
       // Visualize the solution.
       if (visualize)
       {
-         hdiv_dofTrueDof.Distribute(X, x);
+         hcurlhdiv_dofTrueDof.Distribute(X, x);
          MultiVector tmp(x.GetData(), 1, x.Size());
          sequence[0]->show(jform, tmp);
       }
@@ -706,26 +764,11 @@ int main(int argc, char *argv[])
 // A vector field, used for setting boundary conditions.
 void bdrfunc(const Vector &p, Vector &F)
 {
-   const int dim = p.Size();
-
-   F(0) = 0.0;
-   F(1) = 0.0;
-   if (dim == 3)
-   {
-      F(2) = 0.0;
-   }
+   F = 0.0;
 }
 
 // The right hand side.
 void rhsfunc(const Vector &p, Vector &f)
 {
-   const int dim = p.Size();
-
-   f(0) = 1.0;
-   f(1) = 1.0;
-   if (dim == 3)
-   {
-      f(2) = 1.0;
-   }
+   f = 1.0;
 }
-

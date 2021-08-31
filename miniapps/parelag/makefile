@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 ifeq ($(MFEM_USE_PARELAG)$(MFEM_USE_MPI),YESYES)
-   MINIAPPS = MultilevelHcurlSolver MultilevelHdivSolver
+   MINIAPPS = MultilevelHcurlHdivSolver
 else
    MINIAPPS =
 endif
