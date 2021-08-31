@@ -8,9 +8,9 @@ obtained as a source code from:
 
    http://github.com/LLNL/parelag
 
-This directory contains a couple of miniapps that employ MFEM and ParElag to
-solve H(curl)- and H(div)-elliptic forms by an element based algebraic multigrid
-(AMGe). They use: a multilevel hierarchy of de Rham complexes of finite element
+This directory contains a miniapp that employs MFEM and ParElag to solve
+H(curl)- and H(div)-elliptic forms by an element based algebraic multigrid
+(AMGe). It uses: a multilevel hierarchy of de Rham complexes of finite element
 spaces, built by ParElag; Hiptmair-type smoothers, implemented in ParElag; and
 AMS (Auxiliary-space Maxwell Solver) or ADS (Auxiliary-space Divergence Solver),
 from HYPRE, for preconditioning or solving on the coarsest levels.
@@ -19,6 +19,8 @@ Alternatively, it is possible to precondition or solve the H(div) form on the
 coarsest level via a hybridization approach. However, this is not yet
 implemented in ParElag. Only the hybridization solver that is directly
 applicable to an H(div)-L^2 mixed (saddle-point) system is currently available.
+
+We recommend viewing MFEM's examples 3 and 4 before viewing this miniapp.
 
 
 Installation
@@ -34,7 +36,7 @@ ParElag uses CMake, while MFEM can use GNU Make or CMake. A short instruction is
 provided for both.
 
 Notice that the building procedure is not much complicated by the fact that the
-miniapps are part of MFEM and depend on ParElag, while ParElag itself depends on
+miniapp is part of MFEM and depend on ParElag, while ParElag itself depends on
 and uses MFEM.
 
 Note that ParElag needs MFEM with enabled MPI parallelism.
@@ -42,7 +44,7 @@ Note that ParElag needs MFEM with enabled MPI parallelism.
  Using GNU Make
  --------------
 
-MFEM needs to be configured to use ParElag and build its miniapps. Refer to the
+MFEM needs to be configured to use ParElag and build its miniapp. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
 configuration in mfem/config/. Particularly, MFEM_USE_PARELAG needs to be set to
 YES and PARELAG_DIR needs to point to the location of ParElag (e.g.,
@@ -65,7 +67,7 @@ directories (mfem/ and parelag/), should build ParElag, MFEM, and the miniapps:
  Using CMake
  --------------
 
-MFEM needs to be configured to use ParElag and build its miniapps. Refer to the
+MFEM needs to be configured to use ParElag and build its miniapp. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
 configuration in mfem/config/. Particularly, MFEM_USE_PARELAG needs to be set to
 ON and PARELAG_DIR needs to point to the location of ParElag (e.g.,
@@ -92,21 +94,24 @@ directories (mfem/ and parelag/), should build ParElag, MFEM, and the miniapps:
 Usage
 =====
 
-The miniapps utilize .xml files with detailed sets of parameters in them. They
+The miniapp utilizes .xml files with detailed sets of parameters in them. They
 allow access to basic parameters (like the path to a mesh file) as well as the
 capacity to tune and set a variety of solver and preconditioner parameters.
-Example .xml files for the miniapps are provided.
+Example .xml files for the miniapp are provided.
 
-When executing a miniapp, the .xml file needs to be explicitly supplied. For
+When executing the miniapp, the .xml file needs to be explicitly supplied. For
 example, as follows:
 
-   mfem/miniapps/parelag/$ ./MultilevelHcurlSolver -f \
+   mfem/miniapps/parelag/$ ./MultilevelHcurlHdivSolver -curl -f \
                                MultilevelHcurlSolver_pipe_example_parameters.xml
 
-   mfem/miniapps/parelag/$ ./MultilevelHdivSolver -f \
+   mfem/miniapps/parelag/$ ./MultilevelHcurlHdivSolver -div -f \
                                MultilevelHdivSolver_pipe_example_parameters.xml
 
-The miniapps can be executed in parallel, e.g., using mpirun. Particularly,
+Note that the miniapp defaults to the H(curl) case (i.e., -curl is set by
+default) and the H(div) case needs to be explicitly set by including -div.
+
+The miniapp can be executed in parallel, e.g., using mpirun. Particularly,
 MultilevelH*Solver_pipe_example_parameters.xml are set to use the "crooked pipe"
 problem and that would most likely require being executed on a larger machine in
 parallel (e.g., using 72 processes).
@@ -116,14 +121,14 @@ solve a smaller unit cube problem and can be executed faster and in serial.
 
 The mesh files CrookedPipeMesh_2.mesh and cube456.mesh can be found in
 parelag/meshes/ and copied to mfem/miniapps/parelag/ or
-mfem/build/miniapps/parelag/ to execute the miniapps.
+mfem/build/miniapps/parelag/ to execute the miniapp.
 
 Note that the examples in their current form are limited to 3D meshes and
 problems.
 
 The examples assume zero boundary conditions, where the boundary attributes for
 essential boundary conditions are provided in the parameters .xml files. For
-more sophisticated boundary conditions, the source files of the miniapps need to
+more sophisticated boundary conditions, the source file of the miniapp needs to
 be modified.
 
 The examples allow piecewise constant coefficients in areas of the domain
