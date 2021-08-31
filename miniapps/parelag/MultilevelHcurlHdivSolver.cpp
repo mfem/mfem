@@ -444,7 +444,7 @@ int main(int argc, char *argv[])
 
    const int jform = DeRhamSequence::GetForm(nDimensions,
                                              hcurl ? DeRhamSequence::HCURL :
-                                                     DeRhamSequence::HDIV);
+                                             DeRhamSequence::HDIV);
    if (nDimensions == 3)
    {
       sequence[0] = make_shared<DeRhamSequence3D_FE>(topology[0], pmesh.get(),
@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
    else
    {
       MFEM_VERIFY(nDimensions == 2, "Only 2D or 3D problems are supported "
-                                    " by the utilized ParElag.");
+                  "by the utilized ParElag.");
       if (hcurl)
       {
          MFEM_ABORT("No H(curl) 2D interpretation of form 1 is implemented.");
