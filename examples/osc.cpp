@@ -62,7 +62,7 @@ double jump_function(const Vector &p)
 {
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
    if (p.Normlp(2.0) < 0.4 || p.Normlp(2.0) > 0.6) { return 5; }
-   return 0;
+   return 5;
 }
 
 // Singular function derived from the Laplacian of the "steep wavefront"
