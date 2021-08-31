@@ -16,6 +16,9 @@ set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
 
 # Require C++11 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 11)
+if (MFEM_USE_GINKGO) 
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -51,7 +54,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.2.1)
+set(${PROJECT_NAME}_VERSION 4.3.0)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -99,6 +102,9 @@ if (MFEM_USE_CUDA)
    endif()
    enable_language(CUDA)
    set(CMAKE_CUDA_STANDARD 11)
+   if (MFEM_USE_GINKGO) 
+     set(CMAKE_CUDA_STANDARD 14)
+   endif()
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
    set(CMAKE_CUDA_EXTENSIONS OFF)
    set(CUDA_FLAGS "--expt-extended-lambda")
@@ -173,6 +179,12 @@ endif()
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
+  if (MFEM_MPIEXEC)
+    set(MPIEXEC ${MFEM_MPIEXEC})
+  endif()
+  if (MFEM_MPIEXEC_NP)
+    set(MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
+  endif()
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
@@ -371,6 +383,9 @@ if (MFEM_USE_HIP)
   if (HIP_ARCH)
     message(STATUS "Using HIP architecture: ${HIP_ARCH}")
     list(APPEND HIP_HIPCC_FLAGS "--amdgpu-target=${HIP_ARCH}")
+    if (MFEM_USE_GINKGO)
+      list(APPEND HIP_HIPCC_FLAGS "-std=c++14")
+    endif()
   endif()
 endif()
 
@@ -408,8 +423,8 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE SuperLUDist MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+    SLEPC MESQUITE MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
     CUSPARSE MKL_CPARDISO AMGX CALIPER)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.

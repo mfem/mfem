@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "array.hpp"
 #include "globals.hpp"
+#include <type_traits>
 
 namespace mfem
 {
@@ -209,6 +210,84 @@ protected:
    /// Check table load factor and resize if necessary
    inline void CheckRehash();
    void DoRehash();
+};
+
+
+/// Hash function for data sequences.
+/** Depends on GnuTLS for SHA-256 hashing. */
+class HashFunction
+{
+protected:
+   void *hash_data;
+
+   /// Add a sequence of bytes for hashing
+   void HashBuffer(const void *buffer, size_t num_bytes);
+
+   /// Integer encoding method; result is independent of endianness and type
+   template <typename int_type_const_iter>
+   HashFunction &EncodeAndHashInts(int_type_const_iter begin,
+                                   int_type_const_iter end);
+
+   /// Double encoding method: encode in little-endian byte-order
+   template <typename double_const_iter>
+   HashFunction &EncodeAndHashDoubles(double_const_iter begin,
+                                      double_const_iter end);
+
+public:
+   /// Default constructor: initialize the hash function
+   HashFunction();
+
+   /// Destructor
+   ~HashFunction();
+
+   /// Add a sequence of bytes for hashing
+   HashFunction &AppendBytes(const void *seq, size_t num_bytes)
+   { HashBuffer(seq, num_bytes); return *this; }
+
+   /// Add a sequence of integers for hashing, given as a c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness and type: int, long, unsigned, etc. */
+   template <typename int_type>
+   HashFunction &AppendInts(const int_type *ints, size_t num_ints)
+   { return EncodeAndHashInts(ints, ints + num_ints); }
+
+   /// Add a sequence of integers for hashing, given as a fixed-size c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness and type: int, long, unsigned, etc. */
+   template <typename int_type, size_t num_ints>
+   HashFunction &AppendInts(const int_type (&ints)[num_ints])
+   { return EncodeAndHashInts(ints, ints + num_ints); }
+
+   /// Add a sequence of integers for hashing, given as a container.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness and type: int, long, unsigned, etc. */
+   template <typename int_type_container>
+   HashFunction &AppendInts(const int_type_container &ints)
+   { return EncodeAndHashInts(ints.begin(), ints.end()); }
+
+   /// Add a sequence of doubles for hashing, given as a c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness. */
+   HashFunction &AppendDoubles(const double *doubles, size_t num_doubles)
+   { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
+
+   /// Add a sequence of doubles for hashing, given as a fixed-size c-array.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness. */
+   template <size_t num_doubles>
+   HashFunction &AppendDoubles(const double (&doubles)[num_doubles])
+   { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
+
+   /// Add a sequence of doubles for hashing, given as a container.
+   /** Before hashing the sequence is encoded so that the result is independent
+       of endianness. */
+   template <typename double_container>
+   HashFunction &AppendDoubles(const double_container &doubles)
+   { return EncodeAndHashDoubles(doubles.begin(), doubles.end()); }
+
+   /** @brief Return the hash string for the current sequence and reset (clear)
+       the sequence. */
+   std::string GetHash() const;
 };
 
 
@@ -568,6 +647,93 @@ void HashTable<T>::PrintMemoryDetail() const
 {
    mfem::out << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int)
              << " + " << unused.MemoryUsage();
+}
+
+
+template <typename int_type_const_iter>
+HashFunction &HashFunction::EncodeAndHashInts(int_type_const_iter begin,
+                                              int_type_const_iter end)
+{
+   // For hashing, an integer k is encoded as follows:
+   // * 1 byte = sign_bit(k) + num_bytes(k), where
+   //   - sign_bit(k) = (k >= 0) ? 0 : 128
+   //   - num_bytes(k) = minimum number of bytes needed to represent abs(k)
+   //     with the convention that num_bytes(0) = 0.
+   // * num_bytes(k) bytes = the bytes of abs(k), starting with the least
+   //   significant byte.
+
+   static_assert(
+      std::is_integral<
+      /**/ typename std::remove_reference<decltype(*begin)>::type
+      /**/ >::value,
+      "invalid iterator type");
+
+   // Skip encoding if hashing is not available:
+   if (hash_data == nullptr) { return *this; }
+
+   constexpr int max_buffer_bytes = 64*1024;
+   unsigned char buffer[max_buffer_bytes];
+   int buffer_counter = 0;
+   while (begin != end)
+   {
+      int byte_counter = 0;
+      auto k = *begin;
+      buffer[buffer_counter] = (k >= 0) ? 0 : (k = -k, 128);
+      while (k != 0)
+      {
+         byte_counter++;
+         buffer[buffer_counter + byte_counter] = (unsigned char)(k % 256);
+         k /= 256; // (k >>= 8) results in error, e.g. for 'char'
+      }
+      buffer[buffer_counter] |= byte_counter;
+      buffer_counter += (byte_counter + 1);
+
+      ++begin;
+
+      if (begin == end ||
+          buffer_counter + (1 + sizeof(*begin)) > max_buffer_bytes)
+      {
+         HashBuffer(buffer, buffer_counter);
+         buffer_counter = 0;
+      }
+   }
+   return *this;
+}
+
+template <typename double_const_iter>
+HashFunction &HashFunction::EncodeAndHashDoubles(double_const_iter begin,
+                                                 double_const_iter end)
+{
+   // For hashing, a double is encoded in little endian byte-order.
+
+   static_assert(
+      std::is_same<decltype(*begin), const double &>::value,
+      "invalid iterator type");
+
+   // Skip encoding if hashing is not available:
+   if (hash_data == nullptr) { return *this; }
+
+   constexpr int max_buffer_bytes = 64*1024;
+   unsigned char buffer[max_buffer_bytes];
+   int buffer_counter = 0;
+   while (begin != end)
+   {
+      auto k = reinterpret_cast<const uint64_t &>(*begin);
+      for (int i = 0; i != 7; i++)
+      {
+         buffer[buffer_counter++] = (unsigned char)(k & 255); k >>= 8;
+      }
+      buffer[buffer_counter++] = (unsigned char)k;
+
+      ++begin;
+
+      if (begin == end || buffer_counter + 8 > max_buffer_bytes)
+      {
+         HashBuffer(buffer, buffer_counter);
+         buffer_counter = 0;
+      }
+   }
+   return *this;
 }
 
 } // namespace mfem

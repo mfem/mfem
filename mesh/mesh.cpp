@@ -29,6 +29,8 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <map>
+#include <set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -1016,6 +1018,22 @@ void Mesh::ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
 FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
 {
    FaceElementTransformations *tr;
+   int fn = GetBdrFace(BdrElemNo);
+
+   // Check if the face is interior, shared, or non-conforming.
+   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
+   {
+      return NULL;
+   }
+   tr = GetFaceElementTransformations(fn, 21);
+   tr->Attribute = boundary[BdrElemNo]->GetAttribute();
+   tr->ElementNo = BdrElemNo;
+   tr->ElementType = ElementTransformation::BDR_FACE;
+   return tr;
+}
+
+int Mesh::GetBdrFace(int BdrElemNo) const
+{
    int fn;
    if (Dim == 3)
    {
@@ -1029,16 +1047,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    {
       fn = boundary[BdrElemNo]->GetVertices()[0];
    }
-   // Check if the face is interior, shared, or non-conforming.
-   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
-   {
-      return NULL;
-   }
-   tr = GetFaceElementTransformations(fn, 21);
-   tr->Attribute = boundary[BdrElemNo]->GetAttribute();
-   tr->ElementNo = BdrElemNo;
-   tr->ElementType = ElementTransformation::BDR_FACE;
-   return tr;
+   return fn;
 }
 
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
@@ -1226,12 +1235,12 @@ void Mesh::SetAttributes()
    }
 }
 
-void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
+void Mesh::InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem)
 {
    SetEmpty();
 
-   Dim = _Dim;
-   spaceDim = _spaceDim;
+   Dim = Dim_;
+   spaceDim = spaceDim_;
 
    NumOfVertices = 0;
    vertices.SetSize(NVert);  // just allocate space for vertices
@@ -3359,7 +3368,7 @@ void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
    vertices.MakeRef(reinterpret_cast<Vertex*>(vertex_data), NumOfVertices);
 }
 
-Mesh::Mesh(double *_vertices, int num_vertices,
+Mesh::Mesh(double *vertices_, int num_vertices,
            int *element_indices, Geometry::Type element_type,
            int *element_attributes, int num_elements,
            int *boundary_indices, Geometry::Type boundary_type,
@@ -3379,7 +3388,7 @@ Mesh::Mesh(double *_vertices, int num_vertices,
                                Geometry::NumVerts[boundary_type] : 0;
 
    // assuming Vertex is POD
-   vertices.MakeRef(reinterpret_cast<Vertex*>(_vertices), num_vertices);
+   vertices.MakeRef(reinterpret_cast<Vertex*>(vertices_), num_vertices);
    NumOfVertices = num_vertices;
 
    for (int i = 0; i < num_elements; i++)
@@ -3894,8 +3903,9 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    MFEM_VERIFY(ref_factors.Size() == orig_ne && orig_ne > 0,
                "Number of refinement factors must equal number of elements")
    MFEM_VERIFY(ref_factors.Min() >= 1, "Refinement factor must be >= 1");
-   MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
-               ref_type == BasisType::GaussLobatto, "Invalid refinement type");
+   const int q_type = BasisType::GetQuadrature1D(ref_type);
+   MFEM_VERIFY(Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid,
+               "Invalid refinement type. Must use closed basis type.");
 
    int min_ref = ref_factors.Min();
    int max_ref = ref_factors.Max();
@@ -3928,7 +3938,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    DenseMatrix phys_pts;
 
    GeometryRefiner refiner;
-   refiner.SetType(BasisType::GetQuadrature1D(ref_type));
+   refiner.SetType(q_type);
 
    // Add refined elements and set vertex coordinates
    for (int el = 0; el < orig_ne; el++)
@@ -4098,7 +4108,11 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    }
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+
+   // The check below is disabled because is fails for parallel meshes with
+   // interior "boundary" element that, when such "boundary" element is between
+   // two elements on different processors.
+   // MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
 
 Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
@@ -4428,6 +4442,165 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+}
+
+Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
+{
+   Mesh periodic_mesh(orig_mesh, true); // Make a copy of the original mesh
+   const FiniteElementSpace *nodal_fes = orig_mesh.GetNodalFESpace();
+   int nodal_order = nodal_fes ? nodal_fes->GetMaxElementOrder() : 1;
+   periodic_mesh.SetCurvature(nodal_order, true);
+
+   // renumber element vertices
+   for (int i = 0; i < periodic_mesh.GetNE(); i++)
+   {
+      Element *el = periodic_mesh.GetElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+   // renumber boundary element vertices
+   for (int i = 0; i < periodic_mesh.GetNBE(); i++)
+   {
+      Element *el = periodic_mesh.GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+
+   periodic_mesh.RemoveUnusedVertices();
+   return periodic_mesh;
+}
+
+std::vector<int> Mesh::CreatePeriodicVertexMapping(
+   const std::vector<Vector> &translations, double tol) const
+{
+   int sdim = SpaceDimension();
+
+   Vector coord(sdim), at(sdim), dx(sdim);
+   Vector xMax(sdim), xMin(sdim), xDiff(sdim);
+   xMax = xMin = xDiff = 0.0;
+
+   // Get a list of all vertices on the boundary
+   set<int> bdr_v;
+   for (int be = 0; be < GetNBE(); be++)
+   {
+      Array<int> dofs;
+      GetBdrElementVertices(be,dofs);
+
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         bdr_v.insert(dofs[i]);
+
+         coord = GetVertex(dofs[i]);
+         for (int j = 0; j < sdim; j++)
+         {
+            xMax[j] = max(xMax[j], coord[j]);
+            xMin[j] = min(xMin[j], coord[j]);
+         }
+      }
+   }
+   add(xMax, -1.0, xMin, xDiff);
+   double dia = xDiff.Norml2(); // compute mesh diameter
+
+   // We now identify coincident vertices. Several originally distinct vertices
+   // may become coincident under the periodic mapping. One of these vertices
+   // will be identified as the "primary" vertex, and all other coincident
+   // vertices will be considered as "replicas".
+
+   // replica2primary[v] is the index of the primary vertex of replica `v`
+   map<int, int> replica2primary;
+   // primary2replicas[v] is a set of indices of replicas of primary vertex `v`
+   map<int, set<int>> primary2replicas;
+
+   // We begin with the assumption that all vertices are primary, and that there
+   // are no replicas.
+   for (int v : bdr_v) { primary2replicas[v]; }
+
+   // Make `r` and all of `r`'s replicas be replicas of `p`. Delete `r` from the
+   // list of primary vertices.
+   auto make_replica = [&replica2primary, &primary2replicas](int r, int p)
+   {
+      if (r == p) { return; }
+      primary2replicas[p].insert(r);
+      replica2primary[r] = p;
+      for (int s : primary2replicas[r])
+      {
+         primary2replicas[p].insert(s);
+         replica2primary[s] = p;
+      }
+      primary2replicas.erase(r);
+   };
+
+   for (unsigned int i = 0; i < translations.size(); i++)
+   {
+      for (int vi : bdr_v)
+      {
+         coord = GetVertex(vi);
+         add(coord, translations[i], at);
+
+         for (int vj : bdr_v)
+         {
+            coord = GetVertex(vj);
+            add(at, -1.0, coord, dx);
+            if (dx.Norml2() > dia*tol) { continue; }
+
+            // The two vertices vi and vj are coincident.
+
+            // Are vertices `vi` and `vj` already primary?
+            bool pi = primary2replicas.find(vi) != primary2replicas.end();
+            bool pj = primary2replicas.find(vj) != primary2replicas.end();
+
+            if (pi && pj)
+            {
+               // Both vertices are currently primary
+               // Demote `vj` to be a replica of `vi`
+               make_replica(vj, vi);
+            }
+            else if (pi && !pj)
+            {
+               // `vi` is primary and `vj` is a replica
+               int owner_of_vj = replica2primary[vj];
+               // Make `vi` and its replicas be replicas of `vj`'s owner
+               make_replica(vi, owner_of_vj);
+            }
+            else if (!pi && pj)
+            {
+               // `vi` is currently a replica and `vj` is currently primary
+               // Make `vj` and its replicas be replicas of `vi`'s owner
+               int owner_of_vi = replica2primary[vi];
+               make_replica(vj, owner_of_vi);
+            }
+            else
+            {
+               // Both vertices are currently replicas
+               // Make `vj`'s owner and all of its owner's replicas be replicas
+               // of `vi`'s owner
+               int owner_of_vi = replica2primary[vi];
+               int owner_of_vj = replica2primary[vj];
+               make_replica(owner_of_vj, owner_of_vi);
+            }
+            break;
+         }
+      }
+   }
+
+   std::vector<int> v2v(GetNV());
+   for (size_t i = 0; i < v2v.size(); i++)
+   {
+      v2v[i] = i;
+   }
+   for (auto &&r2p : replica2primary)
+   {
+      v2v[r2p.first] = r2p.second;
+   }
+   return v2v;
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
@@ -6541,22 +6714,31 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    {
       Array< Pair<int,int> > psize(nparts);
       int empty_parts;
-      for (i = 0; i < nparts; i++)
-      {
-         psize[i].one = 0;
-         psize[i].two = i;
-      }
 
-      for (i = 0; i < NumOfElements; i++)
+      // Count how many elements are in each partition, and store the result in
+      // psize, where psize[i].one is the number of elements, and psize[i].two
+      // is partition index. Keep track of the number of empty parts.
+      auto count_partition_elements = [&]()
       {
-         psize[partitioning[i]].one++;
-      }
+         for (i = 0; i < nparts; i++)
+         {
+            psize[i].one = 0;
+            psize[i].two = i;
+         }
 
-      empty_parts = 0;
-      for (i = 0; i < nparts; i++)
-      {
-         if (psize[i].one == 0) { empty_parts++; }
-      }
+         for (i = 0; i < NumOfElements; i++)
+         {
+            psize[partitioning[i]].one++;
+         }
+
+         empty_parts = 0;
+         for (i = 0; i < nparts; i++)
+         {
+            if (psize[i].one == 0) { empty_parts++; }
+         }
+      };
+
+      count_partition_elements();
 
       // This code just split the largest partitionings in two.
       // Do we need to replace it with something better?
@@ -6593,22 +6775,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          }
 
          // Check for empty partitionings again
-         for (i = 0; i < nparts; i++)
-         {
-            psize[i].one = 0;
-         }
-
-         for (i = 0; i < NumOfElements; i++)
-         {
-            psize[partitioning[i]].one++;
-         }
-
-         empty_parts = 0;
-         for (i = 0; i < nparts; i++)
-         {
-            if (psize[i].one == 0) { empty_parts++; }
-         }
-
+         count_partition_elements();
       }
    }
 
@@ -6696,15 +6863,15 @@ void FindPartitioningComponents(Table &elem_elem,
    }
 }
 
-void Mesh::CheckPartitioning(int *partitioning)
+void Mesh::CheckPartitioning(int *partitioning_)
 {
    int i, n_empty, n_mcomp;
    Array<int> component, num_comp;
-   const Array<int> _partitioning(partitioning, GetNE());
+   const Array<int> partitioning(partitioning_, GetNE());
 
    ElementToElementTable();
 
-   FindPartitioningComponents(*el_to_el, _partitioning, component, num_comp);
+   FindPartitioningComponents(*el_to_el, partitioning, component, num_comp);
 
    n_empty = n_mcomp = 0;
    for (i = 0; i < num_comp.Size(); i++)
@@ -11246,51 +11413,76 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    IntRule = &ir;
    computed_factors = flags;
 
-   const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fespace = nodes->FESpace();
+   MFEM_ASSERT(mesh->GetNumGeometries(mesh->Dimension()) <= 1,
+               "mixed meshes are not supported!");
+   MFEM_ASSERT(mesh->GetNodes(), "meshes without nodes are not supported!");
+
+   Compute(*mesh->GetNodes(), d_mt);
+}
+
+GeometricFactors::GeometricFactors(const GridFunction &nodes,
+                                   const IntegrationRule &ir,
+                                   int flags, MemoryType d_mt)
+{
+   this->mesh = nodes.FESpace()->GetMesh();
+   IntRule = &ir;
+   computed_factors = flags;
+
+   Compute(nodes, d_mt);
+}
+
+void GeometricFactors::Compute(const GridFunction &nodes,
+                               MemoryType d_mt)
+{
+
+   const FiniteElementSpace *fespace = nodes.FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
    const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
-   const int NQ   = ir.GetNPoints();
-
-   // For now, we are not using tensor product evaluation
-   const Operator *elem_restr = fespace->GetElementRestriction(
-                                   ElementDofOrdering::NATIVE);
+   const int NQ   = IntRule->GetNPoints();
 
    unsigned eval_flags = 0;
    MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
                         Device::GetDeviceMemoryType();
-   if (flags & GeometricFactors::COORDINATES)
+   if (computed_factors & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, my_d_mt);
+      X.SetSize(vdim*NQ*NE, my_d_mt); // NQ x SDIM x NE
       eval_flags |= QuadratureInterpolator::VALUES;
    }
-   if (flags & GeometricFactors::JACOBIANS)
+   if (computed_factors & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
-   if (flags & GeometricFactors::DETERMINANTS)
+   if (computed_factors & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, my_d_mt);
+      detJ.SetSize(NQ*NE, my_d_mt); // NQ x NE
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   // For now, we are not using tensor product evaluation (not implemented)
-   qi->DisableTensorProducts();
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(*IntRule);
+   // All X, J, and detJ use this layout:
    qi->SetOutputLayout(QVectorLayout::byNODES);
-   if (elem_restr)
+
+   const bool use_tensor_products = UsesTensorBasis(*fespace);
+
+   qi->DisableTensorProducts(!use_tensor_products);
+   const ElementDofOrdering e_ordering = use_tensor_products ?
+                                         ElementDofOrdering::LEXICOGRAPHIC :
+                                         ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
+
+   if (elem_restr) // Always true as of 2021-04-27
    {
       Vector Enodes(vdim*ND*NE, my_d_mt);
-      elem_restr->Mult(*nodes, Enodes);
+      elem_restr->Mult(nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
    else
    {
-      qi->Mult(*nodes, eval_flags, X, J, detJ);
+      qi->Mult(nodes, eval_flags, X, J, detJ);
    }
 }
 
@@ -11343,9 +11535,9 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
-NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
-                                               const double _s)
-   : VectorCoefficient(dim), n(_n), s(_s), tip(p, dim-1)
+NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int n_,
+                                               const double s_)
+   : VectorCoefficient(dim), n(n_), s(s_), tip(p, dim-1)
 {
 }
 

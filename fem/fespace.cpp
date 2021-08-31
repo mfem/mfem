@@ -93,6 +93,43 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    Constructor(mesh, NURBSext, fec, orig.vdim, orig.ordering);
 }
 
+void FiniteElementSpace::CopyProlongationAndRestriction(
+   const FiniteElementSpace &fes, const Array<int> *perm)
+{
+   MFEM_VERIFY(cP == NULL, "");
+   MFEM_VERIFY(cR == NULL, "");
+
+   SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
+   if (perm)
+   {
+      int n = perm->Size();
+      perm_mat = new SparseMatrix(n, n);
+      for (int i=0; i<n; ++i)
+      {
+         double s;
+         int j = DecodeDof((*perm)[i], s);
+         perm_mat->Set(i, j, s);
+      }
+      perm_mat->Finalize();
+      perm_mat_tr = Transpose(*perm_mat);
+   }
+
+   if (fes.GetConformingProlongation() != NULL)
+   {
+      if (perm) { cP = Mult(*perm_mat, *fes.GetConformingProlongation()); }
+      else { cP = new SparseMatrix(*fes.GetConformingProlongation()); }
+      cP_is_set = true;
+   }
+   if (fes.GetConformingRestriction() != NULL)
+   {
+      if (perm) { cR = Mult(*fes.GetConformingRestriction(), *perm_mat_tr); }
+      else { cR = new SparseMatrix(*fes.GetConformingRestriction()); }
+   }
+
+   delete perm_mat;
+   delete perm_mat_tr;
+}
+
 void FiniteElementSpace::SetElementOrder(int i, int p)
 {
    MFEM_VERIFY(mesh_sequence == mesh->GetSequence(),
@@ -135,6 +172,26 @@ int FiniteElementSpace::GetElementOrderImpl(int i) const
 {
    // (this is an internal version of GetElementOrder without asserts and checks)
    return elem_order.Size() ? elem_order[i] : fec->GetOrder();
+}
+
+void FiniteElementSpace::GetVDofs(int vd, Array<int>& dofs, int ndofs) const
+{
+   if (ndofs < 0) { ndofs = this->ndofs; }
+
+   if (ordering == Ordering::byNODES)
+   {
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         dofs[i] = Ordering::Map<Ordering::byNODES>(ndofs, vdim, i, vd);
+      }
+   }
+   else
+   {
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         dofs[i] = Ordering::Map<Ordering::byVDIM>(ndofs, vdim, i, vd);
+      }
+   }
 }
 
 void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs) const
@@ -1141,8 +1198,13 @@ const Operator *FiniteElementSpace::GetElementRestriction(
    // Check if we have a discontinuous space using the FE collection:
    if (IsDGSpace())
    {
+      // TODO: when VDIM is 1, we can return IdentityOperator.
       if (L2E_nat.Ptr() == NULL)
       {
+         // The input L-vector layout is:
+         // * ND x NE x VDIM, for Ordering::byNODES, or
+         // * VDIM x ND x NE, for Ordering::byVDIM.
+         // The output E-vector layout is: ND x VDIM x NE.
          L2E_nat.Reset(new L2ElementRestriction(*this));
       }
       return L2E_nat.Ptr();

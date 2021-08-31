@@ -433,7 +433,7 @@ protected:
    void GenerateNCFaceInfo();
 
    /// Begin construction of a mesh
-   void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
+   void InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem);
 
    // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
    void FinalizeCheck();
@@ -579,7 +579,29 @@ public:
        new mesh. Periodic meshes are not supported. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
+   /// Create a periodic mesh by identifying vertices of @a orig_mesh.
+   /** Each vertex @a i will be mapped to vertex @a v2v[i], such that all
+       vertices that are coincident under the periodic mapping get mapped to
+       the same index. The mapping @a v2v can be generated from translation
+       vectors using Mesh::CreatePeriodicVertexMapping.
+       @note MFEM requires that each edge of the resulting mesh be uniquely
+       identifiable by a pair of distinct vertices. As a consequence, periodic
+       boundaries must be connected by at least three edges. */
+   static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
+
    ///@}
+
+   /// @brief Creates a mapping @a v2v from the vertex indices of the mesh such
+   /// that coincident vertices under the given @a translations are identified.
+   /** Each Vector in @a translations should be of size @a sdim (the spatial
+       dimension of the mesh). Two vertices are considered coincident if the
+       translated coordinates of one vertex are within the given tolerance (@a
+       tol, relative to the mesh diameter) of the coordinates of the other
+       vertex.
+       @warning This algorithm does not scale well with the number of boundary
+       vertices in the mesh, and may run slowly on very large meshes. */
+   std::vector<int> CreatePeriodicVertexMapping(
+      const std::vector<Vector> &translations, double tol = 1e-8) const;
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
@@ -596,14 +618,14 @@ public:
         int *element_attributes, int num_elements,
         int *boundary_indices, Geometry::Type boundary_type,
         int *boundary_attributes, int num_boundary_elements,
-        int dimension, int space_dimension= -1);
+        int dimension, int space_dimension = -1);
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
-   Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim = -1)
+   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
    {
-      if (_spaceDim == -1) { _spaceDim = _Dim; }
-      InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
+      if (spaceDim_ == -1) { spaceDim_ = Dim_; }
+      InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
    }
 
    /** @name Methods for Mesh construction.
@@ -789,11 +811,6 @@ public:
    MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
-   /// A version of the above constructor for non-uniform refinement.
-   /** The input array @a ref_factors contains one refinement factor per element
-       of the input mesh. */
-   Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type);
-
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
@@ -855,17 +872,26 @@ public:
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
-       integration rule. */
-   /** If the device MemoryType parameter @a d_mt is specified, then the
-       returned object will use that type unless it was previously allocated
-       with a different type. */
+       integration rule.
+
+       The IntegrationRule used with GetGeometricFactors needs to remain valid
+       until the internally stored GeometricFactors objects are destroyed (by
+       either calling Mesh::DeleteGeometricFactors or the Mesh destructor). If
+       the device MemoryType parameter @a d_mt is specified, then the returned
+       object will use that type unless it was previously allocated with a
+       different type. */
    const GeometricFactors* GetGeometricFactors(
       const IntegrationRule& ir,
       const int flags,
       MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
-        to the given integration rule. */
+       to the given integration rule.
+
+       The IntegrationRule used with GetFaceGeometricFactors needs to remain
+       valid until the internally stored FaceGeometricFactors objects are
+       destroyed (by either calling Mesh::DeleteGeometricFactors or the Mesh
+       destructor). */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
                                                        const int flags,
                                                        FaceType type);
@@ -1132,6 +1158,9 @@ public:
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
+   /// Return the local face index for the given boundary face.
+   int GetBdrFace(int BdrElemNo) const;
+
    /// Return true if the given face is interior. @sa FaceIsTrueInterior().
    bool FaceIsInterior(int FaceNo) const
    {
@@ -1173,6 +1202,9 @@ public:
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
 
+   /// Set the attribute of boundary element i.
+   void SetBdrAttribute(int i, int attr) { boundary[i]->SetAttribute(attr); }
+
    const Table &ElementToElementTable();
 
    const Table &ElementToFaceTable() const;
@@ -1199,7 +1231,7 @@ public:
 
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
-   void CheckPartitioning(int *partitioning);
+   void CheckPartitioning(int *partitioning_);
 
    void CheckDisplacements(const Vector &displacements, double &tmax);
 
@@ -1525,6 +1557,11 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
     Mesh. See Mesh::GetGeometricFactors(). */
 class GeometricFactors
 {
+
+private:
+   void Compute(const GridFunction &nodes,
+                MemoryType d_mt = MemoryType::DEFAULT);
+
 public:
    const Mesh *mesh;
    const IntegrationRule *IntRule;
@@ -1538,6 +1575,10 @@ public:
    };
 
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                    MemoryType d_mt = MemoryType::DEFAULT);
+
+   GeometricFactors(const GridFunction &nodes, const IntegrationRule &ir,
+                    int flags,
                     MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
@@ -1626,7 +1667,7 @@ private:
    double p[2], s;
    Vector tip;
 public:
-   NodeExtrudeCoefficient(const int dim, const int _n, const double _s);
+   NodeExtrudeCoefficient(const int dim, const int n_, const double s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,

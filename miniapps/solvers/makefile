@@ -21,34 +21,42 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-BLOCK_COMMON_SRC = div_free_solver.cpp
-BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
+BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
+BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
-PAR_MINIAPPS = block-solvers
+SER_MINIAPPS = lor_solvers
+PAR_MINIAPPS = block-solvers plor_solvers
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SER_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(SER_MINIAPPS) $(PAR_MINIAPPS)
+   MFEM_TESTS = block-solvers
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
+
+all: $(MINIAPPS)
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp $(BLOCK_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(BLOCK_COMMON_OBJ) $(MFEM_LIBS)
+lor_solvers.o: $(SRC)lor_mms.hpp
+plor_solvers.o: $(SRC)lor_mms.hpp
+
+%: %.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
+
+block-solvers: $(BLOCK_SOLVERS_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
-all: $(MINIAPPS)
-
-MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
@@ -68,8 +76,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS)
+	rm -f *.o *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf block-solvers
+	@true

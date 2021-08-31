@@ -1804,7 +1804,7 @@ void GridFunction::ProjectGridFunction(const GridFunction &src)
 }
 
 void GridFunction::ImposeBounds(int i, const Vector &weights,
-                                const Vector &_lo, const Vector &_hi)
+                                const Vector &lo_, const Vector &hi_)
 {
    Array<int> vdofs;
    fes->GetElementVDofs(i, vdofs);
@@ -1813,8 +1813,8 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
    GetSubVector(vdofs, vals);
 
    MFEM_ASSERT(weights.Size() == size, "Different # of weights and dofs.");
-   MFEM_ASSERT(_lo.Size() == size, "Different # of lower bounds and dofs.");
-   MFEM_ASSERT(_hi.Size() == size, "Different # of upper bounds and dofs.");
+   MFEM_ASSERT(lo_.Size() == size, "Different # of lower bounds and dofs.");
+   MFEM_ASSERT(hi_.Size() == size, "Different # of upper bounds and dofs.");
 
    int max_iter = 30;
    double tol = 1.e-12;
@@ -1822,7 +1822,7 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
    slbqp.SetMaxIter(max_iter);
    slbqp.SetAbsTol(1.0e-18);
    slbqp.SetRelTol(tol);
-   slbqp.SetBounds(_lo, _hi);
+   slbqp.SetBounds(lo_, hi_);
    slbqp.SetLinearConstraint(weights, weights * vals);
    slbqp.SetPrintLevel(0); // print messages only if not converged
    slbqp.Mult(vals, new_vals);
@@ -1831,7 +1831,7 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
 }
 
 void GridFunction::ImposeBounds(int i, const Vector &weights,
-                                double _min, double _max)
+                                double min_, double max_)
 {
    Array<int> vdofs;
    fes->GetElementVDofs(i, vdofs);
@@ -1842,21 +1842,21 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
    double max_val = vals.Max();
    double min_val = vals.Min();
 
-   if (max_val <= _min)
+   if (max_val <= min_)
    {
-      new_vals = _min;
+      new_vals = min_;
       SetSubVector(vdofs, new_vals);
       return;
    }
 
-   if (_min <= min_val && max_val <= _max)
+   if (min_ <= min_val && max_val <= max_)
    {
       return;
    }
 
    Vector minv(size), maxv(size);
-   minv = (_min > min_val) ? _min : min_val;
-   maxv = (_max < max_val) ? _max : max_val;
+   minv = (min_ > min_val) ? min_ : min_val;
+   maxv = (max_ < max_val) ? max_ : max_val;
 
    ImposeBounds(i, weights, minv, maxv);
 }
@@ -2748,6 +2748,54 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
+double GridFunction::ComputeElementGradErrors(VectorCoefficient *exgrad,
+                                              Vector & errors, const Array<int> * elems,
+                                              const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector grad;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   Vector vec(dim);
+   int nel = (elems) ? elems->Size() : fes->GetNE();
+   errors.SetSize(nel);
+   errors = 0.;
+   for (int i = 0; i < nel; i++)
+   {
+      int iel = (elems) ? (*elems)[i] : i;
+      fe = fes->GetFE(iel);
+      Tr = fes->GetElementTransformation(iel);
+      intorder = 2*fe->GetOrder() + 3; // <--------
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      fes->GetElementDofs(i, dofs);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Tr->SetIntPoint(&ip);
+         GetGradient(*Tr,grad);
+         exgrad->Eval(vec,*Tr,ip);
+         vec-=grad;
+         errors[i] += ip.weight * Tr->Weight() * (vec * vec);
+      }
+      error += errors[i];
+      errors[i] = (errors[i] < 0.0) ? -sqrt(-errors[i]) : sqrt(errors[i]);
+   }
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+
+
 double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
                                       const IntegrationRule *irs[]) const
 {
@@ -2974,6 +3022,33 @@ double GridFunction::ComputeH1Error(Coefficient *exsol,
    double GradError = GridFunction::ComputeGradError(exgrad,irs);
    return sqrt(L2error*L2error + GradError*GradError);
 }
+
+double GridFunction::ComputeElementH1Errors(Coefficient *exsol,
+                                            VectorCoefficient *exgrad,
+                                            Vector & H1errors, const Array<int> * elems,
+                                            const IntegrationRule *irs[]) const
+{
+   int nel = (elems) ? elems->Size() : fes->GetNE();
+   Vector L2Errors(nel), GradErrors(nel);
+   H1errors.SetSize(nel);
+   if (elems)
+   {
+      GridFunction::ComputeElementL2Errors(*exsol,L2Errors, *elems, irs);
+   }
+   else
+   {
+      GridFunction::ComputeElementL2Errors(*exsol,L2Errors,irs);
+   }
+   double GradError = GridFunction::ComputeElementGradErrors(exgrad,GradErrors,
+                                                             elems, irs);
+   double L2error = L2Errors.Norml2();
+   for (int i = 0; i<nel; i++)
+   {
+      H1errors[i] = sqrt(L2Errors[i]*L2Errors[i] + GradErrors[i]*GradErrors[i]);
+   }
+   return sqrt(L2error*L2error + GradError*GradError);
+}
+
 
 double GridFunction::ComputeHDivError(VectorCoefficient *exsol,
                                       Coefficient *exdiv,
@@ -3285,6 +3360,57 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
       }
    }
 }
+
+void GridFunction::ComputeElementL2Errors(Coefficient &exsol,
+                                          Vector &errors, const Array<int> & elems,
+                                          const IntegrationRule *irs[]) const
+{
+   int nel = elems.Size();
+   errors.SetSize(nel);
+   errors = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < nel; i++)
+   {
+      int iel = elems[i];
+      fe = fes->GetFE(iel);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 3; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(iel, *ir, vals);
+      T = fes->GetElementTransformation(iel);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         double err = fabs(vals(j) - exsol.Eval(*T, ip));
+         err = err*err;
+         errors[i] += ip.weight * T->Weight() * err;
+      }
+      // negative quadrature weights may cause the error to be negative
+      if (errors[i] < 0.)
+      {
+         errors[i] = -sqrt(-errors[i]);
+      }
+      else
+      {
+         errors[i] = sqrt(errors[i]);
+      }
+   }
+}
+
+
+
+
 
 double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
                                     Coefficient *weight,
@@ -4046,6 +4172,56 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
       sol2d->ProjectCoefficient(c2d);
    }
    return sol2d;
+}
+
+
+GridFunction* ProlongToMaxOrder(const GridFunction *x)
+{
+   const FiniteElementSpace *fespace = x->FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   const FiniteElementCollection *fec = fespace->FEColl();
+
+   // find the max order in the space
+   int max_order = 1;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      max_order = std::max(fespace->GetElementOrder(i), max_order);
+   }
+
+   // create a visualization space of max order for all elements
+   FiniteElementCollection *l2fec =
+      new L2_FECollection(max_order, mesh->Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace *l2space = new FiniteElementSpace(mesh, l2fec);
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   GridFunction *prolonged_x = new GridFunction(l2space);
+
+   // interpolate solution vector in the larger space
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Geometry::Type geom = mesh->GetElementGeometry(i);
+      T.SetIdentityTransformation(geom);
+
+      Array<int> dofs;
+      fespace->GetElementDofs(i, dofs);
+      Vector elemvect, l2vect;
+      x->GetSubVector(dofs, elemvect);
+
+      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
+      const auto *l2fe = l2fec->GetFE(geom, max_order);
+
+      l2fe->GetTransferMatrix(*fe, T, I);
+      l2space->GetElementDofs(i, dofs);
+      l2vect.SetSize(dofs.Size());
+
+      I.Mult(elemvect, l2vect);
+      prolonged_x->SetSubVector(dofs, l2vect);
+   }
+
+   prolonged_x->MakeOwner(l2fec);
+   return prolonged_x;
 }
 
 }

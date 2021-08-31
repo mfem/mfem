@@ -113,9 +113,9 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Make the GridFunction the owner of #fec and #fes.
-   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
+   void MakeOwner(FiniteElementCollection *fec_) { fec = fec_; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
 
@@ -337,9 +337,9 @@ public:
     *  through SLBPQ optimization.
     *  Intended to be used for discontinuous FE functions. */
    void ImposeBounds(int i, const Vector &weights,
-                     const Vector &_lo, const Vector &_hi);
+                     const Vector &lo_, const Vector &hi_);
    void ImposeBounds(int i, const Vector &weights,
-                     double _min = 0.0, double _max = infinity());
+                     double min_ = 0.0, double max_ = infinity());
 
    /** On a non-conforming mesh, make sure the function lies in the conforming
        space by multiplying with R and then with P, the conforming restriction
@@ -470,6 +470,10 @@ public:
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
 
+   virtual double ComputeElementGradErrors(VectorCoefficient *exgrad,
+                                           Vector & errors, const Array<int> * elems = nullptr,
+                                           const IntegrationRule *irs[] = NULL) const;
+
    /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
    virtual double ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const;
@@ -508,6 +512,10 @@ public:
    /// H1-norm for L2 elements
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
+
+   virtual double ComputeElementH1Errors(Coefficient *exsol,
+                                         VectorCoefficient *exgrad, Vector & errors, const Array<int> * elems = nullptr,
+                                         const IntegrationRule *irs[] = NULL) const;
 
    /// Returns the error measured in H(div)-norm for RT elements
    virtual double ComputeHDivError(VectorCoefficient *exsol,
@@ -570,6 +578,11 @@ public:
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, irs); }
+
+
+   virtual void ComputeElementL2Errors(Coefficient &exsol,
+                                       Vector &errors, const Array<int> & elems,
+                                       const IntegrationRule *irs[] = NULL) const;
 
    virtual void ComputeElementMaxErrors(Coefficient &exsol,
                                         Vector &error,
@@ -909,8 +922,8 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
-   ExtrudeCoefficient(Mesh *m, Coefficient &s, int _n)
-      : n(_n), mesh_in(m), sol_in(s) { }
+   ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
+      : n(n_), mesh_in(m), sol_in(s) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ExtrudeCoefficient() { }
 };
@@ -919,6 +932,7 @@ public:
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 
+GridFunction* ProlongToMaxOrder(const GridFunction *x);
 
 // Inline methods
 

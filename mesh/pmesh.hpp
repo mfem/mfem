@@ -38,7 +38,7 @@ protected:
    struct Vert3
    {
       int v[3];
-      Vert3() { }
+      Vert3() = default;
       Vert3(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
       void Set(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
       void Set(const int *w) { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; }
@@ -47,7 +47,7 @@ protected:
    struct Vert4
    {
       int v[4];
-      Vert4() { }
+      Vert4() = default;
       Vert4(int v0, int v1, int v2, int v3)
       { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
       void Set(int v0, int v1, int v2, int v3)
@@ -327,8 +327,8 @@ public:
    void GroupQuadrilateral(int group, int i, int &face, int &o);
    ///@}
 
-   void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
-                        Array<HYPRE_Int> *offsets[]) const;
+   void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
+                        Array<HYPRE_BigInt> *offsets[]) const;
 
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
