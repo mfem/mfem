@@ -779,6 +779,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
       for (int i=0; i<nbcs_->Size(); i++)
       {
+         nkbcs_[i] = new ComplexVectorCoefficientByAttr;
          (*nkbcs_)[i]->attr = (*nbcs_)[i]->attr;
          (*nkbcs_)[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
          (*nkbcs_)[i]->attr_marker = 0;
@@ -1082,6 +1083,14 @@ CPDSolverDH::~CPDSolverDH()
    // delete negMuInvkxkxCoef_;
    // delete negMuInvkCoef_;
    // delete negMuInvCoef_;
+   if (nkbcs_)
+   {
+      for (int i=0; i<nkbcs_->Size(); i++)
+      {
+         delete (*nkbcs_)[i];
+      }
+   }
+
    delete negsinkx_;
    delete coskx_;
    delete sinkx_;
