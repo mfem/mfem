@@ -186,7 +186,7 @@ then
     if [[ "$with_data" == "true" && ! -d ${build_root}/data ]]
     then
         echo "ERROR: ${build_root}/data not found while asking for --data".
-    else
+    fi
 fi
 
 # Build (also build when asked for testing, to make sure we test what we want)
