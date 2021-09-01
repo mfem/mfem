@@ -1,0 +1,65 @@
+MFEM mesh v1.0
+
+#
+# MFEM Geometry Types (see mesh/geom.hpp):
+#
+# POINT       = 0
+# SEGMENT     = 1
+# TRIANGLE    = 2
+# SQUARE      = 3
+# TETRAHEDRON = 4
+# CUBE        = 5
+#
+
+dimension
+1
+
+# format: <attribute> <geometry type> <vertex 0> <vertex 1> ...
+elements
+16
+1 1 0 1
+1 1 1 2
+1 1 2 3
+1 1 3 4
+1 1 4 5
+1 1 5 6
+1 1 6 7
+1 1 7 8
+1 1 8 9
+1 1 9 10
+1 1 10 11
+1 1 11 12
+1 1 12 13
+1 1 13 14
+1 1 14 15
+1 1 15 0
+
+
+boundary
+0
+
+vertices
+16
+
+nodes
+FiniteElementSpace
+FiniteElementCollection: L2_T1_1D_P1
+VDim: 1
+Ordering: 1
+
+0.0000 0.0625
+0.0625 0.1250
+0.1250 0.1875
+0.1875 0.2500
+0.2500 0.3125
+0.3125 0.3750
+0.3750 0.4375
+0.4375 0.5000
+0.5000 0.5625
+0.5625 0.6250
+0.6250 0.6875
+0.6875 0.7500
+0.7500 0.8125
+0.8125 0.8750
+0.8750 0.9375
+0.9375 1.0000
