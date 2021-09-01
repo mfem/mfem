@@ -350,7 +350,6 @@ int main(int argc, char *argv[])
    {
       cout << mesh_msg.str();
    }
-   pmesh->ReorientTetMesh();
    init_timer.Stop();
 
    // Obtain the hierarchy of agglomerate topologies.

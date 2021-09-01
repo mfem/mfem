@@ -288,8 +288,7 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
-miniapps/parelag/MultilevelHcurlSolver
-miniapps/parelag/MultilevelHdivSolver
+miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
 # Unit test binary and outputs
