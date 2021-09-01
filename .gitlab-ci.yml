@@ -122,11 +122,11 @@ setup_baseline:
     - echo ${ALLOC_NAME}
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - echo ${JOBID}
-    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 30 -N 1 tests/gitlab/build_and_test
+    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 30 -N 1 tests/gitlab/build_and_test --spec=${SPEC} --build-root=${BUILD_ROOT} --data
 
 .build_toss_3_x86_64_ib_corona_script:
   script:
-    - srun -p mi60 -t 15 -N 1 tests/gitlab/build_and_test
+    - srun -p mi60 -t 15 -N 1 tests/gitlab/build_and_test --spec=${SPEC} --build-root=${BUILD_ROOT} --data
 
 # Lassen uses a different job scheduler (spectrum lsf) that does not allow
 # pre-allocation the same way slurm does.  We use pdebug queue on lassen to
@@ -134,7 +134,7 @@ setup_baseline:
 # builds.
 .build_blueos_3_ppc64le_ib_script:
   script:
-    - lalloc 1 -W 30 -q pdebug tests/gitlab/build_and_test
+    - lalloc 1 -W 30 -q pdebug tests/gitlab/build_and_test --spec=${SPEC} --build-root=${BUILD_ROOT} --data
 
 # Shared script for baseline and sample-run-baseline, the value of BASELINE_TEST
 # differentiates between the two tests.
