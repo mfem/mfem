@@ -119,7 +119,7 @@ then
 
     if [[ -z ${spec} ]]
     then
-        echo "SPEC is undefined, aborting..."
+        echo "--spec is mandatory to build dependencies, aborting..."
         exit 1
     fi
 
