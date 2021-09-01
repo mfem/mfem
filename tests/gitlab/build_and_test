@@ -92,7 +92,6 @@ do
         --data)
             with_data=true
             shift # past argument
-            shift # past value
             ;;
         --build-root)
             build_root="$2"
