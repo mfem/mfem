@@ -90,6 +90,11 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 
 # Enable languages.
 enable_language(CXX)
+if (MINGW)
+   # MinGW GCC does not expose the functions jn/_jn, yn/_yn (used in Example
+   # 25/25p) unless we use '-std=gnu++11':
+   set(CMAKE_CXX_EXTENSIONS ON)
+endif()
 if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
