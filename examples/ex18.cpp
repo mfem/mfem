@@ -162,6 +162,56 @@ void show_maps(Mesh& mesh, vector<int>& coarse_map, vector<int>& fine_map)
    }
 }
 
+void compute_reference_errors(int ti, GridFunction& den,
+                              const vector<int>& coarse_map,
+                              const vector<int>& fine_map,
+                              vector<double>& errors)
+{
+   // copy solution to tmp mesh
+   //Mesh tmp_mesh(mesh);
+   GridFunction tmp_den(den);
+   FiniteElementSpace& tmp_fes(*tmp_den.FESpace());
+   Mesh& tmp_mesh(*tmp_fes.GetMesh());
+
+   // refine mesh and soln to reference resolution
+   Array<int> refs;
+   for (int i = 0; i < tmp_mesh.GetNE(); i++) {
+      if (tmp_mesh.ncmesh->GetElementDepth(i) == 0) {
+         refs.Append(i);
+      }
+   }
+   tmp_mesh.GeneralRefinement(refs);
+   tmp_den.FESpace()->Update();
+   tmp_den.Update();
+
+   // read in reference mesh
+   ostringstream fn;
+   fn << "reference-" << ti << ".mesh";
+   Mesh ref_mesh(fn.str().c_str());
+
+   // read in reference density
+   ostringstream sol_name;
+   sol_name << "reference-" << ti << "-" << 0 << ".gf";
+   ifstream gf_ifs(sol_name.str());
+   GridFunction ref_den(&ref_mesh, gf_ifs);
+
+   // integrate L2 errors
+   GridFunctionCoefficient ref_den_coeff(&ref_den);
+   Vector err(ref_mesh.GetNE());
+   tmp_den.ComputeElementL2Errors(ref_den_coeff, err);
+
+   // sum L2 errors to reference mesh
+   for (size_t i = 0; i < coarse_map.size(); i++) {
+      if (coarse_map[i] > 0) {
+         errors[i] = err[coarse_map[i]];
+      }
+      if (fine_map[i] > 0) {
+         errors[i] = err[fine_map[i]];
+         errors[i] += err[fine_map[i]+1];
+      }
+   }
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -178,6 +228,7 @@ int main(int argc, char *argv[])
    Array<int> rseq;
    int nseq = 0;
    int regrid_period = 1;
+   int greedy_refine = 0;
 
    int precision = 8;
    cout.precision(precision);
@@ -209,6 +260,8 @@ int main(int argc, char *argv[])
                   "Element sequence to refine.");
    args.AddOption(&regrid_period, "-rp", "--regrid-period",
                   "Timesteps per regrid.");
+   args.AddOption(&greedy_refine, "-gr", "--greedy-refine",
+                  "Use greedy refinement strategy.");
 
    args.Parse();
    if (!args.Good())
@@ -367,20 +420,32 @@ int main(int argc, char *argv[])
    }
 
    //show_maps(mesh,coarse_map,fine_map);
-   
+
    // vector<int> coarse_map(mesh.GetNE());
    // for (int i = 0; i < coarse_map.size(); ++i) {
    //    coarse_map[i] = i;
    // }
-   
+
    // the elements that are currently refined
    set<int> cur_ref_set; // in base numbering
-   
+
    // Integrate in time.
    bool done = false;
    for (int ti = 0; !done; )
    {
-      // adapt mesh to new element
+
+      if (greedy_refine) {
+         vector<double> ref_errors(coarse_map.size());
+         compute_reference_errors(ti, rho, coarse_map, fine_map, ref_errors);
+         vector<double>::iterator it;
+         it = std::max_element(ref_errors.begin(), ref_errors.end());
+         int ref_max = std::distance(ref_errors.begin(), it);
+         std::cout << "max at: " << std::distance(ref_errors.begin(), it) << '\n';
+         rseq.SetSize(nseq+1);
+         rseq[nseq] = ref_max;
+      }
+
+      // adapt mesh to new element(s)
       if (rseq.Size() && !(ti % regrid_period )) {
 
          //printf("*** begin refinement ***\n");
@@ -410,9 +475,9 @@ int main(int argc, char *argv[])
                              std::inserter(refine_set, refine_set.begin()));
 
          set<int>::iterator it;
-         
+
          // printf("cur_ref set\n");
-         // 
+         //
          // for (it = cur_ref_set.begin(); it != cur_ref_set.end(); ++it) {
          //    const int& i = *it;
          //    printf("%d ",i);
@@ -449,7 +514,7 @@ int main(int argc, char *argv[])
             //printf("adding %d -> %d to be refined\n",i,coarse_map[i]);
             els.Append(coarse_map[i]);
          }
-         
+
          if (els.Size()) {
             //printf("  ** start refinements **\n");
             mesh.GeneralRefinement(els);
@@ -506,7 +571,7 @@ int main(int argc, char *argv[])
             //show_maps(mesh,coarse_map,fine_map);
          }
 
-         
+
          cur_ref_set = new_ref_set;
 
          // Perform any new derefinements
@@ -581,14 +646,14 @@ int main(int argc, char *argv[])
                      // was fine, still fine
                      fine_map[i] = newj;
                   }
-               }   
+               }
                //printf("mesh j old grid coarse = %d\n",jcoarse);
                if (jcoarse > -1) {
                   int newj = old2new[jcoarse];
                   coarse_map[i] = newj;
                }
             }
-               
+
             // printf("new coarse_map is:\n");
             // for (size_t i = 0; i < coarse_map.size(); i++) {
             //    printf("%lu -> %d\n",i,coarse_map[i]);
@@ -597,28 +662,40 @@ int main(int argc, char *argv[])
             // for (size_t i = 0; i < fine_map.size(); i++) {
             //    printf("%lu -> %d\n",i,fine_map[i]);
             // }
-            
+
             //printf("  ** done derefinements **\n");
 
             //printf("maps after derefinement\n");
             //show_maps(mesh,coarse_map,fine_map);
-            
-         }
 
-         
-         
-         {
-            ofstream mesh_ofs("vortex-refined.mesh");
-            mesh_ofs.precision(precision);
-            mesh_ofs << mesh;
          }
 
       }
+
+      // Output the current solution.
+      {
+         ostringstream fn;
+         fn << "soln-" << ti << ".mesh";
+         ofstream mesh_ofs(fn.str());
+         mesh_ofs.precision(precision);
+         mesh_ofs << mesh;
+
+         for (int k = 0; k < num_equation; k++)
+         {
+            GridFunction uk(&fes, u_block.GetBlock(k));
+            ostringstream sol_name;
+            sol_name << "soln-" << ti << "-" << k << ".gf";
+            ofstream sol_ofs(sol_name.str().c_str());
+            sol_ofs.precision(precision);
+            sol_ofs << uk;
+         }
+      }
+
 
       if (cfl > 0) {
          dt = estimate_dt(cfl, mesh, sol, A, order);
       }
-      
+
       double dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
@@ -675,7 +752,7 @@ int main(int argc, char *argv[])
          }
       }
       mesh.GeneralRefinement(refs);
-      
+
       amr_update(fes, dfes, vfes, u_block, rho, rho_u, rho_e, sol);
 
       Mesh mesh_ref("reference.mesh");
