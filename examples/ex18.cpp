@@ -162,16 +162,19 @@ void show_maps(Mesh& mesh, vector<int>& coarse_map, vector<int>& fine_map)
    }
 }
 
-void compute_reference_errors(int ti, GridFunction& den,
+void compute_reference_errors(int ti,
+                              FiniteElementCollection& fec,
+                              Mesh& mesh,
+                              GridFunction& den,
                               const vector<int>& coarse_map,
                               const vector<int>& fine_map,
                               vector<double>& errors)
 {
-   // copy solution to tmp mesh
-   //Mesh tmp_mesh(mesh);
-   GridFunction tmp_den(den);
-   FiniteElementSpace& tmp_fes(*tmp_den.FESpace());
-   Mesh& tmp_mesh(*tmp_fes.GetMesh());
+   // Create a temp copy of the mesh for refinement to reference resolution
+   Mesh tmp_mesh(mesh);
+   FiniteElementSpace tmp_fes(&tmp_mesh, &fec);
+   GridFunction tmp_den(&tmp_fes);
+   tmp_den = den; // copy data
 
    // refine mesh and soln to reference resolution
    Array<int> refs;
@@ -200,15 +203,22 @@ void compute_reference_errors(int ti, GridFunction& den,
    Vector err(ref_mesh.GetNE());
    tmp_den.ComputeElementL2Errors(ref_den_coeff, err);
 
-   // sum L2 errors to reference mesh
+   {
+      ostringstream sol_name;
+      sol_name << "refined-current-rho-" << ti << ".gf";
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs << tmp_den;
+   }
+
+
+   // sum L2 errors to reference mesh. The reference errors are always
+   // on a fully refined mesh.
+   int k = 0;
    for (size_t i = 0; i < coarse_map.size(); i++) {
-      if (coarse_map[i] > 0) {
-         errors[i] = err[coarse_map[i]];
-      }
-      if (fine_map[i] > 0) {
-         errors[i] = err[fine_map[i]];
-         errors[i] += err[fine_map[i]+1];
-      }
+      double e0 = err[k];
+      double e1 = err[k+1];
+      errors[i] = sqrt(e0*e0+e1*e1);
+      k += 2;
    }
 }
 
@@ -388,7 +398,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << mesh << rho_u;
+         sout << "solution\n" << mesh << rho;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -434,9 +444,10 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
 
-      if (greedy_refine) {
+      if (greedy_refine && !(ti % regrid_period )) {
          vector<double> ref_errors(coarse_map.size());
-         compute_reference_errors(ti, rho, coarse_map, fine_map, ref_errors);
+         compute_reference_errors(ti, fec, mesh, rho,
+                                  coarse_map, fine_map, ref_errors);
          vector<double>::iterator it;
          it = std::max_element(ref_errors.begin(), ref_errors.end());
          int ref_max = std::distance(ref_errors.begin(), it);
