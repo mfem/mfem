@@ -66,7 +66,7 @@ project_dir="$(pwd)"
 mode=""
 build_root=""
 spec=""
-with_data=$false
+with_data=false
 
 sys_type=${SYS_TYPE:-""}
 py_env_path=${PYTHON_ENVIRONMENT_PATH:-""}
@@ -90,7 +90,7 @@ do
             shift # past argument
             ;;
         --data)
-            with_data=$true
+            with_data=true
             shift # past argument
             shift # past value
             ;;
@@ -184,7 +184,7 @@ then
         ln -sf ${build_root}/data ${project_dir}/../
     fi
 
-    if $with_data && ! -d ${build_root}/data
+    if [[ "$with_data" == "true" && ! -d ${build_root}/data ]]
     then
         echo "ERROR: ${build_root}/data not found while asking for --data".
     else
