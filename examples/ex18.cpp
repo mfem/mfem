@@ -363,6 +363,27 @@ int main(int argc, char *argv[])
          sol_ofs.precision(precision);
          sol_ofs << uk;
       }
+
+      // Output the current error on the reference mesh
+      {
+         vector<double> ref_errors(coarse_map.size());
+         compute_reference_errors(ti, fec, mesh, rho,
+                                  coarse_map, fine_map, ref_errors);
+         ostringstream fn;
+         fn << "err-" << ti << ".dat";
+         ofstream err_ofs(fn.str());
+         vector<double>::iterator it;
+         for (it = ref_errors.begin(); it != ref_errors.end(); ++it) {
+            int i = std::distance(ref_errors.begin(), it);
+            double err = *it;
+            // "mark" refinements with negation. We'll use this to vis
+            // the refined regions on the error plots.
+            if (coarse_map[i] < 0) err *= -1;
+            err_ofs << i << " " << err << endl;
+         }
+      }
+
+
    }
 
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
