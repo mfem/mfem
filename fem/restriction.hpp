@@ -247,22 +247,22 @@ protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
-       the face described by the info.
+       the face described by the @a face.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetFaceDofsScatterIndices(const Mesh::FaceInformation &info,
+   void SetFaceDofsScatterIndices(const Mesh::FaceInformation &face,
                                   const int face_index,
                                   const ElementDofOrdering ordering);
 
    /** @brief Set the gathering indices of elem1 for the interior face described
-       by the info.
+       by the @a face.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetFaceDofsGatherIndices(const Mesh::FaceInformation &info,
+   void SetFaceDofsGatherIndices(const Mesh::FaceInformation &face,
                                  const int face_index,
                                  const ElementDofOrdering ordering);
 };
@@ -403,97 +403,97 @@ protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
-       the face described by the info.
+       the face described by the @a face.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetFaceDofsScatterIndices1(const Mesh::FaceInformation &info,
+   void SetFaceDofsScatterIndices1(const Mesh::FaceInformation &face,
                                    const int face_index);
 
    /** @brief Set the scattering indices of elem2, and increment the offsets for
-       the face described by the info.
+       the face described by the @a face.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetFaceDofsScatterIndices2(const Mesh::FaceInformation &info,
+   void SetFaceDofsScatterIndices2(const Mesh::FaceInformation &face,
                                    const int face_index);
 
    /** @brief Permute and set the scattering indices of elem2, and increment the
-       offsets for the face described by the info. The permutation orders the
+       offsets for the face described by the @a face. The permutation orders the
        dofs of elem2 as the ones of elem1.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void PermuteAndSetFaceDofsScatterIndices2(const Mesh::FaceInformation &info,
+   void PermuteAndSetFaceDofsScatterIndices2(const Mesh::FaceInformation &face,
                                              const int face_index);
 
    /** @brief Set the scattering indices of elem2 for the shared face described
-       by the info.
+       by the @a face.
 
       Note: This method uses a trick to differentiate dof location inter/shared,
       the gid index is shifted by ndofs for shared dofs.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetSharedFaceDofsScatterIndices2(const Mesh::FaceInformation &info,
+   void SetSharedFaceDofsScatterIndices2(const Mesh::FaceInformation &face,
                                          const int face_index);
 
    /** @brief Permute and set the scattering indices of elem2 for the shared
-       face described by the info. The permutation orders the dofs of elem2 as
+       face described by the @a face. The permutation orders the dofs of elem2 as
        the ones of elem1.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
    void PermuteAndSetSharedFaceDofsScatterIndices2(
-      const Mesh::FaceInformation &info,
+      const Mesh::FaceInformation &face,
       const int face_index);
 
    /** @brief Set the scattering indices of elem2 for the boundary face
-       described by the info.
+       described by the @a face.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetBoundaryDofsScatterIndices2(const Mesh::FaceInformation &info,
+   void SetBoundaryDofsScatterIndices2(const Mesh::FaceInformation &face,
                                        const int face_index);
 
    /** @brief Set the gathering indices of elem1 for the interior face described
-       by the info.
+       by the @a face.
 
        Note: This function modifies the offsets.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetFaceDofsGatherIndices1(const Mesh::FaceInformation &info,
+   void SetFaceDofsGatherIndices1(const Mesh::FaceInformation &face,
                                   const int face_index);
 
    /** @brief Set the gathering indices of elem2 for the interior face described
-       by the info.
+       by the @a face.
 
        Note: This function modifies the offsets.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void SetFaceDofsGatherIndices2(const Mesh::FaceInformation &info,
+   void SetFaceDofsGatherIndices2(const Mesh::FaceInformation &face,
                                   const int face_index);
 
    /** @brief Permute and set the gathering indices of elem2 for the interior
-       face described by the info. The permutation orders the dofs of elem2 as
+       face described by the @a face. The permutation orders the dofs of elem2 as
        the ones of elem1.
 
        Note: This function modifies the offsets.
 
-       @param[in] info The face information of the current face.
+       @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
     */
-   void PermuteAndSetFaceDofsGatherIndices2(const Mesh::FaceInformation &info,
+   void PermuteAndSetFaceDofsGatherIndices2(const Mesh::FaceInformation &face,
                                             const int face_index);
 };
 
