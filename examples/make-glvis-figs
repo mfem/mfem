@@ -1,0 +1,19 @@
+window 0 0 400 400
+
+# Initial solution
+solution soln-0.mesh soln-0-0.gf
+
+# Setup the GLVis scene. Executed after pressing the space bar.
+{
+   perspective off
+#   view 0 0
+   viewcenter 0.2 0
+   valuerange 0.0 1.0
+#   zoom 1.5
+   keys ca
+}
+
+# Take multiple screenshots. Executed after pressing the space bar.
+{
+#insert the screenshot commands here
+}
