@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,10 +21,11 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 ex17\
-  ex18 ex19 ex20 ex21 ex22 ex23 ex24 ex25
-PAR_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p ex12p\
- ex13p ex14p ex15p ex16p ex17p ex18p ex19p ex20p ex21p ex22p ex24p ex25p
+SEQ_EXAMPLES = ex0 ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 \
+  ex17 ex18 ex19 ex20 ex21 ex22 ex23 ex24 ex25 ex26 ex27 ex28
+PAR_EXAMPLES = ex0p ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p \
+  ex12p ex13p ex14p ex15p ex16p ex17p ex18p ex19p ex20p ex21p ex22p ex24p \
+  ex25p ex26p ex27p ex28p
 
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -32,8 +33,14 @@ else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
 SUBDIRS =
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   SUBDIRS += sundials
+ifeq ($(MFEM_USE_AMGX),YES)
+   SUBDIRS += amgx
+endif
+ifeq ($(MFEM_USE_GINKGO),YES)
+   SUBDIRS += ginkgo
+endif
+ifeq ($(MFEM_USE_HIOP),YES)
+   SUBDIRS += hiop
 endif
 ifeq ($(MFEM_USE_PETSC),YES)
    SUBDIRS += petsc
@@ -41,11 +48,11 @@ endif
 ifeq ($(MFEM_USE_PUMI),YES)
    SUBDIRS += pumi
 endif
-ifeq ($(MFEM_USE_HIOP),YES)
-   SUBDIRS += hiop
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   SUBDIRS += sundials
 endif
-ifeq ($(MFEM_USE_GINKGO),YES)
-   SUBDIRS += ginkgo
+ifeq ($(MFEM_USE_SUPERLU),YES)
+   SUBDIRS += superlu
 endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
@@ -91,6 +98,10 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, Serial example)
 
 # Testing: Specific execution options
+ex0-test-seq: ex0
+	@$(call mfem-test,$<,, Serial example,,1)
+ex0p-test-par: ex0p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,,1)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Serial example)
 ex1p-test-par: ex1p
@@ -103,11 +114,25 @@ ex15-test-seq: ex15
 	@$(call mfem-test,$<,, Serial example,-e 1)
 ex15p-test-par: ex15p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-e 1)
+ex27-test-seq: ex27
+	@$(call mfem-test,$<,, Serial example,-dg)
+ex27p-test-par: ex27p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-dg)
 # Testing: optional tests
 ifeq ($(MFEM_USE_STRUMPACK),YES)
 ex11p-test-strumpack: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), STRUMPACK example,--strumpack)
 test-par-YES: ex11p-test-strumpack
+endif
+ifeq ($(MFEM_USE_SUPERLU),YES)
+ex11p-test-superlu: ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), SuperLU_DIST example,--superlu)
+test-par-YES: ex11p-test-superlu
+endif
+ifeq ($(MFEM_USE_MKL_CPARDISO),YES)
+ex11p-test-cpardiso: ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), MKL_CPARDISO example,--cpardiso)
+test-par-YES: ex11p-test-cpardiso
 endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
@@ -123,7 +148,7 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh
+	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh ex6p-checkpoint.*
 	@rm -rf Example5* Example9* Example15* Example16* Example23* ParaView
 	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.*
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
@@ -136,3 +161,4 @@ clean-exec:
 	@rm -f ex21*.mesh ex21*.sol ex21p_*.*
 	@rm -f ex23.mesh ex23-*.gf
 	@rm -f ex25.mesh ex25-*.gf ex25p-*.*
+	@rm -rf ex28_* ex28p_*

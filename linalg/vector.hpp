@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,10 +42,19 @@ namespace mfem
 inline int CheckFinite(const double *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
+#ifndef __CYGWIN__
 inline double infinity()
 {
    return std::numeric_limits<double>::infinity();
 }
+#else
+// On Cygwin math.h defines a function 'infinity()' which will conflict with the
+// above definition if we have 'using namespace mfem;' and try to use something
+// like 'double a = infinity();'. This 'infinity()' function is non-standard and
+// is defined by the Newlib C standard library implementation used by Cygwin,
+// see https://en.wikipedia.org/wiki/Newlib, http://www.sourceware.org/newlib.
+using ::infinity;
+#endif
 
 /// Vector data type.
 class Vector
@@ -76,6 +85,16 @@ public:
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
+
+   /** @brief Create a Vector of size @a size_ using host MemoryType @a h_mt and
+       device MemoryType @a d_mt. */
+   Vector(int size_, MemoryType h_mt, MemoryType d_mt)
+      : data(size_, h_mt, d_mt), size(size_) { }
+
+   /// Create a vector using a braced initializer list
+   template <int N>
+   explicit Vector(const double (&values)[N]) : Vector(N)
+   { std::copy(values, values + N, GetData()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
@@ -155,6 +174,12 @@ public:
 
    /// Destroy a vector
    void Destroy();
+
+   /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
+       and the data is valid only on device, move it to host before deleting.
+       Invalidates the device memory. */
+   void DeleteDevice(bool copy_to_host = true)
+   { data.DeleteDevice(copy_to_host); }
 
    /// Returns the size of the vector.
    inline int Size() const { return size; }
@@ -242,6 +267,8 @@ public:
 
    Vector &operator-=(const Vector &v);
 
+   Vector &operator+=(double c);
+
    Vector &operator+=(const Vector &v);
 
    /// (*this) += a * Va
@@ -281,21 +308,48 @@ public:
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
 
+   /// Extract entries listed in @a dofs to the output Vector @a elemvect.
+   /** Negative dof values cause the -dof-1 position in @a elemvect to receive
+       the -val in from this Vector. */
    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
+
+   /// Extract entries listed in @a dofs to the output array @a elem_data.
+   /** Negative dof values cause the -dof-1 position in @a elem_data to receive
+       the -val in from this Vector. */
    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 
-   /// Set the entries listed in `dofs` to the given `value`.
+   /// Set the entries listed in @a dofs to the given @a value.
+   /** Negative dof values cause the -dof-1 position in this Vector to receive
+       the -value. */
    void SetSubVector(const Array<int> &dofs, const double value);
+
+   /** @brief Set the entries listed in @a dofs to the values given in the @a
+       elemvect Vector. Negative dof values cause the -dof-1 position in this
+       Vector to receive the -val from @a elemvect. */
    void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
+
+   /** @brief Set the entries listed in @a dofs to the values given the @a ,
+       elem_data array. Negative dof values cause the -dof-1 position in this
+       Vector to receive the -val from @a elem_data. */
    void SetSubVector(const Array<int> &dofs, double *elem_data);
 
-   /// Add (element) subvector to the vector.
+   /** @brief Add elements of the @a elemvect Vector to the entries listed in @a
+       dofs. Negative dof values cause the -dof-1 position in this Vector to add
+       the -val from @a elemvect. */
    void AddElementVector(const Array<int> & dofs, const Vector & elemvect);
+
+   /** @brief Add elements of the @a elem_data array to the entries listed in @a
+       dofs. Negative dof values cause the -dof-1 position in this Vector to add
+       the -val from @a elem_data. */
    void AddElementVector(const Array<int> & dofs, double *elem_data);
+
+   /** @brief Add @a times the elements of the @a elemvect Vector to the entries
+       listed in @a dofs. Negative dof values cause the -dof-1 position in this
+       Vector to add the -a*val from @a elemvect. */
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
 
-   /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
+   /// Set all vector entries NOT in the @a dofs Array to the given @a val.
    void SetSubVectorComplement(const Array<int> &dofs, const double val);
 
    /// Prints vector to stream out.
@@ -364,20 +418,33 @@ public:
    { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Construct a wrapper Vector from SUNDIALS N_Vector.
-   explicit Vector(N_Vector nv);
+   /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
+   MFEM_DEPRECATED explicit Vector(N_Vector nv);
 
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector() { return N_VMake_Serial(Size(), GetData()); }
+   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
+   /** @deprecated The returned N_Vector must be destroyed by the caller. */
+   MFEM_DEPRECATED virtual N_Vector ToNVector()
+   { return N_VMake_Serial(Size(), GetData()); }
 
-   /** @brief Update an existing wrapper SUNDIALS N_Vector to point to this
-       Vector. */
-   virtual void ToNVector(N_Vector &nv);
+   /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
+       Vector.
+
+       \param[in] nv N_Vector to assign this vector's data to
+       \param[in] global_length An optional parameter that designates the global
+        length. If nv is a parallel vector and global_length == 0 then this
+        method will perform a global reduction and calculate the global length
+   */
+   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
 #endif
 };
 
 // Inline methods
+
+template <typename T>
+inline T ZeroSubnormal(T val)
+{
+   return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
+}
 
 inline bool IsFinite(const double &val)
 {

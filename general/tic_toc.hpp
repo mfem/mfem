@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,12 +38,29 @@ private:
 
 public:
    StopWatch();
+
+   /// Clear the elapsed time on the stopwatch and restart it if it's running.
    void Clear();
+
+   /// Clear the elapsed time and start the stopwatch.
    void Start();
+
+   /// Stop the stopwatch.
    void Stop();
+
+   /// Return the time resolution available to the stopwatch.
    double Resolution();
+
+   /** Return the number of real seconds elapsed since the stopwatch was
+       started. */
    double RealTime();
+
+   /** Return the number of user seconds elapsed since the stopwatch was
+       started. */
    double UserTime();
+
+   /** Return the number of system seconds elapsed since the stopwatch was
+       started. */
    double SystTime();
    ~StopWatch();
 };
@@ -51,10 +68,10 @@ public:
 
 extern StopWatch tic_toc;
 
-/// Start timing
+/// Start the tic_toc timer
 extern void tic();
 
-/// End timing
+/// End timing and return the time from tic() to toc() in seconds.
 extern double toc();
 
 }

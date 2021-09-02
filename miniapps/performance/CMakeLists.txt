@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,22 +18,23 @@ endif()
 set(PERFORMANCE_CXX_OPTIONS)
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
   list(APPEND PERFORMANCE_CXX_OPTIONS
-    ${MFEM_PERF_CXX_ARCH_FLAGS}
-    "-Wpedantic"
-    "-Wall"
+    "-march=native"
     "-fcolor-diagnostics"
     "-fvectorize"
     "-fslp-vectorize"
-    "-fslp-vectorize-aggressive"
     "-ffp-contract=fast")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     ${MFEM_PERF_CXX_ARCH_FLAGS}
-    "-Wall"
-    "--param" "max-completely-peel-times=3")
+    "-Wall")
   if (NOT MFEM_USE_CUDA)
      list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
   endif()
+  if (NOT MFEM_USE_SIMD)
+    list(APPEND PERFORMANCE_CXX_OPTIONS "--param" "max-completely-peel-times=3")
+  endif()
+elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
+  list(APPEND PERFORMANCE_CXX_OPTIONS "-xHost")
 endif()
 
 add_mfem_miniapp(performance_ex1

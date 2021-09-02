@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #ifndef MFEM_TEXT
 #define MFEM_TEXT
 
+#include "../config/config.hpp"
 #include <istream>
 #include <iomanip>
 #include <sstream>
@@ -24,6 +25,9 @@ namespace mfem
 
 // Utilities for text parsing
 
+using std::to_string;
+
+/// Check if the stream starts with @a comment_char. If so skip it.
 inline void skip_comment_lines(std::istream &is, const char comment_char)
 {
    while (1)
@@ -37,7 +41,7 @@ inline void skip_comment_lines(std::istream &is, const char comment_char)
    }
 }
 
-// Check for, and remove, a trailing '\r'.
+/// Check for, and remove, a trailing '\\r' from and std::string.
 inline void filter_dos(std::string &line)
 {
    if (!line.empty() && *line.rbegin() == '\r')
@@ -46,19 +50,7 @@ inline void filter_dos(std::string &line)
    }
 }
 
-// Convert an integer to a string
-inline std::string to_string(int i)
-{
-   std::stringstream ss;
-   ss << i;
-
-   // trim leading spaces
-   std::string out_str = ss.str();
-   out_str = out_str.substr(out_str.find_first_not_of(" \t"));
-   return out_str;
-}
-
-// Convert an integer to a 0-padded string with the given number of 'digits'
+/// Convert an integer to a 0-padded string with the given number of @a digits
 inline std::string to_padded_string(int i, int digits)
 {
    std::ostringstream oss;
@@ -66,7 +58,7 @@ inline std::string to_padded_string(int i, int digits)
    return oss.str();
 }
 
-// Convert a string to an int
+/// Convert a string to an int
 inline int to_int(const std::string& str)
 {
    int i;

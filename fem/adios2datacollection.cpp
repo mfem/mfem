@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,8 @@
 // adios2: Adaptable Input/Output System https://github.com/ornladios/ADIOS2
 
 #include "adios2datacollection.hpp"
+
+#ifdef MFEM_USE_ADIOS2
 
 namespace mfem
 {
@@ -85,6 +87,6 @@ noexcept
    stream->SetRefinementLevel(levels_of_detail);
 }
 
-} //end namespace mfem
+} // namespace mfem
 
-
+#endif // MFEM_USE_ADIOS2

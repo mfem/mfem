@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,12 +33,21 @@ private:
    StackPart <Elem, Num> *TopPart, *TopFreePart;
    int UsedInTop, SSize;
 public:
+   /// Construct an empty stack.
    Stack() { TopPart = TopFreePart = NULL; UsedInTop = Num; SSize = 0; }
+   /// Return the number of elements on the stack.
    int Size() const { return SSize; }
+   /// Push element 'E' on the stack.
    void Push (Elem E);
+   /// Pop an element off the stack and return it.
    Elem Pop();
+   /// Clear the elements off the stack.
    void Clear();
+
+   /// Swap the data in this stack with the data in @a other.
    void Swap(Stack<Elem, Num> &other);
+
+   /// Return the number of bytes used by the stack.
    size_t MemoryUsage() const;
    ~Stack() { Clear(); }
 };

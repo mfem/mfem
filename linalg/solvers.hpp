@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
+#include "handle.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -30,6 +31,36 @@ namespace mfem
 
 class BilinearForm;
 
+/// Abstract base class for an iterative solver monitor
+class IterativeSolverMonitor
+{
+protected:
+   /// The last IterativeSolver to which this monitor was attached.
+   const class IterativeSolver *iter_solver;
+
+public:
+   IterativeSolverMonitor() : iter_solver(nullptr) {}
+
+   virtual ~IterativeSolverMonitor() {}
+
+   /// Monitor the residual vector r
+   virtual void MonitorResidual(int it, double norm, const Vector &r,
+                                bool final)
+   {
+   }
+
+   /// Monitor the solution vector x
+   virtual void MonitorSolution(int it, double norm, const Vector &x,
+                                bool final)
+   {
+   }
+
+   /** @brief This method is invoked by ItertiveSolver::SetMonitor, informing
+       the monitor which IterativeSolver is using it. */
+   void SetIterativeSolver(const IterativeSolver &solver)
+   { iter_solver = &solver; }
+};
+
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
@@ -42,6 +73,7 @@ private:
 protected:
    const Operator *oper;
    Solver *prec;
+   IterativeSolverMonitor *monitor = nullptr;
 
    int max_iter, print_level;
    double rel_tol, abs_tol;
@@ -52,6 +84,8 @@ protected:
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   void Monitor(int it, double norm, const Vector& r, const Vector& x,
+                bool final=false) const;
 
 public:
    IterativeSolver();
@@ -74,6 +108,17 @@ public:
 
    /// Also calls SetOperator for the preconditioner if there is one
    virtual void SetOperator(const Operator &op);
+
+   /// Set the iterative solver monitor
+   void SetMonitor(IterativeSolverMonitor &m)
+   { monitor = &m; m.SetIterativeSolver(*this); }
+
+#ifdef MFEM_USE_MPI
+   /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
+       communicator is set. */
+   MPI_Comm GetComm() const
+   { return dot_prod_type == 0 ? MPI_COMM_NULL : comm; }
+#endif
 };
 
 
@@ -87,14 +132,14 @@ public:
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
        the identity on entries in ess_tdof_list, corresponding to (assembled)
-       DIAG_ONE policy or ConstratinedOperator in the matrix-free setting. */
+       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
 
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
-       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
        the matrix-free setting. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
@@ -102,6 +147,7 @@ public:
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    void SetOperator(const Operator &op) { oper = &op; }
    void Setup(const Vector &diag);
 
@@ -113,6 +159,67 @@ private:
    mutable Vector residual;
 
    const Operator *oper;
+};
+
+/// Chebyshev accelerated smoothing with given vector, no matrix necessary
+/** Potentially useful with tensorized operators, for example. This is just a
+    very basic Chebyshev iteration, if you want tolerances, iteration control,
+    etc. wrap this with SLISolver. */
+class OperatorChebyshevSmoother : public Solver
+{
+public:
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The estimated largest eigenvalue of the
+       diagonally preconditoned operator must be provided via
+       max_eig_estimate. */
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, double max_eig_estimate);
+
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The largest eigenvalue of the diagonally
+       preconditoned operator is estimated internally via a power method. The
+       accuracy of the estimated eigenvalue may be controlled via
+       power_iterations and power_tolerance. */
+#ifdef MFEM_USE_MPI
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, MPI_Comm comm = MPI_COMM_NULL, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
+#else
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, int power_iterations = 10, double power_tolerance = 1e-8);
+#endif
+
+   ~OperatorChebyshevSmoother() {}
+
+   void Mult(const Vector&x, Vector &y) const;
+
+   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+
+   void SetOperator(const Operator &op_)
+   {
+      oper = &op_;
+   }
+
+   void Setup();
+
+private:
+   const int order;
+   double max_eig_estimate;
+   const int N;
+   Vector dinv;
+   const Vector &diag;
+   Array<double> coeffs;
+   const Array<int>& ess_tdof_list;
+   mutable Vector residual;
+   mutable Vector helperVector;
+   const Operator* oper;
 };
 
 
@@ -300,7 +407,40 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector r, c;
+   mutable Vector xcur, r, c;
+   mutable Operator *grad;
+
+   // Adaptive linear solver rtol variables
+
+   // Method to determine rtol, 0 means the adaptive algorithm is deactivated.
+   int lin_rtol_type = 0;
+   // rtol to use in first iteration
+   double lin_rtol0;
+   // Maximum rtol
+   double lin_rtol_max;
+   // Function norm ||F(x)|| of the previous iterate
+   mutable double fnorm_last = 0.0;
+   // Linear residual norm of the previous iterate
+   mutable double lnorm_last = 0.0;
+   // Forcing term (linear residual rtol) from the previous iterate
+   mutable double eta_last = 0.0;
+   // Eisenstat-Walker factor gamma
+   double gamma;
+   // Eisenstat-Walker factor alpha
+   double alpha;
+
+   /** @brief Method for the adaptive linear solver rtol invoked before the
+       linear solve. */
+   void AdaptiveLinRtolPreSolve(const Vector &x,
+                                const int it,
+                                const double fnorm) const;
+
+   /** @brief Method for the adaptive linear solver rtol invoked after the
+       linear solve. */
+   void AdaptiveLinRtolPostSolve(const Vector &x,
+                                 const Vector &b,
+                                 const int it,
+                                 const double fnorm) const;
 
 public:
    NewtonSolver() { }
@@ -328,6 +468,52 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
+
+   const Vector &GetCurrentResidual() const { return r; }
+   const Vector &GetCurrentIterate() const { return xcur; }
+
+   /// Enable adaptive linear solver relative tolerance algorithm.
+   /** Compute a relative tolerance for the Krylov method after each nonlinear
+    iteration, based on the algorithm presented in [1].
+
+    The maximum linear solver relative tolerance @a rtol_max should be < 1. For
+    @a type 1 the parameters @a alpha and @a gamma are ignored. For @a type 2
+    @a alpha has to be between 0 and 1 and @a gamma between 1 and 2.
+
+    [1] Eisenstat, Stanley C., and Homer F. Walker. "Choosing the forcing terms
+    in an inexact Newton method."
+    */
+   void SetAdaptiveLinRtol(const int type = 2,
+                           const double rtol0 = 0.5,
+                           const double rtol_max = 0.9,
+                           const double alpha = 0.5 * (1.0 + sqrt(5.0)),
+                           const double gamma = 1.0);
+};
+
+/** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
+    the norm of F(x) - b. Requires only the action of the operator F. */
+class LBFGSSolver : public NewtonSolver
+{
+protected:
+   int m = 10;
+
+public:
+   LBFGSSolver() : NewtonSolver() { }
+
+#ifdef MFEM_USE_MPI
+   LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
+#endif
+
+   void SetHistorySize(int dim) { m = dim; }
+
+   /// Solve the nonlinear system with right-hand side @a b.
+   /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
+   virtual void Mult(const Vector &b, Vector &x) const;
+
+   virtual void SetPreconditioner(Solver &pr)
+   { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
+   virtual void SetSolver(Solver &solver)
+   { MFEM_WARNING("L-BFGS won't use the given solver."); }
 };
 
 /** Adaptive restarted GMRES.
@@ -574,6 +760,25 @@ private:
    mutable Array<int> ipiv;
 };
 
+
+/// Monitor that checks whether the residual is zero at a given set of dofs.
+/** This monitor is useful for checking if the initial guess, rhs, operator, and
+    preconditioner are properly setup for solving in the subspace with imposed
+    essential boundary conditions. */
+class ResidualBCMonitor : public IterativeSolverMonitor
+{
+protected:
+   const Array<int> *ess_dofs_list; ///< Not owned
+
+public:
+   ResidualBCMonitor(const Array<int> &ess_dofs_list_)
+      : ess_dofs_list(&ess_dofs_list_) { }
+
+   void MonitorResidual(int it, double norm, const Vector &r,
+                        bool final) override;
+};
+
+
 #ifdef MFEM_USE_SUITESPARSE
 
 /// Direct sparse solver using UMFPACK
@@ -647,6 +852,61 @@ public:
 };
 
 #endif // MFEM_USE_SUITESPARSE
+
+/// Block diagonal solver for A, each block is inverted by direct solver
+class DirectSubBlockSolver : public Solver
+{
+   SparseMatrix& block_dof;
+   mutable Array<int> local_dofs;
+   mutable Vector sub_rhs;
+   mutable Vector sub_sol;
+   Array<DenseMatrixInverse> block_solvers;
+public:
+   /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
+   /// i-th block, block_dof(i, j) = 0 otherwise.
+   DirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver S such that I - A * S = (I - A * S1) * (I - A * S0).
+/// That is, S = S0 + S1 - S1 * A * S0.
+class ProductSolver : public Solver
+{
+   OperatorPtr A;
+   OperatorPtr S0;
+   OperatorPtr S1;
+public:
+   ProductSolver(Operator* A_, Solver* S0_, Solver* S1_,
+                 bool ownA, bool ownS0, bool ownS1)
+      : Solver(A_->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+#ifdef MFEM_USE_MPI
+/** This smoother does relaxations on an auxiliary space (determined by a map
+    from the original space to the auxiliary space provided by the user).
+    The smoother on the auxiliary space is a HypreSmoother. Its options can be
+    modified through GetSmoother.
+    For example, the space can be the nullspace of div/curl, in which case the
+    smoother can be used to construct a Hiptmair smoother. */
+class AuxSpaceSmoother : public Solver
+{
+   OperatorPtr aux_map_;
+   OperatorPtr aux_system_;
+   OperatorPtr aux_smoother_;
+   void Mult(const Vector &x, Vector &y, bool transpose) const;
+public:
+   AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
+                    bool op_is_symmetric = true, bool own_aux_map = false);
+   virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
+   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
+   virtual void SetOperator(const Operator &op) { }
+   HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
+};
+#endif // MFEM_USE_MPI
 
 }
 

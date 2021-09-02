@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,13 +12,8 @@
 #ifndef MFEM_KERNELS_HPP
 #define MFEM_KERNELS_HPP
 
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
-
 #include "../config/config.hpp"
-#include "../general/cuda.hpp"
+#include "../general/backends.hpp"
 #include "../general/globals.hpp"
 
 #include "matrix.hpp"
@@ -120,7 +115,7 @@ void Symmetrize(const int size, T *data)
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline T Det(const T *data)
 {
-   return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data);
+   return TDetHD<T>(ColumnMajorLayout2D<dim,dim>(), data);
 }
 
 /** @brief Return the inverse a matrix with given @a size and @a data into the
@@ -130,8 +125,8 @@ MFEM_HOST_DEVICE inline
 void CalcInverse(const T *data, T *inv_data)
 {
    typedef ColumnMajorLayout2D<dim,dim> layout_t;
-   const T det = TAdjDet<T>(layout_t(), data, layout_t(), inv_data);
-   TAssign<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
+   const T det = TAdjDetHD<T>(layout_t(), data, layout_t(), inv_data);
+   TAssignHD<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
 }
 
 /** @brief Compute C = A + alpha*B, where the matrices A, B and C are of size @a
@@ -835,7 +830,7 @@ int Reduce3S(const int &mode,
       d2  -= 2*v2*w2;
       d23 -= v2*w3 + v3*w2;
       d3  -= 2*v3*w3;
-      // compute the offdiagonal entries on the first row/column of B which
+      // compute the off-diagonal entries on the first row/column of B which
       // should be zero (for debugging):
 #if 0
       s = d12 - v1*w2 - v2*w1;  // b12 = 0
@@ -1374,6 +1369,45 @@ double CalcSingularvalue<3>(const double *data, const int i)
 have_aa:
 
    return sqrt(fabs(aa))*mult; // take abs before we sort?
+}
+
+
+/// Assuming L.U = P.A for a factored matrix (m x m),
+//  compute x <- A x
+//
+// @param [in] data LU factorization of A
+// @param [in] m square matrix height
+// @param [in] ipiv array storing pivot information
+// @param [in, out] x vector storing right-hand side and then solution
+MFEM_HOST_DEVICE
+inline void LUSolve(const double *data, const int m, const int *ipiv,
+                    double *x)
+{
+   // X <- P X
+   for (int i = 0; i < m; i++)
+   {
+      internal::Swap<double>(x[i], x[ipiv[i]]);
+   }
+
+   // X <- L^{-1} X
+   for (int j = 0; j < m; j++)
+   {
+      const double x_j = x[j];
+      for (int i = j + 1; i < m; i++)
+      {
+         x[i] -= data[i + j * m] * x_j;
+      }
+   }
+
+   // X <- U^{-1} X
+   for (int j = m - 1; j >= 0; j--)
+   {
+      const double x_j = (x[j] /= data[j + j * m]);
+      for (int i = 0; i < j; i++)
+      {
+         x[i] -= data[i + j * m] * x_j;
+      }
+   }
 }
 
 } // namespace kernels

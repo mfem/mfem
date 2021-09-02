@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,7 +47,7 @@ protected:
 
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
-   static const int MAX_VDIM2D = 2;
+   static const int MAX_VDIM2D = 3;
 
    static const int MAX_NQ3D = 1000;
    static const int MAX_ND3D = 1000;

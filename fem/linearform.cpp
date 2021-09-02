@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -199,8 +199,17 @@ void LinearForm::Assemble()
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    fes = f;
-   NewDataAndSize((double *)v + v_offset, fes->GetVSize());
+   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, f->GetVSize()),
+                    f->GetVSize(), false);
    ResetDeltaLocations();
+}
+
+void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
+   fes = f;
+   v.UseDevice(true);
+   this->Vector::MakeRef(v, v_offset, fes->GetVSize());
 }
 
 void LinearForm::AssembleDelta()

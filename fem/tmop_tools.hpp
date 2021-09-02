@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,9 +27,9 @@ private:
    RK4Solver ode_solver;
    Vector nodes0;
    Vector field0;
-
    const double dt_scale;
 
+   void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
    AdvectorCG(double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
@@ -49,10 +49,10 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   Array<uint> el_id_out, code_out, task_id_out;
-   Vector pos_r_out, dist_p_out;
    int dim;
 public:
+   InterpolatorFP() : finder(NULL) { }
+
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
 
@@ -107,47 +107,87 @@ public:
 };
 #endif
 
-class TMOPNewtonSolver : public NewtonSolver
+class TMOPNewtonSolver : public LBFGSSolver
 {
-private:
+protected:
+   // 0 - Newton, 1 - LBFGS.
+   int solver_type;
    bool parallel;
+
+   // Minimum determinant over the whole mesh. Used for mesh untangling.
+   double *min_det_ptr = nullptr;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
+   // These fields are relevant for mixed meshes.
+   IntegrationRules *IntegRules;
+   int integ_order;
+
+   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
+   {
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return ir;
+   }
+
+   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
+
+   double ComputeMinDet(const Vector &x_loc,
+                        const FiniteElementSpace &fes) const;
 
 public:
 #ifdef MFEM_USE_MPI
-   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule) { }
+   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(comm), solver_type(type), parallel(true),
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
-   TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule) { }
+   TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(), solver_type(type), parallel(false),
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
+
+   /// Prescribe a set of integration rules; relevant for mixed meshes.
+   /** If called, this function has priority over the IntegrationRule given to
+       the constructor of the class. */
+   void SetIntegrationRules(IntegrationRules &irules, int order)
+   {
+      IntegRules = &irules;
+      integ_order = order;
+   }
+
+   void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
-};
 
-/// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public NewtonSolver
-{
-private:
-   bool parallel;
+   virtual void Mult(const Vector &b, Vector &x) const
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::Mult(b, x);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::Mult(b, x);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
 
-   // Quadrature points that are checked for negative Jacobians etc.
-   const IntegrationRule &ir;
-
-public:
-#ifdef MFEM_USE_MPI
-   TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule) { }
-#endif
-   TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule) { }
-
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
-
-   virtual void ProcessNewState(const Vector &x) const;
+   virtual void SetSolver(Solver &solver)
+   {
+      if (solver_type == 0)
+      {
+         NewtonSolver::SetSolver(solver);
+      }
+      else if (solver_type == 1)
+      {
+         LBFGSSolver::SetSolver(solver);
+      }
+      else { MFEM_ABORT("Invalid type"); }
+   }
+   virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -272,6 +272,12 @@ public:
 
    /// @note This method always uses Quadrature1D::OpenUniform points.
    const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
+
+   /// Get the Refinement level based on number of points
+   virtual int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
+
+   /// Get the Refinement level based on number of elements
+   virtual int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
 
    ~GeometryRefiner();
 };

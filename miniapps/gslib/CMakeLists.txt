@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,6 +10,9 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_GSLIB)
+  add_mfem_miniapp(schwarz_ex1
+    MAIN schwarz_ex1.cpp
+    LIBRARIES mfem)
 
   add_mfem_miniapp(field-diff
     MAIN field-diff.cpp
@@ -19,11 +22,18 @@ if (MFEM_USE_GSLIB)
     MAIN findpts.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(field-interp
+    MAIN field-interp.cpp
+    LIBRARIES mfem)
+
   # Parallel apps.
   if (MFEM_USE_MPI)
+    add_mfem_miniapp(schwarz_ex1p
+      MAIN schwarz_ex1p.cpp
+      LIBRARIES mfem)
+
     add_mfem_miniapp(pfindpts
-      MAIN findpts.cpp
+      MAIN pfindpts.cpp
       LIBRARIES mfem)
   endif()
-
 endif()

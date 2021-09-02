@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,12 +25,20 @@
 namespace mfem
 {
 
-/// Enumeration defining the assembly level for bilinear and nonlinear form
-/// classes derived from Operator.
+/** @brief Enumeration defining the assembly level for bilinear and nonlinear
+    form classes derived from Operator. */
 enum class AssemblyLevel
 {
-   /// Fully assembled form, i.e. a global sparse matrix in MFEM, Hypre or PETSC
-   /// format.
+   /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
+   /// form, i.e. a global sparse matrix in MFEM, Hypre or PETSC format.
+   /// In the case of a NonlinearForm LEGACY corresponds to an operator that
+   /// is fully evaluated on the fly.
+   /// This assembly level is ALWAYS performed on the host.
+   LEGACY = 0,
+   /// @deprecated Use LEGACY instead.
+   LEGACYFULL = 0,
+   /// Fully assembled form, i.e. a global sparse matrix in MFEM format. This
+   /// assembly is compatible with device execution.
    FULL,
    /// Form assembled at element level, which computes and stores dense element
    /// matrices.
@@ -44,15 +52,21 @@ enum class AssemblyLevel
 };
 
 
-/** Class for bilinear form - "Matrix" with associated FE space and
-    BLFIntegrators. */
+/** @brief A "square matrix" operator for the associated FE space and
+    BLFIntegrators The sum of all the BLFIntegrators can be used form the matrix
+    M. This class also supports other assembly levels specified via the
+    SetAssemblyLevel() function. */
 class BilinearForm : public Matrix
 {
+   friend FABilinearFormExtension;
+
 protected:
-   /// Sparse matrix to be associated with the form. Owned.
+   /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
    SparseMatrix *mat;
 
-   /// Matrix used to eliminate b.c. Owned.
+   /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
+        from the b.c.  Owned.
+       \f$ M + M_e = M_{original} \f$ */
    SparseMatrix *mat_e;
 
    /// FE space on which the form lives. Not owned.
@@ -62,12 +76,12 @@ protected:
    AssemblyLevel assembly;
    /// Element batch size used in the form action (1, 8, num_elems, etc.)
    int batch;
-   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
+   /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
 
-   /// Indicates the Mesh::sequence corresponding to the current state of the
-   /// BilinearForm.
+   /** @brief Indicates the Mesh::sequence corresponding to the current state of
+       the BilinearForm. */
    long sequence;
 
    /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
@@ -115,7 +129,7 @@ protected:
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
-      assembly = AssemblyLevel::FULL;
+      assembly = AssemblyLevel::LEGACY;
       batch = 1;
       ext = NULL;
    }
@@ -147,35 +161,44 @@ public:
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
-   /** This method must be called before assembly. */
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
-   /// Get the assembly level
-   AssemblyLevel GetAssemblyLevel() {return assembly;}
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
-   /** Enable the use of static condensation. For details see the description
-       for class StaticCondensation in fem/staticcond.hpp This method should be
-       called before assembly. If the number of unknowns after static
+   /** @brief Enable the use of static condensation. For details see the
+       description for class StaticCondensation in fem/staticcond.hpp This method
+       should be called before assembly. If the number of unknowns after static
        condensation is not reduced, it is not enabled. */
    void EnableStaticCondensation();
 
-   /** Check if static condensation was actually enabled by a previous call to
-       EnableStaticCondensation(). */
+   /** @brief Check if static condensation was actually enabled by a previous
+       call to EnableStaticCondensation(). */
    bool StaticCondensationIsEnabled() const { return static_cond; }
 
    /// Return the trace FE space associated with static condensation.
    FiniteElementSpace *SCFESpace() const
    { return static_cond ? static_cond->GetTraceFESpace() : NULL; }
 
-   /** Enable hybridization; for details see the description for class
+   /// Enable hybridization.
+   /** For details see the description for class
        Hybridization in fem/hybridization.hpp. This method should be called
        before assembly. */
    void EnableHybridization(FiniteElementSpace *constr_space,
                             BilinearFormIntegrator *constr_integ,
                             const Array<int> &ess_tdof_list);
 
-   /** For scalar FE spaces, precompute the sparsity pattern of the matrix
+   /** @brief For scalar FE spaces, precompute the sparsity pattern of the matrix
        (assuming dense element matrices) based on the types of integrators
        present in the bilinear form. */
    void UsePrecomputedSparsity(int ps = 1) { precompute_sparsity = ps; }
@@ -194,15 +217,16 @@ public:
    /// Use the sparsity of @a A to allocate the internal SparseMatrix.
    void UseSparsity(SparseMatrix &A);
 
-   /** Pre-allocate the internal SparseMatrix before assembly. If the flag
-       'precompute sparsity' is set, the matrix is allocated in CSR format (i.e.
+   /// Pre-allocate the internal SparseMatrix before assembly.
+   /**  If the flag 'precompute sparsity'
+       is set, the matrix is allocated in CSR format (i.e.
        finalized) and the entries are initialized with zeros. */
    void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
 
-   /// Access all integrators added with AddDomainIntegrator().
+   /// Access all the integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
-   /// Access all integrators added with AddBoundaryIntegrator().
+   /// Access all the integrators added with AddBoundaryIntegrator().
    Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
    /** @brief Access all boundary markers added with AddBoundaryIntegrator().
        If no marker was specified when the integrator was added, the
@@ -219,64 +243,85 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBFBFI_Marker() { return &bfbfi_marker; }
 
+   /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
-   /// Returns reference to a_{ij}.
+   /// Returns a reference to: \f$ M_{ij} \f$
    virtual double &Elem(int i, int j);
 
-   /// Returns constant reference to a_{ij}.
+   /// Returns constant reference to: \f$ M_{ij} \f$
    virtual const double &Elem(int i, int j) const;
 
-   /// Matrix vector multiplication.
+   /// Matrix vector multiplication:  \f$ y = M x \f$
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   /** @brief Matrix vector multiplication with the original uneliminated
+       matrix.  The original matrix is \f$ M + M_e \f$ so we have:
+       \f$ y = M x + M_e x \f$ */
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
+   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
    { mat -> AddMult (x, y, a); }
 
+   /** @brief Add the original uneliminated matrix vector multiple to a vector.
+       The original matrix is \f$ M + Me \f$ so we have:
+       \f$ y += M x + M_e x \f$ */
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
+   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const
    { mat->AddMultTranspose(x, y, a); }
 
+   /** @brief Add the original uneliminated matrix transpose vector
+       multiple to a vector. The original matrix is \f$ M + M_e \f$
+       so we have: \f$ y += M^T x + {M_e}^T x \f$ */
    void FullAddMultTranspose(const Vector & x, Vector & y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
+   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { y = 0.0; AddMultTranspose (x, y); }
 
+   /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
-   /// Returns a pointer to (approximation) of the matrix inverse.
+   /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
    virtual MatrixInverse *Inverse() const;
 
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /// Returns a reference to the sparse matrix
+   /// Returns a const reference to the sparse matrix.
    const SparseMatrix &SpMat() const
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
+
+   /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
+
+   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+        to it.  Used for transfering ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
-   /// Returns a reference to the sparse matrix of eliminated b.c.
+   /// Returns a const reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
    const SparseMatrix &SpMatElim() const
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
    }
+
+   /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
    SparseMatrix &SpMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
@@ -311,6 +356,7 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
+   /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
    {
       if (mat != NULL) { *mat = a; }
@@ -328,15 +374,22 @@ public:
        for an AMR mesh. */
    void AssembleDiagonal(Vector &diag) const;
 
-   /// Get the finite element space prolongation matrix
+   /// Get the finite element space prolongation operator.
    virtual const Operator *GetProlongation() const
    { return fes->GetConformingProlongation(); }
-   /// Get the finite element space restriction matrix
+   /// Get the finite element space restriction operator
    virtual const Operator *GetRestriction() const
    { return fes->GetConformingRestriction(); }
    /// Get the output finite element space prolongation matrix
    virtual const Operator *GetOutputProlongation() const
    { return GetProlongation(); }
+   /** @brief Returns the output fe space restriction matrix, transposed
+
+       Logically, this is the transpose of GetOutputRestriction, but in
+       practice it is convenient to have it in transposed form for
+       construction of RAP operators in matrix-free methods. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
+   { return GetOutputProlongation(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
@@ -377,9 +430,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OpType &A, Vector &X, Vector &B,
@@ -401,9 +452,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
    {
@@ -491,10 +540,12 @@ public:
                                  double value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
+   /** In this case the eliminations are applied to the internal \f$ M \f$
+       and @a rhs without storing the elimination matrix \f$ M_e \f$. */
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /// Eliminate the given @a vdofs, storing the eliminated part internally.
+   /// Eliminate the given @a vdofs, storing the eliminated part internally in \f$ M_e \f$.
    /** This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, @a vdofs is a list of DOFs. */
@@ -523,9 +574,11 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
                             Vector &b);
 
+   /// Compute inner product for full uneliminated matrix \f$ y^T M x + y^T M_e x \f$
    double FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
+   /// Update the @a FiniteElementSpace and delete all data associated with the old one.
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
    /// (DEPRECATED) Return the FE space associated with the BilinearForm.
@@ -537,7 +590,13 @@ public:
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
 
-   /// Sets diagonal policy used upon construction of the linear system
+   /// Sets diagonal policy used upon construction of the linear system.
+   /** Policies include:
+
+       - DIAG_ZERO (Set the diagonal values to zero)
+       - DIAG_ONE  (Set the diagonal values to one)
+       - DIAG_KEEP (Keep the diagonal values)
+   */
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
    /// Indicate that integrators are not owned by the BilinearForm
@@ -550,16 +609,16 @@ public:
 
 /**
    Class for assembling of bilinear forms `a(u,v)` defined on different
-   trial and test spaces. The assembled matrix `A` is such that
+   trial and test spaces. The assembled matrix `M` is such that
 
-       a(u,v) = V^t A U
+       a(u,v) = V^t M U
 
    where `U` and `V` are the vectors representing the functions `u` and `v`,
    respectively.  The first argument, `u`, of `a(,)` is in the trial space
    and the second argument, `v`, is in the test space. Thus,
 
-       # of rows of A = dimension of the test space and
-       # of cols of A = dimension of the trial space.
+       # of rows of M = dimension of the test space and
+       # of cols of M = dimension of the trial space.
 
    Both trial and test spaces should be defined on the same mesh.
 */
@@ -628,11 +687,15 @@ public:
                      FiniteElementSpace *te_fes,
                      MixedBilinearForm *mbf);
 
+   /// Returns a reference to: \f$ M_{ij} \f$
    virtual double &Elem(int i, int j);
 
+   /// Returns a reference to: \f$ M_{ij} \f$
    virtual const double &Elem(int i, int j) const;
 
+   /// Matrix multiplication: \f$ y = M x \f$
    virtual void Mult(const Vector & x, Vector & y) const;
+
    virtual void AddMult(const Vector & x, Vector & y,
                         const double a = 1.0) const;
 
@@ -642,6 +705,7 @@ public:
 
    virtual MatrixInverse *Inverse() const;
 
+   /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
    /** Extract the associated matrix as SparseMatrix blocks. The number of
@@ -649,8 +713,14 @@ public:
        test and trial spaces, respectively. */
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
+   /// Returns a const reference to the sparse matrix:  \f$ M \f$
    const SparseMatrix &SpMat() const { return *mat; }
+
+   /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat() { return *mat; }
+
+   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+        to it.  Used for transfering ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
@@ -697,13 +767,18 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBTFBFI_Marker() { return &btfbfi_marker; }
 
+   /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    void Assemble(int skip_zeros = 1);
+
+   /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
+       bilinear form and D is a diagonal. */
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
    /// Get the input finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
@@ -786,9 +861,9 @@ public:
 
       This returns the same operator as FormRectangularLinearSystem(), but does
       without the transformations of the right-hand side. */
-   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    OperatorHandle &A);
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
 
    /** @brief Form the column-constrained linear system matrix A.
        See FormRectangularSystemMatrix() for details.
@@ -797,9 +872,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list, OpType &A)
@@ -817,10 +890,11 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    Vector &x, Vector &b,
-                                    OperatorHandle &A, Vector &X, Vector &B);
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            Vector &x, Vector &b,
+                                            OperatorHandle &A, Vector &X,
+                                            Vector &B);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
@@ -829,9 +903,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list,
@@ -920,9 +992,18 @@ public:
    /// Access all interpolators added with AddDomainInterpolator().
    Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
    virtual void Assemble(int skip_zeros = 1);
+
+   /** @brief Get the output finite element space restriction matrix in
+       transposed form. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
+   { return test_fes->GetRestrictionTransposeOperator(); }
 };
 
 }

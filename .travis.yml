@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -11,12 +11,19 @@
 
 language: cpp
 
-sudo: false
+os: linux
+dist: bionic
 
 stages:
   - checks
   - tests
   - optional
+
+env:
+  global:
+    - HYPRE_ARCHIVE=v2.19.0.tar.gz
+      HYPRE_URL=https://github.com/hypre-space/hypre/archive/$HYPRE_ARCHIVE
+      HYPRE_TOP_DIR=hypre-2.19.0
 
 jobs:
   include:
@@ -30,6 +37,7 @@ jobs:
 
     - stage: checks
       os: linux
+      dist: xenial
       name: "code-style"
       addons:
         apt:
@@ -48,9 +56,6 @@ jobs:
           packages:
             - doxygen
             - graphviz
-            - mpich
-            - libmpich-dev
-      env: MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
         - cd tests/scripts
@@ -65,13 +70,24 @@ jobs:
             - mpich
             - libmpich-dev
       env: MPI=YES
-      script:
+      before_script:
         - cd ${TRAVIS_BUILD_DIR}
+        - mpicxx -v
         - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
         - make all -j3
         - make test-noclean
+      script:
         - cd tests/scripts
         - ./runtest gitignore
+      cache:
+        ccache: true
+        directories:
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     # ========================
     #  Optional Checks/Tests
@@ -80,6 +96,7 @@ jobs:
 
     - stage: optional
       name: "branch-history"
+      if: branch != next
       # need full git history for the binary/big files check
       git:
         depth: false
@@ -108,6 +125,8 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
+      cache:
+        ccache: true
 
     - os: linux
       compiler: gcc
@@ -116,6 +135,8 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
+      cache:
+        ccache: true
 
     - os: linux
       compiler: gcc
@@ -139,9 +160,9 @@ jobs:
            MFEM_TEST_TARGET=check
            NPROCS=2
       cache:
+        ccache: true
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -170,9 +191,9 @@ jobs:
            MFEM_TEST_TARGET=test
            NPROCS=2
       cache:
+        ccache: true
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -195,16 +216,16 @@ jobs:
         - cd ${TRAVIS_BUILD_DIR}/build
         - cmake ..
              -DMFEM_USE_MPI=ON
-             -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre
+             -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../$HYPRE_TOP_DIR/src/hypre
              -DMFEM_MPI_NP=$NPROCS
         - make -j3 mfem examples
         - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
         - make -j3
         - ctest --output-on-failure
       cache:
+        ccache: true
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -220,27 +241,43 @@ jobs:
     # - parallel
 
     - os: osx
-      # osx_image: xcode7.3
+      osx_image: xcode11.2
       compiler: clang
       name: "Mac: Serial + Debug"
+      addons:
+        homebrew:
+          packages:
+            - ccache
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
+      cache:
+        ccache: true
 
     - os: osx
-      # osx_image: xcode7.3
+      osx_image: xcode11.2
       compiler: clang
       name: "Mac: Serial"
+      addons:
+        homebrew:
+          packages:
+            - ccache
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
+      cache:
+        ccache: true
 
     - os: osx
-      # osx_image: xcode7.3
+      osx_image: xcode11.2
       compiler: clang
       name: "Mac: Parallel + Debug"
+      addons:
+        homebrew:
+          packages:
+            - ccache
       env: DEBUG=YES
            MPI=YES
            CODECOV=NO
@@ -248,9 +285,9 @@ jobs:
            NPROCS=4
            TMPDIR=/tmp
       cache:
+        ccache: true
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -259,9 +296,13 @@ jobs:
           rm -f Lib/*.{c,o}
 
     - os: osx
-      # osx_image: xcode7.3
+      osx_image: xcode11.2
       compiler: clang
       name: "Mac: Parallel"
+      addons:
+        homebrew:
+          packages:
+            - ccache
       env: DEBUG=NO
            MPI=YES
            CODECOV=YES
@@ -269,9 +310,9 @@ jobs:
            NPROCS=4
            TMPDIR=/tmp
       cache:
+        ccache: true
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../$HYPRE_TOP_DIR/src/hypre
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -285,14 +326,19 @@ before_install:
    #      brew install open-mpi;
    #   fi
 
-   # On Mac OS X, build and cache OpenMPI 2.1.1:
+   # Disable ccache while building dependencies that are cached:
+   - echo "before \$PATH = $PATH";
+     export PATH=${PATH//\/usr\/lib\/ccache:/};
+     echo "after  \$PATH = $PATH"
+
+   # On Mac OS X, build and cache OpenMPI 2.1.6:
    - if [ $TRAVIS_OS_NAME == "osx" ] && [ $MPI == "YES" ]; then
         if [ ! -e $HOME/local-cached/bin/mpicc ]; then
            mkdir -p $HOME/builds && cd $HOME/builds &&
-           wget https://www.open-mpi.org/software/ompi/v2.1/downloads/openmpi-2.1.1.tar.bz2 &&
-           tar jxf openmpi-2.1.1.tar.bz2 &&
+           wget https://download.open-mpi.org/release/open-mpi/v2.1/openmpi-2.1.6.tar.bz2 &&
+           tar jxf openmpi-2.1.6.tar.bz2 &&
            mkdir openmpi-build && cd openmpi-build &&
-           ../openmpi-2.1.1/configure --prefix=$HOME/local-cached &&
+           ../openmpi-2.1.6/configure --prefix=$HOME/local-cached &&
            make -j3 all && make install;
         fi;
         PATH=$HOME/local-cached/bin:$PATH;
@@ -337,26 +383,28 @@ install:
 
    # hypre
    - if [ $MPI == "YES" ]; then
-        if [ ! -e hypre-2.10.0b/src/hypre/lib/libHYPRE.a ]; then
-           wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate;
-           rm -rf hypre-2.10.0b;
-           tar xvzf hypre-2.10.0b.tar.gz;
-           cd hypre-2.10.0b/src;
-           ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
+        if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
+           wget $HYPRE_URL;
+           rm -rf $HYPRE_TOP_DIR;
+           tar xvzf $HYPRE_ARCHIVE;
+           cd $HYPRE_TOP_DIR/src;
+           ./configure --disable-fortran CC=mpicc CXX=mpic++;
            make -j3;
            cd ../..;
         else
-            echo "Reusing cached hypre-2.10.0b/";
+            echo "Reusing cached $HYPRE_TOP_DIR/";
         fi;
-        ln -s hypre-2.10.0b hypre;
+        ln -s $HYPRE_TOP_DIR hypre;
      else
         echo "Serial build, not using hypre";
      fi
 
-   # METIS
+   # METIS, use a mirror because the original source server is not always up.
+   # Original url:
+   #    http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/OLD/metis-4.0.3.tar.gz
    - if [ $MPI == "YES" ]; then
         if [ ! -e metis-4.0/libmetis.a ]; then
-           wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/OLD/metis-4.0.3.tar.gz;
+           wget https://mfem.github.io/tpls/metis-4.0.3.tar.gz;
            tar xvzf metis-4.0.3.tar.gz;
            make -j3 -C metis-4.0.3/Lib CC="$CC" OPTFLAGS="-O2";
            rm -rf metis-4.0;
@@ -366,12 +414,26 @@ install:
         fi;
      fi
 
+   # Re-enable ccache on linux; enable ccache on mac os:
+   - if [ $TRAVIS_OS_NAME == "linux" ]; then
+        export PATH="/usr/lib/ccache:$PATH";
+     else
+        if [ $TRAVIS_OS_NAME == "osx" ]; then
+           export PATH="/usr/local/opt/ccache/libexec:$PATH";
+        fi;
+     fi
+
+   - printf "which \$CC  = "; which $CC;
+     printf "which \$CXX = "; which $CXX
+
 script:
    # Compiler
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
+        export MAKE_CXX_FLAG=MPICXX=$MYCXX;
      else
         export MYCXX="$CXX";
+        export MAKE_CXX_FLAG=CXX=$MYCXX;
      fi
 
    # Print the compiler version
@@ -384,12 +446,12 @@ script:
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
      fi;
-     if [ "$CXX" == "clang++" ]; then
-        export MFEM_PERF_SW=clang;
+     if [ "$TRAVIS_OS_NAME" != "linux" ] || [ "$DEBUG" == "YES" ]; then
+        CPPFLAGS+=" -pedantic -Wall -Werror";
      fi
 
    # Configure the library
-   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
+   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG $MAKE_CXX_FLAG
         MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS"
    # Show the configuration
    - make info

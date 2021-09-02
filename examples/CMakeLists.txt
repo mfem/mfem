@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,6 +10,7 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND ALL_EXE_SRCS
+  ex0.cpp
   ex1.cpp
   ex2.cpp
   ex3.cpp
@@ -32,10 +33,14 @@ list(APPEND ALL_EXE_SRCS
   ex23.cpp
   ex24.cpp
   ex25.cpp
+  ex26.cpp
+  ex27.cpp
+  ex28.cpp
   )
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
+    ex0p.cpp
     ex1p.cpp
     ex2p.cpp
     ex3p.cpp
@@ -60,6 +65,9 @@ if (MFEM_USE_MPI)
     ex22p.cpp
     ex24p.cpp
     ex25p.cpp
+    ex26p.cpp
+    ex27p.cpp
+    ex28p.cpp
     )
 endif()
 
@@ -74,18 +82,22 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  set(THIS_TEST_OPTIONS "-no-vis")
+  if (NOT (${TEST_NAME} MATCHES "ex0p?"))
+    set(THIS_TEST_OPTIONS "-no-vis")
+  endif()
   if (${TEST_NAME} MATCHES "ex10p*")
     list(APPEND THIS_TEST_OPTIONS "-tf" "5")
   elseif(${TEST_NAME} MATCHES "ex15p*")
     list(APPEND THIS_TEST_OPTIONS "-e" "1")
+  elseif(${TEST_NAME} MATCHES "ex27p*")
+    list(APPEND THIS_TEST_OPTIONS "-dg")
   endif()
 
   if (NOT (${TEST_NAME} MATCHES ".*p$"))
     add_test(NAME ${TEST_NAME}_ser
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()
-    add_test(NAME ${TEST_NAME}_np=4
+    add_test(NAME ${TEST_NAME}_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
@@ -95,21 +107,35 @@ endforeach()
 
 # If STRUMPACK is enabled, add a test run that uses it.
 if (MFEM_USE_STRUMPACK)
-  add_test(NAME ex11p_strumpack_np=4
+  add_test(NAME ex11p_strumpack_np=${MFEM_MPI_NP}
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}
     $<TARGET_FILE:ex11p> "-no-vis" "--strumpack"
     ${MPIEXEC_POSTFLAGS})
 endif()
 
-# Include the examples/sundials directory if SUNDIALS is enabled.
-if (MFEM_USE_SUNDIALS)
-  add_subdirectory(sundials)
+# If SuperLU_DIST is enabled, add a test run that uses it.
+if (MFEM_USE_SUPERLU)
+  add_test(NAME ex11p_superlu_np=${MFEM_MPI_NP}
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}
+    $<TARGET_FILE:ex11p> "-no-vis" "--superlu"
+    ${MPIEXEC_POSTFLAGS})
 endif()
 
-# Include the examples/sundials directory if SUNDIALS is enabled.
+# Include the examples/amgx directory if AmgX is enabled
+if (MFEM_USE_AMGX)
+  add_subdirectory(amgx)
+endif()
+
+# Include the examples/ginkgo directory if GINKGO is enabled.
 if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
+endif()
+
+# Include the examples/hiop directory if HiOp is enabled
+if (MFEM_USE_HIOP)
+  add_subdirectory(hiop)
 endif()
 
 # Include the examples/petsc directory if PETSc is enabled.
@@ -122,7 +148,12 @@ if (MFEM_USE_PUMI)
   add_subdirectory(pumi)
 endif()
 
-if (MFEM_USE_HIOP)
-  add_subdirectory(hiop)
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_SUNDIALS)
+  add_subdirectory(sundials)
 endif()
 
+# Include the examples/superlu directory if SUPERLU is enabled.
+if (MFEM_USE_SUPERLU)
+  add_subdirectory(superlu)
+endif()

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,11 +14,17 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 set(MINIAPPS_COMMON_SOURCES "")
 set(MINIAPPS_COMMON_HEADERS "")
+if (MFEM_USE_SUNDIALS)
+   add_subdirectory(adjoint)
+endif()
 add_subdirectory(common)
 add_subdirectory(electromagnetics)
+add_subdirectory(navier)
 add_subdirectory(meshing)
 add_subdirectory(performance)
 add_subdirectory(tools)
 add_subdirectory(toys)
 add_subdirectory(nurbs)
 add_subdirectory(gslib)
+add_subdirectory(solvers)
+add_subdirectory(shifted)

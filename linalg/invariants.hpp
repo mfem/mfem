@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -62,8 +62,6 @@ protected:
    const scalar_t *D; // Always points to external data or is empty
    scalar_t *DaJ, *DJt, *DXt, *DYt;
 
-   scalar_t sign_detJ;
-
    enum EvalMasks
    {
       HAVE_I1   = 1,
@@ -96,8 +94,7 @@ protected:
    {
       eval_state |= HAVE_I2b;
       const scalar_t det = J[0]*J[3] - J[1]*J[2];
-      sign_detJ = scalar_ops::sign(det);
-      I2b = sign_detJ*det;
+      I2b = det;
    }
    void Eval_dI1()
    {
@@ -136,10 +133,10 @@ protected:
       // I2b = det(J)
       // dI2b = adj(J)^T
       Get_I2b();
-      dI2b[0] =  sign_detJ*J[3];
-      dI2b[1] = -sign_detJ*J[2];
-      dI2b[2] = -sign_detJ*J[1];
-      dI2b[3] =  sign_detJ*J[0];
+      dI2b[0] =  J[3];
+      dI2b[1] = -J[2];
+      dI2b[2] = -J[1];
+      dI2b[3] =  J[0];
    }
    void Eval_DaJ() // D adj(J) = D dI2b^t
    {
@@ -516,8 +513,6 @@ protected:
    const scalar_t *D; // Always points to external data or is empty
    scalar_t *DaJ, *DJt, *DdI2t, *DXt, *DYt;
 
-   scalar_t sign_detJ;
-
    enum EvalMasks
    {
       HAVE_I1     = 1,
@@ -585,15 +580,14 @@ protected:
       eval_state |= HAVE_I3b;
       I3b = J[0]*(J[4]*J[8] - J[7]*J[5]) - J[1]*(J[3]*J[8] - J[5]*J[6]) +
             J[2]*(J[3]*J[7] - J[4]*J[6]);
-      sign_detJ = scalar_ops::sign(I3b);
-      I3b = sign_detJ*I3b;
    }
    scalar_t Get_I3b_p()  // I3b^{-2/3}
    {
       if (dont(HAVE_I3b_p))
       {
          eval_state |= HAVE_I3b_p;
-         I3b_p = sign_detJ*scalar_ops::pow(Get_I3b(), -2, 3);
+         const scalar_t i3b = Get_I3b();
+         I3b_p = scalar_ops::pow(i3b, -2, 3);
       }
       return I3b_p;
    }
@@ -679,15 +673,15 @@ protected:
       eval_state |= HAVE_dI3b;
       // I3b = det(J)
       // dI3b = adj(J)^T
-      dI3b[0] = sign_detJ*(J[4]*J[8] - J[5]*J[7]);  // 0  3  6
-      dI3b[1] = sign_detJ*(J[5]*J[6] - J[3]*J[8]);  // 1  4  7
-      dI3b[2] = sign_detJ*(J[3]*J[7] - J[4]*J[6]);  // 2  5  8
-      dI3b[3] = sign_detJ*(J[2]*J[7] - J[1]*J[8]);
-      dI3b[4] = sign_detJ*(J[0]*J[8] - J[2]*J[6]);
-      dI3b[5] = sign_detJ*(J[1]*J[6] - J[0]*J[7]);
-      dI3b[6] = sign_detJ*(J[1]*J[5] - J[2]*J[4]);
-      dI3b[7] = sign_detJ*(J[2]*J[3] - J[0]*J[5]);
-      dI3b[8] = sign_detJ*(J[0]*J[4] - J[1]*J[3]);
+      dI3b[0] = J[4]*J[8] - J[5]*J[7];  // 0  3  6
+      dI3b[1] = J[5]*J[6] - J[3]*J[8];  // 1  4  7
+      dI3b[2] = J[3]*J[7] - J[4]*J[6];  // 2  5  8
+      dI3b[3] = J[2]*J[7] - J[1]*J[8];
+      dI3b[4] = J[0]*J[8] - J[2]*J[6];
+      dI3b[5] = J[1]*J[6] - J[0]*J[7];
+      dI3b[6] = J[1]*J[5] - J[2]*J[4];
+      dI3b[7] = J[2]*J[3] - J[0]*J[5];
+      dI3b[8] = J[0]*J[4] - J[1]*J[3];
    }
    void Eval_DZt(const scalar_t *Z, scalar_t **DZt_ptr)
    {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,6 +27,7 @@ namespace mfem
 /// Class for parallel bilinear form
 class ParBilinearForm : public BilinearForm
 {
+   friend FABilinearFormExtension;
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
@@ -76,7 +77,7 @@ public:
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /** @brief Set the operator type id for the parallel matrix/operator when
-       using AssemblyLevel::FULL. */
+       using AssemblyLevel::LEGACY. */
    /** If using static condensation or hybridization, call this method *after*
        enabling it. */
    void SetOperatorType(Operator::Type tid)
@@ -160,6 +161,9 @@ public:
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return pfes->GetProlongationMatrix(); }
+   /// Get the transpose of GetRestriction, useful for matrix-free RAP
+   virtual const Operator *GetRestrictionTranspose() const
+   { return pfes->GetRestrictionTransposeOperator(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
@@ -180,6 +184,8 @@ public:
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
+
+   void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
 
    virtual ~ParBilinearForm() { }
 };
@@ -246,6 +252,9 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+   using MixedBilinearForm::FormRectangularLinearSystem;
+
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
        This returns the same operator as FormRectangularLinearSystem(), but does
@@ -301,9 +310,19 @@ public:
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;
 
+   /** @brief Returns the matrix assembled on the true dofs, i.e.
+       @a A = R_test A_local P_trial, in the format (type id) specified by
+       @a A. */
+   void ParallelAssemble(OperatorHandle &A);
+
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
+   virtual void FormRectangularSystemMatrix(OperatorHandle &A);
 
    virtual ~ParDiscreteLinearOperator() { }
 };

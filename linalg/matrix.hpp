@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,13 +28,6 @@ class Matrix : public Operator
 {
    friend class MatrixInverse;
 public:
-   //// Defines matrix diagonal policy upon elimination of rows and/or columns.
-   enum DiagonalPolicy
-   {
-      DIAG_ZERO, ///< Set the diagonal value to zero
-      DIAG_ONE,  ///< Set the diagonal value to one
-      DIAG_KEEP  ///< Keep the diagonal value
-   };
 
    /// Creates a square matrix of size s.
    explicit Matrix(int s) : Operator(s) { }

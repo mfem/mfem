@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,9 +10,30 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
+#include "linalg/dtensor.hpp"
 
 using namespace mfem;
+
+TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
+{
+   double ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   DenseMatrix Contiguous(ContigData, 2, 3);
+
+   DenseMatrix Nested(
+   {
+      {6.0, 4.0, 2.0},
+      {5.0, 3.0, 1.0}
+   });
+
+   for (int i = 0; i < Contiguous.Height(); i++)
+   {
+      for (int j = 0; j < Contiguous.Width(); j++)
+      {
+         REQUIRE(Nested(i,j) == Contiguous(i,j));
+      }
+   }
+}
 
 TEST_CASE("DenseMatrix LinearSolve methods",
           "[DenseMatrix]")
@@ -40,7 +61,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       double X[1] = { 12 };
 
       REQUIRE(LinearSolve(A,X));
-      REQUIRE(X[0] == Approx(6));
+      REQUIRE(X[0] == MFEM_Approx(6));
    }
 
    SECTION("2x2_system")
@@ -54,8 +75,8 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       double X[2] = { 1, 14 };
 
       REQUIRE(LinearSolve(A,X));
-      REQUIRE(X[0] == Approx(-2));
-      REQUIRE(X[1] == Approx(5));
+      REQUIRE(X[0] == MFEM_Approx(-2));
+      REQUIRE(X[1] == MFEM_Approx(5));
    }
 
    SECTION("3x3_system")
@@ -70,9 +91,9 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       double X[3] = { -14, 42, 28 };
 
       REQUIRE(LinearSolve(A,X));
-      REQUIRE(X[0] == Approx(4));
-      REQUIRE(X[1] == Approx(-4));
-      REQUIRE(X[2] == Approx(5));
+      REQUIRE(X[0] == MFEM_Approx(4));
+      REQUIRE(X[1] == MFEM_Approx(-4));
+      REQUIRE(X[2] == MFEM_Approx(5));
    }
 
 }
@@ -244,6 +265,53 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    C -= B;
 
    REQUIRE(C.MaxMaxNorm() < tol);
+}
+
+TEST_CASE("DenseTensor LinearSolve methods",
+          "[DenseMatrix]")
+{
+
+   int N = 3;
+   DenseMatrix A(N);
+   A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
+   A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
+   A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
+
+   double X[3] = { -14, 42, 28 };
+
+   int NE = 10;
+   Vector X_batch(N*NE);
+   DenseTensor A_batch(N,N,NE);
+
+   auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
+   auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
+   // Column major
+   for (int e=0; e<NE; ++e)
+   {
+
+      for (int r=0; r<N; ++r)
+      {
+         for (int c=0; c<N; ++c)
+         {
+            a_batch(c, r, e) = A.GetData()[c+r*N];
+         }
+         x_batch(r,e) = X[r];
+      }
+   }
+
+   Array<int> P;
+   BatchLUFactor(A_batch, P);
+   BatchLUSolve(A_batch, P, X_batch);
+
+   auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
+   REQUIRE(LinearSolve(A,X));
+   for (int e=0; e<NE; ++e)
+   {
+      for (int r=0; r<N; ++r)
+      {
+         REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
+      }
+   }
 }
 
 TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")

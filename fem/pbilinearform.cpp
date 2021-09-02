@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -198,8 +198,9 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
    for (int i = 0; i < nfaces; i++)
    {
       T = pmesh->GetSharedFaceTransformations(i);
+      int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
       pfes->GetElementVDofs(T->Elem1No, vdofs1);
-      pfes->GetFaceNbrElementVDofs(T->Elem2No, vdofs2);
+      pfes->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs2);
       vdofs1.Copy(vdofs_all);
       for (int j = 0; j < vdofs2.Size(); j++)
       {
@@ -216,7 +217,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
       for (int k = 0; k < fbfi.Size(); k++)
       {
          fbfi[k]->AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
-                                     *pfes->GetFaceNbrFE(T->Elem2No),
+                                     *pfes->GetFaceNbrFE(Elem2NbrNo),
                                      *T, elemmat);
          if (keep_nbr_block)
          {
@@ -232,15 +233,18 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (mat == NULL && fbfi.Size() > 0)
+   if (fbfi.Size() > 0)
    {
       pfes->ExchangeFaceNbrData();
-      pAllocMat();
+      if (!ext && mat == NULL)
+      {
+         pAllocMat();
+      }
    }
 
    BilinearForm::Assemble(skip_zeros);
 
-   if (fbfi.Size() > 0)
+   if (!ext && fbfi.Size() > 0)
    {
       AssembleSharedFaces(skip_zeros);
    }
@@ -283,7 +287,14 @@ const
    }
 
    X.Distribute(&x);
-   mat->Mult(X, Y);
+   if (ext)
+   {
+      ext->Mult(X, Y);
+   }
+   else
+   {
+      mat->Mult(X, Y);
+   }
    pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
@@ -335,6 +346,12 @@ void ParBilinearForm::FormLinearSystem(
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
    }
+}
+
+void ParBilinearForm::EliminateVDofsInRHS(
+   const Array<int> &vdofs, const Vector &x, Vector &b)
+{
+   p_mat.EliminateBC(p_mat_e, vdofs, x, b);
 }
 
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -555,6 +572,38 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
    HypreParMatrix* RAP = P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets());
    delete RA;
    return RAP;
+}
+
+void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
+{
+   // construct the rectangular block-diagonal matrix dA
+   OperatorHandle dA(A.Type());
+   dA.MakeRectangularBlockDiag(domain_fes->GetComm(),
+                               range_fes->GlobalVSize(),
+                               domain_fes->GlobalVSize(),
+                               range_fes->GetDofOffsets(),
+                               domain_fes->GetDofOffsets(),
+                               mat);
+
+   OperatorHandle R_test_transpose(A.Type()), P_trial(A.Type());
+
+   // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
+   R_test_transpose.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
+   P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
+
+   A.MakeRAP(R_test_transpose, dA, P_trial);
+}
+
+void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
+{
+   if (ext)
+   {
+      Array<int> empty;
+      ext->FormRectangularSystemOperator(empty, empty, A);
+      return;
+   }
+
+   mfem_error("not implemented!");
 }
 
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)

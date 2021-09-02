@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -62,6 +62,7 @@ void QuadratureInterpolator::Eval2D(
    const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
+   const int NMAX = NQ > ND ? NQ : ND;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
    MFEM_VERIFY(ND <= MAX_ND2D, "");
    MFEM_VERIFY(NQ <= MAX_NQ2D, "");
@@ -72,22 +73,24 @@ void QuadratureInterpolator::Eval2D(
    auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
    auto der = Reshape(q_der.Write(), NQ, VDIM, 2, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, NMAX, 1, 1,
    {
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
-      double s_E[max_VDIM*max_ND];
-      for (int d = 0; d < ND; d++)
+      MFEM_SHARED double s_E[max_VDIM*max_ND];
+      MFEM_FOREACH_THREAD(d, x, ND)
       {
          for (int c = 0; c < VDIM; c++)
          {
             s_E[c+d*VDIM] = E(d,c,e);
          }
       }
-      for (int q = 0; q < NQ; ++q)
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(q, x, NQ)
       {
          if (eval_flags & VALUES)
          {
@@ -150,6 +153,7 @@ void QuadratureInterpolator::Eval3D(
    const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
+   const int NMAX = NQ > ND ? NQ : ND;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
    MFEM_VERIFY(ND <= MAX_ND3D, "");
    MFEM_VERIFY(NQ <= MAX_NQ3D, "");
@@ -160,22 +164,24 @@ void QuadratureInterpolator::Eval3D(
    auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
    auto der = Reshape(q_der.Write(), NQ, VDIM, 3, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, NMAX, 1, 1,
    {
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
-      double s_E[max_VDIM*max_ND];
-      for (int d = 0; d < ND; d++)
+      MFEM_SHARED double s_E[max_VDIM*max_ND];
+      MFEM_FOREACH_THREAD(d, x, ND)
       {
          for (int c = 0; c < VDIM; c++)
          {
             s_E[c+d*VDIM] = E(d,c,e);
          }
       }
-      for (int q = 0; q < NQ; ++q)
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(q, x, NQ)
       {
          if (eval_flags & VALUES)
          {
@@ -319,6 +325,33 @@ void QuadratureInterpolator::Mult(
          }
       }
    }
+   else if (vdim == 3 && dim == 2)
+   {
+      switch (100*nd + nq)
+      {
+         // Q0
+         case 101: eval_func = &Eval2D<3,1,1>; break;
+         case 104: eval_func = &Eval2D<3,1,4>; break;
+         // Q1
+         case 404: eval_func = &Eval2D<3,4,4>; break;
+         case 409: eval_func = &Eval2D<3,4,9>; break;
+         // Q2
+         case 904: eval_func = &Eval2D<3,9,4>; break;
+         case 909: eval_func = &Eval2D<3,9,9>; break;
+         case 916: eval_func = &Eval2D<3,9,16>; break;
+         case 925: eval_func = &Eval2D<3,9,25>; break;
+         // Q3
+         case 1616: eval_func = &Eval2D<3,16,16>; break;
+         case 1625: eval_func = &Eval2D<3,16,25>; break;
+         case 1636: eval_func = &Eval2D<3,16,36>; break;
+         // Q4
+         case 2525: eval_func = &Eval2D<3,25,25>; break;
+         case 2536: eval_func = &Eval2D<3,25,36>; break;
+         case 2549: eval_func = &Eval2D<3,25,49>; break;
+         case 2564: eval_func = &Eval2D<3,25,64>; break;
+         default:   eval_func = &Eval2D<3>;
+      }
+   }
    else if (vdim == dim)
    {
       if (dim == 2)
@@ -385,6 +418,35 @@ void QuadratureInterpolator::MultTranspose(
    Vector &e_vec) const
 {
    MFEM_ABORT("this method is not implemented yet");
+}
+
+static void D2QValues1D(const int NE,
+                        const Array<double> &b_,
+                        const Vector &x_,
+                        Vector &y_,
+                        const int vdim = 1,
+                        const int d1d = 0,
+                        const int q1d = 0)
+{
+   auto b = Reshape(b_.Read(), q1d, d1d);
+   auto x = Reshape(x_.Read(), d1d, vdim, NE);
+   auto y = Reshape(y_.Write(), vdim, q1d, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         for (int q = 0; q < q1d; ++q)
+         {
+            double val = 0.0;
+            for (int d = 0; d < d1d; ++d)
+            {
+               val += b(q, d) * x(d, c, e);
+            }
+            y(c, q, e) = val;
+         }
+      }
+   });
 }
 
 
@@ -598,6 +660,15 @@ static void D2QValues(const FiniteElementSpace &fes,
    const int Q1D = maps->nqpt;
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
+   if (dim == 1)
+   {
+      MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+                  << " are not supported!");
+      MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
+                  << MAX_Q1D << " 1D points are not supported!");
+      D2QValues1D(NE, maps->B, e_vec, q_val, vdim, D1D, Q1D);
+      return;
+   }
    if (dim == 2)
    {
       switch (id)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -192,7 +192,6 @@ Table * Mult (const Table &A, const Table &B);
 /** Data type STable. STable is similar to Table, but it's for symmetric
     connectivity, i.e. TYPE I is equivalent to TYPE II. In the first
     dimension we put the elements with smaller index. */
-
 class STable : public Table
 {
 public:

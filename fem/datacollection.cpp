@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -415,9 +415,6 @@ void VisItDataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
 void VisItDataCollection::RegisterField(const std::string& name,
                                         GridFunction *gf)
 {
-   DataCollection::RegisterField(name, gf);
-   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim());
-
    int LOD = 1;
    if (gf->FESpace()->GetNURBSext())
    {
@@ -431,6 +428,27 @@ void VisItDataCollection::RegisterField(const std::string& name,
       }
    }
 
+   DataCollection::RegisterField(name, gf);
+   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
+   visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
+}
+
+void VisItDataCollection::RegisterQField(const std::string& name,
+                                         QuadratureFunction *qf)
+{
+   int LOD = -1;
+   Mesh *mesh = qf->GetSpace()->GetMesh();
+   for (int e=0; e<qf->GetSpace()->GetNE(); e++)
+   {
+      int locLOD = GlobGeometryRefiner.GetRefinementLevelFromElems(
+                      mesh->GetElementBaseGeometry(e),
+                      qf->GetElementIntRule(e).GetNPoints());
+
+      LOD = std::max(LOD,locLOD);
+   }
+
+   DataCollection::RegisterQField(name, qf);
+   field_info_map[name] = VisItFieldInfo("elements", 1, LOD);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -545,6 +563,8 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 
 void VisItDataCollection::LoadMesh()
 {
+   // GetMeshFileName() uses 'serial', so we need to set it in advance.
+   serial = (format == SERIAL_FORMAT);
    std::string mesh_fname = GetMeshFileName();
    named_ifgzstream file(mesh_fname);
    // TODO: in parallel, check for errors on all processors
@@ -598,14 +618,28 @@ void VisItDataCollection::LoadFields()
       // TODO: 1) load parallel GridFunction on one processor
       if (serial)
       {
-         field_map.Register(it->first, new GridFunction(mesh, file), own_data);
+         if ((it->second).association == "nodes")
+         {
+            field_map.Register(it->first, new GridFunction(mesh, file), own_data);
+         }
+         else if ((it->second).association == "elements")
+         {
+            q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
+         }
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         field_map.Register(
-            it->first,
-            new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
+         if ((it->second).association == "nodes")
+         {
+            field_map.Register(
+               it->first,
+               new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
+         }
+         else if ((it->second).association == "elements")
+         {
+            q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
+         }
 #else
          error = READ_ERROR;
          MFEM_WARNING("Reading parallel format in serial is not supported");
@@ -640,7 +674,7 @@ std::string VisItDataCollection::GetVisItRootString()
    {
       ftags["assoc"] = picojson::value((it->second).association);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
-      ftags["lod"] = picojson::value(to_string(visit_levels_of_detail));
+      ftags["lod"] = picojson::value(to_string((it->second).lod));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
       field["tags"] = picojson::value(ftags);
       fields[it->first] = picojson::value(field);
@@ -739,12 +773,6 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
 #endif
 }
 
-void ParaViewDataCollection::RegisterField(const std::string& field_name,
-                                           mfem::GridFunction *gf)
-{
-   DataCollection::RegisterField(field_name,gf);
-}
-
 void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
 {
    levels_of_detail = levels_of_detail_;
@@ -815,7 +843,7 @@ void ParaViewDataCollection::Save()
    // the directory is created
 
    // create pvd file if needed
-   if (!pvd_stream.is_open())
+   if (myid == 0 && !pvd_stream.is_open())
    {
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
@@ -880,7 +908,7 @@ void ParaViewDataCollection::Save()
 
       // CELL DATA
       out << "<PCellData>\n";
-      out << "\t<PDataArray type=\"Int32\" Name=\"" << "material"
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
           << "\" NumberOfComponents=\"1\""
           << " format=\"" << GetDataFormatString() << "\"/>\n";
       out << "</PCellData>\n";
@@ -973,7 +1001,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             if (pv_data_format == VTKFormat::ASCII)
             {
-               out << val(j) << '\n';
+               out << ZeroSubnormal(val(j)) << '\n';
             }
             else if (pv_data_format == VTKFormat::BINARY)
             {
@@ -1006,7 +1034,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
             {
                if (pv_data_format == VTKFormat::ASCII)
                {
-                  out << vval(ii,jj) << ' ';
+                  out << ZeroSubnormal(vval(ii,jj)) << ' ';
                }
                else if (pv_data_format == VTKFormat::BINARY)
                {

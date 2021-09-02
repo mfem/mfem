@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,26 +46,33 @@ struct Backend
       /** @brief [device] RAJA CUDA backend. Enabled when MFEM_USE_RAJA = YES
           and MFEM_USE_CUDA = YES. */
       RAJA_CUDA = 1 << 6,
+      /** @brief [device] RAJA HIP backend. Enabled when MFEM_USE_RAJA = YES
+          and MFEM_USE_HIP = YES. */
+      RAJA_HIP = 1 << 7,
       /** @brief [host] OCCA CPU backend: sequential execution on each MPI rank.
           Enabled when MFEM_USE_OCCA = YES. */
-      OCCA_CPU = 1 << 7,
+      OCCA_CPU = 1 << 8,
       /// [host] OCCA OpenMP backend. Enabled when MFEM_USE_OCCA = YES.
-      OCCA_OMP = 1 << 8,
+      OCCA_OMP = 1 << 9,
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
-      OCCA_CUDA = 1 << 9,
+      OCCA_CUDA = 1 << 10,
       /** @brief [host] CEED CPU backend. GPU backends can still be used, but
           with expensive memory transfers. Enabled when MFEM_USE_CEED = YES. */
-      CEED_CPU  = 1 << 10,
+      CEED_CPU  = 1 << 11,
       /** @brief [device] CEED CUDA backend working together with the CUDA
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
-          NOTE: The current default libCEED GPU backend is non-deterministic! */
-      CEED_CUDA = 1 << 11,
+          NOTE: The current default libCEED CUDA backend is non-deterministic! */
+      CEED_CUDA = 1 << 12,
+      /** @brief [device] CEED HIP backend working together with the HIP
+          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES. */
+      CEED_HIP = 1 << 13,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
-          transfers) without any GPU hardware. */
-      DEBUG = 1 << 12
+          transfers) without any GPU hardware. As 'DEBUG' is sometimes used
+          as a macro, `_DEVICE` has been added to avoid conflicts. */
+      DEBUG_DEVICE = 1 << 14
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -73,23 +80,23 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 13,
+      NUM_BACKENDS = 15,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
-      HIP_MASK = HIP,
+      HIP_MASK = HIP | RAJA_HIP | CEED_HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Bitwise-OR of all CEED backends
-      CEED_MASK = CEED_CPU | CEED_CUDA,
+      CEED_MASK = CEED_CPU | CEED_CUDA | CEED_HIP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
-      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
+      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA | RAJA_HIP,
       /// Biwise-OR of all OCCA backends
       OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA
    };
@@ -117,22 +124,25 @@ private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
 
-   static bool device_env, mem_host_env, mem_device_env;
+   static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static Device device_singleton;
 
-   MODES mode;
-   int dev = 0; ///< Device ID of the configured device.
+   MODES mode = Device::SEQUENTIAL;
+   int dev = 0;   ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
-   unsigned long backends; ///< Bitwise-OR of all configured backends.
+   /// Bitwise-OR of all configured backends.
+   unsigned long backends = Backend::CPU;
    /// Set to true during configuration, except in 'device_singleton'.
-   bool destroy_mm;
-   bool mpi_gpu_aware;
+   bool destroy_mm = false;
+   bool mpi_gpu_aware = false;
 
-   MemoryType host_mem_type;      ///< Current Host MemoryType
-   MemoryClass host_mem_class;    ///< Current Host MemoryClass
+   MemoryType host_mem_type = MemoryType::HOST;    ///< Current Host MemoryType
+   MemoryClass host_mem_class = MemoryClass::HOST; ///< Current Host MemoryClass
 
-   MemoryType device_mem_type;    ///< Current Device MemoryType
-   MemoryClass device_mem_class;  ///< Current Device MemoryClass
+   /// Current Device MemoryType
+   MemoryType device_mem_type = MemoryType::HOST;
+   /// Current Device MemoryClass
+   MemoryClass device_mem_class = MemoryClass::HOST;
 
    char *device_option = NULL;
    Device(Device const&);
@@ -173,14 +183,6 @@ public:
        @note This object should be destroyed after all other MFEM objects that
        use the Device are destroyed. */
    Device(const std::string &device, const int dev = 0)
-      : mode(Device::SEQUENTIAL),
-        backends(Backend::CPU),
-        destroy_mm(false),
-        mpi_gpu_aware(false),
-        host_mem_type(MemoryType::HOST),
-        host_mem_class(MemoryClass::HOST),
-        device_mem_type(MemoryType::HOST),
-        device_mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
 
    /// Destructor.
@@ -193,24 +195,43 @@ public:
        * The available backends are described by the Backend class.
        * The string name of a backend is the lowercase version of the
          Backend::Id enumeration constant with '_' replaced by '-', e.g. the
-         string name of 'RAJA_CPU' is 'raja-cpu'.
+         string name of 'RAJA_CPU' is 'raja-cpu'. The string name of the debug
+         backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is:
-         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda', 'hip', 'debug',
+         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda',
+         'ceed-hip', 'hip', 'debug',
          'occa-omp', 'raja-omp', 'omp',
          'ceed-cpu', 'occa-cpu', 'raja-cpu', 'cpu'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
          is already enabled.
+       * The backend 'occa-omp' enables the 'omp' backend (if MFEM was built
+         with MFEM_USE_OPENMP=YES) unless 'raja-omp' is already enabled.
+       * Only one 'ceed-*' backend can be configured at a time.
        * The backend 'ceed-cpu' delegates to a libCEED CPU backend the setup and
          evaluation of the operator.
        * The backend 'ceed-cuda' delegates to a libCEED CUDA backend the setup
-         and evaluation of the operator and enables the 'cuda' backend to avoid
-         transfer between host and device.
+         and evaluation of operators and enables the 'cuda' backend to avoid
+         transfers between host and device.
+       * The backend 'ceed-hip' delegates to a libCEED HIP backend the setup
+         and evaluation of operators and enables the 'hip' backend to avoid
+         transfers between host and device.
        * The 'debug' backend should not be combined with other device backends.
    */
    void Configure(const std::string &device, const int dev = 0);
+
+   /// Set the default host and device MemoryTypes, @a h_mt and @a d_mt.
+   /** The host and device MemoryTypes are also set to be dual to each other.
+
+       These two MemoryType%s are used by most MFEM classes when allocating
+       memory used on host and device, respectively.
+
+       This method can only be called before Device construction and
+       configuration, and the specified memory types must be compatible with
+       the subsequent Device configuration. */
+   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
 
    /// Print the configuration of the MFEM virtual device object.
    void Print(std::ostream &out = mfem::out);

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,11 +10,14 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SRCS
+  auxiliary.cpp
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
   complex_operator.cpp
+  constraints.cpp
   densemat.cpp
+  symmat.cpp
   handle.cpp
   matrix.cpp
   ode.cpp
@@ -26,11 +29,14 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  auxiliary.hpp
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
   complex_operator.hpp
+  constraints.hpp
   densemat.hpp
+  symmat.hpp
   dtensor.hpp
   handle.hpp
   invariants.hpp
@@ -62,12 +68,13 @@ if (MFEM_USE_MPI)
       petsc.cpp)
     list(APPEND HDRS
       petsc.hpp)
+    if (MFEM_USE_SLEPC)
+      list(APPEND SRCS
+        slepc.cpp)
+      list(APPEND HDRS
+        slepc.hpp)
+    endif()
   endif()
-endif()
-
-if (MFEM_USE_GINKGO)
-  list(APPEND SRCS ginkgo.cpp)
-  list(APPEND HDRS ginkgo.hpp)
 endif()
 
 if (MFEM_USE_SUNDIALS)
@@ -82,14 +89,34 @@ if (MFEM_USE_SUPERLU)
   list(APPEND HDRS superlu.hpp)
 endif()
 
+if (MFEM_USE_MUMPS)
+  list(APPEND SRCS mumps.cpp)
+  list(APPEND HDRS mumps.hpp)
+endif()
+
 if (MFEM_USE_STRUMPACK)
   list(APPEND SRCS strumpack.cpp)
   list(APPEND HDRS strumpack.hpp)
 endif()
 
+if (MFEM_USE_GINKGO)
+  list(APPEND SRCS ginkgo.cpp)
+  list(APPEND HDRS ginkgo.hpp)
+endif()
+
+if (MFEM_USE_AMGX)
+  list(APPEND SRCS amgxsolver.cpp)
+  list(APPEND HDRS amgxsolver.hpp)
+endif()
+
 if (MFEM_USE_HIOP)
   list(APPEND SRCS hiop.cpp)
   list(APPEND HDRS hiop.hpp)
+endif()
+
+if (MFEM_USE_MKL_CPARDISO)
+  list(APPEND SRCS cpardiso.cpp)
+  list(APPEND HDRS cpardiso.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
