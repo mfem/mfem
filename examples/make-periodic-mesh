@@ -1,0 +1,63 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+    echo "Usage: ./make-periodic-mesh <NE>"
+fi
+
+NE=$1
+NEm1=$(( $NE - 1 ))
+NEm2=$(( $NE - 2 ))
+
+filename="periodic-segment-$NE.mesh.test"
+
+cat <<ENDHERE > $filename
+MFEM mesh v1.0
+
+#
+# MFEM Geometry Types (see mesh/geom.hpp):
+#
+# POINT       = 0
+# SEGMENT     = 1
+# TRIANGLE    = 2
+# SQUARE      = 3
+# TETRAHEDRON = 4
+# CUBE        = 5
+#
+
+dimension
+1
+
+# format: <attribute> <geometry type> <vertex 0> <vertex 1> ...
+elements
+ENDHERE
+
+echo "$NE" >> $filename
+for i in `seq 0 $NEm2`; do
+    echo "1 1 $i $((i+1))" >> $filename
+done
+echo "1 1 $((i+1)) 0" >> $filename
+
+cat <<EOF >> $filename
+
+boundary
+0
+
+vertices
+$NE
+
+nodes
+FiniteElementSpace
+FiniteElementCollection: L2_T1_1D_P1
+VDim: 1
+Ordering: 1
+ 
+EOF
+
+dx=`echo "1.0 / $NE" | bc -l`
+for i in `seq 0 $NEm1`; do
+    p1=`echo "$i * $dx" | bc -l`
+    p2=`echo "$((i+1)) * $dx" | bc -l`
+    echo "$p1 $p2" >> $filename
+done
+
+
