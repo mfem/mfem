@@ -8,7 +8,7 @@ NE=$1
 NEm1=$(( $NE - 1 ))
 NEm2=$(( $NE - 2 ))
 
-filename="periodic-segment-$NE.mesh.test"
+filename="periodic-segment-$NE.mesh"
 
 cat <<ENDHERE > $filename
 MFEM mesh v1.0
