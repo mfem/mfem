@@ -239,6 +239,7 @@ int main(int argc, char *argv[])
    int nseq = 0;
    int regrid_period = 1;
    int greedy_refine = 0;
+   int output_cycle_soln = 0;
    int output_cycle_errors = 0;
 
    int precision = 8;
@@ -273,7 +274,9 @@ int main(int argc, char *argv[])
                   "Timesteps per regrid.");
    args.AddOption(&greedy_refine, "-gr", "--greedy-refine",
                   "Use greedy refinement strategy.");
-   args.AddOption(&output_cycle_errors, "-cycerr", "--output-cycle-errors",
+   args.AddOption(&output_cycle_soln, "-cs", "--output-cycle-solutions",
+                  "Output per-cycle solutions.");
+   args.AddOption(&output_cycle_errors, "-ce", "--output-cycle-errors",
                   "Output per-cycle errors.");
 
    args.Parse();
@@ -474,7 +477,7 @@ int main(int argc, char *argv[])
          el2 = (el2 + ne) % ne;
          el3 = (el3 + ne) % ne;
          new_ref_set.insert(el1);
-         //new_ref_set.insert(el2);
+         new_ref_set.insert(el2);
          new_ref_set.insert(el3);
 
          // The coarsen set is elements from cur_ref_set not in new_ref_set
@@ -688,7 +691,8 @@ int main(int argc, char *argv[])
       }
 
       // Output the current solution.
-      {
+      if (output_cycle_errors) {
+
          ostringstream fn;
          fn << "soln-" << ti << ".mesh";
          ofstream mesh_ofs(fn.str());
@@ -802,7 +806,7 @@ int main(int argc, char *argv[])
 
       GridFunctionCoefficient rho_ref_coeff(&rho_ref);
       const double err = rho.ComputeL2Error(rho_ref_coeff);
-      printf("err %e\n",err);
+      printf("final L2 error %e\n",err);
       // const double error = sol.ComputeLpError(2, u0);
       // cout << "Solution error: " << error << endl;
    }
