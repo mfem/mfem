@@ -1,0 +1,11 @@
+#!/bin/bash
+
+rm -f tmp
+for i in {0..19}; do
+    ii=`printf %04d $i`
+    echo "solution soln-$i.mesh soln-$i-0.gf" >> tmp
+    echo "valuerange 0.0 1.0" >> tmp
+    echo "screenshot greedy-soln-$ii.png" >> tmp
+done
+
+echo "output in ./tmp"
