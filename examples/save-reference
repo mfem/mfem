@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# The final time is the reference solution
+mv vortex.mesh reference.mesh
+mv vortex-0-final.gf reference-rho.gf
+mv vortex-1-final.gf reference-rho-u.gf
+mv vortex-2-final.gf reference-rho-e.gf
+
+# Save the timesteps as well for errors
+for i in {0..19}
+do
+    mv soln-$i.mesh reference-$i.mesh
+    mv soln-$i-0.gf reference-$i-0.gf
+    mv soln-$i-1.gf reference-$i-1.gf
+    mv soln-$i-2.gf reference-$i-2.gf
+done
