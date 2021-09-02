@@ -123,8 +123,11 @@ private:
 /// Operator that extracts Face degrees of freedom for NCMesh in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParNCL2FaceRestriction : public NCL2FaceRestriction
+class ParNCL2FaceRestriction : public L2FaceRestriction
 {
+protected:
+   InterpolationManager interpolations;
+
 public:
    /** @brief Constructs an ParNCL2FaceRestriction.
 
