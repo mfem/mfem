@@ -562,12 +562,12 @@ void InitialCondition(const Vector &x, Vector &y)
         e = 1.0+0.1*exp(-xc*xc);
 
      }
-     else {
+     else if (problem == 2) {
 
         u = 0.0;
         double gamma = 1.4;
         double gm1 = gamma -1.0;
-        
+
         double rhoL = 1.0;
         double pL = 1.0;
 
@@ -582,6 +582,33 @@ void InitialCondition(const Vector &x, Vector &y)
            rho = rhoR;
            e = 1./gm1*pR/rhoR;
         }
+     }
+     else if (problem == 3) {
+
+        u = 0.0;
+        double gamma = 1.4;
+        double gm1 = gamma -1.0;
+
+        double rhoL = 1.0;
+        double pL = 1.0;
+
+        double rhoR = 0.125;
+        double pR = 0.1;
+
+        rho = rhoR;
+        e = 1./gm1*pR/rhoR;
+        if (x[0] > 0.3 && x[0] < 0.4) {
+           rho = rhoL;
+           e = 1./gm1*pL/rhoL;
+        }
+        if (x[0] > 0.7 && x[0] < 0.8) {
+           rho = 0.5*rhoL;
+           e = 1./gm1*pL/(0.5*rhoL);
+        }
+     }
+     else {
+        printf("unknown problem!\n");
+        exit(1);
      }
 
     // if (x(0) < 0.5) {
