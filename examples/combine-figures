@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Use imagemagick to combine the figures into a composite view
+
+for i in {0..19}; do
+    ii=`printf %04d $i`
+
+    # label reference density
+    convert reference-$ii.png -gravity south -annotate -50+50 "Reference Fine" ,reference-$ii.png
+
+    # label optimal density
+    convert opt-soln-$ii.png -gravity south -annotate -50+50 "Optimal AMR" ,opt-soln-$ii.png
+
+    # label greedy density
+    convert greedy-soln-$ii.png -gravity south -annotate -50+50 "Max Current AMR" ,greedy-soln-$ii.png
+
+    # stack optimal on top of error plot
+    convert ,opt-soln-$ii.png opt-err-$i.png -append ,opt-soln-werr-$ii.png
+
+    # stack greedy on top of error plot
+    convert ,greedy-soln-$ii.png greedy-err-$i.png -append ,greedy-soln-werr-$ii.png
+    
+    # lay the 3 side by side
+    convert ,reference-$ii.png ,opt-soln-werr-$ii.png ,greedy-soln-werr-$ii.png +append ,ref-sbs-soln-$ii.1.png
+
+    # Label the composite image with timestep
+    convert ,ref-sbs-soln-$ii.1.png -gravity northwest -annotate +20+20 "Timestep $i" ref-sbs-soln-$ii.png
+done
+
+rm ,*
