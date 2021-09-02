@@ -549,7 +549,7 @@ The specific libraries and their options are:
   Options: HYPRE_OPT, HYPRE_LIB.
   Versions: HYPRE >= 2.10.0b  (HYPRE built without CUDA)
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
-            HYPRE >= 2.22.0   (HYPRE built with CUDA)
+            HYPRE >= 2.22.1   (HYPRE built with CUDA)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).

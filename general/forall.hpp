@@ -13,6 +13,7 @@
 #define MFEM_FORALL_HPP
 
 #include "../config/config.hpp"
+#include "annotation.hpp"
 #include "error.hpp"
 #include "backends.hpp"
 #include "device.hpp"
