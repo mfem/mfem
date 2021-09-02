@@ -160,12 +160,8 @@ TEST_CASE("Identity Linear Interpolators",
       else
       {
          dim = 3;
-         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh.ReorientTetMesh();
-         }
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -543,12 +539,8 @@ TEST_CASE("Derivative Linear Interpolators",
       else
       {
          dim = 3;
-         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh.ReorientTetMesh();
-         }
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -767,12 +759,8 @@ TEST_CASE("Product Linear Interpolators",
       else
       {
          dim = 3;
-         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh.ReorientTetMesh();
-         }
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
