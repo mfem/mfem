@@ -24,7 +24,7 @@ namespace mfem
 {
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                           ElementDofOrdering e_ordering,
+                                           ElementDofOrdering ordering,
                                            FaceType type,
                                            L2FaceValues m)
    : L2FaceRestriction(fes, type, m)
@@ -45,7 +45,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    // Assuming all finite elements are using Gauss-Lobatto dofs
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = pfes.GetVSize();
-   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
       MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
@@ -64,9 +64,9 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    }
    // End of verifications
 
-   ComputeScatterIndicesAndOffsets(e_ordering, type);
+   ComputeScatterIndicesAndOffsets(ordering, type);
 
-   ComputeGatherIndices(e_ordering, type);
+   ComputeGatherIndices(ordering, type);
 }
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -425,10 +425,10 @@ void ParL2FaceRestriction::ComputeGatherIndices(
 }
 
 ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                               ElementDofOrdering e_ordering,
+                                               ElementDofOrdering ordering,
                                                FaceType type,
                                                L2FaceValues m)
-   : NCL2FaceRestriction(fes, type, m)
+   : L2FaceRestriction(fes, type, m), interpolations(fes, ordering, type)
 {
    if (nf==0) { return; }
    // If fespace==L2
@@ -444,7 +444,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    // Assuming all finite elements are using Gauss-Lobatto dofs
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = pfes.GetVSize();
-   const bool dof_reorder = (e_ordering==ElementDofOrdering::LEXICOGRAPHIC);
+   const bool dof_reorder = (ordering==ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
       MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
@@ -463,9 +463,9 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    }
    // End of verifications
 
-   ComputeScatterIndicesAndOffsets(e_ordering, type);
+   ComputeScatterIndicesAndOffsets(ordering, type);
 
-   ComputeGatherIndices(e_ordering, type);
+   ComputeGatherIndices(ordering, type);
 }
 
 void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -492,8 +492,10 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
                                 t?vd:nsdofs, t?nsdofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
-      auto interp_config_ptr = interp_config.Read();
-      auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+      auto interpolators = interpolations.GetInterpolators().Read();
+      const int nc_size = interpolations.GetNumInterpolators();
+      auto interp = Reshape(interpolators, nd, nd, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
@@ -504,7 +506,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int interp_index = conf.GetInterpolatorIndex();
          for (int side = 0; side < 2; side++)
          {
-            if ( interp_index==conforming || side!=nc_side )
+            if ( interp_index==InterpConfig::conforming || side!=nc_side )
             {
                MFEM_FOREACH_THREAD(dof,x,nd)
                {
@@ -600,8 +602,10 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, nf);
-      auto interp_config_ptr = interp_config.Read();
-      auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+      auto interpolators = interpolations.GetInterpolators().Read();
+      const int nc_size = interpolations.GetNumInterpolators();
+      auto interp = Reshape(interpolators, nd, nd, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
@@ -611,7 +615,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int nc_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          const int side = 0;
-         if ( interp_index==conforming || side!=nc_side )
+         if ( interp_index==InterpConfig::conforming || side!=nc_side )
          {
             MFEM_FOREACH_THREAD(dof,x,nd)
             {
@@ -699,8 +703,6 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
-   int nc_cpt = 0;
-   std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
 
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
@@ -717,7 +719,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
       {
          if ( face.IsConforming() )
          {
-            RegisterFaceConformingInterpolation(face,f_ind);
+            interpolations.RegisterFaceConformingInterpolation(face,f_ind);
             SetFaceDofsScatterIndices1(face,f_ind);
             if ( m==L2FaceValues::DoubleValued )
             {
@@ -744,8 +746,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
             {
                SetFaceDofsScatterIndices1(face,f_ind);
             }
-            RegisterFaceCoarseToFineInterpolation(face,f_ind,ordering,
-                                                  interp_map,nc_cpt);
+            interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
             SetFaceDofsScatterIndices2(face,f_ind);
             // if (face.IsInterior())
             // {
@@ -779,22 +780,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    }
 
    // Transform the interpolation matrix map into a contiguous memory structure.
-   // TODO: put in a function?
-   nc_size = interp_map.size();
-   interpolators.SetSize(dof*dof*nc_size);
-   auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
-   for (auto val : interp_map)
-   {
-      const int idx = val.second.first;
-      for (int i = 0; i < dof; i++)
-      {
-         for (int j = 0; j < dof; j++)
-         {
-            interp(i,j,idx) = (*val.second.second)(i,j);
-         }
-      }
-      delete val.second.second;
-   }
+   interpolations.LinearizeInterpolatorMapIntoVector();
 }
 
 void ParNCL2FaceRestriction::ComputeGatherIndices(

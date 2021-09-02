@@ -224,7 +224,7 @@ public:
        @param[out] y The L-vector degrees of freedom. */
    void AddMultTranspose(const Vector &x, Vector &y) const override;
 
-protected:
+private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector. 
 
@@ -244,6 +244,7 @@ protected:
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
 
+protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
