@@ -52,6 +52,9 @@ examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
 
+examples/soln-*
+examples/reference-*
+
 examples/refined.mesh
 examples/displaced.mesh
 examples/mesh.*
