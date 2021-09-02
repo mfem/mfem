@@ -385,6 +385,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
 
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const;
+
    /// Equivalent to the CalcVShape() method with the same arguments.
    void CalcPhysVShape(ElementTransformation &Trans, DenseMatrix &shape) const
    { CalcVShape(Trans, shape); }
@@ -420,6 +424,14 @@ public:
    void CalcPhysCurlShape(ElementTransformation &Trans,
                           DenseMatrix &curl_shape) const;
 
+   void CalcPhysCurlShapeRevDiff(ElementTransformation &Trans,
+                                 const DenseMatrix &curlshape_bar,
+                                 DenseMatrix &PointMat_bar) const;
+
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
+       face, while *ndofs is set to the number of dofs on that face.
+   */
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 
    /** @brief Evaluate the Hessians of all shape functions of a scalar finite
@@ -494,13 +506,13 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
-/** Given a vector coefficient and a transformation, compute the derivative of
-       its projection (approximation) in the local finite dimensional space
-       w.r.t. the mesh nodes (VectorFiniteElements) */
-   virtual void Project_RevDiff (const Vector &P_bar,
-                                 VectorCoefficient &vc,
-                                 ElementTransformation &Trans,
-                                 DenseMatrix &PointMat_bar) const;
+   /** Given a vector coefficient and a transformation, compute the derivative of
+          its projection (approximation) in the local finite dimensional space
+          w.r.t. the mesh nodes (VectorFiniteElements) */
+   virtual void ProjectRevDiff(const Vector &P_bar,
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &PointMat_bar) const;
 
    /** Given a matrix coefficient and a transformation, compute an approximation
        ("projection") in the local finite dimensional space in terms of the
@@ -726,15 +738,31 @@ protected:
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix J, Jinv;
    mutable DenseMatrix curlshape, curlshape_J;
+   mutable DenseMatrix vshapedxt, vshapedxt_bar;
 #endif
    void SetDerivMembers();
 
    void CalcVShape_RT(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
+   void CalcVShape_RTRevDiff(ElementTransformation &Trans,
+                             const DenseMatrix &shape_bar,
+                             DenseMatrix &PointMat_bar) const;
+
    void CalcVShape_ND(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
+   void CalcVShape_NDRevDiff(ElementTransformation &Trans,
+                             const DenseMatrix &shape_bar,
+                             DenseMatrix &PointMat_bar) const;
+
+   /** @brief Project a vector coefficient onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
@@ -757,7 +785,7 @@ protected:
    /// @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
    ///                        mesh nodes
    /// @warning - only implemented for the same space and reference dimension
-   void Project_RT_RevDiff(const Vector &P_bar,
+   void Project_RTRevDiff(const Vector &P_bar,
                            const double *nk, const Array<int> &d2n,
                            VectorCoefficient &vc,
                            ElementTransformation &Trans,
@@ -782,20 +810,19 @@ protected:
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
-   /// Reverse-diff version of Project_ND
-   /// @param[in] P_bar - derivative of function with respect to the projection
+   /// Reverse-mode differentiated version of Project_ND
+   /// @param[in] P_bar - derivative of functional with respect to the projection
    /// @param[in] tk - ?
    /// @param[in] d2t - ?
    /// @param[in] vc - VectorCoefficient being projected
    /// @param[in] Trans - an element transformation
-   /// @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
-   ///                        mesh nodes
+   /// @param[out] PointMat_bar - derivative of functional w.r.t. mesh nodes
    /// @warning - only implemented for the same space and reference dimension
-   void Project_ND_RevDiff(const Vector &P_bar,
-                           const double *tk, const Array<int> &d2t,
-                           VectorCoefficient &vc,
-                           ElementTransformation &Trans,
-                           DenseMatrix &PointMat_bar) const;
+   void Project_NDRevDiff(const Vector &P_bar,
+                          const double *tk, const Array<int> &d2t,
+                          VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          DenseMatrix &PointMat_bar) const;
 
    // project the rows of the matrix coefficient in an ND space
    void ProjectMatrixCoefficient_ND(
@@ -2489,6 +2516,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_RTRevDiff(Trans, shape_bar, PointMat_bar); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -2505,11 +2536,14 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-   virtual void Project_RevDiff(const Vector &P_bar,
+   virtual void ProjectRevDiff(const Vector &P_bar,
                                 VectorCoefficient &vc,
                                 ElementTransformation &Trans,
                                 DenseMatrix &dofs_bar) const
-   { Project_RT_RevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
+   { Project_RTRevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2550,6 +2584,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_RTRevDiff(Trans, shape_bar, PointMat_bar); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -2599,6 +2637,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_RTRevDiff(Trans, shape_bar, PointMat_bar); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -2654,6 +2696,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_RTRevDiff(Trans, shape_bar, PointMat_bar); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -2670,11 +2716,14 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-   virtual void Project_RevDiff(const Vector &P_bar,
+   virtual void ProjectRevDiff(const Vector &P_bar,
                                 VectorCoefficient &vc,
                                 ElementTransformation &Trans,
                                 DenseMatrix &dofs_bar) const
-   { Project_RT_RevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
+   { Project_RTRevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2708,6 +2757,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_NDRevDiff(Trans, shape_bar, PointMat_bar); }
 
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
@@ -2771,6 +2824,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_NDRevDiff(Trans, shape_bar, PointMat_bar); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -2787,11 +2844,14 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void Project_RevDiff(const Vector &P_bar,
+   virtual void ProjectRevDiff(const Vector &P_bar,
                                 VectorCoefficient &vc,
                                 ElementTransformation &Trans,
                                 DenseMatrix &dofs_bar) const
-   { Project_ND_RevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
+   { Project_NDRevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
@@ -2825,6 +2885,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_NDRevDiff(Trans, shape_bar, PointMat_bar); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -2841,11 +2905,14 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void Project_RevDiff(const Vector &P_bar,
+   virtual void ProjectRevDiff(const Vector &P_bar,
                                 VectorCoefficient &vc,
                                 ElementTransformation &Trans,
                                 DenseMatrix &dofs_bar) const
-   { Project_ND_RevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
+   { Project_NDRevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
@@ -2884,6 +2951,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_NDRevDiff(Trans, shape_bar, PointMat_bar); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -2930,6 +3001,10 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
+   virtual void CalcVShapeRevDiff(ElementTransformation &Trans,
+                                  const DenseMatrix &shape_bar,
+                                  DenseMatrix &PointMat_bar) const
+   { CalcVShape_NDRevDiff(Trans, shape_bar, PointMat_bar); }
    // virtual void CalcCurlShape(const IntegrationPoint &ip,
    //                            DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,

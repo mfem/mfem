@@ -327,6 +327,7 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    ess_bdr[0] = 1; // boundary attribute 1 (index 0) is fixed
 
+{
    // 9. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
    HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K);
@@ -429,6 +430,7 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
 
+}
    MPI_Finalize();
 
    return 0;
@@ -555,9 +557,11 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    reduced_oper = new ReducedSystemOperator(&M, &S, &H, ess_tdof_list);
 
-   HypreSmoother *J_hypreSmoother = new HypreSmoother;
-   J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
-   J_hypreSmoother->SetPositiveDiagonal(true);
+   // HypreSmoother *J_hypreSmoother = new HypreSmoother;
+   // J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
+   // J_hypreSmoother->SetPositiveDiagonal(true);
+   HypreBoomerAMG *J_hypreSmoother = new HypreBoomerAMG;
+   J_hypreSmoother->SetPrintLevel(-1);
    J_prec = J_hypreSmoother;
 
    MINRESSolver *J_minres = new MINRESSolver(f.GetComm());

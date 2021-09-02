@@ -378,6 +378,14 @@ public:
    /// accumulates (with += or -=) contributions to its derivative.
    void WeightRevDiff(DenseMatrix &PointMat_bar);
 
+   /// @brief Reverse-mode differentiation of Weight()
+   /// @param[in] weight_bar - derivative of functional w.r.t Weight
+   /// @param[out] PointMat_bar - derivative of functional w.r.t. PointMat
+   /// @note PointMat_bar must have the same shape as PointMat
+   /// @warning This routine does not initialize PointMat_bar, and instead
+   /// accumulates (with += or -=) contributions to its derivative.
+   void WeightRevDiff(double weight_bar, DenseMatrix &PointMat_bar);
+
    virtual ~IsoparametricTransformation() { }
 
    MFEM_DEPRECATED void FinalizeTransformation() {}

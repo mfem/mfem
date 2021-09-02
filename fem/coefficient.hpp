@@ -47,6 +47,21 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
+   /** @brief Reverse-mode differentiation of Eval w.r.t. the mesh node
+       locations in the element described by @a T, accumulating the result in
+       @a PointMat_bar */
+   /** @param[in] Q_bar - derivative of some output w.r.t. result of Eval */
+   /** @param[in] T - an element transformation */
+   /** @param[in] ip - defines location in reference space */
+   /** @param[inout] PointMat_bar - derivative of output w.r.t. mesh nodes */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void EvalRevDiff(const double Q_bar,
+                            ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
+
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
    /** @note When this method is called, the caller must make sure that the
@@ -156,6 +171,11 @@ public:
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   virtual void EvalRevDiff(const double Q_bar,
+                            ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
 };
 
 class GridFunction;
@@ -300,9 +320,13 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   /** @brief Evaluate the derivative of a vector coefficient in the element 
-       described by @a T at the point @a ip, with respect to the mesh nodes,
-       storing the result in @a PointMat_bar. */
+   /** @brief Reverse-mode differentiation of Eval w.r.t. the mesh node
+       locations in the element described by @a T, accumulating the result in
+       @a PointMat_bar */
+   /** @param[in] V_bar - derivative of some output with respect to `V` */
+   /** @param[in] T - an element transformation */
+   /** @param[in] ip - defines location in reference space */
+   /** @param[inout] PointMat_bar - derivative of output w.r.t. mesh nodes */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
@@ -338,6 +362,12 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar) { }
+
+   /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
 };
 
@@ -397,11 +427,6 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /// Reverse-diff version of Eval
-   /// @param[in] V_bar - derivative of functional with respect to `V`
-   /// @param[in] T - an element transformation 
-   /// @param[in] ip - defines location in reference space
-   /// @param[out] PointMat_bar - derivative of function w.r.t. mesh nodes
    virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
                             const IntegrationPoint &ip,
                             DenseMatrix &PointMat_bar);
@@ -852,10 +877,62 @@ class ScalarVectorProductCoefficient : public VectorCoefficient
 private:
    Coefficient * a;
    VectorCoefficient * b;
+#ifndef MFEM_THREAD_SAFE
+   Vector W, W_bar;
+#endif
 
 public:
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
 
+   /// Reset the scalar factor as a constant
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   /// Return the scalar factor
+   double GetAConst() const { return aConst; }
+
+   /// Reset the scalar factor
+   void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the scalar factor
+   Coefficient * GetACoef() const { return a; }
+
+   /// Reset the vector factor
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   /// Return the vector factor
+   VectorCoefficient * GetBCoef() const { return b; }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
+
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
+
+};
+
+/// Vector coefficient defined as a normalized vector field (returns v/|v|)
+class NormalizedVectorCoefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient * a;
+
+   double tol;
+
+public:
+   /** @brief Return a vector normalized to a length of one
+
+       This class evaluates the vector coefficient @a A and, if |A| > @a tol,
+       returns the normalized vector A / |A|.  If |A| <= @a tol, the zero
+       vector is returned.
+   */
+   NormalizedVectorCoefficient(VectorCoefficient &A, double tol = 1e-6);
+
+   /// Reset the vector coefficient
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   /// Return the vector coefficient
+   VectorCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;

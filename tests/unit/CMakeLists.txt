@@ -37,9 +37,12 @@ set(UNIT_TESTS_SRCS
   fem/test_3d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
   fem/test_calcshape.cpp
+  fem/test_coeff_revdiff.cpp
   fem/test_datacollection.cpp
   fem/test_face_permutation.cpp
   fem/test_fe.cpp
+  fem/test_fe_revdiff.cpp
+  fem/test_get_value.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
@@ -49,7 +52,7 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
-#   fem/test_projection_revdiff.cpp
+  fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
   miniapps/test_sedov.cpp
 )
