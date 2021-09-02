@@ -54,6 +54,10 @@ examples/ex2[0-9]p
 
 examples/soln-*
 examples/reference-*
+examples/*.dat
+examples/*.gif
+examples/*.mp4
+examples/*.gf
 
 examples/refined.mesh
 examples/displaced.mesh
