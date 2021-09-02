@@ -1138,7 +1138,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
    {
       if (e2>=0)
       {
-         info.location = FaceLocation::Interior;
+         info.location = FaceLocation::Local;
          info.elem_2_index = e2;
          if (ncface==-1)
          {
@@ -1171,7 +1171,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          else // ncface >= 0
          {
             info.location = e2==-1 ?
-                           FaceLocation::Interior :
+                           FaceLocation::Local :
                            FaceLocation::Shared;
             info.conformity = FaceConformity::NonConformingMaster;
             info.elem_2_index = e2==-1 ? e2 : -1 - e2;
