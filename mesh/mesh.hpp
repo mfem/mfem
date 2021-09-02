@@ -1322,17 +1322,19 @@ public:
                  location==Mesh::FaceLocation::Shared);
       }
 
+      /// @brief Return true if the face is a local interior face.
       bool IsLocal() const
       {
          return location == Mesh::FaceLocation::Local;
       }
 
+      /// @brief Return true if the face is a shared interior face.
       bool IsShared() const
       {
           return location == Mesh::FaceLocation::Shared;
       }
 
-      /** @brief return true if the face is a boundary face, and not a
+      /** @brief Return true if the face is a boundary face, and not a
           non-conforming master face. */
       bool IsBoundary() const
       {
@@ -1340,6 +1342,7 @@ public:
                 location==Mesh::FaceLocation::Boundary;
       }
 
+      /// @brief Return true if the face is of the same type as @a type.
       bool IsOfFaceType(FaceType type) const
       {
          switch (type)
@@ -1351,17 +1354,20 @@ public:
          }
       }
 
+      /// @brief Return true if the face is a conforming face.
       bool IsConforming() const
       {
          return conformity==Mesh::FaceConformity::Conforming;
       }
 
+      /// @brief Return true if the face is a ghost face.
       bool IsGhost() const
       {
          return location==Mesh::FaceLocation::Shared &&
                 conformity!=Mesh::FaceConformity::Conforming;
       }
 
+      /// @brief Print function for FaceInformation.
       friend std::ostream& operator<<(std::ostream& os, const FaceInformation& info)
       {
          os << "location=";
