@@ -60,8 +60,8 @@ double affine_function(const Vector &p)
 // Piecewise-constant function which is never mesh-conforming
 double jump_function(const Vector &p)
 {
-   if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1; }
-   return 5;
+   if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1.0; }
+   return 5.0;
 }
 
 // Singular function derived from the Laplacian of the "steep wavefront"
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 
    // 6. Apply custom refiner settings.
    coeffrefiner.SetIntRule(irs);
-   coeffrefiner.SetMaxElements( (long) max_elems);
+   coeffrefiner.SetMaxElements( max_elems);
    coeffrefiner.SetThreshold(osc_threshold);
    coeffrefiner.SetNCLimit(nc_limit);
 
