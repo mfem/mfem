@@ -1287,7 +1287,7 @@ public:
 
    /** This enumerated type is used to describe interior, boundary, or shared
        interior faces. */
-   enum class FaceLocation {Interior, Shared, Boundary};
+   enum class FaceLocation {Local, Shared, Boundary};
    /** This enumerated type is used to describe if a face is a conforming face,
        a non-conforming slave face, or a non-conforming master face. */
    enum class FaceConformity {Conforming,
@@ -1306,7 +1306,7 @@ public:
    */
    struct FaceInformation
    {
-      FaceLocation location; // Interior, shared-interior, boundary
+      FaceLocation location; // Local, shared, boundary
       FaceConformity conformity; // Conforming, non-conforming master or slave
       int elem_1_index, elem_2_index; // Elem1 and Elem2 indices
       int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
@@ -1318,8 +1318,13 @@ public:
       bool IsInterior() const
       {
          return conformity!=Mesh::FaceConformity::NonConformingMaster &&
-                (location==Mesh::FaceLocation::Interior ||
+                (location==Mesh::FaceLocation::Local ||
                  location==Mesh::FaceLocation::Shared);
+      }
+
+      bool IsLocal() const
+      {
+         return location == Mesh::FaceLocation::Local;
       }
 
       bool IsShared() const
@@ -1362,8 +1367,8 @@ public:
          os << "location=";
          switch (info.location)
          {
-         case Mesh::FaceLocation::Interior:
-            os << "Interior";
+         case Mesh::FaceLocation::Local:
+            os << "Local";
             break;
          case Mesh::FaceLocation::Shared:
             os << "Shared";

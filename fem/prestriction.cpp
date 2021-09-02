@@ -393,12 +393,10 @@ void ParL2FaceRestriction::ComputeGatherIndices(
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
 
    // Computation of gather_indices
    int f_ind = 0;
-   for (int f = 0; f < pfes.GetNF(); ++f)
+   for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if (face.IsOfFaceType(type))
@@ -406,8 +404,7 @@ void ParL2FaceRestriction::ComputeGatherIndices(
          SetFaceDofsGatherIndices1(face,f_ind);
          if (m==L2FaceValues::DoubleValued &&
              type==FaceType::Interior &&
-             face.IsInterior() &&
-             !face.IsShared())
+             face.IsLocal())
          {
             PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
          }
@@ -803,8 +800,7 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
          SetFaceDofsGatherIndices1(face,f_ind);
          if (m==L2FaceValues::DoubleValued &&
              type==FaceType::Interior &&
-             face.IsInterior() &&
-             !face.IsShared())
+             face.IsLocal())
          {
             if (face.IsConforming())
             {
