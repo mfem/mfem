@@ -103,6 +103,7 @@ void LinearForm::Assemble()
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
+   DofTransformation *doftrans;
    Vector elemvect;
 
    int i;
@@ -134,10 +135,14 @@ void LinearForm::Assemble()
             if ( domain_integs_marker[k] == NULL ||
                  (*(domain_integs_marker[k]))[elem_attr-1] == 1 )
             {
-               fes -> GetElementVDofs (i, vdofs);
+               doftrans = fes -> GetElementVDofs (i, vdofs);
                eltrans = fes -> GetElementTransformation (i);
                domain_integs[k]->AssembleRHSElementVect(*fes->GetFE(i),
                                                         *eltrans, elemvect);
+               if (doftrans)
+               {
+                  doftrans->TransformDual(elemvect);
+               }
                AddElementVector (vdofs, elemvect);
             }
          }
@@ -174,7 +179,7 @@ void LinearForm::Assemble()
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-         fes -> GetBdrElementVDofs (i, vdofs);
+         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
          for (int k=0; k < boundary_integs.Size(); k++)
          {
@@ -184,6 +189,10 @@ void LinearForm::Assemble()
             boundary_integs[k]->AssembleRHSElementVect(*fes->GetBE(i),
                                                        *eltrans, elemvect);
 
+            if (doftrans)
+            {
+               doftrans->TransformDual(elemvect);
+            }
             AddElementVector (vdofs, elemvect);
          }
       }

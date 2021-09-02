@@ -30,5 +30,5 @@
 
 opt_mpi_cuda_xl_16_1_1_8:
   variables:
-    SPEC: "%xl@16.1.1.8 +mpi +cuda cuda_arch=sm_70"
+    SPEC: "%xl@16.1.1.8 +mpi +cuda cuda_arch=70"
   extends: .build_and_test_on_lassen
