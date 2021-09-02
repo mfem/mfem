@@ -364,7 +364,7 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Enable the JIT shortcut when requested
-   if (device_option && !strcmp(device_option, "jit"))
+   if (device_option && !strncmp(device_option, "jit", 3))
    {
       kernel_mode = KERNEL_MODES::JIT;
    }
