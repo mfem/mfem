@@ -497,6 +497,159 @@ protected:
                                             const int face_index);
 };
 
+/** This class stores which side is the master non-conforming side and the
+    index of the interpolator. */
+struct InterpConfig
+{
+   int config;
+   static constexpr int conforming = -1; // helper value
+
+   // Conforming face
+   // InterpConfig() : config(-1) { } // TODO: try to make this work with is_trivial
+   InterpConfig() = default;
+
+   // Non-conforming face, if nc_index is given assumes side==1 (always true
+   // except for ghost faces)
+   InterpConfig(int config) : config(config) { }
+
+   // Non-conforming face
+   InterpConfig(int side, int nc_index)
+      : config(side==1?nc_index: -1 - nc_index)
+   { }
+
+   MFEM_HOST_DEVICE
+   InterpConfig(const InterpConfig&) = default;
+
+   MFEM_HOST_DEVICE
+   InterpConfig &operator=(const InterpConfig &rhs)
+   {
+      this->config = rhs.config;
+      return *this;
+   }
+
+   MFEM_HOST_DEVICE
+   int GetNonConformingMasterSide() const
+   {
+      // MFEM_ASSERT(config!=-1, "This face is conforming.");
+      return config<-1? 0 : 1;
+   }
+
+   MFEM_HOST_DEVICE
+   int GetInterpolatorIndex() const
+   {
+      // MFEM_ASSERT(config!=-1, "This face is conforming.");
+      return config<-1? -1-config : config;
+   }
+};
+
+/** @brief This class manages the storage and computation of the interpolations
+    from master (coarse) face to slave (fine) face.
+*/
+class InterpolationManager
+{
+protected:
+   const FiniteElementSpace &fes;
+   const ElementDofOrdering ordering;
+   Array<InterpConfig> interp_config; // interpolator index for each face
+   Vector interpolators; // face_dofs x face_dofs x num_interpolators
+   int nc_cpt; // Counter for interpolators, and used as index.
+
+   /** The interpolators are associated to a key of containing the address of
+       PointMatrix and a local face identifiant. */
+   using Key = std::pair<const DenseMatrix*,int>;
+   /// The temporary map used to store the different interpolators.
+   using Map = std::map<Key, std::pair<int,const DenseMatrix*>>;
+   Map interp_map; // The temporary map that stores the interpolators.
+
+public:
+   InterpolationManager() = delete;
+
+   /** @brief main constructor.
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs
+    */
+   InterpolationManager(const FiniteElementSpace &fes,
+                        ElementDofOrdering ordering,
+                        FaceType type);
+
+   /** @brief Register the face with @a face and index @a face_index as a
+       conforming face for the interpolation of the degrees of freedom.
+
+       @param[in] face The face information of the current face.
+       @param[in] face_index The interior/boundary face index.
+    */
+   void RegisterFaceConformingInterpolation(const Mesh::FaceInformation &face,
+                                            int face_index);
+
+   /** @brief Register the face with @a face and index @a face_index as a
+       conforming face for the interpolation of the degrees of freedom.
+
+       @param[in] face The face information of the current face.
+       @param[in] face_index The interior/boundary face index.
+    */
+   void RegisterFaceCoarseToFineInterpolation(const Mesh::FaceInformation &face,
+                                              int face_index);
+
+   /** @brief Transform the interpolation matrix map into a contiguous memory
+       structure. */
+   void LinearizeInterpolatorMapIntoVector();
+
+   /// @brief Return the total number of interpolators.
+   int GetNumInterpolators() const
+   {
+      return nc_cpt;
+   }
+
+   /** @brief Return an mfem::Vector containing the interpolators in the
+       following format: face_dofs x face_dofs x num_interpolators. */
+   const Vector& GetInterpolators() const
+   {
+      return interpolators;
+   }
+
+   /** @brief Return an array containing the interpolation configuration for
+       each face registered with RegisterFaceConformingInterpolation and
+       RegisterFaceCoarseToFineInterpolation. */
+   const Array<InterpConfig>& GetFaceInterpConfig() const
+   {
+      return interp_config;
+   }
+
+private:
+   /** @brief Get the key to indentify the corase to fine interpolation */
+   static Key GetKey(const Mesh::FaceInformation &face,
+                     const DenseMatrix* ptMat)
+   {
+      // In the case of non-conforming slave shared face the master face is elem1.
+      const int nc_side =
+         (face.conformity == Mesh::FaceConformity::NonConformingSlave &&
+            face.location == Mesh::FaceLocation::Shared) ? 0 : 1;
+      const int face_key = nc_side == 1 ?
+                           face.elem_1_local_face + 6*face.elem_2_local_face :
+                           face.elem_2_local_face + 6*face.elem_1_local_face ;
+      // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
+      return Key{ptMat, face_key};
+   }
+
+   /** @brief Returns the interpolation operator from a master (coarse) face to
+       a slave (fine) face.
+
+       @param[in] face The face information of the current face.
+       @param[in] ptMat The PointMatrix describing the position and orientation
+                        of the fine face in the coarse face. This PointMatrix is
+                        usually obtained from the mesh through the method
+                        GetNCFacesPtMat.
+       @param[in] ordering  Request a specific element ordering.
+       @return The dense matrix corresponding to the interpolation of the face
+               degrees of freedom of the master (coarse) face to the slave
+               (fine) face. */
+   const DenseMatrix* GetCoarseToFineInterpolation(
+      const Mesh::FaceInformation &face,
+      const DenseMatrix* ptMat);
+};
+
 /** @brief Operator that extracts face degrees of freedom for L2 non-conforming
     spaces.
 
@@ -507,9 +660,7 @@ protected:
 class NCL2FaceRestriction : public L2FaceRestriction
 {
 protected:
-   NCL2FaceRestriction(const FiniteElementSpace&,
-                       const FaceType,
-                       const L2FaceValues m = L2FaceValues::DoubleValued);
+   InterpolationManager interpolations;
 
 public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
@@ -619,105 +770,6 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
-
-protected:
-
-   /** This class stores which side is the master non-conforming side and the
-       index of the interpolator. */
-   struct InterpConfig
-   {
-      int config;
-
-      // Conforming face
-      // InterpConfig() : config(-1) { } // TODO: try to make this work with is_trivial
-      InterpConfig() = default;
-
-      // Non-conforming face, if nc_index is given assumes side==1 (always true
-      // except for ghost faces)
-      InterpConfig(int config) : config(config) { }
-
-      // Non-conforming face
-      InterpConfig(int side, int nc_index)
-         : config(side==1?nc_index: -1 - nc_index)
-      { }
-
-      MFEM_HOST_DEVICE
-      InterpConfig(const InterpConfig&) = default;
-
-      MFEM_HOST_DEVICE
-      InterpConfig &operator=(const InterpConfig &rhs)
-      {
-         this->config = rhs.config;
-         return *this;
-      }
-
-      MFEM_HOST_DEVICE
-      int GetNonConformingMasterSide() const
-      {
-         // MFEM_ASSERT(config!=-1, "This face is conforming.");
-         return config<-1? 0 : 1;
-      }
-
-      MFEM_HOST_DEVICE
-      int GetInterpolatorIndex() const
-      {
-         // MFEM_ASSERT(config!=-1, "This face is conforming.");
-         return config<-1? -1-config : config;
-      }
-   };
-
-   Array<InterpConfig> interp_config; // interpolator index for each face
-   int nc_size; // number of non-conforming interpolators
-   Vector interpolators; // face_dofs x face_dofs x nc_size
-   static const int conforming = -1; // helper value
-
-   /** @brief Register the face with @a info and index @a face_index as a
-       conforming face for the interpolation of the degrees of freedom.
-
-       @param[in] info The face information of the current face.
-       @param[in] face_index The interior/boundary face index.
-    */
-   void RegisterFaceConformingInterpolation(const Mesh::FaceInformation &info,
-                                            int face_index);
-
-   /** The interpolators are associated to a key of containing the address of
-       PointMatrix and a local face identifiant. */
-   using Key = std::pair<const DenseMatrix*,int>;
-   /// The temporary map used to store the different interpolators.
-   using Map = std::map<Key, std::pair<int,const DenseMatrix*>>;
-
-   /** @brief Register the face with @a info and index @a face_index as a
-       conforming face for the interpolation of the degrees of freedom.
-
-       @param[in] info The face information of the current face.
-       @param[in] face_index The interior/boundary face index.
-       @param[in] ordering  Request a specific element ordering.
-       @param[in,out] interp_map The map that stores the interpolators.
-       @param[in,out] nc_cpt A counter that stores the number of different
-                             interpolators. Used as index for each interpolator.
-    */
-   void RegisterFaceCoarseToFineInterpolation(const Mesh::FaceInformation &info,
-                                              int face_index,
-                                              ElementDofOrdering ordering,
-                                              Map &interp_map,
-                                              int &nc_cpt);
-
-   /** @brief Returns the interpolation operator from a master (coarse) face to
-       a slave (fine) face.
-
-       @param[in] info The face information of the current face.
-       @param[in] ptMat The PointMatrix describing the position and orientation
-                        of the fine face in the coarse face. This PointMatrix is
-                        usually obtained from the mesh through the method
-                        GetNCFacesPtMat.
-       @param[in] ordering  Request a specific element ordering.
-       @return The dense matrix corresponding to the interpolation of the face
-               degrees of freedom of the master (coarse) face to the slave
-               (fine) face. */
-   const DenseMatrix* ComputeCoarseToFineInterpolation(
-      const Mesh::FaceInformation &info,
-      const DenseMatrix* ptMat,
-      ElementDofOrdering ordering);
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the
