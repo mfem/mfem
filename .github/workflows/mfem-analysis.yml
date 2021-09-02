@@ -30,7 +30,14 @@ env:
 
 jobs:
   gitignore:
-    runs-on: ubuntu-18.04
+    # runner.os returns "Linux" instead on the tag used to specify the os
+    # (here ubuntu-18.04). We need the tag, so we use a matrix just like
+    # in build-and-test workflow.
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
     - name: Cancel Previous Runs
@@ -53,7 +60,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-87f9e17
+        key: ${{ matrix.os }}-build-${{ env.HYPRE_TOP_DIR }}-87f9e17
 
     - name: Get Hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
@@ -68,7 +75,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-87f9e17
+        key: ${{ matrix.os }}-build-${{ env.METIS_TOP_DIR }}-87f9e17
 
     - name: Install Metis
       if: steps.metis-cache.outputs.cache-hit != 'true'
@@ -81,7 +88,7 @@ jobs:
     - name: build-mfem
       uses: mfem/github-actions/build-mfem@warnings-flags-tweak
       with:
-        os: ${{ runner.os }}
+        os: ${{ matrix.os }}
         target: opt
         codecov: NO
         mpi: par
