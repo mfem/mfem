@@ -20,6 +20,9 @@ Version 4.3.1 (development)
   functions on wedges and pyramids which are not amenable to reordering. The
   ReorientTetMesh method of the Mesh and ParMesh classes has been deprecated.
 
+- Gmsh meshes where all elements have zero physical tag (the default Gmsh
+  output format if no physical groups are defined) are now successfully loaded,
+  and elements are reassigned attribute number 1.
 
 Version 4.3, released on July 29, 2021
 ======================================
