@@ -1627,8 +1627,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                                          const FaceType type,
                                          const L2FaceValues m)
    : L2FaceRestriction(fes, type, m),
-     interp_config(
-        (m==L2FaceValues::DoubleValued && type==FaceType::Interior) ? nf : 0)
+     interp_config(type==FaceType::Interior ? nf : 0)
 {
 }
 
