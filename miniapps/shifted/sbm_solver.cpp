@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "sbm_solver.hpp"
-#include "mfem.hpp"
 
 namespace mfem
 {

@@ -12,8 +12,8 @@
 #ifndef MFEM_SBM_SOLVER_HPP
 #define MFEM_SBM_SOLVER_HPP
 
-#include "marking.hpp"
 #include "mfem.hpp"
+#include "marking.hpp"
 
 namespace mfem
 {
@@ -36,9 +36,8 @@ public:
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       if (constantcoefficient) { return constant; }
-      Vector transip;
-      T.Transform(ip, transip);
-      Vector D = transip;
+
+      Vector D(T.GetSpaceDim());
       D = 0.;
       return (this)->Eval(T, ip, D);
    }
@@ -248,7 +247,7 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   bool GetTrimFlag() { return include_cut_cell; }
+   bool GetTrimFlag() const { return include_cut_cell; }
 
    virtual ~SBM2NeumannIntegrator() { }
 };
@@ -279,7 +278,7 @@ protected:
    // term from Taylor expansion that should be included. (0 by default).
    bool include_cut_cell;
    int NEproc;                // Number of elements on the current MPI rank
-   int par_shared_face_count; //
+   int par_shared_face_count;
    int ls_cut_marker;
 
    // these are not thread-safe!
@@ -312,7 +311,7 @@ public:
                                        const FiniteElement &el2,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
-   bool GetTrimFlag() { return include_cut_cell; }
+   bool GetTrimFlag() const { return include_cut_cell; }
 };
 
 } // namespace mfem
