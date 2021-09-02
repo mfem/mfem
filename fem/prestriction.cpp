@@ -23,6 +23,293 @@
 namespace mfem
 {
 
+ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
+                                               ElementDofOrdering ordering,
+                                               FaceType type)
+   : H1FaceRestriction(fes,type),
+     type(type),
+     interpolations(fes,ordering,type)
+{
+   if (nf==0) { return; }
+   // If fespace == H1
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tfe != NULL &&
+               (tfe->GetBasisType()==BasisType::GaussLobatto ||
+                tfe->GetBasisType()==BasisType::Positive),
+               "Only Gauss-Lobatto and Bernstein basis are supported in "
+               "H1FaceRestriction.");
+
+   // Assuming all finite elements are using Gauss-Lobatto.
+   height = vdim*nf*dof;
+   width = fes.GetVSize();
+   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   if (dof_reorder && nf > 0)
+   {
+      for (int f = 0; f < fes.GetNF(); ++f)
+      {
+         const FiniteElement *fe = fes.GetFaceElement(f);
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(fe);
+         if (el) { continue; }
+         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
+      }
+      const FiniteElement *fe = fes.GetFaceElement(0);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+   }
+   // End of verifications
+
+   ComputeScatterIndicesAndOffsets(ordering, type);
+
+   ComputeGatherIndices(ordering, type);
+}
+
+void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+
+   if ( type==FaceType::Boundary )
+   {
+      auto d_indices = scatter_indices.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int dof = i % nd;
+         const int face = i / nd;
+         const int idx = d_indices[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+         }
+      });
+   }
+   else // type==FaceType::Interior
+   {
+      auto d_indices = scatter_indices.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+      auto interpolators = interpolations.GetInterpolators().Read();
+      const int nc_size = interpolations.GetNumInterpolators();
+      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      static constexpr int max_nd = 16*16;
+      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      {
+         MFEM_SHARED double dofs[max_nd];
+         const InterpConfig conf = interp_config_ptr[face];
+         const int nc_side = conf.GetNonConformingMasterSide();
+         const int interp_index = conf.GetInterpolatorIndex();
+         const int side = 0;
+         if ( interp_index==InterpConfig::conforming || side!=nc_side )
+         {
+            MFEM_FOREACH_THREAD(dof,x,nd)
+            {
+               const int i = face*nd + dof;
+               const int idx = d_indices[i];
+               for (int c = 0; c < vd; ++c)
+               {
+                  d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+               }
+            }
+         }
+         else // Interpolation from coarse to fine
+         {
+            for (int c = 0; c < vd; ++c)
+            {
+               // Load the face dofs in shared memory
+               MFEM_FOREACH_THREAD(dof,x,nd)
+               {
+                  const int i = face*nd + dof;
+                  const int idx = d_indices[i];
+                  dofs[dof] = d_x(t?c:idx, t?idx:c);
+               }
+               MFEM_SYNC_THREAD;
+               // Apply the interpolation to the face dofs
+               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               for (int dofOut = 0; dofOut<nd; dofOut++)
+               {
+                  double res = 0.0;
+                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  {
+                     res += interp(dofOut, dofIn, interp_index)*dofs[dofIn];
+                  }
+                  d_y(dofOut, c, face) = res;
+               }
+               MFEM_SYNC_THREAD;
+            }
+         }
+      });
+   }
+}
+
+void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   if ( type==FaceType::Interior )
+   {
+      // Interpolation from slave to master face dofs
+      // FIXME: Currently this is modifying `x`, otherwise we need a temporary?
+      // TODO: Consider different algorithm
+      auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, nf);
+      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+      auto interpolators = interpolations.GetInterpolators().Read();
+      const int nc_size = interpolations.GetNumInterpolators();
+      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      static constexpr int max_nd = 16*16;
+      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      {
+         MFEM_SHARED double dofs[max_nd];
+         const InterpConfig conf = interp_config_ptr[face];
+         const int interp_index = conf.GetInterpolatorIndex();
+         if ( interp_index!=InterpConfig::conforming )
+         {
+            // Interpolation from fine to coarse
+            for (int c = 0; c < vd; ++c)
+            {
+               MFEM_FOREACH_THREAD(dof,x,nd)
+               {
+                  dofs[dof] = d_x(dof, c, face);
+               }
+               MFEM_SYNC_THREAD;
+               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               {
+                  double res = 0.0;
+                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  {
+                     res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
+                  }
+                  d_x(dofOut, c, face) = res; // TODO write directly in d_y?
+               }
+               MFEM_SYNC_THREAD;
+            }
+         }
+      });
+   }
+
+   // Gathering of face dofs into element dofs
+   auto d_offsets = offsets.Read();
+   auto d_indices = gather_indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            int idx_j = d_indices[j];
+            // TODO: Check if conforming?
+            dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
+         }
+         d_y(t?c:i,t?i:c) += dofValue;
+      }
+   });
+}
+
+void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+
+   // Initialization of the offsets
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+
+   // Computation of scatter indices and offsets
+   int f_ind = 0;
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if (type==FaceType::Interior && face.IsInterior())
+      {
+         if ( face.IsConforming() )
+         {
+            interpolations.RegisterFaceConformingInterpolation(face,f_ind);
+            SetFaceDofsScatterIndices(face, f_ind, ordering);
+            f_ind++;
+         }
+         else // Non-conforming face
+         {
+            if (face.IsShared())
+            {
+               // In this case the local face is the master (coarse) face, thus
+               // we need to interpolate the values on the slave (fine) face.
+               interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
+               SetFaceDofsScatterIndices(face, f_ind, ordering);
+            }
+            else
+            {
+               // Treated as a conforming face since we only extract values from
+               // the local slave (fine) face.
+               interpolations.RegisterFaceConformingInterpolation(face,f_ind);
+               SetFaceDofsScatterIndices(face, f_ind, ordering);
+            }
+            f_ind++;
+         }
+      }
+      else if (type==FaceType::Boundary && face.IsBoundary())
+      {
+         SetFaceDofsScatterIndices(face, f_ind, ordering);
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Summation of the offsets
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+
+   // Transform the interpolation matrix map into a contiguous memory structure.
+   interpolations.LinearizeInterpolatorMapIntoVector();
+}
+
+void ParNCH1FaceRestriction::ComputeGatherIndices(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+
+   // Computation of gather_indices
+   int f_ind = 0;
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if (face.IsOfFaceType(type))
+      {
+         SetFaceDofsGatherIndices(face, f_ind, ordering);
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Reset offsets to their correct value
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
+}
+
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            ElementDofOrdering ordering,
                                            FaceType type,

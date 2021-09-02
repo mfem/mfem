@@ -567,7 +567,14 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
       }
       else
       {
-         res = new H1FaceRestriction(*this, e_ordering, type);
+         if (Conforming())
+         {
+            res = new H1FaceRestriction(*this, e_ordering, type);
+         }
+         else
+         {
+            res = new ParNCH1FaceRestriction(*this, e_ordering, type);
+         }
       }
       L2F[key] = res;
       return res;

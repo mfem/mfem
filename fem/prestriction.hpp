@@ -23,6 +23,71 @@ namespace mfem
 
 class ParFiniteElementSpace;
 
+/// Operator that extracts Face degrees of freedom for NCMesh in parallel.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
+class ParNCH1FaceRestriction : public H1FaceRestriction
+{
+protected:
+   const FaceType type;
+   InterpolationManager interpolations;
+
+public:
+   /** @brief Constructs an ParNCH1FaceRestriction.
+
+       @param[in] fes      The ParFiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs */
+   ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
+                          ElementDofOrdering ordering,
+                          FaceType type);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector.
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector.
+
+       @param[in]  x The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs should be ordered according to the given
+                     ElementDofOrdering.
+       @param[out] y The L-vector degrees of freedom. */
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
+
+private:
+   /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
+       for the gathering: E-vector to L-vector, and the interpolators from
+       coarse to fine face for master non-comforming faces.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
+                                        const FaceType type);
+
+   /** @brief Compute the gather indices: E-vector to L-vector.
+
+       Note: Requires the gather offsets to be computed.
+
+       @param[in] ordering Request a specific element ordering.
+       @param[in] type     Request internal or boundary faces dofs.
+   */
+   void ComputeGatherIndices(const ElementDofOrdering ordering,
+                             const FaceType type);
+};
+
 /// Operator that extracts Face degrees of freedom in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
