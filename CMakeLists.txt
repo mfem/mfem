@@ -433,10 +433,10 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
     SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE MKL_CPARDISO AMGX CALIPER)
+    CUSPARSE MKL_CPARDISO AMGX CALIPER MPI_CXX)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
