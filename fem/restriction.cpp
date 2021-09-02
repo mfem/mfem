@@ -1623,19 +1623,181 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    }
 }
 
-NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
-                                         const FaceType type,
-                                         const L2FaceValues m)
-   : L2FaceRestriction(fes, type, m),
-     interp_config(type==FaceType::Interior ? nf : 0)
+InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
+                                           ElementDofOrdering ordering,
+                                           FaceType type)
+   : fes(fes),
+   ordering(ordering),
+   interp_config(type==FaceType::Interior ? fes.GetNFbyType(type) : 0),
+   nc_cpt(0)
+{ }
+
+void InterpolationManager::RegisterFaceConformingInterpolation(
+   const Mesh::FaceInformation &face,
+   int face_index)
 {
+   MFEM_ASSERT(face.IsConforming(),
+               "Registering face as conforming even though it is not.");
+   interp_config[face_index] = InterpConfig::conforming;
+}
+
+void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
+   const Mesh::FaceInformation &face,
+   int face_index)
+{
+   MFEM_ASSERT(!face.IsConforming(),
+               "Registering face as non-conforming even though it is not.");
+   const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
+   // In the case of non-conforming slave shared face the master face is elem1.
+   const int nc_side =
+      (face.conformity == Mesh::FaceConformity::NonConformingSlave &&
+         face.location == Mesh::FaceLocation::Shared) ? 0 : 1;
+   const int face_key = nc_side == 1 ?
+                        face.elem_1_local_face + 6*face.elem_2_local_face :
+                        face.elem_2_local_face + 6*face.elem_1_local_face ;
+   // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
+   Key key(ptMat, face_key);
+   auto itr = interp_map.find(key);
+   if (itr == interp_map.end())
+   {
+      const DenseMatrix* interpolator =
+         GetCoarseToFineInterpolation(face,ptMat);
+      interp_map[key] = {nc_cpt, interpolator};
+      interp_config[face_index] = {nc_side, nc_cpt};
+      nc_cpt++;
+   }
+   else
+   {
+      interp_config[face_index] = {nc_side, itr->second.first};
+   }
+}
+
+const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
+   const Mesh::FaceInformation &face,
+   const DenseMatrix* ptMat)
+
+{
+   MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
+               "The following interpolation operator is only implemented for"
+               "lexicographic ordering.");
+   int face_id1 = face.elem_1_local_face;
+   int face_id2 = face.elem_2_local_face;
+   int orientation = face.elem_2_orientation;
+
+   // Computation of the interpolation matrix from master
+   // (coarse) face to slave (fine) face.
+   // Assumes all trace elements are the same.
+   const FiniteElement *trace_fe =
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+   const int dof = trace_fe->GetDof();
+   DenseMatrix* interpolator = new DenseMatrix(dof,dof);
+   Vector shape(dof);
+   IntegrationPoint f_ip;
+
+   switch (trace_fe->GetGeomType())
+   {
+      case Geometry::SQUARE:
+      {
+         MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
+         MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
+         // Reference coordinates (xi, eta) in [0,1]^2
+         // Fine face coordinates (x, y)
+         // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+         // y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
+         double a0, a1, a2, a3, b0, b1, b2, b3;
+         a0 = (*ptMat)(0,0);
+         a1 = (*ptMat)(0,1);
+         a2 = (*ptMat)(0,2);
+         a3 = (*ptMat)(0,3);
+
+         b0 = (*ptMat)(1,0);
+         b1 = (*ptMat)(1,1);
+         b2 = (*ptMat)(1,2);
+         b3 = (*ptMat)(1,3);
+         const IntegrationRule & nodes = trace_fe->GetNodes();
+         const int dof1d = fes.GetFE(0)->GetOrder()+1;
+         const int dim = fes.GetMesh()->SpaceDimension();
+         for (int i = 0; i < dof; i++)
+         {
+            const IntegrationPoint &ip = nodes[i];
+            double xi = ip.x, eta = ip.y;
+            f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
+            f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
+            trace_fe->CalcShape(f_ip, shape);
+            // TODO: choose face_id1/face_id2 in function of info?
+            int li = ToLexOrdering(dim, face_id1, dof1d, i);
+            for (int j = 0; j < dof; j++)
+            {
+               const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
+               (*interpolator)(li,lj) = shape(j);
+            }
+         }
+      }
+      break;
+      case Geometry::SEGMENT:
+      {
+         MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
+         MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
+         double x_min, x_max;
+         x_min = (*ptMat)(0,0);
+         x_max = (*ptMat)(0,1);
+         const IntegrationRule & nodes = trace_fe->GetNodes();
+         const int dof1d = fes.GetFE(0)->GetOrder()+1;
+         const int dim = fes.GetMesh()->SpaceDimension();
+         for (int i = 0; i < dof; i++)
+         {
+            const IntegrationPoint &ip = nodes[i];
+            f_ip.x = x_min + (x_max - x_min) * ip.x;
+            trace_fe->CalcShape(f_ip, shape);
+            int li =  ToLexOrdering(dim, face_id2, dof1d, i);
+            // We need to permute since the orientation is not
+            // in the PointMatrix in 2D.
+            li = PermuteFaceL2(dim, face_id2, face_id1,
+                               orientation, dof1d, li);
+            for (int j = 0; j < dof; j++)
+            {
+               const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
+               (*interpolator)(li,lj) = shape(j);
+            }
+         }
+      }
+      break;
+      default: MFEM_ABORT("unsupported geometry");
+   }
+   return interpolator;
+}
+
+void InterpolationManager::LinearizeInterpolatorMapIntoVector()
+{
+   // Assumes all trace elements are the same.
+   const FiniteElement *trace_fe =
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+   const int dof = trace_fe->GetDof();
+   const int nc_size = interp_map.size();
+   MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");
+   interpolators.SetSize(dof*dof*nc_size);
+   auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
+   for (auto val : interp_map)
+   {
+      const int idx = val.second.first;
+      const DenseMatrix &interpolator = *val.second.second;
+      for (int i = 0; i < dof; i++)
+      {
+         for (int j = 0; j < dof; j++)
+         {
+            interp(i,j,idx) = interpolator(i,j);
+         }
+      }
+      delete val.second.second;
+   }
+   interp_map.clear();
 }
 
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
-                                         const ElementDofOrdering e_ordering,
+                                         const ElementDofOrdering ordering,
                                          const FaceType type,
                                          const L2FaceValues m)
-   : NCL2FaceRestriction(fes, type, m)
+   : L2FaceRestriction(fes, type, m), interpolations(fes, ordering, type)
 {
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
@@ -1648,7 +1810,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    if (nf==0) { return; }
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
-   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
       MFEM_ABORT("Non-Tensor NCL2FaceRestriction not yet implemented.");
@@ -1667,9 +1829,9 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    }
    // End of verifications
 
-   ComputeScatterIndicesAndOffsets(e_ordering, type);
+   ComputeScatterIndicesAndOffsets(ordering, type);
 
-   ComputeGatherIndices(e_ordering, type);
+   ComputeGatherIndices(ordering, type);
 }
 
 void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -1685,8 +1847,9 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
-      auto interp_config_ptr = interp_config.Read();
-      auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+      const int nc_size = interpolations.GetNumInterpolators();
+      auto interp = Reshape(interpolations.GetInterpolators().Read(), nd, nd, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
@@ -1697,7 +1860,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int interp_index = conf.GetInterpolatorIndex();
          for (int side = 0; side < 2; side++)
          {
-            if ( interp_index==conforming || side!=nc_side )
+            if ( interp_index==InterpConfig::conforming || side!=nc_side )
             {
                // No interpolation needed
                MFEM_FOREACH_THREAD(dof,x,nd)
@@ -1786,8 +1949,10 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, 2, nf);
-      auto interp_config_ptr = interp_config.Read();
-      auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+      auto interpolators = interpolations.GetInterpolators().Read();
+      const int nc_size = interpolations.GetNumInterpolators();
+      auto interp = Reshape(interpolators, nd, nd, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
@@ -1796,7 +1961,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
          const InterpConfig conf = interp_config_ptr[face];
          const int nc_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
-         if ( interp_index!=conforming )
+         if ( interp_index!=InterpConfig::conforming )
          {
             // Interpolation from fine to coarse
             for (int c = 0; c < vd; ++c)
@@ -1913,9 +2078,6 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
-   int nc_cpt = 0; // Counter for the number of non-conforming interpolators.
-   // A temporary map storing the interpolators needed.
-   std::map<Key, std::pair<int,const DenseMatrix*>> interp_map;
 
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
@@ -1941,13 +2103,12 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
          {
             if ( face.IsConforming() )
             {
-               RegisterFaceConformingInterpolation(face,f_ind);
+               interpolations.RegisterFaceConformingInterpolation(face,f_ind);
                PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             }
             else // Non-conforming face
             {
-               RegisterFaceCoarseToFineInterpolation(face,f_ind,ordering,
-                                                     interp_map,nc_cpt);
+               interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
                // Contrary to the conforming case, there is no need to call
                // PermuteFaceL2, the permutation is achieved by the
                // interpolation operator for simplicity.
@@ -1977,21 +2138,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    }
 
    // Transform the interpolation matrix map into a contiguous memory structure.
-   nc_size = interp_map.size();
-   interpolators.SetSize(dof*dof*nc_size);
-   auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
-   for (auto val : interp_map)
-   {
-      const int idx = val.second.first;
-      for (int i = 0; i < dof; i++)
-      {
-         for (int j = 0; j < dof; j++)
-         {
-            interp(i,j,idx) = (*val.second.second)(i,j);
-         }
-      }
-      delete val.second.second;
-   }
+   interpolations.LinearizeInterpolatorMapIntoVector();
 }
 
 void NCL2FaceRestriction::ComputeGatherIndices(
@@ -2038,142 +2185,6 @@ void NCL2FaceRestriction::ComputeGatherIndices(
       offsets[i] = offsets[i - 1];
    }
    offsets[0] = 0;
-}
-
-void NCL2FaceRestriction::RegisterFaceConformingInterpolation(
-   const Mesh::FaceInformation &face,
-   int face_index)
-{
-   MFEM_ASSERT(face.IsConforming(),
-               "Registering face as conforming even though it is not.");
-   interp_config[face_index] = conforming;
-}
-
-void NCL2FaceRestriction::RegisterFaceCoarseToFineInterpolation(
-   const Mesh::FaceInformation &face,
-   int face_index,
-   ElementDofOrdering ordering,
-   Map &interp_map,
-   int &nc_cpt)
-{
-   MFEM_ASSERT(!face.IsConforming(),
-               "Registering face as non-conforming even though it is not.");
-   const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
-   // In the case of non-conforming slave shared face the master face is elem1.
-   const int nc_side =
-      (face.conformity == Mesh::FaceConformity::NonConformingSlave &&
-         face.location == Mesh::FaceLocation::Shared) ? 0 : 1;
-   const int face_key = nc_side == 1 ?
-                        face.elem_1_local_face + 6*face.elem_2_local_face :
-                        face.elem_2_local_face + 6*face.elem_1_local_face ;
-   // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
-   Key key(ptMat, face_key);
-   auto itr = interp_map.find(key);
-   if (itr == interp_map.end())
-   {
-      const DenseMatrix* interpolator =
-         ComputeCoarseToFineInterpolation(face,ptMat,ordering);
-      interp_map[key] = {nc_cpt, interpolator};
-      interp_config[face_index] = {nc_side, nc_cpt};
-      nc_cpt++;
-   }
-   else
-   {
-      interp_config[face_index] = {nc_side, itr->second.first};
-   }
-}
-
-const DenseMatrix* NCL2FaceRestriction::ComputeCoarseToFineInterpolation(
-   const Mesh::FaceInformation &face,
-   const DenseMatrix* ptMat,
-   ElementDofOrdering ordering)
-{
-   MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
-               "The following interpolation operator is only implemented for"
-               "lexicographic ordering.");
-   int face_id1 = face.elem_1_local_face;
-   int face_id2 = face.elem_2_local_face;
-   int orientation = face.elem_2_orientation;
-
-   // Computation of the interpolation matrix from master
-   // (coarse) face to slave (fine) face.
-   // Assumes all trace elements are the same.
-   const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
-   DenseMatrix* interpolator = new DenseMatrix(dof,dof);
-   Vector shape(dof);
-   IntegrationPoint f_ip;
-
-   switch (trace_fe->GetGeomType())
-   {
-      case Geometry::SQUARE:
-      {
-         MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
-         MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
-         // Reference coordinates (xi, eta) in [0,1]^2
-         // Fine face coordinates (x, y)
-         // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
-         // y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
-         double a0, a1, a2, a3, b0, b1, b2, b3;
-         a0 = (*ptMat)(0,0);
-         a1 = (*ptMat)(0,1);
-         a2 = (*ptMat)(0,2);
-         a3 = (*ptMat)(0,3);
-
-         b0 = (*ptMat)(1,0);
-         b1 = (*ptMat)(1,1);
-         b2 = (*ptMat)(1,2);
-         b3 = (*ptMat)(1,3);
-         const IntegrationRule & nodes = trace_fe->GetNodes();
-         const int dof1d = fes.GetFE(0)->GetOrder()+1;
-         const int dim = fes.GetMesh()->SpaceDimension();
-         for (int i = 0; i < dof; i++)
-         {
-            const IntegrationPoint &ip = nodes[i];
-            double xi = ip.x, eta = ip.y;
-            f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
-            f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
-            trace_fe->CalcShape(f_ip, shape);
-            int li = ToLexOrdering(dim, face_id1, dof1d, i);
-            for (int j = 0; j < dof; j++)
-            {
-               const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
-               (*interpolator)(li,lj) = shape(j);
-            }
-         }
-      }
-      break;
-      case Geometry::SEGMENT:
-      {
-         MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
-         MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
-         double x_min, x_max;
-         x_min = (*ptMat)(0,0);
-         x_max = (*ptMat)(0,1);
-         const IntegrationRule & nodes = trace_fe->GetNodes();
-         const int dof1d = fes.GetFE(0)->GetOrder()+1;
-         const int dim = fes.GetMesh()->SpaceDimension();
-         for (int i = 0; i < dof; i++)
-         {
-            const IntegrationPoint &ip = nodes[i];
-            f_ip.x = x_min + (x_max - x_min) * ip.x;
-            trace_fe->CalcShape(f_ip, shape);
-            int li =  ToLexOrdering(dim, face_id2, dof1d, i);
-            // We need to permute since the orientation is not
-            // in the PointMatrix in 2D.
-            li = PermuteFaceL2(dim, face_id2, face_id1,
-                               orientation, dof1d, li);
-            for (int j = 0; j < dof; j++)
-            {
-               const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
-               (*interpolator)(li,lj) = shape(j);
-            }
-         }
-      }
-      break;
-      default: MFEM_ABORT("unsupported geometry");
-   }
-   return interpolator;
 }
 
 } // namespace mfem
