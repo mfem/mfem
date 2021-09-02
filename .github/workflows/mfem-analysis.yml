@@ -82,9 +82,9 @@ jobs:
       uses: mfem/github-actions/build-mfem@warnings-flags-tweak
       with:
         os: ${{ runner.os }}
-        target: optim
+        target: opt
         codecov: NO
-        mpi: parallel
+        mpi: par
         build-system: make
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
