@@ -596,6 +596,24 @@ private:
 /// [Vector type for the state vector and the return residual].
 /// The integer template parameters are the same ones passed
 /// to QFunctionAutoDiff.
+/// The class duplicates QGrad and QHessian, i.e., QVectorFunc
+/// calls QGrad, and QJacobian calls QHessian. The main reason
+/// is to provide the same interface as the QVectorFuncAutoDiff
+/// class used to differentiate vector functions. Such
+/// compatibility allows users to start implementation of their
+/// problem based only on some energy or a weak form. The
+/// gradients, computed with QGrad/QVectorFunc, of the function
+///  will contribute to the FE residual. Computed with
+/// QHessian/QJacobian, the Hessian will contribute to the
+/// tangent matrix in Newton's iterations. Once the implementation
+///  is complete and tested, the users can start improving the
+/// performance by replacing QGrad/QVectorFunc with a hand-coded
+/// version. The gradient is a vector function and can be
+/// differentiated with the functionality implemented in
+/// QVectorFuncAutoDiff. Thus, the user can directly employ
+/// AD for computing the contributions to the global tangent
+/// matrix. The main code will not require changes as the
+/// names QGrad/QVectorFunc and QHessian/QJacobian are mirrored.
 template<template<typename, typename, typename, int, int> class TFunctor
          , int state_size=1, int param_size=0>
 class QFunctionAutoDiff
