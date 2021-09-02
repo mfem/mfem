@@ -239,6 +239,7 @@ int main(int argc, char *argv[])
    int nseq = 0;
    int regrid_period = 1;
    int greedy_refine = 0;
+   int output_cycle_errors = 0;
 
    int precision = 8;
    cout.precision(precision);
@@ -272,6 +273,8 @@ int main(int argc, char *argv[])
                   "Timesteps per regrid.");
    args.AddOption(&greedy_refine, "-gr", "--greedy-refine",
                   "Use greedy refinement strategy.");
+   args.AddOption(&output_cycle_errors, "-cycerr", "--output-cycle-errors",
+                  "Output per-cycle errors.");
 
    args.Parse();
    if (!args.Good())
@@ -363,26 +366,6 @@ int main(int argc, char *argv[])
          sol_ofs.precision(precision);
          sol_ofs << uk;
       }
-
-      // Output the current error on the reference mesh
-      {
-         vector<double> ref_errors(coarse_map.size());
-         compute_reference_errors(ti, fec, mesh, rho,
-                                  coarse_map, fine_map, ref_errors);
-         ostringstream fn;
-         fn << "err-" << ti << ".dat";
-         ofstream err_ofs(fn.str());
-         vector<double>::iterator it;
-         for (it = ref_errors.begin(); it != ref_errors.end(); ++it) {
-            int i = std::distance(ref_errors.begin(), it);
-            double err = *it;
-            // "mark" refinements with negation. We'll use this to vis
-            // the refined regions on the error plots.
-            if (coarse_map[i] < 0) err *= -1;
-            err_ofs << i << " " << err << endl;
-         }
-      }
-
 
    }
 
@@ -484,7 +467,7 @@ int main(int argc, char *argv[])
          set<int> new_ref_set; // in base numbering
 
          // use base numbering
-         int ne = 8;
+         int ne = coarse_map.size();
          int el1 = rseq[nseq++];
          int el2 = el1-1;
          int el3 = el1+1;
@@ -721,6 +704,26 @@ int main(int argc, char *argv[])
             sol_ofs.precision(precision);
             sol_ofs << uk;
          }
+
+         // Output the current error on the reference mesh
+         if (output_cycle_errors) {
+            vector<double> ref_errors(coarse_map.size());
+            compute_reference_errors(ti, fec, mesh, rho,
+                                     coarse_map, fine_map, ref_errors);
+            ostringstream fn;
+            fn << "err-" << ti << ".dat";
+            ofstream err_ofs(fn.str());
+            vector<double>::iterator it;
+            for (it = ref_errors.begin(); it != ref_errors.end(); ++it) {
+               int i = std::distance(ref_errors.begin(), it);
+               double err = *it;
+               // "mark" refinements with negation. We'll use this to vis
+               // the refined regions on the error plots.
+               if (coarse_map[i] < 0) err *= -1;
+               err_ofs << i << " " << err << endl;
+            }
+         }
+
       }
 
 
