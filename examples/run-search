@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# sod 5 regrids
+options="-dt 0.01 --cfl -1 " # fixed timestep
+options+="--refine-period 4 "# refine period
+options+="--problem 2 "      # Sod problem
+options+="--order 0 "        # 0th order DG
+options+="--refine 0"        # no initial uniform refinement
+options+="--t-final 0.20 "
+
+# create reference solution on 16 element mesh
+./ex18 $options -m periodic-segment-16.mesh
+./save-reference
+
+echo "" > err-results.dat
+for i1 in $(seq 0 7); do
+    for i2 in $(seq 0 7); do
+	for i3 in $(seq 0 7); do
+	    for i4 in $(seq 0 7); do
+		for i5 in $(seq 0 7); do
+		    dir="seq-$i1$i2$i3$i4$i5"
+		    mkdir $dir
+		    cd $dir
+		    ln -s ../reference.mesh .
+		    ln -s ../reference-rho.gf .
+		    ln -s ../reference-rho-u.gf .
+		    ln -s ../reference-rho-e.gf .
+		    echo "running $i1$i2$i3$i4$i5"
+		    seq="$i1 $i2 $i3 $i4 $i5"
+		    cmd="../ex18 -rseq \"$seq\" $options  -m ../periodic-segment-8.mesh | grep err | awk \"{print \$2}\""
+		    echo "$cmd" > runcode
+		    err=$( source runcode )
+		    cd ..
+		    echo "$i1 $i2 $i3 $i4 $i5 $err" >> err-results.dat
+		done
+	    done
+	done
+    done
+done
+
