@@ -335,7 +335,8 @@ TeslaSolver::Solve()
       hCurlMass_->AddMult(*j_, *jd_);
       auto *jd_true = jd_->GetTrueDofs();
       std::cout.precision(16);
-      std::cout << "norm of jd_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *jd_true, *jd_true)) << "\n";
+      std::cout << "norm of jd_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *jd_true,
+                                                             *jd_true)) << "\n";
    }
 
    // Initialize the Magnetization
@@ -347,7 +348,8 @@ TeslaSolver::Solve()
 
    auto *a_true = a_->GetTrueDofs();
    std::cout.precision(16);
-   std::cout << "norm of a_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *a_true, *a_true)) << "\n";
+   std::cout << "norm of a_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *a_true,
+                                                         *a_true)) << "\n";
 
    // Apply Dirichlet BCs to matrix and right hand side and otherwise
    // prepare the linear system

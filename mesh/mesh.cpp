@@ -11560,8 +11560,8 @@ void Mesh::RemoveInternalBoundaries(const Array<int> &_keep)
    int new_bel_to_edge_nnz = 0;
    for (int i = 0; i < GetNBE(); i++)
    {
-      if (FaceIsInterior(GetBdrElementEdgeIndex(i)) && 
-         (keep.count(boundary[i]->GetAttribute()) == 0))
+      if (FaceIsInterior(GetBdrElementEdgeIndex(i)) &&
+          (keep.count(boundary[i]->GetAttribute()) == 0))
       {
          FreeElement(boundary[i]);
       }
@@ -11594,7 +11594,7 @@ void Mesh::RemoveInternalBoundaries(const Array<int> &_keep)
    for (int i = 0; i < GetNBE(); i++)
    {
       /// if it's not interior or is in the keep boundary list
-      if (!FaceIsInterior(GetBdrElementEdgeIndex(i)) || 
+      if (!FaceIsInterior(GetBdrElementEdgeIndex(i)) ||
           keep.count(boundary[i]->GetAttribute()))
       {
          new_boundary.Append(boundary[i]);
@@ -11660,25 +11660,11 @@ void Mesh::RemoveInternalBoundariesNotAdjacentTo(const Array<int> &_regions)
       auto face_info = faces_info[faceNo];
       auto adj = regions.count(elements[face_info.Elem1No]->GetAttribute());
       if (face_info.Elem2No > 0)
+      {
          adj += regions.count(elements[face_info.Elem2No]->GetAttribute());
+      }
 
       bool remove = interior & !adj;
-
-      // if (remove)
-      // {
-      //    std::cout << "remove face on: " << boundary[i]->GetAttribute()
-      //              << " adj to ("
-      //              << elements[face_info.Elem1No]->GetAttribute();
-      //    if (face_info.Elem2No > 0)
-      //    {
-      //       std::cout << ", "
-      //                 << elements[face_info.Elem2No]->GetAttribute() << ")\n";
-      //    }
-      //    else
-      //    {
-      //       std::cout << ")\n";
-      //    }
-      // }
 
       if (remove)
       {
@@ -11718,7 +11704,9 @@ void Mesh::RemoveInternalBoundariesNotAdjacentTo(const Array<int> &_regions)
       auto face_info = faces_info[faceNo];
       auto adj = regions.count(elements[face_info.Elem1No]->GetAttribute());
       if (face_info.Elem2No > 0)
+      {
          adj += regions.count(elements[face_info.Elem2No]->GetAttribute());
+      }
 
       bool keep = !interior || adj;
 
