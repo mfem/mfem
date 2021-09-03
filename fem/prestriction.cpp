@@ -105,10 +105,10 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int nc_side = conf.GetNonConformingMasterSide();
+         const int master_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          const int side = 0;
-         if ( interp_index==InterpConfig::conforming || side!=nc_side )
+         if ( interp_index==InterpConfig::conforming || side!=master_side )
          {
             MFEM_FOREACH_THREAD(dof,x,nd)
             {
@@ -786,17 +786,17 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int nc_side = conf.GetNonConformingMasterSide();
+         const int master_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          for (int side = 0; side < 2; side++)
          {
-            if ( interp_index==InterpConfig::conforming || side!=nc_side )
+            if ( interp_index==InterpConfig::conforming || side!=master_side )
             {
                MFEM_FOREACH_THREAD(dof,x,nd)
                {
                   const int i = face*nd + dof;
                   const int idx = side==0 ? d_indices1[i] : d_indices2[i];
-                  if (idx>-1 && idx<threshold) // interior face
+                  if (idx>-1 && idx<threshold) // local interior face
                   {
                      for (int c = 0; c < vd; ++c)
                      {
@@ -828,7 +828,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      const int i = face*nd + dof;
                      const int idx = side==0 ? d_indices1[i] : d_indices2[i];
-                     if (idx>-1 && idx<threshold) // interior face
+                     if (idx>-1 && idx<threshold) // local interior face
                      {
                         dofs[dof] = d_x(t?c:idx, t?idx:c);
                      }
@@ -896,10 +896,10 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int nc_side = conf.GetNonConformingMasterSide();
+         const int master_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          const int side = 0;
-         if ( interp_index==InterpConfig::conforming || side!=nc_side )
+         if ( interp_index==InterpConfig::conforming || side!=master_side )
          {
             MFEM_FOREACH_THREAD(dof,x,nd)
             {

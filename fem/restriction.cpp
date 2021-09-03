@@ -1649,8 +1649,8 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
    const bool is_ghost_slave =
       (face.conformity == Mesh::FaceConformity::NonConformingSlave &&
        face.IsShared());
-   const int nc_side = is_ghost_slave ? 0 : 1;
-   const int face_key = nc_side == 1 ?
+   const int master_side = is_ghost_slave ? 0 : 1;
+   const int face_key = master_side == 1 ?
                         face.elem_1_local_face + 6*face.elem_2_local_face :
                         face.elem_2_local_face + 6*face.elem_1_local_face ;
    // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
@@ -1661,12 +1661,12 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
       const DenseMatrix* interpolator =
          GetCoarseToFineInterpolation(face,ptMat);
       interp_map[key] = {nc_cpt, interpolator};
-      interp_config[face_index] = {nc_side, nc_cpt};
+      interp_config[face_index] = {master_side, nc_cpt};
       nc_cpt++;
    }
    else
    {
-      interp_config[face_index] = {nc_side, itr->second.first};
+      interp_config[face_index] = {master_side, itr->second.first};
    }
 }
 
@@ -1854,11 +1854,11 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int nc_side = conf.GetNonConformingMasterSide();
+         const int master_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          for (int side = 0; side < 2; side++)
          {
-            if ( interp_index==InterpConfig::conforming || side!=nc_side )
+            if ( interp_index==InterpConfig::conforming || side!=master_side )
             {
                // No interpolation needed
                MFEM_FOREACH_THREAD(dof,x,nd)
@@ -1957,7 +1957,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int nc_side = conf.GetNonConformingMasterSide();
+         const int master_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
          if ( interp_index!=InterpConfig::conforming )
          {
@@ -1966,7 +1966,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
             {
                MFEM_FOREACH_THREAD(dof,x,nd)
                {
-                  dofs[dof] = d_x(dof, c, nc_side, face);
+                  dofs[dof] = d_x(dof, c, master_side, face);
                }
                MFEM_SYNC_THREAD;
                MFEM_FOREACH_THREAD(dofOut,x,nd)
@@ -1976,7 +1976,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
                   {
                      res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
                   }
-                  d_x(dofOut, c, nc_side, face) = res;
+                  d_x(dofOut, c, master_side, face) = res;
                }
                MFEM_SYNC_THREAD;
             }
