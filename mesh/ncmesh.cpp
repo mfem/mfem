@@ -1673,7 +1673,7 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < nb_prism_face; i++)
       {
          const int child_local_index = prism_deref_table[ref_type_key]
-                                                        [i + nb_prism_childs];
+                                       [i + nb_prism_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
