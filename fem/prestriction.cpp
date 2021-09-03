@@ -1031,7 +1031,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if (type==FaceType::Interior && face.IsInterior())
+      if ( type==FaceType::Interior && face.IsInterior() )
       {
          if ( face.IsConforming() )
          {
@@ -1039,7 +1039,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
             SetFaceDofsScatterIndices1(face,f_ind);
             if ( m==L2FaceValues::DoubleValued )
             {
-               if (face.IsShared())
+               if ( face.IsShared() )
                {
                   PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
                }
@@ -1051,27 +1051,22 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
          }
          else // Non-conforming face
          {
-            if (face.IsShared())
+            interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
+            SetFaceDofsScatterIndices1(face,f_ind);
+            if ( face.IsShared() )
             {
-               // TODO: not sure what should happen.
-               // We swap elem1 and elem2 to have elem1 slave and elem2 master
-               // face.SwapElem1AndElem2(); // TODO: check that this is correct.
-               // SetSharedFaceDofsScatterIndices1(face,f_ind);
+               // In the case of ghost non-conforming face the master (coarse)
+               // face is elem1, and the slave face is elem2, so I think we
+               // should permute the dofs of elem2.
+               PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
             }
             else
             {
-               SetFaceDofsScatterIndices1(face,f_ind);
+               // Contrary to the conforming case, there is no need to call
+               // PermuteFaceL2, the permutation is achieved by the
+               // interpolation operator for simplicity.
+               SetFaceDofsScatterIndices2(face,f_ind);
             }
-            interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
-            SetFaceDofsScatterIndices2(face,f_ind);
-            // if (face.IsInterior())
-            // {
-            //    SetFaceDofsScatterIndices2(face,f_ind);
-            // }
-            // else if (face.IsShared())
-            // {
-            //    SetSharedFaceDofsScatterIndices2(face,f_ind);
-            // }
          }
          f_ind++;
       }
