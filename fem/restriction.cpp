@@ -804,7 +804,7 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if (face.IsOfFaceType(type))
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsScatterIndices(face, f_ind, ordering);
          f_ind++;
@@ -830,7 +830,7 @@ void H1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if (face.IsOfFaceType(type))
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices(face, f_ind, ordering);
          f_ind++;
@@ -1329,16 +1329,16 @@ void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(!face.IsShared(),
                   "Unexpected shared face in L2FaceRestriction.");
-      if (face.IsOfFaceType(type))
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsScatterIndices1(face,f_ind);
-         if (m==L2FaceValues::DoubleValued)
+         if ( m==L2FaceValues::DoubleValued )
          {
-            if (type==FaceType::Interior && face.IsInterior())
+            if ( type==FaceType::Interior && face.IsInterior() )
             {
                PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             }
-            else if (type==FaceType::Boundary && face.IsBoundary())
+            else if ( type==FaceType::Boundary && face.IsBoundary() )
             {
                SetBoundaryDofsScatterIndices2(face,f_ind);
             }
@@ -1367,12 +1367,12 @@ void L2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(face.location!=Mesh::FaceLocation::Shared,
                   "Unexpected shared face in L2FaceRestriction.");
-      if (face.IsOfFaceType(type))
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(face,f_ind);
-         if (m==L2FaceValues::DoubleValued &&
-             type==FaceType::Interior &&
-             face.IsLocal())
+         if ( m==L2FaceValues::DoubleValued &&
+              type==FaceType::Interior &&
+              face.IsLocal())
          {
             PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
          }
@@ -1656,7 +1656,7 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
    // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
    Key key(ptMat, face_key);
    auto itr = interp_map.find(key);
-   if (itr == interp_map.end())
+   if ( itr == interp_map.end() )
    {
       const DenseMatrix* interpolator =
          GetCoarseToFineInterpolation(face,ptMat);
@@ -2088,12 +2088,6 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      // We skip non-conforming master faces, as they will be treated by the
-      // slave faces.
-      if (face.conformity==Mesh::FaceConformity::NonConformingMaster)
-      {
-         continue;
-      }
       if ( type==FaceType::Interior && face.IsInterior() )
       {
          SetFaceDofsScatterIndices1(face,f_ind);
@@ -2154,11 +2148,11 @@ void NCL2FaceRestriction::ComputeGatherIndices(
       if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(face,f_ind);
-         if (m==L2FaceValues::DoubleValued &&
-             type==FaceType::Interior &&
-             face.IsInterior())
+         if ( m==L2FaceValues::DoubleValued &&
+              type==FaceType::Interior &&
+              face.IsInterior() )
          {
-            if (face.IsConforming())
+            if ( face.IsConforming() )
             {
                PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
             }
