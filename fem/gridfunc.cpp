@@ -4034,6 +4034,85 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
+double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
+                           GridFunction &u,
+                           int flux_order, Vector &error_estimates,
+                           Array<int>* aniso_flags,
+                           int with_subdomains,
+                           bool with_coeff)
+{
+   FiniteElementSpace *ufes = u.FESpace();
+   // ElementTransformation *Transf;
+
+   int dim = ufes->GetMesh()->Dimension();
+   int nfe = ufes->GetNE();
+   int nfaces = ufes->GetNF();
+
+   Array<int> udofs;
+   Array<int> fdofs;
+   Vector ul, fl, fla, d_xyz;
+
+   error_estimates.SetSize(nfe);
+   Array<int> counters(nfe);
+   counters = 1;
+
+   if (aniso_flags)
+   {
+      aniso_flags->SetSize(nfe);
+      d_xyz.SetSize(dim);
+   }
+
+   int nsd = 1;
+   if (with_subdomains)
+   {
+      nsd = ufes->GetMesh()->attributes.Max();
+   }
+
+   double total_error = 0.0;
+   for (int i = 0; i < nfaces; i++)
+   {
+
+      // 1. Construct face-patch.
+      int num_face_neighbors = 2;
+      Array<int> face_neighbors(num_face_neighbors);
+      for (int j = 0; j < num_face_neighbors; j++)
+      {
+         face_neighbors[j] = 1;
+      }
+
+      // 2. Compute global flux polynomial.
+
+      // 3. Compute error contribution from face.
+      double face_error = 1.0;
+      total_error += face_error;
+
+      for (int j = 0; j < num_face_neighbors; j++)
+      {
+         error_estimates(face_neighbors[j]) += face_error;
+         counters[face_neighbors[j]] += 1;
+      }
+   }
+
+   for (int i = 0; i < nfe; i++)
+   {
+      error_estimates(i) /= counters[i];
+      error_estimates(i) = sqrt(error_estimates(i));
+      error_estimates(i) = 1.0;
+   }   
+
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);
+   if (pfes)
+   {
+      auto process_local_error = total_error;
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes->GetComm());
+   }
+#endif // MFEM_USE_MPI
+   return std::sqrt(total_error);
+}
+
+
 
 double ComputeElementLpDistance(double p, int i,
                                 GridFunction& gf1, GridFunction& gf2)

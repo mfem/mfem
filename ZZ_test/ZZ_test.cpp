@@ -175,6 +175,13 @@ int main(int argc, char *argv[])
       {
          case 1:
          {
+            int flux_order = 4;
+            estimator = new NewZienkiewiczZhuEstimator(di, x, flux_order);
+            break;
+         }
+
+         case 2:
+         {
             auto flux_fes = new FiniteElementSpace(&mesh, &l2fec, dim);
             estimator = new KellyErrorEstimator(di, x, flux_fes);
             break;
@@ -252,9 +259,11 @@ int main(int argc, char *argv[])
       b.Update();
       x.Update();
 
+      // Free the used memory.
+      delete estimator;
    }
 
-   // 9. Free the used memory.
+   // Free the used memory.
    delete exsol;
    delete exgrad;
    delete rhs;

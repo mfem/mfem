@@ -202,6 +202,118 @@ public:
    }
 };
 
+/** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
+    error estimation procedure.
+
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 1: The recovery technique.
+    Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
+
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 2: Error estimates and adaptivity.
+    Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
+
+    Each averaging technique yields reliable a posteriori error control in
+    FEM on unstructured grids. Part II: Higher order FEM.
+    Math. Comp. 71(239), 971-994 (2002)
+
+    The required BilinearFormIntegrator must implement the methods
+    ComputeElementFlux() and ComputeFluxEnergy().
+ */
+class NewZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
+{
+protected:
+   long current_sequence;
+   Vector error_estimates;
+   double total_error;
+   bool anisotropic;
+   Array<int> aniso_flags;
+   int flux_averaging; // see SetFluxAveraging()
+
+   BilinearFormIntegrator *integ; ///< Not owned.
+   GridFunction *solution; ///< Not owned.
+
+   int flux_order;
+   bool with_coeff;
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
+
+   /// Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new NewZienkiewiczZhuEstimator object.
+       @param integ      This BilinearFormIntegrator must implement the methods
+                         ComputeElementFlux() and ComputeFluxEnergy().
+       @param sol        The solution field whose error is to be estimated.
+       @param flux_order The ZienkiewiczZhuEstimator assumes ownership of this
+                         FiniteElementSpace and will call its Update() method when
+                         needed.*/
+   NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
+                           int flux_order_)
+      : current_sequence(-1),
+        total_error(),
+        anisotropic(false),
+        flux_averaging(0),
+        integ(&integ),
+        solution(&sol),
+        flux_order(flux_order_),
+        with_coeff(false)
+   { }
+
+   /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
+       the fluxes for the error estimator.*/
+   void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
+
+   /** @brief Enable/disable anisotropic estimates. To enable this option, the
+       BilinearFormIntegrator must support the 'd_energy' parameter in its
+       ComputeFluxEnergy() method. */
+   void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
+
+   /** @brief Set the way the flux is averaged (smoothed) across elements.
+
+       When @a fa is zero (default), averaging is performed globally. When @a fa
+       is non-zero, the flux averaging is performed locally for each mesh
+       attribute, i.e. the flux is not averaged across interfaces between
+       different mesh attributes. */
+   void SetFluxAveraging(int fa) { flux_averaging = fa; }
+
+   /// Return the total error from the last error estimate.
+   virtual double GetTotalError() const override { return total_error; }
+
+   /// Get a Vector with all element errors.
+   virtual const Vector &GetLocalErrors() override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   /** @brief Get an Array<int> with anisotropic flags for all mesh elements.
+       Return an empty array when anisotropic estimates are not available or
+       enabled. */
+   virtual const Array<int> &GetAnisotropicFlags() override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return aniso_flags;
+   }
+
+   /// Reset the error estimator.
+   virtual void Reset() override { current_sequence = -1; }
+
+   // /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
+   //     FiniteElementSpace, flux_space. */
+   // virtual ~NewZienkiewiczZhuEstimator()
+   // {
+   //    if (own_flux_fes) { delete flux_space; }
+   // }
+};
+
 
 #ifdef MFEM_USE_MPI
 
