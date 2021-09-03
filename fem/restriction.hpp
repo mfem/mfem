@@ -252,6 +252,7 @@ protected:
 
        @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
+       @param[in] ordering Request a specific element ordering.
     */
    void SetFaceDofsScatterIndices(const Mesh::FaceInformation &face,
                                   const int face_index,
@@ -262,6 +263,7 @@ protected:
 
        @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
+       @param[in] ordering Request a specific element ordering.
     */
    void SetFaceDofsGatherIndices(const Mesh::FaceInformation &face,
                                  const int face_index,
