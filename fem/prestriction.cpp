@@ -1099,18 +1099,14 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
+
    // Computation of gather_indices
    int f_ind = 0;
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if (face.IsOfFaceType(type))
+      if ( face.IsOfFaceType(type) )
       {
-         // I should probably shift by nfdofs on ghost faces
-         if (m==L2FaceValues::DoubleValued && face.IsGhost())
-         {
-            /* TODO: code */
-         }
          SetFaceDofsGatherIndices1(face,f_ind);
          if (m==L2FaceValues::DoubleValued &&
              type==FaceType::Interior &&
@@ -1122,6 +1118,9 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
             }
             else
             {
+               // Contrary to the conforming case, there is no need to call
+               // PermuteFaceL2, the permutation is achieved by the
+               // interpolation operator for simplicity.
                SetFaceDofsGatherIndices2(face,f_ind);
             }
          }
