@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
 
 void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
 {
-   // not fully correct yet
    int dim = mesh.Dimension();
    FiniteElementCollection * fec = nullptr;
    if (dim == 2)
@@ -79,6 +78,7 @@ void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
    }
    else
    {
+      // not yet tested in 3D
       fec = new RT_FECollection(0,dim);
    }
    FiniteElementSpace fespace(&mesh, fec);
