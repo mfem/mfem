@@ -108,4 +108,10 @@ jobs:
         git remote add reference https://github.com/mfem/mfem.git
         git fetch reference master:master
         git checkout -b gh-actions-branch-history
+        # Note: the script below will run `git fetch origin master:master.
+        # This may fail on forks because the forked master may be far behind.
+        # This is OK because we are sure to be up-to-date with the fetch from
+        # "reference" we do here.
+        # An alternative would be to change origin here, so that it points to
+        # the main repo (like reference).
         ./config/githooks/pre-push --history
