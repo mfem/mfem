@@ -1129,7 +1129,7 @@ double DiffusionIntegrator::ComputeFluxEnergy
          {
             (*d_energy)[k] += w * vec[k] * vec[k];
          }
-         // TODO: Q, MQ
+         // TODO: Q, VQ, MQ
       }
    }
 
