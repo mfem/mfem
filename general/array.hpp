@@ -54,7 +54,7 @@ protected:
 
    static inline void TypeAssert()
    {
-      static_assert(std::is_trivial<T>::value, "type T must be trivial");
+      // static_assert(std::is_trivial<T>::value, "type T must be trivial");
    }
 
 public:
