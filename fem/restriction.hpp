@@ -619,21 +619,6 @@ public:
    }
 
 private:
-   /** @brief Get the key to indentify the corase to fine interpolation */
-   static Key GetKey(const Mesh::FaceInformation &face,
-                     const DenseMatrix* ptMat)
-   {
-      // In the case of non-conforming slave shared face the master face is elem1.
-      const int nc_side =
-         (face.conformity == Mesh::FaceConformity::NonConformingSlave &&
-            face.location == Mesh::FaceLocation::Shared) ? 0 : 1;
-      const int face_key = nc_side == 1 ?
-                           face.elem_1_local_face + 6*face.elem_2_local_face :
-                           face.elem_2_local_face + 6*face.elem_1_local_face ;
-      // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
-      return Key{ptMat, face_key};
-   }
-
    /** @brief Returns the interpolation operator from a master (coarse) face to
        a slave (fine) face.
 
