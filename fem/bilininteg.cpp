@@ -984,6 +984,8 @@ void DiffusionIntegrator::ComputeElementFlux
                   "Unexpected height for MatrixCoefficient");
    }
 
+   MFEM_VERIFY(!SMQ, "SymmetricMatrixCoefficient not supported here");
+
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape(nd,dim), invdfdx(dim, spaceDim);
    DenseMatrix M(MQ ? spaceDim : 0);
@@ -1066,7 +1068,12 @@ double DiffusionIntegrator::ComputeFluxEnergy
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix M;
+   Vector D(VQ ? VQ->GetVDim() : 0);
+#else
+   D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
+
+   MFEM_VERIFY(!SMQ, "SymmetricMatrixCoefficient not supported here");
 
    shape.SetSize(nd);
    pointflux.SetSize(spaceDim);
@@ -1096,16 +1103,22 @@ double DiffusionIntegrator::ComputeFluxEnergy
       Trans.SetIntPoint(&ip);
       double w = Trans.Weight() * ip.weight;
 
-      if (!MQ)
+      if (MQ)
+      {
+         MQ->Eval(M, Trans, ip);
+         energy += w * M.InnerProduct(pointflux, pointflux);
+      }
+      else if (VQ)
+      {
+         VQ->Eval(D, Trans, ip);
+         D *= pointflux;
+         energy += w * (D * pointflux);
+      }
+      else
       {
          double e = (pointflux * pointflux);
          if (Q) { e *= Q->Eval(Trans, ip); }
          energy += w * e;
-      }
-      else
-      {
-         MQ->Eval(M, Trans, ip);
-         energy += w * M.InnerProduct(pointflux, pointflux);
       }
 
       if (d_energy)
