@@ -61,7 +61,7 @@ namespace quadrature_interpolator
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template<const int T_VDIM, const int T_ND, const int T_NQ>
-static void Eval2D(const int NE,
+void Eval2D(const int NE,
                    const int vdim,
                    const QVectorLayout q_layout,
                    const GeometricFactors *geom,
@@ -209,7 +209,7 @@ static void Eval2D(const int NE,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template<const int T_VDIM, const int T_ND, const int T_NQ>
-static void Eval3D(const int NE,
+void Eval3D(const int NE,
                    const int vdim,
                    const QVectorLayout q_layout,
                    const GeometricFactors *geom,

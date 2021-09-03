@@ -164,7 +164,13 @@ __device__ void abort_msg(T & msg)
 #endif
 
 // Abort inside a device kernel
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) && defined(_WIN32)
+#define MFEM_ABORT_KERNEL(msg) \
+   {                           \
+      printf(msg);             \
+      __debugbreak();          \
+   }
+#elif defined(__CUDA_ARCH__)
 #define MFEM_ABORT_KERNEL(msg) \
    {                           \
       printf(msg);             \

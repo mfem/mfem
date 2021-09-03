@@ -21,7 +21,7 @@ namespace mfem
 // PA Divergence Integrator
 
 // PA Divergence Assemble 2D kernel
-static void PADivergenceSetup2D(const int Q1D,
+void PADivergenceSetup2D(const int Q1D,
                                 const int NE,
                                 const Array<double> &w,
                                 const Vector &j,
@@ -51,7 +51,7 @@ static void PADivergenceSetup2D(const int Q1D,
 }
 
 // PA Divergence Assemble 3D kernel
-static void PADivergenceSetup3D(const int Q1D,
+void PADivergenceSetup3D(const int Q1D,
                                 const int NE,
                                 const Array<double> &w,
                                 const Vector &j,
@@ -160,7 +160,7 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 // PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PADivergenceApply2D(const int NE,
+void PADivergenceApply2D(const int NE,
                                 const Array<double> &b,
                                 const Array<double> &g,
                                 const Array<double> &bt,
@@ -281,7 +281,7 @@ static void PADivergenceApply2D(const int NE,
 // Shared memory PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
          const int T_NBZ = 0>
-static void SmemPADivergenceApply2D(const int NE,
+void SmemPADivergenceApply2D(const int NE,
                                     const Array<double> &b_,
                                     const Array<double> &g_,
                                     const Array<double> &bt_,
@@ -298,7 +298,7 @@ static void SmemPADivergenceApply2D(const int NE,
 
 // PA Divergence Apply 2D kernel transpose
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PADivergenceApplyTranspose2D(const int NE,
+void PADivergenceApplyTranspose2D(const int NE,
                                          const Array<double> &bt,
                                          const Array<double> &gt,
                                          const Array<double> &b,
@@ -414,7 +414,7 @@ static void PADivergenceApplyTranspose2D(const int NE,
 
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PADivergenceApply3D(const int NE,
+void PADivergenceApply3D(const int NE,
                                 const Array<double> &b,
                                 const Array<double> &g,
                                 const Array<double> &bt,
@@ -597,7 +597,7 @@ static void PADivergenceApply3D(const int NE,
 
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PADivergenceApplyTranspose3D(const int NE,
+void PADivergenceApplyTranspose3D(const int NE,
                                          const Array<double> &bt,
                                          const Array<double> &gt,
                                          const Array<double> &b,
@@ -775,7 +775,7 @@ static void PADivergenceApplyTranspose3D(const int NE,
 
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void SmemPADivergenceApply3D(const int NE,
+void SmemPADivergenceApply3D(const int NE,
                                     const Array<double> &b_,
                                     const Array<double> &g_,
                                     const Array<double> &bt_,

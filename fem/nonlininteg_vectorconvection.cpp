@@ -116,7 +116,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 // PA Convection NL 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAConvectionNLApply2D(const int NE,
+void PAConvectionNLApply2D(const int NE,
                                   const Array<double> &b,
                                   const Array<double> &g,
                                   const Array<double> &bt,
@@ -252,7 +252,7 @@ static void PAConvectionNLApply2D(const int NE,
 
 // PA Convection NL 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAConvectionNLApply3D(const int NE,
+void PAConvectionNLApply3D(const int NE,
                                   const Array<double> &b,
                                   const Array<double> &g,
                                   const Array<double> &bt,
@@ -558,7 +558,7 @@ static void PAConvectionNLApply3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D =0, int T_MAX_Q1D =0>
-static void SmemPAConvectionNLApply3D(const int NE,
+void SmemPAConvectionNLApply3D(const int NE,
                                       const Array<double> &b_,
                                       const Array<double> &g_,
                                       const Vector &d_,

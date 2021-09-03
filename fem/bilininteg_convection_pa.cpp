@@ -21,7 +21,7 @@ namespace mfem
 // PA Convection Integrator
 
 // PA Convection Assemble 2D kernel
-static void PAConvectionSetup2D(const int NQ,
+void PAConvectionSetup2D(const int NQ,
                                 const int NE,
                                 const Array<double> &w,
                                 const Vector &j,
@@ -60,7 +60,7 @@ static void PAConvectionSetup2D(const int NQ,
 }
 
 // PA Convection Assemble 3D kernel
-static void PAConvectionSetup3D(const int NQ,
+void PAConvectionSetup3D(const int NQ,
                                 const int NE,
                                 const Array<double> &w,
                                 const Vector &j,
@@ -135,7 +135,7 @@ static void PAConvectionSetup(const int dim,
 }
 
 // PA Convection Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0>
 void PAConvectionApply2D(const int ne,
                          const Array<double> &b,
                          const Array<double> &g,
@@ -254,7 +254,7 @@ void PAConvectionApply2D(const int ne,
 }
 
 // Optimized PA Convection Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 void SmemPAConvectionApply2D(const int ne,
                              const Array<double> &b,
                              const Array<double> &g,
@@ -382,7 +382,7 @@ void SmemPAConvectionApply2D(const int ne,
 }
 
 // PA Convection Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0>
 void PAConvectionApply3D(const int ne,
                          const Array<double> &b,
                          const Array<double> &g,
@@ -563,7 +563,7 @@ void PAConvectionApply3D(const int ne,
 }
 
 // Optimized PA Convection Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPAConvectionApply3D(const int ne,
                              const Array<double> &b,
                              const Array<double> &g,

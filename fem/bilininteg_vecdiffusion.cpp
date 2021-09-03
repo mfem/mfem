@@ -22,7 +22,7 @@ namespace mfem
 // PA Vector Diffusion Integrator
 
 // PA Diffusion Assemble 2D kernel
-static void PAVectorDiffusionSetup2D(const int Q1D,
+void PAVectorDiffusionSetup2D(const int Q1D,
                                      const int NE,
                                      const Array<double> &w,
                                      const Vector &j,
@@ -59,7 +59,7 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
 }
 
 // PA Diffusion Assemble 3D kernel
-static void PAVectorDiffusionSetup3D(const int Q1D,
+void PAVectorDiffusionSetup3D(const int Q1D,
                                      const int NE,
                                      const Array<double> &w,
                                      const Vector &j,
@@ -251,7 +251,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 }
 
 // PA Diffusion Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0> static
+template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0>
 void PAVectorDiffusionApply2D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
@@ -374,7 +374,7 @@ void PAVectorDiffusionApply2D(const int NE,
 
 // PA Diffusion Apply 3D kernel
 template<const int T_D1D = 0,
-         const int T_Q1D = 0> static
+         const int T_Q1D = 0>
 void PAVectorDiffusionApply3D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
@@ -606,7 +606,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAVectorDiffusionDiagonal2D(const int NE,
+void PAVectorDiffusionDiagonal2D(const int NE,
                                         const Array<double> &b,
                                         const Array<double> &g,
                                         const Vector &d,
@@ -673,7 +673,7 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAVectorDiffusionDiagonal3D(const int NE,
+void PAVectorDiffusionDiagonal3D(const int NE,
                                         const Array<double> &b,
                                         const Array<double> &g,
                                         const Vector &d,

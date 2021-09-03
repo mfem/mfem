@@ -17,7 +17,7 @@ namespace mfem
 {
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EAConvectionAssemble1D(const int NE,
+void EAConvectionAssemble1D(const int NE,
                                    const Array<double> &b,
                                    const Array<double> &g,
                                    const Vector &padata,
@@ -69,7 +69,7 @@ static void EAConvectionAssemble1D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EAConvectionAssemble2D(const int NE,
+void EAConvectionAssemble2D(const int NE,
                                    const Array<double> &b,
                                    const Array<double> &g,
                                    const Vector &padata,
@@ -146,7 +146,7 @@ static void EAConvectionAssemble2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EAConvectionAssemble3D(const int NE,
+void EAConvectionAssemble3D(const int NE,
                                    const Array<double> &b,
                                    const Array<double> &g,
                                    const Vector &padata,

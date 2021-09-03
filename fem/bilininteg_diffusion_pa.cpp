@@ -496,7 +496,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PADiffusionDiagonal2D(const int NE,
+void PADiffusionDiagonal2D(const int NE,
                                   const bool symmetric,
                                   const Array<double> &b,
                                   const Array<double> &g,
@@ -562,7 +562,7 @@ static void PADiffusionDiagonal2D(const int NE,
 
 // Shared memory PA Diffusion Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPADiffusionDiagonal2D(const int NE,
+void SmemPADiffusionDiagonal2D(const int NE,
                                       const bool symmetric,
                                       const Array<double> &b_,
                                       const Array<double> &g_,
@@ -656,7 +656,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PADiffusionDiagonal3D(const int NE,
+void PADiffusionDiagonal3D(const int NE,
                                   const bool symmetric,
                                   const Array<double> &b,
                                   const Array<double> &g,
@@ -757,7 +757,7 @@ static void PADiffusionDiagonal3D(const int NE,
 
 // Shared memory PA Diffusion Diagonal 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-static void SmemPADiffusionDiagonal3D(const int NE,
+void SmemPADiffusionDiagonal3D(const int NE,
                                       const bool symmetric,
                                       const Array<double> &b_,
                                       const Array<double> &g_,
@@ -1034,7 +1034,7 @@ static void OccaPADiffusionApply3D(const int D1D,
 
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PADiffusionApply2D(const int NE,
+void PADiffusionApply2D(const int NE,
                                const bool symmetric,
                                const Array<double> &b_,
                                const Array<double> &g_,
@@ -1156,7 +1156,7 @@ static void PADiffusionApply2D(const int NE,
 
 // Shared memory PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPADiffusionApply2D(const int NE,
+void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
@@ -1314,7 +1314,7 @@ static void SmemPADiffusionApply2D(const int NE,
 
 // PA Diffusion Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PADiffusionApply3D(const int NE,
+void PADiffusionApply3D(const int NE,
                                const bool symmetric,
                                const Array<double> &b,
                                const Array<double> &g,
@@ -1533,7 +1533,7 @@ static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void SmemPADiffusionApply3D(const int NE,
+void SmemPADiffusionApply3D(const int NE,
                                    const bool symmetric,
                                    const Array<double> &b_,
                                    const Array<double> &g_,

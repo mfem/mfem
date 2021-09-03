@@ -378,7 +378,7 @@ void Swap(T &a, T &b)
    b = tmp;
 }
 
-const double Epsilon = std::numeric_limits<double>::epsilon();
+constexpr double Epsilon = std::numeric_limits<double>::epsilon();
 
 /// Utility function used in CalcSingularvalue<3>.
 MFEM_HOST_DEVICE static inline

@@ -31,7 +31,7 @@ namespace quadrature_interpolator
 template<QVectorLayout Q_LAYOUT,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void Values2D(const int NE,
+void Values2D(const int NE,
                      const double *b_,
                      const double *x_,
                      double *y_,
@@ -95,7 +95,7 @@ static void Values2D(const int NE,
 template<QVectorLayout Q_LAYOUT,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int MAX_D1D = 0, int MAX_Q1D = 0>
-static void Values3D(const int NE,
+void Values3D(const int NE,
                      const double *b_,
                      const double *x_,
                      double *y_,

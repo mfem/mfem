@@ -17,7 +17,7 @@ namespace mfem
 {
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EADiffusionAssemble1D(const int NE,
+void EADiffusionAssemble1D(const int NE,
                                   const Array<double> &b,
                                   const Array<double> &g,
                                   const Vector &padata,
@@ -68,7 +68,7 @@ static void EADiffusionAssemble1D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EADiffusionAssemble2D(const int NE,
+void EADiffusionAssemble2D(const int NE,
                                   const Array<double> &b,
                                   const Array<double> &g,
                                   const Vector &padata,
@@ -145,7 +145,7 @@ static void EADiffusionAssemble2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EADiffusionAssemble3D(const int NE,
+void EADiffusionAssemble3D(const int NE,
                                   const Array<double> &b,
                                   const Array<double> &g,
                                   const Vector &padata,

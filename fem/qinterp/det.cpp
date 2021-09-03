@@ -27,7 +27,7 @@ namespace quadrature_interpolator
 {
 
 template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void Det2D(const int NE,
+void Det2D(const int NE,
                   const double *b,
                   const double *g,
                   const double *x,
@@ -79,7 +79,7 @@ static void Det2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0,
          bool SMEM = true>
-static void Det3D(const int NE,
+void Det3D(const int NE,
                   const double *b,
                   const double *g,
                   const double *x,

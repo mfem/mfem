@@ -17,7 +17,7 @@ namespace mfem
 {
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EAMassAssemble1D(const int NE,
+void EAMassAssemble1D(const int NE,
                              const Array<double> &basis,
                              const Vector &padata,
                              Vector &eadata,
@@ -67,7 +67,7 @@ static void EAMassAssemble1D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EAMassAssemble2D(const int NE,
+void EAMassAssemble2D(const int NE,
                              const Array<double> &basis,
                              const Vector &padata,
                              Vector &eadata,
@@ -139,7 +139,7 @@ static void EAMassAssemble2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EAMassAssemble3D(const int NE,
+void EAMassAssemble3D(const int NE,
                              const Array<double> &basis,
                              const Vector &padata,
                              Vector &eadata,

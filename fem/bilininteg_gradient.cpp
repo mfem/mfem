@@ -70,7 +70,7 @@ namespace mfem
    the \b MFEM_SHARED keyword for local arrays. */
 
 // PA Gradient Assemble 2D kernel
-static void PAGradientSetup2D(const int Q1D,
+void PAGradientSetup2D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
@@ -105,7 +105,7 @@ static void PAGradientSetup2D(const int Q1D,
 }
 
 // PA Gradient Assemble 3D kernel
-static void PAGradientSetup3D(const int Q1D,
+void PAGradientSetup3D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
@@ -254,7 +254,7 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 // PA Gradient Apply 2D kernel
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
-static void PAGradientApply2D(const int NE,
+void PAGradientApply2D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
                               const Array<double> &bt,
@@ -384,7 +384,7 @@ static void PAGradientApplyTranspose2D(const int NE,
 
 // PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PAGradientApply3D(const int NE,
+void PAGradientApply3D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
                               const Array<double> &bt,
@@ -579,7 +579,7 @@ static void PAGradientApplyTranspose3D(const int NE,
 
 // Shared memory PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void SmemPAGradientApply3D(const int NE,
+void SmemPAGradientApply3D(const int NE,
                                   const Array<double> &b_,
                                   const Array<double> &g_,
                                   const Array<double> &bt_,

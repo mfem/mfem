@@ -155,7 +155,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAMassAssembleDiagonal2D(const int NE,
+void PAMassAssembleDiagonal2D(const int NE,
                                      const Array<double> &b,
                                      const Vector &d,
                                      Vector &y,
@@ -201,7 +201,7 @@ static void PAMassAssembleDiagonal2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPAMassAssembleDiagonal2D(const int NE,
+void SmemPAMassAssembleDiagonal2D(const int NE,
                                          const Array<double> &b_,
                                          const Vector &d_,
                                          Vector &y_,
@@ -267,7 +267,7 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAMassAssembleDiagonal3D(const int NE,
+void PAMassAssembleDiagonal3D(const int NE,
                                      const Array<double> &b,
                                      const Vector &d,
                                      Vector &y,
@@ -336,7 +336,7 @@ static void PAMassAssembleDiagonal3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void SmemPAMassAssembleDiagonal3D(const int NE,
+void SmemPAMassAssembleDiagonal3D(const int NE,
                                          const Array<double> &b_,
                                          const Vector &d_,
                                          Vector &y_,
@@ -569,7 +569,7 @@ static void OccaPAMassApply3D(const int D1D,
 #endif // MFEM_USE_OCCA
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAMassApply2D(const int NE,
+void PAMassApply2D(const int NE,
                           const Array<double> &b_,
                           const Array<double> &bt_,
                           const Vector &d_,
@@ -661,7 +661,7 @@ static void PAMassApply2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPAMassApply2D(const int NE,
+void SmemPAMassApply2D(const int NE,
                               const Array<double> &b_,
                               const Array<double> &bt_,
                               const Vector &d_,
@@ -784,7 +784,7 @@ static void SmemPAMassApply2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void PAMassApply3D(const int NE,
+void PAMassApply3D(const int NE,
                           const Array<double> &b_,
                           const Array<double> &bt_,
                           const Vector &d_,
@@ -925,7 +925,7 @@ static void PAMassApply3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void SmemPAMassApply3D(const int NE,
+void SmemPAMassApply3D(const int NE,
                               const Array<double> &b_,
                               const Array<double> &bt_,
                               const Vector &d_,

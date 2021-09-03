@@ -791,7 +791,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
 }
 
 // PA H(curl) curl-curl assemble 2D kernel
-static void PACurlCurlSetup2D(const int Q1D,
+void PACurlCurlSetup2D(const int Q1D,
                               const int NE,
                               const Array<double> &w,
                               const Vector &j,
@@ -818,7 +818,7 @@ static void PACurlCurlSetup2D(const int Q1D,
 }
 
 // PA H(curl) curl-curl assemble 3D kernel
-static void PACurlCurlSetup3D(const int Q1D,
+void PACurlCurlSetup3D(const int Q1D,
                               const int coeffDim,
                               const int NE,
                               const Array<double> &w,
@@ -1045,7 +1045,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-static void PACurlCurlApply2D(const int D1D,
+void PACurlCurlApply2D(const int D1D,
                               const int Q1D,
                               const int NE,
                               const Array<double> &bo,
@@ -1166,7 +1166,7 @@ static void PACurlCurlApply2D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PACurlCurlApply3D(const int D1D,
+void PACurlCurlApply3D(const int D1D,
                               const int Q1D,
                               const bool symmetric,
                               const int NE,
@@ -1677,7 +1677,7 @@ static void PACurlCurlApply3D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void SmemPACurlCurlApply3D(const int D1D,
+void SmemPACurlCurlApply3D(const int D1D,
                                   const int Q1D,
                                   const bool symmetric,
                                   const int NE,
@@ -2032,7 +2032,7 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
-static void PACurlCurlAssembleDiagonal2D(const int D1D,
+void PACurlCurlAssembleDiagonal2D(const int D1D,
                                          const int Q1D,
                                          const int NE,
                                          const Array<double> &bo,
@@ -2087,7 +2087,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PACurlCurlAssembleDiagonal3D(const int D1D,
+void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          const int Q1D,
                                          const bool symmetric,
                                          const int NE,
@@ -2273,7 +2273,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
+void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
                                              const int Q1D,
                                              const bool symmetric,
                                              const int NE,
@@ -2955,7 +2955,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PAHcurlL2Apply3D(const int D1D,
+void PAHcurlL2Apply3D(const int D1D,
                              const int Q1D,
                              const int coeffDim,
                              const int NE,
@@ -3297,7 +3297,7 @@ static void PAHcurlL2Apply3D(const int D1D,
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void SmemPAHcurlL2Apply3D(const int D1D,
+void SmemPAHcurlL2Apply3D(const int D1D,
                                  const int Q1D,
                                  const int coeffDim,
                                  const int NE,
@@ -3585,7 +3585,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
 // integrated against H(div) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PAHcurlHdivApply3D(const int D1D,
+void PAHcurlHdivApply3D(const int D1D,
                                const int D1Dtest,
                                const int Q1D,
                                const int NE,
@@ -4071,7 +4071,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 // Apply to x corresponding to DOF's in H(curl) (trial), integrated against curl
 // of H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PAHcurlL2Apply3DTranspose(const int D1D,
+void PAHcurlL2Apply3DTranspose(const int D1D,
                                       const int Q1D,
                                       const int coeffDim,
                                       const int NE,
@@ -4413,7 +4413,7 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
+void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                                           const int Q1D,
                                           const int coeffDim,
                                           const int NE,
@@ -4675,7 +4675,7 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 // Apply to x corresponding to DOFs in H^1 (domain) the (topological) gradient
 // to get a dof in H(curl) (range). You can think of the range as the "test" space
 // and the domain as the "trial" space, but there's no integration.
-static void PAHcurlApplyGradient2D(const int c_dofs1D,
+void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
                                    const Array<double> &B_,
@@ -4753,7 +4753,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
 }
 
 // Specialization of PAHcurlApplyGradient2D to the case where B is identity
-static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
+void PAHcurlApplyGradient2DBId(const int c_dofs1D,
                                       const int o_dofs1D,
                                       const int NE,
                                       const Array<double> &G_,
@@ -4822,7 +4822,7 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
    });
 }
 
-static void PAHcurlApplyGradientTranspose2D(
+void PAHcurlApplyGradientTranspose2D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
    const Array<double> &B_, const Array<double> &G_,
    const Vector &x_, Vector &y_)
@@ -4898,7 +4898,7 @@ static void PAHcurlApplyGradientTranspose2D(
 
 // Specialization of PAHcurlApplyGradientTranspose2D to the case where
 // B is identity
-static void PAHcurlApplyGradientTranspose2DBId(
+void PAHcurlApplyGradientTranspose2DBId(
    const int c_dofs1D, const int o_dofs1D, const int NE,
    const Array<double> &G_,
    const Vector &x_, Vector &y_)
@@ -4965,7 +4965,7 @@ static void PAHcurlApplyGradientTranspose2DBId(
    });
 }
 
-static void PAHcurlApplyGradient3D(const int c_dofs1D,
+void PAHcurlApplyGradient3D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
                                    const Array<double> &B_,
@@ -5154,7 +5154,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
 }
 
 // Specialization of PAHcurlApplyGradient3D to the case where
-static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
+void PAHcurlApplyGradient3DBId(const int c_dofs1D,
                                       const int o_dofs1D,
                                       const int NE,
                                       const Array<double> &G_,
@@ -5322,7 +5322,7 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
    });
 }
 
-static void PAHcurlApplyGradientTranspose3D(
+void PAHcurlApplyGradientTranspose3D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
    const Array<double> &B_, const Array<double> &G_,
    const Vector &x_, Vector &y_)
@@ -5507,7 +5507,7 @@ static void PAHcurlApplyGradientTranspose3D(
 }
 
 // Specialization of PAHcurlApplyGradientTranspose3D to the case where
-static void PAHcurlApplyGradientTranspose3DBId(
+void PAHcurlApplyGradientTranspose3DBId(
    const int c_dofs1D, const int o_dofs1D, const int NE,
    const Array<double> &G_,
    const Vector &x_, Vector &y_)
@@ -5789,7 +5789,7 @@ void GradientInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
    }
 }
 
-static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
+void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                                         const int o_dofs1D,
                                         const int NE,
                                         const Array<double> &Bclosed,
@@ -6002,7 +6002,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
    });
 }
 
-static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
+void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
                                                  const int o_dofs1D,
                                                  const int NE,
                                                  const Array<double> &Bclosed,
@@ -6228,7 +6228,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
    });
 }
 
-static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
+void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
                                         const int o_dofs1D,
                                         const int NE,
                                         const Array<double> &Bclosed,
@@ -6327,7 +6327,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
    });
 }
 
-static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
+void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
                                                  const int o_dofs1D,
                                                  const int NE,
                                                  const Array<double> &Bclosed,

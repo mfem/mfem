@@ -539,7 +539,7 @@ void PAHdivMassApply3D(const int D1D,
 
 // PA H(div) div-div assemble 2D kernel
 // NOTE: this is identical to PACurlCurlSetup3D
-static void PADivDivSetup2D(const int Q1D,
+void PADivDivSetup2D(const int Q1D,
                             const int NE,
                             const Array<double> &w,
                             const Vector &j,
@@ -565,7 +565,7 @@ static void PADivDivSetup2D(const int Q1D,
    });
 }
 
-static void PADivDivSetup3D(const int Q1D,
+void PADivDivSetup3D(const int Q1D,
                             const int NE,
                             const Array<double> &w,
                             const Vector &j,
@@ -599,7 +599,7 @@ static void PADivDivSetup3D(const int Q1D,
    });
 }
 
-static void PADivDivApply2D(const int D1D,
+void PADivDivApply2D(const int D1D,
                             const int Q1D,
                             const int NE,
                             const Array<double> &Bo_,
@@ -718,7 +718,7 @@ static void PADivDivApply2D(const int D1D,
    }); // end of element loop
 }
 
-static void PADivDivApply3D(const int D1D,
+void PADivDivApply3D(const int D1D,
                             const int Q1D,
                             const int NE,
                             const Array<double> &Bo_,
@@ -967,7 +967,7 @@ void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
-static void PADivDivAssembleDiagonal2D(const int D1D,
+void PADivDivAssembleDiagonal2D(const int D1D,
                                        const int Q1D,
                                        const int NE,
                                        const Array<double> &Bo_,
@@ -1023,7 +1023,7 @@ static void PADivDivAssembleDiagonal2D(const int D1D,
    });
 }
 
-static void PADivDivAssembleDiagonal3D(const int D1D,
+void PADivDivAssembleDiagonal3D(const int D1D,
                                        const int Q1D,
                                        const int NE,
                                        const Array<double> &Bo_,
@@ -1104,7 +1104,7 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 }
 
 // PA H(div)-L2 (div u, p) assemble 2D kernel
-static void PADivL2Setup2D(const int Q1D,
+void PADivL2Setup2D(const int Q1D,
                            const int NE,
                            const Array<double> &w,
                            Vector &coeff_,
@@ -1123,7 +1123,7 @@ static void PADivL2Setup2D(const int Q1D,
    });
 }
 
-static void PADivL2Setup3D(const int Q1D,
+void PADivL2Setup3D(const int Q1D,
                            const int NE,
                            const Array<double> &w,
                            Vector &coeff_,
@@ -1225,7 +1225,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 // Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
-static void PAHdivL2Apply3D(const int D1D,
+void PAHdivL2Apply3D(const int D1D,
                             const int Q1D,
                             const int L2D1D,
                             const int NE,
@@ -1388,7 +1388,7 @@ static void PAHdivL2Apply3D(const int D1D,
 
 // Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
-static void PAHdivL2Apply2D(const int D1D,
+void PAHdivL2Apply2D(const int D1D,
                             const int Q1D,
                             const int L2D1D,
                             const int NE,
@@ -1494,7 +1494,7 @@ static void PAHdivL2Apply2D(const int D1D,
    }); // end of element loop
 }
 
-static void PAHdivL2ApplyTranspose3D(const int D1D,
+void PAHdivL2ApplyTranspose3D(const int D1D,
                                      const int Q1D,
                                      const int L2D1D,
                                      const int NE,
@@ -1656,7 +1656,7 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
    }); // end of element loop
 }
 
-static void PAHdivL2ApplyTranspose2D(const int D1D,
+void PAHdivL2ApplyTranspose2D(const int D1D,
                                      const int Q1D,
                                      const int L2D1D,
                                      const int NE,
@@ -1791,7 +1791,7 @@ void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
    }
 }
 
-static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
+void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                                              const int Q1D,
                                              const int L2D1D,
                                              const int NE,
@@ -1916,7 +1916,7 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
    }); // end of element loop
 }
 
-static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
+void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                                              const int Q1D,
                                              const int L2D1D,
                                              const int NE,

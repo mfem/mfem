@@ -175,6 +175,10 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
+if (WIN32)
+	add_definitions(-D_USE_MATH_DEFINES)
+endif()
+
 # MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)

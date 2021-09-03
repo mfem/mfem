@@ -19,7 +19,7 @@ using namespace std;
 namespace mfem
 {
 // PA DG Trace Integrator
-static void PADGTraceSetup2D(const int Q1D,
+void PADGTraceSetup2D(const int Q1D,
                              const int NF,
                              const Array<double> &w,
                              const Vector &det,
@@ -61,7 +61,7 @@ static void PADGTraceSetup2D(const int Q1D,
    });
 }
 
-static void PADGTraceSetup3D(const int Q1D,
+void PADGTraceSetup3D(const int Q1D,
                              const int NF,
                              const Array<double> &w,
                              const Vector &det,
@@ -301,7 +301,7 @@ void DGTraceIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
 }
 
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0>
 void PADGTraceApply2D(const int NF,
                       const Array<double> &b,
                       const Array<double> &bt,
@@ -392,7 +392,7 @@ void PADGTraceApply2D(const int NF,
 }
 
 // PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0>
 void PADGTraceApply3D(const int NF,
                       const Array<double> &b,
                       const Array<double> &bt,
@@ -537,7 +537,7 @@ void PADGTraceApply3D(const int NF,
 }
 
 // Optimized PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 void SmemPADGTraceApply3D(const int NF,
                           const Array<double> &b,
                           const Array<double> &bt,
@@ -701,7 +701,7 @@ static void PADGTraceApply(const int dim,
 }
 
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0>
 void PADGTraceApplyTranspose2D(const int NF,
                                const Array<double> &b,
                                const Array<double> &bt,
@@ -797,7 +797,7 @@ void PADGTraceApplyTranspose2D(const int NF,
 }
 
 // PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0>
 void PADGTraceApplyTranspose3D(const int NF,
                                const Array<double> &b,
                                const Array<double> &bt,
@@ -953,7 +953,7 @@ void PADGTraceApplyTranspose3D(const int NF,
 }
 
 // Optimized PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 void SmemPADGTraceApplyTranspose3D(const int NF,
                                    const Array<double> &b,
                                    const Array<double> &bt,

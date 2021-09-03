@@ -1159,7 +1159,7 @@ static double u0(const Vector &x) { return sin(3.0 * PI * (x[1] + x[0])); }
 
 enum {NORM, AREA};
 
-static double qf(const int order, const int ker, Mesh &m,
+double qf(const int order, const int ker, Mesh &m,
                  FiniteElementSpace &fes, GridFunction &u)
 {
    const Geometry::Type type = m.GetElementBaseGeometry(0);

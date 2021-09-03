@@ -31,7 +31,7 @@ namespace quadrature_interpolator
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
-static void Derivatives2D(const int NE,
+void Derivatives2D(const int NE,
                           const double *b_,
                           const double *g_,
                           const double *j_,
@@ -139,7 +139,7 @@ static void Derivatives2D(const int NE,
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int MAX_D1D = 0, int MAX_Q1D = 0>
-static void Derivatives3D(const int NE,
+void Derivatives3D(const int NE,
                           const double *b_,
                           const double *g_,
                           const double *j_,

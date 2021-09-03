@@ -104,7 +104,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
-static void PAVectorMassApply2D(const int NE,
+void PAVectorMassApply2D(const int NE,
                                 const Array<double> &B_,
                                 const Array<double> &Bt_,
                                 const Vector &op_,
@@ -201,7 +201,7 @@ static void PAVectorMassApply2D(const int NE,
 
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
-static void PAVectorMassApply3D(const int NE,
+void PAVectorMassApply3D(const int NE,
                                 const Array<double> &B_,
                                 const Array<double> &Bt_,
                                 const Vector &op_,
@@ -379,7 +379,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 }
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
-static void PAVectorMassAssembleDiagonal2D(const int NE,
+void PAVectorMassAssembleDiagonal2D(const int NE,
                                            const Array<double> &B_,
                                            const Array<double> &Bt_,
                                            const Vector &op_,
@@ -431,7 +431,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
 }
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
-static void PAVectorMassAssembleDiagonal3D(const int NE,
+void PAVectorMassAssembleDiagonal3D(const int NE,
                                            const Array<double> &B_,
                                            const Array<double> &Bt_,
                                            const Vector &op_,

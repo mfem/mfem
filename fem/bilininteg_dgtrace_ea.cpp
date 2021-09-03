@@ -16,7 +16,7 @@
 namespace mfem
 {
 
-static void EADGTraceAssemble1DInt(const int NF,
+void EADGTraceAssemble1DInt(const int NF,
                                    const Array<double> &basis,
                                    const Vector &padata,
                                    Vector &eadata_int,
@@ -50,7 +50,7 @@ static void EADGTraceAssemble1DInt(const int NF,
    });
 }
 
-static void EADGTraceAssemble1DBdr(const int NF,
+void EADGTraceAssemble1DBdr(const int NF,
                                    const Array<double> &basis,
                                    const Vector &padata,
                                    Vector &eadata_bdr,
@@ -72,7 +72,7 @@ static void EADGTraceAssemble1DBdr(const int NF,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EADGTraceAssemble2DInt(const int NF,
+void EADGTraceAssemble2DInt(const int NF,
                                    const Array<double> &basis,
                                    const Vector &padata,
                                    Vector &eadata_int,
@@ -128,7 +128,7 @@ static void EADGTraceAssemble2DInt(const int NF,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EADGTraceAssemble2DBdr(const int NF,
+void EADGTraceAssemble2DBdr(const int NF,
                                    const Array<double> &basis,
                                    const Vector &padata,
                                    Vector &eadata_bdr,
@@ -170,7 +170,7 @@ static void EADGTraceAssemble2DBdr(const int NF,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EADGTraceAssemble3DInt(const int NF,
+void EADGTraceAssemble3DInt(const int NF,
                                    const Array<double> &basis,
                                    const Vector &padata,
                                    Vector &eadata_int,
@@ -268,7 +268,7 @@ static void EADGTraceAssemble3DInt(const int NF,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EADGTraceAssemble3DBdr(const int NF,
+void EADGTraceAssemble3DBdr(const int NF,
                                    const Array<double> &basis,
                                    const Vector &padata,
                                    Vector &eadata_bdr,
