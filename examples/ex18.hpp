@@ -601,9 +601,13 @@ void InitialCondition(const Vector &x, Vector &y)
            rho = rhoL;
            e = 1./gm1*pL/rhoL;
         }
-        if (x[0] > 0.7 && x[0] < 0.8) {
-           rho = 0.5*rhoL;
-           e = 1./gm1*pL/(0.5*rhoL);
+        if (x[0] > 0.5 && x[0] < 1.0) {
+           double xc = 0.75;
+           double x0 = x[0]-xc;
+           double a = 10.0;
+           double x1 = a*x0;
+           rho = rhoR +0.5*rhoL*exp(-x1*x1);
+           e = 1./gm1*pR/rhoL;
         }
      }
      else {
