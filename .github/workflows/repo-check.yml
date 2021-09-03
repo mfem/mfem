@@ -105,6 +105,7 @@ jobs:
 
     - name: branch-history
       run: |
-        git fetch origin master:master
+        git remote add reference https://github.com/mfem/mfem.git
+        git fetch reference master:master
         git checkout -b gh-actions-branch-history
         ./config/githooks/pre-push --history
