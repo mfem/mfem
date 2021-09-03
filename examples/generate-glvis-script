@@ -1,0 +1,48 @@
+#!/bin/bash
+
+if [ $# -ne 2 ]; then
+    echo "Usage: generate-glvis-script <ncyc> <output-file-prefix>"
+fi
+
+ncyc=$1
+prefix=$2
+comp=0
+
+ncycm1=$(( $ncyc - 1 ))
+
+cat <<EOF > glvis-script
+window 0 0 400 400
+
+# Initial solution
+solution soln-$comp.mesh soln-0-$comp.gf
+
+# Setup the GLVis scene. Executed after pressing the space bar.
+{
+   perspective off
+   viewcenter 0.2 0
+   valuerange 0.0 1.0
+   keys ca
+   autoscale off
+}
+
+# Take multiple screenshots. Executed after pressing space bar.
+{
+EOF
+
+for i in `seq 0 $ncycm1`; do
+    if [ ! -f soln-$i.mesh ]; then
+	echo "The file soln-$i.mesh doesn't exist. Stopping."
+	exit 1
+    fi
+    if [ ! -f soln-$i-$comp.gf ]; then
+	echo "The file soln-$i-$comp.gf doesn't exist. Stopping."
+	exit 1
+    fi
+    ii=`printf %04d $i`
+    echo "solution soln-$i.mesh soln-$i-$comp.gf" >> glvis-script
+    #echo "valuerange 0.0 1.0" >> glvis-script
+    echo "screenshot $prefix-soln-$ii.png" >> glvis-script
+done
+echo "}" >> glvis-script
+
+echo "% glvis -run glvis-script"
