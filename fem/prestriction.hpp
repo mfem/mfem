@@ -63,7 +63,7 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering.
-       @param[out] y The L-vector degrees of freedom. */
+       @param[in,out] y The L-vector degrees of freedom. */
    void AddMultTranspose(const Vector &x, Vector &y) const override;
 
 private:
