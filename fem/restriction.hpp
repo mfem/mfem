@@ -506,8 +506,7 @@ struct InterpConfig
    static constexpr int conforming = -1; // helper value
 
    // Conforming face
-   // InterpConfig() : config(-1) { } // TODO: try to make this work with is_trivial
-   InterpConfig() = default;
+   InterpConfig() : config(conforming) { }
 
    // Non-conforming face, if nc_index is given assumes side==1 (always true
    // except for ghost faces)
