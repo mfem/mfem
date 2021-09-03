@@ -612,7 +612,7 @@ int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
    // get (degenerate) faces and assign face attributes
    int v0 = el.node[0], v1 = el.node[1];
    faces.Get(v0, v0, v0, v0)->attribute = vattr1;
-   faces.Get(v1, v1, v1,v1)->attribute = vattr2;
+   faces.Get(v1, v1, v1, v1)->attribute = vattr2;
 
    return new_id;
 }

@@ -234,7 +234,7 @@ void TMOPRefinerEstimator::SetTriIntRules()
 
    // Reftype = 0 // original element
    const int Nvert = 3, NEsplit = 1;
-   Mesh meshsplit(2, Nvert, NEsplit, 0,2);
+   Mesh meshsplit(2, Nvert, NEsplit, 0, 2);
    const double tri_v[3][2] =
    {
       {0, 0}, {1, 0}, {0, 1}
