@@ -1624,9 +1624,9 @@ InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
                                            ElementDofOrdering ordering,
                                            FaceType type)
    : fes(fes),
-   ordering(ordering),
-   interp_config(type==FaceType::Interior ? fes.GetNFbyType(type) : 0),
-   nc_cpt(0)
+     ordering(ordering),
+     interp_config(type==FaceType::Interior ? fes.GetNFbyType(type) : 0),
+     nc_cpt(0)
 { }
 
 void InterpolationManager::RegisterFaceConformingInterpolation(
@@ -1847,7 +1847,8 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolations.GetInterpolators().Read(), nd, nd, nc_size);
+      auto interp = Reshape(interpolations.GetInterpolators().Read(), nd, nd,
+                            nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,

@@ -589,7 +589,7 @@ protected: // implementation
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
-   /** Refine the element @a elem with the refinement @a ref_type 
+   /** Refine the element @a elem with the refinement @a ref_type
        (c.f. Refinement::enum) */
    void RefineElement(int elem, char ref_type);
 

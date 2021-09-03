@@ -1646,13 +1646,13 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < nb_cube_face; i++)
       {
          const int child_local_index = hex_deref_table[ref_type_key]
-                                                      [i + nb_cube_childs];
+                                       [i + nb_cube_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                                          ch.node[fv[2]], ch.node[fv[3]])
-                                         ->attribute;
+                              ->attribute;
       }
    }
    else if (el.Geom() == Geometry::PRISM)
@@ -1679,7 +1679,7 @@ void NCMesh::DerefineElement(int elem)
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                                          ch.node[fv[2]], ch.node[fv[3]])
-                                         ->attribute;
+                              ->attribute;
       }
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
@@ -1692,7 +1692,7 @@ void NCMesh::DerefineElement(int elem)
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
                                          ch2.node[fv[2]], ch2.node[fv[3]])
-                                         ->attribute;
+                              ->attribute;
       }
    }
    else if (el.Geom() == Geometry::SQUARE)
@@ -1709,13 +1709,13 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < nb_square_face; i++)
       {
          const int child_local_index = quad_deref_table[ref_type_key]
-                                                       [i + nb_square_childs];
+                                       [i + nb_square_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                                          ch.node[fv[2]], ch.node[fv[3]])
-                                         ->attribute;
+                              ->attribute;
       }
    }
    else if (el.Geom() == Geometry::TRIANGLE)
@@ -1728,7 +1728,7 @@ void NCMesh::DerefineElement(int elem)
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                                          ch.node[fv[2]], ch.node[fv[3]])
-                                         ->attribute;
+                              ->attribute;
       }
    }
    else if (el.Geom() == Geometry::SEGMENT)

@@ -226,7 +226,7 @@ public:
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
-       for the gathering: E-vector to L-vector. 
+       for the gathering: E-vector to L-vector.
 
        @param[in] ordering Request a specific element ordering.
        @param[in] type     Request internal or boundary faces dofs.
@@ -384,7 +384,7 @@ public:
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
-       for the gathering: E-vector to L-vector. 
+       for the gathering: E-vector to L-vector.
 
        @param[in] ordering Request a specific element ordering.
        @param[in] type     Request internal or boundary faces dofs.

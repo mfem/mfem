@@ -966,7 +966,7 @@ public:
        including ghost faces. */
    int GetNumFacesWithGhost() const;
 
-   /** @brief Returns the number of faces according to the requested type, does 
+   /** @brief Returns the number of faces according to the requested type, does
        not count master non-conforming faces.
 
        If type==Boundary returns only the "true" number of boundary faces
@@ -1331,7 +1331,7 @@ public:
       /// @brief Return true if the face is a shared interior face.
       bool IsShared() const
       {
-          return location == Mesh::FaceLocation::Shared;
+         return location == Mesh::FaceLocation::Shared;
       }
 
       /** @brief Return true if the face is a boundary face, and not a
@@ -1347,10 +1347,10 @@ public:
       {
          switch (type)
          {
-         case FaceType::Interior:
-            return IsInterior();
-         case FaceType::Boundary:
-            return IsBoundary();
+            case FaceType::Interior:
+               return IsInterior();
+            case FaceType::Boundary:
+               return IsBoundary();
          }
       }
 
@@ -1373,31 +1373,31 @@ public:
          os << "location=";
          switch (info.location)
          {
-         case Mesh::FaceLocation::Local:
-            os << "Local";
-            break;
-         case Mesh::FaceLocation::Shared:
-            os << "Shared";
-            break;
-         case Mesh::FaceLocation::Boundary:
-            os << "Boundary";
-            break;
+            case Mesh::FaceLocation::Local:
+               os << "Local";
+               break;
+            case Mesh::FaceLocation::Shared:
+               os << "Shared";
+               break;
+            case Mesh::FaceLocation::Boundary:
+               os << "Boundary";
+               break;
          }
          os << std::endl;
          os << "conformity=";
          switch (info.conformity)
          {
-         case Mesh::FaceConformity::Conforming:
-            os << "Conforming";
-            break;
-         case Mesh::FaceConformity::NonConformingMaster:
-            os << "NonConformingMaster";
-            break;
-         case Mesh::FaceConformity::NonConformingSlave:
-            os << "NonConformingSlave";
-            break;
-         default:
-            break;
+            case Mesh::FaceConformity::Conforming:
+               os << "Conforming";
+               break;
+            case Mesh::FaceConformity::NonConformingMaster:
+               os << "NonConformingMaster";
+               break;
+            case Mesh::FaceConformity::NonConformingSlave:
+               os << "NonConformingSlave";
+               break;
+            default:
+               break;
          }
          os << std::endl;
          os << "elem_1_index=" << info.elem_1_index << std::endl
