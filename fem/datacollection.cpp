@@ -482,7 +482,7 @@ void VisItDataCollection::SaveRootFile()
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
-   std::ofstream root_file(root_name.c_str());
+   std::ofstream root_file(root_name);
    root_file << GetVisItRootString();
    if (!root_file)
    {
@@ -548,7 +548,7 @@ void VisItDataCollection::Load(int cycle_)
 
 void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 {
-   std::ifstream root_file(root_name.c_str());
+   std::ifstream root_file(root_name);
    std::stringstream buffer;
    buffer << root_file.rdbuf();
    if (!buffer)
@@ -853,6 +853,7 @@ void ParaViewDataCollection::Save()
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
 
+      bool write_header = true;
       std::ifstream pvd_in;
       if (restart_mode && (pvd_in.open(pvdname,std::ios::binary),pvd_in.good()))
       {
@@ -879,20 +880,34 @@ void ParaViewDataCollection::Save()
                pos_end = pvd_in.tellg();
             }
          }
+         // Since pvd_in is opened in binary mode, count will store the number
+         // of bytes from the beginning of the file until the desired insertion
+         // point (in text mode on Windows this is not the case).
          size_t count = pos_end - pos_begin;
-         std::vector<char> buf(count);
-         pvd_in.clear();
-         pvd_in.seekg(pos_begin);
-         pvd_in.read(buf.data(), count);
-         pvd_in.close();
-         pvd_stream.open(pvdname.c_str(),std::ios::out);
-         pvd_stream.write(buf.data(), count);
+         if (count != 0)
+         {
+            write_header = false;
+            std::vector<char> buf(count);
+            // Read the contents of the PVD file, from the beginning to the
+            // insertion point.
+            pvd_in.clear();
+            pvd_in.seekg(pos_begin);
+            pvd_in.read(buf.data(), count);
+            pvd_in.close();
+            // Open the PVD file in truncate mode to delete the previous
+            // contents. Open in binary mode to write the data buffer without
+            // converting \r\n to \r\r\n on Windows.
+            pvd_stream.open(pvdname,std::ios::out|std::ios::trunc|std::ios::binary);
+            pvd_stream.write(buf.data(), count);
+            // Close and reopen the file in text mode, appending to the end.
+            pvd_stream.close();
+            pvd_stream.open(pvdname,std::ios::in|std::ios::out|std::ios::ate);
+         }
       }
-      else
+      if (write_header)
       {
-         // initialize new pvd file
-         pvd_stream.open(pvdname.c_str(),std::ios::out);
-         // initialize the file
+         // Initialize new pvd file.
+         pvd_stream.open(pvdname,std::ios::out|std::ios::trunc);
          pvd_stream << "<?xml version=\"1.0\"?>\n";
          pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
          pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
@@ -904,7 +919,7 @@ void ParaViewDataCollection::Save()
    {
       std::string fname = GenerateCollectionPath()+"/"+GenerateVTUPath()+"/"
                           +GenerateVTUFileName();
-      std::fstream out(fname.c_str(), std::ios::out);
+      std::fstream out(fname, std::ios::out);
       out.precision(precision);
       SaveDataVTU(out,levels_of_detail);
       out.close();
@@ -915,7 +930,7 @@ void ParaViewDataCollection::Save()
    {
       std::string fname = GenerateCollectionPath()+"/"+GeneratePVTUPath()+"/"
                           +GeneratePVTUFileName();
-      std::fstream out(fname.c_str(), std::ios::out);
+      std::fstream out(fname, std::ios::out);
 
       out << "<?xml version=\"1.0\"?>\n";
       out << "<VTKFile type=\"PUnstructuredGrid\"";
@@ -973,6 +988,7 @@ void ParaViewDataCollection::Save()
       pvd_stream << "<DataSet timestep=\"" << GetTime();  // GetCycle();
       pvd_stream << "\" group=\"\" part=\"" << 0 << "\" file=\"";
       pvd_stream << fname << "\"/>\n";
+      pvd_stream.flush();
       std::fstream::pos_type pos = pvd_stream.tellp();
       pvd_stream << "</Collection>\n";
       pvd_stream << "</VTKFile>" << std::endl;

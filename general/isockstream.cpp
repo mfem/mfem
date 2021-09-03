@@ -23,7 +23,9 @@
 #include <unistd.h>
 #else
 #include <winsock.h>
+#ifdef _MSC_VER
 typedef int ssize_t;
+#endif
 typedef int socklen_t;
 #define close closesocket
 // Link with ws2_32.lib
