@@ -503,7 +503,7 @@ protected:
 struct InterpConfig
 {
    int config;
-   static constexpr int conforming = -1; // helper value
+   enum { conforming = -1 }; // helper value
 
    // Conforming face
    InterpConfig() : config(conforming) { }
