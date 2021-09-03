@@ -562,7 +562,7 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
 /** Return the face degrees of freedom returned in Lexicographic order.
     Note: Only for quad and hex */
 void GetFaceDofs(const int dim, const int face_id,
-                 const int dof1d, Array<int> &faceMap)
+                 const int dof1d, Array<int> &face_map)
 {
    switch (dim)
    {
@@ -570,10 +570,10 @@ void GetFaceDofs(const int dim, const int face_id,
          switch (face_id)
          {
             case 0: // WEST
-               faceMap[0] = 0;
+               face_map[0] = 0;
                break;
             case 1: // EAST
-               faceMap[0] = dof1d-1;
+               face_map[0] = dof1d-1;
                break;
          }
          break;
@@ -583,25 +583,25 @@ void GetFaceDofs(const int dim, const int face_id,
             case 0: // SOUTH
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = i;
+                  face_map[i] = i;
                }
                break;
             case 1: // EAST
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = dof1d-1 + i*dof1d;
+                  face_map[i] = dof1d-1 + i*dof1d;
                }
                break;
             case 2: // NORTH
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = (dof1d-1)*dof1d + i;
+                  face_map[i] = (dof1d-1)*dof1d + i;
                }
                break;
             case 3: // WEST
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = i*dof1d;
+                  face_map[i] = i*dof1d;
                }
                break;
          }
@@ -614,7 +614,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i + j*dof1d;
+                     face_map[i+j*dof1d] = i + j*dof1d;
                   }
                }
                break;
@@ -623,7 +623,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = i + j*dof1d*dof1d;
                   }
                }
                break;
@@ -632,7 +632,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
                   }
                }
                break;
@@ -641,7 +641,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
                   }
                }
                break;
@@ -650,7 +650,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
                   }
                }
                break;
@@ -659,7 +659,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
+                     face_map[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
                   }
                }
                break;
