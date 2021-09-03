@@ -2453,58 +2453,6 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    }
 }
 
-void GridFunction::ProjectCoefficientRevDiff(const GridFunction &adjoint,
-                                             VectorCoefficient &vcoeff)
-{
-   Array<int> vdofs, mesh_vdofs;
-   Vector psi;
-   Vector vals;
-
-   *this = 0.0;
-
-   /// switch loop order
-   // for (int i = (fes->GetNE() - 1); i >= 0; i--)
-   for (int i = 0; i < fes->GetNE(); i++)
-   {
-      fes->GetElementVDofs(i, mesh_vdofs);
-
-      adjoint.FESpace()->GetElementVDofs(i, vdofs);
-      adjoint.GetSubVector(vdofs, psi);
-      int dim = adjoint.FESpace()->GetFE(i)->GetDim();
-      int ndofs = vdofs.Size();
-      int mesh_ndofs = mesh_vdofs.Size() / dim;
-
-      DenseMatrix PointMat_bar(dim, mesh_ndofs);
-      PointMat_bar = 0.0;
-
-      adjoint.FESpace()->GetFE(i)->ProjectRevDiff(
-         psi, vcoeff,
-         *adjoint.FESpace()->GetElementTransformation(i),
-         PointMat_bar);
-
-      vals.SetSize(mesh_vdofs.Size());
-      vals = 0.0;
-      for (int j = 0; j < mesh_ndofs; ++j)
-      {
-         for (int d = 0; d < dim; ++d)
-         {
-            vals(d*mesh_ndofs + j) += PointMat_bar(d,j);
-         }
-      }
-      std::cout << "\nelement: " << i << "\n";
-      PointMat_bar.Print();
-      AddElementVector(mesh_vdofs, vals);
-      // SetSubVector(mesh_vdofs, vals);
-      std::cout << "\nelement: " << i << "\n";
-      for (int k = 0; k < mesh_vdofs.Size(); k++)
-      {
-         std::cout << "mesh vdofs: " << mesh_vdofs[k] << " and value: " << vals[k] <<
-                   "\n";
-      }
-
-   }
-}
-
 void GridFunction::ProjectCoefficient(
    VectorCoefficient &vcoeff, Array<int> &dofs)
 {
