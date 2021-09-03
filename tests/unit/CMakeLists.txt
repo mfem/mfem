@@ -53,12 +53,14 @@ set(UNIT_TESTS_SRCS
   fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
+  fem/test_coeff_revdiff.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_estimator.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
   fem/test_fe.cpp
+  fem/test_fe_revdiff.cpp
   fem/test_get_value.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
@@ -72,7 +74,6 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
-  fem/test_projection_revdiff.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
   fem/test_sparse_matrix.cpp

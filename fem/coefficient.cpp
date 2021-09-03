@@ -650,6 +650,35 @@ void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
    V *= sa;
 }
 
+void ScalarVectorProductCoefficient::EvalRevDiff(
+   const Vector &V_bar,
+   ElementTransformation &T,
+   const IntegrationPoint &ip,
+   DenseMatrix &PointMat_bar)
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector W(V_bar.Size());
+   Vector W_bar(V_bar.Size());
+#else
+   W.SetSize(V_bar.Size());
+   W_bar.SetSize(V_bar.Size());
+#endif
+
+   double sa = (a == nullptr) ? aConst : a->Eval(T, ip);
+   b->Eval(W, T, ip);
+   W *= sa;
+
+   /// reverse pass
+   W_bar = 0.0;
+   add(W_bar, sa, V_bar, W_bar);
+   b->EvalRevDiff(W_bar, T, ip, PointMat_bar);
+   if (a != nullptr)
+   {
+      const double sa_bar = V_bar * W;
+      a->EvalRevDiff(sa_bar, T, ip, PointMat_bar);
+   }
+}
+
 NormalizedVectorCoefficient::NormalizedVectorCoefficient(VectorCoefficient &A,
                                                          double tol_)
    : VectorCoefficient(A.GetVDim()), a(&A), tol(tol_)

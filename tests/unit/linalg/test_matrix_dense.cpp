@@ -267,6 +267,53 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    REQUIRE(C.MaxMaxNorm() < tol);
 }
 
+TEST_CASE("DenseTensor LinearSolve methods",
+          "[DenseMatrix]")
+{
+
+   int N = 3;
+   DenseMatrix A(N);
+   A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
+   A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
+   A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
+
+   double X[3] = { -14, 42, 28 };
+
+   int NE = 10;
+   Vector X_batch(N*NE);
+   DenseTensor A_batch(N,N,NE);
+
+   auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
+   auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
+   // Column major
+   for (int e=0; e<NE; ++e)
+   {
+
+      for (int r=0; r<N; ++r)
+      {
+         for (int c=0; c<N; ++c)
+         {
+            a_batch(c, r, e) = A.GetData()[c+r*N];
+         }
+         x_batch(r,e) = X[r];
+      }
+   }
+
+   Array<int> P;
+   BatchLUFactor(A_batch, P);
+   BatchLUSolve(A_batch, P, X_batch);
+
+   auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
+   REQUIRE(LinearSolve(A,X));
+   for (int e=0; e<NE; ++e)
+   {
+      for (int r=0; r<N; ++r)
+      {
+         REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
+      }
+   }
+}
+
 TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
 {
    constexpr double eps_fd = 1e-5; // 2nd-order finite-difference step size
@@ -553,79 +600,5 @@ TEST_CASE("DenseMatrix CalcOrthoRevDiff", "[DenseMatrix]")
             REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
          }
       }
-   }
-}
-TEST_CASE("DenseTensor LinearSolve methods",
-          "[DenseMatrix]")
-{
-
-   int N = 3;
-   DenseMatrix A(N);
-   A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
-   A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
-   A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
-
-   double X[3] = { -14, 42, 28 };
-
-   int NE = 10;
-   Vector X_batch(N*NE);
-   DenseTensor A_batch(N,N,NE);
-
-   auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
-   auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
-   // Column major
-   for (int e=0; e<NE; ++e)
-   {
-
-      for (int r=0; r<N; ++r)
-      {
-         for (int c=0; c<N; ++c)
-         {
-            a_batch(c, r, e) = A.GetData()[c+r*N];
-         }
-         x_batch(r,e) = X[r];
-      }
-   }
-
-   Array<int> P;
-   BatchLUFactor(A_batch, P);
-   BatchLUSolve(A_batch, P, X_batch);
-
-   auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
-   REQUIRE(LinearSolve(A,X));
-   for (int e=0; e<NE; ++e)
-   {
-      for (int r=0; r<N; ++r)
-      {
-         REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
-      }
-   }
-}
-
-TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
-{
-   DenseTensor t1(2,3,4);
-   for (int i=0; i<t1.TotalSize(); ++i)
-   {
-      t1.Data()[i] = i;
-   }
-   DenseTensor t2(t1);
-   DenseTensor t3;
-   t3 = t1;
-   REQUIRE(t2.SizeI() == t1.SizeI());
-   REQUIRE(t2.SizeJ() == t1.SizeJ());
-   REQUIRE(t2.SizeK() == t1.SizeK());
-
-   REQUIRE(t3.SizeI() == t1.SizeI());
-   REQUIRE(t3.SizeJ() == t1.SizeJ());
-   REQUIRE(t3.SizeK() == t1.SizeK());
-
-   REQUIRE(t2.Data() != t1.Data());
-   REQUIRE(t3.Data() != t1.Data());
-
-   for (int i=0; i<t1.TotalSize(); ++i)
-   {
-      REQUIRE(t2.Data()[i] == t1.Data()[i]);
-      REQUIRE(t3.Data()[i] == t1.Data()[i]);
    }
 }

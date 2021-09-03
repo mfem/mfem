@@ -564,7 +564,8 @@ void IsoparametricTransformation::AdjugateJacobianRevDiff(
    const DenseMatrix &adjJ_bar, DenseMatrix &PointMat_bar)
 {
    Jacobian(); // Recompute the Jacobian, if necessary
-   DenseMatrix dFdx_bar(dFdx.Height(), dFdx.Width()); // pass in as work array?
+   double dFdx_bar_buffer[9];
+   DenseMatrix dFdx_bar(dFdx_bar_buffer, dFdx.Height(), dFdx.Width());
    if (dFdx.Width() > 0)
    {
       CalcAdjugateRevDiff(dFdx, adjJ_bar, dFdx_bar);
@@ -575,8 +576,20 @@ void IsoparametricTransformation::AdjugateJacobianRevDiff(
 void IsoparametricTransformation::WeightRevDiff(DenseMatrix &PointMat_bar)
 {
    Jacobian(); // Recompute the Jacobian, if necessary
-   DenseMatrix dFdx_bar(dFdx.Height(), dFdx.Width()); // pass in as work array?
+   double dFdx_bar_buffer[9];
+   DenseMatrix dFdx_bar(dFdx_bar_buffer, dFdx.Height(), dFdx.Width());
    dFdx.WeightRevDiff(dFdx_bar);
+   JacobianRevDiff(dFdx_bar, PointMat_bar);
+}
+
+void IsoparametricTransformation::WeightRevDiff(double weight_bar,
+                                                DenseMatrix &PointMat_bar)
+{
+   Jacobian(); // Recompute the Jacobian, if necessary
+   double dFdx_bar_buffer[9];
+   DenseMatrix dFdx_bar(dFdx_bar_buffer, dFdx.Height(), dFdx.Width());
+   dFdx.WeightRevDiff(dFdx_bar);
+   dFdx_bar *= weight_bar;
    JacobianRevDiff(dFdx_bar, PointMat_bar);
 }
 

@@ -49,6 +49,13 @@ void FiniteElement::CalcVShape (
    MFEM_ABORT("method is not implemented for this class");
 }
 
+void FiniteElement::CalcVShapeRevDiff(ElementTransformation &Trans,
+                                      const DenseMatrix &shape_bar,
+                                      DenseMatrix &PointMat_bar) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
 void FiniteElement::CalcDivShape (
    const IntegrationPoint &ip, Vector &divshape) const
 {
@@ -87,6 +94,62 @@ void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
          // This is valid for both 2x2 and 3x2 Jacobians
          CalcCurlShape(Trans.GetIntPoint(), curl_shape);
          curl_shape *= (1.0 / Trans.Weight());
+         break;
+      default:
+         MFEM_ABORT("Invalid dimension, Dim = " << dim);
+   }
+}
+
+void FiniteElement::CalcPhysCurlShapeRevDiff(ElementTransformation &Trans,
+                                             const DenseMatrix &curlshape_bar,
+                                             DenseMatrix &PointMat_bar) const
+{
+   switch (dim)
+   {
+      case 3:
+      {
+#ifdef MFEM_THREAD_SAFE
+         DenseMatrix vshape(dof, dim);
+#else
+         vshape.SetSize(dof, dim);
+#endif
+         DenseMatrix vshapedxt(dof, dim);
+         DenseMatrix vshapedxt_bar(dof, dim);
+
+         CalcCurlShape(Trans.GetIntPoint(), vshape);
+         const auto &jac = Trans.Jacobian();
+         MultABt(vshape, jac, vshapedxt);
+
+         const double weight = Trans.Weight();
+         // curl_shape *= 1.0 / weight;
+
+         /// start reverse pass
+         auto &isotrans = dynamic_cast<IsoparametricTransformation&>(Trans);
+
+         /// curl_shape = vshapedxt / weight;
+         double weight_bar = 0.0;
+         for (int j = 0; j < curlshape_bar.Width(); ++j)
+         {
+            for (int i = 0; i < curlshape_bar.Height(); ++i)
+            {
+               weight_bar -= curlshape_bar(i,j) * vshapedxt(i,j) / pow(weight, 2);
+            }
+         }
+         vshapedxt_bar = curlshape_bar; vshapedxt_bar *= (1.0 / weight);
+
+         /// double weight = Trans.Weight();
+         isotrans.WeightRevDiff(weight_bar, PointMat_bar);
+
+         /// const auto &jac = Trans.Jacobian();
+         /// MultABt(vshape, jac, vshapedxt);
+         double jac_bar_buffer[9];
+         DenseMatrix jac_bar(jac_bar_buffer, jac.Width(), jac.Height());
+         MultAtB(vshapedxt_bar, vshape, jac_bar);
+         isotrans.JacobianRevDiff(jac_bar, PointMat_bar);
+         break;
+      }
+      case 2:
+         MFEM_ABORT("CalcPhysCurlShapeRevDiff not implemented!\n");
          break;
       default:
          MFEM_ABORT("Invalid dimension, Dim = " << dim);
@@ -135,13 +198,13 @@ void FiniteElement::Project (
    MFEM_ABORT("method is not overloaded");
 }
 
-void FiniteElement::Project_RevDiff (
+void FiniteElement::ProjectRevDiff (
    const Vector &P_bar,
    VectorCoefficient &vc,
    ElementTransformation &Trans,
    DenseMatrix &PointMat_bar) const
 {
-   mfem_error ("FiniteElement::Project_RevDiff (...) (vector) is not "
+   mfem_error ("FiniteElement::ProjectRevDiff (...) (vector) is not "
                "overloaded !");
 }
 
@@ -963,6 +1026,46 @@ void VectorFiniteElement::CalcVShape_RT (
    shape *= (1.0 / Trans.Weight());
 }
 
+void VectorFiniteElement::CalcVShape_RTRevDiff(ElementTransformation &Trans,
+                                               const DenseMatrix &vshape_bar,
+                                               DenseMatrix &PointMat_bar) const
+{
+   MFEM_ASSERT(map_type == H_DIV, "");
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix vshapedxt(dof, dim);
+   DenseMatrix vshapedxt_bar(dof, dim);
+#else
+   vshapedxt.SetSize(dof, dim);
+   vshapedxt_bar.SetSize(dof, dim);
+#endif
+   CalcVShape(Trans.GetIntPoint(), vshape);
+   const auto &jac = Trans.Jacobian();
+   MultABt(vshape, jac, vshapedxt);
+
+   const double weight = Trans.Weight();
+   // shape *= (1.0 / weight);
+
+   /// start reverse pass
+   auto &isotrans = dynamic_cast<IsoparametricTransformation&>(Trans);
+
+   double weight_bar = 0.0;
+   for (int j = 0; j < vshape_bar.Width(); ++j)
+   {
+      for (int i = 0; i < vshape_bar.Height(); ++i)
+      {
+         weight_bar -= vshape_bar(i,j) * vshapedxt(i,j) / pow(weight,2);
+      }
+   }
+   isotrans.WeightRevDiff(weight_bar, PointMat_bar);
+
+   vshapedxt_bar = vshape_bar; vshapedxt_bar *= (1.0 / weight);
+   double jac_bar_buffer[9];
+   DenseMatrix jac_bar(jac_bar_buffer, jac.Width(), jac.Height());
+   MultAtB(vshapedxt_bar, vshape, jac_bar);
+   isotrans.JacobianRevDiff(jac_bar, PointMat_bar);
+}
+
 void VectorFiniteElement::CalcVShape_ND (
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
@@ -972,6 +1075,46 @@ void VectorFiniteElement::CalcVShape_ND (
 #endif
    CalcVShape(Trans.GetIntPoint(), vshape);
    Mult(vshape, Trans.InverseJacobian(), shape);
+}
+
+void VectorFiniteElement::CalcVShape_NDRevDiff(ElementTransformation &Trans,
+                                               const DenseMatrix &vshape_bar,
+                                               DenseMatrix &PointMat_bar) const
+{
+   MFEM_ASSERT(map_type == H_CURL, "");
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix vshapedxt(dof, dim);
+   DenseMatrix vshapedxt_bar(dof, dim);
+#else
+   vshapedxt.SetSize(dof, dim);
+   vshapedxt_bar.SetSize(dof, dim);
+#endif
+   CalcVShape(Trans.GetIntPoint(), vshape);
+   const auto &adjJ = Trans.AdjugateJacobian();
+   Mult(vshape, adjJ, vshapedxt);
+
+   const double weight = Trans.Weight();
+   // shape *= (1.0 / weight);
+
+   /// start reverse pass
+   auto &isotrans = dynamic_cast<IsoparametricTransformation&>(Trans);
+
+   double weight_bar = 0.0;
+   for (int j = 0; j < vshape_bar.Width(); ++j)
+   {
+      for (int i = 0; i < vshape_bar.Height(); ++i)
+      {
+         weight_bar -= vshape_bar(i,j) * vshapedxt(i,j) / pow(weight, 2);
+      }
+   }
+   isotrans.WeightRevDiff(weight_bar, PointMat_bar);
+
+   vshapedxt_bar = vshape_bar; vshapedxt_bar *= (1.0 / weight);
+   double adjJ_bar_buffer[9];
+   DenseMatrix adjJ_bar(adjJ_bar_buffer, adjJ.Width(), adjJ.Height());
+   MultAtB(vshape, vshapedxt_bar, adjJ_bar);
+   isotrans.AdjugateJacobianRevDiff(adjJ_bar, PointMat_bar);
 }
 
 void VectorFiniteElement::Project_RT(
@@ -994,7 +1137,7 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
-void VectorFiniteElement::Project_RT_RevDiff(
+void VectorFiniteElement::Project_RTRevDiff(
    const Vector &P_bar,
    const double *nk, const Array<int> &d2n,
    VectorCoefficient &vc, ElementTransformation &Trans,
@@ -1004,7 +1147,7 @@ void VectorFiniteElement::Project_RT_RevDiff(
    const int sdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
-   MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
+   MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_RTRevDiff\n"
                "\tOnly implemented if space dim == reference dim!\n");
 
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
@@ -1019,11 +1162,13 @@ void VectorFiniteElement::Project_RT_RevDiff(
       vc.Eval(xk, isotrans, Nodes.IntPoint(k));
       // dof_k = nk^t adj(J) xk
       const Vector nk_vec(const_cast<double*>(nk + d2n[k]*dim), sdim);
-      DenseMatrix adjJ_bar(dim);
+      double adjJ_bar_buffer[Geometry::MaxDim*Geometry::MaxDim];
+      DenseMatrix adjJ_bar(adjJ_bar_buffer, dim, dim);
       MultVWt(nk_vec, xk, adjJ_bar);
       isotrans.AdjugateJacobianRevDiff(adjJ_bar, temp_bar);
 
-      Vector V_bar(sdim);
+      double V_bar_buffer[Geometry::MaxDim];
+      Vector V_bar(V_bar_buffer, sdim);
       isotrans.AdjugateJacobian().MultTranspose(nk_vec, V_bar);
       vc.EvalRevDiff(V_bar, isotrans,
                      Nodes.IntPoint(k), temp_bar);
@@ -1254,7 +1399,7 @@ void VectorFiniteElement::Project_ND(
    }
 }
 
-void VectorFiniteElement::Project_ND_RevDiff(
+void VectorFiniteElement::Project_NDRevDiff(
    const Vector &P_bar,
    const double *tk, const Array<int> &d2t,
    VectorCoefficient &vc, ElementTransformation &Trans,
@@ -1264,7 +1409,7 @@ void VectorFiniteElement::Project_ND_RevDiff(
    const int sdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
-   MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
+   MFEM_ASSERT(dim == sdim, "VectorFiniteElement::Project_NDRevDiff\n"
                "\tOnly implemented if space dim == reference dim!\n");
 
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
@@ -1280,11 +1425,13 @@ void VectorFiniteElement::Project_ND_RevDiff(
       // dof_k = nk^t J xk
       const Vector tk_vec(const_cast<double*>(tk + d2t[k]*dim), sdim);
 
-      DenseMatrix J_bar(sdim);
+      double J_bar_buffer[Geometry::MaxDim*Geometry::MaxDim];
+      DenseMatrix J_bar(J_bar_buffer, dim, dim);
       MultVWt(xk, tk_vec, J_bar);
       isotrans.JacobianRevDiff(J_bar, temp_bar);
 
-      Vector V_bar(sdim);
+      double V_bar_buffer[Geometry::MaxDim];
+      Vector V_bar(V_bar_buffer, sdim);
       isotrans.Jacobian().Mult(tk_vec, V_bar);
       vc.EvalRevDiff(V_bar, isotrans,
                      Nodes.IntPoint(k), temp_bar);

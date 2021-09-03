@@ -58,9 +58,13 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
-   /** @brief Evaluate the derivative of a coefficient in the element
-       described by @a T at the point @a ip, with respect to the mesh nodes,
-       storing the result in @a PointMat_bar. */
+   /** @brief Reverse-mode differentiation of Eval w.r.t. the mesh node
+       locations in the element described by @a T, accumulating the result in
+       @a PointMat_bar */
+   /** @param[in] Q_bar - derivative of some output w.r.t. result of Eval */
+   /** @param[in] T - an element transformation */
+   /** @param[in] ip - defines location in reference space */
+   /** @param[inout] PointMat_bar - derivative of output w.r.t. mesh nodes */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
@@ -208,8 +212,6 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   /// Reverse Diff version of Eval
-   /// Q_bar: Derivative of functional with respect to Q
    virtual void EvalRevDiff(const double Q_bar,
                             ElementTransformation &T,
                             const IntegrationPoint &ip,
@@ -414,9 +416,13 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   /** @brief Evaluate the derivative of a vector coefficient in the element
-       described by @a T at the point @a ip, with respect to the mesh nodes,
-       storing the result in @a PointMat_bar. */
+   /** @brief Reverse-mode differentiation of Eval w.r.t. the mesh node
+       locations in the element described by @a T, accumulating the result in
+       @a PointMat_bar */
+   /** @param[in] V_bar - derivative of some output with respect to `V` */
+   /** @param[in] T - an element transformation */
+   /** @param[in] ip - defines location in reference space */
+   /** @param[inout] PointMat_bar - derivative of output w.r.t. mesh nodes */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
@@ -457,6 +463,10 @@ public:
    ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar) { }
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
@@ -527,11 +537,6 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /// Reverse-diff version of Eval
-   /// @param[in] V_bar - derivative of functional with respect to `V`
-   /// @param[in] T - an element transformation
-   /// @param[in] ip - defines location in reference space
-   /// @param[out] PointMat_bar - derivative of function w.r.t. mesh nodes
    virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
                             const IntegrationPoint &ip,
                             DenseMatrix &PointMat_bar);
@@ -1431,6 +1436,9 @@ private:
    double aConst;
    Coefficient * a;
    VectorCoefficient * b;
+#ifndef MFEM_THREAD_SAFE
+   Vector W, W_bar;
+#endif
 
 public:
    /// Constructor with constant and vector coefficient.  Result is A * B.
@@ -1458,6 +1466,11 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
+
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
+
 };
 
 /// Vector coefficient defined as a normalized vector field (returns v/|v|)
