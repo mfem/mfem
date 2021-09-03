@@ -53,10 +53,6 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                signs[f_ind] = false;
             }
          }
-         if (info.IsGhost()) // Ghost faces are inverted...
-         {
-            signs[f_ind] = !signs[f_ind];
-         }
          f_ind++;
       }
    }
