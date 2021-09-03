@@ -1121,80 +1121,80 @@ int Mesh::GetBdrFace(int BdrElemNo) const
 
 Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
 {
-   FaceInformation info;
+   FaceInformation face;
    int e1, e2;
    int inf1, inf2;
    int ncface;
    GetFaceElements(f, &e1, &e2);
    GetFaceInfos(f, &inf1, &inf2, &ncface);
-   info.elem_1_index = e1;
-   info.elem_1_orientation = inf1%64;
-   info.elem_1_local_face =inf1/64;
-   info.elem_2_local_face = inf2/64;
-   info.ncface = ncface;
-   // The following figures out info.location, info.conformity,
-   // info.elem_2_index, and info.elem_2_orientation.
+   face.elem_1_index = e1;
+   face.elem_1_orientation = inf1%64;
+   face.elem_1_local_face =inf1/64;
+   face.elem_2_local_face = inf2/64;
+   face.ncface = ncface;
+   // The following figures out face.location, face.conformity,
+   // face.elem_2_index, and face.elem_2_orientation.
    if (f < GetNumFaces()) // Non-ghost face
    {
       if (e2>=0)
       {
-         info.location = FaceLocation::Local;
-         info.elem_2_index = e2;
+         face.location = FaceLocation::Local;
+         face.elem_2_index = e2;
          if (ncface==-1)
          {
-            info.conformity = FaceConformity::Conforming;
-            info.elem_2_orientation = inf2%64;
+            face.conformity = FaceConformity::Conforming;
+            face.elem_2_orientation = inf2%64;
          }
          else // ncface >= 0
          {
-            info.conformity = FaceConformity::NonConformingSlave;
-            info.elem_2_orientation = nc_faces_orientation[ncface];
+            face.conformity = FaceConformity::NonConformingSlave;
+            face.elem_2_orientation = nc_faces_orientation[ncface];
          }
       }
       else // e2<0
       {
-         info.elem_2_orientation = inf2%64;
+         face.elem_2_orientation = inf2%64;
          if (ncface==-1)
          {
-            info.conformity = FaceConformity::Conforming;
+            face.conformity = FaceConformity::Conforming;
             if (inf2<0)
             {
-               info.location = FaceLocation::Boundary;
-               info.elem_2_index = e2;
+               face.location = FaceLocation::Boundary;
+               face.elem_2_index = e2;
             }
             else // inf2 >= 0
             {
-               info.location = FaceLocation::Shared;
-               info.elem_2_index = -1 - e2;
+               face.location = FaceLocation::Shared;
+               face.elem_2_index = -1 - e2;
             }
          }
          else // ncface >= 0
          {
-            info.location = e2==-1 ?
+            face.location = e2==-1 ?
                            FaceLocation::Local :
                            FaceLocation::Shared;
-            info.conformity = FaceConformity::NonConformingMaster;
-            info.elem_2_index = e2==-1 ? e2 : -1 - e2;
+            face.conformity = FaceConformity::NonConformingMaster;
+            face.elem_2_index = e2==-1 ? e2 : -1 - e2;
          }
       }
    }
    else // Ghost face
    {
-      info.location = FaceLocation::Shared;
+      face.location = FaceLocation::Shared;
       if (e1==-1)
       {
-         info.conformity = FaceConformity::NonConformingMaster;
-         info.elem_2_index = -1;
-         info.elem_2_orientation = -1;
+         face.conformity = FaceConformity::NonConformingMaster;
+         face.elem_2_index = -1;
+         face.elem_2_orientation = -1;
       }
       else
       {
-         info.conformity = FaceConformity::NonConformingSlave;
-         info.elem_2_index = -1 - e2;
-         info.elem_2_orientation = inf2%64;
+         face.conformity = FaceConformity::NonConformingSlave;
+         face.elem_2_index = -1 - e2;
+         face.elem_2_orientation = inf2%64;
       }
    }
-   return info;
+   return face;
 }
 
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
@@ -5158,8 +5158,8 @@ int Mesh::GetNFbyType(FaceType type) const
       nf = 0;
       for (int f = 0; f < GetNumFacesWithGhost(); ++f)
       {
-         FaceInformation info = GetFaceInformation(f);
-         if ( info.IsOfFaceType(type) )
+         FaceInformation face = GetFaceInformation(f);
+         if ( face.IsOfFaceType(type) )
          {
             nf++;
          }
