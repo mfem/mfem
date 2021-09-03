@@ -2357,7 +2357,7 @@ void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
          double g_bar = 0.0;
          double f_bar = 0.0;
          // ad[0] = d[0]*g - d[3]*f;
-         d_bar[0] += g*ad_bar[0];  
+         d_bar[0] += g*ad_bar[0];
          d_bar[3] -= f*ad_bar[0];
          g_bar += d[0]*ad_bar[0];
          f_bar -= d[3]*ad_bar[0];
@@ -2581,12 +2581,12 @@ void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
 {
    MFEM_ASSERT(((J.Height() == 2 && J.Width() == 1) ||
                 (J.Height() == 3 && J.Width() == 2)) &&
-                   (J.Height() == n_bar.Size()),
+               (J.Height() == n_bar.Size()),
                "Matrix must be 3x2 or 2x1, "
-                   << "and the Vector must be sized with the rows. "
-                   << " J.Height() = " << J.Height()
-                   << ", J.Width() = " << J.Width()
-                   << ", n_bar.Size() = " << n_bar.Size());
+               << "and the Vector must be sized with the rows. "
+               << " J.Height() = " << J.Height()
+               << ", J.Width() = " << J.Width()
+               << ", n_bar.Size() = " << n_bar.Size());
    MFEM_ASSERT((J.Height() == J_bar.Height() && J.Width() == J_bar.Width()),
                "Input matrix and derivative matrix must be the same size.");
 
@@ -2606,7 +2606,7 @@ void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
       d_bar[1] += d[5]*n_bar(0);
       d_bar[5] += d[1]*n_bar(0);
       d_bar[2] -= d[4]*n_bar(0);
-      d_bar[4] -= d[2]*n_bar(0); 
+      d_bar[4] -= d[2]*n_bar(0);
       // n(1) = d[2]*d[3] - d[0]*d[5];
       d_bar[2] += d[3]*n_bar(1);
       d_bar[3] += d[2]*n_bar(1);

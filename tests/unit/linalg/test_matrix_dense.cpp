@@ -424,7 +424,7 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
       {
          for (int j = 0; j < 2; ++j)
          {
-            // Pertrub A(i,j) and evaluate derivative of adjugate 
+            // Pertrub A(i,j) and evaluate derivative of adjugate
             A_pert = A;
             A_pert(i,j) += eps_fd;
             CalcAdjugate(A_pert, adjA_fd);
@@ -432,7 +432,7 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
             CalcAdjugate(A_pert, adjA_pert);
             adjA_fd -= adjA_pert;
             adjA_fd *= 1/(2.0*eps_fd);
-            // sum up derivative with weights 
+            // sum up derivative with weights
             double A_bar_fd = 0.0;
             for (int k = 0; k < 2; ++k)
             {
@@ -498,7 +498,7 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
       {
          for (int j = 0; j < 3; ++j)
          {
-            // Pertrub A(i,j) and evaluate derivative of adjugate 
+            // Pertrub A(i,j) and evaluate derivative of adjugate
             A_pert = A;
             A_pert(i,j) += eps_fd;
             CalcAdjugate(A_pert, adjA_fd);
@@ -506,7 +506,7 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
             CalcAdjugate(A_pert, adjA_pert);
             adjA_fd -= adjA_pert;
             adjA_fd *= 1/(2.0*eps_fd);
-            // sum up derivative with weights 
+            // sum up derivative with weights
             double A_bar_fd = 0.0;
             for (int k = 0; k < 3; ++k)
             {
@@ -611,7 +611,7 @@ TEST_CASE("DenseMatrix CalcOrthoRevDiff", "[DenseMatrix]")
       {
          for (int j = 0; j < 2; ++j)
          {
-            // Pertrub A(i,j) and evaluate derivative of adjugate 
+            // Pertrub A(i,j) and evaluate derivative of adjugate
             A_pert = A;
             A_pert(i,j) += eps_fd;
             CalcOrtho(A_pert, n_fd);
@@ -619,7 +619,7 @@ TEST_CASE("DenseMatrix CalcOrthoRevDiff", "[DenseMatrix]")
             CalcOrtho(A_pert, n_pert);
             n_fd -= n_pert;
             n_fd *= 1/(2.0*eps_fd);
-            // sum up derivative with weights 
+            // sum up derivative with weights
             double A_bar_fd = 0.0;
             for (int k = 0; k < 3; ++k)
             {

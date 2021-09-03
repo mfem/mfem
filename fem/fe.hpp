@@ -3135,9 +3135,9 @@ public:
       else { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    }
    virtual void ProjectRevDiff(const Vector &P_bar,
-                                VectorCoefficient &vc,
-                                ElementTransformation &Trans,
-                                DenseMatrix &dofs_bar) const
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &dofs_bar) const
    { Project_RTRevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3340,9 +3340,9 @@ public:
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectRevDiff(const Vector &P_bar,
-                                VectorCoefficient &vc,
-                                ElementTransformation &Trans,
-                                DenseMatrix &dofs_bar) const
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &dofs_bar) const
    { Project_RTRevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3491,9 +3491,9 @@ public:
       else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    }
    virtual void ProjectRevDiff(const Vector &P_bar,
-                                VectorCoefficient &vc,
-                                ElementTransformation &Trans,
-                                DenseMatrix &dofs_bar) const
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &dofs_bar) const
    { Project_NDRevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3559,9 +3559,9 @@ public:
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectRevDiff(const Vector &P_bar,
-                                VectorCoefficient &vc,
-                                ElementTransformation &Trans,
-                                DenseMatrix &dofs_bar) const
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &dofs_bar) const
    { Project_NDRevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const

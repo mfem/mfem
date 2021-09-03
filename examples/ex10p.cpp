@@ -331,7 +331,6 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    ess_bdr[0] = 1; // boundary attribute 1 (index 0) is fixed
 
-{
    // 9. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
    HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K);
@@ -434,7 +433,6 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
 
-}
    MPI_Finalize();
 
    return 0;

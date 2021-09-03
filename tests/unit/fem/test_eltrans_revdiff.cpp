@@ -72,7 +72,8 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
    IsoparametricTransformation trans;
    mesh.GetElementTransformation(0, &trans);
    const int intorder = 5;
-   const IntegrationRule *ir = &IntRules.Get(mesh.GetElementBaseGeometry(0), intorder);
+   const IntegrationRule *ir = &IntRules.Get(mesh.GetElementBaseGeometry(0),
+                                             intorder);
    DenseMatrix &coords = trans.GetPointMat();
    DenseMatrix coords_bar(coords.Height(), coords.Width());
 
@@ -96,7 +97,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
             for (int di = 0; di < coords.Height(); ++di)
             {
                coords(di, n) += eps_fd;
-               trans.Transform(ip, x_fd);         
+               trans.Transform(ip, x_fd);
                coords(di, n) -= 2.0*eps_fd;
                trans.Transform(ip, x_pert);
                x_fd -= x_pert;
@@ -134,7 +135,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
             {
                coords(di, n) += eps_fd;
                trans.SetIntPoint(&ip); // force re-evaluation of Jacobian
-               dFdx_fd = trans.Jacobian();            
+               dFdx_fd = trans.Jacobian();
                coords(di, n) -= 2.0*eps_fd;
                trans.SetIntPoint(&ip); // force re-evaluation of Jacobian
                dFdx_fd -= trans.Jacobian();
@@ -165,7 +166,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
          trans.SetIntPoint(&ip);
-         // reverse-mode differentiation of Adjugate of mapping 
+         // reverse-mode differentiation of Adjugate of mapping
          coords_bar = 0.0;
          trans.AdjugateJacobianRevDiff(adjJ_bar, coords_bar);
          // get the weighted derivatives using finite difference method
@@ -175,7 +176,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
             {
                coords(di, n) += eps_fd;
                trans.SetIntPoint(&ip); // force re-evaluation of Adjugate
-               adjJ_fd = trans.AdjugateJacobian();            
+               adjJ_fd = trans.AdjugateJacobian();
                coords(di, n) -= 2.0*eps_fd;
                trans.SetIntPoint(&ip); // force re-evaluation of Adjugate
                adjJ_fd -= trans.AdjugateJacobian();
@@ -201,7 +202,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
          trans.SetIntPoint(&ip);
-         // get the gradient of the Weight() using reverse mode 
+         // get the gradient of the Weight() using reverse mode
          coords_bar = 0.0;
          trans.WeightRevDiff(coords_bar);
          // get the gradient of the Weight() using finite difference method
@@ -211,7 +212,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
             {
                coords(di, n) += eps_fd;
                trans.SetIntPoint(&ip); // force re-evaluation of Weight
-               double dWeight_fd = trans.Weight();               
+               double dWeight_fd = trans.Weight();
                coords(di, n) -= 2.0*eps_fd;
                trans.SetIntPoint(&ip); // force re-evaluation of Weight
                dWeight_fd -= trans.Weight();

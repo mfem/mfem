@@ -1171,7 +1171,7 @@ void VectorFiniteElement::Project_RTRevDiff(
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
 
    IsoparametricTransformation &isotrans =
-                           dynamic_cast<IsoparametricTransformation&>(Trans);
+      dynamic_cast<IsoparametricTransformation&>(Trans);
 
    for (int k = 0; k < dof; k++)
    {
@@ -1429,7 +1429,7 @@ void VectorFiniteElement::Project_NDRevDiff(
    DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
 
    IsoparametricTransformation &isotrans =
-                           dynamic_cast<IsoparametricTransformation&>(Trans);
+      dynamic_cast<IsoparametricTransformation&>(Trans);
 
    for (int k = 0; k < dof; k++)
    {

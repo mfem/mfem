@@ -536,7 +536,7 @@ void IsoparametricTransformation::TransformRevDiff(const IntegrationPoint &ip,
                                                    DenseMatrix &PointMat_bar)
 {
    MFEM_ASSERT((PointMat_bar.Width() == PointMat.Width()) &&
-                   (PointMat_bar.Height() == PointMat.Height()),
+               (PointMat_bar.Height() == PointMat.Height()),
                "PointMat_bar shape != PointMat shape");
    shape.SetSize(FElem->GetDof());
    FElem->CalcShape(ip, shape);
@@ -547,7 +547,7 @@ void IsoparametricTransformation::JacobianRevDiff(const DenseMatrix &dFdx_bar,
                                                   DenseMatrix &PointMat_bar)
 {
    MFEM_ASSERT((PointMat_bar.Width() == PointMat.Width()) &&
-                   (PointMat_bar.Height() == PointMat.Height()),
+               (PointMat_bar.Height() == PointMat.Height()),
                "PointMat_bar shape != PointMat shape");
 
    dshape.SetSize(FElem->GetDof(), FElem->GetDim());
@@ -562,7 +562,7 @@ void IsoparametricTransformation::JacobianRevDiff(const DenseMatrix &dFdx_bar,
 }
 
 void IsoparametricTransformation::AdjugateJacobianRevDiff(
-    const DenseMatrix &adjJ_bar, DenseMatrix &PointMat_bar)
+   const DenseMatrix &adjJ_bar, DenseMatrix &PointMat_bar)
 {
    Jacobian(); // Recompute the Jacobian, if necessary
    double dFdx_bar_buffer[9];

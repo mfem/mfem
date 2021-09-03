@@ -2498,7 +2498,8 @@ void GridFunction::ProjectCoefficientRevDiff(const GridFunction &adjoint,
       std::cout << "\nelement: " << i << "\n";
       for (int k = 0; k < mesh_vdofs.Size(); k++)
       {
-         std::cout << "mesh vdofs: " << mesh_vdofs[k] << " and value: " << vals[k] << "\n";
+         std::cout << "mesh vdofs: " << mesh_vdofs[k] << " and value: " << vals[k] <<
+                   "\n";
       }
 
    }
