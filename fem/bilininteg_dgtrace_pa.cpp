@@ -184,15 +184,15 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       int f_ind = 0;
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
-         Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ( info.IsOfFaceType(type) )
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if ( face.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f,5);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, info.elem_1_local_face, quad1D, q);
+               int iq = ToLexOrdering(dim, face.elem_1_local_face, quad1D, q);
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                u->Eval(Vq, *T.Elem1, eip1);
@@ -239,22 +239,22 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       int f_ind = 0;
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
-         Mesh::FaceInformation info = mesh->GetFaceInformation(f);
-         if ( info.IsOfFaceType(type) )
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if ( face.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, info.elem_1_local_face, quad1D, q);
+               int iq = ToLexOrdering(dim, face.elem_1_local_face, quad1D, q);
 
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                const IntegrationPoint &eip2 = T.GetElement2IntPoint();
                double r;
 
-               if (info.location==Mesh::FaceLocation::Boundary)
+               if ( face.IsBoundary() )
                {
                   r = rho->Eval(*T.Elem1, eip1);
                }
