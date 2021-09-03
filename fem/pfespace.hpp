@@ -87,6 +87,12 @@ private:
        this is a TransposeOperator wrapping R. */
    mutable Operator *R_transpose;
 
+   /// Flag indicating the existence of shared triangles with interior ND dofs
+   bool nd_strias;
+
+   /// Resets nd_strias flag at constuction or after rebalancing
+   void CheckNDSTriaDofs();
+
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
 
@@ -174,14 +180,16 @@ private:
        The result is a parallel permutation matrix that can be used to update
        all grid functions defined on this space. */
    HypreParMatrix* RebalanceMatrix(int old_ndofs,
-                                   const Table* old_elem_dof);
+                                   const Table* old_elem_dof,
+                                   const Table* old_elem_fos);
 
    /** Calculate a GridFunction restriction matrix after mesh derefinement.
        The matrix is constructed so that the new grid function interpolates
        the original function, i.e., the original function is evaluated at the
        nodes of the coarse function. */
    HypreParMatrix* ParallelDerefinementMatrix(int old_ndofs,
-                                              const Table *old_elem_dof);
+                                              const Table *old_elem_dof,
+                                              const Table *old_elem_fos);
 
    /// Updates the internal mesh pointer. @warning @a new_mesh must be
    /// <b>topologically identical</b> to the existing mesh. Used if the address
@@ -202,6 +210,8 @@ public:
    int num_face_nbr_dofs;
    // Face-neighbor-element to face-neighbor dof
    Table face_nbr_element_dof;
+   // Face-neighbor-element face orientations
+   Table face_nbr_element_fos;
    // Face-neighbor to ldof in the face-neighbor numbering
    Table face_nbr_ldof;
    // The global ldof indices of the face-neighbor dofs
@@ -279,10 +289,10 @@ public:
    virtual int GetTrueVSize() const { return ltdof_size; }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   virtual void GetElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetElementDofs(int i, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
-   virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetBdrElementDofs(int i, Array<int> &dofs) const;
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
@@ -291,7 +301,7 @@ public:
    /** Returns pointer to the FiniteElement in the FiniteElementCollection
        associated with i'th element in the mesh object. If @a i is greater than
        or equal to the number of local mesh elements, @a i will be interpreted
-       as a shifted index of a face neigbor element. */
+       as a shifted index of a face neighbor element. */
    virtual const FiniteElement *GetFE(int i) const;
 
    /** Returns an Operator that converts L-vectors to E-vectors on each face.
@@ -382,7 +392,7 @@ public:
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
-   void GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
@@ -396,6 +406,8 @@ public:
 
    bool Conforming() const { return pmesh->pncmesh == NULL && !nonconf_P; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL || nonconf_P; }
+
+   bool SharedNDTriangleDofs() const { return nd_strias; }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the

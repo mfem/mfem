@@ -97,7 +97,7 @@ public:
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
          "Open uniform", "Closed uniform", "Open half uniform",
-         "Seredipity", "Closed Gauss-Legendre",
+         "Serendipity", "Closed Gauss-Legendre",
          "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
@@ -1182,7 +1182,7 @@ public:
    { dofs = 1.0; }
 };
 
-/// A 1D quadractic finite element with uniformly spaced nodes
+/// A 1D quadratic finite element with uniformly spaced nodes
 class Quad1DFiniteElement : public NodalFiniteElement
 {
 public:
@@ -1367,6 +1367,64 @@ public:
 
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+};
+
+/// A linear element defined on a triangular prism
+class LinearWedgeFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the LinearWedgeFiniteElement
+   LinearWedgeFiniteElement();
+
+   /** @brief virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (4) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** @brief virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
+       face, while *ndofs is set to the number of dofs on that face.
+   */
+   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
+};
+
+/// A linear element defined on a square pyramid
+class LinearPyramidFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the LinearPyramidFiniteElement
+   LinearPyramidFiniteElement();
+
+   /** @brief virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (4) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** @brief virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
+       face, while *ndofs is set to the number of dofs on that face.
+   */
+   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 };
 
 /// A 2D constant element on a triangle
@@ -1746,6 +1804,32 @@ public:
    { dofs(0) = 1.0; }
 };
 
+/// A 3D constant element on a wedge
+class P0WdgFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the P0WdgFiniteElement
+   P0WdgFiniteElement ();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs(0) = 1.0; }
+};
+
+/// A 3D constant element on a pyramid
+class P0PyrFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the P0PyrFiniteElement
+   P0PyrFiniteElement ();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs(0) = 1.0; }
+};
+
 /** @brief Tensor products of 1D Lagrange1DFiniteElement
     (only degree 2 is functional) */
 class LagrangeHexFiniteElement : public NodalFiniteElement
@@ -1884,6 +1968,10 @@ public:
    using FiniteElement::Project;
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
 };
 
 
@@ -1908,6 +1996,66 @@ public:
    using FiniteElement::Project;
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
+
+
+/// A 3D 1st order Nedelec element on a wedge
+class Nedelec1WdgFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk[9][3];
+
+public:
+   /// Construct the Nedelec1WdgFiniteElement
+   Nedelec1WdgFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
+
+
+/// A 3D 1st order Nedelec element on a pyramid
+class Nedelec1PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk[8][3];
+
+public:
+   /// Construct the Nedelec1PyrFiniteElement
+   Nedelec1PyrFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
 };
 
 
@@ -1998,6 +2146,77 @@ public:
 
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
+};
+
+
+/// A 3D 0th order Raviert-Thomas element on a wedge
+class RT0WdgFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[5][3];
+
+public:
+   /// Construct the RT0WdgFiniteElement
+   RT0WdgFiniteElement();
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+
+/// A 3D 0th order Raviert-Thomas element on a pyramid
+class RT0PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[5][3];
+
+   // If true match RT0TetFiniteElement rather than RT_TetrahedronElement(0)
+   bool rt0;
+
+public:
+   /// Construct the RT0PyrFiniteElement
+   RT0PyrFiniteElement(bool rt0tets = true);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
 };
 
 

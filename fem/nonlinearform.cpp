@@ -699,7 +699,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
 
 double BlockNonlinearForm::GetEnergy(const Vector &x) const
 {
-   xs.Update(x.GetData(), block_offsets);
+   xs.Update(const_cast<Vector&>(x), block_offsets);
    return GetEnergyBlocked(xs);
 }
 
@@ -715,7 +715,9 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
    Array<const FiniteElement *> fe2(fes.Size());
    ElementTransformation *T;
 
+   by.UseDevice(true);
    by = 0.0;
+   by.SyncToBlocks();
    for (int s=0; s<fes.Size(); ++s)
    {
       el_x_const[s] = el_x[s] = new Vector();
@@ -854,6 +856,8 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       delete el_y[s];
       delete el_x[s];
    }
+
+   by.SyncFromBlocks();
 }
 
 const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
@@ -874,8 +878,8 @@ const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
 
 void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   BlockVector bx(x.GetData(), block_trueOffsets);
-   BlockVector by(y.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(x), block_trueOffsets);
+   BlockVector by(y, block_trueOffsets);
 
    const BlockVector &pbx = Prolongate(bx);
    if (needs_prolongation)
@@ -884,8 +888,8 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
    BlockVector &pby = needs_prolongation ? aux2 : by;
 
-   xs.Update(pbx.GetData(), block_offsets);
-   ys.Update(pby.GetData(), block_offsets);
+   xs.Update(const_cast<BlockVector&>(pbx), block_offsets);
+   ys.Update(pby, block_offsets);
    MultBlocked(xs, ys);
 
    for (int s = 0; s < fes.Size(); s++)
@@ -1090,7 +1094,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
 
 Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 {
-   BlockVector bx(x.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(x), block_trueOffsets);
    const BlockVector &pbx = Prolongate(bx);
 
    ComputeGradientBlocked(pbx);

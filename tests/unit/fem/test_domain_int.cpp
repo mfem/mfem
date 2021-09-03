@@ -159,10 +159,6 @@ TEST_CASE("Domain Integration (Vector Field)",
       int  dim = mesh->Dimension();
       int sdim = mesh->SpaceDimension();
       mesh->UniformRefinement();
-      if (dim == 3)
-      {
-         mesh->ReorientTetMesh();
-      }
 
       Vector f1(sdim); f1 = 1.0;
       Vector fx(sdim); fx = 0.0; fx[0] = 1.0;
@@ -353,10 +349,6 @@ TEST_CASE("Domain Integration in Parallel (Vector Field)",
       }
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
       delete mesh;
-      if (dim == 3)
-      {
-         pmesh.ReorientTetMesh();
-      }
 
       Vector f1(sdim); f1 = 1.0;
       Vector fx(sdim); fx = 0.0; fx[0] = 1.0;

@@ -127,7 +127,7 @@ public:
        @param[in,out] y  The result Vector: @f$ y += G x @f$. */
    virtual void AddMultGradPA(const Vector &x, Vector &y) const;
 
-   /// Method for computing the diagonal of the gradient with partial assmebly.
+   /// Method for computing the diagonal of the gradient with partial assembly.
    /** The result Vector @a diag is an E-Vector. This method can be called only
        after the method AssembleGradPA() has been called.
 

@@ -95,6 +95,12 @@ public:
       : Vector(data, f->GetVSize())
    { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
+   /** @brief Construct a GridFunction using previously allocated Vector @a base
+       starting at the given offset, @a base_offset. */
+   GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
+      : Vector(base, base_offset, f->GetVSize())
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
        Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
@@ -130,9 +136,7 @@ public:
        or set. */
    Vector &GetTrueVector() { return t_vec; }
 
-   /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
-   /// then `tv` will be set to point to the data of `*this`.
-   /** @warning This method breaks const-ness when all dofs are true. */
+   /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
