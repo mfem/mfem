@@ -63,7 +63,7 @@ jobs:
         exit 1
 
   code-style:
-    runs-on: ubuntu-16.04 # needed for astyle 3.1
+    runs-on: ubuntu-18.04
 
     steps:
     - name: checkout mfem
