@@ -1190,11 +1190,8 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
       else
       {
          info.conformity = FaceConformity::NonConformingSlave;
-         // info.elem_2_index = info.elem_1_index;
-         // info.elem_2_orientation = info.elem_1_orientation;
-         info.elem_2_index = -1 - e2; // We overwrite elem1 index
+         info.elem_2_index = -1 - e2;
          info.elem_2_orientation = inf2%64;
-         // std::swap(info.elem_2_local_face, info.elem_1_local_face);
       }
    }
    return info;
