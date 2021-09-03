@@ -922,20 +922,22 @@ protected:
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
-   /// Reverse-diff version of Project_RT
-   /// @param[in] P_bar - derivative of function with respect to the projection
-   /// @param[in] nk - ?
-   /// @param[in] d2n - ?
-   /// @param[in] vc - VectorCoefficient being projected
-   /// @param[in] Trans - an element transformation
-   /// @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
-   ///                        mesh nodes
-   /// @warning - only implemented for the same space and reference dimension
+   /** Reverse-mode differentiation of Project_ND w.r.t. the mesh node
+       locations in the element described by @a T
+       @param[in] P_bar - derivative of function with respect to the projection
+       @param[in] nk - Face normal vectors for this element type
+       @param[in] d2n - Offset into nk for each degree of freedom
+       @param[in] vc - VectorCoefficient being projected
+       @param[in] Trans - an element transformation
+       @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
+                              mesh nodes
+       @warning - only implemented for the same space and reference dimension
+   */
    void Project_RTRevDiff(const Vector &P_bar,
-                           const double *nk, const Array<int> &d2n,
-                           VectorCoefficient &vc,
-                           ElementTransformation &Trans,
-                           DenseMatrix &PointMat_bar) const;
+                          const double *nk, const Array<int> &d2n,
+                          VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          DenseMatrix &PointMat_bar) const;
 
    // rotated gradient in 2D
    void ProjectGrad_RT(const double *nk, const Array<int> &d2n,
@@ -952,7 +954,6 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-   /// Projects the vector of values given at FE nodes to ND space
    /** Project vector values onto the ND basis functions
        @param tk    Edge tangent vectors for this element type
        @param d2t   Offset into tk for each degree of freedom
@@ -3134,9 +3135,9 @@ public:
       else { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    }
    virtual void ProjectRevDiff(const Vector &P_bar,
-                                VectorCoefficient &vc,
-                                ElementTransformation &Trans,
-                                DenseMatrix &dofs_bar) const
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &dofs_bar) const
    { Project_RTRevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3490,9 +3491,9 @@ public:
       else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    }
    virtual void ProjectRevDiff(const Vector &P_bar,
-                                VectorCoefficient &vc,
-                                ElementTransformation &Trans,
-                                DenseMatrix &dofs_bar) const
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &dofs_bar) const
    { Project_NDRevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3558,9 +3559,9 @@ public:
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectRevDiff(const Vector &P_bar,
-                                VectorCoefficient &vc,
-                                ElementTransformation &Trans,
-                                DenseMatrix &dofs_bar) const
+                               VectorCoefficient &vc,
+                               ElementTransformation &Trans,
+                               DenseMatrix &dofs_bar) const
    { Project_NDRevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const

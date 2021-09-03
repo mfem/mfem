@@ -372,8 +372,6 @@ public:
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection).*/
    void ProjectCoefficient(VectorCoefficient &vcoeff);
-   void ProjectCoefficientRevDiff(const GridFunction &adjoint,
-                                  VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
        one element for each degree of freedom in @a dofs and nodal interpolation

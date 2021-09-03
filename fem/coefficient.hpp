@@ -517,8 +517,8 @@ public:
                              std::function<void(const Vector &,
                                                 const Vector &,
                                                 Vector &)> dF)
-      : VectorCoefficient(dim), Function(std::move(F)), 
-      FunctionRevDiff(std::move(dF)), Q(NULL)
+      : VectorCoefficient(dim), Function(std::move(F)),
+        FunctionRevDiff(std::move(dF)), Q(NULL)
    { }
 
    /// Construct time-dependent vector coefficient that can be differentiated
@@ -528,8 +528,8 @@ public:
                                                 Vector &)> TDF,
                              std::function<void(const Vector &,
                                                 double, const Vector &, Vector &)> dTDF)
-      : VectorCoefficient(dim), TDFunction(std::move(TDF)), 
-      TDFunctionRevDiff(std::move(dTDF)), Q(NULL)
+      : VectorCoefficient(dim), TDFunction(std::move(TDF)),
+        TDFunctionRevDiff(std::move(dTDF)), Q(NULL)
    { }
 
    using VectorCoefficient::Eval;
