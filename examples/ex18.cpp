@@ -239,6 +239,7 @@ int main(int argc, char *argv[])
    int nseq = 0;
    int regrid_period = 1;
    int greedy_refine = 0;
+   int lookahead_refine = 0;
    int output_cycle_soln = 0;
    int output_cycle_errors = 0;
 
@@ -274,6 +275,8 @@ int main(int argc, char *argv[])
                   "Timesteps per regrid.");
    args.AddOption(&greedy_refine, "-gr", "--greedy-refine",
                   "Use greedy refinement strategy.");
+   args.AddOption(&lookahead_refine, "-lr", "--lookahead-refine",
+                  "Use lookahead refinement strategy.");
    args.AddOption(&output_cycle_soln, "-cs", "--output-cycle-solutions",
                   "Output per-cycle solutions.");
    args.AddOption(&output_cycle_errors, "-ce", "--output-cycle-errors",
@@ -455,6 +458,31 @@ int main(int argc, char *argv[])
          vector<double> ref_errors(coarse_map.size());
          compute_reference_errors(ti, fec, mesh, rho,
                                   coarse_map, fine_map, ref_errors);
+         vector<double>::iterator it;
+         it = std::max_element(ref_errors.begin(), ref_errors.end());
+         int ref_max = std::distance(ref_errors.begin(), it);
+         std::cout << "max at: " << std::distance(ref_errors.begin(), it) << '\n';
+         rseq.SetSize(nseq+1);
+         rseq[nseq] = ref_max;
+      }
+
+      if (lookahead_refine && !(ti % regrid_period )) {
+
+         MFEM_ASSERT(cfl < 0, "need fixed time step for lookahead.");
+
+         double dt_real = min(dt, t_final - t);
+
+         // advance a copy of the solution
+         GridFunction tmp_sol(sol);
+
+         ode_solver->Step(tmp_sol, t, dt_real);
+
+         GridFunction tmp_rho(&fes, tmp_sol);
+
+         vector<double> ref_errors(coarse_map.size());
+         compute_reference_errors(ti+1, fec, mesh, tmp_rho,
+                                  coarse_map, fine_map, ref_errors);
+
          vector<double>::iterator it;
          it = std::max_element(ref_errors.begin(), ref_errors.end());
          int ref_max = std::distance(ref_errors.begin(), it);
