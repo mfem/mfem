@@ -36,6 +36,7 @@ list(APPEND ALL_EXE_SRCS
   ex26.cpp
   ex27.cpp
   ex28.cpp
+  ex29.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -68,6 +69,7 @@ if (MFEM_USE_MPI)
     ex26p.cpp
     ex27p.cpp
     ex28p.cpp
+    ex29p.cpp
     )
 endif()
 
@@ -82,8 +84,9 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  if (NOT (${TEST_NAME} MATCHES "ex0p?"))
-    set(THIS_TEST_OPTIONS "-no-vis")
+  set(THIS_TEST_OPTIONS "-no-vis")
+  if (${TEST_NAME} MATCHES "ex0p?")
+    set(THIS_TEST_OPTIONS)
   endif()
   if (${TEST_NAME} MATCHES "ex10p*")
     list(APPEND THIS_TEST_OPTIONS "-tf" "5")
@@ -104,6 +107,34 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
       ${MPIEXEC_POSTFLAGS})
   endif()
 endforeach()
+
+# Add CUDA/HIP tests.
+set(DEVICE_EXAMPLES
+    # serial examples with device support:
+    ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26
+    # parallel examples with device support:
+    ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p ex24p ex25p ex26p)
+set(MFEM_TEST_DEVICE)
+if (MFEM_USE_CUDA)
+  set(MFEM_TEST_DEVICE "cuda")
+elseif (MFEM_USE_HIP)
+  set(MFEM_TEST_DEVICE "hip")
+endif()
+if (MFEM_TEST_DEVICE)
+  foreach(TEST_NAME ${DEVICE_EXAMPLES})
+    set(THIS_TEST_OPTIONS "-no-vis" "-d" "${MFEM_TEST_DEVICE}")
+    if (NOT (${TEST_NAME} MATCHES ".*p$"))
+      add_test(NAME ${TEST_NAME}_${MFEM_TEST_DEVICE}_ser
+        COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
+    elseif (MFEM_USE_MPI)
+      add_test(NAME ${TEST_NAME}_${MFEM_TEST_DEVICE}_np=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
+        ${MPIEXEC_POSTFLAGS})
+    endif()
+  endforeach()
+endif()
 
 # If STRUMPACK is enabled, add a test run that uses it.
 if (MFEM_USE_STRUMPACK)
@@ -151,6 +182,10 @@ endif()
 # Include the examples/sundials directory if SUNDIALS is enabled.
 if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
+endif()
+
+if(MFEM_USE_CALIPER)
+  add_subdirectory(caliper)
 endif()
 
 # Include the examples/superlu directory if SUPERLU is enabled.

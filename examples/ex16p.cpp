@@ -24,8 +24,11 @@
 //               class ConductionOperator defining C(u)), as well as their
 //               implicit time integration. Note that implementing the method
 //               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration. Optional saving
-//               with ADIOS2 (adios2.readthedocs.io) is also illustrated.
+//               high-order implicit (SDIRK) time integration. In this example,
+//               the diffusion operator is linearized by evaluating with the
+//               lagged solution from the previous timestep, so there is only
+//               a linear solve. Optional saving with ADIOS2
+//               (adios2.readthedocs.io) is also illustrated.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -213,7 +216,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll);
 
-   int fe_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt fe_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of temperature unknowns: " << fe_size << endl;
@@ -420,8 +423,8 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
 void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 {
    // Compute:
-   //    du_dt = M^{-1}*-K(u)
-   // for du_dt
+   //    du_dt = M^{-1}*-Ku
+   // for du_dt, where K is linearized by using u from the previous timestep
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, du_dt);
@@ -432,7 +435,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
 {
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt
+   // for du_dt, where K is linearized by using u from the previous timestep
    if (!T)
    {
       T = Add(1.0, Mmat, dt, Kmat);

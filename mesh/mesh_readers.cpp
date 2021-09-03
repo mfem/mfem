@@ -11,6 +11,7 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "../general/tinyxml2.h"
 #include "gmsh.hpp"
@@ -22,6 +23,10 @@
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
+#endif
+
+#ifdef MFEM_USE_ZLIB
+#include <zlib.h>
 #endif
 
 using namespace std;
@@ -347,6 +352,11 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
 const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
+// see Pyramid::edges & Mesh::GenerateFaces
+// https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
+const int Mesh::vtk_quadratic_pyramid[13] =
+{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
 // see Wedge::edges & Mesh::GenerateFaces
 // https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
 const int Mesh::vtk_quadratic_wedge[18] =
@@ -509,8 +519,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
             }
          }
       }
-      // Generate faces and edges so that we can define
-      // FE space on the mesh
+      // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
       FiniteElementCollection *fec;
@@ -541,6 +550,8 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   vtk_mfem = vtk_quadratic_hex; break;
                case Geometry::PRISM:
                   vtk_mfem = vtk_quadratic_wedge; break;
+               case Geometry::PYRAMID:
+                  vtk_mfem = vtk_quadratic_pyramid; break;
                default:
                   vtk_mfem = NULL; // suppress a warning
                   break;
@@ -642,32 +653,415 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    }
 }
 
-void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
-                           bool &finalize_topo)
+namespace vtk_xml
 {
-   using namespace tinyxml2;
 
-   const char *erstr = "XML parsing error";
+using namespace tinyxml2;
 
-   // Read entire stream into buffer
+/// Return false if either string is NULL or if the strings differ, return true
+/// if the strings are the same.
+bool StringCompare(const char *s1, const char *s2)
+{
+   if (s1 == NULL || s2 == NULL) { return false; }
+   return strcmp(s1, s2) == 0;
+}
+
+/// Abstract base class for reading continguous arrays of (potentially
+/// compressed, potentially base-64 encoded) binary data from a buffer into a
+/// destination array. The types of the source and destination arrays may be
+/// different (e.g. read data of type uint8_t into destination array of
+/// uint32_t), which is handled by the templated derived class @a BufferReader.
+struct BufferReaderBase
+{
+   enum HeaderType { UINT32_HEADER, UINT64_HEADER };
+   virtual void ReadBinary(const char *buf, void *dest, int n) const = 0;
+   virtual void ReadBase64(const char *txt, void *dest, int n) const = 0;
+   virtual ~BufferReaderBase() { }
+};
+
+/// Read an array of source data stored as (potentially compressed, potentially
+/// base-64 encoded) into a destination array. The types of the elements in the
+/// source array are given by template parameter @a F ("from") and the types of
+/// the elements of the destination array are given by @a T ("to"). The binary
+/// data has a header, which is one integer if the data is uncompressed, and is
+/// four integers if the data is compressed. The integers may either by uint32_t
+/// or uint64_t, according to the @a header_type. If the data is compressed and
+/// base-64 encoded, then the header is encoded separately from the data. If the
+/// data is uncompressed and base-64 encoded, then the header and data are
+/// encoded together.
+template <typename T, typename F>
+struct BufferReader : BufferReaderBase
+{
+   bool compressed;
+   HeaderType header_type;
+   BufferReader(bool compressed_, HeaderType header_type_)
+      : compressed(compressed_), header_type(header_type_) { }
+
+   /// Return the number of bytes of each header entry.
+   size_t HeaderEntrySize() const
+   {
+      return header_type == UINT64_HEADER ? sizeof(uint64_t) : sizeof(uint32_t);
+   }
+
+   /// Return the value of the header entry pointer to by @a header_buf. The
+   /// value is stored as either uint32_t or uint64_t, according to the @a
+   /// header_type, and is returned as uint64_t.
+   uint64_t ReadHeaderEntry(const char *header_buf) const
+   {
+      return (header_type == UINT64_HEADER) ? bin_io::read<uint64_t>(header_buf)
+             : bin_io::read<uint32_t>(header_buf);
+   }
+
+   /// Return the number of bytes in the header. The header consists of one
+   /// integer if the data is uncompressed, and @a N + 3 integers if the data is
+   /// compressed, where @a N is the number of blocks. The integers are either
+   /// 32 or 64 bytes depending on the value of @a header_type. The number of
+   /// blocks is determined by reading the first integer (of type @a
+   /// header_type) pointed to by @a header_buf.
+   int NumHeaderBytes(const char *header_buf) const
+   {
+      if (!compressed) { return HeaderEntrySize(); }
+      return (3 + ReadHeaderEntry(header_buf))*HeaderEntrySize();
+   }
+
+   /// Read @a n elements of type @a F from the source buffer @a buf into the
+   /// (pre-allocated) destination array of elements of type @a T stored in
+   /// the buffer @a dest_void. The header is stored @b separately from the
+   /// rest of the data, in the buffer @a header_buf. The data buffer @a buf
+   /// does @b not contain a header.
+   void ReadBinaryWithHeader(const char *header_buf, const char *buf,
+                             void *dest_void, int n) const
+   {
+      std::vector<char> uncompressed_data;
+      T *dest = static_cast<T*>(dest_void);
+
+      if (compressed)
+      {
+#ifdef MFEM_USE_ZLIB
+         // The header has format (where header_t is uint32_t or uint64_t):
+         //    header_t number_of_blocks;
+         //    header_t uncompressed_block_size;
+         //    header_t uncompressed_last_block_size;
+         //    header_t compressed_size[number_of_blocks];
+         int header_entry_size = HeaderEntrySize();
+         int nblocks = ReadHeaderEntry(header_buf);
+         header_buf += header_entry_size;
+         std::vector<int> header(nblocks + 2);
+         for (int i=0; i<nblocks+2; ++i)
+         {
+            header[i] = ReadHeaderEntry(header_buf);
+            header_buf += header_entry_size;
+         }
+         uncompressed_data.resize((nblocks-1)*header[0] + header[1]);
+         Bytef *dest_ptr = (Bytef *)uncompressed_data.data();
+         Bytef *dest_start = dest_ptr;
+         const Bytef *source_ptr = (const Bytef *)buf;
+         for (int i=0; i<nblocks; ++i)
+         {
+            uLongf source_len = header[i+2];
+            uLong dest_len = (i == nblocks-1) ? header[1] : header[0];
+            int res = uncompress(dest_ptr, &dest_len, source_ptr, source_len);
+            MFEM_VERIFY(res == Z_OK, "Error uncompressing");
+            dest_ptr += dest_len;
+            source_ptr += source_len;
+         }
+         MFEM_VERIFY(int(sizeof(F)*n) == (dest_ptr - dest_start),
+                     "AppendedData: wrong data size");
+         buf = uncompressed_data.data();
+#else
+         MFEM_ABORT("MFEM must be compiled with zlib enabled to uncompress.")
+#endif
+      }
+      else
+      {
+         // Each "data block" is preceded by a header that is either UInt32 or
+         // UInt64. The rest of the data follows.
+         uint64_t data_size;
+         if (header_type == UINT32_HEADER)
+         {
+            uint32_t *data_size_32 = (uint32_t *)header_buf;
+            data_size = *data_size_32;
+         }
+         else
+         {
+            uint64_t *data_size_64 = (uint64_t *)header_buf;
+            data_size = *data_size_64;
+         }
+         MFEM_VERIFY(sizeof(F)*n == data_size, "AppendedData: wrong data size");
+      }
+
+      if (std::is_same<T, F>::value)
+      {
+         // Special case: no type conversions necessary, so can just memcpy
+         memcpy(dest, buf, sizeof(T)*n);
+      }
+      else
+      {
+         for (int i=0; i<n; ++i)
+         {
+            // Read binary data as type F, place in array as type T
+            dest[i] = bin_io::read<F>(buf + i*sizeof(F));
+         }
+      }
+   }
+
+   /// Read @a n elements of type @a F from source buffer @a buf into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The input buffer contains both the header and the data.
+   void ReadBinary(const char *buf, void *dest, int n) const override
+   {
+      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(buf), dest, n);
+   }
+
+   /// Read @a n elements of type @a F from base-64 encoded source buffer into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The base-64-encoded data is given by the null-terminated
+   /// string @a txt, which contains both the header and the data.
+   void ReadBase64(const char *txt, void *dest, int n) const override
+   {
+      // Skip whitespace
+      while (*txt)
+      {
+         if (*txt != ' ' && *txt != '\n') { break; }
+         ++txt;
+      }
+      if (compressed)
+      {
+         // Decode the first entry of the header, which we need to determine
+         // how long the rest of the header is.
+         std::vector<char> nblocks_buf;
+         int nblocks_b64 = bin_io::NumBase64Chars(HeaderEntrySize());
+         bin_io::DecodeBase64(txt, nblocks_b64, nblocks_buf);
+         std::vector<char> data, header;
+         // Compute number of characters needed to encode header in base 64,
+         // then round to nearest multiple of 4 to take padding into account.
+         int header_b64 = bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data()));
+         // If data is compressed, header is encoded separately
+         bin_io::DecodeBase64(txt, header_b64, header);
+         bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);
+         ReadBinaryWithHeader(header.data(), data.data(), dest, n);
+      }
+      else
+      {
+         std::vector<char> data;
+         bin_io::DecodeBase64(txt, strlen(txt), data);
+         ReadBinary(data.data(), dest, n);
+      }
+   }
+};
+
+/// Class to read data from VTK's @a DataArary elements. Each @a DataArray can
+/// contain inline ASCII data, inline base-64-encoded data (potentially
+/// compressed), or reference "appended data", which may be raw or base-64, and
+/// may be compressed or uncompressed.
+struct XMLDataReader
+{
+   const char *appended_data, *byte_order, *compressor;
+   enum AppendedDataEncoding { RAW, BASE64 };
+   map<string,BufferReaderBase*> type_map;
+   AppendedDataEncoding encoding;
+
+   /// Create the data reader, where @a vtk is the @a VTKFile XML element, and
+   /// @a vtu is the child @a UnstructuredGrid XML element. This will determine
+   /// the header type (32 or 64 bit integers) and whether compression is
+   /// enabled or not. The appended data will be loaded.
+   XMLDataReader(const XMLElement *vtk, const XMLElement *vtu)
+   {
+      // Determine whether binary data header is 32 or 64 bit integer
+      BufferReaderBase::HeaderType htype;
+      if (StringCompare(vtk->Attribute("header_type"), "UInt64"))
+      {
+         htype = BufferReaderBase::UINT64_HEADER;
+      }
+      else
+      {
+         htype = BufferReaderBase::UINT32_HEADER;
+      }
+
+      // Get the byte order of the file (will check if we encounter binary data)
+      byte_order = vtk->Attribute("byte_order");
+
+      // Get the compressor. We will check that MFEM can handle the compression
+      // if we encounter binary data.
+      compressor = vtk->Attribute("compressor");
+      bool compressed = (compressor != NULL);
+
+      // Find the appended data.
+      appended_data = NULL;
+      for (const XMLElement *xml_elem = vtu->NextSiblingElement();
+           xml_elem != NULL;
+           xml_elem = xml_elem->NextSiblingElement())
+      {
+         if (StringCompare(xml_elem->Name(), "AppendedData"))
+         {
+            const char *encoding_str = xml_elem->Attribute("encoding");
+            if (StringCompare(encoding_str, "raw"))
+            {
+               appended_data = xml_elem->GetAppendedData();
+               encoding = RAW;
+            }
+            else if (StringCompare(encoding_str, "base64"))
+            {
+               appended_data = xml_elem->GetText();
+               encoding = BASE64;
+            }
+            MFEM_VERIFY(appended_data != NULL, "Invalid AppendedData");
+            // Appended data follows first underscore
+            bool found_leading_underscore = false;
+            while (*appended_data)
+            {
+               ++appended_data;
+               if (*appended_data == '_')
+               {
+                  found_leading_underscore = true;
+                  ++appended_data;
+                  break;
+               }
+            }
+            MFEM_VERIFY(found_leading_underscore, "Invalid AppendedData");
+            break;
+         }
+      }
+
+      type_map["Int8"] = new BufferReader<int, int8_t>(compressed, htype);
+      type_map["Int16"] = new BufferReader<int, int16_t>(compressed, htype);
+      type_map["Int32"] = new BufferReader<int, int32_t>(compressed, htype);
+      type_map["Int64"] = new BufferReader<int, int64_t>(compressed, htype);
+      type_map["UInt8"] = new BufferReader<int, uint8_t>(compressed, htype);
+      type_map["UInt16"] = new BufferReader<int, uint16_t>(compressed, htype);
+      type_map["UInt32"] = new BufferReader<int, uint32_t>(compressed, htype);
+      type_map["UInt64"] = new BufferReader<int, uint64_t>(compressed, htype);
+      type_map["Float32"] = new BufferReader<double, float>(compressed, htype);
+      type_map["Float64"] = new BufferReader<double, double>(compressed, htype);
+   }
+
+   /// Read the @a DataArray XML element given by @a xml_elem into
+   /// (pre-allocated) destination array @a dest, where @a dest stores @a n
+   /// elements of type @a T.
+   template <typename T>
+   void Read(const XMLElement *xml_elem, T *dest, int n)
+   {
+      static const char *erstr = "Error reading XML DataArray";
+      MFEM_VERIFY(StringCompare(xml_elem->Name(), "DataArray"), erstr);
+      const char *format = xml_elem->Attribute("format");
+      if (StringCompare(format, "ascii"))
+      {
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         std::istringstream data_stream(txt);
+         for (int i=0; i<n; ++i) { data_stream >> dest[i]; }
+      }
+      else if (StringCompare(format, "appended"))
+      {
+         VerifyBinaryOptions();
+         int offset = xml_elem->IntAttribute("offset");
+         const char *type = xml_elem->Attribute("type");
+         MFEM_VERIFY(type != NULL, erstr);
+         BufferReaderBase *reader = type_map[type];
+         MFEM_VERIFY(reader != NULL, erstr);
+         MFEM_VERIFY(appended_data != NULL, "No AppendedData found");
+         if (encoding == RAW)
+         {
+            reader->ReadBinary(appended_data + offset, dest, n);
+         }
+         else
+         {
+            reader->ReadBase64(appended_data + offset, dest, n);
+         }
+      }
+      else if (StringCompare(format, "binary"))
+      {
+         VerifyBinaryOptions();
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         const char *type = xml_elem->Attribute("type");
+         if (type == NULL) { MFEM_ABORT(erstr); }
+         BufferReaderBase *reader = type_map[type];
+         if (reader == NULL) { MFEM_ABORT(erstr); }
+         reader->ReadBase64(txt, dest, n);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid XML VTK DataArray format");
+      }
+   }
+
+   /// Check that the byte order of the file is the same as the native byte
+   /// order that we're running with. We don't currently support converting
+   /// between byte orders. The byte order is only verified if we encounter
+   /// binary data.
+   void VerifyByteOrder() const
+   {
+      // Can't handle reading big endian from little endian or vice versa
+      if (byte_order && !StringCompare(byte_order, VTKByteOrder()))
+      {
+         MFEM_ABORT("Converting between different byte orders is unsupported.");
+      }
+   }
+
+   /// Check that the compressor is compatible (MFEM currently only supports
+   /// zlib compression). If MFEM is not compiled with zlib, then we cannot
+   /// read binary data with compression.
+   void VerifyCompressor() const
+   {
+      if (compressor && !StringCompare(compressor, "vtkZLibDataCompressor"))
+      {
+         MFEM_ABORT("Unsupported compressor. Only zlib is supported.")
+      }
+#ifndef MFEM_USE_ZLIB
+      MFEM_VERIFY(compressor == NULL, "MFEM must be compiled with zlib enabled "
+                  "to support reading compressed data.");
+#endif
+   }
+
+   /// Verify that the binary data is stored with compatible options (i.e.
+   /// native byte order and compatible compression).
+   void VerifyBinaryOptions() const
+   {
+      VerifyByteOrder();
+      VerifyCompressor();
+   }
+
+   ~XMLDataReader()
+   {
+      for (auto &x : type_map) { delete x.second; }
+   }
+};
+
+} // namespace vtk_xml
+
+void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
+                           bool &finalize_topo, const std::string &xml_prefix)
+{
+   using namespace vtk_xml;
+
+   static const char *erstr = "XML parsing error";
+
+   // Create buffer beginning with xml_prefix, then read the rest of the stream
+   std::vector<char> buf(xml_prefix.begin(), xml_prefix.end());
    std::istreambuf_iterator<char> eos;
-   std::vector<char> buf(std::istreambuf_iterator<char>(input), eos);
+   buf.insert(buf.end(), std::istreambuf_iterator<char>(input), eos);
    buf.push_back('\0'); // null-terminate buffer
 
    XMLDocument xml;
-   xml.Parse(buf.data());
-   MFEM_VERIFY(xml.ErrorID() == XML_SUCCESS, erstr);
+   xml.Parse(buf.data(), buf.size());
+   if (xml.ErrorID() != XML_SUCCESS)
+   {
+      MFEM_ABORT("Error parsing XML VTK file.\n" << xml.ErrorStr());
+   }
 
    const XMLElement *vtkfile = xml.FirstChildElement();
    MFEM_VERIFY(vtkfile, erstr);
-   MFEM_VERIFY(std::string(vtkfile->Name()) == "VTKFile", erstr);
+   MFEM_VERIFY(StringCompare(vtkfile->Name(), "VTKFile"), erstr);
    const XMLElement *vtu = vtkfile->FirstChildElement();
    MFEM_VERIFY(vtu, erstr);
-   MFEM_VERIFY(std::string(vtu->Name()) == "UnstructuredGrid", erstr);
+   MFEM_VERIFY(StringCompare(vtu->Name(), "UnstructuredGrid"), erstr);
+
+   XMLDataReader data_reader(vtkfile, vtu);
 
    // Count the number of points and cells
    const XMLElement *piece = vtu->FirstChildElement();
-   MFEM_VERIFY(std::string(piece->Name()) == "Piece", erstr);
+   MFEM_VERIFY(StringCompare(piece->Name(), "Piece"), erstr);
    MFEM_VERIFY(piece->NextSiblingElement() == NULL,
                "XML VTK meshes with more than one Piece are not supported");
    int npts = piece->IntAttribute("NumberOfPoints");
@@ -680,73 +1074,76 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
         pts_xml != NULL;
         pts_xml = pts_xml->NextSiblingElement())
    {
-      if (std::string(pts_xml->Name()) == "Points")
+      if (StringCompare(pts_xml->Name(), "Points"))
       {
          const XMLElement *pts_data = pts_xml->FirstChildElement();
-         MFEM_VERIFY(std::string(pts_data->Name()) == "DataArray", erstr);
-         MFEM_VERIFY(std::string(pts_data->Attribute("Name")) == "Points",
-                     erstr);
          MFEM_VERIFY(pts_data->IntAttribute("NumberOfComponents") == 3,
                      "XML VTK Points DataArray must have 3 components");
-         const char *pts_txt = pts_data->GetText();
-         MFEM_VERIFY(pts_txt != NULL, erstr);
-         std::istringstream pts_stream(pts_txt);
-         points.Load(pts_stream, 3*npts);
+         data_reader.Read(pts_data, points.GetData(), points.Size());
          break;
       }
    }
    if (pts_xml == NULL) { MFEM_ABORT(erstr); }
 
    // Read the cells
-   Array<int> cell_data, cell_offsets, cell_types;
+   Array<int> cell_data, cell_offsets(ncells), cell_types(ncells);
    const XMLElement *cells_xml;
    for (cells_xml = piece->FirstChildElement();
         cells_xml != NULL;
         cells_xml = cells_xml->NextSiblingElement())
    {
-      if (std::string(cells_xml->Name()) == "Cells")
+      if (StringCompare(cells_xml->Name(), "Cells"))
       {
-         const char *cell_data_txt = NULL;
+         const XMLElement *cell_data_xml = NULL;
          for (const XMLElement *data_xml = cells_xml->FirstChildElement();
               data_xml != NULL;
               data_xml = data_xml->NextSiblingElement())
          {
-            MFEM_VERIFY(std::string(data_xml->Name()) == "DataArray", erstr);
-            std::string data_name(data_xml->Attribute("Name"));
-            const char *data_txt = data_xml->GetText();
-            MFEM_VERIFY(data_txt != NULL, erstr);
-            if (data_name == "offsets")
+            const char *data_name = data_xml->Attribute("Name");
+            if (StringCompare(data_name, "offsets"))
             {
-               std::istringstream data_stream(data_txt);
-               cell_offsets.Load(ncells, data_stream);
+               data_reader.Read(data_xml, cell_offsets.GetData(), ncells);
             }
-            else if (data_name == "types")
+            else if (StringCompare(data_name, "types"))
             {
-               std::istringstream data_stream(data_txt);
-               cell_types.Load(ncells, data_stream);
+               data_reader.Read(data_xml, cell_types.GetData(), ncells);
             }
-            else if (data_name == "connectivity")
+            else if (StringCompare(data_name, "connectivity"))
             {
                // Have to read the connectivity after the offsets, because we
                // don't know how many points to read until we have the offsets
                // (size of connectivity array is equal to the last offset), so
-               // store the data pointer and read this array later.
-               cell_data_txt = data_txt;
+               // store the XML element pointer and read this data later.
+               cell_data_xml = data_xml;
             }
          }
-         MFEM_VERIFY(cell_offsets.Size() == ncells, erstr);
-         MFEM_VERIFY(cell_types.Size() == ncells, erstr);
-         MFEM_VERIFY(cell_data_txt != NULL, erstr);
+         MFEM_VERIFY(cell_data_xml != NULL, erstr);
          int cell_data_size = cell_offsets.Last();
-         std::istringstream cell_data_stream(cell_data_txt);
-         cell_data.Load(cell_data_size, cell_data_stream);
+         cell_data.SetSize(cell_data_size);
+         data_reader.Read(cell_data_xml, cell_data.GetData(), cell_data_size);
          break;
       }
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Currently don't support reading cell attributes from XML VTK mesh
+   // Read the element attributes, which are stored as CellData named "material"
    Array<int> cell_attributes;
+   for (const XMLElement *cell_data_xml = piece->FirstChildElement();
+        cell_data_xml != NULL;
+        cell_data_xml = cell_data_xml->NextSiblingElement())
+   {
+      if (StringCompare(cell_data_xml->Name(), "CellData")
+          && StringCompare(cell_data_xml->Attribute("Scalars"), "material"))
+      {
+         const XMLElement *data_xml = cell_data_xml->FirstChildElement();
+         if (data_xml != NULL && StringCompare(data_xml->Name(), "DataArray"))
+         {
+            cell_attributes.SetSize(ncells);
+            data_reader.Read(data_xml, cell_attributes.GetData(), ncells);
+         }
+      }
+   }
+
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
 }
@@ -1003,6 +1400,10 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
          {
             type = Element::WEDGE;
          }
+         else if (eltype == "pyramid")
+         {
+            type = Element::PYRAMID;
+         }
          else if (eltype == "tet")
          {
             type = Element::TETRAHEDRON;
@@ -1057,7 +1458,7 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
       Make2D(nx, ny, type, sx, sy, generate_edges, true);
    }
    else if (type == Element::TETRAHEDRON || type == Element::WEDGE ||
-            type == Element::HEXAHEDRON)
+            type == Element::HEXAHEDRON  || type == Element::PYRAMID)
    {
       MFEM_VERIFY(nx > 0 && ny > 0 && nz > 0 &&
                   sx > 0.0 && sy > 0.0 && sz > 0.0,
@@ -1494,6 +1895,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
          ho_pyr[2] = pyr14; ho_pyr[3] = pyr30;
 
+         bool has_nonpositive_phys_domain = false;
+         bool has_positive_phys_domain = false;
+
          if (binary)
          {
             int n_elem_part = 0; // partial sum of elements that are read
@@ -1544,17 +1948,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      vert_indices[vi] = it->second;
                   }
 
-                  // non-positive attributes are not allowed in MFEM
+                  // Non-positive attributes are not allowed in MFEM. However,
+                  // by default, Gmsh sets the physical domain of all elements
+                  // to zero. In the case that all elements have physical domain
+                  // zero, we will given them attribute 1. If only some elements
+                  // have physical domain zero, we will throw an error.
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                                "By default Gmsh sets element tags (attributes)"
-                                " to '0' but MFEM requires that they be"
-                                " positive integers.\n"
-                                "Use \"Physical Curve\", \"Physical Surface\","
-                                " or \"Physical Volume\" to set tags/attributes"
-                                " for all curves, surfaces, or volumes in your"
-                                " Gmsh geometry to values which are >= 1.");
+                     has_nonpositive_phys_domain = true;
+                     phys_domain = 1;
+                  }
+                  else
+                  {
+                     has_positive_phys_domain = true;
                   }
 
                   // initialize the mesh element
@@ -1771,17 +2177,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   vert_indices[vi] = it->second;
                }
 
-               // non-positive attributes are not allowed in MFEM
+               // Non-positive attributes are not allowed in MFEM. However,
+               // by default, Gmsh sets the physical domain of all elements
+               // to zero. In the case that all elements have physical domain
+               // zero, we will given them attribute 1. If only some elements
+               // have physical domain zero, we will throw an error.
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                             "By default Gmsh sets element tags (attributes)"
-                             " to '0' but MFEM requires that they be"
-                             " positive integers.\n"
-                             "Use \"Physical Curve\", \"Physical Surface\","
-                             " or \"Physical Volume\" to set tags/attributes"
-                             " for all curves, surfaces, or volumes in your"
-                             " Gmsh geometry to values which are >= 1.");
+                  has_nonpositive_phys_domain = true;
+                  phys_domain = 1;
+               }
+               else
+               {
+                  has_positive_phys_domain = true;
                }
 
                // initialize the mesh element
@@ -1966,6 +2374,24 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             } // el (all elements)
          } // if ASCII
 
+         if (has_positive_phys_domain && has_nonpositive_phys_domain)
+         {
+            MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                       "By default Gmsh sets element tags (attributes)"
+                       " to '0' but MFEM requires that they be"
+                       " positive integers.\n"
+                       "Use \"Physical Curve\", \"Physical Surface\","
+                       " or \"Physical Volume\" to set tags/attributes"
+                       " for all curves, surfaces, or volumes in your"
+                       " Gmsh geometry to values which are >= 1.");
+         }
+         else if (has_nonpositive_phys_domain)
+         {
+            mfem::out << "\nGmsh reader: all element attributes were zero.\n"
+                      << "MFEM only supports positive element attributes.\n"
+                      << "Setting element attributes to 1.\n\n";
+         }
+
          if (!elements_3D.empty())
          {
             Dim = 3;
@@ -2053,6 +2479,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
             // initialize mesh_geoms so we can create Nodes FE space below
             this->SetMeshGen();
+
+            // Generate faces and edges so that we can define
+            // FE space on the mesh
+            this->FinalizeTopology();
 
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
@@ -2275,6 +2705,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Convert nodes to discontinuous GridFunction (if they aren't already)
          if (mesh_order == 1)
          {
+            this->FinalizeTopology();
+            this->SetMeshGen();
             this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
          }
 

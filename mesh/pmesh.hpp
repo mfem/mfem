@@ -38,7 +38,7 @@ protected:
    struct Vert3
    {
       int v[3];
-      Vert3() { }
+      Vert3() = default;
       Vert3(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
       void Set(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
       void Set(const int *w) { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; }
@@ -47,7 +47,7 @@ protected:
    struct Vert4
    {
       int v[4];
-      Vert4() { }
+      Vert4() = default;
       Vert4(int v0, int v1, int v2, int v3)
       { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
       void Set(int v0, int v1, int v2, int v3)
@@ -74,6 +74,9 @@ protected:
    Array<int> sedge_ledge;
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
+
+   Table *face_nbr_el_to_face;
+   Table  face_nbr_el_ori; // orientations for each face (from nbr processor)
 
    IsoparametricTransformation FaceNbrTransformation;
 
@@ -102,6 +105,8 @@ protected:
 
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
+
+   STable3D *GetFaceNbrElementToFaceTable(int ret_ftbl = 0);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
@@ -196,6 +201,9 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   // Similar to Mesh::GetFacesTable()
+   STable3D *GetSharedFacesTable();
+
    /// Ensure that bdr_attributes and attributes agree across processors
    void DistributeAttributes(Array<int> &attr);
 
@@ -216,8 +224,9 @@ protected:
 
 public:
    /// Default constructor. Create an empty @a ParMesh.
-   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), glob_elem_offset(-1),
-      glob_offset_sequence(-1), have_face_nbr_data(false), pncmesh(NULL) { }
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), face_nbr_el_to_face(NULL),
+      glob_elem_offset(-1), glob_offset_sequence(-1),
+      have_face_nbr_data(false), pncmesh(NULL) { }
 
    /// Create a parallel mesh by partitioning a serial Mesh.
    /** The mesh is partitioned automatically or using external partitioning
@@ -327,8 +336,8 @@ public:
    void GroupQuadrilateral(int group, int i, int &face, int &o);
    ///@}
 
-   void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
-                        Array<HYPRE_Int> *offsets[]) const;
+   void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
+                        Array<HYPRE_BigInt> *offsets[]) const;
 
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
@@ -340,6 +349,9 @@ public:
    int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
+
+   /** Similar to Mesh::GetElementFaces */
+   void GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
@@ -370,7 +382,7 @@ public:
    int GetSharedFace(int sface) const;
 
    /// See the remarks for the serial version in mesh.hpp
-   virtual void ReorientTetMesh();
+   MFEM_DEPRECATED virtual void ReorientTetMesh();
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;

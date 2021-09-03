@@ -81,6 +81,12 @@ Mesh * build_trapezoid_mesh(double offset)
 
 int main(int argc, char *argv[])
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return 255;
+#endif
+
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -182,7 +188,7 @@ int main(int argc, char *argv[])
          fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
       }
    }
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl
@@ -360,6 +366,7 @@ int main(int argc, char *argv[])
    }
    delete pmesh;
 
+   // HYPRE_Finalize();
    MPI_Finalize();
 
    return 0;

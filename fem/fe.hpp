@@ -38,7 +38,8 @@ public:
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
       Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
       ClosedGL        = 7,  ///< Closed GaussLegendre
-      NumBasisTypes   = 8   /**< Keep track of maximum types to prevent
+      IntegratedGLL   = 8,  ///< Integrated GLL indicator functions
+      NumBasisTypes   = 9   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -53,7 +54,7 @@ public:
        with an error; otherwise return the input. */
    static int CheckNodal(int b_type)
    {
-      MFEM_VERIFY(Check(b_type) != Positive,
+      MFEM_VERIFY(Check(b_type) != Positive && b_type != IntegratedGLL,
                   "invalid nodal BasisType: " << Name(b_type));
       return b_type;
    }
@@ -71,6 +72,7 @@ public:
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
          case Serendipity:     return Quadrature1D::GaussLobatto;
          case ClosedGL:        return Quadrature1D::ClosedGL;
+         case IntegratedGLL:   return Quadrature1D::GaussLegendre;
       }
       return Quadrature1D::Invalid;
    }
@@ -94,14 +96,17 @@ public:
       static const char *name[] =
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
-         "Open uniform", "Closed uniform", "Open half uniform"
+         "Open uniform", "Closed uniform", "Open half uniform",
+         "Serendipity", "Closed Gauss-Legendre",
+         "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
    }
    /// Check and convert a BasisType constant to a char basis identifier.
    static char GetChar(int b_type)
    {
-      static const char ident[] = { 'g', 'G', 'P', 'u', 'U', 'o' };
+      static const char ident[]
+         = { 'g', 'G', 'P', 'u', 'U', 'o', 'S', 'c', 'i' };
       return ident[Check(b_type)];
    }
    /// Convert char basis identifier to a BasisType constant.
@@ -111,11 +116,14 @@ public:
       {
          case 'g': return GaussLegendre;
          case 'G': return GaussLobatto;
+         case 's': return GaussLobatto;
          case 'P': return Positive;
          case 'u': return OpenUniform;
          case 'U': return ClosedUniform;
          case 'o': return OpenHalfUniform;
-         case 's': return GaussLobatto;
+         case 'S': return Serendipity;
+         case 'c': return ClosedGL;
+         case 'i': return IntegratedGLL;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
@@ -847,6 +855,7 @@ private:
                            DenseMatrix &dshape) const;
 
 protected:
+   bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix J, Jinv;
    mutable DenseMatrix curlshape, curlshape_J;
@@ -913,20 +922,22 @@ protected:
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
-   /// Reverse-diff version of Project_RT
-   /// @param[in] P_bar - derivative of function with respect to the projection
-   /// @param[in] nk - ?
-   /// @param[in] d2n - ?
-   /// @param[in] vc - VectorCoefficient being projected
-   /// @param[in] Trans - an element transformation
-   /// @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
-   ///                        mesh nodes
-   /// @warning - only implemented for the same space and reference dimension
+   /** Reverse-mode differentiation of Project_ND w.r.t. the mesh node
+       locations in the element described by @a T
+       @param[in] P_bar - derivative of function with respect to the projection
+       @param[in] nk - Face normal vectors for this element type
+       @param[in] d2n - Offset into nk for each degree of freedom
+       @param[in] vc - VectorCoefficient being projected
+       @param[in] Trans - an element transformation
+       @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
+                              mesh nodes
+       @warning - only implemented for the same space and reference dimension
+   */
    void Project_RTRevDiff(const Vector &P_bar,
-                           const double *nk, const Array<int> &d2n,
-                           VectorCoefficient &vc,
-                           ElementTransformation &Trans,
-                           DenseMatrix &PointMat_bar) const;
+                          const double *nk, const Array<int> &d2n,
+                          VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          DenseMatrix &PointMat_bar) const;
 
    // rotated gradient in 2D
    void ProjectGrad_RT(const double *nk, const Array<int> &d2n,
@@ -943,7 +954,6 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-   /// Projects the vector of values given at FE nodes to ND space
    /** Project vector values onto the ND basis functions
        @param tk    Edge tangent vectors for this element type
        @param d2t   Offset into tk for each degree of freedom
@@ -1008,10 +1018,18 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
+   void LocalL2Projection_RT(const VectorFiniteElement &cfe,
+                             ElementTransformation &Trans,
+                             DenseMatrix &I) const;
+
    void LocalInterpolation_RT(const VectorFiniteElement &cfe,
                               const double *nk, const Array<int> &d2n,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
+
+   void LocalL2Projection_ND(const VectorFiniteElement &cfe,
+                             ElementTransformation &Trans,
+                             DenseMatrix &I) const;
 
    void LocalInterpolation_ND(const VectorFiniteElement &cfe,
                               const double *tk, const Array<int> &d2t,
@@ -1038,10 +1056,10 @@ public:
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #else
       FiniteElement(D, G, Do, O, F), Jinv(D)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 #endif
 };
 
@@ -1165,7 +1183,7 @@ public:
    { dofs = 1.0; }
 };
 
-/// A 1D quadractic finite element with uniformly spaced nodes
+/// A 1D quadratic finite element with uniformly spaced nodes
 class Quad1DFiniteElement : public NodalFiniteElement
 {
 public:
@@ -1350,6 +1368,64 @@ public:
 
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+};
+
+/// A linear element defined on a triangular prism
+class LinearWedgeFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the LinearWedgeFiniteElement
+   LinearWedgeFiniteElement();
+
+   /** @brief virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (4) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** @brief virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
+       face, while *ndofs is set to the number of dofs on that face.
+   */
+   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
+};
+
+/// A linear element defined on a square pyramid
+class LinearPyramidFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the LinearPyramidFiniteElement
+   LinearPyramidFiniteElement();
+
+   /** @brief virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (4) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** @brief virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs = 0.0; dofs(vertex) = 1.0; }
+
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
+       face, while *ndofs is set to the number of dofs on that face.
+   */
+   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 };
 
 /// A 2D constant element on a triangle
@@ -1729,6 +1805,32 @@ public:
    { dofs(0) = 1.0; }
 };
 
+/// A 3D constant element on a wedge
+class P0WdgFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the P0WdgFiniteElement
+   P0WdgFiniteElement ();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs(0) = 1.0; }
+};
+
+/// A 3D constant element on a pyramid
+class P0PyrFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct the P0PyrFiniteElement
+   P0PyrFiniteElement ();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   { dofs(0) = 1.0; }
+};
+
 /** @brief Tensor products of 1D Lagrange1DFiniteElement
     (only degree 2 is functional) */
 class LagrangeHexFiniteElement : public NodalFiniteElement
@@ -1867,6 +1969,10 @@ public:
    using FiniteElement::Project;
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
 };
 
 
@@ -1891,6 +1997,66 @@ public:
    using FiniteElement::Project;
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
+
+
+/// A 3D 1st order Nedelec element on a wedge
+class Nedelec1WdgFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk[9][3];
+
+public:
+   /// Construct the Nedelec1WdgFiniteElement
+   Nedelec1WdgFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
+
+
+/// A 3D 1st order Nedelec element on a pyramid
+class Nedelec1PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk[8][3];
+
+public:
+   /// Construct the Nedelec1PyrFiniteElement
+   Nedelec1PyrFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
 };
 
 
@@ -1984,6 +2150,77 @@ public:
 };
 
 
+/// A 3D 0th order Raviert-Thomas element on a wedge
+class RT0WdgFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[5][3];
+
+public:
+   /// Construct the RT0WdgFiniteElement
+   RT0WdgFiniteElement();
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+
+/// A 3D 0th order Raviert-Thomas element on a pyramid
+class RT0PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double nk[5][3];
+
+   // If true match RT0TetFiniteElement rather than RT_TetrahedronElement(0)
+   bool rt0;
+
+public:
+   /// Construct the RT0PyrFiniteElement
+   RT0PyrFiniteElement(bool rt0tets = true);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+
 class RotTriLinearHexFiniteElement : public NodalFiniteElement
 {
 public:
@@ -2005,7 +2242,8 @@ public:
       ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
       Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
       Positive      = 2, // Fast evaluation of Bernstein polynomials
-      NumEvalTypes  = 3  // Keep count of the number of eval types
+      Integrated    = 3, // Integrated indicator functions (cf. Gerritsma)
+      NumEvalTypes  = 4  // Keep count of the number of eval types
    };
 
    class Basis
@@ -2014,6 +2252,10 @@ public:
       int etype;
       DenseMatrixInverse Ai;
       mutable Vector x, w;
+      // The following data members are used for "integrated basis type", which
+      // is defined in terms of nodal basis of one degree higher.
+      mutable Vector u_aux, d_aux, d2_aux;
+      Basis *auxiliary_basis; // Non-NULL only for etype == Integrated
 
    public:
       /// Create a nodal or positive (Bernstein) basis
@@ -2021,6 +2263,12 @@ public:
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
+      /// Evaluate the "integrated" basis, which is given by the negative
+      /// partial sum of the corresponding closed basis derivatives. The closed
+      /// basis derivatives are given by @a d, and the result is stored in @a i.
+      void EvalIntegrated(const Vector &d, Vector &i) const;
+      bool IsIntegratedType() const { return etype == Integrated; }
+      ~Basis();
    };
 
 private:
@@ -2221,6 +2469,20 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   {
+      if (basis1d.IsIntegratedType())
+      {
+         CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this);
+      }
+      else
+      {
+         NodalFiniteElement::GetTransferMatrix(fe, Trans, I);
+      }
+   }
 };
 
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
@@ -2252,6 +2514,11 @@ public:
    VectorTensorFiniteElement(const int dims, const int d, const int p,
                              const int cbtype, const int obtype,
                              const int M, const DofMapType dmtype);
+
+   // For 1D elements: there is only an "open basis", no "closed basis"
+   VectorTensorFiniteElement(const int dims, const int d, const int p,
+                             const int obtype, const int M,
+                             const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const;
@@ -2831,6 +3098,7 @@ private:
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2nk;
+   const double *cp;
 
 public:
    /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
@@ -2862,7 +3130,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   }
    virtual void ProjectRevDiff(const Vector &P_bar,
                                 VectorCoefficient &vc,
                                 ElementTransformation &Trans,
@@ -2887,6 +3158,10 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc, ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -2900,6 +3175,7 @@ class RT_HexahedronElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2nk;
+   const double *cp;
 
 public:
    /** @brief Construct the RT_HexahedronElement of order @a p and closed and
@@ -2932,7 +3208,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
@@ -2946,6 +3225,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -3085,6 +3369,7 @@ class ND_HexahedronElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2tk;
+   const double *cp;
 
 public:
    /** @brief Construct the ND_HexahedronElement of order @a p and closed and
@@ -3124,7 +3409,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   }
 
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3148,6 +3436,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -3161,6 +3454,7 @@ class ND_QuadrilateralElement : public VectorTensorFiniteElement
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2tk;
+   const double *cp;
 
 public:
    /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and
@@ -3192,7 +3486,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   }
    virtual void ProjectRevDiff(const Vector &P_bar,
                                 VectorCoefficient &vc,
                                 ElementTransformation &Trans,
@@ -3212,6 +3509,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 
@@ -3342,11 +3644,9 @@ public:
 
 
 /// Arbitrary order Nedelec elements in 1D on a segment
-class ND_SegmentElement : public VectorFiniteElement
+class ND_SegmentElement : public VectorTensorFiniteElement
 {
    static const double tk[1];
-
-   Poly_1D::Basis &obasis1d;
    Array<int> dof2tk;
 
 public:

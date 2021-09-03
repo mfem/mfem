@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int nev = 5;
    bool visualization = 1;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -71,6 +72,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -86,13 +89,18 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors. We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
+   // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
    //    specified on the command line with -rs).
    for (int lev = 0; lev < ser_ref_levels; lev++)
@@ -100,7 +108,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution (1 time by
    //    default, or specified on the command line with -rp). Once the parallel
    //    mesh is defined, the serial mesh can be deleted.
@@ -110,19 +118,18 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   pmesh->ReorientTetMesh();
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl;
    }
 
-   // 7. Set up the parallel bilinear forms a(.,.) and m(.,.) on the finite
+   // 8. Set up the parallel bilinear forms a(.,.) and m(.,.) on the finite
    //    element space. The first corresponds to the curl curl, while the second
    //    is a simple mass matrix needed on the right hand side of the
    //    generalized eigenvalue problem below. The boundary conditions are
@@ -164,7 +171,7 @@ int main(int argc, char *argv[])
    delete a;
    delete m;
 
-   // 8. Define and configure the AME eigensolver and the AMS preconditioner for
+   // 9. Define and configure the AME eigensolver and the AMS preconditioner for
    //    A to be used within the solver. Set the matrices which define the
    //    generalized eigenproblem A x = lambda M x.
    HypreAMS *ams = new HypreAMS(*A,fespace);
@@ -180,15 +187,15 @@ int main(int argc, char *argv[])
    ame->SetMassMatrix(*M);
    ame->SetOperator(*A);
 
-   // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
-   //    parallel grid function to represent each of the eigenmodes returned by
-   //    the solver.
+   // 10. Compute the eigenmodes and extract the array of eigenvalues. Define a
+   //     parallel grid function to represent each of the eigenmodes returned by
+   //     the solver.
    Array<double> eigenvalues;
    ame->Solve();
    ame->GetEigenvalues(eigenvalues);
    ParGridFunction x(fespace);
 
-   // 10. Save the refined mesh and the modes in parallel. This output can be
+   // 11. Save the refined mesh and the modes in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g mode".
    {
       ostringstream mesh_name, mode_name;
@@ -213,7 +220,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 11. Send the solution by socket to a GLVis server.
+   // 12. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -253,7 +260,7 @@ int main(int argc, char *argv[])
       mode_sock.close();
    }
 
-   // 12. Free the used memory.
+   // 13. Free the used memory.
    delete ame;
    delete ams;
    delete M;

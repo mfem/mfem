@@ -316,9 +316,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7a. Reorient mesh in case of a tet mesh
-   pmesh->ReorientTetMesh();
-
    // 8. Set element attributes in order to distinguish elements in the PML
    pml->SetAttributes(pmesh);
 
@@ -326,7 +323,7 @@ int main(int argc, char *argv[])
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
