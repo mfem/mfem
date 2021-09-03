@@ -874,14 +874,13 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          {
             d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
          }
-         const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
+            d_y(dof, c, 1, face) = 0.0;
          }
       });
    }
-   else // Single valued
+   else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
@@ -912,6 +911,14 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
                   }
                }
+               else if (idx>=threshold) // shared interior face
+               {
+                  const int sidx = idx-threshold;
+                  for (int c = 0; c < vd; ++c)
+                  {
+                     d_y(dof, c, face) = d_x_shared(t?c:sidx, t?sidx:c);
+                  }
+               }
                else // true boundary
                {
                   for (int c = 0; c < vd; ++c)
@@ -933,6 +940,11 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      dofs[dof] = d_x(t?c:idx, t?idx:c);
                   }
+                  else if (idx>=threshold) // shared interior face
+                  {
+                     const int sidx = idx-threshold;
+                     dofs[dof] = d_x_shared(t?c:sidx, t?sidx:c);
+                  }
                   else // true boundary
                   {
                      dofs[dof] = 0.0;
@@ -953,6 +965,26 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
             }
          }
       });
+   }
+   else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
+   {
+      auto d_indices1 = scatter_indices1.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int dof = i % nd;
+         const int face = i / nd;
+         const int idx1 = d_indices1[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
+         }
+      });
+   }
+   else
+   {
+      MFEM_ABORT("Unknown type and multiplicity combination.");
    }
 }
 
