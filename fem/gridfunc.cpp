@@ -4044,7 +4044,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    FiniteElementSpace *ufes = u.FESpace();
    // ElementTransformation *Transf;
 
-   int dim = ufes->GetMesh()->Dimension();
+   Mesh *mesh = ufes->GetMesh();
+   int dim = mesh->Dimension();
    int nfe = ufes->GetNE();
    int nfaces = ufes->GetNF();
 
@@ -4069,35 +4070,44 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    }
 
    double total_error = 0.0;
-   for (int i = 0; i < nfaces; i++)
+   for (int iface = 0; iface < nfaces; iface++)
    {
 
-      // 1. Construct face-patch.
-      int num_face_neighbors = 2;
-      Array<int> face_neighbors(num_face_neighbors);
-      for (int j = 0; j < num_face_neighbors; j++)
+      // 1. Construct face patch.
+      Array<int> neighbor_elems;
+      GetFaceElements(*mesh, iface, neighbor_elems);
+      int num_neighbor_elems = neighbor_elems.Size();
+      
+      // Array<int> vert;
+      // mesh->GetEdgeVertices(iface,vert);
+      // cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
+      //      "), elems: " ; neighbor_elems.Print();
+
+      // 2. Check if boundary face and continue if true.
+      if (num_neighbor_elems < 2)
       {
-         face_neighbors[j] = 1;
+         continue;
       }
 
-      // 2. Compute global flux polynomial.
+      // 3. Compute global flux polynomial.
+      
 
-      // 3. Compute error contribution from face.
+      // 4. Compute error contribution from face.
       double face_error = 1.0;
       total_error += face_error;
 
-      for (int j = 0; j < num_face_neighbors; j++)
+      for (int jelem = 0; jelem < num_neighbor_elems; jelem++)
       {
-         error_estimates(face_neighbors[j]) += face_error;
-         counters[face_neighbors[j]] += 1;
+         error_estimates(neighbor_elems[jelem]) += face_error;
+         counters[neighbor_elems[jelem]] += 1;
       }
    }
 
-   for (int i = 0; i < nfe; i++)
+   for (int ielem = 0; ielem < nfe; ielem++)
    {
-      error_estimates(i) /= counters[i];
-      error_estimates(i) = sqrt(error_estimates(i));
-      error_estimates(i) = 1.0;
+      error_estimates(ielem) /= counters[ielem];
+      error_estimates(ielem) = sqrt(error_estimates(ielem));
+      error_estimates(ielem) = 1.0;
    }   
 
 #ifdef MFEM_USE_MPI
@@ -4112,7 +4122,80 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
+void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
+{
+   int dim = mesh.Dimension();
+   FiniteElementCollection * fec = nullptr;
+   if (dim == 2)
+   {
+      fec = new ND_FECollection(1,dim);
+   }
+   else
+   {
+      // not yet tested in 3D
+      fec = new RT_FECollection(0,dim);
+   }
+   FiniteElementSpace fespace(&mesh, fec);
 
+   const SparseMatrix * P = fespace.GetConformingProlongation();
+   const SparseMatrix * R = fespace.GetConformingRestriction();
+   int el1, el2;
+   if (P)
+   {
+      SparseMatrix * Pt = Transpose(*P);
+      const int * col = P->GetRowColumns(face);
+      int numslaves = Pt->RowSize(col[0]);
+      const int * master = R->GetRowColumns(col[0]);
+
+      if ((master[0] == face && numslaves == 1) ||
+          master[0] != face)
+      {
+         mesh.GetFaceElements(face,&el1,&el2);
+         if (el2 == -1 || el1 == -1)
+         {
+            // cout << "This is a boundary face," << endl;
+            int el = (el1 == -1)? el2 : el1;
+            elems.Append(el);
+         }
+         else
+         {
+            // cout << "This is not boundary face ..." << endl;
+            elems.Append(el1);
+            elems.Append(el2);
+         }
+      }
+      else
+      {
+         MFEM_VERIFY(numslaves > 1, "Check numslaves");
+         const int * slaves = Pt->GetRowColumns(col[0]);
+         // cout << "numslaves = " << numslaves << endl;
+         for (int j=0; j<numslaves; j++)
+         {
+            mesh.GetFaceElements(slaves[j],&el1,&el2);
+            if (el1 != -1) { elems.Append(el1); }
+            if (el2 != -1) { elems.Append(el2); }
+         }
+      }
+   }
+   else
+   {
+      mesh.GetFaceElements(face,&el1,&el2);
+      if (el2 == -1 || el1 == -1)
+      {
+         // cout << "This is a boundary face," << endl;
+         int el = (el1 == -1)? el2 : el1;
+         elems.Append(el);
+      }
+      else
+      {
+         // cout << "This is not boundary face ..." << endl;
+         elems.Append(el1);
+         elems.Append(el2);
+      }
+   }
+   elems.Sort();
+   elems.Unique();
+}
 
 double ComputeElementLpDistance(double p, int i,
                                 GridFunction& gf1, GridFunction& gf2)

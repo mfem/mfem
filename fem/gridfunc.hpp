@@ -908,6 +908,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            int with_subdomains = 1,
                            bool with_coeff = false);
 
+void GetFaceElements(Mesh & mesh, int face, Array<int> & elems);
+
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
                                 GridFunction& gf1, GridFunction& gf2);
