@@ -34,6 +34,7 @@
 
 #ifdef MFEM_USE_UMPIRE
 #include "umpire/Umpire.hpp"
+#include "umpire/strategy/QuickPool.hpp"
 
 // Make sure Umpire is build with CUDA support if MFEM is built with it.
 #if defined(MFEM_USE_CUDA) && !defined(UMPIRE_ENABLE_CUDA)
@@ -507,7 +508,7 @@ public:
    {
       if (!rm.isAllocator(name))
       {
-         allocator = rm.makeAllocator<umpire::strategy::DynamicPool>(
+         allocator = rm.makeAllocator<umpire::strategy::QuickPool>(
                         name, rm.getAllocator(space));
          owns_allocator = true;
       }
