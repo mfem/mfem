@@ -559,12 +559,9 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    reduced_oper = new ReducedSystemOperator(&M, &S, &H, ess_tdof_list);
 
-   // HypreSmoother *J_hypreSmoother = new HypreSmoother;
-   // J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
-   // J_hypreSmoother->SetPositiveDiagonal(true);
-   HypreBoomerAMG *J_hypreSmoother = new HypreBoomerAMG;
-   J_hypreSmoother->SetPrintLevel(-1);
-   J_prec = J_hypreSmoother;
+   HypreSmoother *J_hypreSmoother = new HypreSmoother;
+   J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
+   J_hypreSmoother->SetPositiveDiagonal(true);
 
    MINRESSolver *J_minres = new MINRESSolver(f.GetComm());
    J_minres->SetRelTol(rel_tol);
