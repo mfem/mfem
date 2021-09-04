@@ -34,10 +34,11 @@ void NewZienkiewiczZhuEstimator::ComputeEstimates()
 {
 
    if (!anisotropic) { aniso_flags.SetSize(0); }
-   total_error = NewZZErrorEstimator(*integ, *solution, flux_order, error_estimates,
-                                  anisotropic ? &aniso_flags : NULL,
-                                  flux_averaging,
-                                  with_coeff);
+   total_error = NewZZErrorEstimator(*integ, *solution, flux_order,
+                                     error_estimates,
+                                     anisotropic ? &aniso_flags : NULL,
+                                     flux_averaging,
+                                     with_coeff);
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }

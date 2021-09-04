@@ -4077,7 +4077,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       Array<int> neighbor_elems;
       GetFaceElements(*mesh, iface, neighbor_elems);
       int num_neighbor_elems = neighbor_elems.Size();
-      
+
       // Array<int> vert;
       // mesh->GetEdgeVertices(iface,vert);
       // cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
@@ -4090,7 +4090,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
 
       // 3. Compute global flux polynomial.
-      
+
 
       // 4. Compute error contribution from face.
       double face_error = 1.0;
@@ -4108,7 +4108,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       error_estimates(ielem) /= counters[ielem];
       error_estimates(ielem) = sqrt(error_estimates(ielem));
       error_estimates(ielem) = 1.0;
-   }   
+   }
 
 #ifdef MFEM_USE_MPI
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);
