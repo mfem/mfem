@@ -38,6 +38,8 @@ jobs:
         os: [ubuntu-18.04]
 
     runs-on: ${{ matrix.os }}
+    # Name should depend on matrix parameters, but we want a 0D matrix here.
+    name: gitignore
 
     steps:
     - name: Cancel Previous Runs
