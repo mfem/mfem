@@ -1868,6 +1868,8 @@ void NCMesh::InitDerefTransforms()
       transforms.embeddings[i].parent = -1;
       transforms.embeddings[i].matrix = 0;
    }
+
+   transforms.orig_elements = NElements;
 }
 
 void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
@@ -4452,12 +4454,18 @@ struct RefType
 } // namespace internal
 
 void CoarseFineTransformations::GetCoarseToFineMap(
-   const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
+   const mfem::Mesh &new_mesh, Table &coarse_to_fine,
    Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
    Array<mfem::Geometry::Type> &ref_type_to_geom,
    bool get_coarse_to_fine_only) const
 {
-   const int fine_ne = embeddings.Size();
+   int fine_ne = embeddings.Size();
+
+   // In the case of derefinement, we want to process only nonghost elements.
+   if (new_mesh.GetLastOperation() == Mesh::Operation::DEREFINE)
+   {
+      fine_ne = orig_elements;
+   }
    int coarse_ne = -1;
    for (int i = 0; i < fine_ne; i++)
    {
@@ -4496,7 +4504,7 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    }
 
    if (get_coarse_to_fine_only) { return; }
-   MFEM_VERIFY(fine_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
+   MFEM_VERIFY(new_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
                "GetCoarseToFineMap is not fully supported for derefined meshes."
                " Set 'get_coarse_to_fine_only=true'.")
 
@@ -4511,7 +4519,7 @@ void CoarseFineTransformations::GetCoarseToFineMap(
       MFEM_ASSERT(num_children > 0, "");
       const int fine_el = cf_j[cf_i[i]].two;
       // Assuming the coarse and the fine elements have the same geometry:
-      const Geometry::Type geom = fine_mesh.GetElementBaseGeometry(fine_el);
+      const Geometry::Type geom = new_mesh.GetElementBaseGeometry(fine_el);
       const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
       pair<map<RefType,int>::iterator,bool> res =
          ref_type_map.insert(
@@ -4541,14 +4549,14 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    ref_type_to_matrix.ShiftUpI();
 }
 
-void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &fine_mesh,
+void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &new_mesh,
                                                    Table &coarse_to_fine) const
 {
    Array<int> coarse_to_ref_type;
    Table ref_type_to_matrix;
    Array<mfem::Geometry::Type> ref_type_to_geom;
    bool get_coarse_to_fine_only = true;
-   GetCoarseToFineMap(fine_mesh, coarse_to_fine, coarse_to_ref_type,
+   GetCoarseToFineMap(new_mesh, coarse_to_fine, coarse_to_ref_type,
                       ref_type_to_matrix, ref_type_to_geom,
                       get_coarse_to_fine_only);
 }
@@ -4566,6 +4574,7 @@ void CoarseFineTransformations::Clear()
       point_matrices[i].SetSize(0, 0, 0);
    }
    embeddings.DeleteAll();
+   orig_elements = -1;
 }
 
 bool CoarseFineTransformations::IsInitialized() const

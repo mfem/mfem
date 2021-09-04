@@ -64,7 +64,11 @@ struct CoarseFineTransformations
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;
 
-   void GetCoarseToFineMap(const Mesh &fine_mesh,
+   /// The number of nonghost elements on the original mesh. This is only
+   /// needed in the case of derefinement.
+   int orig_elements;
+
+   void GetCoarseToFineMap(const Mesh &adapted_mesh,
                            Table &coarse_to_fine,
                            Array<int> &coarse_to_ref_type,
                            Table &ref_type_to_matrix,
