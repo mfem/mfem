@@ -562,6 +562,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    HypreSmoother *J_hypreSmoother = new HypreSmoother;
    J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
    J_hypreSmoother->SetPositiveDiagonal(true);
+   J_prec = J_hypreSmoother;
 
    MINRESSolver *J_minres = new MINRESSolver(f.GetComm());
    J_minres->SetRelTol(rel_tol);
