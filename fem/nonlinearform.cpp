@@ -96,6 +96,7 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    Vector el_x;
    const FiniteElement *fe;
    ElementTransformation *T;
+   DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
 
    double energy = 0.0;
@@ -105,9 +106,10 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
             energy += dnfi[k]->GetElementEnergy(*fe, *T, el_x);
@@ -235,6 +237,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    Vector el_x, el_y;
    const FiniteElement *fe;
    ElementTransformation *T;
+   DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
 
    py = 0.0;
@@ -244,12 +247,14 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
+            if (doftrans) {doftrans->TransformDual(el_y); }
             py.AddElementVector(vdofs, el_y);
          }
       }
@@ -371,6 +376,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    DenseMatrix elmat;
    const FiniteElement *fe;
    ElementTransformation *T;
+   DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
    const Vector &px = Prolongate(x);
 
@@ -388,12 +394,14 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
+            if (doftrans) { doftrans->TransformDual(elmat); }
             Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
          }
