@@ -112,9 +112,9 @@ TEST_CASE("VectorFiniteElement::ProjectRevDiff - 2D")
 
 TEST_CASE("VectorFiniteElement::ProjectRevDiff - 3D")
 {
-   auto mesh3D = Mesh::MakeCartesian3D(2, 1, 1, Element::TETRAHEDRON,
+   auto mesh3D = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON,
                                        2.0, 1.0, 3.0, true);
-   mesh3D.ReorientTetMesh();
+   // mesh3D.ReorientTetMesh();
    mesh3D.EnsureNodes();
 
    VectorFunctionCoefficient vc3D(3, func3D, func3DRevDiff);
@@ -147,27 +147,27 @@ TEST_CASE("VectorFiniteElement::CalcVShape_NDRevDiff - 2D")
 
 TEST_CASE("VectorFiniteElement::CalcVShape_RTRevDiff - 3D")
 {
-   auto mesh3D = Mesh::MakeCartesian3D(2, 1, 1, Element::TETRAHEDRON,
+   auto mesh3D = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON,
                                        2.0, 1.0, 3.0, true);
-   mesh3D.ReorientTetMesh();
+   // mesh3D.ReorientTetMesh();
    mesh3D.EnsureNodes();
    runCalcVShapeRevDiffTest<RT_FECollection>(mesh3D);
 }
 
 TEST_CASE("VectorFiniteElement::CalcVShape_NDRevDiff - 3D")
 {
-   auto mesh3D = Mesh::MakeCartesian3D(2, 1, 1, Element::TETRAHEDRON,
+   auto mesh3D = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON,
                                        2.0, 1.0, 3.0, true);
-   mesh3D.ReorientTetMesh();
+   // mesh3D.ReorientTetMesh();
    mesh3D.EnsureNodes();
    runCalcVShapeRevDiffTest<ND_FECollection>(mesh3D);
 }
 
 TEST_CASE("FiniteElement::CalcPhysCurlShapeRevDiff - 3D")
 {
-   auto mesh3D = Mesh::MakeCartesian3D(2, 2, 1, Element::TETRAHEDRON,
+   auto mesh3D = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON,
                                        2.0, 1.0, 3.0, true);
-   mesh3D.ReorientTetMesh();
+   // mesh3D.ReorientTetMesh();
    mesh3D.EnsureNodes();
    runCalcPhysCurlShapeRevDiffTest(mesh3D);
 }

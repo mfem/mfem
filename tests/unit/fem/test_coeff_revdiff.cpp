@@ -156,9 +156,9 @@ TEST_CASE("CoeffRevDiff::VectorFunctionCoefficient::EvalRevDiff_2D")
 
 TEST_CASE("CoeffRevDiff::VectorFunctionCoefficient::EvalRevDiff_3D")
 {
-   auto mesh3D = Mesh::MakeCartesian3D(1, 1, 1,
+   auto mesh3D = Mesh::MakeCartesian3D(2, 2, 2,
                                        Element::TETRAHEDRON,
-                                       1.0, 1.0, 1.0, true);
+                                       2.0, 1.0, 3.0, true);
    mesh3D.EnsureNodes();
 
    VectorFunctionCoefficient vc3D(3, func3D, func3DRevDiff);
@@ -168,9 +168,9 @@ TEST_CASE("CoeffRevDiff::VectorFunctionCoefficient::EvalRevDiff_3D")
 
 TEST_CASE("CoeffRevDiff::ScalarVectorProductCoefficient::EvalRevDiff_3D")
 {
-   auto mesh3D = Mesh::MakeCartesian3D(1, 1, 1,
+   auto mesh3D = Mesh::MakeCartesian3D(2, 2, 2,
                                        Element::TETRAHEDRON,
-                                       1.0, 1.0, 1.0, true);
+                                       2.0, 1.0, 3.0, true);
    mesh3D.EnsureNodes();
 
    VectorFunctionCoefficient vfc(3, func3D, func3DRevDiff);
