@@ -908,7 +908,10 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
                for (int l=0; l<fes.Size(); ++l)
                {
                   if (elmats(j,l)->Height() == 0) { continue; }
-                  if (doftrans[s]) { doftrans[s]->TransformDual(*elmats(j,l)); }
+                  if (doftrans[j] || doftrans[l])
+                  {
+                     TransformDual(doftrans[j], doftrans[l], *elmats(j,l));
+                  }
                   Grads(j,l)->AddSubMatrix(*vdofs[j], *vdofs[l],
                                            *elmats(j,l), skip_zeros);
                }
