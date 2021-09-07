@@ -303,7 +303,7 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
    hiopInstance.options->SetNumericValue("fixed_var_perturb", 1e-9);
 
    hiopInstance.options->SetNumericValue("mu0", 1e-1);
-   
+
    // 0: no output; 3: not too much
    hiopInstance.options->SetIntegerValue("verbosity_level", print_level);
 
