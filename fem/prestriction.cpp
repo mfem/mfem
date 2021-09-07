@@ -1052,19 +1052,22 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
          {
             interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
             SetFaceDofsScatterIndices1(face,f_ind);
-            if ( face.IsShared() )
+            if ( m==L2FaceValues::DoubleValued )
             {
-               // In the case of ghost non-conforming face the master (coarse)
-               // face is elem1, and the slave face is elem2, so I think we
-               // should permute the dofs of elem2.
-               PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
-            }
-            else
-            {
-               // Contrary to the conforming case, there is no need to call
-               // PermuteFaceL2, the permutation is achieved by the
-               // interpolation operator for simplicity.
-               SetFaceDofsScatterIndices2(face,f_ind);
+               if ( face.IsShared() )
+               {
+                  // In the case of ghost non-conforming face the master (coarse)
+                  // face is elem1, and the slave face is elem2, so I think we
+                  // should permute the dofs of elem2.
+                  PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
+               }
+               else
+               {
+                  // Contrary to the conforming case, there is no need to call
+                  // PermuteFaceL2, the permutation is achieved by the
+                  // interpolation operator for simplicity.
+                  SetFaceDofsScatterIndices2(face,f_ind);
+               }
             }
          }
          f_ind++;
