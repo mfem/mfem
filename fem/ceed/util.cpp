@@ -374,20 +374,6 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    return 0;
 }
 
-int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
-                                         CeedElemRestriction* restr_out)
-{
-   int ierr;
-
-   CeedOperatorField active_field;
-   ierr = CeedOperatorGetActiveField(oper, &active_field); CeedChk(ierr);
-   CeedElemRestriction er;
-   ierr = CeedOperatorFieldGetElemRestriction(active_field, &er); CeedChk(ierr);
-   *restr_out = er;
-
-   return 0;
-}
-
 std::string ceed_path;
 
 const std::string &GetCeedPath()
