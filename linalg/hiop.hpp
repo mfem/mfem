@@ -78,7 +78,7 @@ public:
         constr_vals(m_total), constr_grads(m_total, ntdofs_loc),
         constr_info_is_current(false)
    {
-     MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_HIOP_SIZE_TYPE, MPI_SUM, comm);
+      MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_HIOP_SIZE_TYPE, MPI_SUM, comm);
    }
 #endif
 
@@ -158,7 +158,8 @@ public:
     *  Example: for a vector x of 6 entries (globally) on 3 ranks, the uniform
     *  column partitioning is cols=[0,2,4,6].
     */
-   virtual bool get_vecdistrib_info(hiop::size_type global_n, hiop::index_type *cols);
+   virtual bool get_vecdistrib_info(hiop::size_type global_n,
+                                    hiop::index_type *cols);
 
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm &comm_out)
