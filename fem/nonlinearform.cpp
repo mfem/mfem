@@ -655,7 +655,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
    Array<const FiniteElement *> fe(fes.Size());
    Array<const FiniteElement *> fe2(fes.Size());
    ElementTransformation *T;
-   DofTransformation *doftrans;
+   Array<DofTransformation *> doftrans(fes.Size()); doftrans = nullptr;
 
    by.UseDevice(true);
    by = 0.0;
@@ -675,10 +675,10 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
          T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); ++s)
          {
-            doftrans = fes[s]->GetElementVDofs(i, *(vdofs[s]));
+            doftrans[s] = fes[s]->GetElementVDofs(i, *(vdofs[s]));
             fe[s] = fes[s]->GetFE(i);
             bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
-            if (doftrans) {doftrans->InvTransformPrimal(*el_x[s]); }
+            if (doftrans[s]) {doftrans[s]->InvTransformPrimal(*el_x[s]); }
          }
 
          for (int k = 0; k < dnfi.Size(); ++k)
@@ -689,7 +689,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
             for (int s=0; s<fes.Size(); ++s)
             {
                if (el_y[s]->Size() == 0) { continue; }
-               if (doftrans) {doftrans->TransformDual(*el_y[s]); }
+               if (doftrans[s]) {doftrans[s]->TransformDual(*el_y[s]); }
                by.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
             }
          }
@@ -857,7 +857,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
    Array<const FiniteElement *>fe(fes.Size());
    Array<const FiniteElement *>fe2(fes.Size());
    ElementTransformation * T;
-   DofTransformation *doftrans;
+   Array<DofTransformation *> doftrans(fes.Size()); doftrans = nullptr;
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -894,9 +894,9 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
          for (int s = 0; s < fes.Size(); ++s)
          {
             fe[s] = fes[s]->GetFE(i);
-            doftrans = fes[s]->GetElementVDofs(i, *vdofs[s]);
+            doftrans[s] = fes[s]->GetElementVDofs(i, *vdofs[s]);
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
-            if (doftrans) {doftrans->InvTransformPrimal(*el_x[s]); }
+            if (doftrans[s]) {doftrans[s]->InvTransformPrimal(*el_x[s]); }
          }
 
          for (int k = 0; k < dnfi.Size(); ++k)
@@ -908,7 +908,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
                for (int l=0; l<fes.Size(); ++l)
                {
                   if (elmats(j,l)->Height() == 0) { continue; }
-                  if (doftrans) { doftrans->TransformDual(*elmats(j,l)); }
+                  if (doftrans[s]) { doftrans[s]->TransformDual(*elmats(j,l)); }
                   Grads(j,l)->AddSubMatrix(*vdofs[j], *vdofs[l],
                                            *elmats(j,l), skip_zeros);
                }
