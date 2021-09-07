@@ -131,12 +131,10 @@ public:
     *  When MPI enabled, every rank populates cons, since the constraints are
     *  not distributed.
     */
-   virtual bool eval_cons(const hiop::size_type &n,
-			  const hiop::size_type &m,
+   virtual bool eval_cons(const hiop::size_type &n, const hiop::size_type &m,
                           const hiop::size_type &num_cons,
-			  const hiop::index_type *idx_cons,
-                          const double *x,
-			  bool new_x, double *cons);
+                          const hiop::index_type *idx_cons,
+                          const double *x, bool new_x, double *cons);
 
    /** Evaluates the Jacobian of the subset of constraints indicated by
     *  idx_cons. The idx_cons is assumed to be of size num_cons.
