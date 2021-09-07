@@ -965,7 +965,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          }
       });
    }
-   else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
+   else if ( type==FaceType::Boundary && m==L2FaceValues::SingleValued )
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
