@@ -58,6 +58,23 @@
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
+// 'double' atomicAdd implementation for previous versions of CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
+MFEM_DEVICE double atomicAdd(double *add, double val)
+{
+   unsigned long long int *ptr = (unsigned long long int *) add;
+   unsigned long long int old = *ptr, reg;
+   do
+   {
+      reg = old;
+      old = atomicCAS(ptr, reg,
+                      __double_as_longlong(val + __longlong_as_double(reg)));
+   }
+   while (reg != old);
+   return __longlong_as_double(old);
+}
+#endif
+
 template <typename T>
 MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 {
