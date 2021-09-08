@@ -12,10 +12,16 @@
 # CONTRIBUTING.md for details.
 
 # locals
-_glob_err=${BASELINE_TEST}.err
-_base_diff=${BASELINE_TEST}-${SYS_TYPE}.diff
-_base_patch=${BASELINE_TEST}-${SYS_TYPE}.patch
-_base_out=${BASELINE_TEST}-${SYS_TYPE}.out
+glob_err=${BASELINE_TEST}.err
+# There will be collision between corona and quartz baselines.
+# Once the corresponding files have been generated, we can switch to machine
+# specific ref.
+base=${BASELINE_TEST}-${SYS_TYPE}
+#base=${BASELINE_TEST}-${SYS_TYPE}-${MACHINE_NAME}
+base_diff=${base}.diff
+base_patch=${base}.patch
+base_out=${base}.out
+artifacts_path=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
 
 # prepare
 cd ${BUILD_ROOT}
@@ -27,41 +33,41 @@ mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
 
 # post
-mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
+mkdir ${artifacts_path}
 
-if [[ -s ${_glob_err} ]]
+if [[ -s ${glob_err} ]]
 then
   echo "ERROR during ${BASELINE_TEST} execution";
-  echo "Here is the ${_glob_err} file content";
-  cat ${_glob_err}
-  cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}
+  echo "Here is the ${glob_err} file content";
+  cat ${glob_err}
+  cp ${glob_err} ${artifacts_path}/${glob_err}
   exit 1;
-elif [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
+elif [[ ! -f ${base_patch} && ! -f ${base_out} ]]
 then
   echo "Something went WRONG in ${BASELINE_TEST}:";
-  echo "Either ${_base_patch} or ${_base_out} should exists";
+  echo "Either ${base_patch} or ${base_out} should exists";
   exit 1;
-elif [[ -f ${_base_patch} ]]
+elif [[ -f ${base_patch} ]]
 then
   echo "${BASELINE_TEST}: Differences found, patch generated"
-  cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}
-elif [[ -f ${_base_out} ]]
+  cp ${base_patch} ${artifacts_path}/${base_patch}
+elif [[ -f ${base_out} ]]
 then
   echo "${BASELINE_TEST}: Differences found, replacement file generated"
-  cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}
+  cp ${base_out} ${artifacts_path}/${base_out}
 fi
 
-# _base_diff won't even exist if there is no difference.
-if [[ -f ${_base_diff} ]]
+# base_diff won't even exist if there is no difference.
+if [[ -f ${base_diff} ]]
 then
   echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
-  cat ${_base_diff}
-  cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}
+  cat ${base_diff}
+  cp ${base_diff} ${artifacts_path}/${base_diff}
   # We create a .err file, because that's how we signal that there was a diff.
-  cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/gitlab-${BASELINE_TEST}-${SYS_TYPE}.err
+  cp ${base_diff} ${artifacts_path}/gitlab-${BASELINE_TEST}-${SYS_TYPE}-${MACHINE_NAME}.err
 fi
 
-if [[ ! -s ${_base_diff} ]]
+if [[ ! -s ${base_diff} ]]
 then
   echo "${BASELINE_TEST}: PASSED"
   true
