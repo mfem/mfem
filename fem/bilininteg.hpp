@@ -2676,7 +2676,7 @@ public:
    VectorDiffusionIntegrator(Coefficient &q)
       : Q(&q) { }
 
-   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
+   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir)
       : BilinearFormIntegrator(ir), Q(&q) { }
 
    /** \brief Integrator with scalar coefficient for caller-specified vector
