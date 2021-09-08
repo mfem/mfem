@@ -1148,6 +1148,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          else // ncface >= 0
          {
             face.conformity = FaceConformity::NonConformingSlave;
+            MFEM_ASSERT(inf2%64==0, "unexpected slave face orientation.");
             face.elem_2_orientation = nc_faces_orientation[ncface];
          }
       }
@@ -1178,15 +1179,16 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
    }
    else // Ghost face
    {
-      face.location = FaceLocation::Shared;
       if (e1==-1)
       {
-         face.conformity = FaceConformity::NonConformingMaster;
+         face.location = FaceLocation::NA;
+         face.conformity = FaceConformity::NA;
          face.elem_2_index = -1;
          face.elem_2_orientation = -1;
       }
       else
       {
+         face.location = FaceLocation::Shared;
          face.conformity = FaceConformity::NonConformingSlave;
          face.elem_2_index = -1 - e2;
          face.elem_2_orientation = inf2%64;
