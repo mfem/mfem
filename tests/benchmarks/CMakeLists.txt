@@ -46,7 +46,7 @@ endfunction(add_benchmark)
 
 #-------------------------------------------------------------------------------
 if (MFEM_USE_BENCHMARK)
-    add_benchmark(kernels)
+    add_benchmark(ceed)
     add_benchmark(tmop)
     add_benchmark(vector)
     add_benchmark(virtuals)
