@@ -46,8 +46,20 @@ lassen-build-and-test:
     include: .gitlab/lassen-build-and-test.yml
     strategy: depend
 
+lassen-baseline:
+  stage: sub-pipelines
+  trigger:
+    include: .gitlab/lassen-baseline.yml
+    strategy: depend
+
 corona-build-and-test:
   stage: sub-pipelines
   trigger:
     include: .gitlab/corona-build-and-test.yml
+    strategy: depend
+
+corona-baseline:
+  stage: sub-pipelines
+  trigger:
+    include: .gitlab/corona-baseline.yml
     strategy: depend

@@ -1,0 +1,46 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+stages:
+  - setup
+  - baseline_check
+  - baseline_report
+  - baseline_publish
+
+baselinecheck_mfem_intel_lassen:
+  extends: [.baselinecheck_mfem, .on_lassen]
+
+l_report_baseline:
+  extends: [.on_lassen]
+  stage: baseline_report
+  script:
+    - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-baseline-${CI_COMMIT_REF_SLUG}"
+    - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
+    - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
+    # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
+    - |
+      if [[ -f ${rundir}/*.err ]]
+      then
+        echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/*.err
+        cp ${rundir}/*.err ${rundir}/autotest-email.html
+      fi
+    - git add ${rundir}
+    - git commit -am "Gitlab CI log for baseline on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
+    - git push origin master
+
+baselinepublish_mfem_lassen:
+  extends: [.on_lassen, .rebaseline_mfem]
+
+include:
+  - local: .gitlab/configs/common.yml
+  - local: .gitlab/configs/lassen-config.yml
+  - local: .gitlab/configs/setup-baseline.yml
