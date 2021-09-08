@@ -42,5 +42,5 @@ baselinepublish_mfem_quartz:
 
 include:
   - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/quartz-templates.yml
+  - local: .gitlab/configs/quartz-config.yml
   - local: .gitlab/configs/setup-baseline.yml
