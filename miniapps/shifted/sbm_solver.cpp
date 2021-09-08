@@ -258,11 +258,8 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       }
       vD->Eval(D, Trans, ip);
 
-      double nor_dot_d = nor*D;
-      // If we are clipping inside the domain, ntilde and d vector should be
-      // aligned.
-      if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
-      if (include_cut_cell && nor_dot_d > 0) { nor *= -1; }
+      // Make sure the normal vector is pointing outside the domain.
+      if (!elem1f) { nor *= -1; }
 
       if (elem1f)
       {
@@ -568,11 +565,8 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       }
       vD->Eval(D, Tr, ip);
 
-      double nor_dot_d = nor*D;
-      if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
-      if (include_cut_cell && nor_dot_d > 0) { nor *= -1; }
-      // note here that if we are clipping outside the domain, we will have to
-      // flip the sign if nor_dot_d is positive.
+      // Make sure the normal vector is pointing outside the domain.
+      if (!elem1f) { nor *= -1; }
 
       double hinvdx;
 
@@ -870,11 +864,8 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       vD->Eval(D, Trans, ip);
       vN->Eval(Nhat, Trans, ip, D);
 
-      double nor_dot_d = nor*D;
-      // If we are clipping inside the domain, ntilde and d vector should be
-      // aligned.
-      if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
-      if (include_cut_cell && nor_dot_d > 0) { nor *= -1; }
+      // Make sure the normal vector is pointing outside the domain.
+      if (!elem1f) { nor *= -1; }
 
       if (elem1f)
       {
@@ -1085,11 +1076,8 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
       vD->Eval(D, Tr, ip);
       vN->Eval(Nhat, Tr, ip, D);
 
-      double nor_dot_d = nor*D;
-      if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
-      if (include_cut_cell && nor_dot_d > 0) { nor *= -1; }
-      // note here that if we are clipping outside the domain, we will have to
-      // flip the sign if nor_dot_d is +ve.
+      // Make sure the normal vector is pointing outside the domain.
+      if (!elem1f) { nor *= -1; }
 
       if (elem1f)
       {
