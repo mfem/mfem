@@ -15,6 +15,12 @@
 #include "../general/forall.hpp"
 #include <climits>
 
+#ifdef MFEM_USE_MPI
+
+#include "pfespace.hpp"
+
+#endif
+
 namespace mfem
 {
 
@@ -675,6 +681,19 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      gather_indices(nf*dof)
 {
    if (nf==0) { return; }
+
+#ifdef MFEM_USE_MPI
+
+   // If the underlying finite element space is parallel, ensure the face
+   // neighbor information is generated.
+   if (const ParFiniteElementSpace *pfes
+       = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      pfes->GetParMesh()->ExchangeFaceNbrData();
+   }
+
+#endif
+
    // If fespace == H1
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);

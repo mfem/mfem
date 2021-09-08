@@ -2283,7 +2283,6 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
-   mesh.elements.SetSize(NElements);
    mesh.elements.SetSize(0);
 
    mesh.boundary.SetSize(0);
