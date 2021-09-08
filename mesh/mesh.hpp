@@ -154,13 +154,19 @@ protected:
        ncmesh.cpp, and pncmesh.cpp files and reverse engineer the code.
        What I found about them so far:
        - Their number is faces_info.Size() - GetNumFaces(), this seems to
-         include a lot of irrelevant uninitialized ghost faces.
+         include a lot of irrelevant uninitialized ghost faces. -> wrong
+         Their number cannot be known without counting them, indeed some ghost
+         faces are included in the non-ghost faces... and most of the indices
+         between `GetNumFaces()` and `faces_info.Size()` are unused. So counting
+         is mandatory.
        - Most of the ghost faces only countains -1 in all their attributes
         (that seems to be explained by pncmesh.cpp:1073-1074).
          The technical documentation below wonders if these are master
          non-conforming faces, I think they're probably just ghost ghost cells,
          unused allocated memory space.
          However, I still tag them as MasterNonConforming in GetFaceInformation
+         -> wrong. I tag them with NA, since they don't seem relevant for
+         anything.
        - They seem to be used as a convenience layer only in NCMesh, why not
          using them all the time?
        - Due to clashing conventions:
@@ -172,7 +178,11 @@ protected:
        - It seems that ghost faces are only used for shared non-conforming faces
          where elem1 is master and local. I think non-conforming faces where the
          local face is slave are treated through conforming shared faces. (This
-         hack has to be confirmed)
+         hack has to be confirmed) -> Wrong
+         Most ghost non-conforming master faces are wasted memory space, but
+         sometimes they are real ghost non-conforming slave faces...
+       - Ghost faces, contrary to other non-conforming faces also have
+         orientation that is not necessarily 0.
        */
    struct FaceInfo
    {
