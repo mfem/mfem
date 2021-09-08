@@ -39,6 +39,7 @@ set(SRCS
   complex_fem.cpp
   convergence.cpp
   datacollection.cpp
+  doftrans.cpp
   eltrans.cpp
   estimators.cpp
   fe.cpp
@@ -105,6 +106,7 @@ set(SRCS
   tmop/tmop_pa_w3.cpp
   tmop/tmop_pa_w3_c0.cpp
   tmop_tools.cpp
+  tmop_amr.cpp
   gslib.cpp
   transfer.cpp
   lor.cpp
@@ -118,6 +120,7 @@ set(HDRS
   complex_fem.hpp
   convergence.hpp
   datacollection.hpp
+  doftrans.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
@@ -164,6 +167,7 @@ set(HDRS
   tmop.hpp
   tmop/tmop_pa.hpp
   tmop_tools.hpp
+  tmop_amr.hpp
   gslib.hpp
   transfer.hpp
   lor.hpp

@@ -50,6 +50,7 @@ variables:
   AUTOTEST_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git
   MFEM_DATA_REPO: https://github.com/mfem/data.git
   ARTIFACTS_DIR: artifacts
+  SLURM_OVERLAP: 1
 
 # The pipeline is divided into stages. Usually, jobs in a given stage wait for
 # the preceding stages to complete before to start. However, we sometimes use

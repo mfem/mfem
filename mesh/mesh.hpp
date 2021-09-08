@@ -177,6 +177,7 @@ protected:
    int own_nodes;
 
    static const int vtk_quadratic_tet[10];
+   static const int vtk_quadratic_pyramid[13];
    static const int vtk_quadratic_wedge[18];
    static const int vtk_quadratic_hex[27];
 
@@ -195,6 +196,7 @@ public:
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
    typedef Geometry::Constants<Geometry::PRISM>       pri_t;
+   typedef Geometry::Constants<Geometry::PYRAMID>     pyr_t;
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
@@ -373,10 +375,16 @@ protected:
    void GetLocalTriToWdgTransformation (IsoparametricTransformation &loc,
                                         int i);
    /// Used in GetFaceElementTransformations (...)
+   void GetLocalTriToPyrTransformation (IsoparametricTransformation &loc,
+                                        int i);
+   /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
                                          int i);
    /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToWdgTransformation (IsoparametricTransformation &loc,
+                                         int i);
+   /// Used in GetFaceElementTransformations (...)
+   void GetLocalQuadToPyrTransformation (IsoparametricTransformation &loc,
                                          int i);
 
    /** Used in GetFaceElementTransformations to account for the fact that a
@@ -503,7 +511,7 @@ public:
    Mesh& operator=(Mesh &&mesh);
 
    /// Explicitly delete the copy assignment operator.
-   Mesh& operator=(Mesh &mesh) = delete;
+   Mesh& operator=(const Mesh &mesh) = delete;
 
    /** @name Named mesh constructors.
 
@@ -657,11 +665,15 @@ public:
    int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
    int AddWedge(const int *vi, int attr = 1);
 
+   int AddPyramid(int v1, int v2, int v3, int v4, int v5, int attr = 1);
+   int AddPyramid(const int *vi, int attr = 1);
+
    int AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
               int attr = 1);
    int AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
+   void AddHexAsPyramids(const int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
    int AddElement(Element *elem);
@@ -829,10 +841,16 @@ public:
 
    /** @brief Get the mesh generator/type.
 
+       The purpose of this is to be able to quickly tell what type of elements
+       one has in the mesh. Examination of this bitmask along with knowledge
+       of the mesh dimension can be used to identify which element types are
+       present.
+
        @return A bitmask:
        - bit 0 - simplices are present in the mesh (triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
        - bit 2 - the mesh has wedge elements.
+       - bit 3 - the mesh has pyramid elements.
 
        In parallel, the result takes into account elements on all processors.
    */
@@ -1227,7 +1245,7 @@ public:
        satisfy: v0 < min(v1, v2).
 
        @note Refinement does not work after a call to this method! */
-   virtual void ReorientTetMesh();
+   MFEM_DEPRECATED virtual void ReorientTetMesh();
 
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);

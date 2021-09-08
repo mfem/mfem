@@ -763,6 +763,13 @@ public:
       tdata.New(i*j*k);
    }
 
+   DenseTensor(double *d, int i, int j, int k)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.Wrap(d, i*j*k, false);
+   }
+
    DenseTensor(int i, int j, int k, MemoryType mt)
       : Mk(NULL, i, j)
    {
