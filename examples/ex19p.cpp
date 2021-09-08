@@ -196,6 +196,12 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return 255;
+#endif
+
    // 1. Initialize MPI
    MPI_Session mpi;
    const int myid = mpi.WorldRank();
@@ -438,15 +444,19 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
    // Extract the blocks from the input and output vectors
-   Vector disp_in(k.GetData() + block_trueOffsets[0],
-                  block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_in(k.GetData() + block_trueOffsets[1],
-                  block_trueOffsets[2]-block_trueOffsets[1]);
-
-   Vector disp_out(y.GetData() + block_trueOffsets[0],
+   Vector disp_in;
+   disp_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[0],
                    block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_out(y.GetData() + block_trueOffsets[1],
+   Vector pres_in;
+   pres_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[1],
                    block_trueOffsets[2]-block_trueOffsets[1]);
+
+   Vector disp_out;
+   disp_out.MakeRef(y, block_trueOffsets[0],
+                    block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out;
+   pres_out.MakeRef(y, block_trueOffsets[1],
+                    block_trueOffsets[2]-block_trueOffsets[1]);
 
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
@@ -459,6 +469,9 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
+
+   disp_out.SyncAliasMemory(y);
+   pres_out.SyncAliasMemory(y);
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
@@ -473,7 +486,10 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
       if (!spaces[0]->GetParMesh()->Nonconforming())
       {
+#ifndef HYPRE_USING_CUDA
+         // Not available yet when hypre is built with CUDA
          stiff_prec_amg->SetElasticityOptions(spaces[0]);
+#endif
       }
 
       stiff_prec = stiff_prec_amg;

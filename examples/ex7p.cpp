@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool always_snap = false;
    bool visualization = 1;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&elem_type, "-e", "--elem",
@@ -65,6 +66,8 @@ int main(int argc, char *argv[])
                   "--snap-at-the-end",
                   "If true, snap nodes to the sphere initially and after each refinement "
                   "otherwise, snap only after the last refinement");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -80,7 +83,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Generate an initial high-order (surface) mesh on the unit sphere. The
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Generate an initial high-order (surface) mesh on the unit sphere. The
    //    Mesh object represents a 2D mesh in 3 spatial dimensions. We first add
    //    the elements and the vertices of the mesh, and then make it high-order
    //    by specifying a finite element space for its nodes.
@@ -146,7 +154,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace nodal_fes(mesh, &fec, mesh->SpaceDimension());
    mesh->SetNodalFESpace(&nodal_fes);
 
-   // 4. Refine the mesh while snapping nodes to the sphere. Number of parallel
+   // 5. Refine the mesh while snapping nodes to the sphere. Number of parallel
    //    refinements is fixed to 2.
    for (int l = 0; l <= ref_levels; l++)
    {
@@ -218,7 +226,7 @@ int main(int argc, char *argv[])
       SnapNodes(*pmesh);
    }
 
-   // 5. Define a finite element space on the mesh. Here we use isoparametric
+   // 6. Define a finite element space on the mesh. Here we use isoparametric
    //    finite elements -- the same as the mesh nodes.
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, &fec);
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
@@ -227,7 +235,7 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << size << endl;
    }
 
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    ParLinearForm *b = new ParLinearForm(fespace);
@@ -237,27 +245,27 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
    b->Assemble();
 
-   // 7. Define the solution vector x as a finite element grid function
+   // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
    ParGridFunction x(fespace);
    x = 0.0;
 
-   // 8. Set up the bilinear form a(.,.) on the finite element space
+   // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    and Mass domain integrators.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddDomainIntegrator(new MassIntegrator(one));
 
-   // 9. Assemble the parallel linear system, applying any transformations
-   //    such as: parallel assembly, applying conforming constraints, etc.
+   // 10. Assemble the parallel linear system, applying any transformations
+   //     such as: parallel assembly, applying conforming constraints, etc.
    a->Assemble();
    HypreParMatrix A;
    Vector B, X;
    Array<int> empty_tdof_list;
    a->FormLinearSystem(empty_tdof_list, x, *b, A, X, B);
 
-   // 10. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+   // 11. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre. Extract the parallel grid function x
    //     corresponding to the finite element approximation X. This is the local
    //     solution on each processor.
@@ -273,14 +281,14 @@ int main(int argc, char *argv[])
    delete a;
    delete b;
 
-   // 11. Compute and print the L^2 norm of the error.
+   // 12. Compute and print the L^2 norm of the error.
    double err = x.ComputeL2Error(sol_coef);
    if (myid == 0)
    {
       cout << "\nL2 norm of error: " << err << endl;
    }
 
-   // 12. Save the refined mesh and the solution. This output can be viewed
+   // 13. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -np <np> -m sphere_refined -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -296,7 +304,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 13. Send the solution by socket to a GLVis server.
+   // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -307,7 +315,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 14. Free the used memory.
+   // 15. Free the used memory.
    delete pcg;
    delete amg;
    delete fespace;

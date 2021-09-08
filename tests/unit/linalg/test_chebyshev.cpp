@@ -38,7 +38,7 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       Vector diag(fespace.GetTrueVSize());
       aform.AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag, ess_tdof_list,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list,
                                                        cheb_order);
 
       int n = smoother->Width();
