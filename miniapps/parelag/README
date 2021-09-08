@@ -1,23 +1,23 @@
     Parallel Element Agglomeration Algebraic Multigrid Upscaling and Solvers
-                      (ParElag) Mini-applications in MFEM
+                      (ParELAG) Mini-applications in MFEM
 
 
-ParElag is a library mostly developed at the Center for Applied Scientific
+ParELAG is a library mostly developed at the Center for Applied Scientific
 Computing of Lawrence Livermore National Laboratory, California, USA. It can be
 obtained as a source code from:
 
    http://github.com/LLNL/parelag
 
-This directory contains a miniapp that employs MFEM and ParElag to solve
+This directory contains a miniapp that employs MFEM and ParELAG to solve
 H(curl)- and H(div)-elliptic forms by an element based algebraic multigrid
 (AMGe). It uses: a multilevel hierarchy of de Rham complexes of finite element
-spaces, built by ParElag; Hiptmair-type smoothers, implemented in ParElag; and
+spaces, built by ParELAG; Hiptmair-type smoothers, implemented in ParELAG; and
 AMS (Auxiliary-space Maxwell Solver) or ADS (Auxiliary-space Divergence Solver),
 from HYPRE, for preconditioning or solving on the coarsest levels.
 
 Alternatively, it is possible to precondition or solve the H(div) form on the
 coarsest level via a hybridization approach. However, this is not yet
-implemented in ParElag. Only the hybridization solver that is directly
+implemented in ParELAG. Only the hybridization solver that is directly
 applicable to an H(div)-L^2 mixed (saddle-point) system is currently available.
 
 We recommend viewing MFEM's examples 3 and 4 before viewing this miniapp.
@@ -27,28 +27,31 @@ Installation
 ============
 
 Here, mfem/ denotes the directory, where the MFEM's source code is located and
-parelag/ is respectively the location of the ParElag's source code. For example,
-it may be convenient to have MFEM and ParElag on the same level in the tree of
+parelag/ is respectively the location of the ParELAG's source code. For example,
+it may be convenient to have MFEM and ParELAG on the same level in the tree of
 directories. That is, if the current directory is MFEM's (i.e., mfem/), then
-../parelag/ would be the ParElag's directory.
+../parelag/ would be the ParELAG's directory.
 
-ParElag uses CMake, while MFEM can use GNU Make or CMake. A short instruction is
+ParELAG uses CMake, while MFEM can use GNU Make or CMake. A short instruction is
 provided for both.
 
 Notice that the building procedure is not much complicated by the fact that the
-miniapp is part of MFEM and depend on ParElag, while ParElag itself depends on
+miniapp is part of MFEM and depend on ParELAG, while ParELAG itself depends on
 and uses MFEM.
 
-Note that ParElag needs MFEM with enabled MPI parallelism.
+Note that ParELAG needs MFEM with enabled MPI parallelism (MFEM_USE_MPI) and
+LAPACK (MFEM_USE_LAPACK). Also, the build system is meant to work with the
+source and build directory of MFEM and is not tuned to the case of invoking
+`make install` either for MFEM or for ParELAG.
 
  Using GNU Make
  --------------
 
-MFEM needs to be configured to use ParElag and build its miniapp. Refer to the
+MFEM needs to be configured to use ParELAG and build its miniapp. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
 configuration in mfem/config/. Particularly, MFEM_USE_PARELAG needs to be set to
-YES and PARELAG_DIR needs to point to the location of ParElag (e.g.,
-../parelag/).
+YES and PARELAG_DIR needs to point to the location of ParELAG (e.g.,
+../parelag/). Also, MFEM_USE_LAPACK needs to be set to YES.
 
 Moreover, parelag/configure_library.sh needs to be slightly modified to set
 WORKSPACE, which is the directory that contains parelag/, and the paths to
@@ -56,7 +59,7 @@ compiled (or to be compiled) SuiteSparse, METIS, HYPRE, and MFEM. Refer to
 parelag/INSTALL.
 
 If everything is set correctly, the following commands, in the respective shown
-directories (mfem/ and parelag/), should build ParElag, MFEM, and the miniapps:
+directories (mfem/ and parelag/), should build ParELAG, MFEM, and the miniapps:
 
    mfem/$ make parallel
    parelag/$ ./configure_library.sh
@@ -67,11 +70,11 @@ directories (mfem/ and parelag/), should build ParElag, MFEM, and the miniapps:
  Using CMake
  --------------
 
-MFEM needs to be configured to use ParElag and build its miniapp. Refer to the
+MFEM needs to be configured to use ParELAG and build its miniapp. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
 configuration in mfem/config/. Particularly, MFEM_USE_PARELAG needs to be set to
-ON and PARELAG_DIR needs to point to the location of ParElag (e.g.,
-../parelag/). Also, MFEM_USE_MPI needs to be set to ON.
+ON and PARELAG_DIR needs to point to the location of ParELAG (e.g.,
+../parelag/). Also, MFEM_USE_MPI and MFEM_USE_LAPACK need to be set to ON.
 
 Moreover, parelag/configure_library.sh needs to be slightly modified to set
 WORKSPACE, which is the directory that contains parelag/, and the paths to
@@ -79,7 +82,7 @@ compiled (or to be compiled) SuiteSparse, METIS, HYPRE, and MFEM. Refer to
 parelag/INSTALL.
 
 If everything is set correctly, the following commands, in the respective shown
-directories (mfem/ and parelag/), should build ParElag, MFEM, and the miniapps:
+directories (mfem/ and parelag/), should build ParELAG, MFEM, and the miniapps:
 
    mfem/$ mkdir build
    mfem/$ cd build
@@ -142,7 +145,7 @@ be visualized.
 References
 ==========
 
-ParElag: Parallel Element Agglomeration Algebraic Multigrid Upscaling and
+ParELAG: Parallel Element Agglomeration Algebraic Multigrid Upscaling and
  Solvers, http://github.com/LLNL/parelag
 
 D. Z. Kalchev, P. S. Vassilevski, and U. Villa, “On ParELAG's Parallel Element-
