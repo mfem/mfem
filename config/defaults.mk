@@ -61,7 +61,7 @@ HIP_XLINKER   = -Wl,
 
 ifneq ($(NOTMAC),)
    AR      = ar
-   ARFLAGS = cruv
+   ARFLAGS = crv
    RANLIB  = ranlib
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
@@ -73,7 +73,7 @@ ifneq ($(NOTMAC),)
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
-   ARFLAGS = Scruv
+   ARFLAGS = Scrv
    RANLIB  = ranlib -no_warning_for_no_symbols
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = dylib
