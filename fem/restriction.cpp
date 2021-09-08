@@ -1393,8 +1393,9 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(face.conformity!=Mesh::FaceConformity::NonConformingMaster,
-               "This method should not be used on non-conforming master faces.");
+   MFEM_ASSERT(!(face.IsLocal() && face.IsNonConformingMaster()),
+               "This method should not be used on local non-conforming master "
+               "faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.elem_1_local_face;
@@ -1470,9 +1471,8 @@ void L2FaceRestriction::SetSharedFaceDofsScatterIndices2(
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
-   MFEM_ASSERT(face.IsShared() &&
-               face.conformity==Mesh::FaceConformity::NonConformingSlave,
-               "This method should only be used on non-conforming shared faces.");
+   MFEM_ASSERT(face.IsGhostNonConformingMaster(),
+               "This method should only be used on ghost non-conforming master faces.");
    const int face_id2 = face.elem_2_local_face;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
@@ -1501,7 +1501,7 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
-   MFEM_ASSERT(face.IsShared() && face.IsConforming(),
+   MFEM_ASSERT(face.IsShared() && (face.IsConforming() || face.IsGhost()),
                "This method should only be used on conforming shared faces.");
    const int elem_index = face.elem_2_index;
    const int face_id1 = face.elem_1_local_face;
@@ -1547,8 +1547,8 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(face.conformity!=Mesh::FaceConformity::NonConformingMaster,
-               "This method should not be used on non-conforming master faces.");
+   MFEM_ASSERT(!(face.IsLocal() && face.IsNonConformingMaster()),
+               "This method should not be used on local non-conforming master faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.elem_1_local_face;
@@ -1571,8 +1571,7 @@ void L2FaceRestriction::SetFaceDofsGatherIndices2(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(face.IsLocal() &&
-               face.conformity==Mesh::FaceConformity::NonConformingSlave,
+   MFEM_ASSERT(face.IsLocal() && face.IsNonConformingSlave(),
                "This method should only be used on local non-conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -1633,8 +1632,6 @@ void InterpolationManager::RegisterFaceConformingInterpolation(
    const Mesh::FaceInformation &face,
    int face_index)
 {
-   MFEM_ASSERT(face.IsConforming(),
-               "Registering face as conforming even though it is not.");
    interp_config[face_index] = InterpConfig::conforming;
 }
 
@@ -1646,10 +1643,7 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
                "Registering face as non-conforming even though it is not.");
    const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
    // In the case of non-conforming slave shared face the master face is elem1.
-   const bool is_ghost_slave =
-      (face.conformity == Mesh::FaceConformity::NonConformingSlave &&
-       face.IsShared());
-   const int master_side = is_ghost_slave ? 0 : 1;
+   const int master_side = face.IsGhostNonConformingSlave() ? 0 : 1;
    const int face_key = master_side == 1 ?
                         face.elem_1_local_face + 6*face.elem_2_local_face :
                         face.elem_2_local_face + 6*face.elem_1_local_face ;
