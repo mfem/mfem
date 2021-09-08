@@ -17,10 +17,8 @@ namespace mfem
 
 static void TestSolve(FiniteElementSpace &fespace);
 
-
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
-//
 TEST_CASE("Variable Order FiniteElementSpace",
           "[FiniteElementCollection]"
           "[FiniteElementSpace]"

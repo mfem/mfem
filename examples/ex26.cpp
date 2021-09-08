@@ -105,7 +105,7 @@ private:
       Vector diag(fespace.GetTrueVSize());
       bfs.Last()->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
                                                        *essentialTrueDofs.Last(), 2);
       AddLevel(opr.Ptr(), smoother, true, true);
    }
