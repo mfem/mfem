@@ -76,11 +76,15 @@
 //   Problem 3: level set: Gyroid
 //      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
 //      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 3
+//
+//   Problem 4: level set: Union of doughnut and swiss cheese shapes
+//      mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
 
 #include <fstream>
 #include <iostream>
-#include "dist_solver.hpp"
 #include "../common/mfem-common.hpp"
+#include "dist_solver.hpp"
+#include "sbm_aux.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -251,9 +255,14 @@ int main(int argc, char *argv[])
       ls_coeff = new FunctionCoefficient(sine_ls);
       smooth_steps = 0;
    }
-   else
+   else if (problem == 3)
    {
       ls_coeff = new FunctionCoefficient(Gyroid);
+      smooth_steps = 0;
+   }
+   else if (problem == 4)
+   {
+      ls_coeff = new FunctionCoefficient(doughnut_cheese);
       smooth_steps = 0;
    }
 

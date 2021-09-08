@@ -28,6 +28,29 @@ double point_inside_trigon(const Vector px, Vector p1, Vector p2, Vector p3)
    return (p > 0 && q > 0 && 1-p-q > 0) ? -1.0 : 1.0;
 }
 
+// 1 is inside the doughnut, -1 is outside.
+double doughnut_cheese(const Vector &coord)
+{
+   // map [0,1] to [-1,1].
+   double x = 2*coord(0)-1.0, y = 2*coord(1)-1.0, z = 2*coord(2)-1.0;
+
+   bool doughnut;
+   const double R = 0.8, r = 0.15;
+   const double t = R - std::sqrt(x*x + y*y);
+   doughnut = t*t + z*z - r*r <= 0;
+
+   bool cheese;
+   x = 3.0*x, y = 3.0*y, z = 3.0*z;
+   cheese = (x*x + y*y - 4.0) * (x*x + y*y - 4.0) +
+            (z*z - 1.0) * (z*z - 1.0) +
+            (y*y + z*z - 4.0) * (y*y + z*z - 4.0) +
+            (x*x - 1.0) * (x*x - 1.0) +
+            (z*z + x*x - 4.0) * (z*z + x*x - 4.0) +
+            (y*y - 1.0) * (y*y - 1.0) - 15.0 <= 0.0;
+
+   return (doughnut || cheese) ? 1.0 : -1.0;
+}
+
 /// Analytic distance to the 0 level set. Positive value if the point is inside
 /// the domain, and negative value if outside.
 double dist_value(const Vector &x, const int type)
@@ -102,6 +125,7 @@ double dist_value(const Vector &x, const int type)
       xc -= x;
       return xc.Norml2() - 0.2;
    }
+   else if (type == 8) { return doughnut_cheese(x); }
    else
    {
       MFEM_ABORT(" Function type not implement yet.");

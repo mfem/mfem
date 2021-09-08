@@ -59,9 +59,10 @@
 //              the boundary conditions.
 //     mpirun -np 4 diffusion -rs 2 -o 1 -vis -lst 3
 //
-//   Problem 4: Complex 2D shape:
+//   Problem 4: Complex 2D / 3D shapes:
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
 //     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
+//     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 3 -lst 8 -alpha 10
 //
 //   Problem 5: Circular hole with homogeneous Neumann, triangular hole with
 //            inhomogeneous Dirichlet, and square hole with homogeneous Dirichlet
@@ -205,22 +206,24 @@ int main(int argc, char *argv[])
    Dist_Level_Set_Coefficient *neumann_dist_coef = NULL;
    Combo_Level_Set_Coefficient combo_dist_coef;
 
+   ParGridFunction level_set_gf(&pfespace);
    ShiftedFaceMarker marker(pmesh, pfespace, include_cut_cell);
    Array<int> elem_marker;
 
    // Dirichlet level-set.
    if (dirichlet_level_set_type > 0)
    {
-      // ParGridFunction for level_set_value.
-      ParGridFunction dirichlet_level_set_val(&pfespace);
       dirichlet_dist_coef = new Dist_Level_Set_Coefficient(dirichlet_level_set_type);
-      dirichlet_level_set_val.ProjectCoefficient(*dirichlet_dist_coef);
+      const double dx = AvgElementSize(pmesh);
+      PDEFilter filter(pmesh, dx);
+      filter.Filter(*dirichlet_dist_coef, level_set_gf);
+      //level_set_gf.ProjectCoefficient(*dirichlet_dist_coef);
       // Exchange information for ghost elements i.e. elements that share a face
       // with element on the current processor, but belong to another processor.
-      dirichlet_level_set_val.ExchangeFaceNbrData();
+      level_set_gf.ExchangeFaceNbrData();
       // Setup the class to mark all elements based on whether they are located
       // inside or outside the true domain, or intersected by the true boundary.
-      marker.MarkElements(dirichlet_level_set_val, elem_marker);
+      marker.MarkElements(level_set_gf, elem_marker);
       combo_dist_coef.Add_Level_Set_Coefficient(*dirichlet_dist_coef);
    }
 
@@ -230,22 +233,20 @@ int main(int argc, char *argv[])
       MFEM_VERIFY(dirichlet_level_set_type == 5,
                   "The combo level set example has been only set for"
                   " dirichlet_level_set_type == 5.");
-      ParGridFunction dirichlet_level_set_val(&pfespace);
       dirichlet_dist_coef_2 = new Dist_Level_Set_Coefficient(6);
-      dirichlet_level_set_val.ProjectCoefficient(*dirichlet_dist_coef_2);
-      dirichlet_level_set_val.ExchangeFaceNbrData();
-      marker.MarkElements(dirichlet_level_set_val, elem_marker);
+      level_set_gf.ProjectCoefficient(*dirichlet_dist_coef_2);
+      level_set_gf.ExchangeFaceNbrData();
+      marker.MarkElements(level_set_gf, elem_marker);
       combo_dist_coef.Add_Level_Set_Coefficient(*dirichlet_dist_coef_2);
    }
 
    // Neumann level-set.
    if (neumann_level_set_type > 0)
    {
-      ParGridFunction neumann_level_set_val(&pfespace);
       neumann_dist_coef = new Dist_Level_Set_Coefficient(neumann_level_set_type);
-      neumann_level_set_val.ProjectCoefficient(*neumann_dist_coef);
-      neumann_level_set_val.ExchangeFaceNbrData();
-      marker.MarkElements(neumann_level_set_val, elem_marker);
+      level_set_gf.ProjectCoefficient(*neumann_dist_coef);
+      level_set_gf.ExchangeFaceNbrData();
+      marker.MarkElements(level_set_gf, elem_marker);
       combo_dist_coef.Add_Level_Set_Coefficient(*neumann_dist_coef);
    }
 
@@ -378,6 +379,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient *rhs_f = NULL;
    if (dirichlet_level_set_type == 1 || dirichlet_level_set_type == 4 ||
        dirichlet_level_set_type == 5 || dirichlet_level_set_type == 6 ||
+       dirichlet_level_set_type == 8 ||
        neumann_level_set_type == 1 || neumann_level_set_type == 7)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_circle);
@@ -550,13 +552,13 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    Solver *prec = new HypreBoomerAMG;
-   BiCGSTABSolver *bicg = new BiCGSTABSolver(MPI_COMM_WORLD);
-   bicg->SetRelTol(1e-12);
-   bicg->SetMaxIter(2000);
-   bicg->SetPrintLevel(1);
-   bicg->SetPreconditioner(*prec);
-   bicg->SetOperator(*A);
-   bicg->Mult(B, X);
+   BiCGSTABSolver bicg(MPI_COMM_WORLD);
+   bicg.SetRelTol(1e-12);
+   bicg.SetMaxIter(500);
+   bicg.SetPrintLevel(1);
+   bicg.SetPreconditioner(*prec);
+   bicg.SetOperator(*A);
+   bicg.Mult(B, X);
 
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
@@ -575,6 +577,7 @@ int main(int argc, char *argv[])
       ParaViewDataCollection dacol("ParaViewDiffusion", &pmesh);
       dacol.SetLevelsOfDetail(order);
       dacol.RegisterField("distance", &distance);
+      dacol.RegisterField("level_set", &level_set_gf);
       dacol.RegisterField("solution", &x);
       dacol.SetTime(1.0);
       dacol.SetCycle(1);
@@ -632,7 +635,6 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete prec;
-   delete bicg;
    delete normalbcCoef;
    delete nbcCoef;
    delete dbcCoefCombo;
