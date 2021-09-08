@@ -18,9 +18,9 @@ variables:
 # the pipeline, preventing any form of concurrency with other pipelines. This
 # also means that the BUILD_ROOT directory will never be cleaned.
 # TODO: add a clean-up mechanism
-  BUILD_ROOT: ${CI_BUILDS_DIR}/MFEM/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  BUILD_ROOT: ${CI_BUILDS_DIR}/MFEM_${MACHINE_NAME}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
 
-  AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM
+  AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM_${MACHINE_NAME}
 
 # On LLNL's quartz, there is only one allocation shared among jobs in order to
 # save time and resource. This allocation has to be uniquely named so that we
