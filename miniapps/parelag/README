@@ -44,6 +44,10 @@ LAPACK (MFEM_USE_LAPACK). Also, the build system is meant to work with the
 source and build directory of MFEM and is not tuned to the case of invoking
 `make install` either for MFEM or for ParELAG.
 
+Currently, ParELAG is tested, integrated, and working with HYPRE <= 2.15.1.
+It does not currently benefit from the "big int" capabilities in HYPRE, and does
+not handle the "big_j" in the HYPRE >= 2.16.0 matrix structure.
+
  Using GNU Make
  --------------
 
