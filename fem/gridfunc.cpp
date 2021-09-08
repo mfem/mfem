@@ -2257,9 +2257,10 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
       }
       fe = fes->GetBE(i);
       T = fes->GetBdrElementTransformation(i);
-      fes->GetBdrElementDofs(i, dofs);
+      DofTransformation *dof_tr = fes->GetBdrElementDofs(i, dofs);
       lvec.SetSize(fe->GetDof());
       fe->Project(vcoeff, *T, lvec);
+      if (dof_tr) { dof_tr->TransformPrimal(lvec); }
       accumulate_dofs(dofs, lvec, *this, values_counter);
    }
 
