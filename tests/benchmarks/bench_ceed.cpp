@@ -17,55 +17,80 @@
  This benchmark contains the implementation of the CEED's bake-off problems:
  high-order kernels/benchmarks designed to test and compare the performance
  of high-order codes.
+
  See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 */
 
-/// Bake-off Problems (BPs)
-template<typename BFI, int VDIM = 1, bool P_EQ_Q = false>
-struct BakeOffProblem
+struct BakeOff
 {
    const int N, p, q, dim = 3;
+   Mesh mesh;
+   H1_FECollection fec;
+   FiniteElementSpace fes;
+   const Geometry::Type geom_type;
+   IntegrationRules IntRulesGLL;
+   const IntegrationRule *irGLL;
+   const IntegrationRule *ir;
+   ConstantCoefficient one;
+   const int dofs;
+   GridFunction x,y;
+   BilinearForm a;
+   double mdofs;
+
+   BakeOff(int p, int vdim, bool GLL):
+      N(Device::IsEnabled()?32:8),
+      p(p),
+      q(2*p + (GLL?-1:3)),
+      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
+      fec(p, dim, BasisType::GaussLobatto),
+      fes(&mesh, &fec, vdim),
+      geom_type(fes.GetFE(0)->GetGeomType()),
+      IntRulesGLL(0, Quadrature1D::GaussLobatto),
+      irGLL(&IntRulesGLL.Get(geom_type, q)),
+      ir(&IntRules.Get(geom_type, q)),
+      one(1.0),
+      dofs(fes.GetTrueVSize()),
+      x(&fes),
+      y(&fes),
+      a(&fes),
+      mdofs(0.0) {}
+
+   virtual void benchmark() = 0;
+
+   double SumMdofs() const { return mdofs; }
+
+   double MDofs() const { return 1e-6 * dofs; }
+};
+
+/// Bake-off Problems (BPs)
+template<typename BFI, int VDIM = 1, bool GLL = false>
+struct Problem: public BakeOff
+{
    const double rtol = 1e-12;
    const int max_it = 32;
    const int print_lvl = -1;
 
-   Mesh mesh;
-   H1_FECollection fec;
-   FiniteElementSpace fes;
-   const IntegrationRule *ir;
-   const int dofs;
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
-   ConstantCoefficient one;
    LinearForm b;
-   GridFunction x;
-   BilinearForm a;
    OperatorPtr A;
    Vector B, X;
    CGSolver cg;
-   double mdofs;
 
-   BakeOffProblem(int order):
-      N(Device::IsEnabled()?32:8),
-      p(order), q(2*p + (P_EQ_Q ? 0 : 2)),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
-      fec(order, dim),
-      fes(&mesh, &fec, VDIM),
-      ir(&IntRules.Get(fes.GetFE(0)->GetGeomType(), q)),
-      dofs(fes.GetTrueVSize()),
+   Problem(int order):
+      BakeOff(order,VDIM,GLL),
       ess_bdr(mesh.bdr_attributes.Max()),
-      one((ess_bdr=1,fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list), 1.0)),
-      b(&fes),
-      x(&fes),
-      a(&fes),
-      mdofs(0.0)
+      b(&fes)
    {
+      ess_bdr = 1;
+      fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
       b.AddDomainIntegrator(new DomainLFIntegrator(one));
       b.Assemble();
 
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.AddDomainIntegrator(new BFI(one, ir));
+      a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
       a.Assemble();
+      a.Mult(x, y);
 
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
@@ -77,22 +102,18 @@ struct BakeOffProblem
       MFEM_DEVICE_SYNC;
    }
 
-   void benchmark()
+   void benchmark() override
    {
       cg.Mult(B,X);
       MFEM_DEVICE_SYNC;
       mdofs += MDofs() * cg.GetNumIterations();
    }
-
-   double SumMdofs() const { return mdofs; }
-
-   double MDofs() const { return 1e-6 * dofs; }
 };
 
-/// Generic CEED BPi
+/// Bake-off Problems (BPs)
 #define BakeOff_Problem(i,Kernel,VDIM,p_eq_q)\
 static void BP##i(bm::State &state){\
-   BakeOffProblem<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
+   Problem<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
 BENCHMARK(BP##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
@@ -117,59 +138,33 @@ BakeOff_Problem(6,VectorDiffusion,3,true)
 
 
 /// Bake-off Kernels (BKs)
-template <typename BFI, int VDIM = 1, bool P_EQ_Q = false>
-struct BakeOffKernel
+template <typename BFI, int VDIM = 1, bool GLL = false>
+struct Kernel: public BakeOff
 {
-   const int N, p, q, dim = 3;
+   GridFunction y;
 
-   Mesh mesh;
-   H1_FECollection fec;
-   FiniteElementSpace fes;
-   const IntegrationRule *ir;
-   ConstantCoefficient one;
-   const int dofs;
-   GridFunction x, y;
-   BilinearForm a;
-   double mdofs;
-
-   BakeOffKernel(int order):
-      N(Device::IsEnabled()?32:8),
-      p(order), q(2*p + (P_EQ_Q ? 0 : 2)),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
-      fec(order, dim),
-      fes(&mesh, &fec, VDIM),
-      ir(&IntRules.Get(fes.GetFE(0)->GetGeomType(), q)),
-      one(1.0),
-      dofs(fes.GetTrueVSize()),
-      x(&fes),
-      y(&fes),
-      a(&fes),
-      mdofs(0.0)
+   Kernel(int order): BakeOff(order,VDIM,GLL), y(&fes)
    {
       x.Randomize(1);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.AddDomainIntegrator(new BFI(one, ir));
+      a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
       a.Assemble();
       a.Mult(x, y);
       MFEM_DEVICE_SYNC;
    }
 
-   void benchmark()
+   void benchmark() override
    {
       a.Mult(x, y);
       MFEM_DEVICE_SYNC;
       mdofs += MDofs();
    }
-
-   double SumMdofs() const { return mdofs; }
-
-   double MDofs() const { return 1e-6 * dofs; }
 };
 
 /// Generic CEED BKi
-#define BakeOff_Kernel(i,Kernel,VDIM,p_eq_q)\
+#define BakeOff_Kernel(i,KER,VDIM,GLL)\
 static void BK##i(bm::State &state){\
-   BakeOffKernel<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
+   Kernel<KER##Integrator,VDIM,GLL> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
 BENCHMARK(BK##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
