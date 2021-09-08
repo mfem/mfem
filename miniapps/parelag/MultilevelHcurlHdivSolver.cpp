@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 
    if (!myid)
       cout << "-- This is an example of using a geometric-like multilevel "
-           "hierarchy, constructed by ParElag,\n"
+           "hierarchy, constructed by ParELAG,\n"
            "-- to solve respective finite element H(curl) and H(div) forms: \n"
            "(alpha curl u, curl v) + (beta u, v);\n"
            "(alpha div u, div v) + (beta u, v).\n\n";
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    args.AddOption(&tolSVD, "-s", "--svd-tol",
                   "SVD tolerance. It is used for filtering out local linear "
                   "dependencies in the basis construction and extension "
-                  "process in ParElag. Namely, right singular vectors with "
+                  "process in ParELAG. Namely, right singular vectors with "
                   "singular values smaller than this tolerance are removed.");
    args.Parse();
    if (!args.Good())
@@ -299,10 +299,10 @@ int main(int argc, char *argv[])
    // Refine the mesh in parallel.
    const int nDimensions = pmesh->Dimension();
 
-   // This is mainly because AMS and ADS (at least the way ParElag uses them)
+   // This is mainly because AMS and ADS (at least the way ParELAG uses them)
    // are bound to be used in 3D. Note that, for the purpose of demonstration,
    // some of the code below is still constructed in a way that is applicable in
-   // 2D as well, taking into account that case as well. Also, in 2D, ParElag
+   // 2D as well, taking into account that case as well. Also, in 2D, ParELAG
    // defaults to H(div) interpretation of form 1.
    MFEM_VERIFY(nDimensions == 3, "Only 3D problems are currently supported.");
 
@@ -452,7 +452,7 @@ int main(int argc, char *argv[])
    else
    {
       MFEM_VERIFY(nDimensions == 2, "Only 2D or 3D problems are supported "
-                  "by the utilized ParElag.");
+                  "by the utilized ParELAG.");
       if (hcurl)
       {
          MFEM_ABORT("No H(curl) 2D interpretation of form 1 is implemented.");

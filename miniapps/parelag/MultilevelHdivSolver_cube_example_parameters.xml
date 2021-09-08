@@ -1,7 +1,7 @@
 <!-- This is an example parameter list for the MultilevelHdivSolver miniapp.
 -->
 <!-- This is an example of using a geometric-like multilevel hierarchy,
-     constructed by ParElag to solve a finite element H(div) form:
+     constructed by ParELAG to solve a finite element H(div) form:
 
          (alpha div u, div v) + (beta u, v).
 -->

@@ -1,7 +1,7 @@
 <!-- This is an example parameter list for the MultilevelHcurlSolver miniapp.
 -->
 <!-- This is an example of using a geometric-like multilevel hierarchy,
-     constructed by ParElag, to solve a finite element H(curl) form:
+     constructed by ParELAG, to solve a finite element H(curl) form:
 
          (alpha curl u, curl v) + (beta u, v).
 -->
