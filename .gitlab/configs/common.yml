@@ -119,7 +119,7 @@ variables:
     false
   fi
 
-# Actual templates for baseline checks
+# Configurations for baseline checks
 .baselinecheck_mfem:
   stage: baseline_check
   variables:

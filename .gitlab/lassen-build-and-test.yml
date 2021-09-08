@@ -41,5 +41,5 @@ l_report_job_failure:
 
 include:
   - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/lassen-templates.yml
+  - local: .gitlab/configs/lassen-config.yml
   - local: .gitlab/configs/setup-build-and-test.yml

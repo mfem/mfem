@@ -66,5 +66,5 @@ c_report_job_failure:
 
 include:
   - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/corona-templates.yml
+  - local: .gitlab/configs/corona-config.yml
   - local: .gitlab/configs/setup-build-and-test.yml
