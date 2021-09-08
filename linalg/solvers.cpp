@@ -1275,7 +1275,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
    resid = Norm(r);
    MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-   if (print_level >= 0)
+   if (print_level >= 1)
       mfem::out << "   Iteration : " << setw(3) << 0
                 << "   ||r|| = " << resid << '\n';
 
@@ -1296,7 +1296,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       rho_1 = Dot(rtilde, r);
       if (rho_1 == 0)
       {
-         if (print_level >= 0)
+         if (print_level >= 1)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
 
@@ -1333,7 +1333,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
-         if (print_level >= 0)
+         if (print_level >= 1)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||s|| = " << resid << '\n';
          final_norm = resid;
@@ -1341,7 +1341,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          converged = 1;
          return;
       }
-      if (print_level >= 0)
+      if (print_level >= 1)
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
       Monitor(i, resid, r, x);
@@ -1362,7 +1362,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       rho_2 = rho_1;
       resid = Norm(r);
       MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-      if (print_level >= 0)
+      if (print_level >= 1)
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
