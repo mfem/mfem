@@ -1672,9 +1672,13 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
                "The following interpolation operator is only implemented for"
                "lexicographic ordering.");
-   int face_id1 = face.elem_1_local_face;
-   int face_id2 = face.elem_2_local_face;
-   int orientation = face.elem_2_orientation;
+   const int face_id1 = face.elem_1_local_face;
+   const int face_id2 = face.elem_2_local_face;
+   const int orientation = face.elem_2_orientation;
+
+   const bool is_ghost_slave = face.IsGhostNonConformingSlave();
+   const int slave_face_id = is_ghost_slave ? face_id2 : face_id1;
+   const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
 
    // Computation of the interpolation matrix from master
    // (coarse) face to slave (fine) face.
@@ -1716,11 +1720,10 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
             f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
             trace_fe->CalcShape(f_ip, shape);
-            // TODO: choose face_id1/face_id2 in function of info?
-            int li = ToLexOrdering(dim, face_id1, dof1d, i);
+            int li = ToLexOrdering(dim, slave_face_id, dof1d, i);
             for (int j = 0; j < dof; j++)
             {
-               const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
+               const int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
                (*interpolator)(li,lj) = shape(j);
             }
          }
@@ -1741,14 +1744,14 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             const IntegrationPoint &ip = nodes[i];
             f_ip.x = x_min + (x_max - x_min) * ip.x;
             trace_fe->CalcShape(f_ip, shape);
-            int li =  ToLexOrdering(dim, face_id2, dof1d, i);
+            int li =  ToLexOrdering(dim, master_face_id, dof1d, i);
             // We need to permute since the orientation is not
             // in the PointMatrix in 2D.
-            li = PermuteFaceL2(dim, face_id2, face_id1,
+            li = PermuteFaceL2(dim, master_face_id, face_id1,
                                orientation, dof1d, li);
             for (int j = 0; j < dof; j++)
             {
-               const int lj = ToLexOrdering(dim, face_id2, dof1d, j);
+               const int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
                (*interpolator)(li,lj) = shape(j);
             }
          }
