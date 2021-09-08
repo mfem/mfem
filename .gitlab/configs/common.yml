@@ -63,62 +63,6 @@ variables:
   script:
     - lalloc 1 -W 30 -q pdebug tests/gitlab/build_and_test --spec "${SPEC}" --build-root "${BUILD_ROOT}" --data
 
-# Shared script for baseline and sample-run-baseline, the value of BASELINE_TEST
-# differentiates between the two tests.
-.baseline_script: &baseline_script |
-  # locals
-  _glob_err=${BASELINE_TEST}.err
-  _base_diff=${BASELINE_TEST}-${SYS_TYPE}.diff
-  _base_patch=${BASELINE_TEST}-${SYS_TYPE}.patch
-  _base_out=${BASELINE_TEST}-${SYS_TYPE}.out
-  # prepare
-  cd ${BUILD_ROOT}
-  ln -snf ${CI_PROJECT_DIR} mfem
-  cd tests
-  mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
-  # run
-  srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
-  # post
-  mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
-  if [[ -s ${_glob_err} ]]
-  then
-    echo "ERROR during ${BASELINE_TEST} execution";
-    echo "Here is the ${_glob_err} file content";
-    cat ${_glob_err}
-    cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}
-    exit 1;
-  elif [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
-  then
-    echo "Something went WRONG in ${BASELINE_TEST}:";
-    echo "Either ${_base_patch} or ${_base_out} should exists";
-    exit 1;
-  elif [[ -f ${_base_patch} ]]
-  then
-    echo "${BASELINE_TEST}: Differences found, patch generated"
-    cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}
-  elif [[ -f ${_base_out} ]]
-  then
-    echo "${BASELINE_TEST}: Differences found, replacement file generated"
-    cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}
-  fi
-  # _base_diff won't even exist if there is no difference.
-  if [[ -f ${_base_diff} ]]
-  then
-    echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
-    cat ${_base_diff}
-    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}
-    # We create a .err file, because that's how we signal that there was a diff.
-    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/gitlab-${BASELINE_TEST}-${SYS_TYPE}.err
-  fi
-  if [[ ! -s ${_base_diff} ]]
-  then
-    echo "${BASELINE_TEST}: PASSED"
-    true
-  else
-    echo "${BASELINE_TEST}: FAILED"
-    false
-  fi
-
 # Configurations for baseline checks
 .baselinecheck_mfem:
   stage: baseline_check
@@ -126,7 +70,7 @@ variables:
     BASELINE_TEST: baseline
     ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
   script:
-    - *baseline_script
+    - .gitlab/scripts/baseline
   artifacts:
     when: always
     paths:
@@ -139,7 +83,7 @@ variables:
     BASELINE_TEST: sample-runs-baseline
     ADDITIONAL_DIR: ""
   script:
-    - *baseline_script
+    - .gitlab/scripts/baseline
   timeout: 4h
   artifacts:
     when: always
@@ -155,25 +99,4 @@ variables:
     - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
       when: manual
   script:
-    - export PATCH_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.patch
-    - export FULL_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.out
-    - export DIFF_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.diff
-    - cd ${BUILD_ROOT}/tests
-    - |
-      if [[ ! -f "${DIFF_FILE}" ]]
-      then
-          echo "Nothing to be done: no relevant change in baseline"
-          exit 0
-      elif [[ -f "${PATCH_FILE}" ]]
-      then
-          patch "./baseline-${SYS_TYPE}.saved" < "${PATCH_FILE}"
-      elif [[ -f "${FULL_FILE}t" ]]
-      then
-          cp "${FULL_FILE}" "./baseline-${SYS_TYPE}.saved"
-      else
-          echo "File missing: expected ${PATCH_FILE} or ${FULL_FILE}"
-          exit 1
-      fi
-    - git add baseline-${SYS_TYPE}.saved
-    - git commit -m "${SYS_TYPE} rebaselined in GitLab pipeline ${CI_PIPELINE_ID}"
-    - git push origin master
+    - .gitlab/scripts/rebaseline

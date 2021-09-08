@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# locals
+_glob_err=${BASELINE_TEST}.err
+_base_diff=${BASELINE_TEST}-${SYS_TYPE}.diff
+_base_patch=${BASELINE_TEST}-${SYS_TYPE}.patch
+_base_out=${BASELINE_TEST}-${SYS_TYPE}.out
+
+# prepare
+cd ${BUILD_ROOT}
+ln -snf ${CI_PROJECT_DIR} mfem
+cd tests
+mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
+
+# run
+srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+
+# post
+mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
+
+if [[ -s ${_glob_err} ]]
+then
+  echo "ERROR during ${BASELINE_TEST} execution";
+  echo "Here is the ${_glob_err} file content";
+  cat ${_glob_err}
+  cp ${_glob_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_glob_err}
+  exit 1;
+elif [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
+then
+  echo "Something went WRONG in ${BASELINE_TEST}:";
+  echo "Either ${_base_patch} or ${_base_out} should exists";
+  exit 1;
+elif [[ -f ${_base_patch} ]]
+then
+  echo "${BASELINE_TEST}: Differences found, patch generated"
+  cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}
+elif [[ -f ${_base_out} ]]
+then
+  echo "${BASELINE_TEST}: Differences found, replacement file generated"
+  cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}
+fi
+
+# _base_diff won't even exist if there is no difference.
+if [[ -f ${_base_diff} ]]
+then
+  echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
+  cat ${_base_diff}
+  cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}
+  # We create a .err file, because that's how we signal that there was a diff.
+  cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/gitlab-${BASELINE_TEST}-${SYS_TYPE}.err
+fi
+
+if [[ ! -s ${_base_diff} ]]
+then
+  echo "${BASELINE_TEST}: PASSED"
+  true
+else
+  echo "${BASELINE_TEST}: FAILED"
+  false
+fi
