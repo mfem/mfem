@@ -9,11 +9,14 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+variables:
+  MACHINE_NAME: quartz
+
 stages:
   - setup
   - allocate_resource
   - build_and_test
-  - release_resource
+  - release_resource_and_report
 
 # Allocate
 q_allocate_resource:
@@ -71,7 +74,7 @@ q_release_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: release_resource
+  stage: release_resource_and_report
   script:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
@@ -83,15 +86,7 @@ q_report_job_success:
   extends: .on_quartz
   stage: release_resource
   script:
-    - echo "Can only run if all the quartz jobs passed"
-    - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
-    - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
-    - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
-    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
-    - git add ${rundir}
-    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
-    - git push origin master
+    - .gitlab/scripts/report_build_and_test_success
 
 q_report_job_failure:
   variables:
@@ -99,16 +94,7 @@ q_report_job_failure:
   extends: .on_quartz
   stage: release_resource
   script:
-    - echo "Runs if there was at least one failure on quartz"
-    - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
-    - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
-    - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
-    - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
-    - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
-    - git add ${rundir}
-    - git commit -am "Gitlab CI log for baseline on quartz with intel ($(date +%Y-%m-%d))"
-    - git push origin master
+    - .gitlab/scripts/report_build_and_test_failure
 
 include:
   - local: .gitlab/configs/common.yml
