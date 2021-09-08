@@ -43,7 +43,7 @@ struct BakeOffProblem
    OperatorPtr A;
    Vector B, X;
    CGSolver cg;
-   double mdof;
+   double mdofs;
 
    BakeOffProblem(int order):
       N(Device::IsEnabled()?32:8),
@@ -58,7 +58,7 @@ struct BakeOffProblem
       b(&fes),
       x(&fes),
       a(&fes),
-      mdof(0.0)
+      mdofs(0.0)
    {
       b.AddDomainIntegrator(new DomainLFIntegrator(one));
       b.Assemble();
@@ -81,12 +81,12 @@ struct BakeOffProblem
    {
       cg.Mult(B,X);
       MFEM_DEVICE_SYNC;
-      mdof += Dofs() * cg.GetNumIterations();
+      mdofs += MDofs() * cg.GetNumIterations();
    }
 
-   double Mdof() const { return mdof; }
+   double SumMdofs() const { return mdofs; }
 
-   double Dofs() const { return 1e-6 * dofs; }
+   double MDofs() const { return 1e-6 * dofs; }
 };
 
 /// Generic CEED BPi
@@ -94,7 +94,7 @@ struct BakeOffProblem
 static void BP##i(bm::State &state){\
    BakeOffProblem<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);}\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
 BENCHMARK(BP##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// BP1: scalar PCG with mass matrix, q=p+2
@@ -130,7 +130,7 @@ struct BakeOffKernel
    const int dofs;
    GridFunction x, y;
    BilinearForm a;
-   double mdof;
+   double mdofs;
 
    BakeOffKernel(int order):
       N(Device::IsEnabled()?32:8),
@@ -144,7 +144,7 @@ struct BakeOffKernel
       x(&fes),
       y(&fes),
       a(&fes),
-      mdof(0.0)
+      mdofs(0.0)
    {
       x.Randomize(1);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -158,12 +158,12 @@ struct BakeOffKernel
    {
       a.Mult(x, y);
       MFEM_DEVICE_SYNC;
-      mdof += Dofs();
+      mdofs += MDofs();
    }
 
-   double Mdof() const { return mdof; }
+   double SumMdofs() const { return mdofs; }
 
-   double Dofs() const { return 1e-6 * dofs; }
+   double MDofs() const { return 1e-6 * dofs; }
 };
 
 /// Generic CEED BKi
@@ -171,7 +171,7 @@ struct BakeOffKernel
 static void BK##i(bm::State &state){\
    BakeOffKernel<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);}\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
 BENCHMARK(BK##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
