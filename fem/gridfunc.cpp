@@ -4034,6 +4034,21 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
+double poly_x(const Vector & x)
+{
+   return x[0];
+}
+
+double poly_y(const Vector & x)
+{
+   return x[1];
+}
+
+double poly_xy(const Vector & x)
+{
+   return x[0]*x[1];
+}
+
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
                            int flux_order, Vector &error_estimates,
@@ -4041,8 +4056,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            int with_subdomains,
                            bool with_coeff)
 {
+   GradientGridFunctionCoefficient flux(&u);
+
    FiniteElementSpace *ufes = u.FESpace();
-   // ElementTransformation *Transf;
+   ElementTransformation *Transf;
 
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
@@ -4070,6 +4087,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    }
 
    double total_error = 0.0;
+   int num_basis_functions = 4;
+   DenseMatrix A(num_basis_functions,num_basis_functions);
+   Vector b(num_basis_functions);
    for (int iface = 0; iface < nfaces; iface++)
    {
 
@@ -4078,10 +4098,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       GetFaceElements(*mesh, iface, neighbor_elems);
       int num_neighbor_elems = neighbor_elems.Size();
 
-      // Array<int> vert;
-      // mesh->GetEdgeVertices(iface,vert);
-      // cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
-      //      "), elems: " ; neighbor_elems.Print();
+      Array<int> vert;
+      mesh->GetEdgeVertices(iface,vert);
+      cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
+           "), elems: " ; neighbor_elems.Print();
 
       // 2. Check if boundary face and continue if true.
       if (num_neighbor_elems < 2)
@@ -4090,16 +4110,87 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
 
       // 3. Compute global flux polynomial.
+      ConstantCoefficient one(1.0);
+      FunctionCoefficient x(poly_x);
+      FunctionCoefficient y(poly_y);
+      FunctionCoefficient xy(poly_xy);
 
+      // loop through all elements in patch
+      A = 0.0;
+      b = 0.0;
+      for (int i = 0; i < num_neighbor_elems; i++)
+      {
+         
+         int ielem = neighbor_elems[i];
+         Transf = ufes->GetElementTransformation(i);
+
+         const IntegrationRule &ir = IntRules.Get(mesh->GetElementGeometry(ielem), flux_order);
+         DenseMatrix flux_vals;
+         flux.Eval(flux_vals, *Transf, ir);
+
+         cout << "flux_vals.Size() = " << flux_vals.Size() << endl;
+         flux_vals.PrintMatlab();
+
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(j);
+            Vector p(num_basis_functions);
+
+            p(0) = 1.0;
+            p(1) = x.Eval(*Transf, ip);
+            p(2) = y.Eval(*Transf, ip);
+            p(3) = xy.Eval(*Transf, ip);
+
+            for (int l = 0; l < num_basis_functions; l++)
+            {
+               for (int m = 0; m < num_basis_functions; m++)
+               {
+                  A(l,m) += p(l) * p(m);
+               }
+               // only x-component (for now)
+               b(l) += p(l) * flux_vals(1,j);
+            }
+
+         
+            // std::cout << "element number = " << ielem << "   ip.x = " << ip.x << "   ip.y = " << ip.y << std::endl;
+            // std::cout << "x (poly) = " << p(1) << "   y (poly) = " << p(2) << "   xy (poly) = " << p(3) << std::endl;
+            // std::cin.get();
+
+         }
+
+      }
+
+      // Solve for polynomial coefficients
+      A.PrintMatlab();
+      b.Print();
+      
+      LinearSolve(A, b);
+      b.Print();
+      std::cin.get();
+
+
+      // Construct l2-minimizing global polynomial
+      auto global_poly_tmp = [=] (const Vector & x)
+      {
+         return b(0) + b(1) * x(0) + b(2) * x(1) + b(3) * x(0) * x(1);
+      };
+      FunctionCoefficient global_poly(global_poly_tmp);
 
       // 4. Compute error contribution from face.
-      double face_error = 1.0;
+      double face_error = 0.0;
+      for (int i = 0; i < num_neighbor_elems; i++)
+      {
+         face_error += 1.0;
+         // face_error += blfi.ComputeFluxEnergy(*ffes->GetFE(i), *Transf, fl, NULL);
+      }
+      // double face_error = ComputeLpError(2.0, global_poly, error, NULL, NULL, irs);
       total_error += face_error;
 
-      for (int jelem = 0; jelem < num_neighbor_elems; jelem++)
+      for (int i = 0; i < num_neighbor_elems; i++)
       {
-         error_estimates(neighbor_elems[jelem]) += face_error;
-         counters[neighbor_elems[jelem]] += 1;
+         int ielem = neighbor_elems[i];
+         error_estimates(ielem) += face_error;
+         counters[ielem] += 1;
       }
    }
 

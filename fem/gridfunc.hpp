@@ -900,6 +900,10 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         int with_subdomains = 1,
                         bool with_coeff = false);
 
+double poly_x(const Vector & x);
+double poly_y(const Vector & x);
+double poly_xy(const Vector & x);
+
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
                            int flux_order,
