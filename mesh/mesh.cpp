@@ -5159,6 +5159,11 @@ int Mesh::GetNFbyType(FaceType type) const
          FaceInformation face = GetFaceInformation(f);
          if ( face.IsOfFaceType(type) )
          {
+            if (face.IsLocal() && face.IsNonConformingMaster())
+            {
+               // We don't count local non-conforming master faces.
+               continue;
+            }
             nf++;
          }
       }
