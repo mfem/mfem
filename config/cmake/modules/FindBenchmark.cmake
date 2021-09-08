@@ -15,7 +15,7 @@
 #   - BENCHMARK_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-mfem_find_package(BENCHMARK BENCHMARK BENCHMARK_DIR
+mfem_find_package(Benchmark BENCHMARK BENCHMARK_DIR
         "include" "benchmark/benchmark.h"
         "lib" "benchmark"
         "Paths to headers required by Google Benchmark."
