@@ -1297,12 +1297,13 @@ public:
 
    /** This enumerated type is used to describe interior, boundary, or shared
        interior faces. */
-   enum class FaceLocation {Local, Shared, Boundary};
+   enum class FaceLocation {Local, Shared, Boundary, NA};
    /** This enumerated type is used to describe if a face is a conforming face,
        a non-conforming slave face, or a non-conforming master face. */
    enum class FaceConformity {Conforming,
                               NonConformingMaster,
-                              NonConformingSlave
+                              NonConformingSlave,
+                              NA
                              };
    /** @brief This structure is used as a human readable output format that
        decipheres the information contained in Mesh::FaceInfo when using the
@@ -1323,11 +1324,11 @@ public:
       int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
       int ncface;
 
-      /** @brief return true if the face is either an interior or
-          shared-interior face, and not a non-conforming master face. */
+      /** @brief return true if the face is either an local or shared interior
+          face. */
       bool IsInterior() const
       {
-         return conformity!=Mesh::FaceConformity::NonConformingMaster &&
+         return conformity!=Mesh::FaceConformity::NA &&
                 (location==Mesh::FaceLocation::Local ||
                  location==Mesh::FaceLocation::Shared);
       }
@@ -1348,8 +1349,7 @@ public:
           non-conforming master face. */
       bool IsBoundary() const
       {
-         return conformity!=Mesh::FaceConformity::NonConformingMaster &&
-                location==Mesh::FaceLocation::Boundary;
+         return location==Mesh::FaceLocation::Boundary;
       }
 
       /// @brief Return true if the face is of the same type as @a type.
@@ -1370,11 +1370,38 @@ public:
          return conformity==Mesh::FaceConformity::Conforming;
       }
 
+      /// @brief Return true if the face is a non-conforming slave face.
+      bool IsNonConformingSlave() const
+      {
+         return conformity==Mesh::FaceConformity::NonConformingSlave;
+      }
+
+      /// @brief Return true if the face is a non-conforming master face.
+      bool IsNonConformingMaster() const
+      {
+         return conformity==Mesh::FaceConformity::NonConformingMaster;
+      }
+
       /// @brief Return true if the face is a ghost face.
       bool IsGhost() const
       {
          return location==Mesh::FaceLocation::Shared &&
-                conformity!=Mesh::FaceConformity::Conforming;
+                (conformity==Mesh::FaceConformity::NonConformingSlave ||
+                 conformity==Mesh::FaceConformity::NonConformingMaster);
+      }
+
+      /// @brief Return true if the face is a ghost non-conforming slave face.
+      bool IsGhostNonConformingSlave() const
+      {
+         return location==Mesh::FaceLocation::Shared &&
+                conformity==Mesh::FaceConformity::NonConformingSlave;
+      }
+
+      /// @brief Return true if the face is a ghost non-conforming master face.
+      bool IsGhostNonConformingMaster() const
+      {
+         return location==Mesh::FaceLocation::Shared &&
+                conformity==Mesh::FaceConformity::NonConformingMaster;
       }
 
       /// @brief Print function for FaceInformation.
@@ -1392,6 +1419,9 @@ public:
             case Mesh::FaceLocation::Boundary:
                os << "Boundary";
                break;
+            case Mesh::FaceLocation::NA:
+               os << "NA";
+               break;
          }
          os << std::endl;
          os << "conformity=";
@@ -1406,7 +1436,8 @@ public:
             case Mesh::FaceConformity::NonConformingSlave:
                os << "NonConformingSlave";
                break;
-            default:
+            case Mesh::FaceConformity::NA:
+               os << "NA";
                break;
          }
          os << std::endl;
