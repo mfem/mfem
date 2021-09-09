@@ -185,7 +185,12 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if ( face.IsOfFaceType(type) )
+         if (face.IsLocal() && face.IsNonConformingMaster())
+         {
+            // We skip local non-conforming master faces
+            continue;
+         }
+         else if ( face.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f,5);
@@ -240,7 +245,12 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if ( face.IsOfFaceType(type) )
+         if (face.IsLocal() && face.IsNonConformingMaster())
+         {
+            // We skip local non-conforming master faces
+            continue;
+         }
+         else if ( face.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
