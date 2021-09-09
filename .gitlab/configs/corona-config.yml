@@ -10,6 +10,8 @@
 # CONTRIBUTING.md for details.
 
 # GitLab pipeline configuration for the Corona machine at LLNL
+variables:
+  MACHINE_NAME: corona
 
 .on_corona:
   tags:
