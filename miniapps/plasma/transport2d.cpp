@@ -1837,7 +1837,7 @@ int main(int argc, char *argv[])
    }
    */
 
-   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes,
+   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes, fes_h1,
                        offsets, yGF, kGF,
                        bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp,
                        term_flags, vis_flags, imex, op_flag, logging);
