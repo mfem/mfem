@@ -33,6 +33,9 @@ Version 4.3.1 (development)
   output format if no physical groups are defined) are now successfully loaded,
   and elements are reassigned attribute number 1.
 
+- Fixed several MinGW build issues on Windows.
+
+
 Version 4.3, released on July 29, 2021
 ======================================
 
