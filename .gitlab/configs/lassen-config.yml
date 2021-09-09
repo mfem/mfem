@@ -10,6 +10,8 @@
 # CONTRIBUTING.md for details.
 
 # GitLab pipelines configurations for the Lassen machine at LLNL
+variables:
+  MACHINE_NAME: lassen
 
 .on_lassen:
   tags:

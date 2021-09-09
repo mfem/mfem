@@ -10,6 +10,8 @@
 # CONTRIBUTING.md for details.
 
 # GitLab pipelines configurations for the Quartz machine at LLNL
+variables:
+  MACHINE_NAME: quartz
 
 .on_quartz:
   tags:
