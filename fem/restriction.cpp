@@ -1667,7 +1667,6 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
 const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    const Mesh::FaceInformation &face,
    const DenseMatrix* ptMat)
-
 {
    MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
                "The following interpolation operator is only implemented for"
