@@ -160,7 +160,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    {
       // Interpolation from slave to master face dofs
       // FIXME: Currently this is modifying `x`, otherwise we need a temporary?
-      // TODO: Consider different algorithm
+      // TODO: Consider different algorithm, store temp in InterpolationManager
       auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
@@ -238,7 +238,13 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if (type==FaceType::Interior && face.IsInterior())
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if (type==FaceType::Interior && face.IsInterior())
       {
          if ( face.IsConforming() )
          {
@@ -248,7 +254,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          }
          else // Non-conforming face
          {
-            if (face.IsShared())
+            if (face.IsGhostNonConformingSlave())
             {
                // In this case the local face is the master (coarse) face, thus
                // we need to interpolate the values on the slave (fine) face.
@@ -294,7 +300,13 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if (face.IsOfFaceType(type))
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if (face.IsOfFaceType(type))
       {
          SetFaceDofsGatherIndices(face, f_ind, ordering);
          f_ind++;
@@ -1166,7 +1178,13 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( type==FaceType::Interior && face.IsInterior() )
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if ( type==FaceType::Interior && face.IsInterior() )
       {
          if ( face.IsConforming() )
          {
@@ -1190,12 +1208,19 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
             SetFaceDofsScatterIndices1(face,f_ind);
             if ( m==L2FaceValues::DoubleValued )
             {
-               if ( face.IsShared() )
+               if ( face.IsGhostNonConformingSlave() )
                {
                   // In the case of ghost non-conforming face the master (coarse)
                   // face is elem1, and the slave face is elem2, so I think we
                   // should permute the dofs of elem2.
                   PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
+               }
+               else if( face.IsGhostNonConformingMaster() )
+               {
+                  // Contrary to the conforming case, there is no need to call
+                  // PermuteFaceL2, the permutation is achieved by the
+                  // interpolation operator for simplicity.
+                  SetSharedFaceDofsScatterIndices2(face,f_ind);
                }
                else
                {
@@ -1243,7 +1268,13 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsOfFaceType(type) )
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(face,f_ind);
          if (m==L2FaceValues::DoubleValued &&
