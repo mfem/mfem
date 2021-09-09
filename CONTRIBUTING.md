@@ -323,10 +323,8 @@ Before you can start, you need a GitHub account, here are a few suggestions:
     change the code by default.
 
 - Code specifics
-  - All new public classes, methods and functions have Doxygen-style
-    documentation in source comments.
-  - All new private classes, methods and functions have documentation in source
-    comments (Doxygen-style is optional).
+  - All new public, protected, and private classes, methods, data members, and
+    functions have Doxygen-style documentation in source comments.
   - Consistent code styling is enforced with `make style` in the top-level
     directory. This requires [Artistic Style](http://astyle.sourceforge.net) (we
     specifically use version 2.05.1). See also the file `config/mfem.astylerc`.
@@ -452,8 +450,7 @@ Before a PR can be merged, it should satisfy the following:
      - [ ] The miniapps go at the end of the page, and are usually listed only under a specific "Application (PDE)" category.
      - [ ] Add a short description of the miniapp in the "Extensive Examples" section of `features.md`.
 - [ ] New capability:
-   - [ ] All new public classes, methods and functions have full Doxygen-style documentation in source comments. Documentation should include descriptions of member data, function arguments and return values, and prerequisites for calling new functions.
-   - [ ] All new private classes, methods and functions have similar documentation to their public counterparts though not necessarily Doxygen-style. 
+   - [ ] All new public, protected, and private classes, methods, data members, and functions have full Doxygen-style documentation in source comments. Documentation should include descriptions of member data, function arguments and return values, template parameters, and prerequisites for calling new functions.
    - [ ] Consider adding new sample runs in existing examples to highlight the new capability.
    - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery (LLNL only) or submitting them, via pull request, to the gallery section of the `mfem/web` repo.
    - [ ] If this is a major new feature, consider mentioning it in the short summary inside `README` *(rare)*.
