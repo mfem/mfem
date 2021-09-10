@@ -565,10 +565,10 @@ public:
 
    /** Compute the Lp error in one specific element of the mesh. */
    virtual double ComputeElementLpError(int ielem,
-                                   const double p, Coefficient &exsol,
-                                   Coefficient *weight = NULL,
-                                   const IntegrationRule *irs[] = NULL
-                                   ) const;
+                                        const double p, Coefficient &exsol,
+                                        Coefficient *weight = NULL,
+                                        const IntegrationRule *irs[] = NULL
+                                       ) const;
 
    virtual void ComputeElementL1Errors(Coefficient &exsol,
                                        Vector &error,

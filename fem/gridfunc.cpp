@@ -3346,9 +3346,9 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
 }
 
 double GridFunction::ComputeElementLpError(int ielem,
-                                          const double p, Coefficient &exsol,
-                                          Coefficient *weight,
-                                          const IntegrationRule *irs[]) const
+                                           const double p, Coefficient &exsol,
+                                           Coefficient *weight,
+                                           const IntegrationRule *irs[]) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -4129,8 +4129,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
-         int flux_order = ffes->GetElementOrder(ielem) + 1;    
-         const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem), flux_order));
+         int flux_order = ffes->GetElementOrder(ielem) + 1;
+         const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                    flux_order));
 
          ufes->GetElementVDofs(ielem, udofs);
          ffes->GetElementVDofs(ielem, fdofs);
@@ -4166,7 +4167,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                }
             }
 
-         
+
             // std::cout << "element number = " << ielem << "   ip.x = " << ip.x << "   ip.y = " << ip.y << std::endl;
             // std::cout << "x (poly) = " << p(1) << "   y (poly) = " << p(2) << "   xy (poly) = " << p(3) << std::endl;
             // std::cin.get();
@@ -4185,7 +4186,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             cout << b[l + n * num_basis_functions] << endl;
          }
       }
-      
+
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
       double TOL = 1e-9;
@@ -4241,7 +4242,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          ZZflux.GetSubVector(fdofs, fla);
          fl -= fla;
-         double elem_error = blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl, NULL);                  
+         double elem_error = blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
+                                                    NULL);
 
          patch_error += elem_error * elem_error;
       }
