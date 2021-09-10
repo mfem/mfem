@@ -48,6 +48,9 @@
 #include <fstream>
 #include "mesh-optimizer.hpp"
 
+#define MFEM_DEBUG_COLOR 206
+#include "../../general/debug.hpp"
+
 using namespace mfem;
 using namespace std;
 
@@ -80,7 +83,7 @@ int main (int argc, char *argv[])
    bool move_bnd         = true;
    int combomet          = 0;
    bool normalization    = false;
-   bool visualization    = true;
+   bool visualization    = false;
    int verbosity_level   = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
@@ -203,22 +206,22 @@ int main (int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&benchmark, "-bm", "--bm", "-no-bm",
-                  "--no-bm",
+   args.AddOption(&benchmark, "-bm", "--benchmark", "-no-bm",
+                  "--no-benchmark",
                   "Apply benchmark modification.");
-   args.AddOption(&benchmarkid, "-bm_id", "--bm_id",
+   args.AddOption(&benchmarkid, "-bm_id", "--benchmark_id",
                   "1 = kershaw, 2 is stretching.");
    args.AddOption(&ls_scale, "-scale", "--scale",
                   "Initial line search scale");
    args.AddOption(&partition_type, "-pt", "--partition",
-                     "Customized x/y/z Cartesian MPI partitioning of the serial mesh.\n\t"
-                     "Here x,y,z are relative task ratios in each direction.\n\t"
-                     "Example: with 48 mpi tasks and -pt 321, one would get a Cartesian\n\t"
-                     "partition of the serial mesh by (6,4,2) MPI tasks in (x,y,z).\n\t"
-                     "NOTE: the serially refined mesh must have the appropriate number\n\t"
-                     "of zones in each direction, e.g., the number of zones in direction x\n\t"
-                     "must be divisible by the number of MPI tasks in direction x.\n\t"
-                     "Available options: 11, 21, 111, 211, 221, 311, 321, 322, 432.");
+                  "Customized x/y/z Cartesian MPI partitioning of the serial mesh.\n\t"
+                  "Here x,y,z are relative task ratios in each direction.\n\t"
+                  "Example: with 48 mpi tasks and -pt 321, one would get a Cartesian\n\t"
+                  "partition of the serial mesh by (6,4,2) MPI tasks in (x,y,z).\n\t"
+                  "NOTE: the serially refined mesh must have the appropriate number\n\t"
+                  "of zones in each direction, e.g., the number of zones in direction x\n\t"
+                  "must be divisible by the number of MPI tasks in direction x.\n\t"
+                  "Available options: 11, 21, 111, 211, 221, 311, 321, 322, 432.");
    args.Parse();
    if (!args.Good())
    {
@@ -231,8 +234,8 @@ int main (int argc, char *argv[])
    if (myid == 0) { device.Print();}
 
    quad_order = mesh_poly_deg + 4;
-//   quad_order = 8;
-//   quad_order = mesh_poly_deg*2;
+   //   quad_order = 8;
+   //   quad_order = mesh_poly_deg*2;
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -256,14 +259,14 @@ int main (int argc, char *argv[])
    int *nxyz = new int[dim];
    switch (partition_type)
    {
-     case 0:
-        for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
-        break;
-     case 11:
-     case 111:
-        unit = static_cast<int>(floor(pow(num_procs, 1.0 / dim) + 1e-2));
-        for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
-        break;
+      case 0:
+         for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
+         break;
+      case 11:
+      case 111:
+         unit = static_cast<int>(floor(pow(num_procs, 1.0 / dim) + 1e-2));
+         for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
+         break;
       case 211: // 3D.
          unit = static_cast<int>(floor(pow(num_procs / 2, 1.0 / 3) + 1e-2));
          nxyz[0] = 2 * unit; nxyz[1] = 1 * unit; nxyz[2] = 1 * unit;
@@ -272,35 +275,35 @@ int main (int argc, char *argv[])
          unit = static_cast<int>(floor(pow(num_procs / 4, 1.0 / 3) + 1e-2));
          nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = 1 * unit;
          break;
-     default:
-        if (myid == 0)
-        {
-           cout << "Unknown partition type: " << partition_type << '\n';
-        }
-        delete mesh;
-        MPI_Finalize();
-        return 3;
+      default:
+         if (myid == 0)
+         {
+            cout << "Unknown partition type: " << partition_type << '\n';
+         }
+         delete mesh;
+         MPI_Finalize();
+         return 3;
    }
    int product = 1;
    for (int d = 0; d < dim; d++) { product *= nxyz[d]; }
    if (product == num_procs)
    {
-     int *partitioning = mesh->CartesianPartitioning(nxyz);
-     pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
-     delete [] partitioning;
+      int *partitioning = mesh->CartesianPartitioning(nxyz);
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
+      delete [] partitioning;
    }
    else
    {
-     if (myid == 0)
-     {
-        cout << "Non-Cartesian partitioning through METIS will be used.\n";
+      if (myid == 0)
+      {
+         cout << "Non-Cartesian partitioning through METIS will be used.\n";
 #ifndef MFEM_USE_METIS
-        cout << "MFEM was built without METIS. "
-             << "Adjust the number of tasks to use a Cartesian split." << endl;
+         cout << "MFEM was built without METIS. "
+              << "Adjust the number of tasks to use a Cartesian split." << endl;
 #endif
-     }
+      }
 #ifndef MFEM_USE_METIS
-     return 1;
+      return 1;
 #endif
       pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    }
@@ -403,7 +406,7 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      pmesh->PrintAsOne(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Add benchmark transformation
@@ -441,7 +444,7 @@ int main (int argc, char *argv[])
          }
          else if (benchmarkid == 4)
          {
-             kershaw8(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+            kershaw8(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
          }
 
          for (int d = 0; d < dim; d++)
@@ -456,7 +459,7 @@ int main (int argc, char *argv[])
          mesh_name << "perturbed.mesh";
          ofstream mesh_ofs(mesh_name.str().c_str());
          mesh_ofs.precision(8);
-//         pmesh->PrintAsOne(mesh_ofs);
+         //         pmesh->PrintAsOne(mesh_ofs);
       }
    }
 
@@ -902,20 +905,37 @@ int main (int argc, char *argv[])
 
    if (pa) { a.Setup(); }
 
+   // Perform the nonlinear optimization.
+   const IntegrationRule &ir =
+      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   solver.SetInitialScale(ls_scale);
+
    // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
-   const int NE = pmesh->GetNE();
-   for (int i = 0; i < NE; i++)
+#if 0
    {
-      const IntegrationRule &ir =
-         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh->GetElementTransformation(i);
-      for (int j = 0; j < ir.GetNPoints(); j++)
+      const int NE = pmesh->GetNE();
+      for (int i = 0; i < NE; i++)
       {
-         transf->SetIntPoint(&ir.IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
+         const IntegrationRule &ir =
+            irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+         ElementTransformation *transf = pmesh->GetElementTransformation(i);
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            transf->SetIntPoint(&ir.IntPoint(j));
+            tauval = min(tauval, transf->Jacobian().Det());
+         }
       }
    }
+#else
+   static Vector x_out_loc(pfespace->GetVSize());
+   pfespace->GetProlongationMatrix()->Mult(x, x_out_loc);
+   tauval = dim == 2 ? solver.MinDetJpr_2D(pfespace,x_out_loc):
+            dim == 3 ? solver.MinDetJpr_3D(pfespace,x_out_loc): -1.0;
+   //dbg("tauval: %.15e, det: %.15e",tauval, det);
+#endif
+
    double minJ0;
    MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    tauval = minJ0;
@@ -1054,11 +1074,6 @@ int main (int argc, char *argv[])
 
    StopWatch TimeSolver;
 
-   // Perform the nonlinear optimization.
-   const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   solver.SetInitialScale(ls_scale);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -1082,12 +1097,12 @@ int main (int argc, char *argv[])
    TimeSolver.Stop();
    x.SetFromTrueVector();
 
-   double solvertime = TimeSolver.RealTime(),
-          vectortime = solver.GetAssembleElementVectorTime(),
-          gradtime   = solver.GetAssembleElementGradTime(),
-          prectime   = solver.GetPrecMultTime(),
-          processnewstatetime = solver.GetProcessNewStateTime(),
-          scalefactortime = solver.GetComputeScalingTime();
+   const double solvertime = TimeSolver.RealTime(),
+                vectortime = solver.GetAssembleElementVectorTime(),
+                gradtime   = solver.GetAssembleElementGradTime(),
+                prectime   = solver.GetPrecMultTime(),
+                processnewstatetime = solver.GetProcessNewStateTime(),
+                scalefactortime = solver.GetComputeScalingTime();
 
    if (myid == 0 && solver.GetConverged() == false)
    {
@@ -1099,34 +1114,40 @@ int main (int argc, char *argv[])
        NEGlob = pmesh->GetGlobalNE();
    if (myid == 0)
    {
-      std::cout << "Monitoring info      :" << endl <<
-                "Number of elements   :" << NEGlob << endl <<
-                "Number of procs      :" << num_procs << endl <<
-                "Polynomial degree    :" << mesh_poly_deg << endl <<
-                "Total TDofs          :" << NDofs << endl <<
-                std::setprecision(4) <<
-                "Total Iterations     :" << solver.GetNumIterations() << endl <<
-                "Total Solver Time (%):" << solvertime << " " << solvertime*100/solvertime <<
-                endl <<
-                "Assemble Vector Time :" << vectortime << " " << vectortime*100/solvertime <<
-                endl <<
-                "Assemble Grad Time   :" << gradtime << " " << gradtime*100/solvertime <<  endl
-                <<
-                "Prec Solve Time      :" << prectime << " " << prectime*100/solvertime <<  endl
-                <<
-                "ProcessNewState Time :" << processnewstatetime << " " <<
-                processnewstatetime*100/solvertime <<  endl <<
-                "ComputeScale Time    :" << scalefactortime << " " <<
-                scalefactortime*100/solvertime <<  endl;
-       std::cout << "run_info: " << std::setprecision(4) << " " << 
-                    rs_levels << " " << mesh_poly_deg << " " << quad_order << " " << solver_type << " " << 
-		    solver_art_type << " " << lin_solver << " " << max_lin_iter << " " << 
-                    pa << " " << metric_id << " " << num_procs <<
-                    std::setprecision(10) << " " <<
-	            NEGlob << " " << NDofs << " " <<
-                    solver.GetNumIterations() << " " << solvertime << " " << vectortime*100/solvertime << " " <<
-                    gradtime*100/solvertime << " " << prectime*100/solvertime << " " << 
-                    processnewstatetime*100/solvertime << " " << scalefactortime*100/solvertime << endl;
+      std::cout << "Monitoring info      :" << endl
+                << "Number of elements   :" << NEGlob << endl
+                << "Number of procs      :" << num_procs << endl
+                << "Polynomial degree    :" << mesh_poly_deg << endl
+                << "Total TDofs          :" << NDofs << endl
+                << std::setprecision(4)
+                << "Total Iterations     :" << solver.GetNumIterations() << endl
+                << "Total Solver Time (%):" << solvertime << " "
+                << (solvertime*100/solvertime) << endl
+                << "Assemble Vector Time :" << vectortime << " "
+                << (vectortime*100/solvertime) << endl
+                << "Assemble Grad Time   :" << gradtime << " "
+                << gradtime*100/solvertime <<  endl
+                << "Prec Solve Time      :" << prectime << " "
+                << prectime*100/solvertime <<  endl
+                << "ProcessNewState Time :" << processnewstatetime << " "
+                << (processnewstatetime*100/solvertime) <<  endl
+                << "ComputeScale Time    :" << scalefactortime << " "
+                << (scalefactortime*100/solvertime) <<  endl;
+
+      std::cout << "run_info: " << std::setprecision(4) << " "
+                << rs_levels << " "
+                << mesh_poly_deg << " " << quad_order << " "
+                << solver_type << " " <<  solver_art_type << " "
+                << lin_solver << " " << max_lin_iter << " "
+                << pa << " " << metric_id << " " << num_procs
+                << std::setprecision(10) << " "
+                << NEGlob << " " << NDofs << " "
+                << solver.GetNumIterations() << " " << solvertime << " "
+                << (vectortime*100/solvertime) << " "
+                << (gradtime*100/solvertime) << " "
+                << (prectime*100/solvertime) << " "
+                << (processnewstatetime*100/solvertime) << " "
+                << (scalefactortime*100/solvertime) << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
@@ -1136,7 +1157,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      pmesh->PrintAsOne(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 17. Compute the amount of energy decrease.

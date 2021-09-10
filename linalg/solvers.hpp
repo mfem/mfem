@@ -465,10 +465,11 @@ protected:
    double gamma;
    // Eisenstat-Walker factor alpha
    double alpha;
-   mutable StopWatch TimeVector, TimeGrad, TimePrecMult,
-           TimeProcessNewState, TimeComputeScaling;
-
-
+   mutable StopWatch TimeVector,
+           TimeGrad,
+           TimePrecMult,
+           TimeProcessNewState,
+           TimeComputeScaling;
 
    /** @brief Method for the adaptive linear solver rtol invoked before the
        linear solve. */

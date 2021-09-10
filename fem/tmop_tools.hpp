@@ -144,9 +144,9 @@ protected:
 
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
 
+public:
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
-
    double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
    double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 
