@@ -90,6 +90,11 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 
 # Enable languages.
 enable_language(CXX)
+if (MINGW)
+   # MinGW GCC does not expose the functions jn/_jn, yn/_yn (used in Example
+   # 25/25p) unless we use '-std=gnu++11':
+   set(CMAKE_CXX_EXTENSIONS ON)
+endif()
 if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
@@ -428,10 +433,10 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
     SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE MKL_CPARDISO AMGX CALIPER)
+    CUSPARSE MKL_CPARDISO AMGX CALIPER MPI_CXX)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -496,13 +501,9 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
-if (CMAKE_VERSION VERSION_GREATER 2.8.11)
-  target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
-else()
-  target_link_libraries(mfem ${TPL_LIBRARIES})
-endif()
+target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
-  target_link_libraries(mfem ws2_32)
+  target_link_libraries(mfem PRIVATE ws2_32)
 endif()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
