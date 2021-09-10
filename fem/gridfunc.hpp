@@ -558,10 +558,17 @@ public:
        the Vector @a error. The result should be of length number of elements,
        for example an L2 GridFunction of order zero using map type VALUE. */
    virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
-                                       Vector &error,
+                                       Vector &errors,
                                        Coefficient *weight = NULL,
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
+
+   /** Compute the Lp error in one specific element of the mesh. */
+   virtual double ComputeElementLpError(int ielem,
+                                   const double p, Coefficient &exsol,
+                                   Coefficient *weight = NULL,
+                                   const IntegrationRule *irs[] = NULL
+                                   ) const;
 
    virtual void ComputeElementL1Errors(Coefficient &exsol,
                                        Vector &error,
@@ -906,13 +913,14 @@ double poly_xy(const Vector & x);
 
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
-                           int flux_order,
+                           GridFunction &flux,
                            Vector &error_estimates,
-                           Array<int> *aniso_flags = NULL,
                            int with_subdomains = 1,
                            bool with_coeff = false);
 
 void GetFaceElements(Mesh & mesh, int face, Array<int> & elems);
+
+void GetElementPatch(Mesh &mesh, Array<int> &neighbor_elems, Mesh &face_patch);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

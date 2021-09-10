@@ -233,8 +233,10 @@ protected:
    BilinearFormIntegrator *integ; ///< Not owned.
    GridFunction *solution; ///< Not owned.
 
-   int flux_order;
+   FiniteElementSpace *flux_space; /**< @brief Ownership based on own_flux_fes.
+      Its Update() method is called automatically by this class when needed. */
    bool with_coeff;
+   bool own_flux_fes; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -249,22 +251,43 @@ protected:
 
 public:
    /** @brief Construct a new NewZienkiewiczZhuEstimator object.
-       @param integ      This BilinearFormIntegrator must implement the methods
-                         ComputeElementFlux() and ComputeFluxEnergy().
-       @param sol        The solution field whose error is to be estimated.
-       @param flux_order The ZienkiewiczZhuEstimator assumes ownership of this
-                         FiniteElementSpace and will call its Update() method when
-                         needed.*/
+       @param integ    This BilinearFormIntegrator must implement the methods
+                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param sol      The solution field whose error is to be estimated.
+       @param flux_fes The ZienkiewiczZhuEstimator assumes ownership of this
+                       FiniteElementSpace and will call its Update() method when
+                       needed.*/
    NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                              int flux_order_)
+                           FiniteElementSpace *flux_fes)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
         flux_averaging(0),
         integ(&integ),
         solution(&sol),
-        flux_order(flux_order_),
-        with_coeff(false)
+        flux_space(flux_fes),
+        with_coeff(false),
+        own_flux_fes(true)
+   { }
+
+   /** @brief Construct a new NewZienkiewiczZhuEstimator object.
+       @param integ    This BilinearFormIntegrator must implement the methods
+                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param sol      The solution field whose error is to be estimated.
+       @param flux_fes The ZienkiewiczZhuEstimator does NOT assume ownership of
+                       this FiniteElementSpace; will call its Update() method
+                       when needed. */
+   NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
+                           FiniteElementSpace &flux_fes)
+      : current_sequence(-1),
+        total_error(),
+        anisotropic(false),
+        flux_averaging(0),
+        integ(&integ),
+        solution(&sol),
+        flux_space(&flux_fes),
+        with_coeff(false),
+        own_flux_fes(false)
    { }
 
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate

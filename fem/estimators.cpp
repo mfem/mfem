@@ -32,11 +32,14 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
 
 void NewZienkiewiczZhuEstimator::ComputeEstimates()
 {
+   flux_space->Update(false);
+   // In parallel, 'flux' can be a GridFunction, as long as 'flux_space' is a
+   // ParFiniteElementSpace and 'solution' is a ParGridFunction.
+   GridFunction flux(flux_space);
 
    if (!anisotropic) { aniso_flags.SetSize(0); }
-   total_error = NewZZErrorEstimator(*integ, *solution, flux_order,
+   total_error = NewZZErrorEstimator(*integ, *solution, flux,
                                      error_estimates,
-                                     anisotropic ? &aniso_flags : NULL,
                                      flux_averaging,
                                      with_coeff);
 

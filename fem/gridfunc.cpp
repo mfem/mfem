@@ -3331,69 +3331,79 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
 }
 
 void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
-                                          Vector &error,
+                                          Vector &errors,
                                           Coefficient *weight,
                                           const IntegrationRule *irs[]) const
 {
-   MFEM_ASSERT(error.Size() == fes->GetNE(),
+   MFEM_ASSERT(errors.Size() == fes->GetNE(),
                "Incorrect size for result vector");
 
-   error = 0.0;
+   errors = 0.0;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      errors[i] = ComputeElementLpError(i, p, exsol, weight, irs);
+   }
+}
+
+double GridFunction::ComputeElementLpError(int ielem,
+                                          const double p, Coefficient &exsol,
+                                          Coefficient *weight,
+                                          const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
    Vector vals;
 
-   for (int i = 0; i < fes->GetNE(); i++)
+   fe = fes->GetFE(ielem);
+   const IntegrationRule *ir;
+   if (irs)
    {
-      fe = fes->GetFE(i);
-      const IntegrationRule *ir;
-      if (irs)
+      ir = irs[fe->GetGeomType()];
+   }
+   else
+   {
+      int intorder = 2*fe->GetOrder() + 3; // <----------
+      ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+   }
+   GetValues(ielem, *ir, vals);
+   T = fes->GetElementTransformation(ielem);
+   for (int j = 0; j < ir->GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(j);
+      T->SetIntPoint(&ip);
+      double err = fabs(vals(j) - exsol.Eval(*T, ip));
+      if (p < infinity())
       {
-         ir = irs[fe->GetGeomType()];
+         err = pow(err, p);
+         if (weight)
+         {
+            err *= weight->Eval(*T, ip);
+         }
+         error += ip.weight * T->Weight() * err;
       }
       else
       {
-         int intorder = 2*fe->GetOrder() + 3; // <----------
-         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-      }
-      GetValues(i, *ir, vals);
-      T = fes->GetElementTransformation(i);
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-         double err = fabs(vals(j) - exsol.Eval(*T, ip));
-         if (p < infinity())
+         if (weight)
          {
-            err = pow(err, p);
-            if (weight)
-            {
-               err *= weight->Eval(*T, ip);
-            }
-            error[i] += ip.weight * T->Weight() * err;
+            err *= weight->Eval(*T, ip);
          }
-         else
-         {
-            if (weight)
-            {
-               err *= weight->Eval(*T, ip);
-            }
-            error[i] = std::max(error[i], err);
-         }
-      }
-      if (p < infinity())
-      {
-         // negative quadrature weights may cause the error to be negative
-         if (error[i] < 0.)
-         {
-            error[i] = -pow(-error[i], 1./p);
-         }
-         else
-         {
-            error[i] = pow(error[i], 1./p);
-         }
+         error = std::max(error, err);
       }
    }
+   if (p < infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (error < 0.)
+      {
+         error = -pow(-error, 1./p);
+      }
+      else
+      {
+         error = pow(error, 1./p);
+      }
+   }
+   return error;
 }
 
 double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
@@ -4051,57 +4061,50 @@ double poly_xy(const Vector & x)
 
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
-                           int flux_order, Vector &error_estimates,
-                           Array<int>* aniso_flags,
+                           GridFunction &flux,
+                           Vector &error_estimates,
                            int with_subdomains,
                            bool with_coeff)
 {
-   GradientGridFunctionCoefficient flux(&u);
-
+   // GradientGridFunctionCoefficient flux(&u);
    FiniteElementSpace *ufes = u.FESpace();
+   FiniteElementSpace *ffes = flux.FESpace();
    ElementTransformation *Transf;
 
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
+   // int sdim = mesh->SpaceDimension();
    int nfe = ufes->GetNE();
    int nfaces = ufes->GetNF();
 
    Array<int> udofs;
    Array<int> fdofs;
-   Vector ul, fl, fla, d_xyz;
+   Vector ul, fl, fla;
 
    error_estimates.SetSize(nfe);
    Array<int> counters(nfe);
-   counters = 1;
+   counters = 1; // TODO: set to 0
 
-   if (aniso_flags)
-   {
-      aniso_flags->SetSize(nfe);
-      d_xyz.SetSize(dim);
-   }
-
-   int nsd = 1;
+   int nsd = 1; // TODO: Support different attributes
    if (with_subdomains)
    {
       nsd = ufes->GetMesh()->attributes.Max();
    }
 
    double total_error = 0.0;
-   int num_basis_functions = 4;
-   DenseMatrix A(num_basis_functions,num_basis_functions);
-   Vector b(num_basis_functions);
+   int num_basis_functions = 4; // TODO: should depend on polynomial order
    for (int iface = 0; iface < nfaces; iface++)
    {
 
-      // 1. Construct face patch.
+      // 1. Find all elements in the face patch.
       Array<int> neighbor_elems;
       GetFaceElements(*mesh, iface, neighbor_elems);
       int num_neighbor_elems = neighbor_elems.Size();
 
-      Array<int> vert;
-      mesh->GetEdgeVertices(iface,vert);
-      cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
-           "), elems: " ; neighbor_elems.Print();
+      // Array<int> vert;
+      // mesh->GetEdgeVertices(iface,vert);
+      // cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
+      //      "), elems: " ; neighbor_elems.Print();
 
       // 2. Check if boundary face and continue if true.
       if (num_neighbor_elems < 2)
@@ -4115,25 +4118,34 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       FunctionCoefficient y(poly_y);
       FunctionCoefficient xy(poly_xy);
 
+      // TODO: Solve for each individual component
       // loop through all elements in patch
-      A = 0.0;
-      b = 0.0;
+      // DofTransformation *udoftrans;
+      // DofTransformation *fdoftrans;
+      DenseMatrix A(num_basis_functions); A = 0.0;
+      double *b = new double[dim * num_basis_functions];
+      *b = {0.0};
+      // double b[dim * num_basis_functions] = {0.0};
       for (int i = 0; i < num_neighbor_elems; i++)
       {
-         
          int ielem = neighbor_elems[i];
-         Transf = ufes->GetElementTransformation(i);
+         int flux_order = ffes->GetElementOrder(ielem) + 1;    
+         const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem), flux_order));
 
-         const IntegrationRule &ir = IntRules.Get(mesh->GetElementGeometry(ielem), flux_order);
-         DenseMatrix flux_vals;
-         flux.Eval(flux_vals, *Transf, ir);
+         ufes->GetElementVDofs(ielem, udofs);
+         ffes->GetElementVDofs(ielem, fdofs);
 
-         cout << "flux_vals.Size() = " << flux_vals.Size() << endl;
-         flux_vals.PrintMatlab();
+         u.GetSubVector(udofs, ul);
+         Transf = ufes->GetElementTransformation(ielem);
+         blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
+                                 *ffes->GetFE(ielem), fl, with_coeff, ir);
 
-         for (int j = 0; j < ir.GetNPoints(); j++)
+         // cout << "fl.Size() = " << fl.Size() << endl;
+         // fl.Print();
+
+         for (int j = 0; j < ir->GetNPoints(); j++)
          {
-            const IntegrationPoint &ip = ir.IntPoint(j);
+            const IntegrationPoint &ip = ir->IntPoint(j);
             Vector p(num_basis_functions);
 
             p(0) = 1.0;
@@ -4147,8 +4159,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                {
                   A(l,m) += p(l) * p(m);
                }
-               // only x-component (for now)
-               b(l) += p(l) * flux_vals(1,j);
+               // loop through each component
+               for (int n = 0; n < dim; n++)
+               {
+                  b[l + n * num_basis_functions] += p(l) * fl(l + n * num_basis_functions);
+               }
             }
 
          
@@ -4162,34 +4177,82 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
       // Solve for polynomial coefficients
       A.PrintMatlab();
-      b.Print();
+      cout << "b = " << endl;
+      for (int n = 0; n < dim; n++)
+      {
+         for (int l = 0; l < num_basis_functions; l++)
+         {
+            cout << b[l + n * num_basis_functions] << endl;
+         }
+      }
       
-      LinearSolve(A, b);
-      b.Print();
+      Array<int> ipiv(num_basis_functions);
+      LUFactors lu(A.Data(), ipiv);
+      double TOL = 1e-9;
+      if (!lu.Factor(num_basis_functions,TOL)) { return false; } // singular
+      lu.Solve(num_basis_functions, dim, b);
+
+      cout << "b = " << endl;
+      for (int n = 0; n < dim; n++)
+      {
+         for (int l = 0; l < num_basis_functions; l++)
+         {
+            cout << b[l + n * num_basis_functions] << endl;
+         }
+      }
       std::cin.get();
 
 
       // Construct l2-minimizing global polynomial
-      auto global_poly_tmp = [=] (const Vector & x)
+      // auto global_poly_tmp = [=] (const Vector & x)
+      // {
+      //    return b[0] + b[1] * x(0) + b[2] * x(1) + b[3] * x(0) * x(1);
+      // };
+      auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
-         return b(0) + b(1) * x(0) + b(2) * x(1) + b(3) * x(0) * x(1);
+         f(0) = b[0] + b[1] * x(0) + b[2] * x(1) + b[3] * x(0) * x(1);
+         f(1) = b[4] + b[5] * x(0) + b[6] * x(1) + b[7] * x(0) * x(1);
+         if (dim == 3)
+         {
+            f(2) = b[8] + b[9] * x(0) + b[10] * x(1) + b[11] * x(0) * x(1);
+         }
+         else
+         {
+            if (x.Size() == 3) { f(2) = 0.0; }
+         }
       };
-      FunctionCoefficient global_poly(global_poly_tmp);
+      VectorFunctionCoefficient global_poly(dim, global_poly_tmp);
+
+      GridFunction ZZflux(ffes);
+      ZZflux.ProjectCoefficient(global_poly);
 
       // 4. Compute error contribution from face.
-      double face_error = 0.0;
+      double patch_error = 0.0;
       for (int i = 0; i < num_neighbor_elems; i++)
       {
-         face_error += 1.0;
-         // face_error += blfi.ComputeFluxEnergy(*ffes->GetFE(i), *Transf, fl, NULL);
+         int ielem = neighbor_elems[i];
+         ufes->GetElementVDofs(ielem, udofs);
+         ffes->GetElementVDofs(ielem, fdofs);
+
+         u.GetSubVector(udofs, ul);
+         Transf = ufes->GetElementTransformation(ielem);
+         blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
+                                 *ffes->GetFE(ielem), fl, with_coeff);
+
+         ZZflux.GetSubVector(fdofs, fla);
+         fl -= fla;
+         double elem_error = blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl, NULL);                  
+
+         patch_error += elem_error * elem_error;
       }
-      // double face_error = ComputeLpError(2.0, global_poly, error, NULL, NULL, irs);
-      total_error += face_error;
+      patch_error = sqrt(patch_error);
+
+      delete[] b;
 
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
-         error_estimates(ielem) += face_error;
+         error_estimates(ielem) += patch_error;
          counters[ielem] += 1;
       }
    }
@@ -4286,6 +4349,42 @@ void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
    }
    elems.Sort();
    elems.Unique();
+}
+
+void GetElementPatch(Mesh &mesh, Array<int> &patch_elems, Mesh &face_patch)
+{
+   // Count the number of elements in the final patch
+   int num_elements = patch_elems.Size();
+
+   // Count the number of boundary elements in the final patch
+   int num_bdr_elements = 0;
+   Array<int> bdr_elements;
+   for (int i = 0; i < num_elements; i++)
+   {
+      int ielem = patch_elems[i];
+      Array<int> element_faces;
+      Array<int> ori;
+      mesh.GetElementFaces(ielem, element_faces, ori);
+
+      int e1 = -1, e2 = -1;
+      for (int j = 0; j < element_faces.Size(); j++)
+      {
+         mesh.GetFaceElements(j, &e1, &e2);
+         bool interior_face = false;
+         for (int k = i+1; k < num_elements; k++)
+         {
+            if (e1 == patch_elems[k]) { interior_face = true; }
+            if (e2 == patch_elems[k]) { interior_face = true; }
+         }
+         if (!interior_face) { num_bdr_elements++; }
+      }
+   }
+   // Mesh patch(mesh.Dimension(), mesh.GetNV(), num_elements, num_bdr_elements, mesh.SpaceDimension())
+
+
+
+
+
 }
 
 double ComputeElementLpDistance(double p, int i,
