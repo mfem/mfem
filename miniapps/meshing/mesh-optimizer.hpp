@@ -99,6 +99,32 @@ public:
    }
 };
 
+double discrete_size_2d(const Vector &x)
+{
+   int opt = 2;
+   const double small = 0.001, big = 0.01;
+   double val = 0.;
+
+   if (opt == 1) // sine wave.
+   {
+      const double X = x(0), Y = x(1);
+      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+   }
+   else if (opt == 2) // semi-circle
+   {
+      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   }
+
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+
+   return val * small + (1.0 - val) * big;
+}
+
 double discrete_size_3d(const Vector &x)
 {
    const double small = 0.0001, big = 0.01;
@@ -422,8 +448,8 @@ void kershaw(const double epsy, const double epsz,
 }
 
 void kershaw8(const double epsy, const double epsz,
-             const double x, const double y, const double z,
-             double &X, double &Y, double &Z)
+              const double x, const double y, const double z,
+              double &X, double &Y, double &Z)
 {
    X = x;
 
@@ -434,37 +460,37 @@ void kershaw8(const double epsy, const double epsz,
    // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
    switch (layer)
    {
-   case 0:
-       case 7:
-   case 8:
-      Y = left(epsy, y);
-      Z = left(epsz, z);
-      break;
-   case 1:
-   case 4:
-      Y = step(left(epsy, y), right(epsy, y), lambda);
-      Z = step(left(epsz, z), right(epsz, z), lambda);
-      break;
-   case 2:
-      Y = step(right(epsy, y), left(epsy, y), lambda/2);
-      Z = step(right(epsz, z), left(epsz, z), lambda/2);
-      break;
-   case 3:
-      Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
-      Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
-      break;
-   case 6:
-      Y = step(right(epsy, y), left(epsy, y), 0.5+lambda/2);
-      Z = step(right(epsz, z), left(epsz, z), 0.5+lambda/2);
-      break;
-   case 5:
-      Y = step(right(epsy, y), left(epsy, y), (0+lambda)/2);
-      Z = step(right(epsz, z), left(epsz, z), (0+lambda)/2);
-      break;
-   default:
-      Y = right(epsy, y);
-      Z = right(epsz, z);
-      break;
+      case 0:
+      case 7:
+      case 8:
+         Y = left(epsy, y);
+         Z = left(epsz, z);
+         break;
+      case 1:
+      case 4:
+         Y = step(left(epsy, y), right(epsy, y), lambda);
+         Z = step(left(epsz, z), right(epsz, z), lambda);
+         break;
+      case 2:
+         Y = step(right(epsy, y), left(epsy, y), lambda/2);
+         Z = step(right(epsz, z), left(epsz, z), lambda/2);
+         break;
+      case 3:
+         Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
+         Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
+         break;
+      case 6:
+         Y = step(right(epsy, y), left(epsy, y), 0.5+lambda/2);
+         Z = step(right(epsz, z), left(epsz, z), 0.5+lambda/2);
+         break;
+      case 5:
+         Y = step(right(epsy, y), left(epsy, y), (0+lambda)/2);
+         Z = step(right(epsz, z), left(epsz, z), (0+lambda)/2);
+         break;
+      default:
+         Y = right(epsy, y);
+         Z = right(epsz, z);
+         break;
    }
 }
 
