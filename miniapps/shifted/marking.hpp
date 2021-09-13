@@ -24,14 +24,14 @@ class ShiftedFaceMarker
 protected:
    ParMesh &pmesh;                    // Mesh whose elements have to be marked.
    ParFiniteElementSpace *pfes_sltn;  // FESpace associated with the solution.
-   bool include_cut_cell;             // Flag indicating wether cut-cells
-   // will be included in assembly.
-   bool initial_marking_done;         // Flag indicating wether all the elements
-   // have been marked at-least once.
+
+   // Indicates whether cut-cells will be included in assembly.
+   const bool include_cut_cell;
+   // Indicates whether all the elements have been marked at-least once.
+   bool initial_marking_done;
 
    // Marking of face dofs by using an averaged continuous GridFunction.
-   const bool func_dof_marking = false;
-
+   const bool func_dof_marking = true;
    // Alternative implementation of ListShiftedFaceDofs().
    void ListShiftedFaceDofs2(const Array<int> &elem_marker,
                              Array<int> &sface_dof_list) const;

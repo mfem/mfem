@@ -23,19 +23,33 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
 
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
+   // This tolerance is relevant for points that are exactly on the zero LS.
+   const double eps = 1e-10;
+   auto outside_of_domain = [&](double value)
+   {
+      if (include_cut_cell)
+      {
+         // Points on the zero LS are considered outside the domain.
+         return (value - eps < 0.0);
+      }
+      else
+      {
+         // Points on the zero LS are considered inside the domain.
+         return (value + eps < 0.0);
+      }
+   };
+
    Vector vals;
    // Check elements on the current MPI rank
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-      ElementTransformation *Tr = pmesh.GetElementTransformation(i);
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(i), 4*Tr->OrderJ());
+      const IntegrationRule &ir = pfes_sltn->GetFE(i)->GetNodes();
       ls_func.GetValues(i, ir, vals);
 
       int count = 0;
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
-         if (vals(j) <= 0.) { count++; }
+         if (outside_of_domain(vals(j))) { count++; }
       }
 
       if (count == ir.GetNPoints()) // completely outside
@@ -69,8 +83,8 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         vals[j] = ls_func.GetValue(tr->Elem2No, ip);
-         if (vals[j] <= 0.) { count++; }
+         vals(j) = ls_func.GetValue(tr->Elem2No, ip);
+         if (outside_of_domain(vals(j))) { count++; }
       }
 
       if (count == ir.GetNPoints()) // completely outside
