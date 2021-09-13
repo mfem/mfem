@@ -82,7 +82,7 @@ int isockstream::establish()
    if (bind(
        #ifdef _WIN32
        (SOCKET)port
-       #elif
+       #else
        port
        #endif
        ,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
