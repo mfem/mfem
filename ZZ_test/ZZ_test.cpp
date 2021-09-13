@@ -366,38 +366,38 @@ double sinsin_laplace(const Vector &p)
 //    return -2.0;
 // }
 
-// double poly_exsol(const Vector &p)
-// {
-//    double x = p(0), y = p(1);
-//    return x*y;
-// }
-
-// void poly_exgrad(const Vector &p, Vector &grad)
-// {
-//    double x = p(0), y = p(1);
-//    grad(0) = y;
-//    grad(1) = x;
-// }
-
-// double poly_laplace(const Vector &p)
-// {
-//    return 0.0;
-// }
-
 double poly_exsol(const Vector &p)
 {
    double x = p(0), y = p(1);
-   return x + 2.0*y;
+   return x*y;
 }
 
 void poly_exgrad(const Vector &p, Vector &grad)
 {
    double x = p(0), y = p(1);
-   grad(0) = 1.0;
-   grad(1) = 2.0;
+   grad(0) = y;
+   grad(1) = x;
 }
 
 double poly_laplace(const Vector &p)
 {
    return 0.0;
 }
+
+// double poly_exsol(const Vector &p)
+// {
+//    double x = p(0), y = p(1);
+//    return x + 2.0*y;
+// }
+
+// void poly_exgrad(const Vector &p, Vector &grad)
+// {
+//    double x = p(0), y = p(1);
+//    grad(0) = 1.0;
+//    grad(1) = 2.0;
+// }
+
+// double poly_laplace(const Vector &p)
+// {
+//    return 0.0;
+// }

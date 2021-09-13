@@ -4084,7 +4084,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    error_estimates.SetSize(nfe);
    error_estimates = 0.0;
    Array<int> counters(nfe);
-   counters = 0; // TODO: set to 0
+   counters = 0;
 
    int nsd = 1; // TODO: Support different attributes
    if (with_subdomains)
@@ -4117,12 +4117,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
 
       // 3. Compute global flux polynomial.
-
-      // loop through all elements in patch
       DofTransformation *udoftrans;
       DofTransformation *fdoftrans;
       A = 0.0;
       b = 0.0;
+      // loop through all elements in patch
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
@@ -4135,10 +4134,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
-         if (udoftrans)
-         {
-            udoftrans->InvTransformPrimal(ul);
-         }
+         // if (udoftrans)
+         // {
+         //    udoftrans->InvTransformPrimal(ul);
+         // }
          Transf = ufes->GetElementTransformation(ielem);
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *ffes->GetFE(ielem), fl, with_coeff, ir);
@@ -4146,12 +4145,13 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          {
             fdoftrans->TransformPrimal(fl);
          }
+         
          // cout << "fl.Size() = " << fl.Size() << endl;
          // fl.Print();
 
-         for (int j = 0; j < ir->GetNPoints(); j++)
+         for (int k = 0; k < ir->GetNPoints(); k++)
          {
-            const IntegrationPoint ip = ir->IntPoint(j);
+            const IntegrationPoint ip = ir->IntPoint(k);
             double tmp[3];
             Vector transip(tmp, 3);
             Transf->Transform(ip, transip);
@@ -4163,7 +4163,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             p(2) = poly_y(transip);
             p(3) = poly_xy(transip);
 
-            // cout << " transip(0) : " << transip(0) << " transip(1) : " << transip(1) << endl;
+            std::cout << " x : " << transip(0) << "    y : " << transip(1) << endl;
+            std::cout << "flux (x-comp) : " << fl[k] << "   flux (y-comp) : " << fl[k+num_basis_functions] << "\n" << endl;
             // cout << " p(0)    p(1)    p(2)    p(3) " << endl;
             // cout << p(0) << " " << p(1) << " " << p(2) << " " << p(3) << endl;
             // cin.get();
@@ -4177,7 +4178,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                // loop through each component
                for (int n = 0; n < dim; n++)
                {
-                  b[l + n * num_basis_functions] += p(l) * fl(l + n * num_basis_functions);
+                  b[l + n * num_basis_functions] += p(l) * fl(k + n * num_basis_functions);
                }
             }
          }
@@ -4200,7 +4201,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       double TOL = 1e-9;
       if (!lu.Factor(num_basis_functions,TOL))
       {
-         // singular
+         // singular matrix
          cout << "iface = " << iface << " : A is singular" << endl;
       } 
       lu.Solve(num_basis_functions, dim, b);
@@ -4216,10 +4217,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
 
       // Construct l2-minimizing global polynomial
-      // auto global_poly_tmp = [=] (const Vector & x)
-      // {
-      //    return b[0] + b[1] * x(0) + b[2] * x(1) + b[3] * x(0) * x(1);
-      // };
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
          f(0) = b[0] + b[1] * x(0) + b[2] * x(1) + b[3] * x(0) * x(1);
