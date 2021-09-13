@@ -85,6 +85,7 @@ c_report_success:
     - echo "Can only run if all the corona jobs passed"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
     - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - mkdir -p corona
     - *safe_create_rundir
     - echo "The Corona jobs were successful" > ${rundir}/gitlab.out
     - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
@@ -102,6 +103,7 @@ c_report_failure:
     - echo "Runs if there was at least one failure on corona"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
     - rundir="corona/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - mkdir -p corona
     - *safe_create_rundir
     - echo "There was an error while running CI on Corona" > ${rundir}/gitlab.err
     - cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
