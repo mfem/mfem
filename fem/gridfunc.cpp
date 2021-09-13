@@ -4144,7 +4144,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          {
             fdoftrans->TransformPrimal(fl);
          }
-         
+
          // cout << "fl.Size() = " << fl.Size() << endl;
          // fl.Print();
 
@@ -4202,7 +4202,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       {
          // singular matrix
          cout << "iface = " << iface << " : A is singular" << endl;
-      } 
+      }
       lu.Solve(num_basis_functions, dim, b);
 
       // cout << "b = " << endl;
@@ -4250,7 +4250,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          ZZflux.GetSubVector(fdofs, fla);
          fl -= fla;
          patch_error += blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
-                                                    NULL);
+                                               NULL);
       }
       total_error += patch_error;
 
