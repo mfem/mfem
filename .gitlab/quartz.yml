@@ -79,6 +79,7 @@ q_report_success:
     - echo "Can only run if all the quartz jobs passed"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
     - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - mkdir -p quartz
     - *safe_create_rundir
     - echo "The Quartz jobs were successful" > ${rundir}/gitlab.out
     - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
@@ -95,6 +96,7 @@ q_report_failure:
     - echo "Runs if there was at least one failure on quartz"
     - cd ${AUTOTEST_ROOT}/autotest && git pull
     - rundir="quartz/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+    - mkdir -p quartz
     - *safe_create_rundir
     - echo "There was an error while running CI on Quartz" > ${rundir}/gitlab.err
     - echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
@@ -166,6 +168,7 @@ update_autotest:
   script:
     - cd ${AUTOTEST_ROOT}/autotest && git pull
     - rundir="quartz/$(date +%Y-%m-%d)-gitlab-baseline-${CI_COMMIT_REF_SLUG}"
+    - mkdir -p quartz
     - *safe_create_rundir
     - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
     # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
