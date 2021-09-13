@@ -22,11 +22,11 @@ namespace mfem
 
 // PA Divergence Assemble 2D kernel
 void PADivergenceSetup2D(const int Q1D,
-                                const int NE,
-                                const Array<double> &w,
-                                const Vector &j,
-                                const double COEFF,
-                                Vector &op)
+                         const int NE,
+                         const Array<double> &w,
+                         const Vector &j,
+                         const double COEFF,
+                         Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -52,11 +52,11 @@ void PADivergenceSetup2D(const int Q1D,
 
 // PA Divergence Assemble 3D kernel
 void PADivergenceSetup3D(const int Q1D,
-                                const int NE,
-                                const Array<double> &w,
-                                const Vector &j,
-                                const double COEFF,
-                                Vector &op)
+                         const int NE,
+                         const Array<double> &w,
+                         const Vector &j,
+                         const double COEFF,
+                         Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -161,15 +161,15 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 void PADivergenceApply2D(const int NE,
-                                const Array<double> &b,
-                                const Array<double> &g,
-                                const Array<double> &bt,
-                                const Vector &op_,
-                                const Vector &x_,
-                                Vector &y_,
-                                const int tr_d1d = 0,
-                                const int te_d1d = 0,
-                                const int q1d = 0)
+                         const Array<double> &b,
+                         const Array<double> &g,
+                         const Array<double> &bt,
+                         const Vector &op_,
+                         const Vector &x_,
+                         Vector &y_,
+                         const int tr_d1d = 0,
+                         const int te_d1d = 0,
+                         const int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -282,15 +282,15 @@ void PADivergenceApply2D(const int NE,
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
          const int T_NBZ = 0>
 void SmemPADivergenceApply2D(const int NE,
-                                    const Array<double> &b_,
-                                    const Array<double> &g_,
-                                    const Array<double> &bt_,
-                                    const Vector &op_,
-                                    const Vector &x_,
-                                    Vector &y_,
-                                    const int tr_d1d = 0,
-                                    const int te_d1d = 0,
-                                    const int q1d = 0)
+                             const Array<double> &b_,
+                             const Array<double> &g_,
+                             const Array<double> &bt_,
+                             const Vector &op_,
+                             const Vector &x_,
+                             Vector &y_,
+                             const int tr_d1d = 0,
+                             const int te_d1d = 0,
+                             const int q1d = 0)
 {
    // TODO
    MFEM_ASSERT(false, "SHARED MEM NOT PROGRAMMED YET");
@@ -299,15 +299,15 @@ void SmemPADivergenceApply2D(const int NE,
 // PA Divergence Apply 2D kernel transpose
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 void PADivergenceApplyTranspose2D(const int NE,
-                                         const Array<double> &bt,
-                                         const Array<double> &gt,
-                                         const Array<double> &b,
-                                         const Vector &op_,
-                                         const Vector &x_,
-                                         Vector &y_,
-                                         const int tr_d1d = 0,
-                                         const int te_d1d = 0,
-                                         const int q1d = 0)
+                                  const Array<double> &bt,
+                                  const Array<double> &gt,
+                                  const Array<double> &b,
+                                  const Vector &op_,
+                                  const Vector &x_,
+                                  Vector &y_,
+                                  const int tr_d1d = 0,
+                                  const int te_d1d = 0,
+                                  const int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -415,15 +415,15 @@ void PADivergenceApplyTranspose2D(const int NE,
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 void PADivergenceApply3D(const int NE,
-                                const Array<double> &b,
-                                const Array<double> &g,
-                                const Array<double> &bt,
-                                const Vector &op_,
-                                const Vector &x_,
-                                Vector &y_,
-                                int tr_d1d = 0,
-                                int te_d1d = 0,
-                                int q1d = 0)
+                         const Array<double> &b,
+                         const Array<double> &g,
+                         const Array<double> &bt,
+                         const Vector &op_,
+                         const Vector &x_,
+                         Vector &y_,
+                         int tr_d1d = 0,
+                         int te_d1d = 0,
+                         int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -598,15 +598,15 @@ void PADivergenceApply3D(const int NE,
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 void PADivergenceApplyTranspose3D(const int NE,
-                                         const Array<double> &bt,
-                                         const Array<double> &gt,
-                                         const Array<double> &b,
-                                         const Vector &op_,
-                                         const Vector &x_,
-                                         Vector &y_,
-                                         int tr_d1d = 0,
-                                         int te_d1d = 0,
-                                         int q1d = 0)
+                                  const Array<double> &bt,
+                                  const Array<double> &gt,
+                                  const Array<double> &b,
+                                  const Vector &op_,
+                                  const Vector &x_,
+                                  Vector &y_,
+                                  int tr_d1d = 0,
+                                  int te_d1d = 0,
+                                  int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -776,15 +776,15 @@ void PADivergenceApplyTranspose3D(const int NE,
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 void SmemPADivergenceApply3D(const int NE,
-                                    const Array<double> &b_,
-                                    const Array<double> &g_,
-                                    const Array<double> &bt_,
-                                    const Vector &q_,
-                                    const Vector &x_,
-                                    Vector &y_,
-                                    const int tr_d1d = 0,
-                                    const int te_d1d = 0,
-                                    const int q1d = 0)
+                             const Array<double> &b_,
+                             const Array<double> &g_,
+                             const Array<double> &bt_,
+                             const Vector &q_,
+                             const Vector &x_,
+                             Vector &y_,
+                             const int tr_d1d = 0,
+                             const int te_d1d = 0,
+                             const int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;

@@ -117,14 +117,14 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 // PA Convection NL 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAConvectionNLApply2D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
-                                  const Array<double> &bt,
-                                  const Vector &q_,
-                                  const Vector &x_,
-                                  Vector &y_,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Array<double> &bt,
+                           const Vector &q_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -253,14 +253,14 @@ void PAConvectionNLApply2D(const int NE,
 // PA Convection NL 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAConvectionNLApply3D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
-                                  const Array<double> &bt,
-                                  const Vector &q_,
-                                  const Vector &x_,
-                                  Vector &y_,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Array<double> &bt,
+                           const Vector &q_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
 {
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -559,13 +559,13 @@ void PAConvectionNLApply3D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D =0, int T_MAX_Q1D =0>
 void SmemPAConvectionNLApply3D(const int NE,
-                                      const Array<double> &b_,
-                                      const Array<double> &g_,
-                                      const Vector &d_,
-                                      const Vector &x_,
-                                      Vector &y_,
-                                      const int d1d = 0,
-                                      const int q1d = 0)
+                               const Array<double> &b_,
+                               const Array<double> &g_,
+                               const Vector &d_,
+                               const Vector &x_,
+                               Vector &y_,
+                               const int d1d = 0,
+                               const int q1d = 0)
 {
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;

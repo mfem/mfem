@@ -22,12 +22,12 @@ namespace mfem
 
 // PA Convection Assemble 2D kernel
 void PAConvectionSetup2D(const int NQ,
-                                const int NE,
-                                const Array<double> &w,
-                                const Vector &j,
-                                const Vector &vel,
-                                const double alpha,
-                                Vector &op)
+                         const int NE,
+                         const Array<double> &w,
+                         const Vector &j,
+                         const Vector &vel,
+                         const double alpha,
+                         Vector &op)
 {
    constexpr int DIM = 2;
 
@@ -61,12 +61,12 @@ void PAConvectionSetup2D(const int NQ,
 
 // PA Convection Assemble 3D kernel
 void PAConvectionSetup3D(const int NQ,
-                                const int NE,
-                                const Array<double> &w,
-                                const Vector &j,
-                                const Vector &vel,
-                                const double alpha,
-                                Vector &op)
+                         const int NE,
+                         const Array<double> &w,
+                         const Vector &j,
+                         const Vector &vel,
+                         const double alpha,
+                         Vector &op)
 {
    constexpr int DIM = 3;
    constexpr int SDIM = DIM;

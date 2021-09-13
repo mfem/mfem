@@ -18,13 +18,13 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void EADiffusionAssemble1D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
-                                  const Vector &padata,
-                                  Vector &eadata,
-                                  const bool add,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Vector &padata,
+                           Vector &eadata,
+                           const bool add,
+                           const int d1d = 0,
+                           const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -69,13 +69,13 @@ void EADiffusionAssemble1D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void EADiffusionAssemble2D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
-                                  const Vector &padata,
-                                  Vector &eadata,
-                                  const bool add,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Vector &padata,
+                           Vector &eadata,
+                           const bool add,
+                           const int d1d = 0,
+                           const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -146,13 +146,13 @@ void EADiffusionAssemble2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void EADiffusionAssemble3D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
-                                  const Vector &padata,
-                                  Vector &eadata,
-                                  const bool add,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Vector &padata,
+                           Vector &eadata,
+                           const bool add,
+                           const int d1d = 0,
+                           const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

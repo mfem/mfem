@@ -23,11 +23,11 @@ namespace mfem
 
 // PA Diffusion Assemble 2D kernel
 void PAVectorDiffusionSetup2D(const int Q1D,
-                                     const int NE,
-                                     const Array<double> &w,
-                                     const Vector &j,
-                                     const Vector &c,
-                                     Vector &op)
+                              const int NE,
+                              const Array<double> &w,
+                              const Vector &j,
+                              const Vector &c,
+                              Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -60,11 +60,11 @@ void PAVectorDiffusionSetup2D(const int Q1D,
 
 // PA Diffusion Assemble 3D kernel
 void PAVectorDiffusionSetup3D(const int Q1D,
-                                     const int NE,
-                                     const Array<double> &w,
-                                     const Vector &j,
-                                     const Vector &c,
-                                     Vector &op)
+                              const int NE,
+                              const Array<double> &w,
+                              const Vector &j,
+                              const Vector &c,
+                              Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -607,12 +607,12 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAVectorDiffusionDiagonal2D(const int NE,
-                                        const Array<double> &b,
-                                        const Array<double> &g,
-                                        const Vector &d,
-                                        Vector &y,
-                                        const int d1d = 0,
-                                        const int q1d = 0)
+                                 const Array<double> &b,
+                                 const Array<double> &g,
+                                 const Vector &d,
+                                 Vector &y,
+                                 const int d1d = 0,
+                                 const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -674,12 +674,12 @@ void PAVectorDiffusionDiagonal2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAVectorDiffusionDiagonal3D(const int NE,
-                                        const Array<double> &b,
-                                        const Array<double> &g,
-                                        const Vector &d,
-                                        Vector &y,
-                                        const int d1d = 0,
-                                        const int q1d = 0)
+                                 const Array<double> &b,
+                                 const Array<double> &g,
+                                 const Vector &d,
+                                 Vector &y,
+                                 const int d1d = 0,
+                                 const int q1d = 0)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;

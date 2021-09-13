@@ -28,13 +28,13 @@ namespace quadrature_interpolator
 
 template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
 void Det2D(const int NE,
-                  const double *b,
-                  const double *g,
-                  const double *x,
-                  double *y,
-                  const int vdim = 1,
-                  const int d1d = 0,
-                  const int q1d = 0)
+           const double *b,
+           const double *g,
+           const double *x,
+           double *y,
+           const int vdim = 1,
+           const int d1d = 0,
+           const int q1d = 0)
 {
    constexpr int DIM = 2;
    static constexpr int NBZ = 1;
@@ -80,14 +80,14 @@ void Det2D(const int NE,
 template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0,
          bool SMEM = true>
 void Det3D(const int NE,
-                  const double *b,
-                  const double *g,
-                  const double *x,
-                  double *y,
-                  const int vdim = 1,
-                  const int d1d = 0,
-                  const int q1d = 0,
-                  Vector *d_buff = nullptr) // used only with SMEM = false
+           const double *b,
+           const double *g,
+           const double *x,
+           double *y,
+           const int vdim = 1,
+           const int d1d = 0,
+           const int q1d = 0,
+           Vector *d_buff = nullptr) // used only with SMEM = false
 {
    constexpr int DIM = 3;
    static constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;

@@ -80,12 +80,12 @@ int isockstream::establish()
    setsockopt(port, SOL_SOCKET, SO_REUSEADDR, (char *)(&on), sizeof(on));
 
    if (bind(
-       #ifdef _WIN32
-       (SOCKET)port
-       #else
-       port
-       #endif
-       ,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
+#ifdef _WIN32
+          (SOCKET)port
+#else
+          port
+#endif
+          ,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
    {
       mfem::err << "isockstream::establish(): bind() failed!" << endl;
       close(port);

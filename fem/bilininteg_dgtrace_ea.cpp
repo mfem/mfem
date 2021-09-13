@@ -17,11 +17,11 @@ namespace mfem
 {
 
 void EADGTraceAssemble1DInt(const int NF,
-                                   const Array<double> &basis,
-                                   const Vector &padata,
-                                   Vector &eadata_int,
-                                   Vector &eadata_ext,
-                                   const bool add)
+                            const Array<double> &basis,
+                            const Vector &padata,
+                            Vector &eadata_int,
+                            Vector &eadata_ext,
+                            const bool add)
 {
    auto D = Reshape(padata.Read(), 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), 2, NF);
@@ -51,10 +51,10 @@ void EADGTraceAssemble1DInt(const int NF,
 }
 
 void EADGTraceAssemble1DBdr(const int NF,
-                                   const Array<double> &basis,
-                                   const Vector &padata,
-                                   Vector &eadata_bdr,
-                                   const bool add)
+                            const Array<double> &basis,
+                            const Vector &padata,
+                            Vector &eadata_bdr,
+                            const bool add)
 {
    auto D = Reshape(padata.Read(), 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), NF);
@@ -73,13 +73,13 @@ void EADGTraceAssemble1DBdr(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void EADGTraceAssemble2DInt(const int NF,
-                                   const Array<double> &basis,
-                                   const Vector &padata,
-                                   Vector &eadata_int,
-                                   Vector &eadata_ext,
-                                   const bool add,
-                                   const int d1d = 0,
-                                   const int q1d = 0)
+                            const Array<double> &basis,
+                            const Vector &padata,
+                            Vector &eadata_int,
+                            Vector &eadata_ext,
+                            const bool add,
+                            const int d1d = 0,
+                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -129,12 +129,12 @@ void EADGTraceAssemble2DInt(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void EADGTraceAssemble2DBdr(const int NF,
-                                   const Array<double> &basis,
-                                   const Vector &padata,
-                                   Vector &eadata_bdr,
-                                   const bool add,
-                                   const int d1d = 0,
-                                   const int q1d = 0)
+                            const Array<double> &basis,
+                            const Vector &padata,
+                            Vector &eadata_bdr,
+                            const bool add,
+                            const int d1d = 0,
+                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -171,13 +171,13 @@ void EADGTraceAssemble2DBdr(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void EADGTraceAssemble3DInt(const int NF,
-                                   const Array<double> &basis,
-                                   const Vector &padata,
-                                   Vector &eadata_int,
-                                   Vector &eadata_ext,
-                                   const bool add,
-                                   const int d1d = 0,
-                                   const int q1d = 0)
+                            const Array<double> &basis,
+                            const Vector &padata,
+                            Vector &eadata_int,
+                            Vector &eadata_ext,
+                            const bool add,
+                            const int d1d = 0,
+                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -269,12 +269,12 @@ void EADGTraceAssemble3DInt(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void EADGTraceAssemble3DBdr(const int NF,
-                                   const Array<double> &basis,
-                                   const Vector &padata,
-                                   Vector &eadata_bdr,
-                                   const bool add,
-                                   const int d1d = 0,
-                                   const int q1d = 0)
+                            const Array<double> &basis,
+                            const Vector &padata,
+                            Vector &eadata_bdr,
+                            const bool add,
+                            const int d1d = 0,
+                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

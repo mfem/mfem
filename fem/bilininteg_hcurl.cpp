@@ -186,7 +186,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                   const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
 
                   mass[qx] += wy * wy * ((c == 0) ? op(qx,qy,0,e) :
-                  op(qx,qy,symmetric ? 2 : 3, e));
+                                         op(qx,qy,symmetric ? 2 : 3, e));
                }
             }
 
@@ -237,7 +237,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
          const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
-         (symmetric ? 5 : 8));
+                                         (symmetric ? 5 : 8));
 
          double mass[MAX_Q1D];
 
@@ -792,11 +792,11 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
 // PA H(curl) curl-curl assemble 2D kernel
 void PACurlCurlSetup2D(const int Q1D,
-                              const int NE,
-                              const Array<double> &w,
-                              const Vector &j,
-                              Vector &coeff,
-                              Vector &op)
+                       const int NE,
+                       const Array<double> &w,
+                       const Vector &j,
+                       Vector &coeff,
+                       Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -819,12 +819,12 @@ void PACurlCurlSetup2D(const int Q1D,
 
 // PA H(curl) curl-curl assemble 3D kernel
 void PACurlCurlSetup3D(const int Q1D,
-                              const int coeffDim,
-                              const int NE,
-                              const Array<double> &w,
-                              const Vector &j,
-                              Vector &coeff,
-                              Vector &op)
+                       const int coeffDim,
+                       const int NE,
+                       const Array<double> &w,
+                       const Vector &j,
+                       Vector &coeff,
+                       Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    const bool symmetric = (coeffDim != 9);
@@ -1046,15 +1046,15 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 }
 
 void PACurlCurlApply2D(const int D1D,
-                              const int Q1D,
-                              const int NE,
-                              const Array<double> &bo,
-                              const Array<double> &bot,
-                              const Array<double> &gc,
-                              const Array<double> &gct,
-                              const Vector &pa_data,
-                              const Vector &x,
-                              Vector &y)
+                       const int Q1D,
+                       const int NE,
+                       const Array<double> &bo,
+                       const Array<double> &bot,
+                       const Array<double> &gc,
+                       const Array<double> &gct,
+                       const Vector &pa_data,
+                       const Vector &x,
+                       Vector &y)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -1167,18 +1167,18 @@ void PACurlCurlApply2D(const int D1D,
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void PACurlCurlApply3D(const int D1D,
-                              const int Q1D,
-                              const bool symmetric,
-                              const int NE,
-                              const Array<double> &bo,
-                              const Array<double> &bc,
-                              const Array<double> &bot,
-                              const Array<double> &bct,
-                              const Array<double> &gc,
-                              const Array<double> &gct,
-                              const Vector &pa_data,
-                              const Vector &x,
-                              Vector &y)
+                       const int Q1D,
+                       const bool symmetric,
+                       const int NE,
+                       const Array<double> &bo,
+                       const Array<double> &bc,
+                       const Array<double> &bot,
+                       const Array<double> &bct,
+                       const Array<double> &gc,
+                       const Array<double> &gct,
+                       const Vector &pa_data,
+                       const Vector &x,
+                       Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -1678,18 +1678,18 @@ void PACurlCurlApply3D(const int D1D,
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void SmemPACurlCurlApply3D(const int D1D,
-                                  const int Q1D,
-                                  const bool symmetric,
-                                  const int NE,
-                                  const Array<double> &bo,
-                                  const Array<double> &bc,
-                                  const Array<double> &bot,
-                                  const Array<double> &bct,
-                                  const Array<double> &gc,
-                                  const Array<double> &gct,
-                                  const Vector &pa_data,
-                                  const Vector &x,
-                                  Vector &y)
+                           const int Q1D,
+                           const bool symmetric,
+                           const int NE,
+                           const Array<double> &bo,
+                           const Array<double> &bc,
+                           const Array<double> &bot,
+                           const Array<double> &bct,
+                           const Array<double> &gc,
+                           const Array<double> &gct,
+                           const Vector &pa_data,
+                           const Vector &x,
+                           Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -2033,12 +2033,12 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 }
 
 void PACurlCurlAssembleDiagonal2D(const int D1D,
-                                         const int Q1D,
-                                         const int NE,
-                                         const Array<double> &bo,
-                                         const Array<double> &gc,
-                                         const Vector &pa_data,
-                                         Vector &diag)
+                                  const int Q1D,
+                                  const int NE,
+                                  const Array<double> &bo,
+                                  const Array<double> &gc,
+                                  const Vector &pa_data,
+                                  Vector &diag)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -2088,15 +2088,15 @@ void PACurlCurlAssembleDiagonal2D(const int D1D,
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void PACurlCurlAssembleDiagonal3D(const int D1D,
-                                         const int Q1D,
-                                         const bool symmetric,
-                                         const int NE,
-                                         const Array<double> &bo,
-                                         const Array<double> &bc,
-                                         const Array<double> &go,
-                                         const Array<double> &gc,
-                                         const Vector &pa_data,
-                                         Vector &diag)
+                                  const int Q1D,
+                                  const bool symmetric,
+                                  const int NE,
+                                  const Array<double> &bo,
+                                  const Array<double> &bc,
+                                  const Array<double> &go,
+                                  const Array<double> &gc,
+                                  const Vector &pa_data,
+                                  Vector &diag)
 {
    constexpr static int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
@@ -2274,15 +2274,15 @@ void PACurlCurlAssembleDiagonal3D(const int D1D,
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
-                                             const int Q1D,
-                                             const bool symmetric,
-                                             const int NE,
-                                             const Array<double> &bo,
-                                             const Array<double> &bc,
-                                             const Array<double> &go,
-                                             const Array<double> &gc,
-                                             const Vector &pa_data,
-                                             Vector &diag)
+                                      const int Q1D,
+                                      const bool symmetric,
+                                      const int NE,
+                                      const Array<double> &bo,
+                                      const Array<double> &bc,
+                                      const Array<double> &go,
+                                      const Array<double> &gc,
+                                      const Vector &pa_data,
+                                      Vector &diag)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -2956,17 +2956,17 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void PAHcurlL2Apply3D(const int D1D,
-                             const int Q1D,
-                             const int coeffDim,
-                             const int NE,
-                             const Array<double> &bo,
-                             const Array<double> &bc,
-                             const Array<double> &bot,
-                             const Array<double> &bct,
-                             const Array<double> &gc,
-                             const Vector &pa_data,
-                             const Vector &x,
-                             Vector &y)
+                      const int Q1D,
+                      const int coeffDim,
+                      const int NE,
+                      const Array<double> &bo,
+                      const Array<double> &bc,
+                      const Array<double> &bot,
+                      const Array<double> &bct,
+                      const Array<double> &gc,
+                      const Vector &pa_data,
+                      const Vector &x,
+                      Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -3298,15 +3298,15 @@ void PAHcurlL2Apply3D(const int D1D,
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void SmemPAHcurlL2Apply3D(const int D1D,
-                                 const int Q1D,
-                                 const int coeffDim,
-                                 const int NE,
-                                 const Array<double> &bo,
-                                 const Array<double> &bc,
-                                 const Array<double> &gc,
-                                 const Vector &pa_data,
-                                 const Vector &x,
-                                 Vector &y)
+                          const int Q1D,
+                          const int coeffDim,
+                          const int NE,
+                          const Array<double> &bo,
+                          const Array<double> &bc,
+                          const Array<double> &gc,
+                          const Vector &pa_data,
+                          const Vector &x,
+                          Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -3586,17 +3586,17 @@ void SmemPAHcurlL2Apply3D(const int D1D,
 // integrated against H(div) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void PAHcurlHdivApply3D(const int D1D,
-                               const int D1Dtest,
-                               const int Q1D,
-                               const int NE,
-                               const Array<double> &bo,
-                               const Array<double> &bc,
-                               const Array<double> &bot,
-                               const Array<double> &bct,
-                               const Array<double> &gc,
-                               const Vector &pa_data,
-                               const Vector &x,
-                               Vector &y)
+                        const int D1Dtest,
+                        const int Q1D,
+                        const int NE,
+                        const Array<double> &bo,
+                        const Array<double> &bc,
+                        const Array<double> &bot,
+                        const Array<double> &bct,
+                        const Array<double> &gc,
+                        const Vector &pa_data,
+                        const Vector &x,
+                        Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -4072,17 +4072,17 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 // of H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void PAHcurlL2Apply3DTranspose(const int D1D,
-                                      const int Q1D,
-                                      const int coeffDim,
-                                      const int NE,
-                                      const Array<double> &bo,
-                                      const Array<double> &bc,
-                                      const Array<double> &bot,
-                                      const Array<double> &bct,
-                                      const Array<double> &gct,
-                                      const Vector &pa_data,
-                                      const Vector &x,
-                                      Vector &y)
+                               const int Q1D,
+                               const int coeffDim,
+                               const int NE,
+                               const Array<double> &bo,
+                               const Array<double> &bc,
+                               const Array<double> &bot,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
 {
    // See PAHcurlL2Apply3D for comments.
 
@@ -4414,15 +4414,15 @@ void PAHcurlL2Apply3DTranspose(const int D1D,
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 void SmemPAHcurlL2Apply3DTranspose(const int D1D,
-                                          const int Q1D,
-                                          const int coeffDim,
-                                          const int NE,
-                                          const Array<double> &bo,
-                                          const Array<double> &bc,
-                                          const Array<double> &gc,
-                                          const Vector &pa_data,
-                                          const Vector &x,
-                                          Vector &y)
+                                   const int Q1D,
+                                   const int coeffDim,
+                                   const int NE,
+                                   const Array<double> &bo,
+                                   const Array<double> &bc,
+                                   const Array<double> &gc,
+                                   const Vector &pa_data,
+                                   const Vector &x,
+                                   Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -4676,12 +4676,12 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 // to get a dof in H(curl) (range). You can think of the range as the "test" space
 // and the domain as the "trial" space, but there's no integration.
 void PAHcurlApplyGradient2D(const int c_dofs1D,
-                                   const int o_dofs1D,
-                                   const int NE,
-                                   const Array<double> &B_,
-                                   const Array<double> &G_,
-                                   const Vector &x_,
-                                   Vector &y_)
+                            const int o_dofs1D,
+                            const int NE,
+                            const Array<double> &B_,
+                            const Array<double> &G_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
@@ -4754,11 +4754,11 @@ void PAHcurlApplyGradient2D(const int c_dofs1D,
 
 // Specialization of PAHcurlApplyGradient2D to the case where B is identity
 void PAHcurlApplyGradient2DBId(const int c_dofs1D,
-                                      const int o_dofs1D,
-                                      const int NE,
-                                      const Array<double> &G_,
-                                      const Vector &x_,
-                                      Vector &y_)
+                               const int o_dofs1D,
+                               const int NE,
+                               const Array<double> &G_,
+                               const Vector &x_,
+                               Vector &y_)
 {
    auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
@@ -4966,12 +4966,12 @@ void PAHcurlApplyGradientTranspose2DBId(
 }
 
 void PAHcurlApplyGradient3D(const int c_dofs1D,
-                                   const int o_dofs1D,
-                                   const int NE,
-                                   const Array<double> &B_,
-                                   const Array<double> &G_,
-                                   const Vector &x_,
-                                   Vector &y_)
+                            const int o_dofs1D,
+                            const int NE,
+                            const Array<double> &B_,
+                            const Array<double> &G_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
    auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
@@ -5155,11 +5155,11 @@ void PAHcurlApplyGradient3D(const int c_dofs1D,
 
 // Specialization of PAHcurlApplyGradient3D to the case where
 void PAHcurlApplyGradient3DBId(const int c_dofs1D,
-                                      const int o_dofs1D,
-                                      const int NE,
-                                      const Array<double> &G_,
-                                      const Vector &x_,
-                                      Vector &y_)
+                               const int o_dofs1D,
+                               const int NE,
+                               const Array<double> &G_,
+                               const Vector &x_,
+                               Vector &y_)
 {
    auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
@@ -5790,13 +5790,13 @@ void GradientInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 }
 
 void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
-                                        const int o_dofs1D,
-                                        const int NE,
-                                        const Array<double> &Bclosed,
-                                        const Array<double> &Bopen,
-                                        const Vector &pa_data,
-                                        const Vector &x_,
-                                        Vector &y_)
+                                 const int o_dofs1D,
+                                 const int NE,
+                                 const Array<double> &Bclosed,
+                                 const Array<double> &Bopen,
+                                 const Vector &pa_data,
+                                 const Vector &x_,
+                                 Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
@@ -6003,13 +6003,13 @@ void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
 }
 
 void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
-                                                 const int o_dofs1D,
-                                                 const int NE,
-                                                 const Array<double> &Bclosed,
-                                                 const Array<double> &Bopen,
-                                                 const Vector &pa_data,
-                                                 const Vector &x_,
-                                                 Vector &y_)
+                                          const int o_dofs1D,
+                                          const int NE,
+                                          const Array<double> &Bclosed,
+                                          const Array<double> &Bopen,
+                                          const Vector &pa_data,
+                                          const Vector &x_,
+                                          Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
@@ -6229,13 +6229,13 @@ void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
 }
 
 void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
-                                        const int o_dofs1D,
-                                        const int NE,
-                                        const Array<double> &Bclosed,
-                                        const Array<double> &Bopen,
-                                        const Vector &pa_data,
-                                        const Vector &x_,
-                                        Vector &y_)
+                                 const int o_dofs1D,
+                                 const int NE,
+                                 const Array<double> &Bclosed,
+                                 const Array<double> &Bopen,
+                                 const Vector &pa_data,
+                                 const Vector &x_,
+                                 Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
@@ -6328,13 +6328,13 @@ void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
 }
 
 void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
-                                                 const int o_dofs1D,
-                                                 const int NE,
-                                                 const Array<double> &Bclosed,
-                                                 const Array<double> &Bopen,
-                                                 const Vector &pa_data,
-                                                 const Vector &x_,
-                                                 Vector &y_)
+                                          const int o_dofs1D,
+                                          const int NE,
+                                          const Array<double> &Bclosed,
+                                          const Array<double> &Bopen,
+                                          const Vector &pa_data,
+                                          const Vector &x_,
+                                          Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);

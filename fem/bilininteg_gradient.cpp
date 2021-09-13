@@ -71,11 +71,11 @@ namespace mfem
 
 // PA Gradient Assemble 2D kernel
 void PAGradientSetup2D(const int Q1D,
-                              const int NE,
-                              const Array<double> &w,
-                              const Vector &j,
-                              const Vector &c,
-                              Vector &op)
+                       const int NE,
+                       const Array<double> &w,
+                       const Vector &j,
+                       const Vector &c,
+                       Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -106,11 +106,11 @@ void PAGradientSetup2D(const int Q1D,
 
 // PA Gradient Assemble 3D kernel
 void PAGradientSetup3D(const int Q1D,
-                              const int NE,
-                              const Array<double> &w,
-                              const Vector &j,
-                              const Vector &c,
-                              Vector &op)
+                       const int NE,
+                       const Array<double> &w,
+                       const Vector &j,
+                       const Vector &c,
+                       Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -255,15 +255,15 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // PA Gradient Apply 2D kernel
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 void PAGradientApply2D(const int NE,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int tr_d1d = 0,
-                              const int te_d1d = 0,
-                              const int q1d = 0)
+                       const Array<double> &b,
+                       const Array<double> &g,
+                       const Array<double> &bt,
+                       const Vector &op_,
+                       const Vector &x_,
+                       Vector &y_,
+                       const int tr_d1d = 0,
+                       const int te_d1d = 0,
+                       const int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -385,15 +385,15 @@ static void PAGradientApplyTranspose2D(const int NE,
 // PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 void PAGradientApply3D(const int NE,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_,
-                              int tr_d1d = 0,
-                              int te_d1d = 0,
-                              int q1d = 0)
+                       const Array<double> &b,
+                       const Array<double> &g,
+                       const Array<double> &bt,
+                       const Vector &op_,
+                       const Vector &x_,
+                       Vector &y_,
+                       int tr_d1d = 0,
+                       int te_d1d = 0,
+                       int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -580,15 +580,15 @@ static void PAGradientApplyTranspose3D(const int NE,
 // Shared memory PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 void SmemPAGradientApply3D(const int NE,
-                                  const Array<double> &b_,
-                                  const Array<double> &g_,
-                                  const Array<double> &bt_,
-                                  const Vector &d_,
-                                  const Vector &x_,
-                                  Vector &y_,
-                                  const int tr_d1d = 0,
-                                  const int te_d1d = 0,
-                                  const int q1d = 0)
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Array<double> &bt_,
+                           const Vector &d_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int tr_d1d = 0,
+                           const int te_d1d = 0,
+                           const int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;

@@ -540,11 +540,11 @@ void PAHdivMassApply3D(const int D1D,
 // PA H(div) div-div assemble 2D kernel
 // NOTE: this is identical to PACurlCurlSetup3D
 void PADivDivSetup2D(const int Q1D,
-                            const int NE,
-                            const Array<double> &w,
-                            const Vector &j,
-                            Vector &coeff_,
-                            Vector &op)
+                     const int NE,
+                     const Array<double> &w,
+                     const Vector &j,
+                     Vector &coeff_,
+                     Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -566,11 +566,11 @@ void PADivDivSetup2D(const int Q1D,
 }
 
 void PADivDivSetup3D(const int Q1D,
-                            const int NE,
-                            const Array<double> &w,
-                            const Vector &j,
-                            Vector &coeff_,
-                            Vector &op)
+                     const int NE,
+                     const Array<double> &w,
+                     const Vector &j,
+                     Vector &coeff_,
+                     Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -600,15 +600,15 @@ void PADivDivSetup3D(const int Q1D,
 }
 
 void PADivDivApply2D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Gct_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+                     const int Q1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &Bot_,
+                     const Array<double> &Gct_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -719,15 +719,15 @@ void PADivDivApply2D(const int D1D,
 }
 
 void PADivDivApply3D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Gct_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+                     const int Q1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &Bot_,
+                     const Array<double> &Gct_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -968,12 +968,12 @@ void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
 }
 
 void PADivDivAssembleDiagonal2D(const int D1D,
-                                       const int Q1D,
-                                       const int NE,
-                                       const Array<double> &Bo_,
-                                       const Array<double> &Gc_,
-                                       const Vector &op_,
-                                       Vector &diag_)
+                                const int Q1D,
+                                const int NE,
+                                const Array<double> &Bo_,
+                                const Array<double> &Gc_,
+                                const Vector &op_,
+                                Vector &diag_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
@@ -1024,12 +1024,12 @@ void PADivDivAssembleDiagonal2D(const int D1D,
 }
 
 void PADivDivAssembleDiagonal3D(const int D1D,
-                                       const int Q1D,
-                                       const int NE,
-                                       const Array<double> &Bo_,
-                                       const Array<double> &Gc_,
-                                       const Vector &op_,
-                                       Vector &diag_)
+                                const int Q1D,
+                                const int NE,
+                                const Array<double> &Bo_,
+                                const Array<double> &Gc_,
+                                const Vector &op_,
+                                Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1105,10 +1105,10 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 
 // PA H(div)-L2 (div u, p) assemble 2D kernel
 void PADivL2Setup2D(const int Q1D,
-                           const int NE,
-                           const Array<double> &w,
-                           Vector &coeff_,
-                           Vector &op)
+                    const int NE,
+                    const Array<double> &w,
+                    Vector &coeff_,
+                    Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -1124,10 +1124,10 @@ void PADivL2Setup2D(const int Q1D,
 }
 
 void PADivL2Setup3D(const int Q1D,
-                           const int NE,
-                           const Array<double> &w,
-                           Vector &coeff_,
-                           Vector &op)
+                    const int NE,
+                    const Array<double> &w,
+                    Vector &coeff_,
+                    Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -1226,15 +1226,15 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 void PAHdivL2Apply3D(const int D1D,
-                            const int Q1D,
-                            const int L2D1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &L2Bot_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+                     const int Q1D,
+                     const int L2D1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &L2Bot_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1389,15 +1389,15 @@ void PAHdivL2Apply3D(const int D1D,
 // Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 void PAHdivL2Apply2D(const int D1D,
-                            const int Q1D,
-                            const int L2D1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &L2Bot_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+                     const int Q1D,
+                     const int L2D1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &L2Bot_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -1495,15 +1495,15 @@ void PAHdivL2Apply2D(const int D1D,
 }
 
 void PAHdivL2ApplyTranspose3D(const int D1D,
-                                     const int Q1D,
-                                     const int L2D1D,
-                                     const int NE,
-                                     const Array<double> &L2Bo_,
-                                     const Array<double> &Gct_,
-                                     const Array<double> &Bot_,
-                                     const Vector &op_,
-                                     const Vector &x_,
-                                     Vector &y_)
+                              const int Q1D,
+                              const int L2D1D,
+                              const int NE,
+                              const Array<double> &L2Bo_,
+                              const Array<double> &Gct_,
+                              const Array<double> &Bot_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1657,15 +1657,15 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 }
 
 void PAHdivL2ApplyTranspose2D(const int D1D,
-                                     const int Q1D,
-                                     const int L2D1D,
-                                     const int NE,
-                                     const Array<double> &L2Bo_,
-                                     const Array<double> &Gct_,
-                                     const Array<double> &Bot_,
-                                     const Vector &op_,
-                                     const Vector &x_,
-                                     Vector &y_)
+                              const int Q1D,
+                              const int L2D1D,
+                              const int NE,
+                              const Array<double> &L2Bo_,
+                              const Array<double> &Gct_,
+                              const Array<double> &Bot_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -1792,15 +1792,15 @@ void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
 }
 
 void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
-                                             const int Q1D,
-                                             const int L2D1D,
-                                             const int NE,
-                                             const Array<double> &L2Bo_,
-                                             const Array<double> &Gct_,
-                                             const Array<double> &Bot_,
-                                             const Vector &op_,
-                                             const Vector &D_,
-                                             Vector &diag_)
+                                      const int Q1D,
+                                      const int L2D1D,
+                                      const int NE,
+                                      const Array<double> &L2Bo_,
+                                      const Array<double> &Gct_,
+                                      const Array<double> &Bot_,
+                                      const Vector &op_,
+                                      const Vector &D_,
+                                      Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1917,15 +1917,15 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
 }
 
 void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
-                                             const int Q1D,
-                                             const int L2D1D,
-                                             const int NE,
-                                             const Array<double> &L2Bo_,
-                                             const Array<double> &Gct_,
-                                             const Array<double> &Bot_,
-                                             const Vector &op_,
-                                             const Vector &D_,
-                                             Vector &diag_)
+                                      const int Q1D,
+                                      const int L2D1D,
+                                      const int NE,
+                                      const Array<double> &L2Bo_,
+                                      const Array<double> &Gct_,
+                                      const Array<double> &Bot_,
+                                      const Vector &op_,
+                                      const Vector &D_,
+                                      Vector &diag_)
 {
    constexpr static int VDIM = 2;
 

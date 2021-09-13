@@ -105,13 +105,13 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 void PAVectorMassApply2D(const int NE,
-                                const Array<double> &B_,
-                                const Array<double> &Bt_,
-                                const Vector &op_,
-                                const Vector &x_,
-                                Vector &y_,
-                                const int d1d = 0,
-                                const int q1d = 0)
+                         const Array<double> &B_,
+                         const Array<double> &Bt_,
+                         const Vector &op_,
+                         const Vector &x_,
+                         Vector &y_,
+                         const int d1d = 0,
+                         const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -202,13 +202,13 @@ void PAVectorMassApply2D(const int NE,
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 void PAVectorMassApply3D(const int NE,
-                                const Array<double> &B_,
-                                const Array<double> &Bt_,
-                                const Vector &op_,
-                                const Vector &x_,
-                                Vector &y_,
-                                const int d1d = 0,
-                                const int q1d = 0)
+                         const Array<double> &B_,
+                         const Array<double> &Bt_,
+                         const Vector &op_,
+                         const Vector &x_,
+                         Vector &y_,
+                         const int d1d = 0,
+                         const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -380,12 +380,12 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 void PAVectorMassAssembleDiagonal2D(const int NE,
-                                           const Array<double> &B_,
-                                           const Array<double> &Bt_,
-                                           const Vector &op_,
-                                           Vector &diag_,
-                                           const int d1d = 0,
-                                           const int q1d = 0)
+                                    const Array<double> &B_,
+                                    const Array<double> &Bt_,
+                                    const Vector &op_,
+                                    Vector &diag_,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -432,12 +432,12 @@ void PAVectorMassAssembleDiagonal2D(const int NE,
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 void PAVectorMassAssembleDiagonal3D(const int NE,
-                                           const Array<double> &B_,
-                                           const Array<double> &Bt_,
-                                           const Vector &op_,
-                                           Vector &diag_,
-                                           const int d1d = 0,
-                                           const int q1d = 0)
+                                    const Array<double> &B_,
+                                    const Array<double> &Bt_,
+                                    const Vector &op_,
+                                    Vector &diag_,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

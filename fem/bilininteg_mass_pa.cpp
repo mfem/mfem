@@ -156,11 +156,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAMassAssembleDiagonal2D(const int NE,
-                                     const Array<double> &b,
-                                     const Vector &d,
-                                     Vector &y,
-                                     const int d1d = 0,
-                                     const int q1d = 0)
+                              const Array<double> &b,
+                              const Vector &d,
+                              Vector &y,
+                              const int d1d = 0,
+                              const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -202,11 +202,11 @@ void PAMassAssembleDiagonal2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 void SmemPAMassAssembleDiagonal2D(const int NE,
-                                         const Array<double> &b_,
-                                         const Vector &d_,
-                                         Vector &y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
+                                  const Array<double> &b_,
+                                  const Vector &d_,
+                                  Vector &y_,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -268,11 +268,11 @@ void SmemPAMassAssembleDiagonal2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAMassAssembleDiagonal3D(const int NE,
-                                     const Array<double> &b,
-                                     const Vector &d,
-                                     Vector &y,
-                                     const int d1d = 0,
-                                     const int q1d = 0)
+                              const Array<double> &b,
+                              const Vector &d,
+                              Vector &y,
+                              const int d1d = 0,
+                              const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -337,11 +337,11 @@ void PAMassAssembleDiagonal3D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPAMassAssembleDiagonal3D(const int NE,
-                                         const Array<double> &b_,
-                                         const Vector &d_,
-                                         Vector &y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
+                                  const Array<double> &b_,
+                                  const Vector &d_,
+                                  Vector &y_,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -570,13 +570,13 @@ static void OccaPAMassApply3D(const int D1D,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAMassApply2D(const int NE,
-                          const Array<double> &b_,
-                          const Array<double> &bt_,
-                          const Vector &d_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
+                   const Array<double> &b_,
+                   const Array<double> &bt_,
+                   const Vector &d_,
+                   const Vector &x_,
+                   Vector &y_,
+                   const int d1d = 0,
+                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -662,13 +662,13 @@ void PAMassApply2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 void SmemPAMassApply2D(const int NE,
-                              const Array<double> &b_,
-                              const Array<double> &bt_,
-                              const Vector &d_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
+                       const Array<double> &b_,
+                       const Array<double> &bt_,
+                       const Vector &d_,
+                       const Vector &x_,
+                       Vector &y_,
+                       const int d1d = 0,
+                       const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -785,13 +785,13 @@ void SmemPAMassApply2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void PAMassApply3D(const int NE,
-                          const Array<double> &b_,
-                          const Array<double> &bt_,
-                          const Vector &d_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
+                   const Array<double> &b_,
+                   const Array<double> &bt_,
+                   const Vector &d_,
+                   const Vector &x_,
+                   Vector &y_,
+                   const int d1d = 0,
+                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -926,13 +926,13 @@ void PAMassApply3D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPAMassApply3D(const int NE,
-                              const Array<double> &b_,
-                              const Array<double> &bt_,
-                              const Vector &d_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
+                       const Array<double> &b_,
+                       const Array<double> &bt_,
+                       const Vector &d_,
+                       const Vector &x_,
+                       Vector &y_,
+                       const int d1d = 0,
+                       const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;

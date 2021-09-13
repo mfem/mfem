@@ -20,15 +20,15 @@ namespace mfem
 {
 // PA DG Trace Integrator
 void PADGTraceSetup2D(const int Q1D,
-                             const int NF,
-                             const Array<double> &w,
-                             const Vector &det,
-                             const Vector &nor,
-                             const Vector &rho,
-                             const Vector &vel,
-                             const double alpha,
-                             const double beta,
-                             Vector &op)
+                      const int NF,
+                      const Array<double> &w,
+                      const Vector &det,
+                      const Vector &nor,
+                      const Vector &rho,
+                      const Vector &vel,
+                      const double alpha,
+                      const double beta,
+                      Vector &op)
 {
    const int VDIM = 2;
 
@@ -62,15 +62,15 @@ void PADGTraceSetup2D(const int Q1D,
 }
 
 void PADGTraceSetup3D(const int Q1D,
-                             const int NF,
-                             const Array<double> &w,
-                             const Vector &det,
-                             const Vector &nor,
-                             const Vector &rho,
-                             const Vector &vel,
-                             const double alpha,
-                             const double beta,
-                             Vector &op)
+                      const int NF,
+                      const Array<double> &w,
+                      const Vector &det,
+                      const Vector &nor,
+                      const Vector &rho,
+                      const Vector &vel,
+                      const double alpha,
+                      const double beta,
+                      Vector &op)
 {
    const int VDIM = 3;
 
