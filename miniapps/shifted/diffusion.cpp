@@ -61,8 +61,10 @@
 //
 //   Problem 4: Complex 2D / 3D shapes:
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
-//     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
-//     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 3 -lst 8 -alpha 10
+//     mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 4 -lst 4 -alpha 10
+//     mpirun -np 4 diffusion -m ../../data/inline-tri.mesh  -rs 4 -lst 4 -alpha 10
+//     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh  -rs 3 -lst 8 -alpha 10
+//     mpirun -np 4 diffusion -m ../../data/inline-tet.mesh  -rs 3 -lst 8 -alpha 10
 //
 //   Problem 5: Circular hole with homogeneous Neumann, triangular hole with
 //            inhomogeneous Dirichlet, and square hole with homogeneous Dirichlet
@@ -284,7 +286,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916, s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, face_dofs,
-                             "Shifted Face Dofs", 0, s, s, s, "Rjmp");
+                             "Shifted Face Dofs", 0, s, s, s, "Rjmplo");
    }
 
    // Make a list of inactive tdofs that will be eliminated from the system.
