@@ -738,13 +738,13 @@ mfem_check_command = \
 # not used in the library (use mfem::out and mfem::err instead).
 style:
 	@echo "Applying C++ code style..."
-#	@astyle_version="$$($(ASTYLE_BIN) --version)";\
-#	 if [ "$$astyle_version" != $(ASTYLE_VER) ]; then\
-#	    printf "%s\n" "Invalid astyle version: '$$astyle_version'"\
-#	           "Please use: '"$(ASTYLE_VER)"'";\
-#	    exit 1;\
-#	 fi
-#	@err_code=0;\
+	@astyle_version="$$($(ASTYLE_BIN) --version)";\
+	 if [ "$$astyle_version" != $(ASTYLE_VER) ]; then\
+	    printf "%s\n" "Invalid astyle version: '$$astyle_version'"\
+	           "Please use: '"$(ASTYLE_VER)"'";\
+	    exit 1;\
+	 fi
+	@err_code=0;\
 	$(call mfem_check_command,\
 	    $(ASTYLE) $(FORMAT_LIST) | grep Formatted,\
 	    "No source files were changed",\
