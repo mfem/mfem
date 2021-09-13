@@ -46,6 +46,8 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 
    double ratio = global_sum / static_cast<double>(global_size);
    v_ortho.SetSize(v.Size());
+   v.HostRead();
+   v_ortho.HostWrite();
    for (int i = 0; i < v_ortho.Size(); ++i)
    {
       v_ortho(i) = v(i) - ratio;

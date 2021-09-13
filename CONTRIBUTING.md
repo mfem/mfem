@@ -97,7 +97,6 @@ The MFEM source code has the following structure:
   .
   ├── config
   │   ├── cmake
-  │   │    └── ...
   │   └── githooks
   ├── data
   ├── doc
@@ -135,10 +134,10 @@ The MFEM source code has the following structure:
   └── tests
       ├── convergence
       ├── gitlab
+      ├── mem_manager
       ├── par-mesh-format
       ├── scripts
       └── unit
-          └── ...
 ```
 
 #### Main directories and classes
