@@ -1782,6 +1782,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
       num_ref_types[g]++;
       num_fine_elems[g] += ref_type_to_matrix.RowSize(i);
    }
+
    DenseTensor localPtMP[Geometry::NumGeom];
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
