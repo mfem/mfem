@@ -1868,8 +1868,6 @@ void NCMesh::InitDerefTransforms()
       transforms.embeddings[i].parent = -1;
       transforms.embeddings[i].matrix = 0;
    }
-
-   transforms.orig_elements = NElements;
 }
 
 void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
@@ -4388,7 +4386,9 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
 
             int &matrix = mat_no[geom][ref_type_child];
             if (!matrix) { matrix = mat_no[geom].size(); }
+
             transforms.embeddings[i].matrix = matrix - 1;
+            transforms.embeddings[i].geom = geom; // TODO
          }
       }
 
@@ -4453,19 +4453,25 @@ struct RefType
 
 } // namespace internal
 
-void CoarseFineTransformations::GetCoarseToFineMap(
-   const mfem::Mesh &new_mesh, Table &coarse_to_fine,
-   Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
-   Array<mfem::Geometry::Type> &ref_type_to_geom,
-   bool get_coarse_to_fine_only) const
+void CoarseFineTransformations::MakeCoarseToFineTable(Table &coarse_to_fine,
+                                                      bool want_ghosts) const
 {
-   int fine_ne = embeddings.Size();
-
-   // In the case of derefinement, we want to process only nonghost elements.
-   if (new_mesh.GetLastOperation() == Mesh::Operation::DEREFINE)
+   // count fine elements
+   int fine_ne;
+   if (want_ghosts)
    {
-      fine_ne = orig_elements;
+      fine_ne = embeddings.Size();
    }
+   else
+   {
+      fine_ne = 0;
+      for (int i = 0; i < embeddings.Size(); i++)
+      {
+         if (!embeddings[i].ghost) { fine_ne++; }
+      }
+   }
+
+   // count coarse elements
    int coarse_ne = -1;
    for (int i = 0; i < fine_ne; i++)
    {
@@ -4473,21 +4479,26 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    }
    coarse_ne++;
 
-   coarse_to_ref_type.SetSize(coarse_ne);
    coarse_to_fine.SetDims(coarse_ne, fine_ne);
 
+   // count table row sizes
    Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
-   Array<Pair<int,int> > cf_j(fine_ne);
    cf_i = 0;
    for (int i = 0; i < fine_ne; i++)
    {
-      cf_i[embeddings[i].parent+1]++;
+      const Embedding &e = embeddings[i];
+      if (!want_ghosts && e.ghost) { continue; }
+      if (e.parent >= 0) { cf_i[e.parent + 1]++; }
    }
    cf_i.PartialSum();
-   MFEM_ASSERT(cf_i.Last() == cf_j.Size(), "internal error");
+   MFEM_ASSERT(cf_i.Last() == fine_ne, "internal error");
+
+   // fill and sort rows
+   Array<Pair<int,int> > cf_j(fine_ne);
    for (int i = 0; i < fine_ne; i++)
    {
       const Embedding &e = embeddings[i];
+      if (!want_ghosts && e.ghost) { continue; }
       cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
       cf_j[cf_i[e.parent]].two = i;
       cf_i[e.parent]++;
@@ -4502,11 +4513,11 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    {
       coarse_to_fine.GetJ()[i] = cf_j[i].two;
    }
+}
 
-   if (get_coarse_to_fine_only) { return; }
-   MFEM_VERIFY(new_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
-               "GetCoarseToFineMap is not fully supported for derefined meshes."
-               " Set 'get_coarse_to_fine_only=true'.")
+
+/*{
+   coarse_to_ref_type.SetSize(coarse_ne);
 
    using internal::RefType;
    using std::map;
@@ -4547,9 +4558,9 @@ void CoarseFineTransformations::GetCoarseToFineMap(
       }
    }
    ref_type_to_matrix.ShiftUpI();
-}
+}*/
 
-void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &new_mesh,
+/*void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &new_mesh,
                                                    Table &coarse_to_fine) const
 {
    Array<int> coarse_to_ref_type;
@@ -4559,7 +4570,7 @@ void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &new_mesh,
    GetCoarseToFineMap(new_mesh, coarse_to_fine, coarse_to_ref_type,
                       ref_type_to_matrix, ref_type_to_geom,
                       get_coarse_to_fine_only);
-}
+}*/
 
 void NCMesh::ClearTransforms()
 {
@@ -4574,7 +4585,6 @@ void CoarseFineTransformations::Clear()
       point_matrices[i].SetSize(0, 0, 0);
    }
    embeddings.DeleteAll();
-   orig_elements = -1;
 }
 
 bool CoarseFineTransformations::IsInitialized() const
