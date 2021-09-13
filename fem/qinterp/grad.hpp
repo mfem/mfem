@@ -32,14 +32,14 @@ template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
 void Derivatives2D(const int NE,
-                          const double *b_,
-                          const double *g_,
-                          const double *j_,
-                          const double *x_,
-                          double *y_,
-                          const int vdim = 0,
-                          const int d1d = 0,
-                          const int q1d = 0)
+                   const double *b_,
+                   const double *g_,
+                   const double *j_,
+                   const double *x_,
+                   double *y_,
+                   const int vdim = 0,
+                   const int d1d = 0,
+                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -140,14 +140,14 @@ template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
          int MAX_D1D = 0, int MAX_Q1D = 0>
 void Derivatives3D(const int NE,
-                          const double *b_,
-                          const double *g_,
-                          const double *j_,
-                          const double *x_,
-                          double *y_,
-                          const int vdim = 0,
-                          const int d1d = 0,
-                          const int q1d = 0)
+                   const double *b_,
+                   const double *g_,
+                   const double *j_,
+                   const double *x_,
+                   double *y_,
+                   const int vdim = 0,
+                   const int d1d = 0,
+                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

@@ -235,7 +235,7 @@ int CeedATPMGElemRestriction(int order,
                   // in the i, j, or k direction?
                   int in_edof = i*P1d*P1d + j*P1d + k;
                   int in_ldof = in_elem_dof[in_edof*in_layout[0] +
-                                                                 e*in_layout[2]] + rounding_guard;
+                                            e*in_layout[2]] + rounding_guard;
                   bool i_edge = (i == 0 || i == P1d - 1);
                   bool j_edge = (j == 0 || j == P1d - 1);
                   bool k_edge = (k == 0 || k == P1d - 1);
@@ -266,9 +266,9 @@ int CeedATPMGElemRestriction(int order,
                         left_in_edof = 0*P1d*P1d + j*P1d + k;
                         right_in_edof = (P1d - 1)*P1d*P1d + j*P1d + k;
                         left_in_ldof = in_elem_dof[left_in_edof*in_layout[0] +
-                                                                             e*in_layout[2]] + rounding_guard;
+                                                   e*in_layout[2]] + rounding_guard;
                         right_in_ldof = in_elem_dof[right_in_edof*in_layout[0] +
-                                                                               e*in_layout[2]] + rounding_guard;
+                                                    e*in_layout[2]] + rounding_guard;
                         coarse_i = (left_in_ldof < right_in_ldof) ?
                                    coarse_1d_edof(i, P1d, coarse_P1d) : reverse_coarse_1d_edof(i, P1d, coarse_P1d);
                         coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
@@ -279,9 +279,9 @@ int CeedATPMGElemRestriction(int order,
                         left_in_edof = i*P1d*P1d + 0*P1d + k;
                         right_in_edof = i*P1d*P1d + (P1d - 1)*P1d + k;
                         left_in_ldof = in_elem_dof[left_in_edof*in_layout[0] +
-                                                                             e*in_layout[2]] + rounding_guard;
+                                                   e*in_layout[2]] + rounding_guard;
                         right_in_ldof = in_elem_dof[right_in_edof*in_layout[0] +
-                                                                               e*in_layout[2]] + rounding_guard;
+                                                    e*in_layout[2]] + rounding_guard;
                         coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                         coarse_j = (left_in_ldof < right_in_ldof) ?
                                    coarse_1d_edof(j, P1d, coarse_P1d) : reverse_coarse_1d_edof(j, P1d, coarse_P1d);
@@ -297,9 +297,9 @@ int CeedATPMGElemRestriction(int order,
                         left_in_edof = i*P1d*P1d + j*P1d + 0;
                         right_in_edof = i*P1d*P1d + j*P1d + (P1d - 1);
                         left_in_ldof = in_elem_dof[left_in_edof*in_layout[0] +
-                                                                             e*in_layout[2]] + rounding_guard;
+                                                   e*in_layout[2]] + rounding_guard;
                         right_in_ldof = in_elem_dof[right_in_edof*in_layout[0] +
-                                                                               e*in_layout[2]] + rounding_guard;
+                                                    e*in_layout[2]] + rounding_guard;
                         coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                         coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
                         coarse_k = (left_in_ldof < right_in_ldof) ?
@@ -324,13 +324,13 @@ int CeedATPMGElemRestriction(int order,
                         top_right_edof = i*P1d*P1d + (P1d - 1)*P1d + (P1d - 1);
                         top_left_edof = i*P1d*P1d + (P1d - 1)*P1d + 0;
                         bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0] +
-                                                                                     e*in_layout[2]] + rounding_guard;
+                                                       e*in_layout[2]] + rounding_guard;
                         bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0] +
-                                                                                       e*in_layout[2]] + rounding_guard;
+                                                        e*in_layout[2]] + rounding_guard;
                         top_right_ldof = in_elem_dof[top_right_edof*in_layout[0] +
-                                                                                 e*in_layout[2]] + rounding_guard;
+                                                     e*in_layout[2]] + rounding_guard;
                         top_left_ldof = in_elem_dof[top_left_edof*in_layout[0] +
-                                                                               e*in_layout[2]] + rounding_guard;
+                                                    e*in_layout[2]] + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof, top_right_ldof,
                                      top_left_ldof);
                         coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
@@ -362,13 +362,13 @@ int CeedATPMGElemRestriction(int order,
                         top_right_edof = (P1d - 1)*P1d*P1d + j*P1d + (P1d - 1);
                         top_left_edof = (P1d - 1)*P1d*P1d + j*P1d + 0;
                         bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0] +
-                                                                                     e*in_layout[2]] + rounding_guard;
+                                                       e*in_layout[2]] + rounding_guard;
                         bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0] +
-                                                                                       e*in_layout[2]] + rounding_guard;
+                                                        e*in_layout[2]] + rounding_guard;
                         top_right_ldof = in_elem_dof[top_right_edof*in_layout[0] +
-                                                                                 e*in_layout[2]] + rounding_guard;
+                                                     e*in_layout[2]] + rounding_guard;
                         top_left_ldof = in_elem_dof[top_left_edof*in_layout[0] +
-                                                                               e*in_layout[2]] + rounding_guard;
+                                                    e*in_layout[2]] + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof, top_right_ldof,
                                      top_left_ldof);
                         coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
@@ -405,13 +405,13 @@ int CeedATPMGElemRestriction(int order,
                         top_right_edof = (P1d - 1)*P1d*P1d + (P1d - 1)*P1d + k;
                         top_left_edof = (P1d - 1)*P1d*P1d + 0*P1d + k;
                         bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0] +
-                                                                                     e*in_layout[2]] + rounding_guard;
+                                                       e*in_layout[2]] + rounding_guard;
                         bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0] +
-                                                                                       e*in_layout[2]] + rounding_guard;
+                                                        e*in_layout[2]] + rounding_guard;
                         top_right_ldof = in_elem_dof[top_right_edof*in_layout[0] +
-                                                                                 e*in_layout[2]] + rounding_guard;
+                                                     e*in_layout[2]] + rounding_guard;
                         top_left_ldof = in_elem_dof[top_left_edof*in_layout[0] +
-                                                                               e*in_layout[2]] + rounding_guard;
+                                                    e*in_layout[2]] + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof,
                                      top_right_ldof, top_left_ldof);
                         coarse_k = coarse_1d_edof(k, P1d, coarse_P1d);
