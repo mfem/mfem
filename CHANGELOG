@@ -11,6 +11,11 @@
 Version 4.3.1 (development)
 ===========================
 - Added support for hr-adaptivity using TMOP-based error estimator.
+- Added binder (https://mybinder.org) configuration files for running
+  C++ Jupyter Notebooks with MFEM and inline GLVis using
+  xeus-cling (https://github.com/jupyter-xeus/xeus-cling) and
+  xeus-glvis (https://github.com/GLVis/xeus-glvis) along with a new readme on
+  the topic and a notebook modeled after example 1.
 
 
 Version 4.3, released on July 29, 2021
