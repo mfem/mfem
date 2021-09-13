@@ -293,7 +293,7 @@ Miscellaneous
   * HYPRE >= 2.22.0 for CUDA support
   * libCEED >= 0.8
   * PETSc >= 3.15.0 for CUDA support
-  * RAJA >= 0.13.0
+  * RAJA >= 0.14.0
   see INSTALL for more details.
 
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
