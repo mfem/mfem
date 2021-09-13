@@ -4082,8 +4082,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    Vector ul, fl, fla;
 
    error_estimates.SetSize(nfe);
+   error_estimates = 0.0;
    Array<int> counters(nfe);
-   counters = 1; // TODO: set to 0
+   counters = 0; // TODO: set to 0
 
    int nsd = 1; // TODO: Support different attributes
    if (with_subdomains)
@@ -4093,6 +4094,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
    double total_error = 0.0;
    int num_basis_functions = 4; // TODO: should depend on polynomial order
+   DenseMatrix A(num_basis_functions);
+   Array<double> b(dim * num_basis_functions);
+   // double *b = new double[dim * num_basis_functions];
    for (int iface = 0; iface < nfaces; iface++)
    {
 
@@ -4101,10 +4105,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       GetFaceElements(*mesh, iface, neighbor_elems);
       int num_neighbor_elems = neighbor_elems.Size();
 
-      // Array<int> vert;
-      // mesh->GetEdgeVertices(iface,vert);
-      // cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
-      //      "), elems: " ; neighbor_elems.Print();
+      Array<int> vert;
+      mesh->GetEdgeVertices(iface,vert);
+      cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
+           "), elems: " ; neighbor_elems.Print();
 
       // 2. Check if boundary face and continue if true.
       if (num_neighbor_elems < 2)
@@ -4113,19 +4117,12 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
 
       // 3. Compute global flux polynomial.
-      ConstantCoefficient one(1.0);
-      FunctionCoefficient x(poly_x);
-      FunctionCoefficient y(poly_y);
-      FunctionCoefficient xy(poly_xy);
 
-      // TODO: Solve for each individual component
       // loop through all elements in patch
-      // DofTransformation *udoftrans;
-      // DofTransformation *fdoftrans;
-      DenseMatrix A(num_basis_functions); A = 0.0;
-      double *b = new double[dim * num_basis_functions];
-      *b = {0.0};
-      // double b[dim * num_basis_functions] = {0.0};
+      DofTransformation *udoftrans;
+      DofTransformation *fdoftrans;
+      A = 0.0;
+      b = 0.0;
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
@@ -4133,26 +4130,43 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
                                                     flux_order));
 
-         ufes->GetElementVDofs(ielem, udofs);
-         ffes->GetElementVDofs(ielem, fdofs);
+         udoftrans = ufes->GetElementVDofs(i, udofs);
+         fdoftrans = ffes->GetElementVDofs(i, fdofs);
 
+         ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
+         if (udoftrans)
+         {
+            udoftrans->InvTransformPrimal(ul);
+         }
          Transf = ufes->GetElementTransformation(ielem);
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *ffes->GetFE(ielem), fl, with_coeff, ir);
-
+         if (fdoftrans)
+         {
+            fdoftrans->TransformPrimal(fl);
+         }
          // cout << "fl.Size() = " << fl.Size() << endl;
          // fl.Print();
 
          for (int j = 0; j < ir->GetNPoints(); j++)
          {
-            const IntegrationPoint &ip = ir->IntPoint(j);
+            const IntegrationPoint ip = ir->IntPoint(j);
+            double tmp[3];
+            Vector transip(tmp, 3);
+            Transf->Transform(ip, transip);
+
             Vector p(num_basis_functions);
 
             p(0) = 1.0;
-            p(1) = x.Eval(*Transf, ip);
-            p(2) = y.Eval(*Transf, ip);
-            p(3) = xy.Eval(*Transf, ip);
+            p(1) = poly_x(transip);
+            p(2) = poly_y(transip);
+            p(3) = poly_xy(transip);
+
+            // cout << " transip(0) : " << transip(0) << " transip(1) : " << transip(1) << endl;
+            // cout << " p(0)    p(1)    p(2)    p(3) " << endl;
+            // cout << p(0) << " " << p(1) << " " << p(2) << " " << p(3) << endl;
+            // cin.get();
 
             for (int l = 0; l < num_basis_functions; l++)
             {
@@ -4166,12 +4180,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                   b[l + n * num_basis_functions] += p(l) * fl(l + n * num_basis_functions);
                }
             }
-
-
-            // std::cout << "element number = " << ielem << "   ip.x = " << ip.x << "   ip.y = " << ip.y << std::endl;
-            // std::cout << "x (poly) = " << p(1) << "   y (poly) = " << p(2) << "   xy (poly) = " << p(3) << std::endl;
-            // std::cin.get();
-
          }
 
       }
@@ -4190,7 +4198,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
       double TOL = 1e-9;
-      if (!lu.Factor(num_basis_functions,TOL)) { return false; } // singular
+      if (!lu.Factor(num_basis_functions,TOL))
+      {
+         // singular
+         cout << "iface = " << iface << " : A is singular" << endl;
+      } 
       lu.Solve(num_basis_functions, dim, b);
 
       cout << "b = " << endl;
@@ -4201,7 +4213,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             cout << b[l + n * num_basis_functions] << endl;
          }
       }
-      std::cin.get();
 
 
       // Construct l2-minimizing global polynomial
@@ -4247,9 +4258,12 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          patch_error += elem_error * elem_error;
       }
-      patch_error = sqrt(patch_error);
+      // patch_error = sqrt(patch_error);
+      total_error += patch_error;
 
-      delete[] b;
+      cout << " patch error : " << patch_error << endl;
+      std::cin.get();
+
 
       for (int i = 0; i < num_neighbor_elems; i++)
       {
@@ -4258,12 +4272,15 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          counters[ielem] += 1;
       }
    }
+   // delete[] b;
 
+   cout << "local error estimates" << endl;
    for (int ielem = 0; ielem < nfe; ielem++)
    {
+      cout << "ielem : " << ielem << "    error estimate : " << error_estimates(ielem) << " / " << counters[ielem] << endl;
       error_estimates(ielem) /= counters[ielem];
       error_estimates(ielem) = sqrt(error_estimates(ielem));
-      error_estimates(ielem) = 1.0;
+      // error_estimates(ielem) = 1.0;
    }
 
 #ifdef MFEM_USE_MPI

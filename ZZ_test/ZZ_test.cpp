@@ -19,6 +19,10 @@ double sinsin_exsol(const Vector &p);
 void   sinsin_exgrad(const Vector &p, Vector &grad);
 double sinsin_laplace(const Vector &p);
 
+double poly_exsol(const Vector &p);
+void   poly_exgrad(const Vector &p, Vector &grad);
+double poly_laplace(const Vector &p);
+
 int dim;
 const char* keys = "Rjlmc*******";
 
@@ -96,6 +100,13 @@ int main(int argc, char *argv[])
          exsol = new FunctionCoefficient(sinsin_exsol);
          exgrad = new VectorFunctionCoefficient(dim, sinsin_exgrad);
          rhs = new FunctionCoefficient(sinsin_laplace);
+         break;
+      }
+      case 2:
+      {
+         exsol = new FunctionCoefficient(poly_exsol);
+         exgrad = new VectorFunctionCoefficient(dim, poly_exgrad);
+         rhs = new FunctionCoefficient(poly_laplace);
          break;
       }
       default:
@@ -317,4 +328,76 @@ double sinsin_laplace(const Vector &p)
 {
    double x = p(0), y = p(1);
    return 2 * M_PI * M_PI * sin(M_PI * x) * sin(M_PI * y);
+}
+
+// double poly_exsol(const Vector &p)
+// {
+//    double x = p(0), y = p(1);
+//    return y*y;
+// }
+
+// void poly_exgrad(const Vector &p, Vector &grad)
+// {
+//    double x = p(0), y = p(1);
+//    grad(0) = 0.0;
+//    grad(1) = 2.0*y;
+// }
+
+// double poly_laplace(const Vector &p)
+// {
+//    return -2.0;
+// }
+
+// double poly_exsol(const Vector &p)
+// {
+//    double x = p(0), y = p(1);
+//    return x*x;
+// }
+
+// void poly_exgrad(const Vector &p, Vector &grad)
+// {
+//    double x = p(0), y = p(1);
+//    grad(0) = 2.0*x;
+//    grad(1) = 0.0;
+// }
+
+// double poly_laplace(const Vector &p)
+// {
+//    return -2.0;
+// }
+
+// double poly_exsol(const Vector &p)
+// {
+//    double x = p(0), y = p(1);
+//    return x*y;
+// }
+
+// void poly_exgrad(const Vector &p, Vector &grad)
+// {
+//    double x = p(0), y = p(1);
+//    grad(0) = y;
+//    grad(1) = x;
+// }
+
+// double poly_laplace(const Vector &p)
+// {
+//    return 0.0;
+// }
+
+double poly_exsol(const Vector &p)
+{
+   double x = p(0), y = p(1);
+   return x + 2.0*y;
+}
+
+void poly_exgrad(const Vector &p, Vector &grad)
+{
+   double x = p(0), y = p(1);
+   grad(0) = 1.0;
+   grad(1) = 2.0;
+}
+
+double poly_laplace(const Vector &p)
+{
+   return 0.0;
 }
