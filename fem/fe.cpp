@@ -4272,6 +4272,7 @@ void RT1QuadFiniteElement::Project (
 
 const double RT2TriangleFiniteElement::M[15][15] =
 {
+   // *INDENT-OFF*
    {
       0, -5.3237900077244501311, 5.3237900077244501311, 16.647580015448900262,
       0, 24.442740046346700787, -16.647580015448900262, -12.,
@@ -4325,6 +4326,7 @@ const double RT2TriangleFiniteElement::M[15][15] =
    { 0, 0, -4., 0, 0, -8., 20., 0, 8., 36., 0, 8., -16., -32., 0},
    { 0, 0, -8., 0, 0, -4., 8., 0, 36., 8., 0, 20., 0, -32., -16.},
    { 0, 0, -4., 0, 0, -6., 4., 0, 22., 4., 0, 30., 0, -16., -24.}
+   // *INDENT-ON*
 };
 
 RT2TriangleFiniteElement::RT2TriangleFiniteElement()
