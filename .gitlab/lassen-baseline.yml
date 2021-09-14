@@ -20,6 +20,7 @@ baselinecheck_mfem_intel_lassen:
     - module load xl/2020.11.12-cuda-11.1.1
     - module load cuda/11.1.1
     - module load lapack/3.9.0-xl-2020.11.12
+    - export LAPACK_LIB="-L/usr/tcetmp/packages/lapack/lapack-3.9.0-xl-2020.11.12/lib -llapack -lblas"
   extends: [.baselinecheck_mfem, .on_lassen]
 
 l_report_baseline:
