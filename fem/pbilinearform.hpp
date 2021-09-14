@@ -33,6 +33,7 @@ protected:
 
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction X, Y;
+   mutable Vector Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
 

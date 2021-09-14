@@ -19,6 +19,8 @@
 //               ex4 -m ../data/amr-hex.mesh
 //               ex4 -m ../data/amr-hex.mesh -o 2 -hb
 //               ex4 -m ../data/fichera-amr.mesh -o 2 -sc
+//               ex4 -m ../data/ref-prism.mesh -o 1
+//               ex4 -m ../data/octahedron.mesh -o 1
 //               ex4 -m ../data/star-surf.mesh -o 1
 //
 // Device sample runs:
