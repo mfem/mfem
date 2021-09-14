@@ -98,7 +98,7 @@ TEST_CASE("DoF Transformation Classes",
          double uAv = A.InnerProduct(v, u);
 
          REQUIRE(fabs(uAv -  At.InnerProduct(vt, u )) < tol * fabs(uAv));
-         REQUIRE(fabs(uAv -  tA.InnerProduct(v , ut)) < tol * fabs(uAv));
+         REQUIRE(fabs(uAv -  tA.InnerProduct(v, ut)) < tol * fabs(uAv));
          REQUIRE(fabs(uAv - tAt.InnerProduct(vt, ut)) < tol * fabs(uAv));
       }
       SECTION("Inner product of a primal vector and a dual vector")
@@ -119,7 +119,7 @@ TEST_CASE("DoF Transformation Classes",
          double fAv = A.InnerProduct(v, f);
 
          REQUIRE(fabs(fAv -  At.InnerProduct(vt, f )) < tol * fabs(fAv));
-         REQUIRE(fabs(fAv -  tA.InnerProduct(v , ft)) < tol * fabs(fAv));
+         REQUIRE(fabs(fAv -  tA.InnerProduct(v, ft)) < tol * fabs(fAv));
          REQUIRE(fabs(fAv - tAt.InnerProduct(vt, ft)) < tol * fabs(fAv));
       }
    }
@@ -185,9 +185,9 @@ TEST_CASE("DoF Transformation Functions",
 
       double fAv = A.InnerProduct(v, f);
 
-      REQUIRE(fabs(fAv - nAn.InnerProduct(v , f )) < tol * fabs(fAv));
+      REQUIRE(fabs(fAv - nAn.InnerProduct(v, f )) < tol * fabs(fAv));
       REQUIRE(fabs(fAv -  At.InnerProduct(vt, f )) < tol * fabs(fAv));
-      REQUIRE(fabs(fAv -  tA.InnerProduct(v , ft)) < tol * fabs(fAv));
+      REQUIRE(fabs(fAv -  tA.InnerProduct(v, ft)) < tol * fabs(fAv));
       REQUIRE(fabs(fAv - tAt.InnerProduct(vt, ft)) < tol * fabs(fAv));
    }
    SECTION("TransformDual")
@@ -217,9 +217,9 @@ TEST_CASE("DoF Transformation Functions",
 
       double uAv = A.InnerProduct(v, u);
 
-      REQUIRE(fabs(uAv - nAn.InnerProduct(v , u )) < tol * fabs(uAv));
+      REQUIRE(fabs(uAv - nAn.InnerProduct(v, u )) < tol * fabs(uAv));
       REQUIRE(fabs(uAv -  At.InnerProduct(vt, u )) < tol * fabs(uAv));
-      REQUIRE(fabs(uAv -  tA.InnerProduct(v , ut)) < tol * fabs(uAv));
+      REQUIRE(fabs(uAv -  tA.InnerProduct(v, ut)) < tol * fabs(uAv));
       REQUIRE(fabs(uAv - tAt.InnerProduct(vt, ut)) < tol * fabs(uAv));
    }
 }
