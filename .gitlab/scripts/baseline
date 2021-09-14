@@ -33,7 +33,7 @@ mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 if [[ "${MACHINE_NAME}" == "quartz" || "${MACHINE_NAME}" == "ruby" ]]; then
   srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
 elif [[ ${MACHINE_NAME} == "corona" ]]; then
-  srun --nodes=1 -p mi60 ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  srun --nodes=1 -t 60 -p mi60 ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
 elif [[ ${MACHINE_NAME} == "lassen" ]]; then
   lalloc 1 -q pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
 fi
