@@ -10,6 +10,9 @@
 
 Version 4.3.1 (development)
 ===========================
+- Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
+  formatting. See the "make style" target.
+
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
