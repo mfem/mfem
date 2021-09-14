@@ -37,7 +37,7 @@ public:
    auto operator()(int e) const
    {
       constexpr int Rank = get_tensor_rank<DofTensor>;
-      return this->template Get<Rank-1>(e);
+      return this->template Get<Rank-1>(e); // TODO batchsize so +tidz or something?
    }
 
    MFEM_HOST_DEVICE inline
