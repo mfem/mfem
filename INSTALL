@@ -461,7 +461,7 @@ MFEM_USE_UMPIRE = YES/NO
 
 MFEM_USE_BENCHMARK = YES/NO
    Enables support for Google Benchmark, a library to support the benchmarking
-   of functions, similar to unit-tests.
+   of functions, in the tests/benchmarks directory.
 
 MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
@@ -519,9 +519,6 @@ MFEM_USE_CALIPER = YES/NO
    API or their equivalent in MFEM. Applications can then enable performance
    profiling at runtime with Caliper's configuration API. Alternatively, one
    can configure Caliper through environment variables or config files.
-
-MFEM_USE_BENCHMARK = YES/NO
-   Enables the google-benchmarks in the tests/benchmarks directory.
 
 MFEM_USE_FMS = YES/NO
    Enables support for the FMS library which consists of the DataCollection
