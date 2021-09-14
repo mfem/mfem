@@ -113,7 +113,8 @@ protected:
        Non-conforming slave faces always have the slave element as Elem1 and
        the master element as Elem2. On the other side, non-conforming master
        faces always have the master element as Elem1, and one of the slave
-       element as Elem2.
+       element as Elem2. Except for ghost non-conforming slave faces, where
+       Elem1 is the master side and Elem2 is the slave side.
 
        The indices of Elem1 and Elem2 can be indirectly extracted from
        FaceInfo::Elem1No and FaceInfo::Elem2No, read the note below for special
@@ -158,7 +159,8 @@ protected:
          Their number cannot be known without counting them, indeed some ghost
          faces are included in the non-ghost faces... and most of the indices
          between `GetNumFaces()` and `faces_info.Size()` are unused. So counting
-         is mandatory.
+         is mandatory. -> Wrong shared non-conforming faces are not necessarily
+         ghost... (ghost just means f >= GetNumFaces()...)
        - Most of the ghost faces only countains -1 in all their attributes
         (that seems to be explained by pncmesh.cpp:1073-1074).
          The technical documentation below wonders if these are master
