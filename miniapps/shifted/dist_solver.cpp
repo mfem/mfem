@@ -483,11 +483,11 @@ void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
       pval=shapef*elfun;
       if (fval>0.0)
       {
-         elvect.Add( -w , shapef);
+         elvect.Add( -w, shapef);
       }
       else if (fval<0.0)
       {
-         elvect.Add(  w , shapef);
+         elvect.Add(  w, shapef);
       }
    }
 }
@@ -523,7 +523,7 @@ void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
       el.CalcPhysDShape(trans, B);
       el.CalcPhysShape(trans,shapef);
 
-      AddMult_a_VVt(w , shapef, elmat);
+      AddMult_a_VVt(w, shapef, elmat);
       AddMult_a_AAt(w * diffcoef, B, elmat);
    }
 }
@@ -683,11 +683,11 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
       // add the external load -1 if tval > 0.0; 1 if tval < 0.0;
       if (tval>0.0)
       {
-         elvect.Add( -w*fval , shapef);
+         elvect.Add( -w*fval, shapef);
       }
       else  if (tval<0.0)
       {
-         elvect.Add(  w*fval , shapef);
+         elvect.Add(  w*fval, shapef);
       }
    }
 }
