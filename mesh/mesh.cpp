@@ -1154,7 +1154,6 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
       }
       else // e2<0
       {
-         face.elem_2_orientation = inf2%64;
          if (ncface==-1)
          {
             face.conformity = FaceConformity::Conforming;
@@ -1162,11 +1161,13 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             {
                face.location = FaceLocation::Boundary;
                face.elem_2_index = e2;
+               face.elem_2_orientation = -1;
             }
             else // inf2 >= 0
             {
                face.location = FaceLocation::Shared;
                face.elem_2_index = -1 - e2;
+               face.elem_2_orientation = inf2%64;
             }
          }
          else // ncface >= 0
@@ -1174,6 +1175,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             face.location = e2==-1 ? FaceLocation::Local : FaceLocation::Shared;
             face.conformity = FaceConformity::NonConformingMaster;
             face.elem_2_index = e2==-1 ? e2 : -1 - e2;
+            face.elem_2_orientation = inf2%64;
          }
       }
    }
