@@ -501,7 +501,7 @@ protected:
 };
 
 /** This class stores which side is the master non-conforming side and the
-    index of the interpolator. */
+    index of the interpolator, see InterpolationManager class below. */
 struct InterpConfig
 {
    int config;
@@ -532,14 +532,12 @@ struct InterpConfig
    MFEM_HOST_DEVICE
    int GetNonConformingMasterSide() const
    {
-      // MFEM_ASSERT(config!=-1, "This face is conforming.");
       return config<-1? 0 : 1;
    }
 
    MFEM_HOST_DEVICE
    int GetInterpolatorIndex() const
    {
-      // MFEM_ASSERT(config!=-1, "This face is conforming.");
       return config<-1? -1-config : config;
    }
 };
