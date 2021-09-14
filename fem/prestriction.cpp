@@ -1215,7 +1215,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
                   // should permute the dofs of elem2.
                   PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
                }
-               else if( face.IsSharedNonConformingMaster() )
+               else if ( face.IsSharedNonConformingMaster() )
                {
                   // Contrary to the conforming case, there is no need to call
                   // PermuteFaceL2, the permutation is achieved by the
