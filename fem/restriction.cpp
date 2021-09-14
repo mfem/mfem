@@ -804,7 +804,13 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsOfFaceType(type) )
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsScatterIndices(face, f_ind, ordering);
          f_ind++;
@@ -830,7 +836,13 @@ void H1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsOfFaceType(type) )
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices(face, f_ind, ordering);
          f_ind++;
