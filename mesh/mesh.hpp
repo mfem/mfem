@@ -144,47 +144,10 @@ protected:
        specific case is accessed using the FaceInfo::NCFace integer as an index
        into nc_faces_orientation.
 
-       TODO Add local_orientation to PointMatrix function?
-
-       Another special case is the case of shared non-conforming faces. These
-       use a completely different design based on so called "ghost" faces,
-       because why not.
-       Ghost faces, as their name suggest are very well hidden, therefore they
-       are undocumented and have no interface. To understand how they work and
-       are used, one should read the integrality of the mesh.cpp, pmesh.cpp,
-       ncmesh.cpp, and pncmesh.cpp files and reverse engineer the code.
-       What I found about them so far:
-       - Their number is faces_info.Size() - GetNumFaces(), this seems to
-         include a lot of irrelevant uninitialized ghost faces. -> wrong
-         Their number cannot be known without counting them, indeed some ghost
-         faces are included in the non-ghost faces... and most of the indices
-         between `GetNumFaces()` and `faces_info.Size()` are unused. So counting
-         is mandatory. -> Wrong shared non-conforming faces are not necessarily
-         ghost... (ghost just means f >= GetNumFaces()...)
-       - Most of the ghost faces only countains -1 in all their attributes
-        (that seems to be explained by pncmesh.cpp:1073-1074).
-         The technical documentation below wonders if these are master
-         non-conforming faces, I think they're probably just ghost ghost cells,
-         unused allocated memory space.
-         However, I still tag them as MasterNonConforming in GetFaceInformation
-         -> wrong. I tag them with NA, since they don't seem relevant for
-         anything.
-       - They seem to be used as a convenience layer only in NCMesh, why not
-         using them all the time?
-       - Due to clashing conventions:
-         1. On shared faces elem1 is always the local element
-         2. On non-conforming faces elem1 is always the slave element
-         The case of shared non-conforming faces is incompatible with the local
-         face being also the master face. For this reason ghost faces only
-         assume elem1 to be the local face, and thus the master face.
-       - It seems that ghost faces are only used for shared non-conforming faces
-         where elem1 is master and local. I think non-conforming faces where the
-         local face is slave are treated through conforming shared faces. (This
-         hack has to be confirmed) -> Wrong
-         Most ghost non-conforming master faces are wasted memory space, but
-         sometimes they are real ghost non-conforming slave faces...
-       - Ghost faces, contrary to other non-conforming faces also have
-         orientation that is not necessarily 0.
+       Another special case is the case of shared non-conforming faces. Ghost
+       faces use a different design based on so called "ghost" faces.
+       Ghost faces, as their name suggest are very well hidden, and they
+       usually have a separate interface from "standard" faces.
        */
    struct FaceInfo
    {
