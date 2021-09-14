@@ -14,11 +14,11 @@ Version 4.3.1 (development)
   formatting. See the "make style" target.
 
 - Added support for hr-adaptivity using TMOP-based error estimator.
-- Added binder (https://mybinder.org) configuration files for running
-  C++ Jupyter Notebooks with MFEM and inline GLVis using
-  xeus-cling (https://github.com/jupyter-xeus/xeus-cling) and
-  xeus-glvis (https://github.com/GLVis/xeus-glvis) along with a new readme on
-  the topic and a notebook modeled after example 1.
+
+- Added Binder (mybinder.org) configuration files for C++ MFEM Jupyter Notebooks
+  with inline GLVis visualization as well as a new examples/jupyter/ directory
+  with a sample notebook based on Example 1. Implementation based on xeus-cling,
+  github.com/jupyter-xeus/xeus-cling + xeus-glvis, github.com/GLVis/xeus-glvis.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 

@@ -3,9 +3,9 @@
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mfem/mfem/binder?filepath=examples%2Fjupyter%2Fex.ipynb)
 
 [xeus-cling](https://github.com/jupyter-xeus/xeus-cling) is a C++ Jupyter Kernel based on [cling](https://github.com/root-project/cling),
-which we can use to write interactive C++ mfem and glvis notebooks.
+which can be used to create interactive C++ MFEM and GLVis notebooks.
 
-Hit the `binder` button for an example.
+Click on the `binder` button above for an interactive example.
 
 ## Installing Locally
 
@@ -23,9 +23,9 @@ In order to run notebooks locally you will need `xeus-cling` along with `mfem` a
 
 ## Running Locally
 
-Once you've installed Jupyter, the C++ Kernel, mfem, and glvis start the notebook server (`jupyter-notebook`) 
+Once you've installed Jupyter, the C++ Kernel, mfem, and glvis start the notebook server (`jupyter-notebook`)
 and open an existing example or a new `C++ 1x` kernel.
 
-You will _always_ need to `#pragma cling load("mfem")` and you may need to point the `cling` runtime at your 
+You will _always_ need to `#pragma cling load("mfem")` and you may need to point the `cling` runtime at your
 mfem and/or glvis installs, do this with the
-[`#pragma cling` statements](https://xeus-cling.readthedocs.io/en/latest/build_options.html#using-third-party-libraries).
+`#pragma cling` [statements](https://xeus-cling.readthedocs.io/en/latest/build_options.html#using-third-party-libraries).
