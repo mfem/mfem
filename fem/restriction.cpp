@@ -1672,6 +1672,8 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
                "The following interpolation operator is only implemented for"
                "lexicographic ordering.");
+   MFEM_VERIFY(!face.IsConforming(),
+               "This method should not be called on conforming faces.")
    const int face_id1 = face.elem_1_local_face;
    const int face_id2 = face.elem_2_local_face;
 
@@ -1745,7 +1747,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             const IntegrationPoint &ip = nodes[i];
             f_ip.x = x_min + (x_max - x_min) * ip.x;
             trace_fe->CalcShape(f_ip, shape);
-            int li =  ToLexOrdering(dim, master_face_id, dof1d, i);
+            int li = ToLexOrdering(dim, master_face_id, dof1d, i);
             // We need to permute since the orientation is not
             // in the PointMatrix in 2D.
             li = PermuteFaceL2(dim, master_face_id, face_id1,
