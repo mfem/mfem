@@ -118,7 +118,6 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.

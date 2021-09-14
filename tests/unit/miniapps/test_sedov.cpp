@@ -1461,12 +1461,12 @@ void QKernel(const int nzones,
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                QBody<dim>(nzones, z, nqp, qx + qy * Q1D,
-               gamma, use_viscosity, h0, h1order, cfl, infinity,
-               Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
-               compr_dir,Jpi,ph_dir,stressJiT,
-               d_weights, d_Jacobians, d_rho0DetJ0w,
-               d_e_quads, d_grad_v_ext, d_Jac0inv,
-               d_dt_est, d_stressJinvT);
+                          gamma, use_viscosity, h0, h1order, cfl, infinity,
+                          Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
+                          compr_dir,Jpi,ph_dir,stressJiT,
+                          d_weights, d_Jacobians, d_rho0DetJ0w,
+                          d_e_quads, d_grad_v_ext, d_Jac0inv,
+                          d_dt_est, d_stressJinvT);
             }
          }
          MFEM_SYNC_THREAD;
@@ -1494,12 +1494,12 @@ void QKernel(const int nzones,
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
                   QBody<dim>(nzones, z, nqp, qx + Q1D * (qy + qz * Q1D),
-                  gamma, use_viscosity, h0, h1order, cfl, infinity,
-                  Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
-                  compr_dir,Jpi,ph_dir,stressJiT,
-                  d_weights, d_Jacobians, d_rho0DetJ0w,
-                  d_e_quads, d_grad_v_ext, d_Jac0inv,
-                  d_dt_est, d_stressJinvT);
+                             gamma, use_viscosity, h0, h1order, cfl, infinity,
+                             Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
+                             compr_dir,Jpi,ph_dir,stressJiT,
+                             d_weights, d_Jacobians, d_rho0DetJ0w,
+                             d_e_quads, d_grad_v_ext, d_Jac0inv,
+                             d_dt_est, d_stressJinvT);
                }
             }
          }
