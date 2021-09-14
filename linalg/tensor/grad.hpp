@@ -22,32 +22,49 @@
 namespace mfem
 {
 
-// TODO rewrite with traits
 // Non-tensor
-template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradient<Dim,false,D,Q> &basis, const Dofs &u)
+// template <int Dim, int D, int Q, typename Dofs>
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_non_tensor_basis<Basis>,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisGradient<Dim,false,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
    return G * u;
 }
 
 // 1D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradient<1,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisGradient<1,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
    return ContractX(G,u);
 }
 
 // 2D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradient<2,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisGradient<2,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
    MFEM_SHARED double s_G[basis_size];
@@ -60,10 +77,16 @@ auto operator*(const BasisGradient<2,true,D,Q> &basis, const Dofs &u)
 }
 
 // 3D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradient<3,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisGradient<3,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
    MFEM_SHARED double s_G[basis_size];
@@ -80,31 +103,48 @@ auto operator*(const BasisGradient<3,true,D,Q> &basis, const Dofs &u)
 }
 
 // Non-tensor
-template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradientTranspose<Dim,false,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_non_tensor_basis<Basis>,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<Dim,false,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
    return Gt * u;
 }
 
 // 1D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradientTranspose<1,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<1,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
    return ContractX(Gt,u);
 }
 
 // 2D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
-   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<2,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
    MFEM_SHARED double s_G[basis_size];
@@ -119,11 +159,17 @@ auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 }
 
 // 3D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
-   constexpr int basis_size = get_basis_capacity<BasisGradientTranspose<3,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
    MFEM_SHARED double s_G[basis_size];
