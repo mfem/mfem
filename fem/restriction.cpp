@@ -1471,7 +1471,7 @@ void L2FaceRestriction::SetSharedFaceDofsScatterIndices2(
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
-   MFEM_ASSERT(face.IsGhostNonConformingMaster(),
+   MFEM_ASSERT(face.IsSharedNonConformingMaster(),
                "This method should only be used on ghost non-conforming master faces.");
    const int face_id2 = face.elem_2_local_face;
    const int dim = fes.GetMesh()->Dimension();
@@ -1501,7 +1501,8 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
-   MFEM_ASSERT(face.IsShared() && (face.IsConforming() || face.IsGhost()),
+   MFEM_ASSERT(face.IsShared() &&
+               (face.IsConforming() || face.IsSharedNonConformingSlave()),
                "This method should only be used on conforming shared faces.");
    const int elem_index = face.elem_2_index;
    const int face_id1 = face.elem_1_local_face;
@@ -1643,7 +1644,7 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
                "Registering face as non-conforming even though it is not.");
    const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
    // In the case of non-conforming slave shared face the master face is elem1.
-   const int master_side = face.IsGhostNonConformingSlave() ? 0 : 1;
+   const int master_side = face.IsSharedNonConformingSlave() ? 0 : 1;
    const int face_key = master_side == 1 ?
                         face.elem_1_local_face + 6*face.elem_2_local_face :
                         face.elem_2_local_face + 6*face.elem_1_local_face ;
@@ -1674,7 +1675,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    const int face_id1 = face.elem_1_local_face;
    const int face_id2 = face.elem_2_local_face;
 
-   const bool is_ghost_slave = face.IsGhostNonConformingSlave();
+   const bool is_ghost_slave = face.IsSharedNonConformingSlave();
    const int slave_face_id = is_ghost_slave ? face_id2 : face_id1;
    const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
 
