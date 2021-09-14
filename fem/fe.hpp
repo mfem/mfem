@@ -391,11 +391,6 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void Calc1DShape(IntegrationPoint &ip, Vector &y, Vector &z) const
-   {
-      MFEM_ABORT("Not available for this type of element."); 
-   }
-
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
@@ -2093,7 +2088,6 @@ public:
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
 
-   virtual void Calc1DShape(IntegrationPoint &ip, Vector &y, Vector &z) const;
 };
 
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
@@ -2111,7 +2105,6 @@ public:
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
 
-   virtual void Calc1DShape(IntegrationPoint &ip, Vector &y, Vector &z) const;
 };
 
 class VectorTensorFiniteElement : public VectorFiniteElement,
@@ -2499,7 +2492,6 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   //virtual void Calc1DShape(IntegrationPoint &ip, Vector &y, Vector &z) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
