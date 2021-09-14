@@ -24,32 +24,47 @@ namespace mfem
 {
 
 // Non-tensor
-template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const Basis<Dim,false,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_non_tensor_basis<Basis>,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u)
 {
-   // TODO declare some __shared__/MFEM_SHARED memory for the basis?
-   // Change GetB interface, Device struct don't work
-   constexpr int basis_size = get_basis_capacity<Basis<Dim,false,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
    return B * u;
 }
 
 // 1D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const Basis<1,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<Basis<1,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
    return ContractX(B,u);
 }
 
 // 2D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<Basis<2,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
    auto Bu = ContractX(B,u);
@@ -57,10 +72,16 @@ auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
 }
 
 // 3D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<Basis<3,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
    auto Bu = ContractX(B,u);
