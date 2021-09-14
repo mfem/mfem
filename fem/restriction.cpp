@@ -1673,7 +1673,6 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
                "lexicographic ordering.");
    const int face_id1 = face.elem_1_local_face;
    const int face_id2 = face.elem_2_local_face;
-   const int orientation = face.elem_2_orientation;
 
    const bool is_ghost_slave = face.IsGhostNonConformingSlave();
    const int slave_face_id = is_ghost_slave ? face_id2 : face_id1;
@@ -1730,6 +1729,8 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
       break;
       case Geometry::SEGMENT:
       {
+         // For ghost faces the orientation is not properly set.
+         const int orientation = face.IsShared() ? 1 : face.elem_2_orientation;
          MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
          MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
          double x_min, x_max;
