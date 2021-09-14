@@ -41,6 +41,7 @@ struct Refinement
    Refinement(int index, int type = 7) : index(index), ref_type(type) {}
 };
 
+
 /// Defines the position of a fine element within a coarse element.
 struct Embedding
 {
@@ -61,10 +62,12 @@ struct Embedding
       : parent(elem), geom(geom), matrix(matrix), ghost(ghost) {}
 };
 
+
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
 {
-   /// Matrices for IsoparametricTransformation organized by Geometry::Type
+   /** A "dictionary" of matrices for IsoparametricTransformation. Use
+       Embedding::geom and ::matrix to access a fine element point matrix. */
    DenseTensor point_matrices[Geometry::NumGeom];
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;

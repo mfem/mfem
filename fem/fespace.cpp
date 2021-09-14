@@ -1723,6 +1723,36 @@ void FiniteElementSpace::RefinementOperator
    }
 }
 
+namespace internal
+{
+
+// Used in CoarseFineTransformations::GetCoarseToFineMap() below.
+struct RefType
+{
+   Geometry::Type geom;
+   int num_children;
+   const Pair<int,int> *children;
+
+   RefType(Geometry::Type g, int n, const Pair<int,int> *c)
+      : geom(g), num_children(n), children(c) { }
+
+   bool operator<(const RefType &other) const
+   {
+      if (geom < other.geom) { return true; }
+      if (geom > other.geom) { return false; }
+      if (num_children < other.num_children) { return true; }
+      if (num_children > other.num_children) { return false; }
+      for (int i = 0; i < num_children; i++)
+      {
+         if (children[i].one < other.children[i].one) { return true; }
+         if (children[i].one > other.children[i].one) { return false; }
+      }
+      return false; // everything is equal
+   }
+};
+
+} // namespace internal
+
 /// TODO: Implement DofTransformation support
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
@@ -1767,6 +1797,51 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    rtrans.GetCoarseToFineMap(*f_mesh, coarse_to_fine, coarse_to_ref_type,
                              ref_type_to_matrix, ref_type_to_geom);
    MFEM_ASSERT(coarse_to_fine.Size() == c_fes->GetNE(), "");
+
+
+   /*{
+      coarse_to_ref_type.SetSize(coarse_ne);
+
+      using internal::RefType;
+      using std::map;
+      using std::pair;
+
+      map<RefType,int> ref_type_map;
+      for (int i = 0; i < coarse_ne; i++)
+      {
+         const int num_children = cf_i[i+1]-cf_i[i];
+         MFEM_ASSERT(num_children > 0, "");
+         const int fine_el = cf_j[cf_i[i]].two;
+         // Assuming the coarse and the fine elements have the same geometry:
+         const Geometry::Type geom = new_mesh.GetElementBaseGeometry(fine_el);
+         const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
+         pair<map<RefType,int>::iterator,bool> res =
+            ref_type_map.insert(
+               pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
+         coarse_to_ref_type[i] = res.first->second;
+      }
+
+      ref_type_to_matrix.MakeI((int)ref_type_map.size());
+      ref_type_to_geom.SetSize((int)ref_type_map.size());
+      for (map<RefType,int>::iterator it = ref_type_map.begin();
+           it != ref_type_map.end(); ++it)
+      {
+         ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
+         ref_type_to_geom[it->second] = it->first.geom;
+      }
+
+      ref_type_to_matrix.MakeJ();
+      for (map<RefType,int>::iterator it = ref_type_map.begin();
+           it != ref_type_map.end(); ++it)
+      {
+         const RefType &rt = it->first;
+         for (int j = 0; j < rt.num_children; j++)
+         {
+            ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+         }
+      }
+      ref_type_to_matrix.ShiftUpI();
+   }*/
 
    const int total_ref_types = ref_type_to_geom.Size();
    int num_ref_types[Geometry::NumGeom], num_fine_elems[Geometry::NumGeom];
