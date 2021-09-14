@@ -89,47 +89,120 @@ auto operator*(const Basis &basis, const Dofs &u)
    return ContractZ(B,BBu);
 }
 
-// Non-tensor
-template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<Dim,false,D,Q> &basis, const Dofs &u)
+// TODO 3D threaded version where each thread computes one value.
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 3 &&
+             false,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<Dim,false,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
-   auto Bt = basis.GetBt(s_B);
-   return Bt * u;
+   auto B = basis.GetB(s_B);
+   constexpr int D1D = get_basis_dofs<Basis>;
+   constexpr int Q1D = get_basis_quads<Basis>;
+   double Bqx[D1D], Bqy[D1D], Bqz[D1D];
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_UNROLL(D1D)
+            for (int d = 0; d < D1d; d++)
+            {
+               Bqx[d] = B(qx,d);
+               Bqy[d] = B(qy,d);
+               Bqz[d] = B(qz,d);
+            }
+            double Bu = 0.0; // Some 3D threaded tensor.
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1d; dz++)
+            {
+               MFEM_UNROLL(D1D)
+               for (int dy = 0; dy < D1d; dy++)
+               {
+                  const double Bqyqz = Bqy[dy] * Bqz[dz];
+                  MFEM_UNROLL(D1D)
+                  for (int dx = 0; dx < D1d; dx++)
+                  {
+                     Bu += Bqx[dx] * Bqyqz * u(dx,dy,dz);
+                  }
+               }
+            }
+            // Should be Bu(qx,qy,qz)
+         }
+      }
+   }
+   return Bu;
 }
 
-// 1D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<1,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 3 &&
+             false,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<1,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
-   return ContractX(Bt,u);
-}
-
-// 2D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<2,true,D,Q> &basis, const Dofs &u)
-{
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<2,true,D,Q>>;
-   MFEM_SHARED double s_B[basis_size];
-   auto Bt = basis.GetBt(s_B);
-   auto Bu = ContractY(Bt,u);
-   return ContractX(Bt,Bu);
-}
-
-// 3D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<3,true,D,Q> &basis, const Dofs &u)
-{
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<3,true,D,Q>>;
-   MFEM_SHARED double s_B[basis_size];
-   auto Bt = basis.GetBt(s_B);
-   auto Bu = ContractZ(Bt,u);
-   auto BBu = ContractY(Bt,Bu);
-   return ContractX(Bt,BBu);
+   constexpr int D1D = get_basis_dofs<Basis>;
+   constexpr int Q1D = get_basis_quads<Basis>;
+   double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
+   // Load u into shared memory
+   MFEM_SHARED StaticDTensor<Q1D,Q1D,Q1D> s_u;
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            s_u(qx,qy,qz) = u(qx,qy,qz);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dx,x,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_UNROLL(Q1D)
+            for (int q = 0; q < Q1d; q++)
+            {
+               Bdx[q] = Bt(dx,q);
+               Bdy[q] = Bt(dy,q);
+               Bdz[q] = Bt(dz,q);
+            }
+            const double Btu = 0.0; // Some 3D threaded tensor.
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1d; qz++)
+            {
+               MFEM_UNROLL(Q1D)
+               for (int qy = 0; qy < Q1d; qy++)
+               {
+                  double Bdydz = Bdy[qy] * Bdz[qz];
+                  MFEM_UNROLL(Q1D)
+                  for (int qx = 0; qx < Q1d; qx++)
+                  {
+                     Btu += Bdx[qx] * Bdydz * s_u(qx,qy,qz);
+                  }
+               }
+            }
+            // Should be Btu(dx,dy,dz)
+         }
+      }
+   }
+   return Btu;
 }
 
 } // namespace mfem
