@@ -2089,7 +2089,13 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( type==FaceType::Interior && face.IsInterior() )
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if ( type==FaceType::Interior && face.IsInterior() )
       {
          SetFaceDofsScatterIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued )
@@ -2146,7 +2152,13 @@ void NCL2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(face.location!=Mesh::FaceLocation::Shared,
                   "Unexpected shared face in NCL2FaceRestriction.");
-      if ( face.IsOfFaceType(type) )
+      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      {
+         // We skip local non-conforming master faces as they are treated by the
+         // local non-conforming slave faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued &&
