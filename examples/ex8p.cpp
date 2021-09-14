@@ -106,7 +106,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 6. Define the trial, interfacial (trace) and test DPG spaces:
    //    - The trial space, x0_space, contains the non-interfacial unknowns and
