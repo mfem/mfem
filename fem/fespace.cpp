@@ -1723,10 +1723,7 @@ void FiniteElementSpace::RefinementOperator
    }
 }
 
-namespace internal
-{
-
-// Used in CoarseFineTransformations::GetCoarseToFineMap() below.
+// Used in DerefinementOperator::DerefinementOperator() below.
 struct RefType
 {
    Geometry::Type geom;
@@ -1750,8 +1747,6 @@ struct RefType
       return false; // everything is equal
    }
 };
-
-} // namespace internal
 
 /// TODO: Implement DofTransformation support
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
@@ -1793,55 +1788,50 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
       }
    }
 
-   Table ref_type_to_matrix;
-   rtrans.GetCoarseToFineMap(*f_mesh, coarse_to_fine, coarse_to_ref_type,
-                             ref_type_to_matrix, ref_type_to_geom);
+   rtrans.MakeCoarseToFineTable(coarse_to_fine, true);
    MFEM_ASSERT(coarse_to_fine.Size() == c_fes->GetNE(), "");
 
+   using std::map;
+   using std::pair;
 
-   /*{
-      coarse_to_ref_type.SetSize(coarse_ne);
+   // create coarse_to_ref_type
+   map<RefType,int> ref_type_map;
+   coarse_to_ref_type.SetSize(coarse_to_fine.Size());
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      const int num_children = coarse_to_fine.RowSize(i);
+      const int *children = coarse_to_fine.GetRow(i);
+      MFEM_ASSERT(num_children > 0, "");
+      // Assuming the coarse and the fine elements have the same geometry:
+      const Geometry::Type geom = new_mesh.GetElementBaseGeometry(children[0]);
+      const RefType ref_type(geom, num_children, children);
+      auto res = ref_type_map.insert(
+         pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
+      coarse_to_ref_type[i] = res.first->second;
+   }
 
-      using internal::RefType;
-      using std::map;
-      using std::pair;
+   // create ref_type_to_geom, ref_type_to_matrix
+   Table ref_type_to_matrix;
+   ref_type_to_matrix.MakeI((int)ref_type_map.size());
+   ref_type_to_geom.SetSize((int)ref_type_map.size());
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
+      ref_type_to_geom[it->second] = it->first.geom;
+   }
 
-      map<RefType,int> ref_type_map;
-      for (int i = 0; i < coarse_ne; i++)
+   ref_type_to_matrix.MakeJ();
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      const RefType &rt = it->first;
+      for (int j = 0; j < rt.num_children; j++)
       {
-         const int num_children = cf_i[i+1]-cf_i[i];
-         MFEM_ASSERT(num_children > 0, "");
-         const int fine_el = cf_j[cf_i[i]].two;
-         // Assuming the coarse and the fine elements have the same geometry:
-         const Geometry::Type geom = new_mesh.GetElementBaseGeometry(fine_el);
-         const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
-         pair<map<RefType,int>::iterator,bool> res =
-            ref_type_map.insert(
-               pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
-         coarse_to_ref_type[i] = res.first->second;
+         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
       }
-
-      ref_type_to_matrix.MakeI((int)ref_type_map.size());
-      ref_type_to_geom.SetSize((int)ref_type_map.size());
-      for (map<RefType,int>::iterator it = ref_type_map.begin();
-           it != ref_type_map.end(); ++it)
-      {
-         ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
-         ref_type_to_geom[it->second] = it->first.geom;
-      }
-
-      ref_type_to_matrix.MakeJ();
-      for (map<RefType,int>::iterator it = ref_type_map.begin();
-           it != ref_type_map.end(); ++it)
-      {
-         const RefType &rt = it->first;
-         for (int j = 0; j < rt.num_children; j++)
-         {
-            ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
-         }
-      }
-      ref_type_to_matrix.ShiftUpI();
-   }*/
+   }
+   ref_type_to_matrix.ShiftUpI();
 
    const int total_ref_types = ref_type_to_geom.Size();
    int num_ref_types[Geometry::NumGeom], num_fine_elems[Geometry::NumGeom];
