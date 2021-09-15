@@ -4043,6 +4043,85 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
+Vector Legendre1D(double x, int order)
+{
+   MFEM_VERIFY(order >= 0, "order cannot be negative");
+   Vector poly(order+1);
+   poly(0) = 1.0;
+   if (order >= 1)
+   {
+      poly(1) = x;
+   }
+   if (order >= 2)
+   {
+      // recursive formula (see, e.g, https://doi.org/10.1016/j.camwa.2015.04.027)
+      for (int i = 2; i <= order+1; i++)
+      {
+         poly(i) = (2*i-1) * x * poly(i-1) - (i-1) * poly(i-2);
+         poly(i) /= i;
+      }
+   }
+   return poly;
+}
+
+Vector LegendreND(const Vector & x, const Vector & c, int order, int dim)
+{
+   MFEM_VERIFY(order >= 0, "order cannot be negative");
+   MFEM_VERIFY(dim >= 1, "dim must be positive");
+   MFEM_VERIFY(dim <= 3, "dim cannot be greater than 3");
+
+   double x1 = x(0) - c(0), x2, x3;
+   Vector poly_x(order+1), poly_y(order+1), poly_z(order+1);
+   poly_x = Legendre1D(x1, order);
+   if (dim > 1)
+   {
+      x2 = x(1) - c(1);
+      poly_y = Legendre1D(x2, order);
+   }
+   if (dim > 2)
+   {
+      x3 = x(2) - c(2);
+      poly_z = Legendre1D(x3, order);
+   }
+
+   int basis_dimension = pow(order+1,dim);
+   Vector poly(basis_dimension);
+   if (dim == 1)
+   {
+      for (int i = 0; i <= order; i++)
+      {
+         poly(i) = poly_x(i);
+      }
+   }
+   if (dim == 2)
+   {
+      for (int j = 0; j <= order; j++)
+      {
+         for (int i = 0; i <= order; i++)
+         {
+            int cnt = i + (order+1) * j;
+            poly(cnt) = poly_x(i) * poly_y(j);
+         }
+      }
+   }
+   if (dim == 3)
+   {
+      for (int k = 0; k <= order; k++)
+      {
+         for (int j = 0; j <= order; j++)
+         {
+            for (int i = 0; i <= order; i++)
+            {
+               int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
+               poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+            }
+         }
+      }
+   }
+
+   return poly;
+}
+
 double poly_x(const Vector & x)
 {
    return x[0];
@@ -4065,7 +4144,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            int with_subdomains,
                            bool with_coeff)
 {
-   // GradientGridFunctionCoefficient flux(&u);
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
    ElementTransformation *Transf;
@@ -4092,10 +4170,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    }
 
    double total_error = 0.0;
-   int num_basis_functions = 4; // TODO: should depend on polynomial order
-   DenseMatrix A(num_basis_functions);
-   Array<double> b(dim * num_basis_functions);
-   // double *b = new double[dim * num_basis_functions];
    for (int iface = 0; iface < nfaces; iface++)
    {
 
@@ -4103,11 +4177,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       Array<int> neighbor_elems;
       GetFaceElements(*mesh, iface, neighbor_elems);
       int num_neighbor_elems = neighbor_elems.Size();
-
-      // Array<int> vert;
-      // mesh->GetEdgeVertices(iface,vert);
-      // cout << "Face: " << iface  <<": vertices:  (" << vert[0] <<"," << vert[1] <<
-      //      "), elems: " ; neighbor_elems.Print();
 
       // 2. Check if boundary face and continue if true.
       if (num_neighbor_elems < 2)
@@ -4118,13 +4187,25 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       // 3. Compute global flux polynomial.
       DofTransformation *udoftrans;
       DofTransformation *fdoftrans;
+      int patch_order = 0;
+      Vector c(3);
+      c = 0.0;
+      for (int i = 0; i < num_neighbor_elems; i++)
+      {
+         int ielem = neighbor_elems[i];
+         patch_order = max(patch_order, ufes->GetElementOrder(ielem));
+
+      }
+      int num_basis_functions = pow(patch_order+1,dim);
+      int flux_order = patch_order + 2;
+      DenseMatrix A(num_basis_functions);
+      Array<double> b(dim * num_basis_functions);
       A = 0.0;
       b = 0.0;
       // loop through all elements in patch
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
-         int flux_order = ufes->GetElementOrder(ielem) + 2;
          const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
                                                     flux_order));
 
@@ -4133,10 +4214,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
-         // if (udoftrans)
-         // {
-         //    udoftrans->InvTransformPrimal(ul);
-         // }
+         if (udoftrans)
+         {
+            udoftrans->InvTransformPrimal(ul);
+         }
          Transf = ufes->GetElementTransformation(ielem);
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *ffes->GetFE(ielem), fl, with_coeff, ir);
@@ -4144,9 +4225,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          {
             fdoftrans->TransformPrimal(fl);
          }
-
-         // cout << "fl.Size() = " << fl.Size() << endl;
-         // fl.Print();
 
          for (int k = 0; k < ir->GetNPoints(); k++)
          {
@@ -4156,17 +4234,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             Transf->Transform(ip, transip);
 
             Vector p(num_basis_functions);
-
-            p(0) = 1.0;
-            p(1) = poly_x(transip);
-            p(2) = poly_y(transip);
-            p(3) = poly_xy(transip);
-
-            // std::cout << " x : " << transip(0) << "    y : " << transip(1) << endl;
-            // std::cout << "flux (x-comp) : " << fl[k] << "   flux (y-comp) : " << fl[k+num_basis_functions] << "\n" << endl;
-            // cout << " p(0)    p(1)    p(2)    p(3) " << endl;
-            // cout << p(0) << " " << p(1) << " " << p(2) << " " << p(3) << endl;
-            // cin.get();
+            p = LegendreND(transip, c, patch_order, dim);
+            // p(0) = 1.0;
+            // p(1) = poly_x(transip);
+            // p(2) = poly_y(transip);
+            // p(3) = poly_xy(transip);
 
             for (int l = 0; l < num_basis_functions; l++)
             {
@@ -4184,49 +4256,40 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
       }
 
-      // Solve for polynomial coefficients
-      // A.PrintMatlab();
-      // cout << "b = " << endl;
-      // for (int n = 0; n < dim; n++)
-      // {
-      //    for (int l = 0; l < num_basis_functions; l++)
-      //    {
-      //       cout << b[l + n * num_basis_functions] << endl;
-      //    }
-      // }
+      // Hack to deal with singularity of A
+      for (int l = 0; l < num_basis_functions; l++)
+      {
+         A(l,l) += 1e-8;
+      }
 
+      // Solve for polynomial coefficients
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
       double TOL = 1e-9;
       if (!lu.Factor(num_basis_functions,TOL))
       {
          // singular matrix
-         cout << "iface = " << iface << " : A is singular" << endl;
+         mfem::out << "iface = " << iface << " : A is singular" << mfem::endl;
+         cin.get();
       }
       lu.Solve(num_basis_functions, dim, b);
-
-      // cout << "b = " << endl;
-      // for (int n = 0; n < dim; n++)
-      // {
-      //    for (int l = 0; l < num_basis_functions; l++)
-      //    {
-      //       cout << b[l + n * num_basis_functions] << endl;
-      //    }
-      // }
-
 
       // Construct l2-minimizing global polynomial
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
-         f(0) = b[0] + b[1] * x(0) + b[2] * x(1) + b[3] * x(0) * x(1);
-         f(1) = b[4] + b[5] * x(0) + b[6] * x(1) + b[7] * x(0) * x(1);
-         if (dim == 3)
+         Vector p(num_basis_functions);
+         p = LegendreND(x, c, patch_order, dim);
+         f(0) = 0.0;
+         f(1) = 0.0;
+         if (x.Size() == 3 || dim == 3) { f(2) = 0.0; }
+         for (int i = 0; i < num_basis_functions; i++)
          {
-            f(2) = b[8] + b[9] * x(0) + b[10] * x(1) + b[11] * x(0) * x(1);
-         }
-         else
-         {
-            if (x.Size() == 3) { f(2) = 0.0; }
+            f(0) += b[i] * p(i);
+            f(1) += b[i + num_basis_functions] * p(i);
+            if (dim == 3)
+            {
+               f(2) += b[i + num_basis_functions * num_basis_functions] * p(i);
+            }
          }
       };
       VectorFunctionCoefficient global_poly(dim, global_poly_tmp);
@@ -4254,9 +4317,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
       total_error += patch_error;
 
-      // cout << " patch error : " << patch_error << endl;
-      // std::cin.get();
-
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
@@ -4264,15 +4324,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          counters[ielem] += 1;
       }
    }
-   // delete[] b;
 
-   cout << "local error estimates" << endl;
    for (int ielem = 0; ielem < nfe; ielem++)
    {
-      // cout << "ielem : " << ielem << "    error estimate : " << error_estimates(ielem) << " / " << counters[ielem] << endl;
       error_estimates(ielem) /= counters[ielem];
       error_estimates(ielem) = sqrt(error_estimates(ielem));
-      // cout << "ielem : " << ielem << "    error estimate : " << error_estimates(ielem) << endl;
    }
 
 #ifdef MFEM_USE_MPI
@@ -4318,13 +4374,11 @@ void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
          mesh.GetFaceElements(face,&el1,&el2);
          if (el2 == -1 || el1 == -1)
          {
-            // cout << "This is a boundary face," << endl;
             int el = (el1 == -1)? el2 : el1;
             elems.Append(el);
          }
          else
          {
-            // cout << "This is not boundary face ..." << endl;
             elems.Append(el1);
             elems.Append(el2);
          }
@@ -4333,7 +4387,6 @@ void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
       {
          MFEM_VERIFY(numslaves > 1, "Check numslaves");
          const int * slaves = Pt->GetRowColumns(col[0]);
-         // cout << "numslaves = " << numslaves << endl;
          for (int j=0; j<numslaves; j++)
          {
             mesh.GetFaceElements(slaves[j],&el1,&el2);
@@ -4347,13 +4400,11 @@ void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
       mesh.GetFaceElements(face,&el1,&el2);
       if (el2 == -1 || el1 == -1)
       {
-         // cout << "This is a boundary face," << endl;
          int el = (el1 == -1)? el2 : el1;
          elems.Append(el);
       }
       else
       {
-         // cout << "This is not boundary face ..." << endl;
          elems.Append(el1);
          elems.Append(el2);
       }
