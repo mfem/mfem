@@ -27,6 +27,7 @@ artifacts_path=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
 cd ${BUILD_ROOT}
 ln -snf ${CI_PROJECT_DIR} mfem
 cd tests
+[[ -d _${BASELINE_TEST} ]] && rm -rf _${BASELINE_TEST}
 mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 
 # run
