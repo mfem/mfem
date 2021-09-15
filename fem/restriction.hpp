@@ -507,8 +507,9 @@ struct InterpConfig
    int config;
    enum { conforming = -1 }; // helper value
 
-   // Conforming face
-   InterpConfig() : config(conforming) { }
+   // default constructor, shouldn't be used directly.
+   // Note: the default is not `conforming' for compatibility with mfem::Array.
+   InterpConfig() = default;
 
    // Non-conforming face, if nc_index is given assumes side==1 (always true
    // except for ghost faces)
@@ -523,11 +524,7 @@ struct InterpConfig
    InterpConfig(const InterpConfig&) = default;
 
    MFEM_HOST_DEVICE
-   InterpConfig &operator=(const InterpConfig &rhs)
-   {
-      this->config = rhs.config;
-      return *this;
-   }
+   InterpConfig &operator=(const InterpConfig &rhs) = default;
 
    MFEM_HOST_DEVICE
    int GetNonConformingMasterSide() const
