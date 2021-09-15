@@ -721,7 +721,7 @@ The specific libraries and their options are:
 - OCCA (optional), used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
-  Versions: OCCA >= 1.1.0.
+  Versions: OCCA >= 1.2.0.
 
 - libCEED (optional), used when MFEM_USE_CEED = YES.
   URL: https://github.com/CEED/libCEED
