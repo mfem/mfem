@@ -6364,9 +6364,12 @@ void Mesh::GenerateNCFaceInfo()
       const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
 
-      faces_info[master.index].NCFace = nc_faces_info.Size();
+      FaceInfo &master_fi = faces_info[master.index];
+      master_fi.NCFace = nc_faces_info.Size();
       nc_faces_info.Append(NCFaceInfo(false, master.local, NULL));
       // NOTE: one of the unused members stores local face no. to be used below
+      MFEM_ASSERT(master_fi.Elem2No == -1, "internal error");
+      MFEM_ASSERT(master_fi.Elem2Inf == -1, "internal error");
    }
 
    // add records for slave faces
