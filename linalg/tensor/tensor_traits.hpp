@@ -155,6 +155,20 @@ struct is_2d_threaded_tensor_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool is_2d_threaded_tensor = is_2d_threaded_tensor_v<Tensor>::value;
 
+// is_serial_tensor_dim
+template <typename Tensor, int N>
+constexpr bool is_serial_tensor_dim = is_serial_layout_dim<
+                                         typename Tensor::layout,
+                                         N
+                                      >;
+
+// is_threaded_tensor_dim
+template <typename Tensor, int N>
+constexpr bool is_threaded_tensor_dim = is_threaded_layout_dim<
+                                           typename Tensor::layout,
+                                           N
+                                        >;
+
 // get_tensor_size
 template <int N, typename Tensor>
 struct get_tensor_size_v;
