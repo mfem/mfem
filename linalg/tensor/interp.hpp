@@ -178,7 +178,7 @@ template <typename Basis,
           std::enable_if_t<
              is_tensor_basis<Basis> &&
              get_basis_dim<Basis> == 3 &&
-             false,
+             false, // TODO: get_interp_algo<Basis,Dofs> == InterpAlgorithm::Untensor
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
@@ -279,7 +279,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
                   MFEM_UNROLL(Q1D)
                   for (int qx = 0; qx < Q1D; qx++)
                   {
-                     Btu += Bdx[qx] * Bdydz * s_u(qx,qy,qz);
+                     res += Bdx[qx] * Bdydz * s_u(qx,qy,qz);
                   }
                }
             }
