@@ -260,6 +260,52 @@ using StaticBlockTensor = Tensor<BlockContainer<T, Sizes...>,
 template <int BatchSize, int... Sizes>
 using StaticBlockDTensor = StaticBlockTensor<double,BatchSize,Sizes...>;
 
+/// A Tensor dynamically distributed over a cube of threads
+constexpr int get_Dynamic3dThreadLayout_size(int MaxSize, int Rank)
+{
+   return Rank>3 ? pow(MaxSize,Rank-3) : 1;
+}
+
+template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+using Dynamic3dThreadTensor = Tensor<
+                                 StaticContainer<
+                                    T,
+                                    get_DynamicBlockLayout_size(MaxSize,Rank)
+                                 >,
+                                 Dynamic3dThreadLayout<Rank,BatchSize>
+                              >;
+
+template <int Rank, int BatchSize, int MaxSize = 16>
+using Dynamic3dThreadDTensor = Dynamic3dThreadTensor<Rank,double,BatchSize,MaxSize>;
+
+/// A Tensor statically distributed over a plane of threads
+constexpr int get_Static3dThreadTensor_size(int Size0)
+{
+   return 1;
+}
+
+constexpr int get_Static3dThreadTensor_size(int Size0, int Size1)
+{
+   return 1;
+}
+
+template <typename... Sizes>
+constexpr int get_Static3dThreadTensor_size(int Size0, int Size1, Sizes... sizes)
+{
+   return prod(sizes...);
+}
+
+template <typename T, int BatchSize, int... Sizes>
+using Static3dThreadTensor = Tensor<StaticContainer<
+                                       T,
+                                       get_Static3dThreadTensor_size(Sizes...)
+                                    >,
+                                    Static3dThreadLayout<BatchSize, Sizes...>
+                             >;
+
+template <int BatchSize, int... Sizes>
+using Static3dThreadDTensor = Static3dThreadTensor<double,BatchSize,Sizes...>;
+
 /// A tensor using a read write access pointer and a dynamic data layout.
 // Backward compatible if renamed in DeviceTensor
 template <int Rank, typename T>
