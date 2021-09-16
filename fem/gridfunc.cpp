@@ -4122,24 +4122,9 @@ Vector LegendreND(const Vector & x, const Vector & c, int order, int dim)
    return poly;
 }
 
-double poly_x(const Vector & x)
-{
-   return x[0];
-}
-
-double poly_y(const Vector & x)
-{
-   return x[1];
-}
-
-double poly_xy(const Vector & x)
-{
-   return x[0]*x[1];
-}
-
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
-                           GridFunction &flux,
+                           GridFunction &flux, // I'd like to get rid of this input
                            Vector &error_estimates,
                            int with_subdomains,
                            bool with_coeff)
@@ -4219,6 +4204,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             udoftrans->InvTransformPrimal(ul);
          }
          Transf = ufes->GetElementTransformation(ielem);
+         // I had to redefine ComputeElementFlux to make this work.
+         // *ffes->GetFE(ielem) is an inactive argument, but I didn't want
+         // to change the signature of the original function too much.
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *ffes->GetFE(ielem), fl, with_coeff, ir);
          if (fdoftrans)
@@ -4235,10 +4223,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
             Vector p(num_basis_functions);
             p = LegendreND(transip, c, patch_order, dim);
-            // p(0) = 1.0;
-            // p(1) = poly_x(transip);
-            // p(2) = poly_y(transip);
-            // p(3) = poly_xy(transip);
 
             for (int l = 0; l < num_basis_functions; l++)
             {

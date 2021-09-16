@@ -910,10 +910,6 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
 Vector Legendre1D(double x, int order);
 Vector LegendreND(const Vector & x, const Vector & c, int order, int dim);
 
-double poly_x(const Vector & x);
-double poly_y(const Vector & x);
-double poly_xy(const Vector & x);
-
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
                            GridFunction &flux,
