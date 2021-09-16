@@ -3049,7 +3049,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
    int log = 1;
    int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
-   int order = 1;
+   int order = 2;
    int npts = 0;
 
    double tol = 1e-6;
@@ -3060,10 +3060,6 @@ TEST_CASE("3D GetVectorValue in Parallel",
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
-      if (type == Element::TETRAHEDRON)
-      {
-         pmesh.ReorientTetMesh();
-      }
       mesh.Clear();
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
@@ -3115,6 +3111,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
+         Vector           x(dim);           x = 0.0;
          Vector       f_val(dim);       f_val = 0.0;
 
          Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
@@ -3137,6 +3134,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
             {
                std::cout << "Shared Face Evaluation 3D" << std::endl;
             }
+
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -3167,6 +3165,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
+                  T->Transform(ip, x);
 
                   funcCoef.Eval(f_val, *T, ip);
 
@@ -3223,9 +3222,11 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   }
                   if (log > 0 && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gfc ("
+                     std::cout << e << ":" << j
+                               << " x = (" << x[0] << "," << x[1] << ","
+                               << x[2] << ")\n nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
+                               << f_val[2] << ")\n vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") "
                                << nd_gfc_dist << std::endl;
@@ -3357,6 +3358,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
          }
       }
    }
+
    std::cout << my_rank << ": Checked GridFunction::GetVectorValue at "
              << npts << " 3D points" << std::endl;
 }

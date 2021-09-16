@@ -14,6 +14,7 @@
 echo "Runs if there was at least one failure on ${MACHINE_NAME}"
 
 cd ${AUTOTEST_ROOT}/autotest && git pull
+mkdir -p ${MACHINE_NAME}
 
 rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
 rundir=$(.gitlab/scripts/safe_create_rundir $rundir)

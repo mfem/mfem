@@ -14,6 +14,7 @@
 echo "Can only run if all the ${MACHINE_NAME} jobs passed"
 
 cd ${AUTOTEST_ROOT}/autotest && git pull
+mkdir -p ${MACHINE_NAME}
 
 rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
 rundir=$(.gitlab/scripts/safe_create_rundir $rundir)

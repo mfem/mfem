@@ -84,8 +84,7 @@ public:
        the PUMI and MFEM meshes. E.g.,
        PUMI_tet{v0,v1,v2,v3}  --->  MFEM_tet{v1,v0,v3,v2}
        * Note that change in the orientation can be caused by
-         a) fixing wrong boundary element orientations
-         b) a call to ReorientTetMesh() which is required for Nedelec */
+         fixing wrong boundary element orientations */
    int RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
                           apf::MeshEntity* tet,
                           int elemId);

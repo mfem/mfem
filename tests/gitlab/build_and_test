@@ -50,7 +50,7 @@ function usage()
   echo ""
   echo " --data"
   echo "    Make running tests with \"--data\" a requirement: will fail in the"
-  echo "    data directory is not present in mfem root directory."
+  echo "    data directory is not present in the parent of the mfem root directory."
   echo "    Note: default behavior is to run data tests if data dir is present."
   echo ""
   echo " --build-root=/path/to/build/resource"
