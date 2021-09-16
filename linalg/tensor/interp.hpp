@@ -171,6 +171,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    return ContractX(Bt,BBu);
 }
 
+
+// 3D threaded version where each thread computes one value.
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
@@ -187,6 +189,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bqx[D1D], Bqy[D1D], Bqz[D1D];
+   Static3dThreadDTensor<1,Q1D,Q1D,Q1D> Bu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -200,7 +203,7 @@ auto operator*(const Basis &basis, const Dofs &u)
                Bqy[d] = B(qy,d);
                Bqz[d] = B(qz,d);
             }
-            double Bu = 0.0; // Some 3D threaded tensor.
+            double res = 0.0;
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
@@ -211,11 +214,11 @@ auto operator*(const Basis &basis, const Dofs &u)
                   MFEM_UNROLL(D1D)
                   for (int dx = 0; dx < D1D; dx++)
                   {
-                     Bu += Bqx[dx] * Bqyqz * u(dx,dy,dz);
+                     res += Bqx[dx] * Bqyqz * u(dx,dy,dz);
                   }
                }
             }
-            // Should be Bu(qx,qy,qz)
+            Bu(qx,qy,qz) = res;
          }
       }
    }
@@ -238,6 +241,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
+   Static3dThreadDTensor<1,Q1D,Q1D,Q1D> Btu;
    // Load u into shared memory
    MFEM_SHARED StaticDTensor<Q1D,Q1D,Q1D> s_u;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -264,7 +268,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
                Bdy[q] = Bt(dy,q);
                Bdz[q] = Bt(dz,q);
             }
-            const double Btu = 0.0; // Some 3D threaded tensor.
+            double res = 0.0;
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; qz++)
             {
@@ -279,7 +283,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
                   }
                }
             }
-            // Should be Btu(dx,dy,dz)
+            Btu(dx,dy,dz) = res;
          }
       }
    }
