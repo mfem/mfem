@@ -111,8 +111,8 @@ MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
-   auto Bt = basis.GetBt(s_B);
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
 
    return Bt * u;
 }
@@ -128,8 +128,8 @@ MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
-   auto Bt = basis.GetBt(s_B);
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
 
    return ContractX(Bt,u);
 }
@@ -145,8 +145,8 @@ MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
-   auto Bt = basis.GetBt(s_B);
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
 
    auto Bu = ContractY(Bt,u);
    return ContractX(Bt,Bu);
@@ -163,8 +163,8 @@ MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
-   auto Bt = basis.GetBt(s_B);
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
 
    auto Bu = ContractZ(Bt,u);
    auto BBu = ContractY(Bt,Bu);

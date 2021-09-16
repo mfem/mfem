@@ -506,7 +506,7 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<rank(DimX,DimY,DimZ,Dims...),"Accessed size is higher than the rank of the Tensor.");
+      static_assert(N>=0 && N<rank<DimX,DimY,DimZ,Dims...>,"Accessed size is higher than the rank of the Tensor.");
       return get_value<N,DimX,DimY,DimZ,Dims...>;
    }
 };
