@@ -21,11 +21,14 @@ cd tests/uberenv
 git apply upstream-permission.patch
 cd -
 
+# Get the hostname
+hostid=${HOSTNAME//[[:digit:]]/}
+
 # call uberenv for all specs in CI
-git grep -e "^[^#]" .gitlab | grep "SPEC" \
-                            | cut -d' ' -f6- \
-                            | sed 's/"//g' \
-                            | while read -r line; do
+git grep -e "^[^#]" .gitlab/$hostid* | grep "SPEC" \
+                                     | cut -d' ' -f6- \
+                                     | sed 's/"//g' \
+                                     | while read -r line; do
   python ./tests/uberenv/uberenv.py --spec="$line"
 done
 
