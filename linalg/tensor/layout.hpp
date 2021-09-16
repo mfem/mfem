@@ -987,6 +987,74 @@ struct is_2d_threaded_layout_v<RestrictedLayout<N,Layout>>
 template <typename Layout>
 constexpr bool is_2d_threaded_layout = is_2d_threaded_layout_v<Layout>::value;
 
+// is_serial_layout_dim
+template <typename Layout, int N>
+struct is_serial_layout_dim_v
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<BlockLayout<BatchSize,Dims...>, 0>
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<BlockLayout<BatchSize,Dims...>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <typename Layout, int N>
+constexpr bool is_serial_layout_dim = is_serial_layout_dim_v<Layout,N>::value;
+
+// is_threaded_layout_dim
+template <typename Layout, int N>
+struct is_threaded_layout_dim_v
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<BlockLayout<BatchSize,Dims...>, 0>
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<BlockLayout<BatchSize,Dims...>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <typename Layout, int N>
+constexpr bool is_threaded_layout_dim = is_threaded_layout_dim_v<Layout,N>::value;
+
 // get_layout_size
 template <int N, typename Layout>
 struct get_layout_size_v;
