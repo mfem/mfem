@@ -89,6 +89,71 @@ auto operator*(const Basis &basis, const Dofs &u)
    return ContractZ(B,BBu);
 }
 
+// Non-tensor
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_non_tensor_basis<Basis>,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
+{
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
+   return Bt * u;
+}
+
+// 1D Tensor
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
+{
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
+   return ContractX(Bt,u);
+}
+
+// 2D Tensor
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
+{
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
+   auto Bu = ContractX(Bt,u);
+   return ContractY(Bt,Bu);
+}
+
+// 3D Tensor
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
+{
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_Bt[basis_size];
+   auto Bt = basis.GetBt(s_Bt);
+   auto Bu = ContractX(Bt,u);
+   auto BBu = ContractY(Bt,Bu);
+   return ContractZ(Bt,BBu);
+}
 
 // 3D threaded version where each thread computes one value.
 template <typename Basis,
