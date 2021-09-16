@@ -18,192 +18,101 @@
 namespace mfem
 {
 
-/// A structure that implements an imbricated forall with for loops.
+/// A structure that implements a specialized `for' loop for a specific dimension.
 template <int N>
 struct Foreach
 {
-   /// Apply an unary operator to each entry of a Tensor.
-   template <typename TensorLHS, typename Lambda, typename... Idx>
+   /// Apply a lambda function based on the dimensions of a Tensor.
+   template <typename Tensor,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_serial_tensor_dim<Tensor, N>,
+             bool> = true>
    MFEM_HOST_DEVICE inline
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
+   static void Apply(Tensor &t, Lambda &&func, Idx... idx)
    {
-      for (int i = 0; i < lhs.template Size<N-1>(); i++)
+      for (int i = 0; i < t.template Size<N>(); i++)
       {
-         Foreach<N-1>::ApplyUnOp(lhs,func,i,idx...);
+         func(i,idx...);
       }
    }
 
-   /// Apply a binary operator to each entry of a Tensor.
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
+   template <typename Tensor,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_threaded_tensor_dim<Tensor, N>, // tensor_traits<Tensor>::is_serial_dim<2>
+             bool> = true>
    MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
+   static void Apply(Tensor &t, Lambda &&func, Idx... idx)
    {
-      for (int i = 0; i < lhs.template Size<N-1>(); i++)
+      MFEM_FOREACH_THREAD(i,y,t.template Size<N>())
       {
-         Foreach<N-1>::ApplyBinOp(lhs,rhs,func,i,idx...);
+         func(i,idx...);
       }
    }
 };
 
-template <>
-struct Foreach<0>
+/// A structure that applies Foreach to all given dimensions.
+template <int Dim, int... Dims>
+struct Forall
 {
-   template <typename TensorLHS, typename Lambda, typename... Idx>
+   /// Apply a lambda function based on the dimensions of a Tensor.
+   template <typename Tensor, typename Lambda, typename... Idx>
    MFEM_HOST_DEVICE inline
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
+   static void Apply(Tensor &t, Lambda &&func, Idx... idx)
    {
-      func(lhs,idx...);
-   }
-
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      func(lhs,rhs,idx...);
+      Foreach<Dim>::Apply(
+         t,
+         [&](auto... i){
+            Forall<Dims...>::Apply(t, func, i...);
+         },
+         idx...
+      );
    }
 };
 
-template <>
-struct Foreach<1>
+template <int Dim>
+struct Forall<Dim>
 {
-   template <typename TensorLHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_serial_tensor<TensorLHS>,
-             bool> = true>
+   /// Apply a lambda function based on the dimensions of a Tensor.
+   template <typename Tensor, typename Lambda, typename... Idx>
    MFEM_HOST_DEVICE inline
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
+   static void Apply(Tensor &t, Lambda &&func, Idx... idx)
    {
-      for (int i = 0; i < lhs.template Size<0>(); i++)
-      {
-         Foreach<0>::ApplyUnOp(lhs,func,i,idx...);
-      }
-   }
-
-   template <typename TensorLHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_2d_threaded_tensor<TensorLHS>,
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
-   {
-      MFEM_FOREACH_THREAD(i,x,lhs.template Size<0>())
-      {
-         Foreach<0>::ApplyUnOp(lhs,func,i,idx...);
-      }
-   }
-
-   template <typename TensorLHS,
-             typename TensorRHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_serial_tensor<TensorLHS> &&
-                is_serial_tensor<TensorRHS>,
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      for (int i = 0; i < lhs.template Size<0>(); i++)
-      {
-         Foreach<0>::ApplyBinOp(lhs,rhs,func,i,idx...);
-      }
-   }
-
-   template <typename TensorLHS,
-             typename TensorRHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                (is_2d_threaded_tensor<TensorLHS> &&
-                is_2d_threaded_tensor<TensorRHS>) ||
-                (has_pointer_container<TensorLHS> &&
-                is_2d_threaded_tensor<TensorRHS>) ||
-                (is_2d_threaded_tensor<TensorLHS> &&
-                has_pointer_container<TensorRHS>),
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      MFEM_FOREACH_THREAD(i,x,lhs.template Size<0>())
-      {
-         Foreach<0>::ApplyBinOp(lhs,rhs,func,i,idx...);
-      }
+      Foreach<Dim>::Apply(t, func, idx...);
    }
 };
 
-template <>
-struct Foreach<2>
+/// A structure applying Foreach to each dimension of the Tensor.
+template <typename Tensor, int Dim = get_tensor_rank<Tensor>-1>
+struct ForallDims
 {
-   template <typename TensorLHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_serial_tensor<TensorLHS>,
-             bool> = true>
+   /// Apply a lambda function based on the dimensions of a Tensor.
+   template <typename Lambda, typename... Idx>
    MFEM_HOST_DEVICE inline
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
+   static void Apply(Tensor &t, Lambda &&func, Idx... idx)
    {
-      for (int i = 0; i < lhs.template Size<1>(); i++)
-      {
-         Foreach<1>::ApplyUnOp(lhs,func,i,idx...);
-      }
+      Foreach<Dim>::Apply(
+         t,
+         [&](auto... i){
+            ForallDims<Tensor,Dim-1>::Apply(t, func, i...);
+         },
+         idx...
+      );
    }
+};
 
-   template <typename TensorLHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_2d_threaded_tensor<TensorLHS>,
-             bool> = true>
+template <typename Tensor>
+struct ForallDims<Tensor, 0>
+{
+   /// Apply a lambda function based on the dimensions of a Tensor.
+   template <typename Lambda, typename... Idx>
    MFEM_HOST_DEVICE inline
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
+   static void Apply(Tensor &t, Lambda &&func, Idx... idx)
    {
-      MFEM_FOREACH_THREAD(i,y,lhs.template Size<1>())
-      {
-         Foreach<1>::ApplyUnOp(lhs,func,i,idx...);
-      }
-   }
-
-   template <typename TensorLHS,
-             typename TensorRHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_serial_tensor<TensorLHS> &&
-                is_serial_tensor<TensorRHS>,
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      for (int i = 0; i < lhs.template Size<1>(); i++)
-      {
-         Foreach<1>::ApplyBinOp(lhs,rhs,func,i,idx...);
-      }
-   }
-
-   template <typename TensorLHS,
-             typename TensorRHS,
-             typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                (is_2d_threaded_tensor<TensorLHS> &&
-                is_2d_threaded_tensor<TensorRHS>) ||
-                (has_pointer_container<TensorLHS> &&
-                is_2d_threaded_tensor<TensorRHS>) ||
-                (is_2d_threaded_tensor<TensorLHS> &&
-                has_pointer_container<TensorRHS>),
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      MFEM_FOREACH_THREAD(i,y,lhs.template Size<1>())
-      {
-         Foreach<1>::ApplyBinOp(lhs,rhs,func,i,idx...);
-      }
+      Foreach<0>::Apply(t, func, idx...);
    }
 };
 

@@ -100,10 +100,9 @@ public:
    MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator=(const T &val)
    {
-      Foreach<get_layout_rank<Layout>>::ApplyUnOp(
-         *this,[&](auto &lhs, auto... idx)
+      ForallDims<Tensor>::Apply(*this,[&](auto... idx)
       {
-         lhs(idx...) = val;
+         (*this)(idx...) = val;
       });
       return *this;
    }
@@ -111,10 +110,10 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator=(const OtherTensor &rhs)
    {
-      Foreach<get_layout_rank<Layout>>::ApplyBinOp(
-         *this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      // TODO: Tensor or OtherTensor, wrong otherwise
+      ForallDims<Tensor>::Apply(*this, [&](auto... idx)
       {
-         lhs(idx...) = rhs(idx...);
+         (*this)(idx...) = rhs(idx...);
       });
       return *this;
    }
@@ -122,10 +121,10 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator+=(const OtherTensor &rhs)
    {
-      Foreach<get_layout_rank<Layout>>::ApplyBinOp(
-         *this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      // TODO: Tensor or OtherTensor, wrong otherwise
+      ForallDims<Tensor>::Apply(*this, [&](auto... idx)
       {
-         lhs(idx...) += rhs(idx...);
+         (*this)(idx...) += rhs(idx...);
       });
       return *this;
    }
