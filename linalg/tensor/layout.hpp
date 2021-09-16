@@ -911,6 +911,18 @@ struct get_layout_rank_v<DynamicBlockLayout<Rank, BatchSize>>
    static constexpr int value = Rank;
 };
 
+template <int BatchSize, int... Dims>
+struct get_layout_rank_v<Static3dThreadLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = sizeof...(Dims);
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_rank_v<Dynamic3dThreadLayout<Rank, BatchSize>>
+{
+   static constexpr int value = Rank;
+};
+
 template <int I, typename Layout>
 struct get_layout_rank_v<RestrictedLayout<I,Layout>>
 {
