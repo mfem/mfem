@@ -4055,7 +4055,7 @@ Vector Legendre1D(double x, int order)
    if (order >= 2)
    {
       // recursive formula (see, e.g, https://doi.org/10.1016/j.camwa.2015.04.027)
-      for (int i = 2; i <= order+1; i++)
+      for (int i = 2; i <= order; i++)
       {
          poly(i) = (2*i-1) * x * poly(i-1) - (i-1) * poly(i-2);
          poly(i) /= i;
@@ -4078,7 +4078,7 @@ Vector LegendreND(const Vector & x, const Vector & c, int order, int dim)
       x2 = x(1) - c(1);
       poly_y = Legendre1D(x2, order);
    }
-   if (dim > 2)
+   if (dim == 3)
    {
       x3 = x(2) - c(2);
       poly_z = Legendre1D(x3, order);
@@ -4193,6 +4193,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          int ielem = neighbor_elems[i];
          const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
                                                     flux_order));
+         int num_integration_pts = ir->GetNPoints();
 
          udoftrans = ufes->GetElementVDofs(i, udofs);
          fdoftrans = ffes->GetElementVDofs(i, fdofs);
@@ -4214,7 +4215,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             fdoftrans->TransformPrimal(fl);
          }
 
-         for (int k = 0; k < ir->GetNPoints(); k++)
+         for (int k = 0; k < num_integration_pts; k++)
          {
             const IntegrationPoint ip = ir->IntPoint(k);
             double tmp[3];
@@ -4233,7 +4234,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                // loop through each component
                for (int n = 0; n < dim; n++)
                {
-                  b[l + n * num_basis_functions] += p(l) * fl(k + n * num_basis_functions);
+                  b[l + n * num_basis_functions] += p(l) * fl(k + n * num_integration_pts);
                }
             }
          }
