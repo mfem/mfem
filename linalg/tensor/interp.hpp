@@ -89,7 +89,8 @@ auto operator*(const Basis &basis, const Dofs &u)
    return ContractZ(B,BBu);
 }
 
-// TODO 3D threaded version where each thread computes one value.
+
+// 3D threaded version where each thread computes one value.
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
@@ -106,6 +107,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bqx[D1D], Bqy[D1D], Bqz[D1D];
+   Static3dThreadDTensor<1,Q1D,Q1D,Q1D> Bu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -113,28 +115,28 @@ auto operator*(const Basis &basis, const Dofs &u)
          MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
             MFEM_UNROLL(D1D)
-            for (int d = 0; d < D1d; d++)
+            for (int d = 0; d < D1D; d++)
             {
                Bqx[d] = B(qx,d);
                Bqy[d] = B(qy,d);
                Bqz[d] = B(qz,d);
             }
-            double Bu = 0.0; // Some 3D threaded tensor.
+            double res = 0.0;
             MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1d; dz++)
+            for (int dz = 0; dz < D1D; dz++)
             {
                MFEM_UNROLL(D1D)
-               for (int dy = 0; dy < D1d; dy++)
+               for (int dy = 0; dy < D1D; dy++)
                {
                   const double Bqyqz = Bqy[dy] * Bqz[dz];
                   MFEM_UNROLL(D1D)
-                  for (int dx = 0; dx < D1d; dx++)
+                  for (int dx = 0; dx < D1D; dx++)
                   {
-                     Bu += Bqx[dx] * Bqyqz * u(dx,dy,dz);
+                     res += Bqx[dx] * Bqyqz * u(dx,dy,dz);
                   }
                }
             }
-            // Should be Bu(qx,qy,qz)
+            Bu(qx,qy,qz) = res;
          }
       }
    }
@@ -157,6 +159,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
+   Static3dThreadDTensor<1,Q1D,Q1D,Q1D> Btu;
    // Load u into shared memory
    MFEM_SHARED StaticDTensor<Q1D,Q1D,Q1D> s_u;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -177,28 +180,28 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
             MFEM_UNROLL(Q1D)
-            for (int q = 0; q < Q1d; q++)
+            for (int q = 0; q < Q1D; q++)
             {
                Bdx[q] = Bt(dx,q);
                Bdy[q] = Bt(dy,q);
                Bdz[q] = Bt(dz,q);
             }
-            const double Btu = 0.0; // Some 3D threaded tensor.
+            double res = 0.0;
             MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1d; qz++)
+            for (int qz = 0; qz < Q1D; qz++)
             {
                MFEM_UNROLL(Q1D)
-               for (int qy = 0; qy < Q1d; qy++)
+               for (int qy = 0; qy < Q1D; qy++)
                {
                   double Bdydz = Bdy[qy] * Bdz[qz];
                   MFEM_UNROLL(Q1D)
-                  for (int qx = 0; qx < Q1d; qx++)
+                  for (int qx = 0; qx < Q1D; qx++)
                   {
                      Btu += Bdx[qx] * Bdydz * s_u(qx,qy,qz);
                   }
                }
             }
-            // Should be Btu(dx,dy,dz)
+            Btu(dx,dy,dz) = res;
          }
       }
    }
