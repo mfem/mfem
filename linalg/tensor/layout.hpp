@@ -180,7 +180,6 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -222,7 +221,6 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -267,7 +265,6 @@ public:
       return layout.index(idx...);
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -310,7 +307,6 @@ public:
       return layout.index(idx...);
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -348,7 +344,6 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -389,12 +384,258 @@ public:
       return 0;
    }
 
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      return N==0? size0 : size1;
+   }
+};
+
+/// Layout using a thread cube to distribute data
+template <int BatchSize, int... Dims>
+class Static3dThreadLayout;
+
+template <int BatchSize, int DimX>
+class Static3dThreadLayout<BatchSize, DimX>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout(int size0)
+   {
+      // TODO Verify in debug that size0==DimX
+      // TODO verify that size0 < BlockSizeX
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0) const
+   {
+      // TODO verify that idx0 < DimX
+      // TODO verify that idx0 == threadIdx.x
+      return 0;
+   }
+
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      return DimX;
+   }
+};
+
+template <int BatchSize, int DimX, int DimY>
+class Static3dThreadLayout<BatchSize, DimX, DimY>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout(int size0, int size1)
+   {
+      // TODO Verify in debug that size0==DimX && size1==DimY
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return 0;
+   }
+
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      return get_value<N,DimX,DimY>;
+   }
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ>
+class Static3dThreadLayout<BatchSize, DimX, DimY, DimZ>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout(int size0, int size1, int size2)
+   {
+      // TODO Verify in debug that size0==DimX && size1==DimY
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that size2 < BlockSizeZ
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return 0;
+   }
+
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<3,"Accessed size is higher than the rank of the Tensor.");
+      return get_value<N,DimX,DimY,DimZ>;
+   }
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ, int... Dims>
+class Static3dThreadLayout<BatchSize, DimX, DimY, DimZ, Dims...>
+{
+private:
+   StaticLayout<Dims...> layout;
+public:
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
+   Static3dThreadLayout(int size0, int size1, int size2, Sizes... sizes)
+   : layout(sizes...)
+   {
+      // TODO Verify in debug that size0==DimX && size1==DimY && size2==DimZ
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY && size2 < BlockSizeZ
+   }
+
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2, Idx... idx) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return layout(idx...);
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<rank(DimX,DimY,DimZ,Dims...),"Accessed size is higher than the rank of the Tensor.");
+      return get_value<N,DimX,DimY,DimZ,Dims...>;
+   }
+};
+
+template <int Rank, int BatchSize>
+class Dynamic3dThreadLayout
+{
+private:
+   const int size0;
+   const int size1;
+   const int size2;
+   DynamicLayout<Rank-3> layout;
+public:
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0, int size1, int size2, Sizes... sizes)
+   : size0(size0), size1(size1), size2(size2), layout(sizes...)
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2, Idx... idx) const
+   {
+      // TODO verify that idx0 < size0 && idx1 < size1 && idx2 < size2
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return layout(idx...);
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
+      return Dynamic3dThreadLayoutSize<N,Rank>::eval(size0,size1,size2,layout);
+   }
+};
+
+template <int BatchSize>
+class Dynamic3dThreadLayout<1,BatchSize>
+{
+private:
+   const int size0;
+public:
+   MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0)
+   : size0(size0)
+   {
+      // TODO verify that size0 < BlockSizeX
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx) const
+   {
+      // TODO verify that idx < DimX
+      return 0;
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      return size0;
+   }
+};
+
+template <int BatchSize>
+class Dynamic3dThreadLayout<2,BatchSize>
+{
+private:
+   const int size0;
+   const int size1;
+public:
+   MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0, int size1)
+   : size0(size0), size1(size1)
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1) const
+   {
+      // TODO verify that idx0 < size0 && idx1 < size1
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return 0;
+   }
+
    // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
       return N==0? size0 : size1;
+   }
+};
+
+template <int BatchSize>
+class Dynamic3dThreadLayout<3,BatchSize>
+{
+private:
+   const int size0;
+   const int size1;
+   const int size2;
+public:
+   MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0, int size1, int size2)
+   : size0(size0), size1(size1), size2(size2)
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY && size2 < BlockSizeZ
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2) const
+   {
+      // TODO verify that idx0 < size0 && idx1 < size1 && idx2 < size2
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return 0;
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<3,"Accessed size is higher than the rank of the Tensor.");
+      return N==0? size0 : (N==1? size1 : size2);
    }
 };
 
