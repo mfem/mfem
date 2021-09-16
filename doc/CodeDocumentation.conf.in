@@ -786,7 +786,8 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/shifted \
                          @MFEM_SOURCE_DIR@/miniapps/solvers \
                          @MFEM_SOURCE_DIR@/miniapps/tools \
-                         @MFEM_SOURCE_DIR@/miniapps/toys
+                         @MFEM_SOURCE_DIR@/miniapps/toys \
+                         @MFEM_SOURCE_DIR@/miniapps/parelag
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
