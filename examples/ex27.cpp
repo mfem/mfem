@@ -295,17 +295,7 @@ int main(int argc, char *argv[])
    //     element solution.
    a.RecoverFEMSolution(X, b, u);
 
-   // 13. Build a mass matrix to help solve for n.Grad(u) where 'n' is a surface
-   //     normal.
-   BilinearForm m(&fespace);
-   m.AddDomainIntegrator(new MassIntegrator);
-   m.Assemble();
-
-   ess_tdof_list.SetSize(0);
-   OperatorPtr M;
-   m.FormSystemMatrix(ess_tdof_list, M);
-
-   // 14. Compute the various boundary integrals.
+   // 13. Compute the various boundary integrals.
    mfem::out << endl
              << "Verifying boundary conditions" << endl
              << "=============================" << endl;
@@ -361,7 +351,7 @@ int main(int argc, char *argv[])
                 << " error " << err << endl;
    }
 
-   // 15. Save the refined mesh and the solution. This output can be viewed
+   // 14. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
@@ -372,7 +362,7 @@ int main(int argc, char *argv[])
       u.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       string title_str = h1 ? "H1" : "DG";
@@ -385,7 +375,7 @@ int main(int argc, char *argv[])
                << " keys 'mmc'" << flush;
    }
 
-   // 17. Free the used memory.
+   // 16. Free the used memory.
    delete fec;
    delete mesh;
 
