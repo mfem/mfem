@@ -368,6 +368,50 @@ struct DynamicBlockLayoutSize<1, Rank>
    }
 };
 
+template <int N, int Rank>
+struct Dynamic3dThreadLayoutSize
+{
+   MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, int size2,
+                   const DynamicLayout<Rank-3> &layout)
+   {
+      return layout.template Size<N-3>();
+   }
+};
+
+template <int Rank>
+struct Dynamic3dThreadLayoutSize<0, Rank>
+{
+   MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, int size2,
+                   const DynamicLayout<Rank-3> &layout)
+   {
+      return size0;
+   }
+};
+
+template <int Rank>
+struct Dynamic3dThreadLayoutSize<1, Rank>
+{
+   MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, int size2,
+                   const DynamicLayout<Rank-3> &layout)
+   {
+      return size1;
+   }
+};
+
+template <int Rank>
+struct Dynamic3dThreadLayoutSize<2, Rank>
+{
+   MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, int size2,
+                   const DynamicLayout<Rank-3> &layout)
+   {
+      return size2;
+   }
+};
+
 } // mfem namespace
 
 #endif // MFEM_TENSOR_UTIL
