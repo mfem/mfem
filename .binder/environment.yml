@@ -3,9 +3,9 @@
 channels:
 - conda-forge
 dependencies:
-- xeus-cling=0.12.1
-- xeus=1.0.4
-- xwidgets=0.25.0
+- xeus-cling=0.13.0
+- xwidgets=0.26.0
+# NOTE: it's possible these aren't needed for the lab frontend
 - widgetsnbextension=3.5.1
 - pip
 - pip:
