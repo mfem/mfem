@@ -794,6 +794,18 @@ struct get_basis_quads_v;
 template <typename Basis>
 struct get_basis_dofs_v;
 
+template <int Dim, bool IsTensor, int D, int Q>
+struct get_basis_dofs_v<Basis<Dim,IsTensor,D,Q>>
+{
+   static constexpr int value = D;
+};
+
+template <int Dim, bool IsTensor, int D, int Q>
+struct get_basis_quads_v<Basis<Dim,IsTensor,D,Q>>
+{
+   static constexpr int value = Q;
+};
+
 template <int Dim, bool IsTensor, typename TensorType>
 struct get_basis_quads_v<BasisTensor<Dim, IsTensor, TensorType>>
 {
