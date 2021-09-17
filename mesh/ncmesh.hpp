@@ -66,11 +66,12 @@ struct Embedding
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
 {
+   /// Fine element positions in their parents.
+   Array<Embedding> embeddings;
+
    /** A "dictionary" of matrices for IsoparametricTransformation. Use
        Embedding::geom and ::matrix to access a fine element point matrix. */
    DenseTensor point_matrices[Geometry::NumGeom];
-   /// Fine element positions in their parents.
-   Array<Embedding> embeddings;
 
    /** Invert the 'embeddings' array: create a Table with coarse elements as
        rows and fine elements as columns. If 'want_ghosts' is false, parallel

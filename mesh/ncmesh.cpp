@@ -4429,63 +4429,23 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
 void CoarseFineTransformations::MakeCoarseToFineTable(Table &coarse_to_fine,
                                                       bool want_ghosts) const
 {
-   // count fine elements
-   int fine_ne;
-   if (want_ghosts)
+   Array<Connection> conn;
+   conn.Reserve(embeddings.Size());
+
+   int max_parent = -1;
+   for (int i = 0; i < embeddings.Size(); i++)
    {
-      fine_ne = embeddings.Size();
-   }
-   else
-   {
-      fine_ne = 0;
-      for (int i = 0; i < embeddings.Size(); i++)
+      const Embedding &emb = embeddings[i];
+      if ((emb.parent >= 0) &&
+          (!emb.ghost || want_ghosts))
       {
-         if (!embeddings[i].ghost) { fine_ne++; }
+         conn.Append(Connection(emb.parent, i));
+         max_parent = std::max(emb.parent, max_parent);
       }
    }
 
-   // count coarse elements
-   int coarse_ne = -1;
-   for (int i = 0; i < fine_ne; i++)
-   {
-      coarse_ne = std::max(coarse_ne, embeddings[i].parent);
-   }
-   coarse_ne++;
-
-   coarse_to_fine.SetDims(coarse_ne, fine_ne);
-
-   // count table row sizes
-   Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
-   cf_i = 0;
-   for (int i = 0; i < fine_ne; i++)
-   {
-      const Embedding &e = embeddings[i];
-      if (!want_ghosts && e.ghost) { continue; }
-      if (e.parent >= 0) { cf_i[e.parent + 1]++; }
-   }
-   cf_i.PartialSum();
-   MFEM_ASSERT(cf_i.Last() == fine_ne, "internal error");
-
-   // fill and sort rows
-   Array<Pair<int,int> > cf_j(fine_ne);
-   for (int i = 0; i < fine_ne; i++)
-   {
-      const Embedding &e = embeddings[i];
-      if (!want_ghosts && e.ghost) { continue; }
-      cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
-      cf_j[cf_i[e.parent]].two = i;
-      cf_i[e.parent]++;
-   }
-   std::copy_backward(cf_i.begin(), cf_i.end()-1, cf_i.end());
-   cf_i[0] = 0;
-   for (int i = 0; i < coarse_ne; i++)
-   {
-      std::sort(&cf_j[cf_i[i]], cf_j.GetData() + cf_i[i+1]);
-   }
-   for (int i = 0; i < fine_ne; i++)
-   {
-      coarse_to_fine.GetJ()[i] = cf_j[i].two;
-   }
+   conn.Sort(); // NOTE: unique is not necessary
+   coarse_to_fine.MakeFromList(max_parent+1, conn);
 }
 
 void NCMesh::ClearTransforms()
