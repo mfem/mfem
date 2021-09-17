@@ -73,7 +73,7 @@ public:
    {
       ForallDims<Tensor>::ApplyBinOp(*this, rhs, [&](auto... idx)
       {
-         lhs(idx...) = rhs(idx...);
+         (*this)(idx...) = rhs(idx...);
       });
    }
 
