@@ -38,6 +38,7 @@ struct Foreach
       }
    }
 
+   /// TODO
    template <typename Tensor,
              typename Lambda,
              typename... Idx,
@@ -53,6 +54,7 @@ struct Foreach
       }
    }
 
+   /// TODO
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,
@@ -73,6 +75,7 @@ struct Foreach
       }
    }
 
+   /// TODO
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,
@@ -97,6 +100,7 @@ struct Foreach
       }
    }
 
+   /// TODO
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,
@@ -121,6 +125,7 @@ struct Foreach
       }
    }
 
+   /// TODO
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,

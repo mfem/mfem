@@ -23,6 +23,100 @@ namespace mfem
 {
 
 /// Diagonal Tensor product with a Tensor
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == get_tensor_rank<Tensor> &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   auto Du = make_cwise_result_tensor(D,u); // = DynamicDTensor<1>(Q);
+   ForallDims<Tensor>::Apply(u, [&](auto... q)
+   {
+      Du(q...) = D(q...) * u(q...);
+   });
+   return Du;
+}
+
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == get_tensor_rank<Tensor> &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   auto Du = make_cwise_result_tensor(D,u); // = DynamicDTensor<1>(Q);
+   constexpr int CompDim = get_tensor_rank<decltype(Du)> - 1;
+   ForallDims<Tensor>::Apply(u, [&](auto... q)
+   {
+      auto val = u(q...);
+      for (int c = 0; c < Du.template Size<CompDim>(); c++)
+      {
+         Du(q...,c) = D(q...,c) * val;
+      }
+   });
+   return Du;
+}
+
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == (get_tensor_rank<Tensor> - 1) &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   auto Du = make_cwise_result_tensor(D,u); // = DynamicDTensor<1>(Q);
+   constexpr int CompDim = get_tensor_rank<Tensor> - 1;
+   auto r_u = u.Get<CompDim>(0);
+   ForallDims<decltype(r_u)>::Apply(r_u, [&](auto... q)
+   {
+      double res = 0.0;
+      for (int c = 0; c < u.template Size<CompDim>(); c++)
+      {
+         res = D(q...,c) * u(q...,c);
+      }
+      Du(q...) = res;
+   });
+   return Du;
+}
+
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == get_tensor_rank<Tensor> &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   auto Du = make_cwise_result_tensor(D,u); // = DynamicDTensor<1>(Q);
+   constexpr int CompDim = get_tensor_rank<Tensor> - 1;
+   auto r_u = u.Get<CompDim>(0);
+   ForallDims<decltype(r_u)>::Apply(r_u, [&](auto... q)
+   {
+      for (int r = 0; r < Du.template Size<CompDim>(); r++)
+      {
+         double res = 0.0;
+         for (int c = 0; c < u.template Size<CompDim>(); c++)
+         {
+            res += D(q...,r,c) * u(q...,c);
+         }
+         Du(q...,r) = res;
+      }
+   });
+   return Du;
+}
+
 // 1D
 template <typename DiagonalTensor,
           typename Tensor,
@@ -240,7 +334,9 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
          double res = 0.0;
          for (int i = 0; i < Dim; i++)
          {
-            res += D(q,i,j)*u(q,i);
+            const int idx = i*Dim - (i-1)*i/2 + ( j<i ? j : j-i );
+            res += D(q,idx)*u(q,i);
+            // res += D(q,i,j)*u(q,i);
          }
          Du(q,j) = res;
       }
