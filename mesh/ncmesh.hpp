@@ -70,7 +70,7 @@ struct CoarseFineTransformations
    Array<Embedding> embeddings;
 
    /** A "dictionary" of matrices for IsoparametricTransformation. Use
-       Embedding::geom and ::matrix to access a fine element point matrix. */
+       Embedding::{geom,matrix} to access a fine element point matrix. */
    DenseTensor point_matrices[Geometry::NumGeom];
 
    /** Invert the 'embeddings' array: create a Table with coarse elements as
