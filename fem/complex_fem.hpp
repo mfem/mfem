@@ -324,6 +324,150 @@ public:
    virtual ~SesquilinearForm();
 };
 
+/** Class for mixed sesquilinear form
+
+    A mixed sesquilinear form is a generalization of a mixed bilinear form to
+    complex-valued fields. Sesquilinear forms are linear in the second argument
+    but the first argument involves a complex conjugate in the sense that:
+
+                a(alpha u, beta v) = conj(alpha) beta a(u, v)
+
+    The 'Mixed' keyword indicates that the domain and range spaces may differ
+    leading to rectangular operators.
+
+    The @a convention argument in the class's constructor is documented in the
+    mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the MixedSesquilinearForm either the real or
+    imaginary integrator can be NULL. This indicates that the corresponding
+    portion of the complex-valued material coefficient is equal to zero.
+*/
+class MixedSesquilinearForm
+{
+private:
+   ComplexOperator::Convention conv;
+
+   MixedBilinearForm *blfr;
+   MixedBilinearForm *blfi;
+
+   /* These methods check if the real/imag parts of the sesquilinear form are
+      not empty */
+   bool RealInteg();
+   bool ImagInteg();
+
+public:
+   MixedSesquilinearForm(FiniteElementSpace *tr_fes,
+                         FiniteElementSpace *te_fes,
+                         ComplexOperator::Convention
+                         convention = ComplexOperator::HERMITIAN);
+   /** @brief Create a MixedSesquilinearForm given a trial space,
+       FiniteElementSpace @a tr_fes, and a test space,
+       FiniteElementSpace @a te_fes, using the same integrators as the
+       MixedBilinearForms @a bfr and @a bfi .
+
+       The pointers @a tr_fes and @a te_fes are not owned by the newly
+       constructed object.
+
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed MixedSesquilinearForm. */
+   MixedSesquilinearForm(FiniteElementSpace *tr_fes,
+                         FiniteElementSpace *te_fes,
+                         MixedBilinearForm *bfr, MixedBilinearForm *bfi,
+                         ComplexOperator::Convention
+                         convention = ComplexOperator::HERMITIAN);
+
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention &
+                      convention) { conv = convention; }
+
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level)
+   {
+      blfr->SetAssemblyLevel(assembly_level);
+      blfi->SetAssemblyLevel(assembly_level);
+   }
+
+   MixedBilinearForm & real() { return *blfr; }
+   MixedBilinearForm & imag() { return *blfi; }
+   const MixedBilinearForm & real() const { return *blfr; }
+   const MixedBilinearForm & imag() const { return *blfi; }
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                            BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                              BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Boundary Integrator, restricted to specific boundary attributes.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                              BilinearFormIntegrator *bfi_imag,
+                              Array<int> &bdr_marker);
+
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                               BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                  BilinearFormIntegrator *bfi_imag);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The array @a bdr_marker is stored internally as a pointer to the given
+       Array<int> object. */
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                  BilinearFormIntegrator *bfi_imag,
+                                  Array<int> &bdr_marker);
+
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+
+   /// Finalizes the matrix initialization.
+   void Finalize(int skip_zeros = 1);
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   /** The returned matrix has to be deleted by the caller. */
+   ComplexSparseMatrix *AssembleComplexSparseMatrix();
+
+   /// Return the trial FE space associated with the BilinearForm.
+   FiniteElementSpace *TrialFESpace() { return blfr->TrialFESpace(); }
+   /// Read-only access to the associated trial FiniteElementSpace.
+   const FiniteElementSpace *TrialFESpace() const
+   { return blfr->TrialFESpace(); }
+
+   /// Return the test FE space associated with the BilinearForm.
+   FiniteElementSpace *TestFESpace() { return blfr->TestFESpace(); }
+   /// Read-only access to the associated test FiniteElementSpace.
+   const FiniteElementSpace *TestFESpace() const { return blfr->TestFESpace(); }
+
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OperatorHandle &A, Vector &X, Vector &B);
+
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    OperatorHandle &A);
+
+   virtual void Update();
+
+   virtual ~MixedSesquilinearForm();
+};
+
 #ifdef MFEM_USE_MPI
 
 /// Class for parallel complex-valued grid function - real + imaginary part
