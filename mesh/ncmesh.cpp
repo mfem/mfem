@@ -1868,7 +1868,7 @@ void NCMesh::InitDerefTransforms()
       Embedding &emb = transforms.embeddings[i];
       emb.parent = -1;
       emb.matrix = 0;
-      Element &el =elements[leaf_elements[i]];
+      Element &el = elements[leaf_elements[i]];
       emb.geom = el.Geom();
       emb.ghost = IsGhost(el);
    }
