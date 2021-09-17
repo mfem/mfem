@@ -394,12 +394,13 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       const CoarseFineTransformations &dtrans =
          meshcopy.ncmesh->GetDerefinementTransforms();
-      Table coarse_to_fine;
-      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine);
 
+      Table coarse_to_fine;
+      dtrans.MakeCoarseToFineTable(coarse_to_fine);
+
+      Array<int> tabrow;
       for (int pe = 0; pe < coarse_to_fine.Size(); pe++)
       {
-         Array<int> tabrow;
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
          double parent_energy = coarse_energy(pe);
@@ -446,12 +447,13 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       const CoarseFineTransformations &dtrans =
          meshcopy.pncmesh->GetDerefinementTransforms();
-      Table coarse_to_fine;
-      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine);
 
+      Table coarse_to_fine;
+      dtrans.MakeCoarseToFineTable(coarse_to_fine);
+
+      Array<int> tabrow;
       for (int pe = 0; pe < meshcopy.GetNE(); pe++)
       {
-         Array<int> tabrow;
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
          double parent_energy = coarse_energy(pe);
