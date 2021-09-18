@@ -1558,8 +1558,9 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 
    // Extract submatrix into *submat
 #ifdef hypre_IntArrayData
-   hypre_ParCSRMatrixExtractSubmatrixFC(A, hypre_IntArrayData(CF_marker), cpts_global,
-                                        "FF", &submat, threshold);
+   hypre_ParCSRMatrixExtractSubmatrixFC(A, hypre_IntArrayData(CF_marker),
+                                        cpts_global, "FF", &submat,
+                                        threshold);
 #else
    hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
                                         "FF", &submat, threshold);
