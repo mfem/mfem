@@ -26,6 +26,8 @@
 #include <nvector/nvector_parallel.h>
 #endif
 
+#define MFEM_HYPRE_INTARRAY 1
+
 using namespace std;
 
 namespace mfem
@@ -1532,6 +1534,13 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    int local_num_vars = hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A));
 
    // Form hypre CF-splitting array designating submatrix as F-points (-1)
+#if MFEM_HYPRE_INTARRAY
+   hypre_IntArray *CF_marker;
+
+   CF_marker = hypre_IntArrayCreate(local_num_vars);
+   hypre_IntArrayInitialize(CF_marker);
+   hypre_IntArraySetConstantValues(CF_marker, 1);
+#else
    Array<HYPRE_Int> CF_marker(local_num_vars);
    CF_marker = 1;
    for (int j=0; j<indices.Size(); j++)
@@ -1542,6 +1551,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
       }
       CF_marker[indices[j]] = -1;
    }
+#endif
 
    // Construct cpts_global array on hypre matrix structure
    HYPRE_BigInt *cpts_global;
@@ -1549,10 +1559,18 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
                               CF_marker, NULL, &cpts_global);
 
    // Extract submatrix into *submat
+#if MFEM_HYPRE_INTARRAY
+   hypre_ParCSRMatrixExtractSubmatrixFC(A, hypre_IntArrayData(CF_marker), cpts_global,
+                                        "FF", &submat, threshold);
+#else
    hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
                                         "FF", &submat, threshold);
+#endif
 
    mfem_hypre_TFree(cpts_global);
+#if MFEM_HYPRE_INTARRAY
+   hypre_IntArrayDestroy(CF_marker);
+#endif
    return new HypreParMatrix(submat);
 }
 #endif
