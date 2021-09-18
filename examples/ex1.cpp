@@ -115,19 +115,38 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   Array<int> ordering;
+   mesh.GetGeckoElementOrdering(ordering, 5, 5);
+   mesh.ReorderElements(ordering);
+
+   mesh.EnsureNCMesh(true);
+
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels = 3;
+         //(int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh.UniformRefinement();
+         //mesh.UniformRefinement();
+         Array<Refinement> refs;
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            //if (double(rand()) / RAND_MAX < 0.5)
+            {
+               refs.Append(Refinement(i, 3));
+            }
+         }
+         mesh.GeneralRefinement(refs);
       }
    }
 
+   Array<Refinement> empty;
+   mesh.GeneralRefinement(empty, 1, 0);
+
+#if 0
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -246,6 +265,20 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+#else
+
+   L2_FECollection attr_fec(0, dim);
+   FiniteElementSpace attr_fespace(&mesh, &attr_fec);
+   GridFunction attr(&attr_fespace);
+
+   const int NRanks = 7;
+   for (int i = 0; i < attr.Size(); i++)
+   {
+      attr(i) = i * NRanks / attr.Size();
+   }
+
+
+#endif
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -254,14 +287,15 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
+      mesh.ncmesh = NULL;
+      sol_sock << "solution\n" << mesh << attr << flush;
    }
 
    // 15. Free the used memory.
-   if (delete_fec)
+   /*if (delete_fec)
    {
       delete fec;
-   }
+   }*/
 
    return 0;
 }

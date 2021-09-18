@@ -8750,8 +8750,9 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
       ncmesh = new NCMesh(this);
    }
 
-   if (!refinements.Size())
+   if (!refinements.Size() && nc_limit < 0)
    {
+      // no-op (unless the user wants to do NC limiting)
       last_operation = Mesh::NONE;
       return;
    }
@@ -8760,7 +8761,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    ncmesh->MarkCoarseLevel();
    ncmesh->Refine(refinements);
 
-   if (nc_limit > 0)
+   if (nc_limit >= 0)
    {
       ncmesh->LimitNCLevel(nc_limit);
    }

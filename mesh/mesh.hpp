@@ -350,7 +350,7 @@ protected:
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    virtual void NonconformingRefinement(const Array<Refinement> &refinements,
-                                        int nc_limit = 0);
+                                        int nc_limit);
 
    /// NC version of GeneralDerefinement.
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
@@ -938,6 +938,7 @@ public:
    /// @warning For high-order meshes (when #Nodes != NULL) vertices may not be
    /// updated and should not be used!
    const double *GetVertex(int i) const { return vertices[i](); }
+   // TODO: make this function work in any case (linear/curvilinear mesh)
 
    /// @brief Return pointer to vertex i's coordinates.
    /// @warning For high-order meshes (when Nodes != NULL) vertices may not
@@ -1336,16 +1337,16 @@ public:
        For nonconforming refinements, nc_limit optionally specifies the maximum
        level of hanging nodes (unlimited by default). */
    void GeneralRefinement(const Array<Refinement> &refinements,
-                          int nonconforming = -1, int nc_limit = 0);
+                          int nonconforming = -1, int nc_limit = -1);
 
    /** Simplified version of GeneralRefinement taking a simple list of elements
        to refine, without refinement types. */
    void GeneralRefinement(const Array<int> &el_to_refine,
-                          int nonconforming = -1, int nc_limit = 0);
+                          int nonconforming = -1, int nc_limit = -1);
 
    /// Refine each element with given probability. Uses GeneralRefinement.
    void RandomRefinement(double prob, bool aniso = false,
-                         int nonconforming = -1, int nc_limit = 0);
+                         int nonconforming = -1, int nc_limit = -1);
 
    /// Refine elements sharing the specified vertex. Uses GeneralRefinement.
    void RefineAtVertex(const Vertex& vert,
@@ -1354,12 +1355,12 @@ public:
    /** Refine element i if elem_error[i] > threshold, for all i.
        Returns true if at least one element was refined, false otherwise. */
    bool RefineByError(const Array<double> &elem_error, double threshold,
-                      int nonconforming = -1, int nc_limit = 0);
+                      int nonconforming = -1, int nc_limit = -1);
 
    /** Refine element i if elem_error(i) > threshold, for all i.
        Returns true if at least one element was refined, false otherwise. */
    bool RefineByError(const Vector &elem_error, double threshold,
-                      int nonconforming = -1, int nc_limit = 0);
+                      int nonconforming = -1, int nc_limit = -1);
 
    /** Derefine the mesh based on an error measure associated with each
        element. A derefinement is performed if the sum of errors of its fine

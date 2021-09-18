@@ -103,6 +103,7 @@ static void CheckSupportedGeom(Geometry::Type geom)
 
 NCMesh::NCMesh(const Mesh *mesh)
    : shadow(1024, 2048)
+   , tmp_vertex(NULL)
 {
    Dim = mesh->Dimension();
    spaceDim = mesh->SpaceDimension();
@@ -212,6 +213,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , faces(other.faces)
    , elements(other.elements)
    , shadow(1024, 2048)
+   , tmp_vertex(NULL)
 {
    other.free_element_ids.Copy(free_element_ids);
    other.root_state.Copy(root_state);
@@ -451,7 +453,7 @@ int NCMesh::Face::GetSingleElement() const
 //// Refinement ////////////////////////////////////////////////////////////////
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
-   : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
+   : geom(geom), ref_type(0), spx_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
 {
    for (int i = 0; i < 8; i++) { node[i] = -1; }
@@ -897,7 +899,10 @@ void NCMesh::RefineElement(int elem, char ref_type)
       // do the remaining splits on the children
       for (int i = 0; i < 8; i++)
       {
-         if (el.child[i] >= 0) { RefineElement(el.child[i], remaining); }
+         if (el.child[i] >= 0)
+         {
+            RefineElement(el.child[i], remaining);
+         }
       }
       return;
    }
@@ -1357,15 +1362,9 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
                                 fa[0], fa[1], fa[2], -1);
 
-      // There are three ways to split the inner octahedron. A good strategy is
-      // to use the shortest diagonal. At the moment we don't have the geometric
-      // information in this class to determine which diagonal is the shortest,
-      // but it seems that with reasonable shapes of the coarse tets and MFEM's
-      // default tet orientation, always using tet_type == 0 produces stable
-      // refinements. Types 1 and 2 are unused for now.
-      el.tet_type = 0;
+      el.spx_type = 0; // TODO: CalcTetShortestDiagonal
 
-      if (el.tet_type == 0) // shortest diagonal mid01--mid23
+      if (el.spx_type == 0) // shortest diagonal mid01--mid23
       {
          child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
                                    fa[1], -1, -1, -1);
@@ -1379,7 +1378,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
                                    -1, fa[3], -1, -1);
       }
-      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+      else if (el.spx_type == 1) // shortest diagonal mid12--mid03
       {
          child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
                                    fa[3], -1, -1, -1);
@@ -1393,7 +1392,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
                                    -1, -1, -1, fa[2]);
       }
-      else // el.tet_type == 2, shortest diagonal mid02--mid13
+      else // el.spx_type == 2, shortest diagonal mid02--mid13
       {
          child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
                                    fa[2], -1, -1, -1);
@@ -1464,17 +1463,45 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      ref_type = 3; // for consistence
+      if (ref_type == 1) // longest edge bisection method
+      {
+         el.spx_type = CalcTriLongestEdge(el);
 
-      // isotropic split - the only ref_type available for triangles
-      int mid01 = nodes.GetId(no[0], no[1]);
-      int mid12 = nodes.GetId(no[1], no[2]);
-      int mid20 = nodes.GetId(no[2], no[0]);
+         if (el.spx_type == 0)
+         {
+            int mid01 = nodes.GetId(no[0], no[1]);
 
-      child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
-      child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
-      child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
-      child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+            child[0] = NewTriangle(mid01, no[2], no[0], attr, -1, fa[2], fa[0]);
+            child[1] = NewTriangle(mid01, no[1], no[2], attr, fa[0], fa[1], -1);
+         }
+         else if (el.spx_type == 1)
+         {
+            int mid12 = nodes.GetId(no[1], no[2]);
+
+            child[0] = NewTriangle(mid12, no[0], no[1], attr, -1, fa[0], fa[1]);
+            child[1] = NewTriangle(mid12, no[2], no[0], attr, fa[1], fa[2], -1);
+         }
+         else // el.spx_type == 2
+         {
+            int mid20 = nodes.GetId(no[2], no[0]);
+
+            child[0] = NewTriangle(mid20, no[1], no[2], attr, -1, fa[1], fa[2]);
+            child[1] = NewTriangle(mid20, no[0], no[1], attr, fa[2], fa[0], -1);
+         }
+      }
+      else // isotropic split (red refinement)
+      {
+         ref_type = 3; // for consistence
+
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid20 = nodes.GetId(no[2], no[0]);
+
+         child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
+         child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
+         child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+      }
    }
    else if (el.Geom() == Geometry::SEGMENT)
    {
@@ -1524,8 +1551,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    std::memcpy(el.child, child, sizeof(el.child));
 }
 
-
-void NCMesh::Refine(const Array<Refinement>& refinements)
+void NCMesh::Refine(const Array<Refinement> &refinements)
 {
    // push all refinements on the stack in reverse order
    ref_stack.Reserve(refinements.Size());
@@ -1564,8 +1590,40 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
    ref_stack.DeleteAll();
    shadow.DeleteAll();
+   FreeTmpVertexPos();
 
    Update();
+}
+
+int NCMesh::CalcTriLongestEdge(const Element &el)
+{
+   MFEM_ASSERT(el.Geom() == Geometry::TRIANGLE, "");
+
+   const double* vert[3] =
+   {
+      CalcVertexPos(el.node[0]),
+      CalcVertexPos(el.node[1]),
+      CalcVertexPos(el.node[2])
+   };
+
+   int edge = -1;
+   double max_len = 0;
+   for (int i = 0; i < 3; i++)
+   {
+      int j = (i+1) % 3;
+      double len = 0.0;
+      for (int k = 0; k < 3; k++)
+      {
+         double d = vert[i][k] - vert[j][k];
+         len += d*d;
+      }
+      if (len > max_len)
+      {
+         edge = i;
+         max_len = len;
+      }
+   }
+   return edge;
 }
 
 
@@ -1944,6 +2002,15 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
             CollectLeafElements(el.child[ch], st, ghosts, counter);
          }
       }
+      else if (el.Geom() == Geometry::TRIANGLE && el.ref_type == 1)
+      {
+         for (int i = 0; i < 2; i++)
+         {
+            int ch = tri_sierpinski_child_order[state][i];
+            int st = tri_sierpinski_child_state[state][i];
+            CollectLeafElements(el.child[ch], st, ghosts, counter);
+         }
+      }
       else // no SFC tables yet for remaining cases
       {
          for (int i = 0; i < 8; i++)
@@ -2246,13 +2313,19 @@ const double* NCMesh::CalcVertexPos(int node) const
    const Node &nd = nodes[node];
    if (nd.p1 == nd.p2) // top-level vertex
    {
+      MFEM_VERIFY(coordinates.Size(), "Curved meshes not supported yet.");
       return &coordinates[3*nd.p1];
    }
 
+   if (tmp_vertex == NULL)
+   {
+      tmp_vertex = new TmpVertex[nodes.NumIds()];
+   }
    TmpVertex &tv = tmp_vertex[node];
+
    if (tv.valid) { return tv.pos; }
 
-   MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
+   MFEM_VERIFY(tv.visited == false, "Cyclic vertex dependencies.");
    tv.visited = true;
 
    const double* pos1 = CalcVertexPos(nd.p1);
@@ -2272,12 +2345,11 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    if (coordinates.Size())
    {
       // calculate vertex positions from stored top-level vertex coordinates
-      tmp_vertex = new TmpVertex[nodes.NumIds()];
       for (int i = 0; i < mesh.vertices.Size(); i++)
       {
          mesh.vertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
       }
-      delete [] tmp_vertex;
+      FreeTmpVertexPos();
    }
    // NOTE: if the mesh is curved ('coordinates' is empty), mesh.vertices are
    // left uninitialized here; they will be initialized later by the Mesh from
@@ -4294,7 +4366,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
    }
    else
    {
-      MFEM_ASSERT(el.tet_type == 0, "not implemented");
+      MFEM_ASSERT(el.spx_type == 0, "not implemented");
 
       ref_path.push_back(el.ref_type);
       ref_path.push_back(0);
@@ -5270,14 +5342,15 @@ void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
             // iso meshes should only be modified by iso refinements
             ref_type = 7;
          }
-         refinements.Append(Refinement(i, ref_type));
+         //refinements.Append(Refinement(i, ref_type));
+         refinements.Append(Refinement(i, 1)); // FIXME
       }
    }
 }
 
 void NCMesh::LimitNCLevel(int max_nc_level)
 {
-   MFEM_VERIFY(max_nc_level >= 1, "'max_nc_level' must be 1 or greater.");
+   MFEM_VERIFY(max_nc_level >= 0, "'max_nc_level' must be 0 or greater.");
 
    while (1)
    {
@@ -5603,6 +5676,7 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
+   , tmp_vertex(NULL)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
@@ -6142,7 +6216,6 @@ int NCMesh::PrintMemoryDetail() const
 #ifdef MFEM_DEBUG
 void NCMesh::DebugLeafOrder(std::ostream &out) const
 {
-   tmp_vertex = new TmpVertex[nodes.NumIds()];
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       const Element* elem = &elements[leaf_elements[i]];
@@ -6162,13 +6235,12 @@ void NCMesh::DebugLeafOrder(std::ostream &out) const
       }
       out << "\n";
    }
-   delete [] tmp_vertex;
+   FreeTmpVertexPos();
 }
 
 void NCMesh::DebugDump(std::ostream &out) const
 {
    // dump nodes
-   tmp_vertex = new TmpVertex[nodes.NumIds()];
    out << nodes.Size() << "\n";
    for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
@@ -6179,7 +6251,7 @@ void NCMesh::DebugDump(std::ostream &out) const
           << node->vert_index << " " << node->edge_index << " "
           << 0 << "\n";
    }
-   delete [] tmp_vertex;
+   FreeTmpVertexPos();
    out << "\n";
 
    // dump elements

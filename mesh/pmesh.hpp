@@ -144,7 +144,7 @@ protected:
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    virtual void NonconformingRefinement(const Array<Refinement> &refinements,
-                                        int nc_limit = 0);
+                                        int nc_limit);
 
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
