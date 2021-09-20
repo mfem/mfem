@@ -1541,15 +1541,19 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #else
    Array<HYPRE_Int> CF_marker(local_num_vars);
    CF_marker = 1;
+#endif
    for (int j=0; j<indices.Size(); j++)
    {
       if (indices[j] > local_num_vars)
       {
          MFEM_WARNING("WARNING : " << indices[j] << " > " << local_num_vars);
       }
+#ifdef hypre_IntArrayData
+      hypre_IntArrayData(CF_marker)[indices[j]] = -1;
+#else
       CF_marker[indices[j]] = -1;
-   }
 #endif
+   }
 
    // Construct cpts_global array on hypre matrix structure
    HYPRE_BigInt *cpts_global;
