@@ -1521,6 +1521,11 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
                                                  double threshold) const
 {
+#if defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_UNIFIED_MEMORY)
+   MFEM_ABORT("This method requires HYPRE built with UVM when"
+              " HYPRE is using CUDA!");
+#endif
+
    if (!(A->comm))
    {
       hypre_MatvecCommPkgCreate(A);
