@@ -4578,7 +4578,7 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
       // After the addition of hypre_IntArray, mapping is assumed
       // to be a device pointer. Previously, it was assumed to be
       // a host pointer.
-#ifdef hypre_IntArrayData
+#if defined(hypre_IntArrayData) && defined(HYPRE_USING_GPU)
       HYPRE_Int *mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
       hypre_TMemcpy(mapping, h_mapping, HYPRE_Int, height,
                     HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
