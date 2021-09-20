@@ -1538,6 +1538,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 
    // Form hypre CF-splitting array designating submatrix as F-points (-1)
 #ifdef hypre_IntArrayData
+   // hypre_BoomerAMGCoarseParms needs CF_marker to be hypre_IntArray *
    hypre_IntArray *CF_marker;
 
    CF_marker = hypre_IntArrayCreate(local_num_vars);
@@ -1554,6 +1555,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
          MFEM_WARNING("WARNING : " << indices[j] << " > " << local_num_vars);
       }
 #ifdef hypre_IntArrayData
+      // Note: CF_marker is host or UVM memory, so we can modify it on host:
       hypre_IntArrayData(CF_marker)[indices[j]] = -1;
 #else
       CF_marker[indices[j]] = -1;
