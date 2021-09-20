@@ -31,6 +31,7 @@ class ParNCH1FaceRestriction : public H1FaceRestriction
 protected:
    const FaceType type;
    InterpolationManager interpolations;
+   mutable Vector x_interp;
 
 public:
    /** @brief Constructs an ParNCH1FaceRestriction.
@@ -192,6 +193,7 @@ class ParNCL2FaceRestriction : public L2FaceRestriction
 {
 protected:
    InterpolationManager interpolations;
+   mutable Vector x_interp;
 
 public:
    /** @brief Constructs an ParNCL2FaceRestriction.

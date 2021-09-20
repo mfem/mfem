@@ -643,7 +643,7 @@ class NCL2FaceRestriction : public L2FaceRestriction
 {
 protected:
    InterpolationManager interpolations;
-
+   mutable Vector x_interp;
 public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
        L2FaceRestriction for non-conforming meshes.

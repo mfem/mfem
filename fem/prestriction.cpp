@@ -61,6 +61,7 @@ ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
    }
    // End of verifications
+   x_interp.UseDevice(true);
 
    ComputeScatterIndicesAndOffsets(ordering, type);
 
@@ -152,6 +153,11 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 
 void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
+   if (x_interp.Size()==0)
+   {
+      x_interp.SetSize(x.Size());
+   }
+   x_interp = x;
    // Assumes all elements have the same number of dofs
    const int nd = dof;
    const int vd = vdim;
@@ -159,9 +165,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    if ( type==FaceType::Interior )
    {
       // Interpolation from slave to master face dofs
-      // FIXME: Currently this is modifying `x`, otherwise we need a temporary?
-      // TODO: Consider different algorithm, store temp in InterpolationManager
-      auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, nf);
+      auto d_x = Reshape(x_interp.ReadWrite(), nd, vd, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
@@ -190,7 +194,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
                   {
                      res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
                   }
-                  d_x(dofOut, c, face) = res; // TODO write directly in d_y?
+                  d_x(dofOut, c, face) = res;
                }
                MFEM_SYNC_THREAD;
             }
@@ -201,7 +205,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    // Gathering of face dofs into element dofs
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_x = Reshape(x_interp.Read(), nd, vd, nf);
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
@@ -213,7 +217,6 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
          for (int j = offset; j < nextOffset; ++j)
          {
             int idx_j = d_indices[j];
-            // TODO: Check if conforming?
             dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
          }
          d_y(t?c:i,t?i:c) += dofValue;
@@ -758,6 +761,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
       }
    }
    // End of verifications
+   x_interp.UseDevice(true);
 
    ComputeScatterIndicesAndOffsets(ordering, type);
 
@@ -1001,6 +1005,11 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
+   if (x_interp.Size()==0)
+   {
+      x_interp.SetSize(x.Size());
+   }
+   x_interp = x;
    // Assumes all elements have the same number of dofs
    const int nd = dof;
    const int vd = vdim;
@@ -1008,7 +1017,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    // Interpolation from slave to master face dofs
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, 2, nf);
+      auto d_x = Reshape(x_interp.ReadWrite(), nd, vd, 2, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
@@ -1047,7 +1056,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
    {
-      auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, nf);
+      auto d_x = Reshape(x_interp.ReadWrite(), nd, vd, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
@@ -1091,7 +1100,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    auto d_indices = gather_indices.Read();
    if ( m==L2FaceValues::DoubleValued )
    {
-      auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
+      auto d_x = Reshape(x_interp.Read(), nd, vd, 2, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
@@ -1115,7 +1124,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    else // Single valued
    {
-      auto d_x = Reshape(x.Read(), nd, vd, nf);
+      auto d_x = Reshape(x_interp.Read(), nd, vd, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
