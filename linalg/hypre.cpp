@@ -1521,10 +1521,9 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
                                                  double threshold) const
 {
-#if defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_UNIFIED_MEMORY)
-   MFEM_ABORT("This method requires HYPRE built with UVM when"
-              " HYPRE is using CUDA!");
-#endif
+   // hypre_ParCSRMatrixExtractSubmatrixFC works on host only, so we move this
+   // matrix to host, temporarily:
+   HostRead();
 
    if (!(A->comm))
    {
@@ -1542,7 +1541,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    hypre_IntArray *CF_marker;
 
    CF_marker = hypre_IntArrayCreate(local_num_vars);
-   hypre_IntArrayInitialize(CF_marker);
+   hypre_IntArrayInitialize_v2(CF_marker, HYPRE_MEMORY_HOST);
    hypre_IntArraySetConstantValues(CF_marker, 1);
 #else
    Array<HYPRE_Int> CF_marker(local_num_vars);
@@ -1555,7 +1554,6 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
          MFEM_WARNING("WARNING : " << indices[j] << " > " << local_num_vars);
       }
 #ifdef hypre_IntArrayData
-      // Note: CF_marker is host or UVM memory, so we can modify it on host:
       hypre_IntArrayData(CF_marker)[indices[j]] = -1;
 #else
       CF_marker[indices[j]] = -1;
@@ -1581,6 +1579,9 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #ifdef hypre_IntArrayData
    hypre_IntArrayDestroy(CF_marker);
 #endif
+
+   HypreRead(); // restore the matrix location to the default hypre location
+
    return new HypreParMatrix(submat);
 }
 #endif
