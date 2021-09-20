@@ -4562,9 +4562,8 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
    // HYPRE_BoomerAMGSetDofFunc as in the following code.
    if (order_bynodes)
    {
-      // hypre actually deletes the following pointer in HYPRE_BoomerAMGDestroy,
-      // so we don't need to track it
-      HYPRE_Int *mapping = mfem_hypre_CTAlloc_host(HYPRE_Int, height);
+      // Generate DofFunc mapping on the host
+      HYPRE_Int *h_mapping = mfem_hypre_CTAlloc_host(HYPRE_Int, height);
       int h_nnodes = height / dim; // nodes owned in linear algebra (not fem)
       MFEM_VERIFY(height % dim == 0, "Ordering does not work as claimed!");
       int k = 0;
@@ -4572,9 +4571,24 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
       {
          for (int j = 0; j < h_nnodes; ++j)
          {
-            mapping[k++] = i;
+            h_mapping[k++] = i;
          }
       }
+
+      // After the addition of hypre_IntArray, mapping is assumed
+      // to be a device pointer. Previously, it was assumed to be
+      // a host pointer.
+#ifdef hypre_IntArrayData
+      HYPRE_Int *mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
+      hypre_TMemcpy(mapping, h_mapping, HYPRE_Int, height,
+                    HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+      mfem_hypre_TFree_host(h_mapping);
+#else
+      HYPRE_Int *mapping = h_mapping;
+#endif
+
+      // hypre actually deletes the mapping pointer in HYPRE_BoomerAMGDestroy,
+      // so we don't need to track it
       HYPRE_BoomerAMGSetDofFunc(amg_precond, mapping);
    }
 
