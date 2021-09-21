@@ -122,7 +122,7 @@ private:
 };
 
 /// A static layout
-template<int... Sizes>
+template <int... Sizes>
 class StaticLayout
 {
 public:
@@ -1207,6 +1207,74 @@ struct get_layout_capacity_v<RestrictedLayout<N,Layout>>
 
 template <typename Layout>
 constexpr int get_layout_capacity = get_layout_capacity_v<Layout>::value;
+
+// get_layout_result_type
+template <typename Layout>
+struct get_layout_result_type;
+
+template <int Rank>
+struct get_layout_result_type<DynamicLayout<Rank>>
+{
+   template <int myRank>
+   using type = DynamicLayout<myRank>;
+};
+
+template <int... Sizes>
+struct get_layout_result_type<StaticLayout<Sizes...>>
+{
+   template <int... Dims>
+   using type = StaticLayout<Dims...>;
+};
+
+template <int... Sizes>
+struct get_layout_result_type<StaticELayout<Sizes...>>
+{
+   template <int... Dims>
+   using type = StaticLayout<Dims...>;
+};
+
+template <int BatchSize, int... Sizes>
+struct get_layout_result_type<BlockLayout<BatchSize,Sizes...>>
+{
+   template <int... Dims>
+   using type = BlockLayout<BatchSize,Dims...>;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_result_type<DynamicBlockLayout<Rank,BatchSize>>
+{
+   template <int myRank>
+   using type = DynamicBlockLayout<myRank,BatchSize>;
+};
+
+template <typename Layout, typename Enable = void>
+struct get_restricted_layout_result_type;
+
+template <typename Layout>
+struct get_restricted_layout_result_type<
+   Layout,
+   std::enable_if_t< is_static_layout<Layout> >
+>
+{
+   template <int... Sizes>
+   using type = typename get_layout_result_type<Layout>::template type<Sizes...>;
+};
+
+template <typename Layout>
+struct get_restricted_layout_result_type<
+   Layout,
+   std::enable_if_t<is_dynamic_layout<Layout> >
+>
+{
+   template <int Rank>
+   using type = typename get_layout_result_type<Layout>::template type<Rank>;
+};
+
+template <int N, typename Layout>
+struct get_layout_result_type< RestrictedLayout<N,Layout> >
+: public get_restricted_layout_result_type<Layout>
+{ };
+
 } // namespace mfem
 
 #endif // MFEM_LAYOUT
