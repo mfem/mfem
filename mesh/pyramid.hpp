@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_WEDGE
-#define MFEM_WEDGE
+#ifndef MFEM_PYRAMID
+#define MFEM_PYRAMID
 
 #include "../config/config.hpp"
 #include "element.hpp"
@@ -18,26 +18,26 @@
 namespace mfem
 {
 
-/// Data type Wedge element
-class Wedge : public Element
+/// Data type Pyramid element
+class Pyramid : public Element
 {
 protected:
-   int indices[6];
+   int indices[5];
 
 public:
-   typedef Geometry::Constants<Geometry::PRISM> geom_t;
+   typedef Geometry::Constants<Geometry::PYRAMID> geom_t;
 
-   Wedge() : Element(Geometry::PRISM) { }
+   Pyramid() : Element(Geometry::PYRAMID) { }
 
-   /// Constructs wedge by specifying the indices and the attribute.
-   Wedge(const int *ind, int attr = 1);
+   /// Constructs pyramid by specifying the indices and the attribute.
+   Pyramid(const int *ind, int attr = 1);
 
-   /// Constructs wedge by specifying the indices and the attribute.
-   Wedge(int ind1, int ind2, int ind3, int ind4, int ind5, int ind6,
-         int attr = 1);
+   /// Constructs pyramid by specifying the indices and the attribute.
+   Pyramid(int ind1, int ind2, int ind3, int ind4, int ind5,
+           int attr = 1);
 
    /// Return element's type.
-   virtual Type GetType() const { return Element::WEDGE; }
+   virtual Type GetType() const { return Element::PYRAMID; }
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
@@ -47,9 +47,9 @@ public:
 
    virtual int *GetVertices() { return indices; }
 
-   virtual int GetNVertices() const { return 6; }
+   virtual int GetNVertices() const { return 5; }
 
-   virtual int GetNEdges() const { return 9; }
+   virtual int GetNEdges() const { return 8; }
 
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
@@ -60,18 +60,18 @@ public:
    virtual int GetNFaces() const { return 5; }
 
    virtual int GetNFaceVertices(int fi) const
-   { return (fi < 2) ? 3 : 4; }
+   { return ( ( fi < 1 ) ? 4 : 3); }
 
    virtual const int *GetFaceVertices(int fi) const
    { return geom_t::FaceVert[fi]; }
 
    virtual Element *Duplicate(Mesh *m) const
-   { return new Wedge(indices, attribute); }
+   { return new Pyramid(indices, attribute); }
 
-   virtual ~Wedge() { }
+   virtual ~Pyramid() { }
 };
 
-extern class LinearWedgeFiniteElement WedgeFE;
+extern class LinearPyramidFiniteElement PyramidFE;
 
 }
 

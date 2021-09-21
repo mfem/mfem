@@ -2294,6 +2294,12 @@ int ParFiniteElementSpace
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
+   // TODO: general face DOF transformations in NeighborRowMessage::Decode()
+   MFEM_VERIFY(!(fec->GetOrder() >= 2
+                 && pmesh->HasGeometry(Geometry::TETRAHEDRON)
+                 && fec->GetContType() == FiniteElementCollection::TANGENTIAL),
+               "Nedelec NC tets of order >= 2 are not supported yet.");
+
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
 #ifdef MFEM_PMATRIX_STATS
