@@ -43,12 +43,45 @@ struct Foreach
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                is_threaded_tensor_dim<Tensor, N>, // tensor_traits<Tensor>::is_serial_dim<2>
+                is_threaded_tensor_dim<Tensor, N>
+                && N==0,
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void Apply(const Tensor &t, Lambda &&func, Idx... idx)
    {
       MFEM_FOREACH_THREAD(i,x,t.template Size<N>()) // FIXME
+      {
+         func(i,idx...);
+      }
+   }
+
+   template <typename Tensor,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_threaded_tensor_dim<Tensor, N>
+                && N==1,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
+   static void Apply(const Tensor &t, Lambda &&func, Idx... idx)
+   {
+      MFEM_FOREACH_THREAD(i,y,t.template Size<N>()) // FIXME
+      {
+         func(i,idx...);
+      }
+   }
+
+   template <typename Tensor,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_threaded_tensor_dim<Tensor, N>
+                && N==2,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
+   static void Apply(const Tensor &t, Lambda &&func, Idx... idx)
+   {
+      MFEM_FOREACH_THREAD(i,z,t.template Size<N>()) // FIXME
       {
          func(i,idx...);
       }
