@@ -259,6 +259,47 @@ struct is_dynamic_matrix_v
 template <typename Tensor>
 constexpr bool is_dynamic_matrix = is_dynamic_matrix_v<Tensor>::value;
 
+
+// get_tensor_result_type
+template <typename Tensor, typename Enable = void>
+struct get_tensor_result_type;
+
+template <typename MyTensor>
+struct get_tensor_result_type<MyTensor,
+                              std::enable_if_t<
+                                 is_static_tensor<MyTensor>>>
+{
+   using T = typename MyTensor::T;
+
+   template <int... Dims>
+   using Layout = typename get_layout_result_type<typename MyTensor::layout>
+                     ::template type<Dims...>;
+
+   template <int... Dims>
+   using Container = StaticContainer<T,get_layout_capacity<Layout<Dims...>>>;
+
+   template <int... Dims>
+   using type = Tensor<Container<Dims...>, Layout<Dims...>>;
+};
+
+template <typename MyTensor>
+struct get_tensor_result_type<MyTensor,
+                              std::enable_if_t<
+                                 is_dynamic_tensor<MyTensor>>>
+{
+   using T = typename MyTensor::T;
+
+   template <int Rank>
+   using Layout = typename get_layout_result_type<typename MyTensor::layout>
+                     ::template type<Rank>;
+
+   template <int Rank>
+   using Container = StaticContainer<T, get_layout_capacity< Layout<Rank> > >;
+
+   template <int Rank>
+   using type = Tensor<Container<Rank>, Layout<Rank>>;
+};
+
 } // namespace mfem
 
 #endif // MFEM_TENSOR_TRAITS
