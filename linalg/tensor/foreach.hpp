@@ -25,12 +25,10 @@ struct Foreach
    /// Apply a lambda function based on the dimensions of a Tensor.
    template <typename Tensor,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_serial_tensor_dim<Tensor, N>,
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void Apply(const Tensor &t, Lambda &&func, Idx... idx)
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<is_serial_tensor_dim<Tensor, N>>
+   Apply(const Tensor &t, Lambda &&func, Idx... idx)
    {
       for (int i = 0; i < t.template Size<N>(); i++)
       {
@@ -38,18 +36,14 @@ struct Foreach
       }
    }
 
-   /// TODO
    template <typename Tensor,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_threaded_tensor_dim<Tensor, N>
-                && N==0,
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void Apply(const Tensor &t, Lambda &&func, Idx... idx)
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<is_threaded_tensor_dim<Tensor, N> && N==0>
+   Apply(const Tensor &t, Lambda &&func, Idx... idx)
    {
-      MFEM_FOREACH_THREAD(i,x,t.template Size<N>()) // FIXME
+      MFEM_FOREACH_THREAD(i,x,t.template Size<N>())
       {
          func(i,idx...);
       }
@@ -57,15 +51,12 @@ struct Foreach
 
    template <typename Tensor,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_threaded_tensor_dim<Tensor, N>
-                && N==1,
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void Apply(const Tensor &t, Lambda &&func, Idx... idx)
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<is_threaded_tensor_dim<Tensor, N> && N==1>
+   Apply(const Tensor &t, Lambda &&func, Idx... idx)
    {
-      MFEM_FOREACH_THREAD(i,y,t.template Size<N>()) // FIXME
+      MFEM_FOREACH_THREAD(i,y,t.template Size<N>())
       {
          func(i,idx...);
       }
@@ -73,33 +64,26 @@ struct Foreach
 
    template <typename Tensor,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                is_threaded_tensor_dim<Tensor, N>
-                && N==2,
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void Apply(const Tensor &t, Lambda &&func, Idx... idx)
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<is_threaded_tensor_dim<Tensor, N> && N==2>
+   Apply(const Tensor &t, Lambda &&func, Idx... idx)
    {
-      MFEM_FOREACH_THREAD(i,z,t.template Size<N>()) // FIXME
+      MFEM_FOREACH_THREAD(i,z,t.template Size<N>())
       {
          func(i,idx...);
       }
    }
 
-   /// TODO
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                (is_serial_tensor_dim<TensorLHS, N> &&
-                 is_serial_tensor_dim<TensorRHS, N>) ||
-                (N>2),
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
-                          Lambda &&func, Idx... idx)
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<(is_serial_tensor_dim<TensorLHS, N> &&
+                     is_serial_tensor_dim<TensorRHS, N>)>
+   ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
+              Lambda &&func, Idx... idx)
    {
       // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
       for (int i = 0; i < lhs.template Size<N>(); i++)
@@ -108,23 +92,20 @@ struct Foreach
       }
    }
 
-   /// TODO
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                ((is_threaded_tensor_dim<TensorLHS, N> &&
-                  has_pointer_container<TensorRHS>) ||
-                 (has_pointer_container<TensorLHS> &&
-                  is_threaded_tensor_dim<TensorRHS, N>) ||
-                 (is_threaded_tensor_dim<TensorLHS, N> &&
-                  is_threaded_tensor_dim<TensorRHS, N>)) &&
-                (N==0),
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
-                          Lambda &&func, Idx... idx)
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<((is_threaded_tensor_dim<TensorLHS, N> &&
+                      has_pointer_container<TensorRHS>) ||
+                     (has_pointer_container<TensorLHS> &&
+                      is_threaded_tensor_dim<TensorRHS, N>) ||
+                     (is_threaded_tensor_dim<TensorLHS, N> &&
+                      is_threaded_tensor_dim<TensorRHS, N>)) &&
+                    (N==0)>
+   ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
+              Lambda &&func, Idx... idx)
    {
       // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
       MFEM_FOREACH_THREAD(i,x,lhs.template Size<N>())
@@ -137,18 +118,16 @@ struct Foreach
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                ((is_threaded_tensor_dim<TensorLHS, N> &&
-                  has_pointer_container<TensorRHS>) ||
-                 (has_pointer_container<TensorLHS> &&
-                  is_threaded_tensor_dim<TensorRHS, N>) ||
-                 (is_threaded_tensor_dim<TensorLHS, N> &&
-                  is_threaded_tensor_dim<TensorRHS, N>)) &&
-                (N==1),
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<((is_threaded_tensor_dim<TensorLHS, N> &&
+                      has_pointer_container<TensorRHS>) ||
+                     (has_pointer_container<TensorLHS> &&
+                      is_threaded_tensor_dim<TensorRHS, N>) ||
+                     (is_threaded_tensor_dim<TensorLHS, N> &&
+                      is_threaded_tensor_dim<TensorRHS, N>)) &&
+                    (N==1)>
+   ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
                           Lambda &&func, Idx... idx)
    {
       // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
@@ -158,22 +137,19 @@ struct Foreach
       }
    }
 
-   /// TODO
    template <typename TensorLHS,
              typename TensorRHS,
              typename Lambda,
-             typename... Idx,
-             std::enable_if_t<
-                ((is_threaded_tensor_dim<TensorLHS, N> &&
-                  has_pointer_container<TensorRHS>) ||
-                 (has_pointer_container<TensorLHS> &&
-                  is_threaded_tensor_dim<TensorRHS, N>) ||
-                 (is_threaded_tensor_dim<TensorLHS, N> &&
-                  is_threaded_tensor_dim<TensorRHS, N>)) &&
-                (N==2),
-             bool> = true>
-   MFEM_HOST_DEVICE inline
-   static void ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
+             typename... Idx>
+   MFEM_HOST_DEVICE inline static
+   std::enable_if_t<((is_threaded_tensor_dim<TensorLHS, N> &&
+                      has_pointer_container<TensorRHS>) ||
+                     (has_pointer_container<TensorLHS> &&
+                      is_threaded_tensor_dim<TensorRHS, N>) ||
+                     (is_threaded_tensor_dim<TensorLHS, N> &&
+                      is_threaded_tensor_dim<TensorRHS, N>)) &&
+                    (N==2)>
+   ApplyBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
                           Lambda &&func, Idx... idx)
    {
       // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
