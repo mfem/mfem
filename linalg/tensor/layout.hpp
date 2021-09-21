@@ -1157,6 +1157,56 @@ struct get_layout_batch_size_v<RestrictedLayout<N, Layout>>
 template <typename Layout>
 constexpr int get_layout_batch_size = get_layout_batch_size_v<Layout>::value;
 
+// get_layout_capacity
+template <typename Layout>
+struct get_layout_capacity_v
+{
+   static constexpr int value = Dynamic;
+};
+
+template <int... Sizes>
+struct get_layout_capacity_v<StaticLayout<Sizes...>>
+{
+   static constexpr int value = prod(Sizes...);
+};
+
+template <int... Sizes>
+struct get_layout_capacity_v<
+   RestrictedLayout<sizeof...(Sizes),StaticELayout<Sizes...>>>
+{
+   static constexpr int value = prod(Sizes...);
+};
+
+template <int BatchSize, int DimX>
+struct get_layout_capacity_v<BlockLayout<BatchSize, DimX>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY>
+struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY, int... Dims>
+struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY, Dims...>>
+{
+   static constexpr int value = BatchSize * prod(Dims...);
+};
+
+template <int N, typename Layout>
+struct get_layout_capacity_v<RestrictedLayout<N,Layout>>
+{
+   static constexpr int capacity = get_layout_capacity_v<Layout>::value;
+   static constexpr int sizeN = get_layout_size<N,Layout>;
+   static constexpr int value = sizeN != Dynamic ?
+                                         ( capacity / sizeN) :
+                                         Dynamic;
+};
+
+template <typename Layout>
+constexpr int get_layout_capacity = get_layout_capacity_v<Layout>::value;
 } // namespace mfem
 
 #endif // MFEM_LAYOUT
