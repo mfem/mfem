@@ -876,6 +876,12 @@ constexpr bool is_threaded_layout_dim = is_threaded_layout_dim_v<Layout,N>::valu
 template <int N, typename Layout>
 struct get_layout_size_v;
 
+template <int N, int Rank>
+struct get_layout_size_v<N, DynamicLayout<Rank>>
+{
+   static constexpr int value = Dynamic;
+};
+
 template <int N, int... Dims>
 struct get_layout_size_v<N, StaticLayout<Dims...>>
 {
