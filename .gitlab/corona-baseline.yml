@@ -29,7 +29,7 @@ baselinecheck_mfem_intel_corona:
       - ${ARTIFACTS_DIR}
   allow_failure: true
 
-c_report_baseline:
+report_baseline:
   extends: [.on_corona]
   stage: baseline_report
   script:

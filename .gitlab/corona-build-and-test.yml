@@ -16,7 +16,7 @@ stages:
   - release_resource_and_report
 
 # Slurm shared allocation
-c_allocate_resource:
+allocate_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_corona
@@ -31,10 +31,10 @@ rocm_gcc_8.3.1:
   variables:
     SPEC: "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906"
   extends: .build_and_test_on_corona
-  needs: [c_allocate_resource]
+  needs: [allocate_resource]
 
 # Release slurm allocation
-c_release_resource:
+release_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_corona
@@ -45,13 +45,13 @@ c_release_resource:
   needs: [rocm_gcc_8.3.1]
 
 # Jobs report
-c_report_job_success:
+report_job_success:
   extends: .on_corona
   stage: release_resource_and_report
   script:
     - .gitlab/scripts/report_build_and_test_success
 
-c_report_job_failure:
+report_job_failure:
   extends: .on_corona
   stage: release_resource_and_report
   script:
