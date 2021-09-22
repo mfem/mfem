@@ -189,7 +189,7 @@ public:
 
    friend std::ostream& operator<<(std::ostream &os, const Tensor &t)
    {
-      ForallDims<Tensor>::Apply(t,[&](auto &lhs, auto... idx)
+      ForallDims<Tensor>::Apply(t,[&](auto... idx)
       {
          os << lhs(idx...) << " ";
       });
