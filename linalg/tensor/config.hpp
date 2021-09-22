@@ -152,6 +152,35 @@ struct config_use_3dthreads_v
 template <typename Config>
 constexpr bool config_use_3dthreads = config_use_3dthreads_v<Config>::value;
 
+// config_use_xthreads
+template <typename Config>
+struct config_use_xthreads_v
+{
+   static constexpr bool value = true; // TODO
+};
+
+template <typename Config>
+constexpr bool config_use_xthreads = config_use_xthreads_v<Config>::value;
+
+// config_use_ythreads
+template <typename Config>
+struct config_use_ythreads_v
+{
+   static constexpr bool value = true; // TODO
+};
+
+template <typename Config>
+constexpr bool config_use_ythreads = config_use_ythreads_v<Config>::value;
+
+// config_use_zthreads
+template <typename Config>
+struct config_use_zthreads_v
+{
+   static constexpr bool value = false; // TODO
+};
+
+template <typename Config>
+constexpr bool config_use_zthreads = config_use_zthreads_v<Config>::value;
 } // mfem namespace
 
 #endif // MFEM_TENSOR_CONFIG
