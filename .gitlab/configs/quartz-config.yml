@@ -39,5 +39,12 @@ variables:
 # Spack helped builds
 # Generic quartz build job, extending build script
 .build_and_test_on_quartz:
-  extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
+  extends: [.on_quartz]
   stage: build_and_test
+  script:
+    - export THREADS=12
+    - echo ${ALLOC_NAME}
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - echo ${JOBID}
+    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 30 -N 1 tests/gitlab/build_and_test --spec "${SPEC}" --build-root "${BUILD_ROOT}" --data
+
