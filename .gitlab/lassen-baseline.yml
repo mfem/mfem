@@ -19,7 +19,7 @@ baselinecheck_mfem_intel_lassen:
   extends: [.on_lassen]
   stage: baseline_check
   variables:
-    BASELINE_TEST: baseline
+    BASELINE_TEST: baseline-gpu
     ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
   script:
     - .gitlab/scripts/baseline
