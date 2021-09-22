@@ -280,6 +280,9 @@ struct get_tensor_result_type<MyTensor,
 
    template <int... Dims>
    using type = Tensor<Container<Dims...>, Layout<Dims...>>;
+
+   template <int... Dims>
+   using static_type = type<Dims...>;
 };
 
 template <typename MyTensor>
@@ -298,7 +301,17 @@ struct get_tensor_result_type<MyTensor,
 
    template <int Rank>
    using type = Tensor<Container<Rank>, Layout<Rank>>;
+
+   template <template <int> class Tensor, int... Sizes>
+   using static_tensor_wrap = Tensor< sizeof...(Sizes) >;
+
+   template <int... Dims>
+   using static_type = static_tensor_wrap<type,Dims...>;
 };
+
+template <typename Tensor, int... Dims>
+using StaticResultTensor = typename get_tensor_result_type<Tensor>
+                              ::template static_type<Dims...>;
 
 } // namespace mfem
 
