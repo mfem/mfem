@@ -15,6 +15,7 @@
 #include "ceed/mass.hpp"
 
 #include "../linalg/tensor/config.hpp"
+#include "../linalg/tensor/forall.hpp"
 #include "../linalg/tensor/basis.hpp"
 #include "../linalg/tensor/dof.hpp"
 #include "../linalg/tensor/qdata.hpp"
@@ -1200,9 +1201,7 @@ static void ApplyMass(const int ne,
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
    const auto D = MakeQData<0>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   // MFEM_FORALL(e,ne,
-   MFEM_FORALL_3D(e, ne, quads, quads, 1,
-   // forall(e, ne, config,
+   forall(config, ne, [&](int e)
    {
       Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );
    });
