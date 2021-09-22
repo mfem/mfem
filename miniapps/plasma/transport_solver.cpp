@@ -560,35 +560,35 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
       if (buff == "neutral_density")
       {
          pos[0] = input.tellg();
-         mfem::out << "Found 'neutral_density' at postion " << pos[0] << endl;
+         mfem::out << "Found 'neutral_density' at position " << pos[0] << endl;
       }
       else if (buff == "ion_density")
       {
          pos[1] = input.tellg();
-         mfem::out << "Found 'ion_density' at postion " << pos[1] << endl;
+         mfem::out << "Found 'ion_density' at position " << pos[1] << endl;
       }
       else if (buff == "ion_parallel_velocity")
       {
          pos[2] = input.tellg();
-         mfem::out << "Found 'ion_parallel_velocity' at postion " << pos[2]
+         mfem::out << "Found 'ion_parallel_velocity' at position " << pos[2]
                    << endl;
       }
       else if (buff == "ion_temperature")
       {
          pos[3] = input.tellg();
-         mfem::out << "Found 'ion_temperature' at postion " << pos[3]
+         mfem::out << "Found 'ion_temperature' at position " << pos[3]
                    << endl;
       }
       else if (buff == "electron_temperature")
       {
          pos[4] = input.tellg();
-         mfem::out << "Found 'electron_temperature' at postion " << pos[4]
+         mfem::out << "Found 'electron_temperature' at position " << pos[4]
                    << endl;
       }
       else if (buff == "coupled_bcs")
       {
          pos[5] = input.tellg();
-         mfem::out << "Found 'coupled_bcs' at postion " << pos[5] << endl;
+         mfem::out << "Found 'coupled_bcs' at position " << pos[5] << endl;
       }
    }
    for (int i=neqn_; i >= 0; i--)
@@ -666,29 +666,29 @@ void TransportICs::ReadICs(CoefFactory &cf, std::istream &input)
       if (buff == "neutral_density")
       {
          pos[0] = input.tellg();
-         mfem::out << "Found 'neutral_density' at postion " << pos[0] << endl;
+         mfem::out << "Found 'neutral_density' at position " << pos[0] << endl;
       }
       else if (buff == "ion_density")
       {
          pos[1] = input.tellg();
-         mfem::out << "Found 'ion_density' at postion " << pos[1] << endl;
+         mfem::out << "Found 'ion_density' at position " << pos[1] << endl;
       }
       else if (buff == "ion_parallel_velocity")
       {
          pos[2] = input.tellg();
-         mfem::out << "Found 'ion_parallel_velocity' at postion " << pos[2]
+         mfem::out << "Found 'ion_parallel_velocity' at position " << pos[2]
                    << endl;
       }
       else if (buff == "ion_temperature")
       {
          pos[3] = input.tellg();
-         mfem::out << "Found 'ion_temperature' at postion " << pos[3]
+         mfem::out << "Found 'ion_temperature' at position " << pos[3]
                    << endl;
       }
       else if (buff == "electron_temperature")
       {
          pos[4] = input.tellg();
-         mfem::out << "Found 'electron_temperature' at postion " << pos[4]
+         mfem::out << "Found 'electron_temperature' at position " << pos[4]
                    << endl;
       }
    }
@@ -742,28 +742,28 @@ void TransportExactSolutions::Read(CoefFactory &cf, std::istream &input)
       if (buff == "neutral_density")
       {
          pos[0] = input.tellg();
-         mfem::out << "Found 'neutral_density' at postion " << pos[0] << endl;
+         mfem::out << "Found 'neutral_density' at position " << pos[0] << endl;
       }
       else if (buff == "ion_density")
       {
          pos[1] = input.tellg();
-         mfem::out << "Found 'ion_density' at postion " << pos[1] << endl;
+         mfem::out << "Found 'ion_density' at position " << pos[1] << endl;
       }
       else if (buff == "ion_parallel_velocity")
       {
          pos[2] = input.tellg();
-         mfem::out << "Found 'ion_parallel_velocity' at postion " << pos[2]
+         mfem::out << "Found 'ion_parallel_velocity' at position " << pos[2]
                    << endl;
       }
       else if (buff == "ion_temperature")
       {
          pos[3] = input.tellg();
-         mfem::out << "Found 'ion_temperature' at postion " << pos[3] << endl;
+         mfem::out << "Found 'ion_temperature' at position " << pos[3] << endl;
       }
       else if (buff == "electron_temperature")
       {
          pos[4] = input.tellg();
-         mfem::out << "Found 'electron_temperature' at postion " << pos[4]
+         mfem::out << "Found 'electron_temperature' at position " << pos[4]
                    << endl;
       }
    }
@@ -817,35 +817,35 @@ void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
       if (buff == "neutral_density")
       {
          pos[0] = input.tellg();
-         mfem::out << "Found 'neutral_density' at postion " << pos[0] << endl;
+         mfem::out << "Found 'neutral_density' at position " << pos[0] << endl;
       }
       else if (buff == "ion_density")
       {
          pos[1] = input.tellg();
-         mfem::out << "Found 'ion_density' at postion " << pos[1] << endl;
+         mfem::out << "Found 'ion_density' at position " << pos[1] << endl;
       }
       else if (buff == "ion_parallel_momentum")
       {
          pos[2] = input.tellg();
-         mfem::out << "Found 'ion_parallel_momentum' at postion " << pos[2]
+         mfem::out << "Found 'ion_parallel_momentum' at position " << pos[2]
                    << endl;
       }
       else if (buff == "ion_static_pressure")
       {
          pos[3] = input.tellg();
-         mfem::out << "Found 'ion_static_pressure' at postion " << pos[3]
+         mfem::out << "Found 'ion_static_pressure' at position " << pos[3]
                    << endl;
       }
       else if (buff == "electron_static_pressure")
       {
          pos[4] = input.tellg();
-         mfem::out << "Found 'electron_static_pressure' at postion " << pos[4]
+         mfem::out << "Found 'electron_static_pressure' at position " << pos[4]
                    << endl;
       }
       else if (buff == "common_coefs")
       {
          pos[5] = input.tellg();
-         mfem::out << "Found 'common_coefs' at postion " << pos[5] << endl;
+         mfem::out << "Found 'common_coefs' at position " << pos[5] << endl;
       }
    }
    for (int i=neqn_; i >= 0; i--)
@@ -2111,20 +2111,26 @@ CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_)
    }
 
    // Zero out the boundary
-   /*
+   // /*
    Vector column_scaling(ndof_dg);
    column_scaling = 1.0;
    for (int ib=0; ib<fes_cg.GetNBE(); ++ib)
    {
-      fes_cg.GetBdrElementVDofs(ib, vdofs_cg);
-      for (int idx=0; idx<vdofs_cg.Size(); ++idx)
-      {
-         int i = vdofs_cg[idx];
-         column_scaling(i) = 0.0;
-      }
+     const int bdrAttr = fes_cg.GetBdrAttribute(ib);
+     //cout << "bdrAttr " << bdrAttr << endl;
+     //if (bdrAttr == 1)
+       {
+	 fes_cg.GetBdrElementVDofs(ib, vdofs_cg);
+	 for (int idx=0; idx<vdofs_cg.Size(); ++idx)
+	   {
+	     int i = vdofs_cg[idx];
+	     column_scaling(i) = 0.0;
+	   }
+       }
    }
    mat.ScaleColumns(column_scaling);
-   */
+   // */
+
    mat.Finalize();
    C.Swap(mat);
 
@@ -2191,7 +2197,7 @@ void DiscontPSCPreconditioner::Mult(const Vector &b, Vector &x) const
    cg2dg.MultTranspose(b, b_cg);
    // Approximate coarse solve
    cg_solver.Mult(b_cg, x_cg);
-   // Prologate
+   // Prolongate
    cg2dg.Mult(x_cg, x);
    // Add edge correction term
    x += x_z;
@@ -2969,7 +2975,7 @@ void DGTransportTDO::NLOperator::Update()
       }
       if (cgblf_[i] != NULL)
       {
-         cgblf_[i]->Update();
+	cgblf_[i]->Update();
       }
    }
 
@@ -3003,27 +3009,35 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 	  ParFiniteElementSpace *fes_dg = blf_[i]->ParFESpace();
 	  delete cg2dg_;
 	  delete D_amg_;
-	  delete D_cg_;
+	  //delete D_cg_;
 	  delete D_smoother_;
 	  //delete dg_precond_;
 
 	  cg2dg_ = new CG2DG(*fes_dg);
 	  delete CG2DGmat_;
-	  CG2DGmat_ = cg2dg_->ParallelAssemble();
 
 	  const bool algebraic = false;
 	  if (algebraic) // Algebraic version
 	    {
+	      CG2DGmat_ = cg2dg_->ParallelAssemble();
 	      D_cg_ = RAP(Dmat, CG2DGmat_);
 	      D_cg_->EliminateZeroRows();
 	    }
 	  else // CG discretization version
 	    {
 	      MFEM_VERIFY(cgblf_[i], "");
-	      cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
-	      cgblf_[i]->Assemble(0);
-	      cgblf_[i]->Finalize(0);
-	      D_cg_ = cgblf_[i]->ParallelAssemble();
+	      //if (!cgblf_init)
+		{
+		  cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
+		  cgblf_[i]->Assemble(0);
+		  cgblf_[i]->Finalize(0);
+		  //D_cg_ = cgblf_[i]->ParallelAssemble();
+
+		  OperatorPtr A_cg;
+		  cgblf_[i]->FormSystemMatrix(cg_ess_tdof_list, A_cg);
+		  D_cg_ = A_cg.As<HypreParMatrix>();
+		  cgblf_init = true;
+		}
 	    }
 
 	  // Set up the preconditioner in CG space
@@ -3034,7 +3048,11 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 	  else
 	    {
 	      D_amg_ = new HypreBoomerAMG(*D_cg_);
+	      //cout << "Writing D_cg " << endl;
+	      //D_cg_->Print("Dcg.txt");
 	    }
+
+	  //Dmat->Print("Ddg.txt");
 
 	  D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
 	  dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
@@ -3267,6 +3285,8 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
 	 if (cgblf_[i] == NULL)
 	   {
 	     cgblf_[i] = new ParBilinearForm(&h1_fes_);
+	     //cout << "Number of CG dofs " << h1_fes_.GlobalTrueVSize() << endl;
+	     //cout << "Number of DG dofs " << fes_.GlobalTrueVSize() << endl;
 	   }
 	 cgblf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
       }
@@ -3599,9 +3619,17 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
    cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
+   cout << "Number of anisotropic diffusion Dirichlet BCs " << dbc.Size() << endl;
+   Array<int> ess_bdr(pmesh_.bdr_attributes.Max());
+   ess_bdr = 0;
+
    for (int i=0; i<dbc.Size(); i++)
    {
      cout << "Using anisotropic diffusion Dirichlet BC attr " << dbc[i]->attr << endl;
+     for (int j=0; j<dbc[i]->attr.Size(); ++j)
+       {
+	 ess_bdr[dbc[i]->attr[j] - 1] = 1;
+       }
 
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
@@ -3630,6 +3658,8 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
                                       dg_.kappa),
          *bfbfi_marker_.Last());
    }
+
+   h1_fes_.GetEssentialTrueDofs(ess_bdr, cg_ess_tdof_list);
 
    const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
    for (int i=0; i<nbc.Size(); i++)
@@ -4438,6 +4468,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
          if (gradIJ)
          {
+	   //cout << "Grad has block " << i << ", " << j << endl;
             grad_->SetBlock(i, j, gradIJ, wgts_[i]);
          }
       }

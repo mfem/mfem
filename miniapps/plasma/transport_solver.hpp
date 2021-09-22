@@ -2869,11 +2869,15 @@ private:
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
       Array<ParBilinearForm*> cgblf_; // Bilinear Form Objects for Gradients
 
+     bool cgblf_init = false;
+
      CG2DG *cg2dg_ = NULL;
      HypreParMatrix *CG2DGmat_ = NULL;
      HypreBoomerAMG *D_amg_ = NULL;
      HypreSmoother *D_smoother_ = NULL;
      HypreParMatrix *D_cg_ = NULL;
+
+     Array<int> cg_ess_tdof_list;
 
      bool use_lor_cg = false;
 
@@ -3615,7 +3619,9 @@ private:
       { return op_[4]->GetDiffusionMatrixCoef(); }
 
      inline Solver* GetIonDensityPreconditoner()
-     { return op_[1]->dg_precond_; }
+     { 
+       return op_[1]->dg_precond_; 
+     }
 
       void Update();
 
