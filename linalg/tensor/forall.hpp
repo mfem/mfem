@@ -17,16 +17,17 @@
 namespace mfem
 {
 
-#define MFEM_FORALL_CONFIG(config,i,N,...)                       \
-   const int quads = config.quads;                               \
-   constexpr int BatchSize = get_config_batchsize<Config>;       \
-   const int X = config_use_xthreads<Config> ? quads : 1;        \
-   const int Y = config_use_ythreads<Config> ? quads : 1;        \
-   const int Z = BatchSize * ( config_use_ythreads<Config> ? quads : 1); \
-   ForallWrap<3>(true,N,                                         \
-                 [=] MFEM_DEVICE (int i) mutable {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},          \
-                 X,Y,Z)
+#define MFEM_FORALL_CONFIG(config,i,N,...)                               \
+   const int Q = config.quads;                                           \
+   using Config = decltype(config);                                      \
+   constexpr int Bsize = get_config_batchsize<Config>;                   \
+   const int Xthreads = config_use_xthreads<Config> ? Q : 1;             \
+   const int Ythreads = config_use_ythreads<Config> ? Q : 1;             \
+   const int Zthreads = Bsize * ( config_use_ythreads<Config> ? Q : 1 ); \
+   ForallWrap<3>(true,N,                                                 \
+                 [=] MFEM_DEVICE (int i) mutable {__VA_ARGS__},          \
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},                  \
+                 Xthreads, Ythreads, Zthreads)
 
 template <typename Config,
           typename Lambda,
