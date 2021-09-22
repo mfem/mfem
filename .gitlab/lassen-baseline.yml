@@ -30,7 +30,7 @@ baselinecheck_mfem_intel_lassen:
   allow_failure: true
 
 
-l_report_baseline:
+report_baseline:
   extends: [.on_lassen]
   stage: baseline_report
   script:

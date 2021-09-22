@@ -29,7 +29,7 @@ baselinecheck_mfem_intel_quartz:
       - ${ARTIFACTS_DIR}
   allow_failure: true
 
-q_report_baseline:
+report_baseline:
   extends: [.on_quartz]
   stage: baseline_report
   script:
