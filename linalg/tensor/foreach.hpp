@@ -94,7 +94,7 @@ template <int N,
             typename... Idx,
             std::enable_if_t<
                (is_serial_tensor_dim<TensorLHS, N> &&
-               is_serial_tensor_dim<TensorRHS, N>),
+                is_serial_tensor_dim<TensorRHS, N>),
             bool> = true
          >
 MFEM_HOST_DEVICE inline
@@ -115,11 +115,11 @@ template <int N,
             typename... Idx,
             std::enable_if_t<
             ((is_threaded_tensor_dim<TensorLHS, N> &&
-               has_pointer_container<TensorRHS>) ||
-               (has_pointer_container<TensorLHS> &&
-               is_threaded_tensor_dim<TensorRHS, N>) ||
-               (is_threaded_tensor_dim<TensorLHS, N> &&
-               is_threaded_tensor_dim<TensorRHS, N>)) &&
+              has_pointer_container<TensorRHS>) ||
+             (has_pointer_container<TensorLHS> &&
+              is_threaded_tensor_dim<TensorRHS, N>) ||
+             (is_threaded_tensor_dim<TensorLHS, N> &&
+              is_threaded_tensor_dim<TensorRHS, N>)) &&
             (N==0),
             bool> = true
          >
@@ -141,11 +141,11 @@ template <int N,
             typename... Idx,
             std::enable_if_t<
                ((is_threaded_tensor_dim<TensorLHS, N> &&
-               has_pointer_container<TensorRHS>) ||
-               (has_pointer_container<TensorLHS> &&
-               is_threaded_tensor_dim<TensorRHS, N>) ||
-               (is_threaded_tensor_dim<TensorLHS, N> &&
-               is_threaded_tensor_dim<TensorRHS, N>)) &&
+                 has_pointer_container<TensorRHS>) ||
+                (has_pointer_container<TensorLHS> &&
+                 is_threaded_tensor_dim<TensorRHS, N>) ||
+                (is_threaded_tensor_dim<TensorLHS, N> &&
+                 is_threaded_tensor_dim<TensorRHS, N>)) &&
                (N==1),
             bool> = true
          >
@@ -167,11 +167,11 @@ template <int N,
             typename... Idx,
             std::enable_if_t<
                ((is_threaded_tensor_dim<TensorLHS, N> &&
-               has_pointer_container<TensorRHS>) ||
-               (has_pointer_container<TensorLHS> &&
-               is_threaded_tensor_dim<TensorRHS, N>) ||
-               (is_threaded_tensor_dim<TensorLHS, N> &&
-               is_threaded_tensor_dim<TensorRHS, N>)) &&
+                 has_pointer_container<TensorRHS>) ||
+                (has_pointer_container<TensorLHS> &&
+                 is_threaded_tensor_dim<TensorRHS, N>) ||
+                (is_threaded_tensor_dim<TensorLHS, N> &&
+                 is_threaded_tensor_dim<TensorRHS, N>)) &&
                (N==2),
             bool> = true
          >
