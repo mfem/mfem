@@ -21,6 +21,7 @@
 
 namespace mfem
 {
+
 // 1D
 template <typename DiagonalTensor,
           typename Tensor,

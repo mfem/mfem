@@ -122,6 +122,36 @@ struct get_config_batchsize_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
 template <typename Config>
 constexpr int get_config_batchsize = get_config_batchsize_v<Config>::value;
 
+// config_use_1dthreads
+template <typename Config>
+struct config_use_1dthreads_v
+{
+   static constexpr bool value = false; // TODO
+};
+
+template <typename Config>
+constexpr bool config_use_1dthreads = config_use_1dthreads_v<Config>::value;
+
+// config_use_2dthreads
+template <typename Config>
+struct config_use_2dthreads_v
+{
+   static constexpr bool value = true; // TODO
+};
+
+template <typename Config>
+constexpr bool config_use_2dthreads = config_use_2dthreads_v<Config>::value;
+
+// config_use_3dthreads
+template <typename Config>
+struct config_use_3dthreads_v
+{
+   static constexpr bool value = false; // TODO
+};
+
+template <typename Config>
+constexpr bool config_use_3dthreads = config_use_3dthreads_v<Config>::value;
+
 } // mfem namespace
 
 #endif // MFEM_TENSOR_CONFIG
