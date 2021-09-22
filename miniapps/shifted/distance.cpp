@@ -199,7 +199,8 @@ int main(int argc, char *argv[])
                   "0: Point source\n\t"
                   "1: Circle / sphere level set in 2D / 3D\n\t"
                   "2: 2D sine-looking level set\n\t"
-                  "3: Gyroid level set in 2D or 3D");
+                  "3: Gyroid level set in 2D or 3D\n\t"
+                  "4: Combo of a doughnut and swiss cheese shapes in 3D.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -238,7 +239,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   Coefficient *ls_coeff;
+   Coefficient *ls_coeff = nullptr;
    int smooth_steps;
    if (problem == 0)
    {
@@ -265,6 +266,7 @@ int main(int argc, char *argv[])
       ls_coeff = new FunctionCoefficient(doughnut_cheese);
       smooth_steps = 0;
    }
+   else { MFEM_ABORT("Unrecognized -problem option."); }
 
    const double dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
@@ -296,13 +298,12 @@ int main(int argc, char *argv[])
    // Smooth-out Gibbs oscillations from the input level set. The smoothing
    // parameter here is specified to be mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
-   PDEFilter *filter = new PDEFilter(pmesh, 1.0 * dx);
    if (problem != 0)
    {
-      filter->Filter(*ls_coeff, filt_gf);
+      PDEFilter filter(pmesh, 1.0 * dx);
+      filter.Filter(*ls_coeff, filt_gf);
    }
    else { filt_gf.ProjectCoefficient(*ls_coeff); }
-   delete filter;
    delete ls_coeff;
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
@@ -345,10 +346,12 @@ int main(int argc, char *argv[])
    dacol.Save();
 
    ConstantCoefficient zero(0.0);
-   const double d_norm  = distance_s.ComputeL2Error(zero);
+   const double s_norm  = distance_s.ComputeL2Error(zero),
+                v_norm  = distance_v.ComputeL2Error(zero);
    if (myid == 0)
    {
-      cout << fixed << setprecision(10) << "Norm: " << d_norm << std::endl;
+      cout << fixed << setprecision(10) << "Norms: "
+           << s_norm << " " << v_norm << std::endl;
    }
 
    delete dist_solver;

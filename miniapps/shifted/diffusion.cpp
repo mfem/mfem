@@ -40,12 +40,12 @@
 //     mpirun -np 4 diffusion -rs 3 -o 1 -vis -nlst 1 -ho 1
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
-//              Solves -nabla^2 u = f with inhomogeneous boundary conditions, and
-//              f is setup such that u = x^p + y^p, where p = 2 by default.
+//              Solves -nabla^2 u = f with inhomogeneous boundary conditions,
+//              and f is setup such that u = x^p + y^p, where p = 2 by default.
 //              This is a 2D convergence test.
-//     Dirichlet boundary condition
+//     Dirichlet BC
 //     mpirun -np 4 diffusion -rs 2 -o 2 -vis -lst 2
-//     Neumann boundary condition (inhomogeneous condition derived using exact solution)
+//     Neumann BC (inhomogeneous condition derived using exact solution)
 //     mpirun -np 4 diffusion -rs 2 -o 2 -vis -nlst 2 -ho 1
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
@@ -67,8 +67,8 @@
 //     mpirun -np 4 diffusion -m ../../data/inline-tet.mesh  -rs 3 -lst 8 -alpha 10
 //
 //   Problem 5: Circular hole with homogeneous Neumann, triangular hole with
-//            inhomogeneous Dirichlet, and square hole with homogeneous Dirichlet
-//            boundary condition.
+//            inhomogeneous Dirichlet, and a square hole with homogeneous
+//            Dirichlet boundary condition.
 //     mpirun -np 4 diffusion -rs 3 -o 1 -vis -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dc
 
 #include "mfem.hpp"
@@ -158,6 +158,10 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    for (int lev = 0; lev < ser_ref_levels; lev++) { mesh.UniformRefinement(); }
+   if (myid == 0)
+   {
+      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
+   }
 
    // MPI distribution.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -316,9 +320,8 @@ int main(int argc, char *argv[])
       // Discrete distance vector.
       double dx = AvgElementSize(pmesh);
       ParGridFunction filt_gf(&pfespace);
-      PDEFilter *filter = new PDEFilter(pmesh, 2.0 * dx);
-      filter->Filter(combo_dist_coef, filt_gf);
-      delete filter;
+      PDEFilter filter(pmesh, 2.0 * dx);
+      filter.Filter(combo_dist_coef, filt_gf);
       GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
       if (visualization)
@@ -330,7 +333,7 @@ int main(int argc, char *argv[])
                                 "Input Level Set", 0, 2*s, s, s, "Rjmm");
       }
 
-      HeatDistanceSolver dist_func(2.0 * dx* dx);
+      HeatDistanceSolver dist_func(2.0 * dx * dx);
       dist_func.print_level = 1;
       dist_func.smooth_steps = 1;
       dist_func.ComputeVectorDistance(ls_filt_coeff, distance);
@@ -633,7 +636,7 @@ int main(int argc, char *argv[])
    }
 
    const double norm = x.ComputeL1Error(one);
-   if (myid == 0) { std::cout << setprecision(8) << norm << std::endl; }
+   if (myid == 0) { std::cout << setprecision(10) << norm << std::endl; }
 
    // Free the used memory.
    delete prec;
