@@ -16,7 +16,19 @@ stages:
   - baseline_publish
 
 baselinecheck_mfem_intel_lassen:
-  extends: [.baselinecheck_mfem, .on_lassen]
+  extends: [.on_lassen]
+  stage: baseline_check
+  variables:
+    BASELINE_TEST: baseline
+    ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
+  script:
+    - .gitlab/scripts/baseline
+  artifacts:
+    when: always
+    paths:
+      - ${ARTIFACTS_DIR}
+  allow_failure: true
+
 
 l_report_baseline:
   extends: [.on_lassen]
@@ -37,8 +49,16 @@ l_report_baseline:
     - git commit -am "Gitlab CI log for baseline on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
     - git push origin master
 
+# This job can only be manually triggered on a pipeline for master branch, or if
+# the pipeline was triggered with REBASELINE="YES"
 baselinepublish_mfem_lassen:
-  extends: [.on_lassen, .rebaseline_mfem]
+  extends: [.on_lassen]
+  stage: baseline_publish
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+      when: manual
+  script:
+    - .gitlab/scripts/rebaseline
 
 include:
   - local: .gitlab/configs/common.yml

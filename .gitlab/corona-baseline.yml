@@ -16,7 +16,18 @@ stages:
   - baseline_publish
 
 baselinecheck_mfem_intel_corona:
-  extends: [.baselinecheck_mfem, .on_corona]
+  extends: [.on_corona]
+  stage: baseline_check
+  variables:
+    BASELINE_TEST: baseline
+    ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
+  script:
+    - .gitlab/scripts/baseline
+  artifacts:
+    when: always
+    paths:
+      - ${ARTIFACTS_DIR}
+  allow_failure: true
 
 c_report_baseline:
   extends: [.on_corona]
@@ -38,7 +49,13 @@ c_report_baseline:
     - git push origin master
 
 baselinepublish_mfem_corona:
-  extends: [.on_corona, .rebaseline_mfem]
+  extends: [.on_corona]
+  stage: baseline_publish
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+      when: manual
+  script:
+    - .gitlab/scripts/rebaseline
 
 include:
   - local: .gitlab/configs/common.yml

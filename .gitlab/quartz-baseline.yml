@@ -16,7 +16,18 @@ stages:
   - baseline_publish
 
 baselinecheck_mfem_intel_quartz:
-  extends: [.baselinecheck_mfem, .on_quartz]
+  extends: [.on_quartz]
+  stage: baseline_check
+  variables:
+    BASELINE_TEST: baseline
+    ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
+  script:
+    - .gitlab/scripts/baseline
+  artifacts:
+    when: always
+    paths:
+      - ${ARTIFACTS_DIR}
+  allow_failure: true
 
 q_report_baseline:
   extends: [.on_quartz]
@@ -38,7 +49,13 @@ q_report_baseline:
     - git push origin master
 
 baselinepublish_mfem_quartz:
-  extends: [.on_quartz, .rebaseline_mfem]
+  extends: [.on_quartz]
+  stage: baseline_publish
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+      when: manual
+  script:
+    - .gitlab/scripts/rebaseline
 
 include:
   - local: .gitlab/configs/common.yml
