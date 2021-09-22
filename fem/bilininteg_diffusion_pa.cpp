@@ -1938,7 +1938,7 @@ static void ApplyDiff(const int ne,
    // TODO SRank = 1 until we really support symmetric layout...
    const auto D = MakeSymmQData<1>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   forall(config, ne, [&](int e)
+   MFEM_FORALL_CONFIG(config, e, ne,
    {
       Y(e) += transpose(grad(B)) * ( D(e) * ( grad(B) * X(e) ) );
    });
