@@ -30,54 +30,6 @@ namespace mfem
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},                        \
                  Xthreads, Ythreads, Zthreads)
 
-template <typename Config,
-          typename Lambda,
-          std::enable_if_t<
-             config_use_1dthreads<Config>,
-             bool
-          > = true >
-void forall(const Config &config, int ne, Lambda &&kernel)
-{
-   const int quads = config.quads;
-   constexpr int BatchSize = get_config_batchsize<Config>;
-   ForallWrap<3>(true,ne,
-                 [=] MFEM_DEVICE (int i) { kernel(i); },
-                 [&] MFEM_LAMBDA (int i) { kernel(i); },
-                 quads, 1, BatchSize);
-}
-
-template <typename Config,
-          typename Lambda,
-          std::enable_if_t<
-             config_use_2dthreads<Config>,
-             bool
-          > = true >
-void forall(const Config &config, int ne, Lambda &&kernel)
-{
-   const int quads = config.quads;
-   constexpr int BatchSize = get_config_batchsize<Config>;
-   ForallWrap<3>(true,ne,
-                 [=] MFEM_DEVICE (int i) { kernel(i); },
-                 [&] MFEM_LAMBDA (int i) { kernel(i); },
-                 quads, quads, BatchSize);
-}
-
-template <typename Config,
-          typename Lambda,
-          std::enable_if_t<
-             config_use_3dthreads<Config>,
-             bool
-          > = true >
-void forall(const Config &config, int ne, Lambda &&kernel)
-{
-   const int quads = config.quads;
-   constexpr int BatchSize = get_config_batchsize<Config>;
-   ForallWrap<3>(true,ne,
-                 [=] MFEM_DEVICE (int i) { kernel(i); },
-                 [&] MFEM_LAMBDA (int i) { kernel(i); },
-                 quads, quads, quads * BatchSize);
-}
-
 } // namespace mfem
 
 #endif // MFEM_TENSOR_FORALL
