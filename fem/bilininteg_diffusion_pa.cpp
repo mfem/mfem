@@ -15,6 +15,7 @@
 #include "ceed/diffusion.hpp"
 
 #include "../linalg/tensor/config.hpp"
+#include "../linalg/tensor/forall.hpp"
 #include "../linalg/tensor/basis.hpp"
 #include "../linalg/tensor/dof.hpp"
 #include "../linalg/tensor/qdata.hpp"
@@ -1937,10 +1938,7 @@ static void ApplyDiff(const int ne,
    // TODO SRank = 1 until we really support symmetric layout...
    const auto D = MakeSymmQData<1>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   // MFEM_FORALL(e,ne,
-   MFEM_FORALL_3D(e, ne, quads, quads, 1,
-   // for (int e = 0; e<ne; e++)
-   // forall(e, ne, config,
+   forall(config, ne, [&](int e)
    {
       Y(e) += transpose(grad(B)) * ( D(e) * ( grad(B) * X(e) ) );
    });
