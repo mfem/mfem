@@ -189,7 +189,7 @@ public:
 
    friend std::ostream& operator<<(std::ostream &os, const Tensor &t)
    {
-      Foreach<get_layout_rank<Layout>>::ApplyUnOp(t,[&](auto &lhs, auto... idx)
+      ForallDims<Tensor>::Apply(t,[&](auto &lhs, auto... idx)
       {
          os << lhs(idx...) << " ";
       });
