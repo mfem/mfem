@@ -203,29 +203,7 @@ int main(int argc, char *argv[])
    //     function corresponding to fespace. Initialize x with initial guess of
    //     zero, which satisfies the boundary conditions.
    ParGridFunction x(&fespace);
-
-   auto func = [&](Vector coord) { return std::sin(coord(0)*coord(1)); };
-   FunctionCoefficient x_coeff(func);
-
-   x.ProjectCoefficient(x_coeff);
-   ParGridFunction grad_x(&fespace);
-   ConstantCoefficient zero(0.0);
-   for (int i = 0; i < dim; i++)
-   {
-      x.GetDerivative(1, i, grad_x);
-      //x.GridFunction::GetDerivative(1, i, grad_x); // old behavior.
-      double error = grad_x.ComputeL2Error(zero);
-      if (myid == 0) { cout << setprecision(14) << error << endl; }
-   }
-
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   sol_sock.precision(8);
-   sol_sock << "solution\n" << pmesh << x << flush;
-
-   MFEM_ABORT("test getderiv");
+   x = 0.0;
 
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the
