@@ -908,7 +908,8 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         bool with_coeff = false);
 
 Vector Legendre1D(double x, int order);
-Vector LegendreND(const Vector & x, const Vector & c, int order, int dim);
+Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
+                  int order, int dim);
 
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,

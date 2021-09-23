@@ -4043,45 +4043,27 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
-Vector Legendre1D(double x, int order)
-{
-   MFEM_VERIFY(order >= 0, "order cannot be negative");
-   Vector poly(order+1);
-   poly(0) = 1.0;
-   if (order >= 1)
-   {
-      poly(1) = x;
-   }
-   if (order >= 2)
-   {
-      // recursive formula (see, e.g, https://doi.org/10.1016/j.camwa.2015.04.027)
-      for (int i = 2; i <= order; i++)
-      {
-         poly(i) = (2*i-1) * x * poly(i-1) - (i-1) * poly(i-2);
-         poly(i) /= i;
-      }
-   }
-   return poly;
-}
-
-Vector LegendreND(const Vector & x, const Vector & c, int order, int dim)
+Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
+                  int order, int dim)
 {
    MFEM_VERIFY(order >= 0, "order cannot be negative");
    MFEM_VERIFY(dim >= 1, "dim must be positive");
    MFEM_VERIFY(dim <= 3, "dim cannot be greater than 3");
 
-   double x1 = x(0) - c(0), x2, x3;
+   // Map x to [0, 1] to use CalcLegendre since it uses shifted Legendre Polynomials.
+   double x1 = (x(0) - xmin(0))/(xmax(0)-xmin(0)), x2, x3;
    Vector poly_x(order+1), poly_y(order+1), poly_z(order+1);
-   poly_x = Legendre1D(x1, order);
+   Poly_1D poly1d;
+   poly1d.CalcLegendre(order, x1, poly_x);
    if (dim > 1)
    {
-      x2 = x(1) - c(1);
-      poly_y = Legendre1D(x2, order);
+      x2 = (x(1) -xmin(1))/(xmax(1)-xmin(1));
+      poly1d.CalcLegendre(order, x2, poly_y);
    }
    if (dim == 3)
    {
-      x3 = x(2) - c(2);
-      poly_z = Legendre1D(x3, order);
+      x3 = (x(2) - xmin(2))/(xmax(2)-xmin(2));
+      poly1d.CalcLegendre(order, x3, poly_z);
    }
 
    int basis_dimension = pow(order+1,dim);
@@ -4173,8 +4155,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       DofTransformation *udoftrans;
       DofTransformation *fdoftrans;
       int patch_order = 0;
-      Vector c(3);
-      c = 0.0;
+      Vector xmax(dim);
+      Vector xmin(dim);
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
@@ -4187,6 +4169,26 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       Array<double> b(dim * num_basis_functions);
       A = 0.0;
       b = 0.0;
+
+      xmax = -std::numeric_limits<double>::max();
+      xmin = std::numeric_limits<double>::max();
+      for (int i = 0; i < num_neighbor_elems; i++)
+      {
+         int ielem = neighbor_elems[i];
+         const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                    flux_order));
+         Transf = ufes->GetElementTransformation(ielem);
+         for (int k = 0; k < ir->GetNPoints(); k++)
+         {
+            const IntegrationPoint ip = ir->IntPoint(k);
+            double tmp[3];
+            Vector transip(tmp, 3);
+            Transf->Transform(ip, transip);
+            for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
+            for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
+         }
+      }
+
       // loop through all elements in patch
       for (int i = 0; i < num_neighbor_elems; i++)
       {
@@ -4223,14 +4225,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             Transf->Transform(ip, transip);
 
             Vector p(num_basis_functions);
-            p = LegendreND(transip, c, patch_order, dim);
+            p = LegendreND(transip, xmax, xmin, patch_order, dim);
+            AddMultVVt(p, A);
 
             for (int l = 0; l < num_basis_functions; l++)
             {
-               for (int m = 0; m < num_basis_functions; m++)
-               {
-                  A(l,m) += p(l) * p(m);
-               }
                // loop through each component
                for (int n = 0; n < dim; n++)
                {
@@ -4238,7 +4237,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                }
             }
          }
-
       }
 
       // Hack to deal with singularity of A
@@ -4263,7 +4261,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
          Vector p(num_basis_functions);
-         p = LegendreND(x, c, patch_order, dim);
+         p = LegendreND(x, xmax, xmin, patch_order, dim);
          f(0) = 0.0;
          f(1) = 0.0;
          if (x.Size() == 3 || dim == 3) { f(2) = 0.0; }
