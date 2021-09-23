@@ -333,11 +333,11 @@ if (MFEM_USE_AMGX)
 endif()
 
 if (MFEM_USE_CONDUIT)
-    find_package(Conduit REQUIRED conduit relay blueprint )
+    find_package(Conduit REQUIRED conduit relay blueprint)
 endif()
 
 if (MFEM_USE_FMS)
-    find_package(FMS REQUIRED fms )
+    find_package(FMS REQUIRED fms)
 endif()
 
 # Axom/Sidre
@@ -380,6 +380,11 @@ endif()
 # UMPIRE
 if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
+endif()
+
+# GOOGLE-BENCHMARK
+if (MFEM_USE_BENCHMARK)
+   find_package(Benchmark REQUIRED)
 endif()
 
 # Caliper
@@ -441,7 +446,7 @@ endif()
 set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
     SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE MKL_CPARDISO AMGX CALIPER PARELAG MPI_CXX)
+    CUSPARSE MKL_CPARDISO AMGX CALIPER PARELAG BENCHMARK MPI_CXX)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -547,15 +552,21 @@ endif()
 set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
 #-------------------------------------------------------------------------------
-# Examples, miniapps, and testing
+# Examples, miniapps, benchmarks and testing
 #-------------------------------------------------------------------------------
 
-# Enable testing if required
+# Enable testing and benchmarks if required
 if (MFEM_ENABLE_TESTING)
   enable_testing()
   set(MFEM_ALL_TESTS_TARGET_NAME tests)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
+
+  # Create a target for all benchmarks and, optionally, enable it.
+  set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
+  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                  ${MFEM_ENABLE_GOOGLE_BENCHMARKS})
+  add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
 endif()
 
 # Define a target that all examples and miniapps will depend on.
@@ -575,6 +586,7 @@ add_subdirectory(miniapps EXCLUDE_FROM_ALL)
 # Target to build all executables, i.e. everything.
 add_custom_target(exec)
 add_dependencies(exec
+  ${MFEM_ALL_BENCHMARKS_TARGET_NAME}
   ${MFEM_ALL_EXAMPLES_TARGET_NAME}
   ${MFEM_ALL_MINIAPPS_TARGET_NAME}
   ${MFEM_ALL_TESTS_TARGET_NAME})
