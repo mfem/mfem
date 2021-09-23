@@ -74,6 +74,17 @@ struct Basis<Dim,true,Dynamic,Dynamic>
    const double *G;
    const double *Gt;
 
+   template <typename Config>
+   Basis(Config &config,
+         const double *b,
+         const double *bt,
+         const double *g = nullptr,
+         const double *gt = nullptr)
+   : dofs1D(config.dofs), quads1D(config.quads),
+     dofs(pow(dofs1D,dim)), quads(pow(quads1D,dim)),
+     B(b), Bt(bt), G(g), Gt(gt)
+   { }
+
    // MFEM_HOST_DEVICE inline
    // auto GetB() const
    // {
@@ -209,6 +220,15 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    const double *G;
    const double *Gt;
 
+   template <typename Config>
+   Basis(Config &config,
+         const double *b,
+         const double *bt,
+         const double *g = nullptr,
+         const double *gt = nullptr)
+   : B(b), Bt(bt), G(g), Gt(gt)
+   { }
+
    // MFEM_HOST_DEVICE inline
    // auto GetB() const
    // {
@@ -343,6 +363,15 @@ struct Basis<Dim,false,Dynamic,Dynamic>
    const double *G;
    const double *Gt;
 
+   template <typename Config>
+   Basis(Config &config,
+         const double *b,
+         const double *bt,
+         const double *g = nullptr,
+         const double *gt = nullptr)
+   : dofs(config.dofs), quads(config.quads), B(b), Bt(bt), G(g), Gt(gt)
+   { }
+
    // MFEM_HOST_DEVICE inline
    // auto GetB() const
    // {
@@ -426,6 +455,15 @@ struct Basis<Dim,false,Dofs,Quads>
    const double *G;
    const double *Gt;
 
+   template <typename Config>
+   Basis(Config &config,
+         const double *b,
+         const double *bt,
+         const double *g = nullptr,
+         const double *gt = nullptr)
+   : B(b), Bt(bt), G(g), Gt(gt)
+   { }
+
    // MFEM_HOST_DEVICE inline
    // auto GetB() const
    // {
@@ -491,55 +529,69 @@ struct Basis<Dim,false,Dofs,Quads>
    // }
 };
 
-/// Functor for building a statically sized tensor Basis
-template <int Dim, int Dofs, int Quads, int BatchSize>
-auto MakeBasis(KernelConfig<Dim,true,Dofs,Quads,BatchSize> &config,
+template <typename Config>
+auto MakeBasis(Config &config,
                const double *b,
                const double *bt,
                const double *g = nullptr,
                const double *gt = nullptr)
 {
-   return Basis<Dim,true,Dofs,Quads>{b,bt,g,gt};
+   constexpr int Dim = get_config_dim<Config>;
+   constexpr bool IsTensor = is_tensor_config<Config>;
+   constexpr int Dofs = get_config_dofs<Config>;
+   constexpr int Quads = get_config_quads<Config>;
+   return Basis<Dim,IsTensor,Dofs,Quads>(config,b,bt,g,gt);
 }
 
-/// Functor for building a dynamically sized tensor Basis
-template <int Dim, int BatchSize>
-auto MakeBasis(KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize> &config,
-               const double *b,
-               const double *bt,
-               const double *g = nullptr,
-               const double *gt = nullptr)
-{
-   // TODO check that dofs and quads are not 0.
-   const int dofs1d = config.dofs;
-   const int dofs = pow(dofs1d,Dim);
-   const int quads1d = config.quads;
-   const int quads = pow(quads1d,Dim);
-   return Basis<Dim,true,Dynamic,Dynamic>{dofs1d,quads1d,dofs,quads,b,bt,g,gt};
-}
+// /// Functor for building a statically sized tensor Basis
+// template <int Dim, int Dofs, int Quads, int BatchSize>
+// auto MakeBasis(KernelConfig<Dim,true,Dofs,Quads,BatchSize> &config,
+//                const double *b,
+//                const double *bt,
+//                const double *g = nullptr,
+//                const double *gt = nullptr)
+// {
+//    return Basis<Dim,true,Dofs,Quads>{b,bt,g,gt};
+// }
 
-/// Functor for building a statically sized non-tensor Basis
-template <int Dim, int Dofs, int Quads, int BatchSize>
-auto MakeBasis(KernelConfig<Dim,false,Dofs,Quads,BatchSize> &config,
-               const double *b,
-               const double *bt,
-               const double *g = nullptr,
-               const double *gt = nullptr)
-{
-   return Basis<Dim,false,Dofs,Quads>{b,bt,g,gt};
-}
+// /// Functor for building a dynamically sized tensor Basis
+// template <int Dim, int BatchSize>
+// auto MakeBasis(KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize> &config,
+//                const double *b,
+//                const double *bt,
+//                const double *g = nullptr,
+//                const double *gt = nullptr)
+// {
+//    // TODO check that dofs and quads are not 0.
+//    const int dofs1d = config.dofs;
+//    const int dofs = pow(dofs1d,Dim);
+//    const int quads1d = config.quads;
+//    const int quads = pow(quads1d,Dim);
+//    return Basis<Dim,true,Dynamic,Dynamic>{dofs1d,quads1d,dofs,quads,b,bt,g,gt};
+// }
 
-/// Functor for building a dynamically sized non-tensor Basis
-template <int Dim, int BatchSize>
-auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
-               const double *b,
-               const double *bt,
-               const double *g = nullptr,
-               const double *gt = nullptr)
-{
-   // TODO check that dofs and quads are not 0.
-   return Basis<Dim,false,Dynamic,Dynamic>{config.dofs,config.quads,b,bt,g,gt};
-}
+// /// Functor for building a statically sized non-tensor Basis
+// template <int Dim, int Dofs, int Quads, int BatchSize>
+// auto MakeBasis(KernelConfig<Dim,false,Dofs,Quads,BatchSize> &config,
+//                const double *b,
+//                const double *bt,
+//                const double *g = nullptr,
+//                const double *gt = nullptr)
+// {
+//    return Basis<Dim,false,Dofs,Quads>{b,bt,g,gt};
+// }
+
+// /// Functor for building a dynamically sized non-tensor Basis
+// template <int Dim, int BatchSize>
+// auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
+//                const double *b,
+//                const double *bt,
+//                const double *g = nullptr,
+//                const double *gt = nullptr)
+// {
+//    // TODO check that dofs and quads are not 0.
+//    return Basis<Dim,false,Dynamic,Dynamic>{config.dofs,config.quads,b,bt,g,gt};
+// }
 
 /// A structure to represent a transposed basis
 template <int Dim, bool IsTensor, int Dofs, int Quads>
