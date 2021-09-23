@@ -984,7 +984,9 @@ constexpr int get_layout_batch_size = get_layout_batch_size_v<Layout>::value;
 template <typename Layout>
 struct get_layout_capacity_v
 {
-   static constexpr int value = Dynamic;
+   static constexpr int max_size = 16;
+   static constexpr int rank = get_layout_rank<Layout>;
+   static constexpr int value = pow(max_size, rank);
 };
 
 template <int... Sizes>
