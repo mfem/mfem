@@ -9,6 +9,9 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+variables:
+  BASELINE_TEST: baseline-gpu
+
 stages:
   - setup
   - baseline_check
@@ -18,9 +21,6 @@ stages:
 baselinecheck_mfem_intel_lassen:
   extends: [.on_lassen]
   stage: baseline_check
-  variables:
-    BASELINE_TEST: baseline-gpu
-    ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
   script:
     - .gitlab/scripts/baseline
   artifacts:
@@ -35,7 +35,7 @@ report_baseline:
   stage: baseline_report
   script:
     - cd ${AUTOTEST_ROOT}/autotest && git pull
-    - rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-baseline-${CI_COMMIT_REF_SLUG}"
+    - rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-${BASELINE_TEST}-${CI_COMMIT_REF_SLUG}"
     - rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
     - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
     # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
@@ -46,7 +46,7 @@ report_baseline:
         cp ${rundir}/*.err ${rundir}/autotest-email.html
       fi
     - git add ${rundir}
-    - git commit -am "Gitlab CI log for baseline on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
+    - git commit -am "Gitlab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
     - git push origin master
 
 # This job can only be manually triggered on a pipeline for master branch, or if

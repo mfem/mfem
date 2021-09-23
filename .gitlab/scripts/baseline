@@ -13,11 +13,7 @@
 
 # locals
 glob_err=${BASELINE_TEST}.err
-# There will be collision between corona and quartz baselines.
-# Once the corresponding files have been generated, we can switch to machine
-# specific ref.
-base=${BASELINE_TEST}-${SYS_TYPE}
-#base=${BASELINE_TEST}-${SYS_TYPE}-${MACHINE_NAME}
+base=${BASELINE_TEST}-${MACHINE_NAME}
 base_diff=${base}.diff
 base_patch=${base}.patch
 base_out=${base}.out
@@ -32,11 +28,11 @@ mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 
 # run
 if [[ "${MACHINE_NAME}" == "quartz" || "${MACHINE_NAME}" == "ruby" ]]; then
-  srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "corona" ]]; then
-  srun --nodes=1 -t 60 -p mi60 ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  srun --nodes=1 -t 60 -p mi60 ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "lassen" ]]; then
-  lalloc 1 -q pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  lalloc 1 -q pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 fi
 
 # post
@@ -71,7 +67,7 @@ then
   cat ${base_diff}
   cp ${base_diff} ${artifacts_path}/${base_diff}
   # We create a .err file, because that's how we signal that there was a diff.
-  cp ${base_diff} ${artifacts_path}/gitlab-${BASELINE_TEST}-${SYS_TYPE}-${MACHINE_NAME}.err
+  cp ${base_diff} ${artifacts_path}/gitlab-${BASELINE_TEST}-${MACHINE_NAME}.err
 fi
 
 if [[ ! -s ${base_diff} ]]
