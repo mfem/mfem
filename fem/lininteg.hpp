@@ -27,6 +27,11 @@ protected:
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
+   /// Method defining partial assembly
+   virtual void AssemblePA(const FiniteElementSpace &fes,
+                           const Vector &mark,
+                           Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -99,6 +104,7 @@ class DomainLFIntegrator : public DeltaLFIntegrator
    Vector shape;
    Coefficient &Q;
    int oa, ob;
+
 public:
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
@@ -109,6 +115,10 @@ public:
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
+
+   virtual void AssemblePA(const FiniteElementSpace &fes,
+                           const Vector &mark,
+                           Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
