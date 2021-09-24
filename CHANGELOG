@@ -41,6 +41,8 @@ Version 4.3.1 (development)
 
 - Fixed several MinGW build issues on Windows.
 
+- Remove the 'u' flag in the ar command, to update all files in the archive,
+  avoiding file name collisions from different subdirectories.
 
 Version 4.3, released on July 29, 2021
 ======================================
