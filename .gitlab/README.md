@@ -16,7 +16,7 @@ and nightly testing on Gitlab.
 ## Top level
 
 The root configuration file is `.gitlab-ci.yml` at the root of MFEM repo.
-This file only define one stage, in which we trigger several
+This file only defines one stage, in which we trigger several
 sub-pipelines.
 
 We use sub-pipelines to isolate the test for one combination of `machine`
@@ -36,7 +36,7 @@ Test types include:
 
 **NOTE**
 
-The sub-pipeline design allows to add a new machine or test type without
+The sub-pipeline design allows to add a new machine or a new test type without
 altering the scheduling, execution and displaying of the others.
 
 ## Sub-pipelines
@@ -55,13 +55,13 @@ jobs. They are gathered in `.gitlab/scripts`.
 ## Scripts
 
 Scripts specific to the CI only are in `.gitlab/scripts`. It is best practice
-to keep scripts outside the CI configuration (not to right bash scripts in a
-yaml file) because it helps with readability, maintance and more importantly
-with transition to another CI system.
+to keep scripts outside the CI configuration (no bash scripts embedded in a
+yaml file) because it helps with readability, maintance and also with
+transition to another CI system.
 
 **NOTE**
 
-Most of the scripts there are driven by environment variable and do not have a
+Most of the scripts there are driven by environment variables and do not have a
 usage function. This should be improved.
 
 
@@ -89,11 +89,15 @@ spack spec to use. Adding a job on quartz for example resumes to:
   extends: .build_and_test_on_quartz
 ```
 
-The remaining and not trivial work is to make sure this spec is working. To test a spec before adding it, or reproduce a CI configuration, please refer to `tests/gitlab/reproduce-ci-jobs-interactively.md`.
+The remaining and non trivial work is to make sure this spec is working. To
+test a spec before adding it, or reproduce a CI configuration, please refer to
+`tests/gitlab/reproduce-ci-jobs-interactively.md`.
 
 **NOTE**
 
-It is assumed that the spack spec applies to `mfem@develop`. That is why in the CI, all the specs start with the compilers or the variants to apply on mfem. The mechanism still works with a full spec.
+It is assumed that the spack spec applies to `mfem@develop`. That's why in the
+CI all the specs start with the compiler or the variants to apply to mfem. The
+mechanism still works with a full spec.
 
 
 
