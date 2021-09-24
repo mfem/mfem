@@ -72,6 +72,8 @@ cd examples
   ex26 -d ${device} -no-vis
 ) > "$run_dir"/baseline-gpu-$host.out 2>&1
 
+cd ${mfem_dir}
+
 
 echo "-----------------------------------------"
 echo " Compiling MFEM parallel + $device..."
