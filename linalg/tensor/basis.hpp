@@ -85,70 +85,6 @@ struct Basis<Dim,true,Dynamic,Dynamic>
      B(b), Bt(bt), G(g), Gt(gt)
    { }
 
-   // MFEM_HOST_DEVICE inline
-   // auto GetB() const
-   // {
-   //    DynamicBasisTensor<Dim> s_B(quads1D,dofs1D);
-   //    for (int d = 0; d < dofs1D; d++)
-   //    // MFEM_FOREACH_THREAD(d,y,dofs1D)
-   //    {
-   //       for (int q = 0; q < quads1D; q++)
-   //       // MFEM_FOREACH_THREAD(q,x,quads1D)
-   //       {
-   //          s_B(q,d) = B[q+quads1D*d];
-   //       }
-   //    }
-   //    return s_B;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetBt() const
-   // {
-   //    DynamicBasisTensor<Dim> s_Bt(dofs1D,quads1D);
-   //    for (int q = 0; q < quads1D; q++)
-   //    // MFEM_FOREACH_THREAD(q,y,quads1D)
-   //    {
-   //       for (int d = 0; d < dofs1D; d++)
-   //       // MFEM_FOREACH_THREAD(d,x,dofs1D)
-   //       {
-   //          s_Bt(d,q) = Bt[d+dofs1D*q];
-   //       }
-   //    }
-   //    return s_Bt;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetG() const
-   // {
-   //    DynamicBasisTensor<Dim> s_G(quads1D,dofs1D);
-   //    for (int d = 0; d < dofs1D; d++)
-   //    // MFEM_FOREACH_THREAD(d,y,dofs1D)
-   //    {
-   //       for (int q = 0; q < quads1D; q++)
-   //       // MFEM_FOREACH_THREAD(q,x,quads1D)
-   //       {
-   //          s_G(q,d) = G[q+quads1D*d];
-   //       }
-   //    }
-   //    return s_G;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetGt() const
-   // {
-   //    DynamicBasisTensor<Dim> s_Gt(dofs1D,quads1D);
-   //    for (int q = 0; q < quads1D; q++)
-   //    // MFEM_FOREACH_THREAD(q,y,quads1D)
-   //    {
-   //       for (int d = 0; d < dofs1D; d++)
-   //       // MFEM_FOREACH_THREAD(d,x,dofs1D)
-   //       {
-   //          s_Gt(d,q) = Gt[d+dofs1D*q];
-   //       }
-   //    }
-   //    return s_Gt;
-   // }
-
    MFEM_HOST_DEVICE inline
    auto GetB(double* shared_mem) const
    {
@@ -229,70 +165,6 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    : B(b), Bt(bt), G(g), Gt(gt)
    { }
 
-   // MFEM_HOST_DEVICE inline
-   // auto GetB() const
-   // {
-   //    StaticBasisTensor<dim,quads1D,dofs1D> s_B(quads1D,dofs1D);
-   //    for (int d = 0; d < dofs1D; d++)
-   //    // MFEM_FOREACH_THREAD(d,y,dofs1D)
-   //    {
-   //       for (int q = 0; q < quads1D; q++)
-   //       // MFEM_FOREACH_THREAD(q,x,quads1D)
-   //       {
-   //          s_B(q,d) = B[q+quads1D*d];
-   //       }
-   //    }
-   //    return s_B;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetBt() const
-   // {
-   //    StaticBasisTensor<dim,dofs1D,quads1D> s_Bt(dofs1D,quads1D);
-   //    for (int q = 0; q < quads1D; q++)
-   //    // MFEM_FOREACH_THREAD(q,y,quads1D)
-   //    {
-   //       for (int d = 0; d < dofs1D; d++)
-   //       // MFEM_FOREACH_THREAD(d,x,dofs1D)
-   //       {
-   //          s_Bt(d,q) = Bt[d+dofs1D*q];
-   //       }
-   //    }
-   //    return s_Bt;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetG() const
-   // {
-   //    StaticBasisTensor<dim,quads1D,dofs1D> s_G(quads1D,dofs1D);
-   //    for (int d = 0; d < dofs1D; d++)
-   //    // MFEM_FOREACH_THREAD(d,y,dofs1D)
-   //    {
-   //       for (int q = 0; q < quads1D; q++)
-   //       // MFEM_FOREACH_THREAD(q,x,quads1D)
-   //       {
-   //          s_G(q,d) = G[q+quads1D*d];
-   //       }
-   //    }
-   //    return s_G;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetGt() const
-   // {
-   //    StaticBasisTensor<dim,dofs1D,quads1D> s_Gt(dofs1D,quads1D);
-   //    for (int q = 0; q < quads1D; q++)
-   //    // MFEM_FOREACH_THREAD(q,y,quads1D)
-   //    {
-   //       for (int d = 0; d < dofs1D; d++)
-   //       // MFEM_FOREACH_THREAD(d,x,dofs1D)
-   //       {
-   //          s_Gt(d,q) = Gt[d+dofs1D*q];
-   //       }
-   //    }
-   //    return s_Gt;
-   // }
-
    MFEM_HOST_DEVICE inline
    auto GetB(double* shared_mem) const
    {
@@ -371,76 +243,6 @@ struct Basis<Dim,false,Dynamic,Dynamic>
          const double *gt = nullptr)
    : dofs(config.dofs), quads(config.quads), B(b), Bt(bt), G(g), Gt(gt)
    { }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetB() const
-   // {
-   //    DynamicBasisTensor<Dim> s_B(quads,dofs);
-   //    for (int d = 0; d < dofs; d++)
-   //    // MFEM_FOREACH_THREAD(d,y,dofs)
-   //    {
-   //       for (int q = 0; q < quads; q++)
-   //       // MFEM_FOREACH_THREAD(q,x,quads)
-   //       {
-   //          s_B(q,d) = B[q+quads*d];
-   //       }
-   //    }
-   //    return s_B;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetBt() const
-   // {
-   //    DynamicBasisTensor<Dim> s_Bt(dofs,quads);
-   //    for (int q = 0; q < quads; q++)
-   //    // MFEM_FOREACH_THREAD(q,y,quads)
-   //    {
-   //       for (int d = 0; d < dofs; d++)
-   //       // MFEM_FOREACH_THREAD(d,x,dofs)
-   //       {
-   //          s_Bt(d,q) = Bt[d+dofs*q];
-   //       }
-   //    }
-   //    return s_Bt;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetG() const
-   // {
-   //    DynamicBasisTensor<Dim> s_G(quads,dofs,dim);
-   //    for (int d = 0; d < dofs; d++)
-   //    // MFEM_FOREACH_THREAD(d,y,dofs)
-   //    {
-   //       for (int q = 0; q < quads; q++)
-   //       // MFEM_FOREACH_THREAD(q,x,quads)
-   //       {
-   //          for (int i = 0; i < dim; i++)
-   //          {
-   //             s_G(q,d,i) = G[q+quads*d+dofs*quads*i];
-   //          }
-   //       }
-   //    }
-   //    return s_G;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetGt() const
-   // {
-   //    DynamicBasisTensor<Dim> s_Gt(dofs,quads,dim);
-   //    for (int q = 0; q < quads; q++)
-   //    // MFEM_FOREACH_THREAD(q,y,quads)
-   //    {
-   //       for (int d = 0; d < dofs; d++)
-   //       // MFEM_FOREACH_THREAD(d,x,dofs)
-   //       {
-   //          for (size_t i = 0; i < dim; i++)
-   //          {
-   //             s_Gt(d,q,i) = Gt[d+dofs*q+dofs*quads*i];
-   //          }
-   //       }
-   //    }
-   //    return s_Gt;
-   // }
 };
 
 template <int Dim, int Dofs, int Quads>
@@ -463,70 +265,6 @@ struct Basis<Dim,false,Dofs,Quads>
          const double *gt = nullptr)
    : B(b), Bt(bt), G(g), Gt(gt)
    { }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetB() const
-   // {
-   //    StaticBasisTensor<dim,quads,dofs> s_B(quads,dofs);
-   //    MFEM_FOREACH_THREAD(d,y,dofs)
-   //    {
-   //       MFEM_FOREACH_THREAD(q,x,quads)
-   //       {
-   //          s_B(q,d) = B[q+quads*d];
-   //       }
-   //    }
-   //    return s_B;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetBt() const
-   // {
-   //    StaticBasisTensor<dim,quads,dofs> s_Bt(dofs,quads);
-   //    MFEM_FOREACH_THREAD(q,y,quads)
-   //    {
-   //       MFEM_FOREACH_THREAD(d,x,dofs)
-   //       {
-   //          s_Bt(d,q) = Bt[d+dofs*q];
-   //       }
-   //    }
-   //    return s_Bt;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetG() const
-   // {
-   //    // TODO change type
-   //    StaticDTensor<quads,dofs,dim> s_G(quads,dofs,dim);
-   //    MFEM_FOREACH_THREAD(d,y,dofs)
-   //    {
-   //       MFEM_FOREACH_THREAD(q,x,quads)
-   //       {
-   //          for (size_t i = 0; i < dim; i++)
-   //          {
-   //             s_G(q,d,i) = G[q+quads*d+quads*dofs*i];
-   //          }
-   //       }
-   //    }
-   //    return s_G;
-   // }
-
-   // MFEM_HOST_DEVICE inline
-   // auto GetGt() const
-   // {
-   //    // TODO change type
-   //    StaticDTensor<dofs,quads,dim> s_Gt(dofs,quads,dim);
-   //    MFEM_FOREACH_THREAD(q,y,quads)
-   //    {
-   //       MFEM_FOREACH_THREAD(d,x,dofs)
-   //       {
-   //          for (size_t i = 0; i < dim; i++)
-   //          {
-   //             s_Gt(d,q,i) = Gt[d+dofs*q+quads*dofs*i];
-   //          }
-   //       }
-   //    }
-   //    return s_Gt;
-   // }
 };
 
 template <typename Config>
@@ -542,56 +280,6 @@ auto MakeBasis(Config &config,
    constexpr int Quads = get_config_quads<Config>;
    return Basis<Dim,IsTensor,Dofs,Quads>(config,b,bt,g,gt);
 }
-
-// /// Functor for building a statically sized tensor Basis
-// template <int Dim, int Dofs, int Quads, int BatchSize>
-// auto MakeBasis(KernelConfig<Dim,true,Dofs,Quads,BatchSize> &config,
-//                const double *b,
-//                const double *bt,
-//                const double *g = nullptr,
-//                const double *gt = nullptr)
-// {
-//    return Basis<Dim,true,Dofs,Quads>{b,bt,g,gt};
-// }
-
-// /// Functor for building a dynamically sized tensor Basis
-// template <int Dim, int BatchSize>
-// auto MakeBasis(KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize> &config,
-//                const double *b,
-//                const double *bt,
-//                const double *g = nullptr,
-//                const double *gt = nullptr)
-// {
-//    // TODO check that dofs and quads are not 0.
-//    const int dofs1d = config.dofs;
-//    const int dofs = pow(dofs1d,Dim);
-//    const int quads1d = config.quads;
-//    const int quads = pow(quads1d,Dim);
-//    return Basis<Dim,true,Dynamic,Dynamic>{dofs1d,quads1d,dofs,quads,b,bt,g,gt};
-// }
-
-// /// Functor for building a statically sized non-tensor Basis
-// template <int Dim, int Dofs, int Quads, int BatchSize>
-// auto MakeBasis(KernelConfig<Dim,false,Dofs,Quads,BatchSize> &config,
-//                const double *b,
-//                const double *bt,
-//                const double *g = nullptr,
-//                const double *gt = nullptr)
-// {
-//    return Basis<Dim,false,Dofs,Quads>{b,bt,g,gt};
-// }
-
-// /// Functor for building a dynamically sized non-tensor Basis
-// template <int Dim, int BatchSize>
-// auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
-//                const double *b,
-//                const double *bt,
-//                const double *g = nullptr,
-//                const double *gt = nullptr)
-// {
-//    // TODO check that dofs and quads are not 0.
-//    return Basis<Dim,false,Dynamic,Dynamic>{config.dofs,config.quads,b,bt,g,gt};
-// }
 
 /// A structure to represent a transposed basis
 template <int Dim, bool IsTensor, int Dofs, int Quads>
@@ -669,54 +357,11 @@ struct Grad
    }
 };
 
-// /// A structure to represent a basis gradient
-// template <int Dim, bool IsTensor, int Dofs, int Quads>
-// struct BasisGradient : public Basis<Dim,IsTensor,Dofs,Quads>
-// {
-//    MFEM_HOST_DEVICE
-//    BasisGradient(Basis<Dim,IsTensor,Dofs,Quads> &basis)
-//    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
-//    { }
-// };
-
-// /// A structure to represent a transposed basis gradient
-// template <int Dim, bool IsTensor, int Dofs, int Quads>
-// struct BasisGradientTranspose : public Basis<Dim,IsTensor,Dofs,Quads>
-// {
-//    MFEM_HOST_DEVICE
-//    BasisGradientTranspose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
-//    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
-//    { }
-
-//    MFEM_HOST_DEVICE
-//    BasisGradientTranspose(BasisTranspose<Dim,IsTensor,Dofs,Quads> &basis)
-//    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
-//    { }
-
-//    MFEM_HOST_DEVICE
-//    BasisGradientTranspose(BasisGradient<Dim,IsTensor,Dofs,Quads> &basis)
-//    : Basis<Dim,IsTensor,Dofs,Quads>(basis)
-//    { }
-// };
-
-/// Functor to transpose a Basis
-// template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
-// auto transpose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
-// {
-//    return BasisTranspose<Dim,IsTensor,Dofs,Quads>(basis);
-// }
-
 template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto transpose(const Basis<Dim,IsTensor,Dofs,Quads> &basis)
 {
    return Trans<Basis<Dim,IsTensor,Dofs,Quads>>(basis);
 }
-
-// template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
-// auto transpose(const Trans<Basis<Dim,IsTensor,Dofs,Quads>> &basis)
-// {
-//    return basis.basis;
-// }
 
 /// Functor to transpose a Basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
@@ -725,25 +370,12 @@ auto transpose(const Grad<Basis<Dim,IsTensor,Dofs,Quads>> &G)
    return Trans<Grad<Basis<Dim,IsTensor,Dofs,Quads>>>(G);
 }
 
-// template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
-// auto transpose(const Trans<Grad<Basis<Dim,IsTensor,Dofs,Quads>>> Gt)
-// {
-//    return Gt.basis;
-// }
-
 /// Functor to represent a Basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto grad(const Basis<Dim,IsTensor,Dofs,Quads> &basis)
 {
    return Grad<Basis<Dim,IsTensor,Dofs,Quads>>(basis);
 }
-
-/// Functor to represent a transposed Basis gradient
-// template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
-// auto grad(BasisTranspose<Dim,IsTensor,Dofs,Quads> &Bt)
-// {
-//    return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>(Bt);
-// }
 
 template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto grad(const Trans<Basis<Dim,IsTensor,Dofs,Quads>> &Bt)
