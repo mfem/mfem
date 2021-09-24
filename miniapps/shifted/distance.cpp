@@ -67,15 +67,16 @@
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set: circle / sphere at the center of the mesh
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh   -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -p 1 -s 1
 //
 //   Problem 2: zero level set: perturbed sine
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
+//     mpirun -np 4 distance -m ../../data/amr-quad.mesh    -rs 3 -o 2 -t 1.0 -p 2
 //
 //   Problem 3: level set: Gyroid
 //      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
-//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 3
+//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3
 //
 //   Problem 4: level set: Union of doughnut and swiss cheese shapes
 //      mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4

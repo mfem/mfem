@@ -162,6 +162,7 @@ int main(int argc, char *argv[])
    {
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
+   MFEM_VERIFY(mesh.Conforming(), "AMR capability is not implemented yet!");
 
    // MPI distribution.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
