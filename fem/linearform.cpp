@@ -23,6 +23,7 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    UseDevice(true);
 
    fes = f;
+   ext = nullptr;
    extern_lfs = 1;
 
    // Copy the pointers to the integrators
@@ -69,14 +70,14 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
 {
-   boundary_integs.Append (lfi);
+   boundary_integs.Append(lfi);
    boundary_integs_marker.Append(NULL); // NULL -> all attributes are active
 }
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi,
                                         Array<int> &bdr_attr_marker)
 {
-   boundary_integs.Append (lfi);
+   boundary_integs.Append(lfi);
    boundary_integs_marker.Append(&bdr_attr_marker);
 }
 
@@ -99,8 +100,33 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
+void LinearForm::SetAssemblyLevel(LinearAssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case LinearAssemblyLevel::LEGACY:
+         break;
+      case LinearAssemblyLevel::FULL:
+         ext = new PALinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
 void LinearForm::Assemble()
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
@@ -356,6 +382,8 @@ LinearForm::~LinearForm()
       for (k=0; k < interior_face_integs.Size(); k++)
       { delete interior_face_integs[k]; }
    }
+
+   delete ext;
 }
 
 }
