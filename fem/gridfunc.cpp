@@ -4164,7 +4164,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
       }
       int num_basis_functions = pow(patch_order+1,dim);
-      int flux_order = patch_order + 2;
+      int flux_order = 2*patch_order;
       DenseMatrix A(num_basis_functions);
       Array<double> b(dim * num_basis_functions);
       A = 0.0;
@@ -4190,6 +4190,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
 
       // loop through all elements in patch
+      int nfdofs = 0;
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
@@ -4199,6 +4200,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          udoftrans = ufes->GetElementVDofs(i, udofs);
          fdoftrans = ffes->GetElementVDofs(i, fdofs);
+         nfdofs += fdofs.Size();
 
          ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
@@ -4240,10 +4242,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
 
       // Hack to deal with singularity of A
-      for (int l = 0; l < num_basis_functions; l++)
-      {
-         A(l,l) += 1e-8;
-      }
+      //      for (int l = 0; l < num_basis_functions; l++)
+      //      {
+      //         A(l,l) += 1e-8;
+      //      }
 
       // Solve for polynomial coefficients
       Array<int> ipiv(num_basis_functions);
@@ -4277,10 +4279,27 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       };
       VectorFunctionCoefficient global_poly(dim, global_poly_tmp);
 
-      GridFunction ZZflux(ffes);
-      ZZflux.ProjectCoefficient(global_poly);
+      int flux_offset= 0;
+      Vector patch_flux_vector(nfdofs);
+      Array<int> vdofs;
+      for (int i = 0; i < num_neighbor_elems; i++)
+      {
+         int ielem = neighbor_elems[i];
+         ffes->GetElementVDofs(ielem, fdofs);
+         DofTransformation * doftrans = NULL;
+         doftrans = ffes->GetElementVDofs(ielem, vdofs);
+         Vector flux_temp_vector(patch_flux_vector.GetData()+flux_offset, fdofs.Size());
+         ffes->GetFE(ielem)->Project(global_poly, *ffes->GetElementTransformation(ielem),
+                                     flux_temp_vector);
+         if (doftrans)
+         {
+            doftrans->TransformPrimal(flux_temp_vector);
+         }
+         flux_offset += fdofs.Size();
+      }
 
       // 4. Compute error contribution from face.
+      flux_offset = 0;
       double patch_error = 0.0;
       for (int i = 0; i < num_neighbor_elems; i++)
       {
@@ -4293,8 +4312,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *ffes->GetFE(ielem), fl, with_coeff);
 
-         ZZflux.GetSubVector(fdofs, fla);
-         fl -= fla;
+         Vector flux_temp_vector(patch_flux_vector.GetData()+flux_offset, fdofs.Size());
+         flux_offset += fdofs.Size();
+         fl -= flux_temp_vector;
          patch_error += blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
                                                NULL);
       }
