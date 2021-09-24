@@ -33,7 +33,7 @@ setup_baseline:
     - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
     - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
-    - cd tests && git pull origin add-baseline-gpu && git checkout add-baseline-gpu && cd ..
+    - cd tests && git pull origin && cd ..
     - cd ${AUTOTEST_ROOT}
     - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
     - cd autotest && git pull && cd ..

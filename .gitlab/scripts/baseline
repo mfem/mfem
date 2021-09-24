@@ -13,7 +13,7 @@
 
 # locals
 glob_err=${BASELINE_TEST}.err
-base=${BASELINE_TEST}-${MACHINE_NAME}
+base=${BASELINE_TEST}-${SYS_TYPE}
 base_diff=${base}.diff
 base_patch=${base}.patch
 base_out=${base}.out
