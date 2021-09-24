@@ -593,10 +593,12 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    CeedInt numinputfields, numoutputfields;
    CeedQFunctionField *inputqfields, *outputqfields;
    ierr = CeedQFunctionGetFields(qf, &numinputfields, &inputqfields,
-      &numoutputfields, &outputqfields); CeedChk(ierr);
+                                 &numoutputfields, &outputqfields);
+   CeedChk(ierr);
    CeedOperatorField *inputfields, *outputfields;
    ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
-      &numoutputfields, &outputfields); CeedChk(ierr);
+                                &numoutputfields, &outputfields);
+   CeedChk(ierr);
 
    CeedElemRestriction * er_input = new CeedElemRestriction[numinputfields];
    CeedElemRestriction * er_output = new CeedElemRestriction[numoutputfields];
@@ -706,7 +708,8 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    CeedInt numinputfields, numoutputfields;
    CeedOperatorField *inputfields;
    ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
-      &numoutputfields, NULL); CeedChk(ierr);
+                                &numoutputfields, NULL);
+   CeedChk(ierr);
 
    CeedBasis basis;
    ierr = CeedOperatorGetActiveBasis(oper, &basis); CeedChk(ierr);
