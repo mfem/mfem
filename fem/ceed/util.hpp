@@ -17,6 +17,9 @@
 #include <ceed.h>
 #include <ceed/hash.h>
 #include <ceed/backend.h>  // for CeedOperatorField
+#if !CEED_VERSION_GE(0,9,1)
+#error MFEM requires a libCEED version superior to 0.9.1
+#endif
 #endif
 #include <tuple>
 #include <unordered_map>

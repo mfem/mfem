@@ -590,7 +590,7 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
 
    CeedQFunction qf;
    ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
-   CeedInt numinputfields, numoutputfields
+   CeedInt numinputfields, numoutputfields;
    CeedQFunctionField *inputqfields, *outputqfields;
    ierr = CeedQFunctionGetFields(qf, &numinputfields, &inputqfields,
       &numoutputfields, &outputqfields); CeedChk(ierr);
