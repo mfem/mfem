@@ -1856,7 +1856,6 @@ static void ApplyDiff(const int ne,
    config_dofs_is<Dofs> param3;
    config_quads_is<Quads> param4;
    auto config  = MakeConfig(dofs, quads, param1, param2, param3, param4);
-   std::cout << config;
    auto B       = MakeBasis(config, b.Read(), bt.Read(), g.Read(), gt.Read());
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
    // TODO SRank = 1 until we really support symmetric layout...
