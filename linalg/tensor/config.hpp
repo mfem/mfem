@@ -108,7 +108,7 @@ template <typename ConfigSetter1 = DefaultKernelConfigArgs,
           typename ConfigSetter6 = DefaultKernelConfigArgs,
           typename ConfigSetter7 = DefaultKernelConfigArgs,
           typename ConfigSetter8 = DefaultKernelConfigArgs>
-struct config
+struct KernelConfig
 {
    const int dofs;
    const int quads;
@@ -117,7 +117,7 @@ struct config
                                   ConfigSetter4, ConfigSetter5, ConfigSetter6,
                                   ConfigSetter7, ConfigSetter8>;
 
-   config(int dofs, int quads) : dofs(dofs), quads(quads)
+   KernelConfig(int dofs, int quads) : dofs(dofs), quads(quads)
    {
       // TODO check that if Dofs!= 0 then dofs==Dofs
       // TODO check that if Quads!= 0 then quads==Quads
@@ -127,46 +127,8 @@ struct config
 template <typename... ConfigSetters>
 auto MakeConfig(int dofs, int quads, ConfigSetters... args)
 {
-   return config<ConfigSetters...>(dofs, quads);
+   return KernelConfig<ConfigSetters...>(dofs, quads);
 }
-
-// template <int Dim,
-//           bool IsTensor=false,
-//           int Dofs=Dynamic,
-//           int Quads=Dynamic,
-//           int BatchSize=1>
-// struct KernelConfig
-// {
-//    const int dofs;
-//    const int quads;
-
-//    KernelConfig(int dofs, int quads): dofs(Dofs), quads(Quads)
-//    {
-//       // TODO check that if Dofs!= 0 then dofs==Dofs
-//       // TODO check that if Quads!= 0 then quads==Quads
-//    }
-// };
-
-// template <int Dim,
-//           bool IsTensor,
-//           int BatchSize>
-// struct KernelConfig<Dim,IsTensor,Dynamic,Dynamic,BatchSize>
-// {
-//    const int dofs;
-//    const int quads;
-
-//    KernelConfig(int dofs, int quads): dofs(dofs), quads(quads)
-//    {
-//       // TODO check that if Dofs!= 0 then dofs==Dofs
-//       // TODO check that if Quads!= 0 then quads==Quads
-//    }
-// };
-
-// template <int Dim, bool IsTensor=false, int Dofs=0, int Quads=0, int BatchSize=1>
-// auto MakeConfig(int dofs, int quads)
-// {
-//    return KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs,quads);
-// }
 
 /// KernelConfig Traits
 
@@ -174,16 +136,10 @@ auto MakeConfig(int dofs, int quads, ConfigSetters... args)
 template <typename Config>
 struct get_config_dim_v;
 
-// template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-// struct get_config_dim_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
-// {
-//    static constexpr int value = Dim;
-// };
-
 template <typename... Configs>
-struct get_config_dim_v<config<Configs...>>
+struct get_config_dim_v<KernelConfig<Configs...>>
 {
-   static constexpr int value = config<Configs...>::configs::Dim;
+   static constexpr int value = KernelConfig<Configs...>::configs::Dim;
 };
 
 template <typename Config>
@@ -193,16 +149,10 @@ constexpr int get_config_dim = get_config_dim_v<Config>::value;
 template <typename Config>
 struct is_tensor_config_v;
 
-// template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-// struct is_tensor_config_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
-// {
-//    static constexpr bool value = IsTensor;
-// };
-
 template <typename... Configs>
-struct is_tensor_config_v<config<Configs...>>
+struct is_tensor_config_v<KernelConfig<Configs...>>
 {
-   static constexpr bool value = config<Configs...>::configs::IsTensor;
+   static constexpr bool value = KernelConfig<Configs...>::configs::IsTensor;
 };
 
 template <typename Config>
@@ -212,16 +162,10 @@ constexpr bool is_tensor_config = is_tensor_config_v<Config>::value;
 template <typename Config>
 struct get_config_dofs_v;
 
-// template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-// struct get_config_dofs_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
-// {
-//    static constexpr int value = Dofs;
-// };
-
 template <typename... Configs>
-struct get_config_dofs_v<config<Configs...>>
+struct get_config_dofs_v<KernelConfig<Configs...>>
 {
-   static constexpr int value = config<Configs...>::configs::Dofs;
+   static constexpr int value = KernelConfig<Configs...>::configs::Dofs;
 };
 
 template <typename Config>
@@ -231,16 +175,10 @@ constexpr int get_config_dofs = get_config_dofs_v<Config>::value;
 template <typename Config>
 struct get_config_quads_v;
 
-// template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-// struct get_config_quads_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
-// {
-//    static constexpr int value = Quads;
-// };
-
 template <typename... Configs>
-struct get_config_quads_v<config<Configs...>>
+struct get_config_quads_v<KernelConfig<Configs...>>
 {
-   static constexpr int value = config<Configs...>::configs::Quads;
+   static constexpr int value = KernelConfig<Configs...>::configs::Quads;
 };
 
 template <typename Config>
@@ -250,16 +188,10 @@ constexpr int get_config_quads = get_config_quads_v<Config>::value;
 template <typename Config>
 struct get_config_batchsize_v;
 
-// template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-// struct get_config_batchsize_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
-// {
-//    static constexpr int value = BatchSize;
-// };
-
 template <typename... Configs>
-struct get_config_batchsize_v<config<Configs...>>
+struct get_config_batchsize_v<KernelConfig<Configs...>>
 {
-   static constexpr int value = config<Configs...>::configs::BatchSize;
+   static constexpr int value = KernelConfig<Configs...>::configs::BatchSize;
 };
 
 template <typename Config>
@@ -326,9 +258,9 @@ template <typename Config>
 constexpr bool config_use_zthreads = config_use_zthreads_v<Config>::value;
 
 template <typename... Configs>
-std::ostream& operator<<(std::ostream &os, const config<Configs...> &c)
+std::ostream& operator<<(std::ostream &os, const KernelConfig<Configs...> &c)
 {
-   using C = config<Configs...>;
+   using C = KernelConfig<Configs...>;
    os << "Kernel configuration:" << std::endl;
    os << "   Dim is: "
       << get_config_dim<C>
