@@ -35,6 +35,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
+
    return G * u;
 }
 
@@ -51,6 +52,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
+
    return ContractX(G,u);
 }
 
@@ -129,6 +131,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
+
    return Gt * u;
 }
 
@@ -145,6 +148,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
+
    return ContractX(Gt,u);
 }
 
