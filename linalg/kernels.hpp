@@ -196,9 +196,9 @@ MFEM_HOST_DEVICE inline
 void MultT(const int height, const int width, const TA *data, const TX *x,
            TY *y)
 {
-   if (width == 0)
+   if (height == 0)
    {
-      for (int row = 0; row < height; row++)
+      for (int row = 0; row < width; row++)
       {
          y[row] = 0.0;
       }
