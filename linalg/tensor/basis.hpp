@@ -790,9 +790,21 @@ constexpr bool is_non_tensor_basis = is_non_tensor_basis_v<Basis>::value;
 template <typename Basis>
 struct get_basis_quads_v;
 
+template <int Dim, bool IsTensor, int Dofs, int Quads>
+struct get_basis_quads_v<Basis<Dim,IsTensor,Dofs,Quads>>
+{
+   static constexpr int value = Quads;
+};
+
 // get_basis_dofs
 template <typename Basis>
 struct get_basis_dofs_v;
+
+template <int Dim, bool IsTensor, int Dofs, int Quads>
+struct get_basis_dofs_v<Basis<Dim,IsTensor,Dofs,Quads>>
+{
+   static constexpr int value = Dofs;
+};
 
 template <int Dim, bool IsTensor, typename TensorType>
 struct get_basis_quads_v<BasisTensor<Dim, IsTensor, TensorType>>
@@ -804,6 +816,12 @@ template <typename Basis>
 struct get_basis_quads_v<Trans<Basis>>
 {
    static constexpr int value = get_basis_dofs_v<Basis>::value;
+};
+
+template <typename Basis>
+struct get_basis_quads_v<Grad<Basis>>
+{
+   static constexpr int value = get_basis_quads_v<Basis>::value;
 };
 
 template <typename Basis>
@@ -819,6 +837,12 @@ template <typename Basis>
 struct get_basis_dofs_v<Trans<Basis>>
 {
    static constexpr int value = get_basis_quads_v<Basis>::value;
+};
+
+template <typename Basis>
+struct get_basis_dofs_v<Grad<Basis>>
+{
+   static constexpr int value = get_basis_dofs_v<Basis>::value;
 };
 
 template <typename Basis>

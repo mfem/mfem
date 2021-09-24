@@ -35,6 +35,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
+
    return G * u;
 }
 
@@ -51,6 +52,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
+
    return ContractX(G,u);
 }
 
@@ -69,11 +71,18 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    auto B = basis.GetB(s_B);
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
+
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto GBu = ContractY(G,Bu);
    auto BGu = ContractY(B,Gu);
-   return Concatenate(BGu,GBu);
+
+   constexpr int Q_c = get_basis_quads<Basis>;
+   const int Q_r = basis.basis.quads1D;
+   StaticResultTensor<Dofs,Q_c,Q_c,2> Grad_u(Q_r,Q_r,2);
+   Grad_u.template Get<2>(0) = BGu;
+   Grad_u.template Get<2>(1) = GBu;
+   return Grad_u;
 }
 
 // 3D Tensor
@@ -91,6 +100,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    auto B = basis.GetB(s_B);
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
+
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto BBu = ContractY(B,Bu);
@@ -99,7 +109,14 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    auto BBGu = ContractZ(B,BGu);
    auto BGBu = ContractZ(B,GBu);
    auto GBBu = ContractZ(G,BBu);
-   return Concatenate(BBGu,BGBu,GBBu);
+
+   constexpr int Q_c = get_basis_quads<Basis>;
+   const int Q_r = basis.basis.quads1D;
+   StaticResultTensor<Dofs,Q_c,Q_c,Q_c,3> Grad_u(Q_r,Q_r,Q_r,3);
+   Grad_u.template Get<2>(0) = BBGu;
+   Grad_u.template Get<2>(1) = BGBu;
+   Grad_u.template Get<2>(2) = GBBu;
+   return Grad_u;
 }
 
 // Non-tensor
@@ -114,6 +131,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
+
    return Gt * u;
 }
 
@@ -130,6 +148,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
+
    return ContractX(Gt,u);
 }
 
@@ -144,15 +163,17 @@ MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
+   constexpr int Comp = Rank-1;
    constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
-   auto ux = u.template Get<Rank-1>(0);
+
+   auto ux = u.template Get<Comp>(0);
    auto Gux = ContractX(Gt,ux);
    auto v = ContractY(Bt,Gux);
-   auto uy = u.template Get<Rank-1>(1);
+   auto uy = u.template Get<Comp>(1);
    auto Buy = ContractX(Bt,uy);
    v += ContractY(Gt,Buy);
    return v;
@@ -169,20 +190,22 @@ MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
+   constexpr int Comp = Rank-1;
    constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
-   auto ux = u.template Get<Rank-1>(0);
+
+   auto ux = u.template Get<Comp>(0);
    auto Gux = ContractX(Gt,ux);
    auto BGux = ContractY(Bt,Gux);
    auto v = ContractZ(Bt,BGux);
-   auto uy = u.template Get<Rank-1>(1);
+   auto uy = u.template Get<Comp>(1);
    auto Buy = ContractX(Bt,uy);
    auto GBuy = ContractY(Gt,Buy);
    v += ContractZ(Bt,GBuy);
-   auto uz = u.template Get<Rank-1>(2);
+   auto uz = u.template Get<Comp>(2);
    auto Buz = ContractX(Bt,uz);
    auto BBuz = ContractY(Bt,Buz);
    v += ContractZ(Gt,BBuz);
