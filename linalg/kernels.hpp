@@ -193,7 +193,7 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
     specify the data of the input and output vectors. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void MultT(const int height, const int width, const TA *data, const TX *x,
+void MultTranspose(const int height, const int width, const TA *data, const TX *x,
            TY *y)
 {
    if (height == 0)
