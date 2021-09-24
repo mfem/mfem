@@ -1196,7 +1196,7 @@ static void ApplyMass(const int ne,
                       const int dofs = Dofs,
                       const int quads = Quads)
 {
-   auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+   auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,1>(dofs, quads);
    auto B       = MakeBasis(config, b.Read(), bt.Read());
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
    const auto D = MakeQData<0>(config, d.Read(), ne);

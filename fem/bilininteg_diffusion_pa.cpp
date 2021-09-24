@@ -1851,7 +1851,7 @@ static void ApplyDiff(const int ne,
                       int dofs = Dofs,
                       int quads = Quads)
 {
-   auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+   auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,1>(dofs, quads);
    auto B       = MakeBasis(config, b.Read(), bt.Read(), g.Read(), gt.Read());
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
    // TODO SRank = 1 until we really support symmetric layout...
