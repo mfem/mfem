@@ -79,9 +79,6 @@ void InitTensorRestriction(const FiniteElementSpace &fes,
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
-int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
-                                         CeedElemRestriction* restr_out);
-
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
 

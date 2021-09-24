@@ -342,11 +342,13 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    CeedOperatorField *inputfields;
    if (isComposite)
    {
-      ierr = CeedOperatorGetFields(subops[0], &inputfields, NULL); CeedChk(ierr);
+      ierr = CeedOperatorGetFields(subops[0], &numinputfields, &inputfields,
+         &numoutputfields, NULL); CeedChk(ierr);
    }
    else
    {
-      ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
+      ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
+         &numoutputfields, NULL); CeedChk(ierr);
    }
 
    CeedVector if_vector;
@@ -370,20 +372,6 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
       return CeedError(ceed, 1, "No active vector in CeedOperator!");
    }
    *field = inputfields[found_index];
-
-   return 0;
-}
-
-int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
-                                         CeedElemRestriction* restr_out)
-{
-   int ierr;
-
-   CeedOperatorField active_field;
-   ierr = CeedOperatorGetActiveField(oper, &active_field); CeedChk(ierr);
-   CeedElemRestriction er;
-   ierr = CeedOperatorFieldGetElemRestriction(active_field, &er); CeedChk(ierr);
-   *restr_out = er;
 
    return 0;
 }
