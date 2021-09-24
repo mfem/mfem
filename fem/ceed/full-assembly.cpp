@@ -48,7 +48,6 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    CeedQFunction qf;
    ierr = CeedOperatorGetQFunction(op, &qf); CeedChk(ierr);
    CeedInt numinputfields, numoutputfields;
-   ierr= CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
    CeedChk(ierr);
    CeedVector assembledqf;
    CeedElemRestriction rstr_q;
@@ -60,11 +59,13 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
 
    CeedOperatorField *input_fields;
    CeedOperatorField *output_fields;
-   ierr = CeedOperatorGetFields(op, &input_fields, &output_fields); CeedChk(ierr);
+   ierr = CeedOperatorGetFields(op, &numinputfields, &input_fields,
+      &numoutputfields, &output_fields); CeedChk(ierr);
 
    // Determine active input basis
    CeedQFunctionField *qffields;
-   ierr = CeedQFunctionGetFields(qf, &qffields, NULL); CeedChk(ierr);
+   ierr = CeedQFunctionGetFields(qf, &numinputfields, &qffields,
+      &numoutputfields, NULL); CeedChk(ierr);
    CeedInt numemodein = 0, ncomp, dim = 1;
    CeedEvalMode *emodein = NULL;
    CeedBasis basisin = NULL;
@@ -109,7 +110,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    }
 
    // Determine active output basis
-   ierr = CeedQFunctionGetFields(qf, NULL, &qffields); CeedChk(ierr);
+   ierr = CeedQFunctionGetFields(qf, &numinputfields, NULL,
+      &numoutputfields, &qffields); CeedChk(ierr);
    CeedInt numemodeout = 0;
    CeedEvalMode *emodeout = NULL;
    CeedBasis basisout = NULL;
