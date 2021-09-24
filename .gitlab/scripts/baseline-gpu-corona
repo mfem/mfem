@@ -39,9 +39,9 @@ echo "-----------------------------------------"
 echo " Compiling MFEM serial + $device ..."
 echo "-----------------------------------------"
 
-srun -N 1 -p mi60 -t 10 tests/gitlab/build_and_test --spec "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906" --build-root "${BUILD_ROOT}" --data --deps-only
+srun -N 1 -p mi60 -t 10 tests/gitlab/build_and_test --spec "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906" --build-root "${BUILD_ROOT}" --deps-only
 
-srun -N 1 -p mi60 -t 10 tests/gitlab/build_and_test --build-root "${BUILD_ROOT}" --data --build-only
+srun -N 1 -p mi60 -t 10 tests/gitlab/build_and_test --build-root "${BUILD_ROOT}" --build-only
 
 # Make sure "." is the first directory in the path
 export PATH=.:"$PATH"
@@ -77,9 +77,9 @@ echo "-----------------------------------------"
 echo " Compiling MFEM parallel + $device..."
 echo "-----------------------------------------"
 
-srun -N 1 -p mi60 -t 10 -N 1 tests/gitlab/build_and_test --spec "@develop%gcc@8.3.1+mpi+rocm amdgpu_target=gfx906" --build-root "${BUILD_ROOT}" --data --deps-only
+srun -N 1 -p mi60 -t 10 -N 1 tests/gitlab/build_and_test --spec "@develop%gcc@8.3.1+mpi+rocm amdgpu_target=gfx906" --build-root "${BUILD_ROOT}" --deps-only
 
-srun -N 1 -p mi60 -t 10 -N 1 tests/gitlab/build_and_test --build-root "${BUILD_ROOT}" --data --build-only
+srun -N 1 -p mi60 -t 10 -N 1 tests/gitlab/build_and_test --build-root "${BUILD_ROOT}" --build-only
 
 
 # Special parallel runs on 1 processor
