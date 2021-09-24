@@ -343,12 +343,12 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    if (isComposite)
    {
       ierr = CeedOperatorGetFields(subops[0], &numinputfields, &inputfields,
-         &numoutputfields, NULL); CeedChk(ierr);
+                                   &numoutputfields, NULL); CeedChk(ierr);
    }
    else
    {
       ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
-         &numoutputfields, NULL); CeedChk(ierr);
+                                   &numoutputfields, NULL); CeedChk(ierr);
    }
 
    CeedVector if_vector;
