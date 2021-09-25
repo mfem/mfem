@@ -65,6 +65,29 @@ public:
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
+public:
+   /** Settings for the output behavior of the iterative solver. Suarantees to
+       supress all outputs by default.
+     */
+   struct PrintOptions
+   {
+      /** A summary of the solver process will be reported after the last
+          iteration
+        */
+      bool summary = false;
+      /** If a fatal problem has been detected some context-specific
+          information will be reported
+        */
+      bool errors = false;
+      /** If a non-fatal problem has been detected some context-specific
+          information will be reported
+        */
+      bool warnings = false;
+      /// Detailed information about each iteration will be reported
+      bool iteration_details = false;
+   };
+
+
 #ifdef MFEM_USE_MPI
 private:
    int dot_prod_type; // 0 - local, 1 - global over 'comm'
@@ -73,15 +96,43 @@ private:
 
 protected:
    const Operator *oper;
-   Solver *prec;
+   Solver *prec; //< Left preconditioner
    IterativeSolverMonitor *monitor = nullptr;
 
-   int max_iter, print_level;
-   double rel_tol, abs_tol;
+   /** @name Report
+      These options control the internal reporting behavior into ::mfem::out
+      of the iterative solvers.
+     */
+   ///@{
+   /** Legacy print level definition, which is left for compatibility with
+       custom iterative solvers. See #print_options for more information.
+     */
+   int print_level;
+   /** @brief Output behavior for the iterative solver.
+       This option primarily controls the output behavior of the iterative
+       solvers provided by this library. This member must be synchronized with
+       #print_level to ensure compatibility with custom iterative solvers.
+       See PR2519 for some discussion.
+     */
+   PrintOptions print_options;
+   ///@}
 
-   // stats
-   mutable int final_iter, converged;
+   /** @name Convergence
+    */
+   ///@{
+   int max_iter; //< Iteration threshold
+   double rel_tol; //< Convergence criterion: $ ||r|| <= rel_{tol}*||r_0|| $
+   double abs_tol; //< Convergence criterion: $ ||r|| <= abs_{tol} $
+   ///@}
+
+   /** @name Stats
+       Buffer for the stats which should be reported by specializations.
+     */
+   ///@{
+   mutable int final_iter;
+   mutable bool converged;
    mutable double final_norm;
+   ///@}
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
@@ -95,20 +146,46 @@ public:
    IterativeSolver(MPI_Comm comm_);
 #endif
 
+   /** \addtogroup Convergence
+     */
+   ///@{
    void SetRelTol(double rtol) { rel_tol = rtol; }
    void SetAbsTol(double atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
-   void SetPrintLevel(int print_lvl);
+   ///@}
 
+   /** @ingroup Report
+       Directly set the behavior on which information will be printed to ::mfem::out.
+       The behavior for the print level for all iterative solvers is
+       -1: Suppress all outputs
+        0: Print information about all detected issues (e.g. no convergence)
+        1: Same as level 0, but with detailed information about each iteration
+        2: Same as level 0, but with a summary of the iterative process
+       >2: Custom print options which are dependent on the specific solver
+
+       In the MPI build just the rank 0 node produces outputs.
+     */
+   virtual void SetPrintLevel(int print_lvl);
+
+   /** @ingroup Report
+       Sets the information reporting behavior in a backwards compatible way.
+       In the MPI build just the rank 0 node produces outputs.
+    */
+   void SetPrintLevel(PrintOptions);
+
+   /** \addtogroup Stats
+     */
+   ///@{
    int GetNumIterations() const { return final_iter; }
-   int GetConverged() const { return converged; }
+   bool GetConverged() const { return converged; }
    double GetFinalNorm() const { return final_norm; }
+   ///@}
 
    /// This should be called before SetOperator
    virtual void SetPreconditioner(Solver &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   virtual void SetOperator(const Operator &op);
+   virtual void SetOperator(const Operator &op) override;
 
    /// Set the iterative solver monitor
    void SetMonitor(IterativeSolverMonitor &m)
