@@ -71,8 +71,12 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
 #ifdef MFEM_USE_MPI
-   int rank;
-   MPI_Comm_rank(comm, &rank);
+   int rank = 0;
+   if(comm != MPI_COMM_NULL)
+   {
+      MPI_Comm_rank(comm, &rank);
+   }
+
    if (rank == 0)
    {
       print_level = print_lvl;
