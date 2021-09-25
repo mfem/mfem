@@ -70,6 +70,50 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
+#ifdef MFEM_USE_MPI
+   int rank;
+   MPI_Comm_rank(comm, &rank);
+   if (rank == 0)
+   {
+      print_level = print_lvl;
+   }
+#endif
+
+   print_options = PrintOptions();
+   switch (print_level)
+   {
+      case -1:
+         break;
+
+      case 0:
+         print_options.errors = true;
+         print_options.warnings = true;
+         break;
+
+      case 1:
+         print_options.errors = true;
+         print_options.warnings = true;
+         print_options.iteration_details = true;
+         break;
+
+      case 2:
+         print_options.errors = true;
+         print_options.warnings = true;
+         print_options.summary = true;
+         break;
+
+      default:
+#ifdef MFEM_USE_MPI
+         if (rank == 0)
+#endif
+            MFEM_WARNING("Unknown print level " << print_level <<
+                         ". Defaulting to level 0.");
+
+         print_options.errors = true;
+         print_options.warnings = true;
+         break;
+   }
+
 #ifndef MFEM_USE_MPI
    print_level = print_lvl;
 #else
@@ -84,6 +128,53 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
       if (rank == 0)
       {
          print_level = print_lvl;
+      }
+      else // Suppress output.
+      {
+         print_options = PrintOptions();
+      }
+   }
+#endif
+
+
+}
+
+void IterativeSolver::SetPrintLevel(PrintOptions options)
+{
+   print_options = options;
+
+   // Some heuristics to guess an appropriate print level
+   int derived_print_level = [](PrintOptions options)->int
+   {
+      if (options.errors)
+      {
+         if (options.warnings)
+         {
+            return 1;
+         }
+         else if (options.summary)
+         {
+            return 2;
+         }
+         return 0;
+      }
+      return -1;
+   }(options);
+
+#ifndef MFEM_USE_MPI
+   print_level = derived_print_level;
+#else
+   if (dot_prod_type == 0)
+   {
+      print_level = derived_print_level;
+   }
+   else
+   {
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      if (rank == 0)
+      {
+         print_level = derived_print_level;
       }
    }
 #endif
@@ -444,7 +535,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          prec->Mult(r, z);  // z = B r
          add(x, 1.0, z, x); // x = x + B (b - A x)
       }
-      converged = 1;
+      converged = true;
       final_iter = i;
       return;
    }
@@ -461,7 +552,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          prec->Mult(r, z);  // z = B r
          add(x, 1.0, z, x); // x = x + B (b - A x)
       }
-      converged = 1;
+      converged = true;
       final_iter = i;
       return;
    }
@@ -498,14 +589,14 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    r0 = std::max(nom*rel_tol, abs_tol);
    if (nom <= r0)
    {
-      converged = 1;
+      converged = true;
       final_iter = 0;
       final_norm = nom;
       return;
    }
 
    // start iteration
-   converged = 0;
+   converged = false;
    final_iter = max_iter;
    for (i = 1; true; )
    {
@@ -546,7 +637,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "||Br_0|| = " << nom0 << '\n'
                       << "||Br_N|| = " << nom << '\n'
                       << "Number of SLI iterations: " << i << '\n';
-         converged = 1;
+         converged = true;
          final_iter = i;
          break;
       }
@@ -655,7 +746,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                    << nom << '\n';
       }
-      converged = 0;
+      converged = false;
       final_iter = 0;
       final_norm = nom;
       return;
@@ -663,7 +754,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
-      converged = 1;
+      converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
       return;
@@ -681,7 +772,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       if (den == 0.0)
       {
-         converged = 0;
+         converged = false;
          final_iter = 0;
          final_norm = sqrt(nom);
          return;
@@ -689,7 +780,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
 
    // start iteration
-   converged = 0;
+   converged = false;
    final_iter = max_iter;
    for (i = 1; true; )
    {
@@ -714,7 +805,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                       << betanom << '\n';
          }
-         converged = 0;
+         converged = false;
          final_iter = i;
          break;
       }
@@ -738,7 +829,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
                       << betanom << '\n';
          }
-         converged = 1;
+         converged = true;
          final_iter = i;
          break;
       }
@@ -937,7 +1028,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       final_norm = beta;
       final_iter = 0;
-      converged = 1;
+      converged = true;
       goto finish;
    }
 
@@ -998,7 +1089,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
             Update(x, i, H, s, v);
             final_norm = resid;
             final_iter = j;
-            converged = 1;
+            converged = true;
             goto finish;
          }
 
@@ -1035,14 +1126,14 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       {
          final_norm = beta;
          final_iter = j;
-         converged = 1;
+         converged = true;
          goto finish;
       }
    }
 
    final_norm = beta;
    final_iter = max_iter;
-   converged = 0;
+   converged = false;
 
 finish:
    if (print_level == 1 || print_level == 3)
@@ -1096,7 +1187,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       final_norm = beta;
       final_iter = 0;
-      converged = 1;
+      converged = true;
       return;
    }
 
@@ -1176,7 +1267,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             Update(x, i, H, s, z);
             final_norm = resid;
             final_iter = j;
-            converged = 1;
+            converged = true;
 
             if (print_level == 2)
             {
@@ -1207,7 +1298,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       {
          final_norm = beta;
          final_iter = j;
-         converged = 1;
+         converged = true;
 
          if (print_level == 2)
          {
@@ -1228,7 +1319,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (v[i]) { delete v[i]; }
       if (z[i]) { delete z[i]; }
    }
-   converged = 0;
+   converged = false;
 
    if (print_level >= 0)
    {
@@ -1312,7 +1403,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    {
       final_norm = resid;
       final_iter = 0;
-      converged = 1;
+      converged = true;
       return;
    }
 
@@ -1329,7 +1420,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
          final_norm = resid;
          final_iter = i;
-         converged = 0;
+         converged = false;
          return;
       }
       if (i == 1)
@@ -1363,7 +1454,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
                       << "   ||s|| = " << resid << '\n';
          final_norm = resid;
          final_iter = i;
-         converged = 1;
+         converged = true;
          return;
       }
       if (print_level >= 1)
@@ -1396,21 +1487,21 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       {
          final_norm = resid;
          final_iter = i;
-         converged = 1;
+         converged = true;
          return;
       }
       if (omega == 0)
       {
          final_norm = resid;
          final_iter = i;
-         converged = 0;
+         converged = false;
          return;
       }
    }
 
    final_norm = resid;
    final_iter = max_iter;
-   converged = 0;
+   converged = false;
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
@@ -1462,7 +1553,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    double alpha, delta, rho1, rho2, rho3, norm_goal;
    Vector *z = (prec) ? &u1 : &v1;
 
-   converged = 1;
+   converged = true;
 
    if (!iterative_mode)
    {
@@ -1574,7 +1665,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       Swap(v0, v1);
       Swap(w0, w1);
    }
-   converged = 0;
+   converged = false;
    it--;
 
 loop_end:
@@ -1695,13 +1786,13 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
       if (norm <= norm_goal)
       {
-         converged = 1;
+         converged = true;
          break;
       }
 
       if (it >= max_iter)
       {
-         converged = 0;
+         converged = false;
          break;
       }
 
@@ -1723,7 +1814,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
-         converged = 0;
+         converged = false;
          break;
       }
       add(x, -c_scale, c, x);
@@ -1873,13 +1964,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       if (norm <= norm_goal)
       {
-         converged = 1;
+         converged = true;
          break;
       }
 
       if (it >= max_iter)
       {
-         converged = 0;
+         converged = false;
          break;
       }
 
@@ -1887,7 +1978,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
-         converged = 0;
+         converged = false;
          break;
       }
       add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
