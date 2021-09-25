@@ -118,11 +118,13 @@ protected:
    ///@}
 
    /** @name Convergence
+       X denotes the space in which the norm is measured, whose choice depends
+       on the specific iterative solver.
     */
    ///@{
    int max_iter; //< Limit for the number of iterations the solver is allowed to do
-   double rel_tol; //< Convergence criterion: $ ||r|| <= rel_{tol}*||r_0|| $
-   double abs_tol; //< Convergence criterion: $ ||r|| <= abs_{tol} $
+   double rel_tol; //< Convergence criterion: $ ||r||_X <= rel_{tol}*||r_0||_X $
+   double abs_tol; //< Convergence criterion: $ ||r||_X <= abs_{tol} $
    ///@}
 
    /** @name Stats
