@@ -120,7 +120,7 @@ protected:
    /** @name Convergence
     */
    ///@{
-   int max_iter; //< Iteration threshold
+   int max_iter; //< Limit for the number of iterations the solver is allowed to do
    double rel_tol; //< Convergence criterion: $ ||r|| <= rel_{tol}*||r_0|| $
    double abs_tol; //< Convergence criterion: $ ||r|| <= abs_{tol} $
    ///@}
@@ -155,8 +155,8 @@ public:
    ///@}
 
    /** @ingroup Report
-       Directly set the behavior on which information will be printed to ::mfem::out.
-       The behavior for the print level for all iterative solvers is
+       Old way to directly set the behavior on which information will be printed
+       to ::mfem::out. The behavior for the print level for all iterative solvers is
        -1: Suppress all outputs
         0: Print information about all detected issues (e.g. no convergence)
         1: Same as level 0, but with detailed information about each iteration
@@ -164,12 +164,20 @@ public:
        >2: Custom print options which are dependent on the specific solver
 
        In the MPI build just the rank 0 node produces outputs.
+
+       @note It is recommended to use SetPrintLevel(PrintOptions) over this method.
+         If additional custom printing options are required for a derived iterative
+         solver a new SetPrintLevel(PrintOptions) with a custom PrintOptions struct
+         can be defined.
      */
    virtual void SetPrintLevel(int print_lvl);
 
    /** @ingroup Report
        Sets the information reporting behavior in a backwards compatible way.
        In the MPI build just the rank 0 node produces outputs.
+
+       @note It is recommended to define new PrintOption structs if more custom
+         print levels should be supported for a subclass.
     */
    void SetPrintLevel(PrintOptions);
 
