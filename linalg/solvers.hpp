@@ -66,8 +66,8 @@ public:
 class IterativeSolver : public Solver
 {
 public:
-   /** Settings for the output behavior of the iterative solver. Suarantees to
-       supress all outputs by default.
+   /** Settings for the output behavior of the iterative solver. Guarantees to
+       suppress all outputs by default.
      */
    struct PrintOptions
    {
@@ -91,7 +91,7 @@ public:
 #ifdef MFEM_USE_MPI
 private:
    int dot_prod_type; // 0 - local, 1 - global over 'comm'
-   MPI_Comm comm;
+   MPI_Comm comm = MPI_COMM_NULL;
 #endif
 
 protected:
@@ -101,7 +101,7 @@ protected:
 
    /** @name Report
       These options control the internal reporting behavior into ::mfem::out
-      of the iterative solvers.
+      and ::mfem::err of the iterative solvers.
      */
    ///@{
    /** Legacy print level definition, which is left for compatibility with
@@ -156,7 +156,8 @@ public:
 
    /** @ingroup Report
        Old way to directly set the behavior on which information will be printed
-       to ::mfem::out. The behavior for the print level for all iterative solvers is
+       to ::mfem::out and ::mfem::err. The behavior for the print level for all
+       iterative solvers is
        -1: Suppress all outputs
         0: Print information about all detected issues (e.g. no convergence)
         1: Same as level 0, but with detailed information about each iteration
@@ -174,7 +175,9 @@ public:
 
    /** @ingroup Report
        Sets the information reporting behavior in a backwards compatible way.
-       In the MPI build just the rank 0 node produces outputs.
+       In the MPI build just the rank 0 node produces outputs, if MPI is
+       initialized correctly. Errors are output to ::mfem::err and all other
+       information to ::mfem::out.
 
        @note It is recommended to define new PrintOption structs if more custom
          print levels should be supported for a subclass.
