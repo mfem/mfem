@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
@@ -11,17 +9,11 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# This script is meant to be launched from the root directory of MFEM in order
-# to fetch a copy of uberenv configured for MFEM.
+# Defines the following variables:
+#   - PARELAG_FOUND
+#   - PARELAG_LIBRARIES
+#   - PARELAG_INCLUDE_DIRS
 
-set -o errexit
-set -o nounset
-
-uberenv_url="https://github.com/mfem/mfem-uberenv.git"
-uberenv_ref="a268844932472ff9bec9caaee449ffecd4bdf2f3"
-
-[[ ! -d tests/uberenv ]] && git clone ${uberenv_url} tests/uberenv
-cd tests/uberenv
-git fetch origin ${uberenv_ref}
-git checkout ${uberenv_ref}
-cd -
+include(MfemCmakeUtilities)
+mfem_find_package(PARELAG PARELAG PARELAG_DIR "" "" "" ""
+  "Paths to headers required by ParELAG." "Libraries required by ParELAG.")
