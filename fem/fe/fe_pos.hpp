@@ -160,7 +160,7 @@ class H1Pos_HexahedronElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   // See comment in H1Pos_SegementElement.
+   // See comment in H1Pos_SegmentElement.
    mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
 #endif
 

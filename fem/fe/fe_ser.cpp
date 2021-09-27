@@ -244,5 +244,4 @@ void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation
    }
 }
 
-
 }
