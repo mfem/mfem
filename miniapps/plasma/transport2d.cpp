@@ -933,11 +933,15 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
 void InitialCondition(const Vector &x, Vector &y);
 
+void record_cmd_line(int argc, char *argv[]);
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi(argc, argv);
    if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+
+   if (mpi.Root()) { record_cmd_line(argc, argv); }
 
    SolverParams ttol;
    ttol.lin_abs_tol = 0.0;
@@ -2380,6 +2384,33 @@ int main(int argc, char *argv[])
           CommonCoefs::MAGNETIC_FIELD_COEF) != B3Coef) { delete B3Coef; }
 
    return 0;
+}
+
+void record_cmd_line(int argc, char *argv[])
+{
+   ofstream ofs("transport2d_cmd.txt");
+
+   for (int i=0; i<argc; i++)
+   {
+      ofs << argv[i] << " ";
+      if (strcmp(argv[i], "-amr-weights"        ) == 0 ||
+          strcmp(argv[i], "-amr-w"              ) == 0 ||
+          strcmp(argv[i], "-equation-weights"   ) == 0 ||
+          strcmp(argv[i], "-eqn-w"              ) == 0 ||
+          strcmp(argv[i], "-field-magnitudes"   ) == 0 ||
+          strcmp(argv[i], "-fld-m"              ) == 0 ||
+          strcmp(argv[i], "-ode-weights"        ) == 0 ||
+          strcmp(argv[i], "-ode-w"              ) == 0 ||
+          strcmp(argv[i], "-equation-term-flags") == 0 ||
+          strcmp(argv[i], "-term-flags"         ) == 0 ||
+          strcmp(argv[i], "-visualization-flags") == 0 ||
+          strcmp(argv[i], "-vis-flags"          ) == 0)
+      {
+         ofs << "'" << argv[++i] << "' ";
+      }
+   }
+   ofs << endl << flush;
+   ofs.close();
 }
 
 void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err)
