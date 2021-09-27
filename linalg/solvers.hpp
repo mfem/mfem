@@ -69,24 +69,23 @@ public:
    /** @brief Settings for the output behavior of the iterative solver. Guarantees to
        supress all outputs by default.
      */
-   struct PrintOptions
+   enum PrintLevel
    {
-      /** A summary of the solver process will be reported after the last
-          iteration
-        */
-      bool summary = false;
       /** If a fatal problem has been detected some context-specific
           information will be reported
         */
-      bool errors = false;
+      ERRORS = 1,
       /** If a non-fatal problem has been detected some context-specific
           information will be reported
         */
-      bool warnings = false;
+      WARNINGS = 2,
+      /** A summary of the solver process will be reported after the last
+          iteration
+        */
+      SUMMARY = 4,
       /// Detailed information about each iteration will be reported
-      bool iteration_details = false;
+      ITERATION_DETAILS = 8
    };
-
 
 #ifdef MFEM_USE_MPI
 private:
@@ -110,7 +109,7 @@ protected:
 
        See #print_options for more information.
      */
-   int print_level;
+   MFEM_DEPRECATED int print_level;
 
    /** @brief Output behavior for the iterative solver.
 
@@ -119,7 +118,7 @@ protected:
        #print_level to ensure compatibility with custom iterative solvers.
        See PR2519 for some discussion.
      */
-   PrintOptions print_options;
+   PrintLevel print_options;
 
    ///@}
 
@@ -202,7 +201,7 @@ public:
        @note It is recommended to define new PrintOption structs if more custom
          print levels should be supported for a subclass.
     */
-   void SetPrintLevel(PrintOptions);
+   void SetPrintLevel(PrintLevel);
 
    /** \addtogroup Stats
      */
