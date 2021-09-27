@@ -40,6 +40,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_vector.cpp
+  mesh/test_fms.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_pmesh.cpp

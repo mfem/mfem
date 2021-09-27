@@ -19,6 +19,8 @@
 //               mpirun -np 3 ex4p -m ../data/amr-quad.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
+//               mpirun -np 4 ex4p -m ../data/ref-prism.mesh -o 1
+//               mpirun -np 4 ex4p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
 //
 // Device sample runs:
@@ -135,9 +137,7 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
-   //    meshes need to be reoriented before we can define high-order Nedelec
-   //    spaces on them (this is needed in the ADS solver below).
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -147,7 +147,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.

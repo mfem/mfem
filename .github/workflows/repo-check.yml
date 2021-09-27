@@ -63,7 +63,7 @@ jobs:
         exit 1
 
   code-style:
-    runs-on: ubuntu-16.04 # needed for astyle 2.05.1
+    runs-on: ubuntu-18.04
 
     steps:
     - name: checkout mfem
@@ -71,7 +71,7 @@ jobs:
 
     - name: get astyle
       run: |
-        sudo apt-get install astyle=2.05.1-0ubuntu1
+        sudo apt-get install astyle=3.1-1ubuntu2
 
     - name: style check
       run: |
