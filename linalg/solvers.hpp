@@ -66,7 +66,7 @@ public:
 class IterativeSolver : public Solver
 {
 public:
-   /** Settings for the output behavior of the iterative solver. Suarantees to
+   /** @brief Settings for the output behavior of the iterative solver. Guarantees to
        supress all outputs by default.
      */
    struct PrintOptions
@@ -104,34 +104,51 @@ protected:
       of the iterative solvers.
      */
    ///@{
-   /** Legacy print level definition, which is left for compatibility with
-       custom iterative solvers. See #print_options for more information.
+
+   /** @brief Legacy print level definition, which is left for compatibility with
+       custom iterative solvers.
+
+       See #print_options for more information.
      */
    int print_level;
+
    /** @brief Output behavior for the iterative solver.
-       This option primarily controls the output behavior of the iterative
+
+       This primarily controls the output behavior of the iterative
        solvers provided by this library. This member must be synchronized with
        #print_level to ensure compatibility with custom iterative solvers.
        See PR2519 for some discussion.
      */
    PrintOptions print_options;
+
    ///@}
 
+
    /** @name Convergence
+       Termination criterions for the iterative solvers.
     */
    ///@{
-   int max_iter; //< Limit for the number of iterations the solver is allowed to do
-   double rel_tol; //< Convergence criterion: $ ||r|| <= rel_{tol}*||r_0|| $
-   double abs_tol; //< Convergence criterion: $ ||r|| <= abs_{tol} $
+
+   /// Limit for the number of iterations the solver is allowed to do
+   int max_iter;
+
+   /// Convergence criterion: $ ||r|| <= rel_{tol}*||r_0|| $
+   double rel_tol;
+
+   /// Convergence criterion: $ ||r|| <= abs_{tol} $
+   double abs_tol;
+
    ///@}
 
    /** @name Stats
        Buffer for the stats which should be reported by specializations.
      */
    ///@{
+
    mutable int final_iter;
    mutable bool converged;
    mutable double final_norm;
+
    ///@}
 
    double Dot(const Vector &x, const Vector &y) const;
