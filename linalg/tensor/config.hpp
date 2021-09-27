@@ -258,7 +258,8 @@ template <typename Config>
 constexpr bool config_use_zthreads = config_use_zthreads_v<Config>::value;
 
 template <typename... Configs>
-std::ostream& operator<<(std::ostream &os, const KernelConfig<Configs...> &c)
+std::ostream& operator<<(std::ostream &os,
+                         const KernelConfig<Configs...> &config)
 {
    using C = KernelConfig<Configs...>;
    os << "Kernel configuration:" << std::endl;
@@ -268,13 +269,19 @@ std::ostream& operator<<(std::ostream &os, const KernelConfig<Configs...> &c)
    os << "   Tensor: "
       << (is_tensor_config<C> ? "Yes":"No")
       << std::endl;
-   os << "   Dofs is: "
+   os << "   Compilation Dofs is: "
       << ( get_config_dofs<C> == 0 ?
          "Dynamic" : std::to_string(get_config_dofs<C>) )
       << std::endl;
-   os << "   Quads is: "
+   os << "   Runtime Dofs is: "
+      << config.dofs
+      << std::endl;
+   os << "   Compilation Quads is: "
       << ( get_config_quads<C> == 0 ?
          "Dynamic" : std::to_string(get_config_quads<C>) )
+      << std::endl;
+   os << "   Runtime Quads is: "
+      << config.quads
       << std::endl;
    os << "   BatchSize is: "
       << get_config_batchsize<C>
