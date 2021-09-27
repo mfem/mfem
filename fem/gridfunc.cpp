@@ -14,6 +14,7 @@
 #include "gridfunc.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
+#include "../general/tic_toc.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -4136,13 +4137,19 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       nsd = ufes->GetMesh()->attributes.Max();
    }
 
+   StopWatch chrono;
+   double time = 0.0;
    double total_error = 0.0;
    for (int iface = 0; iface < nfaces; iface++)
    {
 
       // 1. Find all elements in the face patch.
       Array<int> neighbor_elems;
+      chrono.Clear();
+      chrono.Start();
       GetFaceElements(*mesh, iface, neighbor_elems);
+      chrono.Stop();
+      time += chrono.RealTime();
       int num_neighbor_elems = neighbor_elems.Size();
 
       // 2. Check if boundary face and continue if true.
@@ -4343,6 +4350,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                     MPI_SUM, pfes->GetComm());
    }
 #endif // MFEM_USE_MPI
+   mfem::out << "GetFaceElements time : " << time << endl;
    return std::sqrt(total_error);
 }
 

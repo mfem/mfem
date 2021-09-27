@@ -213,9 +213,9 @@ public:
     and a posteriori error estimates. Part 2: Error estimates and adaptivity.
     Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
 
-    Each averaging technique yields reliable a posteriori error control in
-    FEM on unstructured grids. Part II: Higher order FEM.
-    Math. Comp. 71(239), 971-994 (2002)
+    Bartels, S. and Carstensen, C., Each averaging technique yields reliable 
+    a posteriori error control in FEM on unstructured grids. Part II: Higher
+    order FEM. Math. Comp. 71(239), 971-994 (2002)
 
     The required BilinearFormIntegrator must implement the methods
     ComputeElementFlux() and ComputeFluxEnergy().
