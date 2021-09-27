@@ -456,7 +456,7 @@ Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their a
 
 3. To ensure the quality of the PR by making sure that the code adheres to the [Developer Guidelines](#developer-guidelines), e.g. all methods, data members, and functions have documentation, including data ownership and lifetime, new examples/miniapps have a corresponding PR in mfem/web, major features have `CHANGELOG` entries, etc.
 
-3. To seek help form the editors in case of difficulties.
+3. To seek help from the editors in case of difficulties.
 
 4. To complete the review in a timely manner: 3 weeks from assignment.
 
