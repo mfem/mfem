@@ -29,10 +29,10 @@ if (MFEM_USE_PARELAG AND MFEM_USE_MPI)
     MAIN MultilevelHcurlHdivSolver.cpp
     LIBRARIES mfem)
 
-# XXX: The way the libraries are included, by default, in the command line is
-#      based on the idea that MFEM depends on the other libraries. Here, the
-#      setting is such that ParELAG, in fact, depends on MFEM, while MFEM does
-#      not depend on ParELAG. This addresses that issue.
+# The way the libraries are included, by default, in the command line is based
+# on the idea that MFEM depends on the other libraries. Here, the setting is
+# such that ParELAG, in fact, depends on MFEM, while MFEM does not depend on
+# ParELAG. This addresses that issue.
   if (CMAKE_VERSION VERSION_GREATER 2.8.11)
     target_link_libraries(MultilevelHcurlHdivSolver PUBLIC ${TPL_LIBRARIES} mfem)
   else()

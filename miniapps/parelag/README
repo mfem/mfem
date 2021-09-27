@@ -48,8 +48,8 @@ Currently, ParELAG is tested, integrated, and working with HYPRE <= 2.15.1.
 It does not currently benefit from the "big int" capabilities in HYPRE, and does
 not handle the "big_j" in the HYPRE >= 2.16.0 matrix structure.
 
- Using GNU Make
- --------------
+Using GNU Make
+--------------
 
 MFEM needs to be configured to use ParELAG and build its miniapp. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
@@ -71,8 +71,8 @@ directories (mfem/ and parelag/), should build ParELAG, MFEM, and the miniapps:
    parelag/build/$ make
    mfem/$ make miniapps
 
- Using CMake
- --------------
+Using CMake
+-----------
 
 MFEM needs to be configured to use ParELAG and build its miniapp. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
