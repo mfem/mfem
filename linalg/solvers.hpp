@@ -71,6 +71,8 @@ public:
      */
    enum PrintLevel
    {
+      /// Don't print any output
+      NONE = 0,
       /** If a fatal problem has been detected some context-specific
           information will be reported
         */
@@ -109,7 +111,7 @@ protected:
 
        See #print_options for more information.
      */
-   MFEM_DEPRECATED int print_level;
+   MFEM_DEPRECATED int print_level = -1;
 
    /** @brief Output behavior for the iterative solver.
 
@@ -118,7 +120,7 @@ protected:
        #print_level to ensure compatibility with custom iterative solvers.
        See PR2519 for some discussion.
      */
-   PrintLevel print_options;
+   PrintLevel print_options = PrintLevel::NONE;
 
    ///@}
 
@@ -233,6 +235,12 @@ public:
 #endif
 };
 
+inline IterativeSolver::PrintLevel operator|(IterativeSolver::PrintLevel a,
+                                             IterativeSolver::PrintLevel b)
+{
+   return static_cast<IterativeSolver::PrintLevel>(
+             static_cast<int>(a) | static_cast<int>(b));
+}
 
 /// Jacobi smoothing for a given bilinear form (no matrix necessary).
 /** Useful with tensorized, partially assembled operators. Can also be defined
