@@ -135,10 +135,10 @@ protected:
    /// Limit for the number of iterations the solver is allowed to do
    int max_iter;
 
-   /// Convergence criterion: $ ||r||_X <= rel_{tol}*||r_0||_X $
+   /// Convergence criterion: \f$ ||r||_X <= rel_{tol}*||r_0||_X \f$
    double rel_tol;
 
-   /// Convergence criterion: $ ||r||_X <= abs_{tol} $
+   /// Convergence criterion: \f$ ||r||_X <= abs_{tol} \f$
    double abs_tol;
 
    ///@}
