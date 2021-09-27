@@ -612,7 +612,7 @@ int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
    // get (degenerate) faces and assign face attributes
    int v0 = el.node[0], v1 = el.node[1];
    faces.Get(v0, v0, v0, v0)->attribute = vattr1;
-   faces.Get(v1, v1, v1 ,v1)->attribute = vattr2;
+   faces.Get(v1, v1, v1, v1)->attribute = vattr2;
 
    return new_id;
 }
@@ -2283,7 +2283,6 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
-   mesh.elements.SetSize(NElements);
    mesh.elements.SetSize(0);
 
    mesh.boundary.SetSize(0);

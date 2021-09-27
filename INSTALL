@@ -549,7 +549,7 @@ The specific libraries and their options are:
   Options: HYPRE_OPT, HYPRE_LIB.
   Versions: HYPRE >= 2.10.0b  (HYPRE built without CUDA)
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
-            HYPRE >= 2.22.0   (HYPRE built with CUDA)
+            HYPRE >= 2.22.1   (HYPRE built with CUDA)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
@@ -692,7 +692,7 @@ The specific libraries and their options are:
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
-  Versions: HIOP >= 0.4.
+  Versions: HIOP >= 0.4.6.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at

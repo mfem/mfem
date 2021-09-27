@@ -28,7 +28,9 @@
 #define closesocket (::close)
 #else
 #include <winsock.h>
+#ifdef _MSC_VER
 typedef int ssize_t;
+#endif
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
 #endif
