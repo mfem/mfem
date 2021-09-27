@@ -710,6 +710,12 @@ public:
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
+#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_CUDA)
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return;
+#endif
+
    const double jitter = 1./(M_PI*M_PI);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL").
@@ -834,7 +840,7 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({302,321})).Run(id,all);
 
-   // The folowing tests need more iterations to converge between PA & non-PA
+   // The following tests need more iterations to converge between PA & non-PA
    // They can only be launched with the `--all` command line option
 
    if (!all) { return; }

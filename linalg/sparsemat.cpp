@@ -33,7 +33,12 @@ int SparseMatrix::SparseMatrixCount = 0;
 cusparseHandle_t SparseMatrix::handle = nullptr;
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
-#endif
+#  if CUSPARSE_VERSION >=  11400
+#    define MFEM_CUSPARSE_ALG CUSPARSE_SPMV_CSR_ALG1
+#  else
+#    define MFEM_CUSPARSE_ALG CUSPARSE_CSRMV_ALG1
+#  endif // CUSPARSE_VERSION >= 11400
+#endif // MFEM_USE_CUDA
 
 void SparseMatrix::InitCuSparse()
 {
@@ -679,25 +684,16 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          cusparseCreateMatDescr(&matA_descr);
          cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
          cusparseSetMatType(matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL);
-
 #endif
-
          initBuffers = true;
       }
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
 
-#if CUDA_VERSION >= 11020
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                              CUSPARSE_SPMV_CSR_ALG1, &newBufferSize);
-#elif CUDA_VERSION >= 10010
-      cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
-                              matA_descr,
-                              vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                              CUSPARSE_CSRMV_ALG1, &newBufferSize);
-#endif
+                              MFEM_CUSPARSE_ALG, &newBufferSize);
 
       // Check if we need to resize
       if (newBufferSize > bufferSize)
@@ -707,30 +703,22 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          CuMemAlloc(&dBuffer, bufferSize);
       }
 
-#if CUDA_VERSION >= 11020
+#if CUDA_VERSION >= 10010
       // Update input/output vectors
       cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
       cusparseDnVecSetValues(vecY_descr, d_y);
 
       // Y = alpha A * X + beta * Y
       cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_SPMV_CSR_ALG1, dBuffer);
-#elif CUDA_VERSION >= 10010
-      // Update input/output vectors
-      cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
-      cusparseDnVecSetValues(vecY_descr, d_y);
-
-      // Y = alpha A * X + beta * Y
-      cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
+                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, MFEM_CUSPARSE_ALG, dBuffer);
 #else
       cusparseDcsrmv(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
                      Height(), Width(), J.Capacity(),
                      &alpha, matA_descr,
                      const_cast<double *>(d_A), const_cast<int *>(d_I), const_cast<int *>(d_J),
                      const_cast<double *>(d_x), &beta, d_y);
-#endif
-#endif
+#endif // CUDA_VERSION >= 10010
+#endif // MFEM_USE_CUDA
    }
    else
    {
@@ -2461,52 +2449,67 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
    });
 }
 
+template <bool useFabs>
+static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
+                           const Memory<int> &I, const Memory<int> &J,
+                           const Memory<double> &A, const int height,
+                           const double sc)
+{
+   const bool useDevice = b.UseDevice() || x0.UseDevice() || x1.UseDevice();
+
+   const auto bp  = b.Read(useDevice);
+   const auto x0p = x0.Read(useDevice);
+   auto       x1p = x1.Write(useDevice);
+
+   const auto Ip = Read(I, height+1, useDevice);
+   const auto Jp = Read(J, J.Capacity(), useDevice);
+   const auto Ap = Read(A, J.Capacity(), useDevice);
+
+   MFEM_FORALL_SWITCH(useDevice, i, height,
+   {
+      double resi = bp[i], norm = 0.0;
+      for (int j = Ip[i]; j < Ip[i+1]; j++)
+      {
+         resi -= Ap[j] * x0p[Jp[j]];
+         if (useFabs)
+         {
+            norm += fabs(Ap[j]);
+         }
+         else
+         {
+            norm += Ap[j];
+         }
+      }
+      if (norm > 0.0)
+      {
+         x1p[i] = x0p[i] + sc * resi / norm;
+      }
+      else
+      {
+         if (useFabs)
+         {
+            MFEM_ABORT_KERNEL("L1 norm of row is zero.");
+         }
+         else
+         {
+            MFEM_ABORT_KERNEL("sum of row is zero.");
+         }
+      }
+   });
+}
+
 void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
                            double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
-
-   for (int i = 0; i < height; i++)
-   {
-      double resi = b(i), norm = 0.0;
-      for (int j = I[i]; j < I[i+1]; j++)
-      {
-         resi -= A[j] * x0(J[j]);
-         norm += fabs(A[j]);
-      }
-      if (norm > 0.0)
-      {
-         x1(i) = x0(i) + sc * resi / norm;
-      }
-      else
-      {
-         MFEM_ABORT("L1 norm of row " << i << " is zero.");
-      }
-   }
+   JacobiDispatch<true>(b,x0,x1,I,J,A,height,sc);
 }
 
 void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
                            double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
-
-   for (int i = 0; i < height; i++)
-   {
-      double resi = b(i), sum = 0.0;
-      for (int j = I[i]; j < I[i+1]; j++)
-      {
-         resi -= A[j] * x0(J[j]);
-         sum  += A[j];
-      }
-      if (sum > 0.0)
-      {
-         x1(i) = x0(i) + sc * resi / sum;
-      }
-      else
-      {
-         MFEM_ABORT("sum of row " << i << " is zero.");
-      }
-   }
+   JacobiDispatch<false>(b,x0,x1,I,J,A,height,sc);
 }
 
 void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
