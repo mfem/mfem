@@ -122,6 +122,10 @@ protected:
 
    ///@}
 
+   PrintLevel ConvertFromLegacyPrintLevel(int);
+
+   // Some heuristics to guess an appropriate legacy print level
+   int GuessLegacyPrintLevel(PrintLevel);
 
    /** @name Convergence
        @brief Termination criterions for the iterative solvers.
