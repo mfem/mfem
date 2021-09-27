@@ -55,6 +55,174 @@ using DynamicBasisNonTensor = BasisTensor<Dim,
 template <int Dim, int Q, int D>
 using StaticBasisNonTensor = BasisTensor<Dim,false,StaticDTensor<Q,D>>;
 
+template <typename KernelConfig>
+struct ConfigBasis
+{
+   using Config = KernelConfig;
+
+   Config config;
+   const double *B;
+   const double *Bt;
+   const double *G;
+   const double *Gt;
+
+   ConfigBasis(const Config &config,
+               const double *b,
+               const double *bt,
+               const double *g = nullptr,
+               const double *gt = nullptr)
+   : config(config), B(b), Bt(bt), G(g), Gt(gt)
+   { }
+
+   MFEM_HOST_DEVICE
+   int GetQuads() const
+   {
+      return config.quads;
+   }
+
+   MFEM_HOST_DEVICE
+   int GetDofs() const
+   {
+      return config.dofs;
+   }
+   MFEM_HOST_DEVICE inline
+   auto GetB(double* shared_mem) const
+   {
+      constexpr int Dim = get_config_dim<Config>;
+      constexpr int Q = get_config_quads<Config>;
+      constexpr int D = get_config_dofs<Config>;
+      StaticSharedBasisTensor<Dim,Q,D> s_B(shared_mem,Q,D);
+      MFEM_FOREACH_THREAD(d,y,D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q)
+         {
+            s_B(q,d) = B[q+Q*d];
+         }
+      }
+      return s_B;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetBt(double* shared_mem) const
+   {
+      constexpr int Dim = get_config_dim<Config>;
+      constexpr int Q = get_config_quads<Config>;
+      constexpr int D = get_config_dofs<Config>;
+      StaticSharedBasisTensor<Dim,D,Q> s_Bt(shared_mem,D,Q);
+      MFEM_FOREACH_THREAD(q,y,Q)
+      {
+         MFEM_FOREACH_THREAD(d,x,D)
+         {
+            s_Bt(d,q) = Bt[d+D*q];
+         }
+      }
+      return s_Bt;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetG(double* shared_mem) const
+   {
+      constexpr int Dim = get_config_dim<Config>;
+      constexpr int Q = get_config_quads<Config>;
+      constexpr int D = get_config_dofs<Config>;
+      StaticSharedBasisTensor<Dim,Q,D> s_G(shared_mem,Q,D);
+      MFEM_FOREACH_THREAD(d,y,D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q)
+         {
+            s_G(q,d) = G[q+Q*d];
+         }
+      }
+      return s_G;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto GetGt(double* shared_mem) const
+   {
+      constexpr int Dim = get_config_dim<Config>;
+      constexpr int Q = get_config_quads<Config>;
+      constexpr int D = get_config_dofs<Config>;
+      StaticSharedBasisTensor<Dim,D,Q> s_Gt(shared_mem,D,Q);
+      MFEM_FOREACH_THREAD(q,y,Q)
+      {
+         MFEM_FOREACH_THREAD(d,x,D)
+         {
+            s_Gt(d,q) = Gt[d+D*q];
+         }
+      }
+      return s_Gt;
+   }
+
+   // MFEM_HOST_DEVICE inline
+   // auto GetB(double* shared_mem) const
+   // {
+   //    constexpr int Dim = get_config_dim<Config>;
+   //    const int quads1D = config.quads;
+   //    const int dofs1D = config.dofs;
+   //    DynamicSharedBasisTensor<Dim> s_B(shared_mem,quads1D,dofs1D);
+   //    MFEM_FOREACH_THREAD(d,y,dofs1D)
+   //    {
+   //       MFEM_FOREACH_THREAD(q,x,quads1D)
+   //       {
+   //          s_B(q,d) = B[q+quads1D*d];
+   //       }
+   //    }
+   //    return s_B;
+   // }
+
+   // MFEM_HOST_DEVICE inline
+   // auto GetBt(double* shared_mem) const
+   // {
+   //    constexpr int Dim = get_config_dim<Config>;
+   //    const int quads1D = config.quads;
+   //    const int dofs1D = config.dofs;
+   //    DynamicSharedBasisTensor<Dim> s_Bt(shared_mem,dofs1D,quads1D);
+   //    MFEM_FOREACH_THREAD(q,y,quads1D)
+   //    {
+   //       MFEM_FOREACH_THREAD(d,x,dofs1D)
+   //       {
+   //          s_Bt(d,q) = Bt[d+dofs1D*q];
+   //       }
+   //    }
+   //    return s_Bt;
+   // }
+
+   // MFEM_HOST_DEVICE inline
+   // auto GetG(double* shared_mem) const
+   // {
+   //    constexpr int Dim = get_config_dim<Config>;
+   //    const int quads1D = config.quads;
+   //    const int dofs1D = config.dofs;
+   //    DynamicSharedBasisTensor<Dim> s_G(shared_mem,quads1D,dofs1D);
+   //    MFEM_FOREACH_THREAD(d,y,dofs1D)
+   //    {
+   //       MFEM_FOREACH_THREAD(q,x,quads1D)
+   //       {
+   //          s_G(q,d) = G[q+quads1D*d];
+   //       }
+   //    }
+   //    return s_G;
+   // }
+
+   // MFEM_HOST_DEVICE inline
+   // auto GetGt(double* shared_mem) const
+   // {
+   //    constexpr int Dim = get_config_dim<Config>;
+   //    const int quads1D = config.quads;
+   //    const int dofs1D = config.dofs;
+   //    DynamicSharedBasisTensor<Dim> s_Gt(shared_mem,dofs1D,quads1D);
+   //    MFEM_FOREACH_THREAD(q,y,quads1D)
+   //    {
+   //       MFEM_FOREACH_THREAD(d,x,dofs1D)
+   //       {
+   //          s_Gt(d,q) = Gt[d+dofs1D*q];
+   //       }
+   //    }
+   //    return s_Gt;
+   // }
+};
+
+
 /// A structure to access the rank 2 tensor B, G, and B1d, G1d in the tensor case.
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct Basis;
@@ -274,11 +442,12 @@ auto MakeBasis(Config &config,
                const double *g = nullptr,
                const double *gt = nullptr)
 {
-   constexpr int Dim = get_config_dim<Config>;
-   constexpr bool IsTensor = is_tensor_config<Config>;
-   constexpr int Dofs = get_config_dofs<Config>;
-   constexpr int Quads = get_config_quads<Config>;
-   return Basis<Dim,IsTensor,Dofs,Quads>(config,b,bt,g,gt);
+   // constexpr int Dim = get_config_dim<Config>;
+   // constexpr bool IsTensor = is_tensor_config<Config>;
+   // constexpr int Dofs = get_config_dofs<Config>;
+   // constexpr int Quads = get_config_quads<Config>;
+   // return Basis<Dim,IsTensor,Dofs,Quads>(config,b,bt,g,gt);
+   return ConfigBasis<Config>(config,b,bt,g,gt);
 }
 
 /// A structure to represent a transposed basis
@@ -298,6 +467,18 @@ struct Trans
 
    MFEM_HOST_DEVICE
    Trans(const Basis &basis): basis(basis) { }
+
+   MFEM_HOST_DEVICE
+   int GetQuads() const
+   {
+      return basis.GetQuads();
+   }
+
+   MFEM_HOST_DEVICE
+   int GetDofs() const
+   {
+      return basis.GetDofs();
+   }
 
    MFEM_HOST_DEVICE inline
    auto GetB(double* shared_mem) const
@@ -332,6 +513,18 @@ struct Grad
    MFEM_HOST_DEVICE
    Grad(const Basis &basis): basis(basis) { }
 
+   MFEM_HOST_DEVICE
+   int GetQuads() const
+   {
+      return basis.GetQuads();
+   }
+
+   MFEM_HOST_DEVICE
+   int GetDofs() const
+   {
+      return basis.GetDofs();
+   }
+
    MFEM_HOST_DEVICE inline
    auto GetB(double* shared_mem) const
    {
@@ -363,11 +556,23 @@ auto transpose(const Basis<Dim,IsTensor,Dofs,Quads> &basis)
    return Trans<Basis<Dim,IsTensor,Dofs,Quads>>(basis);
 }
 
+template <typename Config> MFEM_HOST_DEVICE inline
+auto transpose(const ConfigBasis<Config> &basis)
+{
+   return Trans<ConfigBasis<Config>>(basis);
+}
+
 /// Functor to transpose a Basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto transpose(const Grad<Basis<Dim,IsTensor,Dofs,Quads>> &G)
 {
    return Trans<Grad<Basis<Dim,IsTensor,Dofs,Quads>>>(G);
+}
+
+template <typename Config> MFEM_HOST_DEVICE inline
+auto transpose(const Grad<ConfigBasis<Config>> &G)
+{
+   return Trans<Grad<ConfigBasis<Config>>>(G);
 }
 
 /// Functor to represent a Basis gradient
@@ -377,14 +582,48 @@ auto grad(const Basis<Dim,IsTensor,Dofs,Quads> &basis)
    return Grad<Basis<Dim,IsTensor,Dofs,Quads>>(basis);
 }
 
+template <typename Config> MFEM_HOST_DEVICE inline
+auto grad(const ConfigBasis<Config> &basis)
+{
+   return Grad<ConfigBasis<Config>>(basis);
+}
+
 template <int Dim, bool IsTensor, int Dofs, int Quads> MFEM_HOST_DEVICE inline
 auto grad(const Trans<Basis<Dim,IsTensor,Dofs,Quads>> &Bt)
 {
    return Trans<Grad<Basis<Dim,IsTensor,Dofs,Quads>>>(grad(Bt.basis));
 }
 
+template <typename Config> MFEM_HOST_DEVICE inline
+auto grad(const Trans<ConfigBasis<Config>> &Bt)
+{
+   return Trans<Grad<ConfigBasis<Config>>>(grad(Bt.basis));
+}
+
 ////////////////
 // Basis Traits
+
+// is_basis
+template <typename Basis>
+struct is_basis_v
+{
+   static constexpr bool value = false;
+};
+
+template <int Dim, bool IsTensor, int Dofs, int Quads>
+struct is_basis_v<Basis<Dim,IsTensor,Dofs,Quads>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename Config>
+struct is_basis_v<ConfigBasis<Config>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename Basis>
+constexpr bool is_basis = is_basis_v<Basis>::value;
 
 // get_basis_dim
 template <typename Basis>
@@ -397,6 +636,12 @@ template <int Dim, bool IsTensor, int D, int Q>
 struct get_basis_dim_v<Basis<Dim,IsTensor,D,Q>>
 {
    static constexpr int value = Dim;
+};
+
+template <typename Config>
+struct get_basis_dim_v<ConfigBasis<Config>>
+{
+   static constexpr int value = get_config_dim<Config>;
 };
 
 template <int Dim, bool IsTensor, typename TensorType>
@@ -427,6 +672,12 @@ struct is_tensor_basis_v<Basis<Dim,IsTensor,D,Q>>
    static constexpr bool value = IsTensor;
 };
 
+template <typename Config>
+struct is_tensor_basis_v<ConfigBasis<Config>>
+{
+   static constexpr bool value = is_tensor_config<Config>;
+};
+
 template <int Dim, bool IsTensor, typename TensorType>
 struct is_tensor_basis_v<BasisTensor<Dim,IsTensor,TensorType>>
 {
@@ -455,6 +706,12 @@ struct is_non_tensor_basis_v<Basis<Dim,IsTensor,D,Q>>
    static constexpr bool value = !IsTensor;
 };
 
+template <typename Config>
+struct is_non_tensor_basis_v<ConfigBasis<Config>>
+{
+   static constexpr bool value = !is_tensor_config<Config>;
+};
+
 template <int Dim, bool IsTensor, typename TensorType>
 struct is_non_tensor_basis_v<BasisTensor<Dim,IsTensor,TensorType>>
 {
@@ -480,6 +737,12 @@ struct get_basis_quads_v<Basis<Dim,IsTensor,Dofs,Quads>>
    static constexpr int value = Quads;
 };
 
+template <typename Config>
+struct get_basis_quads_v<ConfigBasis<Config>>
+{
+   static constexpr int value = get_config_quads<Config>;
+};
+
 // get_basis_dofs
 template <typename Basis>
 struct get_basis_dofs_v;
@@ -488,6 +751,12 @@ template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct get_basis_dofs_v<Basis<Dim,IsTensor,Dofs,Quads>>
 {
    static constexpr int value = Dofs;
+};
+
+template <typename Config>
+struct get_basis_dofs_v<ConfigBasis<Config>>
+{
+   static constexpr int value = get_config_dofs<Config>;
 };
 
 template <int Dim, bool IsTensor, typename TensorType>
@@ -533,40 +802,53 @@ template <typename Basis>
 constexpr int get_basis_dofs = get_basis_dofs_v<Basis>::value;
 
 // get_basis_capacity
-template <typename Basis>
-struct get_basis_capacity_v;
-// {
-//    static constexpr int value = 16*16; // TODO
-// };
+template <typename Basis, typename Enable = void> //std::enable_if_t<is_basis<Basis>> >
+struct get_basis_capacity_v
+{
+   static constexpr int value = 16*16; // TODO
+};
 
 template <int Dim, bool IsTensor>
-struct get_basis_capacity_v<Basis<Dim,IsTensor,Dynamic,Dynamic>>
+struct get_basis_capacity_v<Basis<Dim,IsTensor,Dynamic,Dynamic>,void>
 {
    static constexpr int value = 16*16;
 };
 
 template <int Dim, bool IsTensor, int D, int Q>
-struct get_basis_capacity_v<Basis<Dim,IsTensor,D,Q>>
+struct get_basis_capacity_v<Basis<Dim,IsTensor,D,Q>,void>
 {
    static constexpr int value = D*Q;
 };
 
-template <int Dim, bool IsTensor, int D, int Q>
-struct get_basis_capacity_v<Grad<Basis<Dim,IsTensor,D,Q>>>
+template <typename Config>
+struct get_basis_capacity_v<ConfigBasis<Config>,
+std::enable_if_t<
+   get_config_dofs<Config> != Dynamic &&
+   get_config_quads<Config> != Dynamic
+> >
 {
-   static constexpr int value = (IsTensor ? 1 : Dim) *
-                                 get_basis_capacity_v<Basis<Dim,IsTensor,D,Q>>
-                                 ::value;
+   static constexpr int D = get_config_dofs<Config>;
+   static constexpr int Q = get_config_quads<Config>;
+   static constexpr int value = D*Q;
 };
 
 template <typename Basis>
-struct get_basis_capacity_v<Trans<Basis>>
+struct get_basis_capacity_v<Grad<Basis>, std::enable_if_t<is_basis<Basis>> >
+{
+   static constexpr bool IsTensor = is_tensor_basis<Basis>;
+   static constexpr int Dim = get_basis_dim<Basis>;
+   static constexpr int value = (IsTensor ? 1 : Dim) *
+                                 get_basis_capacity_v<Basis>::value;
+};
+
+template <typename Basis>
+struct get_basis_capacity_v<Trans<Basis>, std::enable_if_t<is_basis<Basis>> >
 {
    static constexpr int value = get_basis_capacity_v<Basis>::value;
 };
 
 template <typename Basis>
-struct get_basis_capacity_v<Trans<Grad<Basis>>>
+struct get_basis_capacity_v<Trans<Grad<Basis>>, std::enable_if_t<is_basis<Basis>> >
 {
    static constexpr int value = get_basis_capacity_v<Basis>::value;
 };
@@ -579,6 +861,46 @@ struct get_basis_capacity_v<Trans<Grad<Basis>>>
 
 template <typename Basis>
 constexpr int get_basis_capacity = get_basis_capacity_v<Basis>::value;
+
+// ResultTensor
+template <typename Basis, typename Enable = void> //std::enable_if_t<is_basis<Basis>> >
+struct basis_result_tensor;
+
+template <typename Config>
+struct basis_result_tensor<ConfigBasis<Config>,void>
+{
+   template <int... Sizes>
+   using type = typename config_result_tensor<Config>
+                   ::template type<Sizes...>;
+};
+
+template <typename Basis>
+struct basis_result_tensor<Trans<Basis>,std::enable_if_t<is_basis<Basis>>>
+{
+   template <int... Sizes>
+   using type = typename basis_result_tensor<Basis>
+                   ::template type<Sizes...>;
+};
+
+template <typename Basis>
+struct basis_result_tensor<Grad<Basis>,std::enable_if_t<is_basis<Basis>>>
+{
+   template <int... Sizes>
+   using type = typename basis_result_tensor<Basis>
+                   ::template type<Sizes...>;
+};
+
+template <typename Basis>
+struct basis_result_tensor<Trans<Grad<Basis>>,std::enable_if_t<is_basis<Basis>>>
+{
+   template <int... Sizes>
+   using type = typename basis_result_tensor<Basis>
+                   ::template type<Sizes...>;
+};
+
+template <typename Basis, int... Sizes>
+using ResultTensor = typename basis_result_tensor<Basis>
+                        ::template type<Sizes...>;
 
 } // mfem namespace
 
