@@ -944,12 +944,12 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { record_cmd_line(argc, argv); }
 
    SolverParams ttol;
-   ttol.lin_abs_tol = 0.0;
-   ttol.lin_rel_tol = 1e-12;
+   ttol.lin_abs_tol = 1e-10;
+   ttol.lin_rel_tol = 1e-8;
    ttol.lin_max_iter = 1000;
    ttol.lin_log_lvl = 3;
 
-   ttol.newt_abs_tol = 1e-6;
+   ttol.newt_abs_tol = 1e-8;
    ttol.newt_rel_tol = 1e-6;
    ttol.newt_max_iter = 10;
    ttol.newt_log_lvl = 1;
@@ -1260,8 +1260,6 @@ int main(int argc, char *argv[])
    {
       ode_weights.SetSize(5);
       ode_weights = 1.0;
-      // ode_weights[0] = 1e-8;
-      // ode_weights[4] = 1e-10;
    }
 
    if (term_flags.Size() != 5)
