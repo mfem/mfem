@@ -327,7 +327,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
     documentation in source comments.
   - Consistent code styling is enforced with `make style` in the top-level
     directory. This requires [Artistic Style](http://astyle.sourceforge.net) (we
-    specifically use version 2.05.1). See also the file `config/mfem.astylerc`.
+    specifically use version 3.1). See also the file `config/mfem.astylerc`.
   - Use `mfem::out` and `mfem::err` instead of `std::cout` and `std::cerr` in
     internal library code. (You can use `std` in examples and miniapps.)
   - When manually resolving conflicts during a merge, make sure to mention the

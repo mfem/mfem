@@ -1677,7 +1677,7 @@ int KINSolver::GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
 
 // Wrapper for evaluating linear systems J u = b
 int KINSolver::LinSysSetup(N_Vector u, N_Vector, SUNMatrix J,
-                           void *, N_Vector , N_Vector )
+                           void *, N_Vector, N_Vector )
 {
    const SundialsNVector mfem_u(u);
    KINSolver *self = static_cast<KINSolver*>(GET_CONTENT(J));
