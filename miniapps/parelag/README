@@ -1,0 +1,187 @@
+    Parallel Element Agglomeration Algebraic Multigrid Upscaling and Solvers
+                      (ParELAG) Mini-applications in MFEM
+
+
+ParELAG is a library mostly developed at the Center for Applied Scientific
+Computing of Lawrence Livermore National Laboratory, California, USA. It can be
+obtained as a source code from:
+
+   http://github.com/LLNL/parelag
+
+This directory contains a miniapp that employs MFEM and ParELAG to solve
+H(curl)- and H(div)-elliptic forms by an element based algebraic multigrid
+(AMGe). It uses: a multilevel hierarchy of de Rham complexes of finite element
+spaces, built by ParELAG; Hiptmair-type smoothers, implemented in ParELAG; and
+AMS (Auxiliary-space Maxwell Solver) or ADS (Auxiliary-space Divergence Solver),
+from HYPRE, for preconditioning or solving on the coarsest levels.
+
+Alternatively, it is possible to precondition or solve the H(div) form on the
+coarsest level via a hybridization approach. However, this is not yet
+implemented in ParELAG. Only the hybridization solver that is directly
+applicable to an H(div)-L^2 mixed (saddle-point) system is currently available.
+
+We recommend viewing MFEM's examples 3 and 4 before viewing this miniapp.
+
+
+Installation
+============
+
+Here, mfem/ denotes the directory, where the MFEM's source code is located and
+parelag/ is respectively the location of the ParELAG's source code. For example,
+it may be convenient to have MFEM and ParELAG on the same level in the tree of
+directories. That is, if the current directory is MFEM's (i.e., mfem/), then
+../parelag/ would be the ParELAG's directory.
+
+ParELAG uses CMake, while MFEM can use GNU Make or CMake. A short instruction is
+provided for both.
+
+Notice that the building procedure is not much complicated by the fact that the
+miniapp is part of MFEM and depend on ParELAG, while ParELAG itself depends on
+and uses MFEM.
+
+Note that ParELAG needs MFEM with enabled MPI parallelism (MFEM_USE_MPI) and
+LAPACK (MFEM_USE_LAPACK). Also, the build system is meant to work with the
+source and build directory of MFEM and is not tuned to the case of invoking
+`make install` either for MFEM or for ParELAG.
+
+Currently, ParELAG is tested, integrated, and working with HYPRE <= 2.15.1.
+It does not currently benefit from the "big int" capabilities in HYPRE, and does
+not handle the "big_j" in the HYPRE >= 2.16.0 matrix structure.
+
+Using GNU Make
+--------------
+
+MFEM needs to be configured to use ParELAG and build its miniapp. Refer to the
+MFEM installation instructions in mfem/INSTALL on how to modify the
+configuration in mfem/config/. Particularly, MFEM_USE_PARELAG needs to be set to
+YES and PARELAG_DIR needs to point to the location of ParELAG (e.g.,
+../parelag/). Also, MFEM_USE_LAPACK needs to be set to YES.
+
+Moreover, parelag/configure_library.sh needs to be slightly modified to set
+WORKSPACE, which is the directory that contains parelag/, and the paths to
+compiled (or to be compiled) SuiteSparse, METIS, HYPRE, and MFEM. Refer to
+parelag/INSTALL.
+
+If everything is set correctly, the following commands, in the respective shown
+directories (mfem/ and parelag/), should build ParELAG, MFEM, and the miniapps:
+
+   mfem/$ make parallel
+   parelag/$ ./configure_library.sh
+   parelag/$ cd build
+   parelag/build/$ make
+   mfem/$ make miniapps
+
+Using CMake
+-----------
+
+MFEM needs to be configured to use ParELAG and build its miniapp. Refer to the
+MFEM installation instructions in mfem/INSTALL on how to modify the
+configuration in mfem/config/. Particularly, MFEM_USE_PARELAG needs to be set to
+ON and PARELAG_DIR needs to point to the location of ParELAG (e.g.,
+../parelag/). Also, MFEM_USE_MPI and MFEM_USE_LAPACK need to be set to ON.
+
+Moreover, parelag/configure_library.sh needs to be slightly modified to set
+WORKSPACE, which is the directory that contains parelag/, and the paths to
+compiled (or to be compiled) SuiteSparse, METIS, HYPRE, and MFEM. Refer to
+parelag/INSTALL.
+
+If everything is set correctly, the following commands, in the respective shown
+directories (mfem/ and parelag/), should build ParELAG, MFEM, and the miniapps:
+
+   mfem/$ mkdir build
+   mfem/$ cd build
+   mfem/build/$ cmake ..
+   mfem/build/$ make
+   parelag/$ ./configure_library.sh
+   parelag/$ cd build
+   parelag/build/$ make
+   mfem/build/$ make miniapps
+
+
+Usage
+=====
+
+The miniapp utilizes .xml files with detailed sets of parameters in them. They
+allow access to basic parameters (like the path to a mesh file) as well as the
+capacity to tune and set a variety of solver and preconditioner parameters.
+Example .xml files for the miniapp are provided.
+
+When executing the miniapp, the .xml file needs to be explicitly supplied. For
+example, as follows:
+
+   mfem/miniapps/parelag/$ ./MultilevelHcurlHdivSolver -curl -f \
+                               MultilevelHcurlSolver_pipe_example_parameters.xml
+
+   mfem/miniapps/parelag/$ ./MultilevelHcurlHdivSolver -div -f \
+                               MultilevelHdivSolver_pipe_example_parameters.xml
+
+Note that the miniapp defaults to the H(curl) case (i.e., -curl is set by
+default) and the H(div) case needs to be explicitly set by including -div.
+
+The miniapp can be executed in parallel, e.g., using mpirun. Particularly,
+MultilevelH*Solver_pipe_example_parameters.xml are set to use the "crooked pipe"
+problem and that would most likely require being executed on a larger machine in
+parallel (e.g., using 72 processes).
+
+However, MultilevelH*Solver_cube_example_parameters.xml are set to
+solve a smaller unit cube problem and can be executed faster and in serial.
+
+The mesh files CrookedPipeMesh_2.mesh and cube456.mesh can be found in
+parelag/meshes/ and copied to mfem/miniapps/parelag/ or
+mfem/build/miniapps/parelag/ to execute the miniapp.
+
+Note that the examples in their current form are limited to 3D meshes and
+problems.
+
+The examples assume zero boundary conditions, where the boundary attributes for
+essential boundary conditions are provided in the parameters .xml files. For
+more sophisticated boundary conditions, the source file of the miniapp needs to
+be modified.
+
+The examples allow piecewise constant coefficients in areas of the domain
+associated with mesh attributes. The particular attributes and values can be
+set in the parameters .xml files.
+
+If GLVIS is running, the agglomerated elements and final obtained solution can
+be visualized.
+
+
+References
+==========
+
+ParELAG: Parallel Element Agglomeration Algebraic Multigrid Upscaling and
+ Solvers, http://github.com/LLNL/parelag
+
+D. Z. Kalchev, P. S. Vassilevski, and U. Villa, “On ParELAG's Parallel Element-
+ based Algebraic Multigrid and its MFEM Miniapps for H(curl) and H(div)
+ Problems: a report including lowest and next to the lowest order numerical
+ results,” Technical report LLNL-TR-824455, Lawrence Livermore National
+ Laboratory, Livermore, CA, USA, 2021, http://doi.org/10.2172/1807757
+
+D. Z. Kalchev, P. S. Vassilevski, and U. Villa, “Parallel Element-based
+ Algebraic Multigrid for H(curl) and H(div) Problems Using the ParELAG
+ Library,” 2021, http://arxiv.org/abs/2107.05613
+
+T. V. Kolev and P. S. Vassilevski, “Parallel Auxiliary Space AMG for H(curl)
+ Problems,” Journal of Computational Mathematics, vol. 27, no. 5, pp. 604–623,
+ 2009, http://doi.org/10.4208/jcm.2009.27.5.013
+
+T. V. Kolev and P. S. Vassilevski, “Parallel Auxiliary Space AMG Solver for
+ H(div) Problems,” SIAM Journal on Scientific Computing, vol. 34, no. 6,
+ pp. A3079–A3098, 2012, http://doi.org/10.1137/110859361
+
+V. Dobrev, T. Kolev, C. S. Lee, V. Tomov, and P. S. Vassilevski, “Algebraic
+ Hybridization and Static Condensation with Application to Scalable H(div)
+ Preconditioning,” SIAM Journal on Scientific Computing, vol. 41, no. 3,
+ pp. B425–B447, 2019, http://doi.org/10.1137/17M1132562
+
+R. Hiptmair, “Multigrid Method for Maxwell’s Equations,” SIAM Journal on
+ Numerical Analysis, vol. 36, no. 1, pp. 204–225, 1998,
+ http://doi.org/10.1137/S0036142997326203
+
+P. S. Vassilevski, Multilevel Block Factorization Preconditioners: Matrix-based
+ Analysis and Algorithms for Solving Finite Element Equations. New York:
+ Springer, 2008, http://doi.org/10.1007/978-0-387-71564-3
+
+HYPRE: Scalable Linear Solvers and Multigrid Methods,
+ http://computing.llnl.gov/projects/hypre-scalable-linear-solvers-multigrid-methods
