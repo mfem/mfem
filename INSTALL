@@ -916,8 +916,8 @@ MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
 MFEM_USE_CALIPER
 MFEM_USE_FMS
-MFEM_USE_PARELAG
 MFEM_USE_BENCHMARK
+MFEM_USE_PARELAG
 
 The following options are CMake specific:
 
@@ -973,8 +973,8 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - AXOM - Used when MFEM_USE_SIDRE is enabled
  - CALIPER
  - FMS
- - ParELAG
  - BENCHMARK
+ - ParELAG
 
 The following built-in CMake packages are also used:
 

@@ -58,8 +58,8 @@ option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 option(MFEM_USE_CALIPER "Enable Caliper support" OFF)
 option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
-option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
+option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")

@@ -21,13 +21,13 @@ Version 4.3.1 (development)
 - Updated the hypre interface according to changes in hypre-2.22.1. The ADS
   solver is now fully working on GPUs.
 
+- Added initial support for google-benchmarks in the tests/benchmarks directory.
+  It can be enabled with MFEM_USE_BENCHMARK=YES.
+
 - Added Binder (mybinder.org) configuration files for C++ MFEM Jupyter Notebooks
   with inline GLVis visualization as well as a new examples/jupyter/ directory
   with a sample notebook based on Example 1. Implementation based on xeus-cling,
   github.com/jupyter-xeus/xeus-cling + xeus-glvis, github.com/GLVis/xeus-glvis.
-
-- Added initial support for google-benchmarks in the tests/benchmarks directory.
-  It can be enabled with MFEM_USE_BENCHMARK=YES.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
