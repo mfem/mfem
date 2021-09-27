@@ -121,7 +121,8 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 #endif
 }
 
-IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(int print_level)
+IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
+   int print_level)
 {
 #ifdef MFEM_USE_MPI
    int rank = 0;
@@ -142,11 +143,13 @@ IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(int pri
          break;
 
       case 1:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS | PrintLevel::ITERATION_DETAILS);
+         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS |
+                                        PrintLevel::ITERATION_DETAILS);
          break;
 
       case 2:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS | PrintLevel::SUMMARY);
+         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS |
+                                        PrintLevel::SUMMARY);
          break;
 
       default:
@@ -1657,7 +1660,7 @@ loop_end:
    final_norm = fabs(eta);
 
    if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                   (print_options & PrintLevel::ERRORS)))
+                                                 (print_options & PrintLevel::ERRORS)))
    {
       mfem::out << "MINRES: Number of iterations: " << setw(3) << final_iter << '\n'
                 << "   ||r||_B = " << final_norm << '\n';
@@ -1815,13 +1818,13 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 
    if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                   (print_options & PrintLevel::ERRORS)))
+                                                 (print_options & PrintLevel::ERRORS)))
    {
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
    if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                   (print_options & PrintLevel::ERRORS)))
+                                                 (print_options & PrintLevel::ERRORS)))
    {
       mfem::out << "Newton: No convergence!\n";
    }
@@ -2042,13 +2045,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 
    if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                   (print_options & PrintLevel::ERRORS)))
+                                                 (print_options & PrintLevel::ERRORS)))
    {
       mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
    if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                   (print_options & PrintLevel::ERRORS)))
+                                                 (print_options & PrintLevel::ERRORS)))
    {
       mfem::out << "LBFGS: No convergence!\n";
    }
@@ -2443,7 +2446,7 @@ slbqp_done:
    final_norm = r;
 
    if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                   (print_options & PrintLevel::ERRORS)))
+                                                 (print_options & PrintLevel::ERRORS)))
    {
       mfem::out << "SLBQP: Number of iterations: " << final_iter << '\n'
                 << "   lambda = " << l << '\n'
