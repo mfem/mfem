@@ -713,14 +713,17 @@ class VectorRelativeErrorMeasure : public ODERelativeErrorMeasure
 {
 private:
    Vector w_;
+   Vector m_;
    Array<ODERelativeErrorMeasure*> msr_;
 
    int size_;
    Vector u_, e_;
 
 public:
-   VectorRelativeErrorMeasure(MPI_Comm comm, Vector & weights)
+   VectorRelativeErrorMeasure(MPI_Comm comm, Vector & weights,
+                              Vector & magnitudes)
       : w_(weights),
+        m_(magnitudes),
         msr_(w_.Size()),
         size_(0),
         u_(NULL, 0),
@@ -731,7 +734,7 @@ public:
       {
          if (w_[i] != 0.0)
          {
-            msr_[i] = new ParMaxAbsRelDiffMeasure(comm, 1.0);
+            msr_[i] = new ParMaxAbsRelDiffMeasure(comm, m_[i]);
          }
       }
    }
@@ -1031,6 +1034,7 @@ int main(int argc, char *argv[])
    Vector eqn_weights;
    Vector amr_weights;
    Vector ode_weights;
+   Vector field_mags;
 
    int precision = 8;
    cout.precision(precision);
@@ -1052,6 +1056,8 @@ int main(int argc, char *argv[])
                   "Set the logging level.");
    args.AddOption(&op_flag, "-op", "--operator-test",
                   "Bitmask for disabling operators.");
+   args.AddOption(&field_mags, "-fld-m","--field-magnitudes",
+                  "Expected field magnitudes.");
    args.AddOption(&eqn_weights, "-eqn-w","--equation-weights",
                   "Normalization factors for balancing the coupled equations.");
    args.AddOption(&prob_, "-p", "--problem",
@@ -1239,6 +1245,16 @@ int main(int argc, char *argv[])
    }
    */
    imex = ode_solver_type < 10;
+
+   if (field_mags.Size() != 5)
+   {
+      field_mags.SetSize(5);
+      field_mags[     NEUTRAL_DENSITY] = 1e15; // n_n ~ 1e15
+      field_mags[         ION_DENSITY] = 1e19; // n_i ~ 1e19
+      field_mags[   ION_PARA_VELOCITY] = 1e3;  // v_i ~ 1e3
+      field_mags[     ION_TEMPERATURE] = 1e1;  // T_i ~ 1e1
+      field_mags[ELECTRON_TEMPERATURE] = 1e2;  // T_e ~ 1e2
+   }
 
    if (eqn_weights.Size() != 5)
    {
@@ -1527,7 +1543,8 @@ int main(int argc, char *argv[])
 
    para_velocity = 0.0;
 
-   VectorRelativeErrorMeasure ode_diff_msr(MPI_COMM_WORLD, ode_weights);
+   VectorRelativeErrorMeasure ode_diff_msr(MPI_COMM_WORLD,
+                                           ode_weights, field_mags);
 
    Coefficient *psiCoef = NULL;
    VectorCoefficient *nxGradPsiCoef = NULL;
