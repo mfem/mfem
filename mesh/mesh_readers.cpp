@@ -426,6 +426,28 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       j = cell_offsets[i];
    }
 
+   // determine spaceDim based on min/max differences detected each dimension
+   spaceDim = 0;
+   if (np > 0)
+   {
+      double min_value, max_value;
+      for (int d = 3; d > 0; --d)
+      {
+         min_value = max_value = points(3*0 + d-1);
+         for (int i = 1; i < np; i++)
+         {
+            min_value = std::min(min_value, points(3*i + d-1));
+            max_value = std::max(max_value, points(3*i + d-1));
+            if (min_value != max_value)
+            {
+               spaceDim = d;
+               break;
+            }
+         }
+         if (spaceDim > 0) { break; }
+      }
+   }
+
    if (order == 1 && !lagrange_elem)
    {
       NumOfVertices = np;
@@ -500,25 +522,6 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // No boundary is defined in a VTK mesh
       NumOfBdrElements = 0;
 
-      // determine spaceDim based on min/max differences detected each dimension
-      if (vertices.Size() > 0)
-      {
-         double min_value, max_value;
-         for (int d=0; d<3; ++d)
-         {
-            min_value = max_value = vertices[0](d);
-            for (int i = 1; i < vertices.Size(); i++)
-            {
-               min_value = std::min(min_value,vertices[i](d));
-               max_value = std::max(max_value,vertices[i](d));
-               if (min_value != max_value)
-               {
-                  spaceDim++;
-                  break;
-               }
-            }
-         }
-      }
       // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
