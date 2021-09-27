@@ -26,7 +26,7 @@ namespace mfem
 using namespace std;
 
 IterativeSolver::IterativeSolver()
-   : Solver(0, true), print_level(-1)
+   : Solver(0, true)
 {
    oper = NULL;
    prec = NULL;
@@ -39,7 +39,7 @@ IterativeSolver::IterativeSolver()
 
 #ifdef MFEM_USE_MPI
 IterativeSolver::IterativeSolver(MPI_Comm comm_)
-   : Solver(0, true), print_level(-1)
+   : Solver(0, true)
 {
    oper = NULL;
    prec = NULL;
@@ -91,7 +91,7 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
       else // Suppress output.
       {
          print_level = 0;
-         print_options = static_cast<PrintLevel>(0);
+         print_options = PrintLevel::NONE;
       }
    }
 #endif
@@ -138,23 +138,14 @@ IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
    switch (print_level)
    {
       case -1:
-         return static_cast<PrintLevel>(0);
-         break;
-
+         return PrintLevel::NONE;
       case 0:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS);
-         break;
-
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS;
       case 1:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS |
-                                        PrintLevel::ITERATION_DETAILS);
-         break;
-
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS |
+                PrintLevel::ITERATION_DETAILS;
       case 2:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS |
-                                        PrintLevel::SUMMARY);
-         break;
-
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS | PrintLevel::SUMMARY;
       default:
 #ifdef MFEM_USE_MPI
          if (rank == 0)
@@ -162,8 +153,7 @@ IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
             MFEM_WARNING("Unknown print level " << print_level <<
                          ". Defaulting to level 0.");
 
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS);
-         break;
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS;
    }
 }
 
