@@ -18,6 +18,11 @@ Version 4.3.1 (development)
 - Added initial support for google-benchmarks in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
+- Added Binder (mybinder.org) configuration files for C++ MFEM Jupyter Notebooks
+  with inline GLVis visualization as well as a new examples/jupyter/ directory
+  with a sample notebook based on Example 1. Implementation based on xeus-cling,
+  github.com/jupyter-xeus/xeus-cling + xeus-glvis, github.com/GLVis/xeus-glvis.
+
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
 - Adding lowest order Nedelec and Raviart-Thomas basis functions on wedge
@@ -311,6 +316,11 @@ Miscellaneous
 - Added HIP support to the CMake build system.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
+  hierarchy of spaces created by the element-based AMG (AMGe) methodology in
+  ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
+  miniapps/parelag directory for more details.
 
 API changes
 -----------
