@@ -315,3 +315,6 @@ build-*/*
 # PETSc automated build
 petsc-build/*
 pkg.gitcommit
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints

@@ -15,6 +15,11 @@ Version 4.3.1 (development)
 
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
+- Added Binder (mybinder.org) configuration files for C++ MFEM Jupyter Notebooks
+  with inline GLVis visualization as well as a new examples/jupyter/ directory
+  with a sample notebook based on Example 1. Implementation based on xeus-cling,
+  github.com/jupyter-xeus/xeus-cling + xeus-glvis, github.com/GLVis/xeus-glvis.
+
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
 - Adding lowest order Nedelec and Raviart-Thomas basis functions on wedge
