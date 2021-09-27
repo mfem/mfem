@@ -70,51 +70,7 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
-#ifdef MFEM_USE_MPI
-   int rank = 0;
-   if (comm != MPI_COMM_NULL)
-   {
-      MPI_Comm_rank(comm, &rank);
-   }
-
-   if (rank == 0)
-   {
-      print_level = print_lvl;
-   }
-#endif
-
-   switch (print_level)
-   {
-      case -1:
-         print_options = static_cast<PrintLevel>(0);
-         break;
-
-      case 0:
-         print_options = static_cast<PrintLevel>(PrintLevel::ERRORS |
-                                                   PrintLevel::WARNINGS);
-         break;
-
-      case 1:
-         print_options = static_cast<PrintLevel>(PrintLevel::ERRORS |
-                                                   PrintLevel::WARNINGS | PrintLevel::ITERATION_DETAILS);
-         break;
-
-      case 2:
-         print_options = static_cast<PrintLevel>(PrintLevel::ERRORS |
-                                                   PrintLevel::WARNINGS | PrintLevel::SUMMARY);
-         break;
-
-      default:
-#ifdef MFEM_USE_MPI
-         if (rank == 0)
-#endif
-            MFEM_WARNING("Unknown print level " << print_level <<
-                         ". Defaulting to level 0.");
-
-         print_options = static_cast<PrintLevel>(PrintLevel::ERRORS |
-                                                   PrintLevel::WARNINGS);
-         break;
-   }
+   print_options = ConvertFromLegacyPrintLevel(print_lvl);
 
 #ifndef MFEM_USE_MPI
    print_level = print_lvl;
@@ -133,35 +89,18 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
       }
       else // Suppress output.
       {
+         print_level = 0;
          print_options = static_cast<PrintLevel>(0);
       }
    }
 #endif
-
-
 }
 
 void IterativeSolver::SetPrintLevel(PrintLevel options)
 {
    print_options = options;
 
-   // Some heuristics to guess an appropriate print level
-   int derived_print_level = [](PrintLevel print_options)->int
-   {
-      if (print_options & PrintLevel::ERRORS)
-      {
-         if (print_options & PrintLevel::WARNINGS)
-         {
-            return 1;
-         }
-         else if (print_options & PrintLevel::SUMMARY)
-         {
-            return 2;
-         }
-         return 0;
-      }
-      return -1;
-   }(options);
+   int derived_print_level = GuessLegacyPrintLevel(options);
 
 #ifndef MFEM_USE_MPI
    print_level = derived_print_level;
@@ -180,6 +119,63 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
       }
    }
 #endif
+}
+
+IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(int print_level)
+{
+#ifdef MFEM_USE_MPI
+   int rank = 0;
+   if (comm != MPI_COMM_NULL)
+   {
+      MPI_Comm_rank(comm, &rank);
+   }
+#endif
+
+   switch (print_level)
+   {
+      case -1:
+         return static_cast<PrintLevel>(0);
+         break;
+
+      case 0:
+         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS);
+         break;
+
+      case 1:
+         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS | PrintLevel::ITERATION_DETAILS);
+         break;
+
+      case 2:
+         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS | PrintLevel::SUMMARY);
+         break;
+
+      default:
+#ifdef MFEM_USE_MPI
+         if (rank == 0)
+#endif
+            MFEM_WARNING("Unknown print level " << print_level <<
+                         ". Defaulting to level 0.");
+
+         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS);
+         break;
+   }
+}
+
+int IterativeSolver::GuessLegacyPrintLevel(PrintLevel)
+{
+   if (print_options & PrintLevel::ERRORS)
+   {
+      if (print_options & PrintLevel::WARNINGS)
+      {
+         return 1;
+      }
+      else if (print_options & PrintLevel::SUMMARY)
+      {
+         return 2;
+      }
+      return 0;
+   }
+   return -1;
 }
 
 void IterativeSolver::SetPreconditioner(Solver &pr)
