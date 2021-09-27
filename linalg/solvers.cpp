@@ -25,6 +25,9 @@ namespace mfem
 
 using namespace std;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
@@ -49,6 +52,8 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
    comm = comm_;
 }
 #endif
+
+#pragma GCC diagnostic pop
 
 double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
