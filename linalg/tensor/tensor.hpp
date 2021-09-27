@@ -191,7 +191,7 @@ public:
    {
       ForallDims<Tensor>::Apply(t,[&](auto... idx)
       {
-         os << lhs(idx...) << " ";
+         os << t(idx...) << " ";
       });
       os << std::endl;
       return os;
