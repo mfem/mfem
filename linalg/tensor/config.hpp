@@ -26,11 +26,72 @@ struct DefaultKernelConfig
    static constexpr int Quads = Dynamic;
    static constexpr int BatchSize = 1;
 
+   /// Defines the dynamic type of Tensor used for computation on CPU.
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicCPUTensor = DynamicTensor<Rank, T, MaxSize>;
+
+   /// Defines the static type of Tensor used for computation on CPU.
    template <typename T, int BatchSize, int... Sizes>
-   using StaticHostTensor = StaticCPUTensor<T, BatchSize, Sizes...>;
+   using StaticCPUTensor = StaticTensor<T, Sizes...>;
+
+   /// Defines the dynamic type of Tensor used for computation on CUDA.
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicCUDATensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
+
+   /// Defines the static type of Tensor used for computation on CUDA.
+   template <typename T, int BatchSize, int... Sizes>
+   using StaticCUDATensor = StaticBlockTensor<T, BatchSize, Sizes...>;
+
+   /// Defines the dynamic type of Tensor used for computation on Hip.
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicHipTensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
+
+   /// Defines the static type of Tensor used for computation on Hip.
+   template <typename T, int BatchSize, int... Sizes>
+   using StaticHipTensor = StaticBlockTensor<T, BatchSize, Sizes...>;
+
+#if defined(__CUDA_ARCH__)
+   // CUDA types
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicDeviceTensor = DynamicCUDATensor<Rank,T,BatchSize,MaxSize>;
 
    template <typename T, int BatchSize, int... Sizes>
-   using StaticDeviceTensor = StaticDeviceTensor<T, BatchSize, Sizes...>;
+   using StaticDeviceTensor = StaticCUDATensor<T,BatchSize,Sizes...>;
+#elif defined(__HIP_DEVICE_COMPILE__)
+   // Hip types
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicDeviceTensor = DynamicHipTensor<Rank,T,BatchSize,MaxSize>;
+
+   template <typename T, int BatchSize, int... Sizes>
+   using StaticDeviceTensor = StaticHipTensor<T,BatchSize,Sizes...>;
+#elif defined(FUGAKU_ARCH) // extension exemple
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicDeviceTensor = DynamicCPUTensor<Rank,T,BatchSize,MaxSize>;
+
+   template <typename T, int BatchSize, int... Sizes>
+   using StaticDeviceTensor = StaticCPUTensor<T,BatchSize,Sizes...>;
+#else
+   // CPU types
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicDeviceTensor = DynamicCPUTensor<Rank,T,BatchSize,MaxSize>;
+
+   template <typename T, int BatchSize, int... Sizes>
+   using StaticDeviceTensor = StaticCPUTensor<T,BatchSize,Sizes...>;
+#endif
+
+   /// Defines the dynamic Tensor type for the compiling architecture
+   // template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   // using DynamicDeviceTensor = DeviceTensorType::dynamic_type<Rank,T,BatchSize,MaxSize>;
+
+   template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
+   using DynamicDeviceDTensor = DynamicDeviceTensor<Rank,double,BatchSize,MaxSize>;
+
+   /// Defines the static Tensor type for the compiling architecture
+   // template <typename T, int BatchSize, int... Sizes>
+   // using StaticDeviceTensor = DeviceTensorType::static_type<T,BatchSize,Sizes...>;
+
+   template <int BatchSize, int... Sizes>
+   using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 };
 
 // class to define a use of the default policy values
@@ -131,6 +192,22 @@ auto MakeConfig(int dofs, int quads, ConfigSetters... args)
 }
 
 /// KernelConfig Traits
+
+// is_config
+template <typename Config>
+struct is_config_v
+{
+   static constexpr bool value = false;
+};
+
+template <typename... Configs>
+struct is_config_v<KernelConfig<Configs...>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename Config>
+constexpr bool is_config = is_config_v<Config>::value;
 
 // get_config_dim
 template <typename Config>
@@ -256,6 +333,35 @@ struct config_use_zthreads_v
 
 template <typename Config>
 constexpr bool config_use_zthreads = config_use_zthreads_v<Config>::value;
+
+// ResultTensor
+template <typename Config, typename Enable = std::enable_if_t<is_config<Config>> >
+struct config_result_tensor
+{
+   template <int... Sizes>
+   using type = typename Config::configs::template DynamicDeviceDTensor<
+                   sizeof...(Sizes),
+                   get_config_batchsize<Config> >;
+};
+
+template <typename Config>
+struct config_result_tensor<Config,
+std::enable_if_t<
+   is_config<Config> &&
+   get_config_dofs<Config> != Dynamic &&
+   get_config_quads<Config> != Dynamic
+> >
+{
+   template <int... Sizes>
+   using type = typename Config::configs::template StaticDeviceDTensor<
+                   get_config_batchsize<Config>,
+                   Sizes...>;
+};
+
+
+template <typename Config, int... Sizes>
+using ConfigResultTensor = typename config_result_tensor<Config>
+                              ::template type<Sizes...>;
 
 template <typename... Configs>
 std::ostream& operator<<(std::ostream &os,
