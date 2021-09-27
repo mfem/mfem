@@ -34,9 +34,7 @@ Test types include:
   test
 * Baseline: Script driven build of dependencies, thorough testing
 
-⚠️ 
-
-The sub-pipeline design allows to add a new machine or a new test type without
+⚠️ The sub-pipeline design allows to add a new machine or a new test type without
 altering the scheduling, execution and displaying of the others.
 
 ## Sub-pipelines
@@ -59,9 +57,7 @@ to keep scripts outside the CI configuration (no bash scripts embedded in a
 yaml file) because it helps with readability, maintenance and also with
 transition to another CI system.
 
-⚠️ 
-
-Most of the scripts there are driven by environment variables and do not have a
+⚠️ Most of the scripts there are driven by environment variables and do not have a
 usage function. This should be improved.
 
 
@@ -93,8 +89,6 @@ The remaining and non trivial work is to make sure this spec is working. To
 test a spec before adding it, or reproduce a CI configuration, please refer to
 `tests/gitlab/reproduce-ci-jobs-interactively.md`.
 
-⚠️ 
-
-It is assumed that the spack spec applies to `mfem@develop`. That's why in the
+⚠️ It is assumed that the spack spec applies to `mfem@develop`. That's why in the
 CI all the specs start with the compiler or the variants to apply to mfem. The
 mechanism still works with a full spec.
