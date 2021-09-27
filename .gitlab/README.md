@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-This directory contains most of the Gitlab CI configuration. MFEM runs both PR
-and nightly testing on Gitlab.
+This directory contains most of the GitLab CI configuration. MFEM runs both PR
+and nightly testing on GitLab.
 
 # Structure
 
@@ -56,7 +56,7 @@ jobs. They are gathered in `.gitlab/scripts`.
 
 Scripts specific to the CI only are in `.gitlab/scripts`. It is best practice
 to keep scripts outside the CI configuration (no bash scripts embedded in a
-yaml file) because it helps with readability, maintance and also with
+yaml file) because it helps with readability, maintenance and also with
 transition to another CI system.
 
 **NOTE**
@@ -98,8 +98,3 @@ test a spec before adding it, or reproduce a CI configuration, please refer to
 It is assumed that the spack spec applies to `mfem@develop`. That's why in the
 CI all the specs start with the compiler or the variants to apply to mfem. The
 mechanism still works with a full spec.
-
-
-
-
-

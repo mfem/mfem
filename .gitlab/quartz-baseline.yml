@@ -45,7 +45,7 @@ report_baseline:
         cp ${rundir}/*.err ${rundir}/autotest-email.html
       fi
     - git add ${rundir}
-    - git commit -am "Gitlab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
+    - git commit -am "GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
     - git push origin master
 
 baselinepublish_mfem_quartz:
