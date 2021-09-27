@@ -112,6 +112,7 @@ The MFEM source code has the following structure:
   |   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── fe
   │   ├── qinterp
   │   └── tmop
   ├── general
@@ -127,6 +128,7 @@ The MFEM source code has the following structure:
   │   ├── mtop
   │   ├── navier
   │   ├── nurbs
+  │   ├── parelag
   │   ├── performance
   │   ├── shifted
   │   ├── solvers

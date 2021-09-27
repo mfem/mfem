@@ -35,11 +35,10 @@ endif
 %: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-# XXX: The way the libraries are included, by default, in the command line is
-#      based on the idea that MFEM depends on the other libraries. Here, the
-#      setting is such that ParELAG, in fact, depends on MFEM, while MFEM does
-#      not depend on ParELAG. Thus, linking MFEM is repeated in the end of the
-#      command.
+# The way the libraries are included, by default, in the command line is based
+#  on the idea that MFEM depends on the other libraries. Here, the setting is
+#  such that ParELAG, in fact, depends on MFEM, while MFEM does not depend on
+#  ParELAG. Thus, linking MFEM is repeated in the end of the command.
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) \
 		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
