@@ -127,6 +127,7 @@ The MFEM source code has the following structure:
   │   ├── mtop
   │   ├── navier
   │   ├── nurbs
+  │   ├── parelag
   │   ├── performance
   │   ├── shifted
   │   ├── solvers
