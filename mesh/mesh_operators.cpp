@@ -204,7 +204,6 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
 
    for (int i = 0; i < max_it; i++)
    {
-
       // Compute number of elements and L2-norm of f.
       int NE = mesh.GetNE();
       int globalNE = 0;

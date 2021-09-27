@@ -24,7 +24,7 @@
 //               resolved on the initial mesh. This missing fine scale data
 //               reduces the accuracy of the solution as well as the accuracy
 //               of some local error estimators. By preprocessing the mesh
-//               before the solving the PDE, many issues can be avoided.
+//               before solving the PDE, many issues can be avoided.
 //
 //               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000).
 //                   Data oscillation and convergence of adaptive FEM. SIAM
