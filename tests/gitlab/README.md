@@ -7,7 +7,7 @@
 
                                https://mfem.org
 
-This directory contains utility scripts related to Gitlab testing at LLNL.
+This directory contains utility scripts related to GitLab testing at LLNL.
 
 * `build_and_test` is used in CI to build TPLs (dependencies) and MFEM and to
   perform testing.

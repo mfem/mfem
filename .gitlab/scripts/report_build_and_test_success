@@ -22,7 +22,7 @@ rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
 echo "The ${MACHINE_NAME} jobs were successful" > ${rundir}/gitlab.out
 echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
 
-msg="Gitlab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
+msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
 
 git add ${rundir}
 git commit -am "${msg}"
