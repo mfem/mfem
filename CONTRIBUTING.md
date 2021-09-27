@@ -42,7 +42,7 @@ back to them before issuing pull requests:
   - [New Feature Development](#new-feature-development)
   - [Developer Guidelines](#developer-guidelines)
   - [Pull Requests](#pull-requests)
-  - [MFEM Pull Request Rules](#mfem-pull-request-rules)
+  - [MFEM PR Rules](#mfem-pr-rules)
   - [Pull Request Checklist](#pull-request-checklist)
   - [Master/Next Workflow](#masternext-workflow)
   - [Releases](#releases)
@@ -70,7 +70,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   instead).
 - Pull requests should be issued toward `mfem:master`. Make sure
   to check the items off the [Pull Request Checklist](#pull-request-checklist) and
-  follow the [MFEM Pull Request Rules](#mfem-pull-request-rules).
+  follow the [MFEM PR Rules](#mfem-pr-rules).
 - When your contribution is fully working and ready to be reviewed, add
   the `ready-for-review` label.
 - PRs are treated similarly to journal submission with an "editor" assigning two
@@ -329,6 +329,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 - Code specifics
   - All new public, protected, and private classes, methods, data members, and
     functions have Doxygen-style documentation in source comments.
+  - In addition to arguments and functionality, documentation should include the
+    current limitations of the code, and any background information that is
+    implicitly assumed in the implementation.
   - Consistent code styling is enforced with `make style` in the top-level
     directory. This requires [Artistic Style](http://astyle.sourceforge.net) (we
     specifically use version 3.1). See also the file `config/mfem.astylerc`.
@@ -336,6 +339,8 @@ Before you can start, you need a GitHub account, here are a few suggestions:
     internal library code. (You can use `std` in examples and miniapps.)
   - When manually resolving conflicts during a merge, make sure to mention the
     conflicted files in the commit message.
+  - All significant new features and changes should be documented in CHANGELOG.
+  - New examples and miniapps should have documentation on the MFEM webpage.
 
 
 ### Pull Requests
@@ -403,7 +408,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   one of the _LLNL developers_ for details.
 
 
-### MFEM Pull Request Rules
+### MFEM PR Rules
 
 The Pull Request (PR) approval process in MFEM is similar to the approval of papers in a peer-reviewed journal. In particular:
 
@@ -446,7 +451,9 @@ Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their a
 
 1. To let the editors know if the proposed assignment is not a good match for them.
 
-2. To communicate with the PR author, provide feedback and ensure the quality of the PR.
+2. To communicate with the PR author, provide feedback and work with them to resolve issues.
+
+3. To ensure the quality of the PR by making sure that the code adheres to the [Developer Guidelines](#developer-guidelines),  e.g. all methods, data members, and functions have documentation, new examples/miniapps have a corresponding PR in mfem/web, major features have `CHANGELOG` entries, etc.
 
 3. To seek help form the editors in case of difficulties.
 
