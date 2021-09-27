@@ -26,12 +26,11 @@ namespace mfem
 using namespace std;
 
 IterativeSolver::IterativeSolver()
-   : Solver(0, true)
+   : Solver(0, true), print_level(-1)
 {
    oper = NULL;
    prec = NULL;
    max_iter = 10;
-   print_level = -1;
    rel_tol = abs_tol = 0.0;
 #ifdef MFEM_USE_MPI
    dot_prod_type = 0;
@@ -40,12 +39,11 @@ IterativeSolver::IterativeSolver()
 
 #ifdef MFEM_USE_MPI
 IterativeSolver::IterativeSolver(MPI_Comm comm_)
-   : Solver(0, true)
+   : Solver(0, true), print_level(-1)
 {
    oper = NULL;
    prec = NULL;
    max_iter = 10;
-   print_level = -1;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
    comm = comm_;
@@ -67,6 +65,9 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
    }
 #endif
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
@@ -120,6 +121,8 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
    }
 #endif
 }
+
+#pragma GCC diagnostic pop
 
 IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
    int print_level)
