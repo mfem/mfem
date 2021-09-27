@@ -30,11 +30,14 @@ template <typename Basis,
              is_non_tensor_basis<Basis>,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Basis &basis, const Dofs &u)
+auto operator*(const Basis &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
+
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q> u(u_e);
    return B * u;
 }
 
@@ -46,11 +49,14 @@ template <typename Basis,
              get_basis_dim<Basis> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Basis &basis, const Dofs &u)
+auto operator*(const Basis &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
+
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q> u(u_e);
    return ContractX(B,u);
 }
 
@@ -62,11 +68,14 @@ template <typename Basis,
              get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Basis &basis, const Dofs &u)
+auto operator*(const Basis &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
+
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q,Q> u(u_e);
    auto Bu = ContractX(B,u);
    return ContractY(B,Bu);
 }
@@ -79,11 +88,14 @@ template <typename Basis,
              get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Basis &basis, const Dofs &u)
+auto operator*(const Basis &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
+
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q,Q,Q> u(u_e);
    auto Bu = ContractX(B,u);
    auto BBu = ContractY(B,Bu);
    return ContractZ(B,BBu);
