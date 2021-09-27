@@ -330,8 +330,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   - All new public, protected, and private classes, methods, data members, and
     functions have Doxygen-style documentation in source comments.
   - In addition to arguments and functionality, documentation should include the
-    current limitations of the code, and any background information that is
-    implicitly assumed in the implementation.
+    current limitations of the code, any background information that is
+    implicitly assumed in the implementation, and the ownership and lifetime
+    of data.
   - Consistent code styling is enforced with `make style` in the top-level
     directory. This requires [Artistic Style](http://astyle.sourceforge.net) (we
     specifically use version 3.1). See also the file `config/mfem.astylerc`.
@@ -453,7 +454,7 @@ Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their a
 
 2. To communicate with the PR author, provide feedback and work with them to resolve issues.
 
-3. To ensure the quality of the PR by making sure that the code adheres to the [Developer Guidelines](#developer-guidelines),  e.g. all methods, data members, and functions have documentation, new examples/miniapps have a corresponding PR in mfem/web, major features have `CHANGELOG` entries, etc.
+3. To ensure the quality of the PR by making sure that the code adheres to the [Developer Guidelines](#developer-guidelines), e.g. all methods, data members, and functions have documentation, including data ownership and lifetime, new examples/miniapps have a corresponding PR in mfem/web, major features have `CHANGELOG` entries, etc.
 
 3. To seek help form the editors in case of difficulties.
 
