@@ -90,43 +90,70 @@ auto operator*(const Basis &basis, const Dofs &u)
 }
 
 // Non-tensor
-template <int Dim, int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<Dim,false,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_non_tensor_basis<Basis>,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<Dim,false,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
+
    return Bt * u;
 }
 
 // 1D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<1,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<1,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
+
    return ContractX(Bt,u);
 }
 
 // 2D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<2,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<2,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
+
    auto Bu = ContractY(Bt,u);
    return ContractX(Bt,Bu);
 }
 
 // 3D Tensor
-template <int D, int Q, typename Dofs> MFEM_HOST_DEVICE inline
-auto operator*(const BasisTranspose<3,true,D,Q> &basis, const Dofs &u)
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<BasisTranspose<3,true,D,Q>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
+
    auto Bu = ContractZ(Bt,u);
    auto BBu = ContractY(Bt,Bu);
    return ContractX(Bt,BBu);
