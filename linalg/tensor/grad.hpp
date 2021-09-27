@@ -30,12 +30,14 @@ template <typename Basis,
              is_non_tensor_basis<Basis>,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Grad<Basis> &basis, const Dofs &u)
+auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q> u(u_e); // TODO: Add a diff dim of 1?
    return G * u;
 }
 
@@ -47,12 +49,14 @@ template <typename Basis,
              get_basis_dim<Basis> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Grad<Basis> &basis, const Dofs &u)
+auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q> u(u_e);
    return ContractX(G,u);
 }
 
@@ -64,7 +68,7 @@ template <typename Basis,
              get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Grad<Basis> &basis, const Dofs &u)
+auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_B[basis_size];
@@ -72,14 +76,15 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q,Q> u(u_e);
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto GBu = ContractY(G,Bu);
    auto BGu = ContractY(B,Gu);
 
-   constexpr int Q_c = get_basis_quads<Basis>;
-   const int Q_r = basis.basis.quads1D;
-   StaticResultTensor<Dofs,Q_c,Q_c,2> Grad_u(Q_r,Q_r,2);
+   const int Q_r = basis.GetQuads();
+   ResultTensor<Basis,Q,Q,2> Grad_u(Q_r,Q_r,2);
    Grad_u.template Get<2>(0) = BGu;
    Grad_u.template Get<2>(1) = GBu;
    return Grad_u;
@@ -93,7 +98,7 @@ template <typename Basis,
              get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Grad<Basis> &basis, const Dofs &u)
+auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 {
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_B[basis_size];
@@ -101,6 +106,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
+   constexpr int Q = get_basis_quads<Basis>;
+   ResultTensor<Basis,Q,Q,Q> u(u_e);
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto BBu = ContractY(B,Bu);
@@ -110,9 +117,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    auto BGBu = ContractZ(B,GBu);
    auto GBBu = ContractZ(G,BBu);
 
-   constexpr int Q_c = get_basis_quads<Basis>;
-   const int Q_r = basis.basis.quads1D;
-   StaticResultTensor<Dofs,Q_c,Q_c,Q_c,3> Grad_u(Q_r,Q_r,Q_r,3);
+   const int Q_r = basis.GetQuads();
+   ResultTensor<Basis,Q,Q,Q,3> Grad_u(Q_r,Q_r,Q_r,3);
    Grad_u.template Get<2>(0) = BBGu;
    Grad_u.template Get<2>(1) = BGBu;
    Grad_u.template Get<2>(2) = GBBu;
