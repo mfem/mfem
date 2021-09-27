@@ -1,6 +1,6 @@
 # Jupyter Notebooks using xeus-cling
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mfem/mfem/binder?filepath=examples%2Fjupyter%2Fex.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mfem/mfem/master?filepath=examples%2Fjupyter%2Fex.ipynb)
 
 [xeus-cling](https://github.com/jupyter-xeus/xeus-cling) is a C++ Jupyter Kernel based on [cling](https://github.com/root-project/cling),
 which can be used to create interactive C++ MFEM and GLVis notebooks.
