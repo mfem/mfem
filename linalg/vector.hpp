@@ -82,6 +82,11 @@ public:
    Vector(double *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
 
+   /** @brief Create a Vector referencing a sub-vector of the Vector @a base
+       starting at the given offset, @a base_offset, and size @a size_. */
+   Vector(Vector &base, int base_offset, int size_)
+      : data(base.data, base_offset, size_), size(size_) { }
+
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
@@ -160,11 +165,9 @@ public:
    /** If @a own_mem is false, the Vector will not own any of the pointers of
        @a mem.
 
-       This method should be considered to be for "expert" use only because it
-       may have hard to track implications for the new Vector object when
-       creating a non-owning Vector (i.e. @a own_mem == `false`) that points to
-       the memory of another Vector -- for such use cases we recommend the use
-       of the MakeRef() methods.
+       Note that when @a own_mem is true, the @a mem object can be destroyed
+       immediately by the caller but `mem.Delete()` should NOT be called since
+       the Vector object takes ownership of all pointers owned by @a mem.
 
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
@@ -231,10 +234,10 @@ public:
    const Memory<double> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) { GetMemory().Sync(v.GetMemory()); }
+   void SyncMemory(const Vector &v) const { GetMemory().Sync(v.GetMemory()); }
 
    /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const Vector &v)
+   void SyncAliasMemory(const Vector &v) const
    { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.
@@ -566,8 +569,14 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 {
    data.Delete();
    size = s;
-   data = mem;
-   if (!own_mem) { data.ClearOwnerFlags(); }
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
 }
 
 inline void Vector::MakeRef(Vector &base, int offset, int s)

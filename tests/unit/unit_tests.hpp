@@ -17,6 +17,11 @@
 /// Command line '--all' option to launch all non-regression tests.
 extern bool launch_all_non_regression_tests;
 
+/// Command line '--data' argument for path to mfem/data repo.
+/** If no --data path is provided, then mfem_data_dir will be the empty string,
+    and tests tagged with [MFEMData] will be skipped. */
+extern std::string mfem_data_dir;
+
 /** @brief MFEM_Approx can be used to compare floating point values within an
     absolute tolerance of @a abs_tol (default value 1e-12) and relative
     tolerance of @a rel_tol (default value 1e-12). */

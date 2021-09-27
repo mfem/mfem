@@ -102,6 +102,8 @@ public:
    Dist_Vector_Coefficient(int dim_, int type_)
       : VectorCoefficient(dim_), type(type_) { }
 
+   using VectorCoefficient::Eval;
+
    virtual void Eval(Vector &p, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {

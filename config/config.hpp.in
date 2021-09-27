@@ -117,6 +117,9 @@
 // Enable the use of SIMD in the high performance templated classes
 // #define MFEM_USE_SIMD
 
+// Enable FMS support
+// #define MFEM_USE_FMS
+
 // Enable Conduit support
 // #define MFEM_USE_CONDUIT
 

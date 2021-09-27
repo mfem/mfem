@@ -208,7 +208,7 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     " \"config_version\": 2, \n"
                     " \"solver\": { \n"
                     "   \"solver\": \"AMG\", \n"
-                    "  \"scope\": \"main\", \n"
+                    "   \"scope\": \"main\", \n"
                     "   \"smoother\": \"JACOBI_L1\", \n"
                     "   \"presweeps\": 1, \n"
                     "   \"interpolator\": \"D2\", \n"
