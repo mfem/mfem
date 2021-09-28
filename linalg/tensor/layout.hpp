@@ -1042,6 +1042,11 @@ struct is_dynamic_layout_v<DynamicBlockLayout<Rank,BatchSize>>
    static constexpr bool value = true;
 };
 
+template <int Rank, int BatchSize>
+struct is_dynamic_layout_v<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   static constexpr bool value = true;
+};
 
 template <int N, typename Layout>
 struct is_dynamic_layout_v<RestrictedLayout<N,Layout>>
@@ -1059,14 +1064,20 @@ struct is_static_layout_v
    static constexpr bool value = false;
 };
 
+template<int... Dims>
+struct is_static_layout_v<StaticLayout<Dims...>>
+{
+   static constexpr bool value = true;
+};
+
 template <int BatchSize, int... Dims>
 struct is_static_layout_v<BlockLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
 
-template<int... Dims>
-struct is_static_layout_v<StaticLayout<Dims...>>
+template <int BatchSize, int... Dims>
+struct is_static_layout_v<Static3dThreadLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
@@ -1148,6 +1159,35 @@ struct is_2d_threaded_layout_v<RestrictedLayout<N,Layout>>
 template <typename Layout>
 constexpr bool is_2d_threaded_layout = is_2d_threaded_layout_v<Layout>::value;
 
+// is_3d_threaded_layout
+template <typename Layout>
+struct is_3d_threaded_layout_v
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_3d_threaded_layout_v<Static3dThreadLayout<BatchSize,Dims...>>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_3d_threaded_layout_v<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   static constexpr bool value = true;
+};
+
+template <int N, typename Layout>
+struct is_3d_threaded_layout_v<RestrictedLayout<N,Layout>>
+{
+   static constexpr bool value = is_3d_threaded_layout_v<Layout>::value;
+};
+
+template <typename Layout>
+constexpr bool is_3d_threaded_layout = is_3d_threaded_layout_v<Layout>::value;
+
+
 // is_serial_layout_dim
 template <typename Layout, int N>
 struct is_serial_layout_dim_v
@@ -1175,6 +1215,42 @@ struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
 
 template <int Rank, int BatchSize>
 struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 0>
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 2>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 0>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 2>
 {
    static constexpr bool value = false;
 };
@@ -1209,6 +1285,42 @@ struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
 
 template <int Rank, int BatchSize>
 struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 0>
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 2>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 0>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 2>
 {
    static constexpr bool value = true;
 };
@@ -1258,6 +1370,18 @@ struct get_layout_size_v<N, DynamicBlockLayout<Rank, BatchSize>>
    static constexpr int value = Dynamic;
 };
 
+template <int N, int BatchSize, int... Dims>
+struct get_layout_size_v<N, Static3dThreadLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = get_value<N, Dims...>;
+};
+
+template <int N, int Rank, int BatchSize>
+struct get_layout_size_v<N, Dynamic3dThreadLayout<Rank, BatchSize>>
+{
+   static constexpr int value = Dynamic;
+};
+
 template <int N, int I, typename Layout>
 struct get_layout_size_v<N,RestrictedLayout<I,Layout>>
 {
@@ -1301,6 +1425,18 @@ struct get_layout_sizes_t<DynamicBlockLayout<Rank,BatchSize>>
    using type = int_repeat<Dynamic,Rank>;
 };
 
+template <int BatchSize, int... Dims>
+struct get_layout_sizes_t<Static3dThreadLayout<BatchSize, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_sizes_t<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   using type = int_repeat<Dynamic,Rank>;
+};
+
 template <int N, typename Layout>
 struct get_layout_sizes_t<RestrictedLayout<N,Layout>>
 {
@@ -1325,6 +1461,18 @@ struct get_layout_batch_size_v<BlockLayout<BatchSize, Dims...>>
 
 template <int Rank, int BatchSize>
 struct get_layout_batch_size_v<DynamicBlockLayout<Rank, BatchSize>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int... Dims>
+struct get_layout_batch_size_v<Static3dThreadLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_batch_size_v<Dynamic3dThreadLayout<Rank, BatchSize>>
 {
    static constexpr int value = BatchSize;
 };
@@ -1374,6 +1522,31 @@ struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY>>
 
 template <int BatchSize, int DimX, int DimY, int... Dims>
 struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY, Dims...>>
+{
+   static constexpr int value = BatchSize * prod(Dims...);
+};
+
+template <int BatchSize, int DimX>
+struct get_layout_capacity_v<Static3dThreadLayout<BatchSize, DimX>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY>
+struct get_layout_capacity_v<Static3dThreadLayout<BatchSize, DimX, DimY>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ>
+struct get_layout_capacity_v<Static3dThreadLayout<BatchSize, DimX, DimY, DimZ>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ, int... Dims>
+struct get_layout_capacity_v<
+   Static3dThreadLayout<BatchSize, DimX, DimY, DimZ, Dims...>>
 {
    static constexpr int value = BatchSize * prod(Dims...);
 };
@@ -1428,6 +1601,20 @@ struct get_layout_result_type<DynamicBlockLayout<Rank,BatchSize>>
 {
    template <int myRank>
    using type = DynamicBlockLayout<myRank,BatchSize>;
+};
+
+template <int BatchSize, int... Sizes>
+struct get_layout_result_type<Static3dThreadLayout<BatchSize,Sizes...>>
+{
+   template <int... Dims>
+   using type = Static3dThreadLayout<BatchSize,Dims...>;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_result_type<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   template <int myRank>
+   using type = Dynamic3dThreadLayout<myRank,BatchSize>;
 };
 
 template <typename Layout, typename Enable = void>
