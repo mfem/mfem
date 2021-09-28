@@ -1,0 +1,23 @@
+# KSP
+-ksp_type fgmres
+-ksp_view
+
+# PCFIELDSPLIT
+# -prec_pc_fieldsplit_type schur
+# -prec_pc_fieldsplit_schur_fact_type diag
+# -prec_fieldsplit_0_ksp_type preonly
+# -prec_fieldsplit_0_pc_type gamg
+# -prec_fieldsplit_1_ksp_type gmres
+# -prec_fieldsplit_1_pc_type none
+
+-prec_pc_fieldsplit_type schur
+-prec_pc_fieldsplit_schur_factorization_type diag
+-prec_pc_fieldsplit_schur_precondition self
+-prec_fieldsplit_0_ksp_type gmres
+-prec_fieldsplit_0_pc_type  lu
+-prec_fieldsplit_0_ksp_rtol 1e-5
+-prec_fieldsplit_0_ksp_max_it 50
+-prec_fieldsplit_1_ksp_rtol 1e-5
+-prec_fieldsplit_1_ksp_max_it 50 
+-prec_fieldsplit_1_pc_type lsc
+-prec_fieldsplit_1_ksp_type gmres

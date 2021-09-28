@@ -1,0 +1,17 @@
+# KSP
+-ksp_type gmres
+# -ksp_view
+
+# PCFIELDSPLIT
+ -prec_pc_fieldsplit_type schur
+ -prec_pc_fieldsplit_schur_fact_type diag
+ -prec_fieldsplit_0_ksp_type preonly
+# -prec_fieldsplit_0_pc_type gamg
+  -prec_fieldsplit_0_pc_type gamg
+  -prec_fieldsplit_1_ksp_type minres
+# -prec_fieldsplit_1_ksp_type gmres
+# -prec_fieldsplit_1_ksp_max_it 60 
+# -prec_fieldsplit_1_ksp_rtol 1e-3
+ -prec_fieldsplit_1_pc_type none
+# -prec_fieldsplit_1_pc_type lsc
+
