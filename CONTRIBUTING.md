@@ -105,6 +105,7 @@ The MFEM source code has the following structure:
   │   ├── caliper
   │   ├── ginkgo
   │   ├── hiop
+  │   ├── jupyter
   │   ├── petsc
   │   ├── pumi
   │   ├── sundials
@@ -126,6 +127,7 @@ The MFEM source code has the following structure:
   │   ├── mtop
   │   ├── navier
   │   ├── nurbs
+  │   ├── parelag
   │   ├── performance
   │   ├── shifted
   │   ├── solvers
