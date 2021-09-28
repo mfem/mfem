@@ -71,9 +71,9 @@ double AvgElementSize(ParMesh &pmesh)
 
 ParMesh *MakeLORMesh(ParMesh &mesh_ho, int order, bool simplex)
 {
-  ParMesh *LORParMesh = new ParMesh;
-  LORParMesh->MakeRefined(mesh_ho, order, BasisType::GaussLobatto);
-  return LORParMesh;
+   ParMesh *LORParMesh = new ParMesh;
+   LORParMesh->MakeRefined(mesh_ho, order, BasisType::GaussLobatto);
+   return LORParMesh;
 }
 
 LOR::LOR(ParMesh &mesh_ho, int order, Coefficient &coeff, Array<int> &ess_dofs,
