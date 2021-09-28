@@ -36,8 +36,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q> u(u_e);
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D> u(u_e);
    return B * u;
 }
 
@@ -55,8 +55,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q> u(u_e);
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D> u(u_e);
    return ContractX(B,u);
 }
 
@@ -74,8 +74,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q,Q> u(u_e);
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D,D> u(u_e);
    auto Bu = ContractX(B,u);
    return ContractY(B,Bu);
 }
@@ -94,8 +94,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q,Q,Q> u(u_e);
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D,D,D> u(u_e);
    auto Bu = ContractX(B,u);
    auto BBu = ContractY(B,Bu);
    return ContractZ(B,BBu);

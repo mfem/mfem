@@ -36,8 +36,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q> u(u_e); // TODO: Add a diff dim of 1?
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D> u(u_e); // TODO: Add a diff dim of 1?
    return G * u;
 }
 
@@ -55,8 +55,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q> u(u_e);
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D> u(u_e);
    return ContractX(G,u);
 }
 
@@ -77,13 +77,14 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q,Q> u(u_e);
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D,D> u(u_e);
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto GBu = ContractY(G,Bu);
    auto BGu = ContractY(B,Gu);
 
+   constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
    ResultTensor<Basis,Q,Q,Dim> Grad_u(Q_r,Q_r,Dim);
    constexpr int Comp = 2;
@@ -109,8 +110,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
-   constexpr int Q = get_basis_quads<Basis>;
-   ResultTensor<Basis,Q,Q,Q> u(u_e);
+   constexpr int D = get_basis_dofs<Basis>;
+   ResultTensor<Basis,D,D,D> u(u_e);
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto BBu = ContractY(B,Bu);
@@ -120,6 +121,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    auto BGBu = ContractZ(B,GBu);
    auto GBBu = ContractZ(G,BBu);
 
+   constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
    ResultTensor<Basis,Q,Q,Q,Dim> Grad_u(Q_r,Q_r,Q_r,Dim);
    constexpr int Comp = 3;
