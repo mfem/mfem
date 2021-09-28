@@ -25,7 +25,8 @@ namespace mfem
 
 using namespace std;
 
-namespace detail {
+namespace detail
+{
 MFEM_DISABLE_WARNING_PUSH
 MFEM_DISABLE_WARNING_DEPRECATED
 }
@@ -55,7 +56,8 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 }
 #endif
 
-namespace detail {
+namespace detail
+{
 MFEM_DISABLE_WARNING_POP
 }
 
@@ -75,7 +77,8 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 #endif
 }
 
-namespace detail {
+namespace detail
+{
 MFEM_DISABLE_WARNING_PUSH
 MFEM_DISABLE_WARNING_DEPRECATED
 }
@@ -133,7 +136,8 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 #endif
 }
 
-namespace detail {
+namespace detail
+{
 MFEM_DISABLE_WARNING_POP
 }
 
