@@ -25,8 +25,8 @@ namespace mfem
 
 using namespace std;
 
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED
+MFEM_DISABLE_WARNING_PUSH
+MFEM_DISABLE_WARNING_DEPRECATED
 
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
@@ -53,7 +53,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 }
 #endif
 
-DISABLE_WARNING_POP
+MFEM_DISABLE_WARNING_POP
 
 double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
@@ -71,8 +71,8 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 #endif
 }
 
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED
+MFEM_DISABLE_WARNING_PUSH
+MFEM_DISABLE_WARNING_DEPRECATED
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
@@ -127,7 +127,7 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 #endif
 }
 
-DISABLE_WARNING_POP
+MFEM_DISABLE_WARNING_POP
 
 IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
    int print_level)

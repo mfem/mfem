@@ -85,13 +85,13 @@ public:
           information will be reported
         */
       bool warnings = false;
+      /// Detailed information about each iteration will be reported
+      bool iterations = false;
       /** A summary of the solver process will be reported after the last
           iteration
         */
-      bool iterations = false;
-      /// Detailed information about each iteration will be reported
       bool summary = false;
-      /// Information about the first und last iteration will be printed
+      /// Information about the first and last iteration will be printed
       bool first_and_last = false;
 
       /// Initializes the print level to suppress
@@ -99,7 +99,7 @@ public:
 
       /** @name Builder
          These methods are utilized to construct PrintLevel objects
-         through an builder approach, i.e. by chaining the function calls in
+         through a builder approach, i.e. by chaining the function calls in
          this group.
         */
       ///@{
@@ -150,7 +150,7 @@ protected:
    PrintLevel FromLegacyPrintLevel(int);
 
    // Some heuristics to guess an appropriate legacy print level
-   int GuessLegacyPrintLevel(PrintLevel);
+   static int GuessLegacyPrintLevel(PrintLevel);
    ///@}
 
    /** @name Convergence
@@ -207,17 +207,18 @@ public:
        Old way to directly set the behavior on which information will be printed
        to ::mfem::out and ::mfem::err. The behavior for the print level for all
        iterative solvers is
-       -1: Suppress all outputs
-        0: Print information about all detected issues (e.g. no convergence)
-        1: Same as level 0, but with detailed information about each iteration
-        2: Same as level 0, but with a summary of the iterative process
-       >2: Custom print options which are dependent on the specific solver
+       -1: Suppress all outputs.
+        0: Print information about all detected issues (e.g. no convergence).
+        1: Same as level 0, but with detailed information about each iteration.
+        2: Print detected issues and a summary when the solver terminates.
+        3: Same as 2, but print also the first and last iterations.
+       >3: Custom print options which are dependent on the specific solver.
 
        In the MPI build just the rank 0 node produces outputs.
 
-       @note It is recommended to use SetPrintLevel(PrintOptions) over this method.
+       @note It is recommended to use SetPrintLevel(PrintLevels) over this method.
          If additional custom printing options are required for a derived iterative
-         solver a new SetPrintLevel(PrintOptions) with a custom PrintOptions struct
+         solver a new SetPrintLevel(PrintLevels) with a custom PrintLevels struct
          can be defined.
      */
    virtual void SetPrintLevel(int print_lvl);
@@ -228,7 +229,7 @@ public:
        initialized correctly. Errors are output to ::mfem::err and all other
        information to ::mfem::out.
 
-       @note It is recommended to define new PrintOption structs if more custom
+       @note It is recommended to define new PrintLevel structs if more custom
          print levels should be supported for a subclass.
     */
    void SetPrintLevel(PrintLevel);
