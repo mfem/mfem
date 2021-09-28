@@ -151,12 +151,25 @@ template <int BatchSize, int DimX>
 class BlockLayout<BatchSize, DimX>
 {
 public:
+   MFEM_HOST_DEVICE
+   constexpr BlockLayout()
+   {
+      // TODO verify that size0 < BlockSizeX
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
    MFEM_HOST_DEVICE inline
    constexpr BlockLayout(int size0)
    {
       // TODO Verify in debug that size0==DimX
       // TODO verify that size0 < BlockSizeX
       // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr BlockLayout(const Layout& rhs)
+   {
+      // TODO verifications
    }
 
    MFEM_HOST_DEVICE inline
@@ -180,12 +193,25 @@ template <int BatchSize, int DimX, int DimY>
 class BlockLayout<BatchSize, DimX, DimY>
 {
 public:
+   MFEM_HOST_DEVICE
+   constexpr BlockLayout()
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
    MFEM_HOST_DEVICE inline
    constexpr BlockLayout(int size0, int size1)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
       // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr BlockLayout(const Layout& rhs)
+   {
+      // TODO verifications
    }
 
    MFEM_HOST_DEVICE inline
@@ -211,8 +237,15 @@ class BlockLayout<BatchSize, DimX, DimY, Dims...>
 private:
    StaticLayout<Dims...> layout;
 public:
+   MFEM_HOST_DEVICE
+   constexpr BlockLayout()
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   BlockLayout(int size0, int size1, Sizes... sizes)
+   constexpr BlockLayout(int size0, int size1, Sizes... sizes)
    : layout(sizes...)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
@@ -220,12 +253,18 @@ public:
       // TODO verify that BlockSizeZ == BatchSize
    }
 
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr BlockLayout(const Layout& rhs)
+   {
+      // TODO verifications
+   }
+
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, Idx... idx) const
    {
       // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
-      return layout(idx...);
+      return layout.index(idx...);
    }
 
    // Can be constexpr if Tensor inherit from Layout
@@ -253,12 +292,22 @@ public:
       // TODO verify that BlockSizeZ == BatchSize
    }
 
+   template <typename Layout> MFEM_HOST_DEVICE
+   DynamicBlockLayout(const Layout &rhs)
+   : size0(rhs.template Size<0>()),
+     size1(rhs.template Size<1>()),
+     layout(rhs.template Get<0>(0).template Get<0>(0))
+   {
+      // static_assert(Rank == get_layout_rank<Layout>,
+      //               "Can't copy-construct with a layout of different rank.");
+   }
+
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, Idx... idx) const
    {
       // TODO verify that idx0 < size0 && idx1 < size1
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
-      return layout(idx...);
+      return layout.index(idx...);
    }
 
    // Can be constexpr if Tensor inherit from Layout
@@ -282,6 +331,14 @@ public:
    {
       // TODO verify that size0 < BlockSizeX
       // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   DynamicBlockLayout(const Layout &rhs)
+   : size0(rhs.template Size<0>())
+   {
+      // static_assert(1 == get_layout_rank<Layout>,
+      //               "Can't copy-construct with a layout of different rank.");
    }
 
    MFEM_HOST_DEVICE inline
@@ -313,6 +370,15 @@ public:
    {
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
       // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   DynamicBlockLayout(const Layout &rhs)
+   : size0(rhs.template Size<0>()),
+     size1(rhs.template Size<1>())
+   {
+      // static_assert(2 == get_layout_rank<Layout>,
+      //               "Can't copy-construct with a layout of different rank.");
    }
 
    MFEM_HOST_DEVICE inline
@@ -869,6 +935,14 @@ struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
    static constexpr bool value = true;
 };
 
+template <int N, int R, typename Layout>
+struct is_threaded_layout_dim_v<RestrictedLayout<R,Layout>, N>
+{
+   static constexpr bool value = N<R?
+                                 is_threaded_layout_dim_v<Layout,N>::value:
+                                 is_threaded_layout_dim_v<Layout,N+1>::value;
+};
+
 template <typename Layout, int N>
 constexpr bool is_threaded_layout_dim = is_threaded_layout_dim_v<Layout,N>::value;
 
@@ -898,6 +972,12 @@ template <int N, int BatchSize, int... Dims>
 struct get_layout_size_v<N, BlockLayout<BatchSize, Dims...>>
 {
    static constexpr int value = get_value<N, Dims...>;
+};
+
+template <int N, int Rank, int BatchSize>
+struct get_layout_size_v<N, DynamicBlockLayout<Rank, BatchSize>>
+{
+   static constexpr int value = Dynamic;
 };
 
 template <int N, int I, typename Layout>
