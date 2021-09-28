@@ -70,6 +70,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 {
+   constexpr int Dim = 2;
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
@@ -84,9 +85,10 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    auto BGu = ContractY(B,Gu);
 
    const int Q_r = basis.GetQuads();
-   ResultTensor<Basis,Q,Q,2> Grad_u(Q_r,Q_r,2);
-   Grad_u.template Get<2>(0) = BGu;
-   Grad_u.template Get<2>(1) = GBu;
+   ResultTensor<Basis,Q,Q,Dim> Grad_u(Q_r,Q_r,Dim);
+   constexpr int Comp = 2;
+   Grad_u.template Get<Comp>(0) = BGu;
+   Grad_u.template Get<Comp>(1) = GBu;
    return Grad_u;
 }
 
@@ -100,6 +102,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 {
+   constexpr int Dim = 3;
    constexpr int basis_size = get_basis_capacity<Grad<Basis>>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
@@ -118,10 +121,11 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    auto GBBu = ContractZ(G,BBu);
 
    const int Q_r = basis.GetQuads();
-   ResultTensor<Basis,Q,Q,Q,3> Grad_u(Q_r,Q_r,Q_r,3);
-   Grad_u.template Get<2>(0) = BBGu;
-   Grad_u.template Get<2>(1) = BGBu;
-   Grad_u.template Get<2>(2) = GBBu;
+   ResultTensor<Basis,Q,Q,Q,Dim> Grad_u(Q_r,Q_r,Q_r,Dim);
+   constexpr int Comp = 3;
+   Grad_u.template Get<Comp>(0) = BBGu;
+   Grad_u.template Get<Comp>(1) = BGBu;
+   Grad_u.template Get<Comp>(2) = GBBu;
    return Grad_u;
 }
 

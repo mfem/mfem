@@ -85,6 +85,7 @@ struct ConfigBasis
    {
       return config.dofs;
    }
+
    MFEM_HOST_DEVICE inline
    auto GetB(double* shared_mem) const
    {
@@ -800,6 +801,19 @@ struct get_basis_dofs_v<Grad<Basis>>
 
 template <typename Basis>
 constexpr int get_basis_dofs = get_basis_dofs_v<Basis>::value;
+
+// get_basis_size
+template <int N, typename Basis>
+struct get_basis_size_v;
+
+template <int N, int Dim, bool IsTensor, typename TensorType>
+struct get_basis_size_v<N, BasisTensor<Dim, IsTensor, TensorType>>
+{
+   static constexpr int value = get_tensor_size<N,TensorType>;
+};
+
+template <int N, typename Basis>
+constexpr int get_basis_size = get_basis_size_v<N,Basis>::value;
 
 // get_basis_capacity
 template <typename Basis, typename Enable = void> //std::enable_if_t<is_basis<Basis>> >
