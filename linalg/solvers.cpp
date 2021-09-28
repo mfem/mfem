@@ -749,7 +749,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       if (print_options.warnings)
       {
-         mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+         mfem::err << "PCG: The preconditioner is not positive definite. (Br, r) = "
                    << nom << '\n';
       }
       converged = false;
@@ -773,7 +773,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       if (Dot(d, d) > 0.0 && print_options.warnings)
       {
-         mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+         mfem::err << "PCG: The operator is not positive definite. (Ad, d) = "
                    << den << '\n';
       }
       if (den == 0.0)
@@ -808,7 +808,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          if (print_options.warnings)
          {
-            mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+            mfem::err << "PCG: The preconditioner is not positive definite. (Br, r) = "
                       << betanom << '\n';
          }
          converged = false;
@@ -852,7 +852,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          if (Dot(d, d) > 0.0 && print_options.warnings)
          {
-            mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+            mfem::err << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
          }
          if (den == 0.0)
