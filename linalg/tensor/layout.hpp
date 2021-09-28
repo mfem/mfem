@@ -598,7 +598,6 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
