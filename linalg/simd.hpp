@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,9 @@
 // --- AutoSIMD + specializations with intrinsics
 #include "simd/auto.hpp"
 #ifdef MFEM_USE_SIMD
-#if defined(__VSX__)
+#if defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
+#include "simd/sve.hpp"
+#elif defined(__VSX__)
 #include "simd/vsx.hpp"
 #elif defined (__bgq__)
 #include "simd/qpx.hpp"
@@ -33,13 +35,16 @@
 // MFEM_SIMD_BYTES is the default SIMD size used by MFEM, see e.g. class
 // TBilinearForm and the default traits class AutoSIMDTraits.
 // MFEM_ALIGN_BYTES determines the padding used in TVector when its 'align'
-// template parameter is set to true -- it ensues that the size of such TVector
+// template parameter is set to true -- it ensures that the size of such TVector
 // types is a multiple of MFEM_ALIGN_BYTES. MFEM_ALIGN_BYTES must be a multiple
 // of MFEM_SIMD_BYTES.
 #if !defined(MFEM_USE_SIMD)
 #define MFEM_SIMD_BYTES 8
 #define MFEM_ALIGN_BYTES 32
 #elif defined(__AVX512F__)
+#define MFEM_SIMD_BYTES 64
+#define MFEM_ALIGN_BYTES 64
+#elif defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
 #define MFEM_SIMD_BYTES 64
 #define MFEM_ALIGN_BYTES 64
 #elif defined(__AVX__) || defined(__VECTOR4DOUBLE__)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,35 +26,46 @@ protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
 
-   /** @brief Indicates the LinearFormIntegrator%s stored in #dlfi, #dlfi_delta,
-       #blfi, and #flfi are owned by another LinearForm. */
+   /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs,
+       #domain_delta_integs, #boundary_integs, and #boundary_face_integs are
+       owned by another LinearForm. */
    int extern_lfs;
 
    /// Set of Domain Integrators to be applied.
-   Array<LinearFormIntegrator*> dlfi;
+   Array<LinearFormIntegrator*> domain_integs;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>           domain_integs_marker;
 
    /// Separate array for integrators with delta function coefficients.
-   Array<DeltaLFIntegrator*> dlfi_delta;
+   Array<DeltaLFIntegrator*>    domain_delta_integs;
 
    /// Set of Boundary Integrators to be applied.
-   Array<LinearFormIntegrator*> blfi;
-   Array<Array<int>*>           blfi_marker; ///< Entries are not owned.
+   Array<LinearFormIntegrator*> boundary_integs;
+   /// Entries are not owned.
+   Array<Array<int>*>           boundary_integs_marker;
 
    /// Set of Boundary Face Integrators to be applied.
-   Array<LinearFormIntegrator*> flfi;
-   Array<Array<int>*>           flfi_marker; ///< Entries are not owned.
+   Array<LinearFormIntegrator*> boundary_face_integs;
+   Array<Array<int>*> boundary_face_integs_marker; ///< Entries not owned.
+
+   /// Set of Internal Face Integrators to be applied.
+   Array<LinearFormIntegrator*> interior_face_integs;
 
    /// The element ids where the centers of the delta functions lie
-   Array<int> dlfi_delta_elem_id;
+   Array<int> domain_delta_integs_elem_id;
 
    /// The reference coordinates where the centers of the delta functions lie
-   Array<IntegrationPoint> dlfi_delta_ip;
+   Array<IntegrationPoint> domain_delta_integs_ip;
 
    /// If true, the delta locations are not (re)computed during assembly.
-   bool HaveDeltaLocations() { return (dlfi_delta_elem_id.Size() != 0); }
+   bool HaveDeltaLocations()
+   { return (domain_delta_integs_elem_id.Size() != 0); }
 
    /// Force (re)computation of delta locations.
-   void ResetDeltaLocations() { dlfi_delta_elem_id.SetSize(0); }
+   void ResetDeltaLocations() { domain_delta_integs_elem_id.SetSize(0); }
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -109,6 +120,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a lfi.
    void AddDomainIntegrator(LinearFormIntegrator *lfi);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a lfi.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi);
@@ -132,25 +147,31 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
+   /// Adds new Interior Face Integrator. Assumes ownership of @a lfi.
+   void AddInteriorFaceIntegrator(LinearFormIntegrator *lfi);
+
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
        coefficients. */
-   Array<LinearFormIntegrator*> *GetDLFI() { return &dlfi; }
+   Array<LinearFormIntegrator*> *GetDLFI() { return &domain_integs; }
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        DeltaLFIntegrator%s with delta coefficients. */
-   Array<DeltaLFIntegrator*> *GetDLFI_Delta() { return &dlfi_delta; }
+   Array<DeltaLFIntegrator*> *GetDLFI_Delta() { return &domain_delta_integs; }
 
    /// Access all integrators added with AddBoundaryIntegrator().
-   Array<LinearFormIntegrator*> *GetBLFI() { return &blfi; }
+   Array<LinearFormIntegrator*> *GetBLFI() { return &boundary_integs; }
 
    /// Access all integrators added with AddBdrFaceIntegrator().
-   Array<LinearFormIntegrator*> *GetFLFI() { return &flfi; }
+   Array<LinearFormIntegrator*> *GetFLFI() { return &boundary_face_integs; }
+
+   /// Access all integrators added with AddInteriorFaceIntegrator().
+   Array<LinearFormIntegrator*> *GetIFLFI() { return &interior_face_integs; }
 
    /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetFLFI_Marker() { return &flfi_marker; }
+   Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();

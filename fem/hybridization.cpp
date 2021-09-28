@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,16 +61,16 @@ void Hybridization::ConstructC()
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *c_pfes = dynamic_cast<ParFiniteElementSpace*>(c_fes);
    ParMesh *pmesh = c_pfes ? c_pfes->GetParMesh() : NULL;
-   HYPRE_Int num_shared_slave_faces = 0, glob_num_shared_slave_faces = 0;
+   HYPRE_BigInt num_shared_slave_faces = 0, glob_num_shared_slave_faces = 0;
    if (c_pfes)
    {
       if (pmesh->Nonconforming())
       {
          const int dim = pmesh->Dimension();
          const NCMesh::NCList &shared = pmesh->pncmesh->GetSharedList(dim-1);
-         num_shared_slave_faces = (HYPRE_Int) shared.slaves.Size();
+         num_shared_slave_faces = (HYPRE_BigInt) shared.slaves.Size();
          MPI_Allreduce(&num_shared_slave_faces, &glob_num_shared_slave_faces, 1,
-                       HYPRE_MPI_INT, MPI_SUM, pmesh->GetComm());
+                       HYPRE_MPI_BIG_INT, MPI_SUM, pmesh->GetComm());
          MFEM_ASSERT(glob_num_shared_slave_faces%2 == 0, "");
          glob_num_shared_slave_faces /= 2;
          if (glob_num_shared_slave_faces)
@@ -174,12 +174,13 @@ void Hybridization::ConstructC()
          {
             // Convert Ct to parallel and then transpose it:
             Ct->Finalize(skip_zeros);
-            HYPRE_Int Ct_num_rows = Ct->Height();
-            Array<HYPRE_Int> Ct_rows, *offsets[1] = { &Ct_rows };
+            HYPRE_BigInt Ct_num_rows = Ct->Height();
+            Array<HYPRE_BigInt> Ct_rows;
+            Array<HYPRE_BigInt> *offsets[1] = { &Ct_rows };
             pmesh->GenerateOffsets(1, &Ct_num_rows, offsets);
-            Array<HYPRE_Int> Ct_J(Ct->NumNonZeroElems());
-            HYPRE_Int c_ldof_offset = c_pfes->GetMyDofOffset();
-            const HYPRE_Int *c_face_nbr_glob_ldof =
+            Array<HYPRE_BigInt> Ct_J(Ct->NumNonZeroElems());
+            HYPRE_BigInt c_ldof_offset = c_pfes->GetMyDofOffset();
+            const HYPRE_BigInt *c_face_nbr_glob_ldof =
                c_pfes->GetFaceNbrGlobalDofMap();
             int *J = Ct->GetJ();
             for (int i = 0; i < Ct_J.Size(); i++)
@@ -677,11 +678,11 @@ void Hybridization::ComputeH()
    {
       // TODO: add ones on the diagonal of zero rows
       V->Finalize();
-      Array<HYPRE_Int> V_J(V->NumNonZeroElems());
+      Array<HYPRE_BigInt> V_J(V->NumNonZeroElems());
       MFEM_ASSERT(c_pfes, "");
       const int c_vsize = c_fes->GetVSize();
-      HYPRE_Int c_ldof_offset = c_pfes->GetMyDofOffset();
-      const HYPRE_Int *c_face_nbr_glob_ldof = c_pfes->GetFaceNbrGlobalDofMap();
+      HYPRE_BigInt c_ldof_offset = c_pfes->GetMyDofOffset();
+      const HYPRE_BigInt *c_face_nbr_glob_ldof = c_pfes->GetFaceNbrGlobalDofMap();
       int *J = V->GetJ();
       for (int i = 0; i < V_J.Size(); i++)
       {
