@@ -14,11 +14,11 @@
 #ifdef MFEM_USE_BENCHMARK
 
 /*
- This benchmark contains the implementation of the CEED's bake-off problems:
- high-order kernels/benchmarks designed to test and compare the performance
- of high-order codes.
+  This benchmark contains the implementation of the CEED's bake-off problems:
+  high-order kernels/benchmarks designed to test and compare the performance
+  of high-order codes.
 
- See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
+  See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 */
 
 struct BakeOff
