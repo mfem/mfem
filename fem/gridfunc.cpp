@@ -4139,15 +4139,19 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
    StopWatch chrono;
    double time = 0.0;
+   double time1 = 0.0;
    double total_error = 0.0;
+
+   RT_FECollection RT0fec(0,dim);
+   FiniteElementSpace RT0fes(mesh,&RT0fec);
+
    for (int iface = 0; iface < nfaces; iface++)
    {
-
       // 1. Find all elements in the face patch.
       Array<int> neighbor_elems;
       chrono.Clear();
       chrono.Start();
-      GetFaceElements(*mesh, iface, neighbor_elems);
+      GetFaceElements(RT0fes, iface, neighbor_elems);
       chrono.Stop();
       time += chrono.RealTime();
       int num_neighbor_elems = neighbor_elems.Size();
@@ -4258,6 +4262,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
       double TOL = 1e-9;
+      chrono.Clear();
+      chrono.Start();
       if (!lu.Factor(num_basis_functions,TOL))
       {
          // singular matrix
@@ -4265,6 +4271,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          cin.get();
       }
       lu.Solve(num_basis_functions, dim, b);
+      chrono.Stop();
+      time1 += chrono.RealTime();
 
       // Construct l2-minimizing global polynomial
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
@@ -4351,26 +4359,19 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    }
 #endif // MFEM_USE_MPI
    mfem::out << "GetFaceElements time : " << time << endl;
+   mfem::out << "GetFaceElements time / face : " << time/nfaces << endl;
+   mfem::out << "LU factor/solve time = " << time1 << endl;
+
    return std::sqrt(total_error);
 }
 
-void GetFaceElements(Mesh & mesh, int face, Array<int> & elems)
+void GetFaceElements(FiniteElementSpace & RT0Space, int face, Array<int> & elems)
 {
-   int dim = mesh.Dimension();
-   FiniteElementCollection * fec = nullptr;
-   if (dim == 2)
-   {
-      fec = new ND_FECollection(1,dim);
-   }
-   else
-   {
-      // not yet tested in 3D
-      fec = new RT_FECollection(0,dim);
-   }
-   FiniteElementSpace fespace(&mesh, fec);
+   Mesh & mesh = *RT0Space.GetMesh();
 
-   const SparseMatrix * P = fespace.GetConformingProlongation();
-   const SparseMatrix * R = fespace.GetConformingRestriction();
+   const SparseMatrix * P = RT0Space.GetConformingProlongation();
+   const SparseMatrix * R = RT0Space.GetConformingRestriction();
+
    int el1, el2;
    if (P)
    {

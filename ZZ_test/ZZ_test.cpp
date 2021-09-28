@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
    double old_num_dofs = 0.0;
    double old_H10_error = 0.0;
    double old_ZZ_error = 0.0;
-   const int max_dofs = 50000;
+   const int max_dofs = 20000;
    for (int it = 0; ; it++)
    {
       int num_dofs = fespace.GetTrueVSize();
@@ -209,8 +209,13 @@ int main(int argc, char *argv[])
             break;
          }
       }
+      StopWatch chrono;
+      chrono.Clear();
+      chrono.Start();
       const Vector &zzerr = estimator->GetLocalErrors();
-      double ZZ_error = zzerr.Norml2();
+      chrono.Stop();
+      mfem::out << "get local errors time: " << chrono.RealTime() << endl;
+       double ZZ_error = zzerr.Norml2();
       // double ZZ_error = estimator->GetTotalError();
 
       // estimate convergence rate
