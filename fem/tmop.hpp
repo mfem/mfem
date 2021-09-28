@@ -593,6 +593,27 @@ public:
 };
 
 /// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_328(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_301),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_301 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
 class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -613,50 +634,6 @@ public:
    double GetGamma() const { return gamma; }
 
    virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
-};
-
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
-class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
-{
-protected:
-   double gamma;
-   TMOP_QualityMetric *sh_metric, *sz_metric;
-
-public:
-   TMOP_Metric_333(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_302),
-      sz_metric(new TMOP_Metric_316)
-   {
-      // (1-gamma) mu_302 + gamma mu_316
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
-   }
-
-   virtual int Id() const { return 333; }
-   double GetGamma() const { return gamma; }
-
-   virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
-};
-
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
-class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
-{
-protected:
-   mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
-   TMOP_QualityMetric *sh_metric, *sz_metric;
-
-public:
-   TMOP_Metric_328(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_301),
-      sz_metric(new TMOP_Metric_316)
-   {
-      // (1-gamma) mu_301 + gamma mu_316
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
-   }
-
-   virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D barrier Shape+Size (VS) metric (polyconvex).
