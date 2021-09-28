@@ -162,10 +162,6 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       }
 
       double w = factor*sqrt(eta)*ip.weight*Trans.Face->Weight();
-      if (ndof2)
-      {
-         w /= 2;
-      }
 
       for (int i = 0; i < ndof1; i++)
       {
