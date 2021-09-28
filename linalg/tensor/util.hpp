@@ -55,10 +55,15 @@ constexpr T pow(T x, unsigned int n)
 }
 
 /// Does the same as sizeof...
-template <typename First, typename... Rest>
-constexpr unsigned int rank()
+constexpr int rank(int first)
 {
-   return 1 + rank<Rest...>();
+   return 1;
+}
+
+template <typename... Args>
+constexpr int rank(int first, Args... rest)
+{
+   return 1 + rank(rest...);
 }
 
 /// A struct to store a list of integers
