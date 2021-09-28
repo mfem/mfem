@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,11 +19,14 @@
 
 #include "petsc.hpp"
 
-// Forward declarations
-typedef struct _p_EPS *EPS;
+// Forward declaration of SLEPc's internal struct _p_EPS:
+struct _p_EPS;
 
 namespace mfem
 {
+
+// Declare an alias of SLEPc's EPS type, mfem::slepc::EPS:
+namespace slepc { typedef struct ::_p_EPS *EPS; }
 
 void MFEMInitializeSlepc();
 void MFEMInitializeSlepc(int*,char***);
@@ -37,7 +40,7 @@ private:
    mutable bool clcustom;
 
    /// SLEPc linear eigensolver object
-   EPS eps;
+   slepc::EPS eps;
 
    /// Real and imaginary part of eigenvector
    mutable PetscParVector *VR, *VC;
@@ -102,7 +105,7 @@ public:
    void SetSpectralTransformation(SpectralTransformation transformation);
 
    /// Conversion function to SLEPc's EPS type.
-   operator EPS() const { return eps; }
+   operator slepc::EPS() const { return eps; }
 
    /// Conversion function to PetscObject
    operator PetscObject() const {return (PetscObject)eps; }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@
 
 // BSD 3-Clause License
 //
-// Copyright (c) 2019-2020, Lawrence Livermore National Security, LLC
+// Copyright (c) 2019-2021, Lawrence Livermore National Security, LLC
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 
 // ------------------------------------------------------------------------------
 
-// Copyright (c) 2019-2020, Lawrence Livermore National Security, LLC and other
+// Copyright (c) 2019-2021, Lawrence Livermore National Security, LLC and other
 // gecko project contributors. See the above license for details.
 // SPDX-License-Identifier: BSD-3-Clause
 // LLNL-CODE-800597

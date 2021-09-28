@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -87,6 +87,9 @@ public:
    /// Access the underlying Operator.
    Operator &operator*() { return *oper; }
 
+   /// Access the underlying Operator.
+   const Operator &operator*() const { return *oper; }
+
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }
 
@@ -144,15 +147,15 @@ public:
    /** @brief Reset the OperatorHandle to hold a parallel square block-diagonal
        matrix using the currently set type id. */
    /** The operator ownership flag is set to true. */
-   void MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
-                            HYPRE_Int *row_starts, SparseMatrix *diag);
+   void MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
+                            HYPRE_BigInt *row_starts, SparseMatrix *diag);
 
    /** @brief Reset the OperatorHandle to hold a parallel rectangular
        block-diagonal matrix using the currently set type id. */
    /** The operator ownership flag is set to true. */
-   void MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
-                                 HYPRE_Int glob_num_cols, HYPRE_Int *row_starts,
-                                 HYPRE_Int *col_starts, SparseMatrix *diag);
+   void MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
+                                 HYPRE_BigInt glob_num_cols, HYPRE_BigInt *row_starts,
+                                 HYPRE_BigInt *col_starts, SparseMatrix *diag);
 #endif // MFEM_USE_MPI
 
    /// Reset the OperatorHandle to hold the product @a P^t @a A @a P.

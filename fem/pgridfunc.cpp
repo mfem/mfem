@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -275,8 +275,8 @@ const
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
-         Array<int> _dofs(&dofs[(vdim-1)*s], s);
-         face_nbr_data.GetSubVector(_dofs, LocVec);
+         Array<int> dofs_(&dofs[(vdim-1)*s], s);
+         face_nbr_data.GetSubVector(dofs_, LocVec);
          DofVal.SetSize(s);
       }
       else
@@ -325,9 +325,14 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+                                                                  dofs);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(loc_data);
+      }
       const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
       int dof = FElem->GetDof();
       if (FElem->GetRangeType() == FiniteElement::SCALAR)
@@ -437,12 +442,17 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+                                                               vdofs);
    const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
 
    int dof = fe->GetDof();
    Vector loc_data;
    face_nbr_data.GetSubVector(vdofs, loc_data);
+   if (doftrans)
+   {
+      doftrans->InvTransformPrimal(loc_data);
+   }
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);
@@ -854,6 +864,28 @@ void ParGridFunction::Save(std::ostream &out) const
    }
 }
 
+void ParGridFunction::Save(const char *fname, int precision) const
+{
+   int rank = pfes->GetMyRank();
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+void ParGridFunction::SaveAsOne(const char *fname, int precision) const
+{
+   ofstream ofs;
+   int rank = pfes->GetMyRank();
+   if (rank == 0)
+   {
+      ofs.open(fname);
+      ofs.precision(precision);
+   }
+   SaveAsOne(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParGridFunction::Save(adios2stream &out,
                            const std::string& variable_name,
@@ -874,7 +906,7 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-void ParGridFunction::SaveAsOne(std::ostream &out)
+void ParGridFunction::SaveAsOne(std::ostream &out) const
 {
    int i, p;
 
