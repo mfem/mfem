@@ -231,6 +231,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
+   constexpr int Dim = 3;
    constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    MFEM_SHARED double s_G[basis_size];
@@ -240,7 +241,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bqx[D1D], Bqy[D1D], Bqz[D1D];
    double Gqx[D1D], Gqy[D1D], Gqz[D1D];
-   Static3dThreadDTensor<1,Q1D,Q1D,Q1D,3> Gu;
+   Static3dThreadDTensor<1,Q1D,Q1D,Q1D,Dim> Gu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -307,7 +308,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    double Gdx[Q1D], Gdy[Q1D], Gdz[Q1D];
    Static3dThreadDTensor<1,Q1D,Q1D,Q1D> Gtu;
    // Load u into shared memory
-   MFEM_SHARED StaticDTensor<Q1D,Q1D,Q1D,Dim> s_u;
+   MFEM_SHARED double shared_mem[Q1D*Q1D*Q1D*Dim];
+   StaticPointerDTensor<Q1D,Q1D,Q1D,Dim> s_u(shared_mem);
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)

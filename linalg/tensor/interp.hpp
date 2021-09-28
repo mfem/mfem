@@ -245,7 +245,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
    Static3dThreadDTensor<1,Q1D,Q1D,Q1D> Btu;
    // Load u into shared memory
-   MFEM_SHARED StaticDTensor<Q1D,Q1D,Q1D> s_u;
+   MFEM_SHARED double shared_mem[Q1D*Q1D*Q1D];
+   StaticPointerDTensor<Q1D,Q1D,Q1D> s_u(shared_mem);
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
