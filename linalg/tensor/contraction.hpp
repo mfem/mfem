@@ -99,7 +99,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int D = get_tensor_size<0,Tensor>;
    StaticDTensor<Q> Bu;
    MFEM_UNROLL(Q)
@@ -130,7 +130,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int D = get_tensor_size<0,Tensor>;
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
@@ -252,7 +252,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int D = get_tensor_size<0,Tensor>;
    constexpr int VDim = get_tensor_size<1,Tensor>;
    StaticDTensor<Q,VDim> Bu;
@@ -291,7 +291,7 @@ template <typename Basis,
              bool> = true >
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int D = get_tensor_size<0,Tensor>;
    constexpr int VDim = get_tensor_size<1,Tensor>;
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
@@ -419,7 +419,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    StaticDTensor<Q,Dy> Bu;
@@ -455,7 +455,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
@@ -581,7 +581,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    StaticDTensor<Dx,Q> Bu;
@@ -617,7 +617,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
@@ -754,7 +754,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int VDim = get_tensor_size<2,Tensor>;
@@ -795,7 +795,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int VDim = get_tensor_size<2,Tensor>;
@@ -942,7 +942,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int VDim = get_tensor_size<2,Tensor>;
@@ -983,7 +983,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int VDim = get_tensor_size<2,Tensor>;
@@ -1133,7 +1133,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1174,7 +1174,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1312,7 +1312,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1353,7 +1353,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1479,7 +1479,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1520,7 +1520,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1659,7 +1659,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1705,7 +1705,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1866,7 +1866,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -1912,7 +1912,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -2061,7 +2061,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
@@ -2107,7 +2107,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Q = get_basis_size<0,Basis>;
    constexpr int Dx = get_tensor_size<0,Tensor>;
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
