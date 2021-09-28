@@ -3098,6 +3098,7 @@ void SparseMatrix::PrintMatlab(std::ostream & out) const
          out << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
       }
    }
+   out << height << " " << width << " 0.0\n";
    out.precision(old_prec);
    out.flags(old_fmt);
 }
