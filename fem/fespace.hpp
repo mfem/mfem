@@ -357,7 +357,8 @@ public:
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const Operator *GetFaceRestriction(
       ElementDofOrdering e_ordering, FaceType,
-      L2FaceValues mul = L2FaceValues::DoubleValued) const;
+      L2FaceValues mul = L2FaceValues::DoubleValued,
+      int num_face_derivatives = 0) const;
 
    virtual const Operator *GetFaceNormalDerivRestriction(
       ElementDofOrdering e_ordering, FaceType, const IntegrationRule*,

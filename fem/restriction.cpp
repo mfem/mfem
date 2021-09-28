@@ -1025,6 +1025,7 @@ void GetVectorCoefficients2D(Vector &v1,
 
    if( fabs(detLHS) < 1.0e-11 )
    {
+      std::cout << "fabs(detLHS) = " << fabs(detLHS) << std::endl;
       v1.Print();
       v2.Print();
       MFEM_ABORT("v1,v2 not linearly independent!");      
@@ -1057,6 +1058,7 @@ void GetVectorCoefficients3D(Vector &v1,
 
    if( fabs(detLHS) < 1.0e-11 )
    {
+      std::cout << "fabs(detLHS) = " << fabs(detLHS) << std::endl;
       v1.Print();
       v2.Print();
       v3.Print();
@@ -2089,7 +2091,8 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
      gather_indices_tan2((m==L2FaceValues::DoubleValued? 2 : 1)*nf*ndofs_face*ndofs1d),
      map_elements_to_faces(ne*num_faces_per_element),
      map_elements_to_sides(ne*num_faces_per_element),
-     map_side_permutations(ndofs_face*nf)
+     map_side_permutations(ndofs_face*nf),
+     needed_elements(ne)
 {
 
 #ifdef MFEM_DEBUG   
@@ -2266,16 +2269,14 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          const FiniteElement &elf1 = *fes.GetFE(e1);
          const FiniteElement &elf2 = *fes.GetFE(e2);
 
-/*
          const TensorBasisElement* telf1 = dynamic_cast<const TensorBasisElement*>(fes.GetFE(e1));
-         const TensorBasisElement* telf2 = dynamic_cast<const TensorBasisElement*>(fes.GetFE(e2));
+         const TensorBasisElement* telf2 = dynamic_cast<const TensorBasisElement*>(fes.GetFE(e1));
 
          Poly_1D::Basis el1_basis1d = telf1->GetBasis1D();
          Poly_1D::Basis el2_basis1d = telf2->GetBasis1D();
-*/
 
-         //tel1_basis1d.Eval(zero.x, bf, gf_nor);
-         elf1.Calc1DShape(zero, bf, gf_nor);
+         el1_basis1d.Eval(zero.x, bf, gf_nor);
+
          gf_nor *= -1.0;
 
 /*
@@ -2335,16 +2336,16 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             Vector ge;
             ge.SetSize(NP1d);
 
-            //tel1_basis1d.Eval(ir_glob_1d.IntPoint(did).x, be, ge);
-            elf1.Calc1DShape(ir_glob_1d.IntPoint(did), be, ge);
+            el1_basis1d.Eval(ir_glob_1d.IntPoint(did).x, be, ge);
+
             for( int p1d = 0; p1d < NP1d; p1d++ )
             {
                du_element(did, p1d, e1) = ge(p1d);
             }
             if( int_face_match )
             {
-               //tel2_basis1d.Eval(ir_glob_1d.IntPoint(did).x, be, ge);
-               elf2.Calc1DShape(ir_glob_1d.IntPoint(did), be, ge);
+               el2_basis1d.Eval(ir_glob_1d.IntPoint(did).x, be, ge);
+
                for( int p1d = 0; p1d < NP1d; p1d++ )
                {
                   du_element(did, p1d, e2) = ge(p1d);
@@ -2409,16 +2410,13 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 
             int tan1_id = p % NP1d; // is this correct?
             IntegrationPoint &ip_loc_tan1 = ir_glob_1d.IntPoint(tan1_id);
-
-            //tel1_basis1d.Eval(ip_loc_tan1.x, bf, gf_tan1);
-            elf1.Calc1DShape(ip_loc_tan1, bf, gf_tan1);
+            el1_basis1d.Eval(ip_loc_tan1.x, bf, gf_tan1);
 
             if( dim == 3 )
             {
                int tan2_id = (p/NP1d) % NP1d; // is this correct?
                IntegrationPoint &ip_loc_tan2 = ir_glob_1d.IntPoint(tan2_id);
-               //tel1_basis1d.Eval(ip_loc_tan2.x, bf, gf_tan2);
-               elf1.Calc1DShape(ip_loc_tan2, bf, gf_tan2);
+               el1_basis1d.Eval(ip_loc_tan2.x, bf, gf_tan2);
             }
 
             for (int l = 0; l < NP1d; l++)
@@ -2596,8 +2594,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 
             DenseMatrix adjJ1;
             adjJ1.SetSize(dim);
-            CalcAdjugate(Trans0.Elem1->Jacobian(), adjJ1);
-            double detJ1 = Trans0.Elem1->Jacobian().Det();
+
+
+//         this gives the wrong result
+//            CalcAdjugate(Trans0.Elem1->Jacobian(), adjJ1);
+//            double detJ1 = Trans0.Elem1->Jacobian().Det();
+ 
+            CalcAdjugate( fes.GetMesh()->GetElementTransformation(e1)->Jacobian(), adjJ1);
+            double detJ1 = fes.GetMesh()->GetElementTransformation(e1)->Jacobian().Det();
+ 
             Vector adjf1;
             adjf1.SetSize(dim);
             adjJ1.Mult(facenorm, adjf1);
@@ -2667,6 +2672,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                                              stencil_point_neighbor_tan1,
                                              facenorm,
                                              coeffs);
+                     coeffs *= -1.0;
                   }
                   else if( dim == 3 )
                   {
@@ -2675,6 +2681,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                                              stencil_point_neighbor_tan2,
                                              facenorm,
                                              coeffs);
+                     coeffs *= -1.0;
                   }
 
 #ifdef MFEM_DEBUG
@@ -2683,19 +2690,27 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 
                   DenseMatrix adjJ2;
                   adjJ2.SetSize(dim);
-                  CalcAdjugate(Trans0.Elem2->Jacobian(), adjJ2);
-                  double detJ2 = Trans0.Elem2->Jacobian().Det();
+//         this gives the wrong result
+//                  CalcAdjugate( Trans0.Elem2->Jacobian(), adjJ2);
+//                  double detJ2 = Trans0.Elem2->Jacobian().Det();
+
+                  CalcAdjugate( fes.GetMesh()->GetElementTransformation(e2)->Jacobian(), adjJ2);
+                  double detJ2 = fes.GetMesh()->GetElementTransformation(e2)->Jacobian().Det();
+
+
+
+
                   Vector adjf2;
                   adjf2.SetSize(dim);
                   adjJ2.Mult(facenorm, adjf2);
                   adjf2 /= detJ2;
                   //adjf2 *= facegeom->detJ(lid);
                   // negate side 2
-                  jac_face_factor( 0, p, face_id2, e2) = -adjf2(0);
-                  jac_face_factor( 1, p, face_id2, e2) = -adjf2(1);
+                  jac_face_factor( 0, p, face_id2, e2) = adjf2(0);
+                  jac_face_factor( 1, p, face_id2, e2) = adjf2(1);
                   if(dim==3)
                   {
-                     jac_face_factor( 2, p, face_id2, e2) = -adjf2(2);
+                     jac_face_factor( 2, p, face_id2, e2) = adjf2(2);
                   }
 #ifdef MFEM_DEBUG
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
@@ -2729,6 +2744,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             map_elements_to_faces[num_faces_per_element*e2 + face_id2] = f_ind;
             map_elements_to_sides[num_faces_per_element*e2 + face_id2] = 1;
 
+            needed_elements[e1] = 1;
+            needed_elements[e2] = 1;
+
             for( int fdof = 0 ; fdof < NPf ; fdof++ )
             {
                int new_fdof = PermuteFaceL2(dim, face_id1, face_id2, orientation2, ndofs1d, fdof);
@@ -2737,6 +2755,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          }
          if( bdy_face_match )
          {
+            needed_elements[e1] = 1;
             map_elements_to_faces[num_faces_per_element*e1 + face_id1] = f_ind;
             map_elements_to_sides[num_faces_per_element*e1 + face_id1] = 0;
          }
@@ -2855,6 +2874,23 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          f_ind++;
       }
    }
+
+   num_needed_elements = 0;
+   for( int p = 0; p < ne ; p++ )
+   {
+     std::cout << "p = " << p << std::endl;
+      bool is_needed = false;
+      for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
+      {
+         is_needed = is_needed || (map_elements_to_sides[num_faces_per_element*p + face_id] > -1 );
+      }
+      if( is_needed )
+      {
+         std::cout << "needed_elements["<<num_needed_elements<<"] = "<< p << std::endl;
+         needed_elements[num_needed_elements] = p;
+         num_needed_elements++;
+      }
+    }
 
 #ifdef MFEM_DEBUG
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
@@ -3241,13 +3277,13 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    auto dudn_face = Reshape(Gf.Read(), ndofs1d, ndofs_face, nf, 2, 3);
    int num_sides = 2; 
    int num_derivatives = 2; 
+   y = 0.0;
 
 // -1 old, 0 both, 1 new
-#define restrict_use 0
+#define restrict_use 1
 
 #if restrict_use < 1
 
-   y = 0.0;
 
    if (m==L2FaceValues::DoubleValued)
    {
@@ -3339,10 +3375,20 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    }
    else
    {
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       mfem_error("not yet implemented.");
    }
 
 #endif
+
+
+#ifdef MFEM_DEBUG
+   std::cout << " restrict yold" << std::endl;
+   y.Print(std::cout,1);
+   std::cout << " end restrict yold" << std::endl;
+#endif
+
 
 
 #if restrict_use > -1 
@@ -3351,8 +3397,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    Vector y_old;
    y_old = y;
-   y = 0.0;
 #endif
+   y = 0.0;
 
    int D1D = ndofs1d;
    int end = D1D - 1;
@@ -3408,12 +3454,13 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       if(dim == 2)
-      {
+      {           
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          // Loop over all elements
-         MFEM_FORALL(e, ne,
+         MFEM_FORALL(e_, num_needed_elements,
          {
+            int e = needed_elements[e_];
+
             /*
             // may not need this
             bool skip = true;
@@ -3534,8 +3581,9 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
             for (int d1 = 0; d1 < D1D; d1++)
             {
                int fdof = d1;
-               double face_pt_adj_x = jac_face_factor(0, d1, face_id, e);
-               double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
+               double sign = (side==1) ? -1.0 : 1.0;
+               double face_pt_adj_x = sign*jac_face_factor(0, d1, face_id, e);
+               double face_pt_adj_y = sign*jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
                   d_y_new(fdof , c, side, face, 0) += R0yu[d1][c];
@@ -3556,8 +3604,9 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
             for (int d1 = 0; d1 < D1D; d1++)
             {
                int fdof = d1;
-               double face_pt_adj_x = jac_face_factor(0, d1, face_id, e);
-               double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
+               double sign = (side==1) ? -1.0 : 1.0;
+               double face_pt_adj_x = sign*jac_face_factor(0, d1, face_id, e);
+               double face_pt_adj_y = sign*jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
                   d_y_new(fdof , c, side, face, 0) += R1xu[d1][c];
@@ -3578,8 +3627,9 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
             for (int d1 = 0; d1 < D1D; d1++)
             {
                int fdof = d1;
-               double face_pt_adj_x = jac_face_factor(0, d1, face_id, e);
-               double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
+               double sign = (side==1) ? -1.0 : 1.0;
+               double face_pt_adj_x = sign*jac_face_factor(0, d1, face_id, e);
+               double face_pt_adj_y = sign*jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
                   d_y_new(fdof , c, side, face, 0) += R1yu[d1][c];
@@ -3600,8 +3650,9 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
             for (int d1 = 0; d1 < D1D; d1++)
             {
                int fdof = d1;
-               double face_pt_adj_x = jac_face_factor(0, d1, face_id, e);
-               double face_pt_adj_y = jac_face_factor(1, d1, face_id, e);
+               double sign = (side==1) ? -1.0 : 1.0;
+               double face_pt_adj_x = sign*jac_face_factor(0, d1, face_id, e);
+               double face_pt_adj_y = sign*jac_face_factor(1, d1, face_id, e);
                for (int c = 0; c < vdim; c++)
                {
                   d_y_new(fdof , c, side, face, 0) += R0xu[d1][c];
@@ -3616,8 +3667,9 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       else if(dim == 3)
       {
          // Loop over all elements
-         MFEM_FORALL(e, ne,
+         MFEM_FORALL(e_, num_needed_elements,
          {
+            int e = needed_elements[e_];
             /*
             // may not need this
             bool skip = true;
@@ -3793,9 +3845,10 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      fdof = map_side_permutations[ndofs_face*face + fdof];
                   }
-                  double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                  double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
-                  double face_pt_adj_z = jac_face_factor(2, fdof, face_id, e);
+                  double sign = (side==1) ? -1.0 : 1.0;
+                  double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                  double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
+                  double face_pt_adj_z = sign*jac_face_factor(2, fdof, face_id, e);
                   for (int c = 0; c < vdim; c++)
                   {
                      d_y_new(fdof , c, side, face, 0) += R0zu[d1][d2][c];
@@ -3822,9 +3875,10 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      fdof = map_side_permutations[ndofs_face*face + fdof];
                   }
-                  double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                  double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
-                  double face_pt_adj_z = jac_face_factor(2, fdof, face_id, e);
+                  double sign = (side==1) ? -1.0 : 1.0;
+                  double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                  double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
+                  double face_pt_adj_z = sign*jac_face_factor(2, fdof, face_id, e);
                   for (int c = 0; c < vdim; c++)
                   {
                      d_y_new(fdof , c, side, face, 0) += R0yu[d1][d2][c];
@@ -3851,9 +3905,10 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      fdof = map_side_permutations[ndofs_face*face + fdof];
                   }
-                  double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                  double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
-                  double face_pt_adj_z = jac_face_factor(2, fdof, face_id, e);
+                  double sign = (side==1) ? -1.0 : 1.0;
+                  double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                  double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
+                  double face_pt_adj_z = sign*jac_face_factor(2, fdof, face_id, e);
                   for (int c = 0; c < vdim; c++)
                   {
                      d_y_new(fdof , c, side, face, 0) += R1xu[d1][d2][c];
@@ -3880,9 +3935,10 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      fdof = map_side_permutations[ndofs_face*face + fdof];
                   }
-                  double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                  double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
-                  double face_pt_adj_z = jac_face_factor(2, fdof, face_id, e);
+                  double sign = (side==1) ? -1.0 : 1.0;
+                  double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                  double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
+                  double face_pt_adj_z = sign*jac_face_factor(2, fdof, face_id, e);
                   for (int c = 0; c < vdim; c++)
                   {
                      d_y_new(fdof , c, side, face, 0) += R1yu[d1][d2][c];
@@ -3909,9 +3965,10 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      fdof = map_side_permutations[ndofs_face*face + fdof];
                   }
-                  double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                  double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
-                  double face_pt_adj_z = jac_face_factor(2, fdof, face_id, e);
+                  double sign = (side==1) ? -1.0 : 1.0;
+                  double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                  double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
+                  double face_pt_adj_z = sign*jac_face_factor(2, fdof, face_id, e);
                   for (int c = 0; c < vdim; c++)
                   {
                      d_y_new(fdof , c, side, face, 0) += R0xu[d1][d2][c];
@@ -3938,9 +3995,10 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      fdof = map_side_permutations[ndofs_face*face + fdof];
                   }
-                  double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                  double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
-                  double face_pt_adj_z = jac_face_factor(2, fdof, face_id, e);
+                  double sign = (side==1) ? -1.0 : 1.0;
+                  double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                  double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
+                  double face_pt_adj_z = sign*jac_face_factor(2, fdof, face_id, e);
                   for (int c = 0; c < vdim; c++)
                   {
                      d_y_new(fdof , c, side, face, 0) += R1zu[d1][d2][c];
@@ -3963,6 +4021,7 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 #ifdef MFEM_DEBUG
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
+   #if restrict_use == 0
    Vector ydiff = y_old;
    ydiff -= y;
 
@@ -3972,7 +4031,14 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    std::cout << "y_new " << std::endl;
    y.Print(std::cout,1);
 
-   std::cout << "mult error " << std::endl << ydiff.Normlinf() << std::endl;
+   double err = ydiff.Normlinf();
+   std::cout << "mult error " << std::endl << err << std::endl;
+    if(err > 1.0e-11) 
+    {
+        exit(1);
+    }
+    #endif
+
 #endif
 
 #endif
@@ -4015,7 +4081,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_indices_tan2 = gather_indices_tan2.Read();
 
 // -1 old, 0 both, 1 new 
-#define restrict_transpose_use 0
+#define restrict_transpose_use 1
 
 #if restrict_transpose_use < 1
 
@@ -4029,6 +4095,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
          int offset = d_offsets[i];
          int nextOffset = d_offsets[i + 1];
          //std::cout << "offsets : " << offset << " to " << nextOffset << std::endl;
+
          for (int c = 0; c < vd; ++c)
          {
             for (int j = offset; j < nextOffset; ++j)
@@ -4068,7 +4135,21 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                int s, did, faceid;
                GetFromLid( idx_j, did, s, faceid, ndofs1d, ndofs_face);
 
-               if( isE1 )
+
+               int e = i/elemDofs;
+               int face_num = -1;
+
+               for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
+               {
+                    if( faceid == map_elements_to_faces[num_faces_per_element*e + face_id] )
+                    {
+                       face_num = face_id;
+                    }
+               }
+               //std::cout << "e " << e << " face_id " << face_num << " face " << faceid << " side " << 1-isE1 << std::endl; 
+
+               //  if( (face_num <= 2 ) )//|| (face_num==3) || (face_num==1) ) 
+              if( isE1 )
                {
                   d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,0);
                }
@@ -4078,6 +4159,8 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                }
             }
          }
+
+
 
          offset = d_offsets_tan1[i];
          nextOffset = d_offsets_tan1[i + 1];
@@ -4093,6 +4176,19 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                int s, did, faceid;
                GetFromLid( idx_j, did, s, faceid, ndofs1d, ndofs_face);
 
+
+               int e = i/elemDofs;
+               int face_num = -1;
+
+               for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
+               {
+                    if( faceid == map_elements_to_faces[num_faces_per_element*e + face_id] )
+                    {
+                       face_num = face_id;
+                    }
+               }
+
+                //if( (face_num <= 4 ) )//|| (face_num==3) || (face_num==1) ) 
                if( isE1 )
                {
                   d_y(t?c:i,t?i:c) += d_x( did, c, 0, faceid, 1)*dudn_face(s,did,faceid,0,1);
@@ -4103,6 +4199,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                }
             }
          }
+
 
          if( dim >= 3 )
          {
@@ -4137,6 +4234,9 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
    else
    {
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
       mfem_error("not yet implemented.");
    }
 
@@ -4185,8 +4285,10 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
       if(dim == 2)
       {
          // Loop over all elements
-         MFEM_FORALL(e, ne,
+         MFEM_FORALL(e_, num_needed_elements,
          {
+            int e = needed_elements[e_];
+
             double u[max_D1D][max_D1D][vdim];
             for (int d1 = 0; d1 < D1D; d1++)
             {
@@ -4199,10 +4301,26 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                }
             }
 
+#ifdef MFEM_DEBUG
+            for( int d1 = 0 ; d1 < D1D ; d1++ )
+            {
+                std::cout << "Get_("<<d1<<",:,"<<e<<") = "  ;
+                for( int p = 0 ; p < D1D ; p++ )
+                {
+                 std::cout << Get_(d1,p,e) << "  " ;
+                }
+                std::cout << std::endl;
+            }
+#endif
+
+
             for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
             {
                int face = map_elements_to_faces[num_faces_per_element*e + face_id];
                int side = map_elements_to_sides[num_faces_per_element*e + face_id];
+
+              // std::cout << "e " << e << " face_id " << face_id << " face " << face << " side " << side << std::endl; 
+
                if(side>=0)
                {
                   double Ru[max_D1D][vdim];
@@ -4215,20 +4333,22 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                      {
                         fdof = map_side_permutations[ndofs_face*face + fdof];
                      }
-                     double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                     double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
+                     double sign = (side==1) ? -1.0 : 1.0;
+                     double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                     double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
                      for (int c = 0; c < vdim; c++)
                      {
-                        double u  = d_x(fdof, c, side, face, 0);
-                        double du = d_x(fdof, c, side, face, 1);
-                        Ru[d1][c] = u;
-                        RGxu[d1][c] = face_pt_adj_x*du;
-                        RGyu[d1][c] = face_pt_adj_y*du;
+                        double uf  = d_x(fdof, c, side, face, 0);
+                        double duf = d_x(fdof, c, side, face, 1);
+                        Ru[d1][c] = uf;
+                        RGxu[d1][c] = face_pt_adj_x*duf;
+                        RGyu[d1][c] = face_pt_adj_y*duf;
                      }
                   }
 
                   switch(face_id)
                   {
+
                      case 0: // y = 0 face
                         for (int d1 = 0; d1 < D1D; d1++)
                         {
@@ -4237,7 +4357,9 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                               u[d1][0][c] += Ru[d1][c];
                               for (int p = 0; p < D1D; p++)
                               {
+                                 // tangent
                                  u[d1][0][c] += Get_(d1,p,e)*RGxu[p][c];
+                                 // normal
                                  u[d1][p][c] += Get_(0,p,e)*RGyu[d1][c];
                               }
                            }
@@ -4251,12 +4373,15 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                               u[end][d1][c] += Ru[d1][c];
                               for (int p = 0; p < D1D; p++)
                               {
+                                 // normal
                                  u[p][d1][c] += Get_(end,p,e)*RGxu[d1][c];
-                                 u[end][d1][c] += Get_(d1,p,e)*RGyu[p][c];
-                              }
+                                 // tangent
+                                 u[end][d1][c] += Get_(p,d1,e)*RGyu[p][c];
+                               }
                            }
                         }
                         break;
+
                      case 2: // y = 1  
                         for (int d1 = 0; d1 < D1D; d1++)
                         {
@@ -4265,7 +4390,9 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                               u[d1][end][c] += Ru[d1][c];
                               for (int p = 0; p < D1D; p++)
                               {
-                                 u[d1][end][c] += Get_(d1,p,e)*RGxu[p][c];
+                                 // tangent
+                                 u[d1][end][c] += Get_(p,d1,e)*RGxu[p][c];
+                                 // normal
                                  u[d1][p][c] += Get_(end,p,e)*RGyu[d1][c];
                               }
                            }
@@ -4279,7 +4406,9 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                               u[0][d1][c] += Ru[d1][c];
                               for (int p = 0; p < D1D; p++)
                               {
+                                 // normal
                                  u[p][d1][c] += Get_(0,p,e)*RGxu[d1][c];
+                                 // tangent
                                  u[0][d1][c] += Get_(d1,p,e)*RGyu[p][c];
                               }
                            }
@@ -4308,8 +4437,10 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
       if(dim == 3)
       {
          // Loop over all elements
-         MFEM_FORALL(e, ne,
+         MFEM_FORALL(e_, num_needed_elements,
          {
+            int e = needed_elements[e_];
+
             double u[max_D1D][max_D1D][max_D1D][vdim];
             for (int d1 = 0; d1 < D1D; d1++)
             {
@@ -4344,9 +4475,10 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                         {
                            fdof = map_side_permutations[ndofs_face*face + fdof];
                         }
-                        double face_pt_adj_x = jac_face_factor(0, fdof, face_id, e);
-                        double face_pt_adj_y = jac_face_factor(1, fdof, face_id, e);
-                        double face_pt_adj_z = jac_face_factor(2, fdof, face_id, e);
+                        double sign = (side==1) ? -1.0 : 1.0;
+                        double face_pt_adj_x = sign*jac_face_factor(0, fdof, face_id, e);
+                        double face_pt_adj_y = sign*jac_face_factor(1, fdof, face_id, e);
+                        double face_pt_adj_z = sign*jac_face_factor(2, fdof, face_id, e);
                         for (int c = 0; c < vdim; c++)
                         {
                            double u  = d_x(fdof, c, side, face, 0);
@@ -4501,6 +4633,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 #ifdef MFEM_DEBUG
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
+   #if restrict_transpose_use == 0
    Vector ydiff = y_old;
    ydiff -= y;
    
@@ -4510,8 +4643,16 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    std::cout << "y_new " << std::endl;
    y.Print(std::cout,1);
 
-   std::cout << "mult transpose error " << std::endl << ydiff.Normlinf() << std::endl;
-   //exit(1);
+    double err = ydiff.Normlinf();
+   std::cout << "mult transpose error " << std::endl << err << std::endl;
+   
+    if(err > 1.0e-4) 
+    {
+        exit(1);
+    }
+
+    #endif
+
 #endif
 
 #endif

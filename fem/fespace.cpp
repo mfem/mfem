@@ -920,7 +920,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 }
 
 const Operator *FiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul, int num_face_derivatives) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
@@ -936,7 +936,16 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
       Operator* res;
       if (is_dg_space)
       {
-         res = new L2FaceRestriction(*this, e_ordering, type, m);
+         if(num_face_derivatives == 0)
+         {
+            res = new L2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            // TODO (if needed):
+            // res = new L2FaceRestriction(*this, e_ordering, type, m, num_face_derivatives);
+            res = new L2FaceNormalDRestriction(*this, e_ordering, type, /*IntRule,*/ m);
+         }
       }
       else
       {
@@ -950,6 +959,8 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
 const Operator *FiniteElementSpace::GetFaceNormalDerivRestriction(
    ElementDofOrdering e_ordering, FaceType type, const IntegrationRule* IntRule, L2FaceValues mul) const
 {
+
+   exit(1);
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
@@ -966,10 +977,11 @@ const Operator *FiniteElementSpace::GetFaceNormalDerivRestriction(
       Operator* res;
       if (is_dg_space)
       {
-         res = new L2FaceNormalDRestriction(*this, e_ordering, type, IntRule, m);
+         res = new L2FaceNormalDRestriction(*this, e_ordering, type, /*IntRule,*/ m);
       }
       else
       {
+         res = NULL;
          MFEM_ABORT("Not yet implemented");
       }
       L2FnormD[key] = res;

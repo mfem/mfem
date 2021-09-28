@@ -215,6 +215,9 @@ protected:
    Array<int> map_elements_to_faces;
    Array<int> map_elements_to_sides;
    Array<int> map_side_permutations;
+   int num_needed_elements;
+   Array<int> needed_elements;
+
    Vector Ge;
    Vector jac_face_factors;
 

@@ -9602,16 +9602,6 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       }
 }
 
-/*
-void L2_QuadrilateralElement::Calc1DShape(IntegrationPoint &ip,
-                                          Vector &shape,
-                                          Vector &dshape) const
-{
-   const int p = order;
-   basis1d.Eval(ip.x, shape, dshape);
-}
-*/
-
 void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
@@ -9724,16 +9714,6 @@ void L2Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       }
 }
 
-/*
-void L2Pos_QuadrilateralElement::Calc1DShape(IntegrationPoint &ip,
-                                             Vector &shape,
-                                             Vector &dshape) const
-{
-   const int p = order;
-   Poly_1D::CalcBernstein(p, ip.x, shape, dshape);
-}
-*/
-
 void L2Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
@@ -9814,23 +9794,6 @@ void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
             dshape(o,1) =  shape_x(i)*dshape_y(j)* shape_z(k);
             dshape(o,2) =  shape_x(i)* shape_y(j)*dshape_z(k);  o++;
          }
-}
-
-void NodalTensorFiniteElement::Calc1DShape(IntegrationPoint &ip,
-                                          Vector &shape,
-                                          Vector &dshape) const
-{
-   //const int p = order;
-   basis1d.Eval(ip.x, shape, dshape);
-}
-
-void PositiveTensorFiniteElement::Calc1DShape(IntegrationPoint &ip,
-                                          Vector &shape,
-                                          Vector &dshape) const
-{
-   const int p = order;
-   Poly_1D::CalcBernstein(p, ip.x, shape, dshape);
-   //basis1d.Eval(ip.x, shape, dshape);
 }
 
 void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
