@@ -4365,7 +4365,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
-void GetFaceElements(FiniteElementSpace & RT0Space, int face, Array<int> & elems)
+void GetFaceElements(FiniteElementSpace & RT0Space, int face,
+                     Array<int> & elems)
 {
    Mesh & mesh = *RT0Space.GetMesh();
 

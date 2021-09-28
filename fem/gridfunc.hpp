@@ -918,7 +918,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            int with_subdomains = 1,
                            bool with_coeff = false);
 
-void GetFaceElements(FiniteElementSpace & RT0Space, int face, Array<int> & elems);
+void GetFaceElements(FiniteElementSpace & RT0Space, int face,
+                     Array<int> & elems);
 
 void GetElementPatch(Mesh &mesh, Array<int> &neighbor_elems, Mesh &face_patch);
 
