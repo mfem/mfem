@@ -252,9 +252,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
    ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
                                  ElementDofOrdering::LEXICOGRAPHIC:
-                                 // For tensorisable elements
                                  ElementDofOrdering::NATIVE;
-                                 // For non-tensor elements
    elem_restrict = trialFes->GetElementRestriction(ordering);
    if (elem_restrict)
    {
@@ -292,7 +290,6 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
 void PABilinearFormExtension::Assemble()
 {
-   // want values from each cell to form numerical flux
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
@@ -318,27 +315,10 @@ void PABilinearFormExtension::Assemble()
    {
       bdrFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
    }
-/*
-   Array<BilinearFormIntegrator*> &intNDFaceIntegrators = *a->GetNDFBFI();
-   const int intNDFaceIntegratorCount = intNDFaceIntegrators.Size();
-   for (int i = 0; i < intNDFaceIntegratorCount; ++i)
-   {
-      intNDFaceIntegrators[i]->AssemblePAInteriorFaces(*a->FESpace());
-   }
-
-   Array<BilinearFormIntegrator*> &bdrNDFaceIntegrators = *a->GetNDBFBFI();
-   const int boundNDFaceIntegratorCount = bdrNDFaceIntegrators.Size();
-   for (int i = 0; i < boundNDFaceIntegratorCount; ++i)
-   {
-      bdrNDFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
-   }
-*/
-
 }
 
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 {
-   // no change
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();

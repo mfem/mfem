@@ -95,9 +95,6 @@ protected:
    Array<BilinearFormIntegrator*> bfbfi;
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
 
-   /// Set of normal derivative interior face Integrators to be applied.
-   Array<BilinearFormIntegrator*> ndfbfi;
-
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -110,7 +107,7 @@ protected:
        diagonal matrix entries and corresponding RHS values upon elimination of
        the constrained DoFs. */
    DiagonalPolicy diag_policy;
- 
+
    /// The desired nymber of derivatives restricted to the faces
    int num_face_derivatives;
    

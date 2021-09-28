@@ -108,7 +108,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
    bfbfi = bf->bfbfi;
    bfbfi_marker = bf->bfbfi_marker;
- 
+
    AllocMat();
 }
 
