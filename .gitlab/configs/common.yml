@@ -31,7 +31,7 @@ variables:
 # the baseline can only be updated from the master branch. This variable offers
 # the option to manually ask for rebaselining from another branch if necessary.
   REBASELINE: "NO"
-  AUTOTEST: "NO"
+#  AUTOTEST: "NO"
 
 # Git repositories used in the pipeline
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
