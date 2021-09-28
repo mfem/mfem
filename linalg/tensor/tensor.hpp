@@ -221,29 +221,9 @@ template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
 
 /// A Tensor dynamically distributed over a plane of threads
-template <int Rank, typename T, int BatchSize, int MaxSize = 16>
-struct DynamicBlockTensor_t
-{
-   using type = Tensor<BlockContainer<T, MaxSize, MaxSize, pow(MaxSize,Rank-2)>,
-                       DynamicBlockLayout<Rank,BatchSize> >;
-};
-
-template <typename T, int BatchSize, int MaxSize>
-struct DynamicBlockTensor_t<2,T,BatchSize,MaxSize>
-{
-   using type = Tensor<BlockContainer<T, MaxSize, MaxSize>,
-                       DynamicBlockLayout<2,BatchSize> >;
-};
-
-template <typename T, int BatchSize, int MaxSize>
-struct DynamicBlockTensor_t<1,T,BatchSize,MaxSize>
-{
-   using type = Tensor<BlockContainer<T, MaxSize>,
-                       DynamicBlockLayout<1,BatchSize> >;
-};
-
-template <int Rank, typename T, int BatchSize, int MaxSize = 16>
-using DynamicBlockTensor = typename DynamicBlockTensor_t<Rank,T,BatchSize,MaxSize>::type;
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank-2)>
+using DynamicBlockTensor = Tensor<StaticContainer<T, MaxSize>,
+                                  DynamicBlockLayout<Rank,BatchSize> >;
 
 template <int Rank, int BatchSize, int MaxSize = 16>
 using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
