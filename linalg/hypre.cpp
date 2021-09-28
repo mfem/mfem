@@ -3757,7 +3757,9 @@ void HypreBoomerAMG::RecomputeRBMs()
 
       rbms.SetSize(nrbms);
       gf_rbms.SetSize(nrbms);
-      gf_rbms[0] = rbms_rxy.ParallelAverage();
+      gf_rbms[0] = fespace->NewTrueDofVector();
+      rbms_rxy.GetTrueDofs(*gf_rbms[0]);
+      //gf_rbms[0] = rbms_rxy.ParallelAverage();
    }
    else if (dim == 3)
    {

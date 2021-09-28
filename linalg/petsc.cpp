@@ -732,7 +732,7 @@ void PetscParVector::PlaceMemory(Memory<double>& mem, bool rw)
    PetscInt n;
 
    ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
-   MFEM_VERIFY(n == mem.Capacity(),
+   MFEM_VERIFY(n <= mem.Capacity(),
                "Memory size " << mem.Capacity() << " != " << n << " vector size!");
    MFEM_VERIFY(pdata.Empty(),"Vector data is not empty");
    MFEM_VERIFY(data.Empty(),"Vector data is not empty");
@@ -774,7 +774,7 @@ void PetscParVector::PlaceMemory(const Memory<double>& mem)
    PetscInt n;
 
    ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
-   MFEM_VERIFY(n == mem.Capacity(),
+   MFEM_VERIFY(n <= mem.Capacity(),
                "Memory size " << mem.Capacity() << " != " << n << " vector size!");
    MFEM_VERIFY(pdata.Empty(),"Vector data is not empty");
    MFEM_VERIFY(data.Empty(),"Vector data is not empty");

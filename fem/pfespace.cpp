@@ -779,7 +779,7 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 {
    FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
 
-   if (Conforming())
+   //if (Conforming())
    {
       // Make sure that processors without boundary elements mark
       // their boundary dofs (if they have any).

@@ -622,7 +622,9 @@ void ParGridFunction::ProjectBdrCoefficient(
       {
          (*this)(i) = values(i)/values_counter[i];
       }
+
    }
+
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;

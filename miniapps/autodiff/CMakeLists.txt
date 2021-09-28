@@ -71,5 +71,21 @@ add_mfem_miniapp(advdiff
      MAIN advdiff_test.cpp
      LIBRARIES mfem)
 
+add_mfem_miniapp(stokes_oc
+     MAIN stokes_oc.cpp
+     LIBRARIES mfem)
+
+add_mfem_miniapp(stokes_ref
+	MAIN stokes_ref.cpp
+	LIBRARIES mfem)
+
+add_mfem_miniapp(stokes_uni
+        MAIN stokes_uni.cpp
+        LIBRARIES mfem)
+
+add_mfem_miniapp(tst
+	MAIN tst.cpp
+	LIBRARIES mfem)
+
 
 endif ()

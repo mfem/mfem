@@ -336,11 +336,15 @@ private:
    double Sign;
    Coefficient *F;
    Vector shape, nor;
+   int oa, ob; // these control the quadrature order, see DomainLFIntegrator
 
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, double s = 1.0,
                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
+      : LinearFormIntegrator(ir), Sign(s), F(&f), oa(1), ob(-1) { }
+
+   VectorBoundaryFluxLFIntegrator(Coefficient &f, double s, int a, int b)
+      : LinearFormIntegrator(nullptr), Sign(s), F(&f), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
