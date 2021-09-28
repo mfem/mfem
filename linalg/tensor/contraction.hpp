@@ -135,7 +135,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q> Bu;
-   MFEM_SHARED StaticDTensor<D,BatchSize> slice;
+   MFEM_SHARED shared_slice[D*BatchSize];
+   StaticPointerDTensor<D,BatchSize> slice(shared_slice);
    MFEM_FOREACH_THREAD(d,x,D)
    {
       slice(d,batch_id) = u(d);
@@ -296,7 +297,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,VDim> Bu;
-   MFEM_SHARED StaticDTensor<D,VDim,BatchSize> slice;
+   MFEM_SHARED shared_slice[D*VDim*BatchSize];
+   StaticPointerDTensor<D,VDim,BatchSize> slice(shared_slice);
    MFEM_FOREACH_THREAD(c,y,VDim)
    {
       MFEM_FOREACH_THREAD(d,x,D)
@@ -459,7 +461,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
+   MFEM_SHARED shared_slice[Dx,Dy*BatchSize];
+   StaticPointerDTensor<Dx,Dy,BatchSize> slice(shared_slice);
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
       MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -620,7 +623,8 @@ auto ContractY(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
+   MFEM_SHARED shared_slice[Dx*Dy*BatchSize];
+   StaticPointerDTensor<Dx,Dy,BatchSize> slice(shared_slice);
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
       MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -798,7 +802,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
+   MFEM_SHARED shared_slice[Dx*Dy*BatchSize*VDim];
+   StaticPointerDTensor<Dx,Dy,BatchSize,VDim> slice(shared_slice);
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
       MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -985,7 +990,8 @@ auto ContractY(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
+   MFEM_SHARED shared_slice[Dx*Dy*BatchSize*VDim];
+   StaticPointerDTensor<Dx,Dy,BatchSize,VDim> slice(shared_slice);
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
       MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -1175,7 +1181,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,Dz> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
+   MFEM_SHARED shared_slice[Dx*Dy*BatchSize];
+   StaticPointerDTensor<Dx,Dy,BatchSize> slice(shared_slice);
    for (int dz = 0; dz < Dz; dz++)
    {
       MFEM_FOREACH_THREAD(dy,y,Dy)
@@ -1353,7 +1360,8 @@ auto ContractY(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,Dz> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
+   MFEM_SHARED shared_slice[Dx*Dy*BatchSize];
+   StaticPointerDTensor<Dx,Dy,BatchSize> slice(shared_slice);
    MFEM_UNROLL(Dz)
    for (int dz = 0; dz < Dz; dz++)
    {
@@ -1705,7 +1713,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,Dz,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
+   MFEM_SHARED shared_slice[Dx*Dy*BatchSize*VDim];
+   StaticPointerDTensor<Dx,Dy,BatchSize,VDim> slice(shared_slice);
    MFEM_UNROLL(Dz)
    for (int dz = 0; dz < Dz; dz++)
    {
@@ -1911,7 +1920,8 @@ auto ContractY(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,Dz,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
+   MFEM_SHARED shared_slice[Dx*Dy*BatchSize*VDim];
+   StaticPointerDTensor<Dx,Dy,BatchSize,VDim> slice(shared_slice);
    MFEM_UNROLL(Dz)
    for (int dz = 0; dz < Dz; dz++)
    {
