@@ -461,7 +461,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy> Bu;
-   MFEM_SHARED double shared_slice[Dx,Dy*BatchSize];
+   MFEM_SHARED double shared_slice[Dx*Dy*BatchSize];
    StaticPointerDTensor<Dx,Dy,BatchSize> slice(shared_slice);
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
