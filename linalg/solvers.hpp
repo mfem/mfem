@@ -66,27 +66,51 @@ public:
 class IterativeSolver : public Solver
 {
 public:
-   /** @brief Settings for the output behavior of the iterative solver. Guarantees to
-       supress all outputs by default.
+   /** @brief Settings for the output behavior of the iterative solver.
+
+       Guarantees to suppress all outputs by default. The construction of the
+       wanted print level can be achieved through a builder pattern. E.g.
+
+           PrintLevel().Errors().Warnings()
+
+       construct the print level with only errors and warnings enabled.
      */
-   enum PrintLevel
+   struct PrintLevel
    {
-      /// Don't print any output
-      NONE = 0,
       /** If a fatal problem has been detected some context-specific
           information will be reported
         */
-      ERRORS = 1,
+      bool errors = false;
       /** If a non-fatal problem has been detected some context-specific
           information will be reported
         */
-      WARNINGS = 2,
+      bool warnings = false;
       /** A summary of the solver process will be reported after the last
           iteration
         */
-      SUMMARY = 4,
+      bool iterations = false;
       /// Detailed information about each iteration will be reported
-      ITERATION_DETAILS = 8
+      bool summary = false;
+      /// Information about the first und last iteration will be printed
+      bool first_and_last = false;
+
+      /// Initializes the print level to suppress
+      PrintLevel() = default;
+
+      /** @name Builder
+         These methods are utilized to construct PrintLevel objects
+         through an builder approach, i.e. by chaining the function calls in
+         this group.
+        */
+      ///@{
+      PrintLevel &None() { *this = PrintLevel(); return *this; }
+      PrintLevel &Warnings() { warnings=true; return *this; }
+      PrintLevel &Errors() { errors=true; return *this; }
+      PrintLevel &Iterations() { iterations=true; return *this; }
+      PrintLevel &FirstAndLast() { first_and_last=true; return *this; }
+      PrintLevel &Summary() { summary=true; return *this; }
+      PrintLevel &All() { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
+      ///@}
    };
 
 #ifdef MFEM_USE_MPI
@@ -120,14 +144,14 @@ protected:
        #print_level to ensure compatibility with custom iterative solvers.
        See PR2519 for some discussion.
      */
-   PrintLevel print_options = PrintLevel::NONE;
+   PrintLevel print_options;
 
-   ///@}
-
-   PrintLevel ConvertFromLegacyPrintLevel(int);
+   /// Construct an appropriate print level from the legacy definition
+   PrintLevel FromLegacyPrintLevel(int);
 
    // Some heuristics to guess an appropriate legacy print level
    int GuessLegacyPrintLevel(PrintLevel);
+   ///@}
 
    /** @name Convergence
        @brief Termination criterions for the iterative solvers.
@@ -235,12 +259,6 @@ public:
 #endif
 };
 
-inline IterativeSolver::PrintLevel operator|(IterativeSolver::PrintLevel a,
-                                             IterativeSolver::PrintLevel b)
-{
-   return static_cast<IterativeSolver::PrintLevel>(
-             static_cast<int>(a) | static_cast<int>(b));
-}
 
 /// Jacobi smoothing for a given bilinear form (no matrix necessary).
 /** Useful with tensorized, partially assembled operators. Can also be defined

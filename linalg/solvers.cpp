@@ -76,7 +76,7 @@ DISABLE_WARNING_DEPRECATED
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
-   print_options = ConvertFromLegacyPrintLevel(print_lvl);
+   print_options = FromLegacyPrintLevel(print_lvl);
 
 #ifndef MFEM_USE_MPI
    print_level = print_lvl;
@@ -95,8 +95,8 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
       }
       else // Suppress output.
       {
-         print_level = 0;
-         print_options = PrintLevel::NONE;
+         print_level = -1;
+         print_options = PrintLevel();
       }
    }
 #endif
@@ -129,7 +129,7 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 
 DISABLE_WARNING_POP
 
-IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
+IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
    int print_level)
 {
 #ifdef MFEM_USE_MPI
@@ -143,14 +143,15 @@ IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
    switch (print_level)
    {
       case -1:
-         return PrintLevel::NONE;
+         return PrintLevel();
       case 0:
-         return PrintLevel::ERRORS | PrintLevel::WARNINGS;
+         return PrintLevel().Errors().Warnings();
       case 1:
-         return PrintLevel::ERRORS | PrintLevel::WARNINGS |
-                PrintLevel::ITERATION_DETAILS;
+         return PrintLevel().Errors().Warnings().Iterations();
       case 2:
-         return PrintLevel::ERRORS | PrintLevel::WARNINGS | PrintLevel::SUMMARY;
+         return PrintLevel().Errors().Warnings().Summary();
+      case 3:
+         return PrintLevel().Errors().Warnings().Summary().FirstAndLast();
       default:
 #ifdef MFEM_USE_MPI
          if (rank == 0)
@@ -158,20 +159,24 @@ IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
             MFEM_WARNING("Unknown print level " << print_level <<
                          ". Defaulting to level 0.");
 
-         return PrintLevel::ERRORS | PrintLevel::WARNINGS;
+         return PrintLevel().Errors().Warnings();
    }
 }
 
-int IterativeSolver::GuessLegacyPrintLevel(PrintLevel)
+int IterativeSolver::GuessLegacyPrintLevel(PrintLevel print_options_)
 {
-   if (print_options & PrintLevel::ERRORS)
+   if (print_options_.errors)
    {
-      if (print_options & PrintLevel::WARNINGS)
+      if (print_options_.warnings)
       {
          return 1;
       }
-      else if (print_options & PrintLevel::SUMMARY)
+      else if (print_options_.summary)
       {
+         if (print_options_.first_and_last)
+         {
+            return 3;
+         }
          return 2;
       }
       return 0;
@@ -581,7 +586,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       nom0 = nom = sqrt(Dot(r, r));
    }
 
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  ||Br|| = "
                 << nom << '\n';
@@ -624,9 +629,11 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       }
 
       cf = nom/nomold;
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
+      {
          mfem::out << "   Iteration : " << setw(3) << i << "  ||Br|| = "
                    << nom << "\tConv. rate: " << cf << '\n';
+      }
       nomold = nom;
 
       if (nom < r0)
@@ -642,8 +649,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       }
    }
 
-   if ((print_options & PrintLevel::SUMMARY) ||
-       ((print_options & PrintLevel::ERRORS) && !converged))
+   if (print_options.summary ||
+       (print_options.errors && !converged))
    {
       const auto rf = pow (nom/nom0, 1.0/final_iter);
       mfem::out << "SLI: Number of iterations: " << final_iter << '\n'
@@ -652,7 +659,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
                 << "   Conv. rate: " << cf << '\n'
                 << "   Average reduction factor: "<< rf << '\n';
    }
-   if ((print_options & PrintLevel::ERRORS) && !converged)
+   if (print_options.errors && !converged)
    {
       mfem::err << "SLI: No convergence!" << '\n';
    }
@@ -729,7 +736,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << "\n";
@@ -738,7 +745,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (nom < 0.0)
    {
-      if (print_options & PrintLevel::WARNINGS)
+      if (print_options.warnings)
       {
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                    << nom << '\n';
@@ -762,7 +769,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
-      if (Dot(d, d) > 0.0 && (print_options & PrintLevel::WARNINGS))
+      if (Dot(d, d) > 0.0 && print_options.warnings)
       {
          mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                    << den << '\n';
@@ -797,7 +804,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
-         if (print_options & PrintLevel::WARNINGS)
+         if (print_options.warnings)
          {
             mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                       << betanom << '\n';
@@ -807,7 +814,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
       {
          mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
                    << betanom << '\n';
@@ -841,7 +848,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
-         if (Dot(d, d) > 0.0 && (print_options & PrintLevel::WARNINGS))
+         if (Dot(d, d) > 0.0 && print_options.warnings)
          {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
@@ -854,8 +861,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       nom = betanom;
    }
-   if ((print_options & PrintLevel::SUMMARY) ||
-       ((print_options & PrintLevel::ERRORS) && !converged))
+   if (print_options.summary || (print_options.errors && !converged))
    {
       const auto arf = pow (betanom/nom0, 0.5/final_iter);
       mfem::out << "PCG: Number of iterations: " << final_iter << '\n'
@@ -865,7 +871,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << betanom << '\n'
                 << "   Average reduction factor: " << arf << '\n';
    }
-   if ((print_options & PrintLevel::ERRORS) && !converged)
+   if (print_options.errors && !converged)
    {
       mfem::err << "PCG: No convergence!" << '\n';
    }
@@ -1017,7 +1023,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       goto finish;
    }
 
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
@@ -1078,7 +1084,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
             goto finish;
          }
 
-         if (print_options & PrintLevel::ITERATION_DETAILS)
+         if (print_options.iterations)
          {
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
@@ -1088,7 +1094,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          Monitor(j, resid, r, x);
       }
 
-      if ((print_options & PrintLevel::ITERATION_DETAILS) && j <= max_iter)
+      if (print_options.iterations && j <= max_iter)
       {
          mfem::out << "Restarting..." << '\n';
       }
@@ -1121,15 +1127,15 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    converged = false;
 
 finish:
-   if ((print_options & PrintLevel::SUMMARY) ||
-       ((print_options & PrintLevel::ERRORS) && !converged))
+   if (print_options.summary ||
+       (print_options.errors && !converged))
    {
       mfem::out << "GMRES: Number of iterations: " << final_iter << '\n'
                 << "   Pass : " << setw(2) << (final_iter-1)/m+1 << '\n'
                 << "   Iteration : " << setw(3) << final_iter << '\n'
                 << "  ||B r|| = " << final_norm << '\n';
    }
-   if ((print_options & PrintLevel::ERRORS) && !converged)
+   if (print_options.errors && !converged)
    {
       mfem::err << "GMRES: No convergence!\n";
    }
@@ -1174,7 +1180,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
@@ -1237,7 +1243,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-         if (print_options & PrintLevel::ITERATION_DETAILS)
+         if (print_options.iterations)
          {
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
@@ -1252,7 +1258,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             final_iter = j;
             converged = true;
 
-            if (print_options & PrintLevel::SUMMARY)
+            if (print_options.summary)
             {
                mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n'
                          << "   ||r|| " << final_norm << '\n';
@@ -1267,7 +1273,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          }
       }
 
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
       {
          mfem::out << "Restarting..." << endl;
       }
@@ -1296,13 +1302,12 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    converged = false;
 
-   if ((print_options & PrintLevel::SUMMARY) ||
-       ((print_options & PrintLevel::ERRORS) && !converged))
+   if (print_options.summary || (print_options.errors && !converged))
    {
       mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| " << final_norm << '\n';
    }
-   if ((print_options & PrintLevel::ERRORS) && !converged)
+   if (print_options.errors && !converged)
    {
       mfem::err << "FGMRES: No convergence!\n";
    }
@@ -1370,9 +1375,11 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
    resid = Norm(r);
    MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
+   {
       mfem::out << "   Iteration : " << setw(3) << 0
                 << "   ||r|| = " << resid << '\n';
+   }
 
    Monitor(0, resid, r, x);
 
@@ -1391,7 +1398,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       rho_1 = Dot(rtilde, r);
       if (rho_1 == 0)
       {
-         if (print_options & PrintLevel::ITERATION_DETAILS)
+         if (print_options.iterations)
          {
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
@@ -1430,7 +1437,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
-         if (print_options & PrintLevel::ITERATION_DETAILS)
+         if (print_options.iterations)
          {
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||s|| = " << resid << '\n';
@@ -1440,7 +1447,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          converged = true;
          return;
       }
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
       {
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
@@ -1463,7 +1470,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       rho_2 = rho_1;
       resid = Norm(r);
       MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
@@ -1568,7 +1575,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       goto loop_end;
    }
 
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
                 << eta << "\n";
@@ -1636,7 +1643,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          goto loop_end;
       }
 
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
       {
          mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                    << fabs(eta) << '\n';
@@ -1657,8 +1664,7 @@ loop_end:
    final_iter = it;
    final_norm = fabs(eta);
 
-   if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                 (print_options & PrintLevel::ERRORS)))
+   if (print_options.summary || (!converged && print_options.errors))
    {
       mfem::out << "MINRES: Number of iterations: " << setw(3) << final_iter << '\n'
                 << "   ||r||_B = " << final_norm << '\n';
@@ -1679,7 +1685,7 @@ loop_end:
    //              << "   ||r||_B = " << eta << " (re-computed)" << '\n';
    // }
 
-   if (!converged && (print_options & PrintLevel::ERRORS))
+   if (!converged && (print_options.errors))
    {
       mfem::err << "MINRES: No convergence!\n";
    }
@@ -1755,7 +1761,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    for (it = 0; true; it++)
    {
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
       {
          mfem::out << "Newton iteration " << setw(2) << it
                    << " : ||r|| = " << norm;
@@ -1815,14 +1821,12 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_iter = it;
    final_norm = norm;
 
-   if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                 (print_options & PrintLevel::ERRORS)))
+   if (print_options.summary || (!converged && print_options.errors))
    {
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
-   if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                 (print_options & PrintLevel::ERRORS)))
+   if (print_options.summary || (!converged && print_options.errors))
    {
       mfem::out << "Newton: No convergence!\n";
    }
@@ -1882,7 +1886,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
    eta = std::min(eta, lin_rtol_max);
    iterative_solver->SetRelTol(eta);
    eta_last = eta;
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "Eisenstat-Walker rtol = " << eta << "\n";
    }
@@ -1946,7 +1950,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    for (it = 0; true; it++)
    {
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
-      if (print_options & PrintLevel::ITERATION_DETAILS)
+      if (print_options.iterations)
       {
          mfem::out << "LBFGS iteration " <<  it
                    << " : ||r|| = " << norm;
@@ -2042,14 +2046,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    final_iter = it;
    final_norm = norm;
 
-   if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                 (print_options & PrintLevel::ERRORS)))
+   if (print_options.summary || (!converged && print_options.errors))
    {
       mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
-   if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                 (print_options & PrintLevel::ERRORS)))
+   if (print_options.summary || (!converged && print_options.errors))
    {
       mfem::out << "LBFGS: No convergence!\n";
    }
@@ -2256,7 +2258,7 @@ int OptimizationProblem::GetNumConstraints() const
 
 void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
 {
-   if (print_options & PrintLevel::WARNINGS)
+   if (print_options.warnings)
    {
       MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
                    "the l2 norm of (x - x_target).");
@@ -2281,9 +2283,11 @@ void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
 {
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
+   {
       mfem::out << "SLBQP iteration " << it << ": residual = " << r
                 << ", lambda = " << l << '\n';
+   }
 }
 
 void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
@@ -2310,7 +2314,7 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
    const double tol = max(abs_tol, rel_tol*a);
 
    // *** Start bracketing phase of SLBQP ***
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "SLBQP bracketing phase" << '\n';
    }
@@ -2379,7 +2383,7 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
 
 
    // *** Start secant phase of SLBQP ***
-   if (print_options & PrintLevel::ITERATION_DETAILS)
+   if (print_options.iterations)
    {
       mfem::out << "SLBQP secant phase" << '\n';
    }
@@ -2443,14 +2447,13 @@ slbqp_done:
    final_iter = nclip;
    final_norm = r;
 
-   if ((print_options & PrintLevel::SUMMARY) || (!converged &&
-                                                 (print_options & PrintLevel::ERRORS)))
+   if (print_options.summary || (!converged && print_options.errors))
    {
       mfem::out << "SLBQP: Number of iterations: " << final_iter << '\n'
                 << "   lambda = " << l << '\n'
                 << "   ||r||  = " << final_norm << '\n';
    }
-   if (!converged && (print_options & PrintLevel::ERRORS))
+   if (!converged && print_options.errors)
    {
       mfem::err << "SLBQP: No convergence!" << '\n';
    }
