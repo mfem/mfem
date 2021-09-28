@@ -445,14 +445,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          // No untangling, and detJ got negative -- no good.
          if (print_options.warnings)
-         { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
+         { mfem::err << "Scale = " << scale << " Neg det(J) found.\n"; }
          scale *= detJ_factor; continue;
       }
       if (untangling == true && min_detT_out < *min_det_ptr)
       {
          // Untangling, and detJ got even more negative -- no good.
          if (print_options.warnings)
-         { mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n"; }
+         { mfem::err << "Scale = " << scale << " Neg det(J) decreased.\n"; }
          scale *= detJ_factor; continue;
       }
 
