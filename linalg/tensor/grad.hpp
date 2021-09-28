@@ -95,7 +95,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             false,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -190,7 +191,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             false,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
@@ -224,7 +226,7 @@ template <typename Basis,
           std::enable_if_t<
              is_tensor_basis<Basis> &&
              get_basis_dim<Basis> == 3 &&
-             false,
+             true,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u)
@@ -288,30 +290,34 @@ template <typename Basis,
           std::enable_if_t<
              is_tensor_basis<Basis> &&
              get_basis_dim<Basis> == 3 &&
-             false,
+             true,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
+   constexpr int Dim = 3;
    constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    MFEM_SHARED double s_G[basis_size];
    auto Bt = basis.GetBt(s_B);
-   auto Gt = basis.GetGt(s_B);
+   auto Gt = basis.GetGt(s_G);
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
    double Gdx[Q1D], Gdy[Q1D], Gdz[Q1D];
    Static3dThreadDTensor<1,Q1D,Q1D,Q1D> Gtu;
    // Load u into shared memory
-   MFEM_SHARED StaticDTensor<Q1D,Q1D,Q1D> s_u;
+   MFEM_SHARED StaticDTensor<Q1D,Q1D,Q1D,Dim> s_u;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
-            s_u(qx,qy,qz) = u(qx,qy,qz);
+            for (int d = 0; d < Dim; d++)
+            {
+               s_u(qx,qy,qz,d) = u(qx,qy,qz,d);
+            }
          }
       }
    }
