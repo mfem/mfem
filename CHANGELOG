@@ -10,7 +10,20 @@
 
 Version 4.3.1 (development)
 ===========================
+- Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
+  formatting. See the "make style" target.
+
 - Added support for hr-adaptivity using TMOP-based error estimator.
+
+- Added initial support for google-benchmarks in the tests/benchmarks directory.
+  It can be enabled with MFEM_USE_BENCHMARK=YES.
+
+- Added Binder (mybinder.org) configuration files for C++ MFEM Jupyter Notebooks
+  with inline GLVis visualization as well as a new examples/jupyter/ directory
+  with a sample notebook based on Example 1. Implementation based on xeus-cling,
+  github.com/jupyter-xeus/xeus-cling + xeus-glvis, github.com/GLVis/xeus-glvis.
+
+- Added 'double' atomicAdd implementation for previous versions of CUDA.
 
 - Adding lowest order Nedelec and Raviart-Thomas basis functions on wedge
   shaped elements.
@@ -30,6 +43,11 @@ Version 4.3.1 (development)
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh
   output format if no physical groups are defined) are now successfully loaded,
   and elements are reassigned attribute number 1.
+
+- Fixed several MinGW build issues on Windows.
+
+- Remove the 'u' flag in the ar command, to update all files in the archive,
+  avoiding file name collisions from different subdirectories.
 
 Version 4.3, released on July 29, 2021
 ======================================
@@ -298,6 +316,11 @@ Miscellaneous
 - Added HIP support to the CMake build system.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
+  hierarchy of spaces created by the element-based AMG (AMGe) methodology in
+  ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
+  miniapps/parelag directory for more details.
 
 API changes
 -----------
