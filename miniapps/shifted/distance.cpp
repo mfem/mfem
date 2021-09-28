@@ -80,6 +80,7 @@
 #include <fstream>
 #include <iostream>
 #include "dist_solver.hpp"
+#include <chrono>
 #include "../common/mfem-common.hpp"
 
 using namespace std;
@@ -182,6 +183,7 @@ int main(int argc, char *argv[])
    double t_param = 1.0;
    const char *device_config = "cpu";
    bool visualization = true;
+   SolverConfig solverConfig(SolverConfig::FA_HYPRE);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -205,6 +207,8 @@ int main(int argc, char *argv[])
                   "Diffusion time step (scaled internally scaled by dx*dx).");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption((int*)&solverConfig.type, "-st", "--precon-solver-config",
+                  "Preconditioner configuration. ");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -261,7 +265,7 @@ int main(int argc, char *argv[])
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
-      auto ds = new HeatDistanceSolver(t_param * dx * dx);
+      auto ds = new HeatDistanceSolver(t_param * dx * dx, solverConfig);
       if (problem == 0)
       {
          ds->transform = false;
@@ -297,8 +301,16 @@ int main(int argc, char *argv[])
    delete ls_coeff;
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
+   //Compute scalar distance for s
+   auto start = std::chrono::steady_clock::now();
    dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+
+   //Compute scalar distance for v
    dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
+   auto end = std::chrono::steady_clock::now();
+   std::chrono::duration<double> elapsed_seconds = end-start;
+   std::cout << "solve for v + s elapsed time: " << elapsed_seconds.count() <<
+             "s\n";
 
    // Send the solution by socket to a GLVis server.
    if (visualization)

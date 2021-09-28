@@ -90,6 +90,8 @@ int main(int argc, char *argv[])
    int ho_terms = 0;
    double alpha = 1;
    bool include_cut_cell = false;
+   const char *device_config = "cpu";
+   SolverConfig solverConfig(SolverConfig::FA_HYPRE);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -106,6 +108,8 @@ int main(int argc, char *argv[])
                   "level-set-type:");
    args.AddOption(&ho_terms, "-ho", "--high-order",
                   "Additional high-order terms to include");
+   args.AddOption((int*)&solverConfig.type, "-st", "--precon-solver-config",
+                  "Preconditioner configuration. ");
    args.AddOption(&alpha, "-alpha", "--alpha",
                   "Nitsche penalty parameter (~1 for 2D, ~10 for 3D).");
    args.AddOption(&include_cut_cell, "-cut", "--cut", "-no-cut-cell",
@@ -126,7 +130,9 @@ int main(int argc, char *argv[])
 
    // Enable hardware devices such as GPUs, and programming models such as CUDA,
    // OCCA, RAJA and OpenMP based on command line options.
-   Device device("cpu");
+
+   Device device(device_config);
+
    if (myid == 0) { device.Print(); }
 
    // Refine the mesh.
@@ -262,7 +268,7 @@ int main(int argc, char *argv[])
                                 "Input Level Set", 0, 2*s, s, s, "Rjmm");
       }
 
-      HeatDistanceSolver dist_func(2.0 * dx* dx);
+      HeatDistanceSolver dist_func(2.0 * dx* dx, solverConfig);
       dist_func.print_level = 1;
       dist_func.smooth_steps = 1;
       dist_func.ComputeVectorDistance(ls_filt_coeff, distance);

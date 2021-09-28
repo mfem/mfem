@@ -69,6 +69,66 @@ double AvgElementSize(ParMesh &pmesh)
    return dx;
 }
 
+ParMesh *MakeLORMesh(ParMesh &mesh_ho, int order, bool simplex)
+{
+   ParMesh *LORParMesh = new ParMesh;
+   LORParMesh->MakeRefined(mesh_ho, order, BasisType::GaussLobatto);
+   return LORParMesh;
+}
+
+LOR::LOR(ParMesh &mesh_ho, int order, Coefficient &coeff, Array<int> &ess_dofs,
+         bool simplex)
+   : mesh(MakeLORMesh(mesh_ho, order, simplex)),
+     fec(1, mesh->Dimension()),
+     fes(mesh.get(), &fec),
+     a(&fes),
+     irs(0, Quadrature1D::GaussLobatto)
+{
+   DiffusionIntegrator *diff_integ = new DiffusionIntegrator(coeff);
+   MassIntegrator *mass_integ = new MassIntegrator;
+
+   // LOR system uses collocated (2-point Gauss-Lobatto) quadrature
+   int dim = mesh->Dimension();
+   Geometry::Type geom = mesh->GetElementBaseGeometry(0);
+   const IntegrationRule &ir = irs.Get(geom, 1);
+   if (geom == Geometry::SQUARE || geom == Geometry::CUBE)
+   { MFEM_VERIFY(ir.Size() == pow(2,dim), "Wrong quadrature rule"); }
+   diff_integ->SetIntegrationRule(ir);
+   mass_integ->SetIntegrationRule(ir);
+
+   a.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+   a.AddDomainIntegrator(diff_integ);
+   a.AddDomainIntegrator(mass_integ);
+   a.Assemble();
+   a.FormSystemMatrix(ess_dofs, A);
+}
+
+AssemblyLevel GetAssemblyLevel(SolverConfig config)
+{
+   switch (config.type)
+   {
+      case SolverConfig::JACOBI:
+      case SolverConfig::LOR_HYPRE:
+      case SolverConfig::LOR_AMGX:
+      case SolverConfig::ALG_CEED:
+         return AssemblyLevel::PARTIAL;
+      default:
+         return AssemblyLevel::LEGACYFULL;
+   }
+}
+
+bool NeedsLOR(SolverConfig config)
+{
+   switch (config.type)
+   {
+      case SolverConfig::LOR_HYPRE:
+      case SolverConfig::LOR_AMGX:
+         return true;
+      default:
+         return false;
+   }
+}
+
 void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
                                         ParGridFunction &dist_v)
 {
@@ -79,6 +139,8 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
    const int dim = pfes.GetMesh()->Dimension();
    const int size = dist_s.Size();
 
+   dist_s.HostReadWrite();
+   dist_v.HostReadWrite();
    ParGridFunction der(&pfes);
    Vector magn(size);
    magn = 0.0;
@@ -117,12 +179,73 @@ void DistanceSolver::ComputeVectorDistance(Coefficient &zero_level_set,
    ScalarDistToVector(dist_s, distance);
 }
 
+Solver * HeatDistanceSolver::ConfigurePreconditioner(ParBilinearForm &a,
+                                                     Coefficient &coeff,
+                                                     Array<int> &ess_tdof_list,
+                                                     OperatorPtr * A)
+{
 
-void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
+   OperatorPtr A_prec;
+   if (NeedsLOR(solverConfig))
+   {
+      ParMesh *mesh = a.ParFESpace()->GetParMesh();
+      int order = a.ParFESpace()->GetOrder(0); // <-- Assume uniform p
+      bool simplex = false; //we don't support simplex at this time.
+      lor.reset(new LOR(*mesh, order, coeff, ess_tdof_list, simplex));
+      A_prec = lor->A;
+   }
+   else
+   {
+      A_prec = *A;
+   }
+
+   switch (solverConfig.type)
+   {
+
+      case SolverConfig::JACOBI:
+         return new OperatorJacobiSmoother(a, ess_tdof_list);
+         break;
+      case SolverConfig::FA_HYPRE:
+      case SolverConfig::LOR_HYPRE:
+      {
+         const int amg_print_lvl = (print_level > 1) ? 1 : 0;
+         HypreBoomerAMG *amg = new HypreBoomerAMG(*A_prec.As<HypreParMatrix>());
+         amg->SetPrintLevel(amg_print_lvl);
+         return amg;
+      }
+#ifdef MFEM_USE_AMGX
+      case SolverConfig::FA_AMGX:
+      case SolverConfig::LOR_AMGX:
+      {
+         AmgXSolver *amg = new AmgXSolver(MPI_COMM_WORLD,
+                                          AmgXSolver::PRECONDITIONER,
+                                          false);
+         amg->SetOperator(*A_prec.As<HypreParMatrix>());
+         return amg;
+      }
+#endif
+
+#if defined MFEM_USE_CEED
+      case SolverConfig::ALG_CEED:
+      {
+         return new ceed::AlgebraicSolver(a, ess_tdof_list);
+      }
+#endif
+
+      default:
+         MFEM_ABORT("Solver configuration not available");
+   }
+
+   return nullptr;
+}
+
+void HeatDistanceSolver::ComputeScalarDistance(Coefficient
+                                               &zero_level_set,
                                                ParGridFunction &distance)
 {
-   ParFiniteElementSpace &pfes = *distance.ParFESpace();
 
+   ParFiniteElementSpace &pfes = *distance.ParFESpace();
+   distance.Read();
    auto check_h1 = dynamic_cast<const H1_FECollection *>(pfes.FEColl());
    MFEM_VERIFY(check_h1 && pfes.GetVDim() == 1,
                "This solver supports only scalar H1 spaces.");
@@ -146,21 +269,17 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       }
    }
 
-   const int cg_print_lvl  = (print_level > 0) ? 1 : 0,
-             amg_print_lvl = (print_level > 1) ? 1 : 0;
+   const int cg_print_lvl  = (print_level > 0) ? 1 : 0;
 
-   // Solver.
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(100);
-   cg.SetPrintLevel(cg_print_lvl);
-   OperatorPtr A;
-   Vector B, X;
+   Solver *prec1 = nullptr, *prec2 = nullptr, *prec3 = nullptr;
 
    // Step 1 - diffuse.
    ParGridFunction diffused_source(&pfes);
    for (int i = 0; i < diffuse_iter; i++)
    {
+      OperatorPtr A;
+      Vector B, X;
+
       // Set up RHS.
       ParLinearForm b(&pfes);
       GridFunctionCoefficient src_coeff(&source);
@@ -169,6 +288,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       // Diffusion and mass terms in the LHS.
       ParBilinearForm a_d(&pfes);
+      a_d.SetAssemblyLevel(GetAssemblyLevel(solverConfig));
       a_d.AddDomainIntegrator(new MassIntegrator);
       ConstantCoefficient t_coeff(parameter_t);
       a_d.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
@@ -185,16 +305,25 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       ParGridFunction u_dirichlet(&pfes);
       u_dirichlet = 0.0;
       a_d.FormLinearSystem(ess_tdof_list, u_dirichlet, b, A, X, B);
-      auto *prec = new HypreBoomerAMG;
-      prec->SetPrintLevel(amg_print_lvl);
-      cg.SetPreconditioner(*prec);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
+      if (prec1 == nullptr) { prec1 = ConfigurePreconditioner(a_d, t_coeff, ess_tdof_list, &A); }
+
+      {
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(100);
+         cg.SetPrintLevel(cg_print_lvl);
+
+         //If the preconditioner is set first
+         //then A must be of the same type as prec
+         cg.SetOperator(*A);
+         cg.SetPreconditioner(*prec1);
+         cg.Mult(B, X);
+      }
       a_d.RecoverFEMSolution(X, b, u_dirichlet);
-      delete prec;
 
       // Diffusion and mass terms in the LHS.
       ParBilinearForm a_n(&pfes);
+      a_n.SetAssemblyLevel(GetAssemblyLevel(solverConfig));
       a_n.AddDomainIntegrator(new MassIntegrator);
       a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
       a_n.Assemble();
@@ -203,27 +332,41 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       ParGridFunction u_neumann(&pfes);
       ess_tdof_list.DeleteAll();
       a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
-      auto *prec2 = new HypreBoomerAMG;
-      prec2->SetPrintLevel(amg_print_lvl);
-      cg.SetPreconditioner(*prec2);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      a_n.RecoverFEMSolution(X, b, u_neumann);
-      delete prec2;
 
+      if (prec2 == nullptr) { prec2 = ConfigurePreconditioner(a_n, t_coeff, ess_tdof_list, &A); }
+
+      {
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(cg_print_lvl);
+
+         //If the preconditioner is set first
+         //then A must be of the same type as prec
+         cg.SetOperator(*A);
+         cg.SetPreconditioner(*prec2);
+         cg.Mult(B, X);
+      }
+      a_n.RecoverFEMSolution(X, b, u_neumann);
+
+      const double *h_u_neumann = u_neumann.HostRead();
+      const double *h_u_dirichlet = u_dirichlet.HostRead();
+      double *h_diffused_source = diffused_source.HostWrite();
       for (int i = 0; i < diffused_source.Size(); i++)
       {
          // This assumes that the magnitudes of the two solutions are somewhat
          // similar; otherwise one of the solutions would dominate and the BC
          // won't look correct. To avoid this, it's good to have the source
          // away from the boundary (i.e. have more resolution).
-         diffused_source(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
+         h_diffused_source[i] = 0.5 * (h_u_neumann[i] + h_u_dirichlet[i]);
       }
       source = diffused_source;
    }
 
    // Step 2 - solve for the distance using the normalized gradient.
    {
+      OperatorPtr A;
+      Vector B, X;
       // RHS - normalized gradient.
       ParLinearForm b2(&pfes);
       NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
@@ -232,6 +375,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       // LHS - diffusion.
       ParBilinearForm a2(&pfes);
+      a2.SetAssemblyLevel(GetAssemblyLevel(solverConfig));
       a2.AddDomainIntegrator(new DiffusionIntegrator);
       a2.Assemble();
 
@@ -239,15 +383,27 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       Array<int> no_ess_tdofs;
 
       a2.FormLinearSystem(no_ess_tdofs, distance, b2, A, X, B);
+      ConstantCoefficient t_coeff(1.0);
+      if (prec3 == nullptr) { prec3 = ConfigurePreconditioner(a2, t_coeff, no_ess_tdofs, &A); }
+      {
+         //If the preconditioner is set first
+         //then A must be of the same type as prec
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(cg_print_lvl);
 
-      auto *prec = new HypreBoomerAMG;
-      prec->SetPrintLevel(amg_print_lvl);
-      cg.SetPreconditioner(*prec);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
+         cg.SetOperator(*A);
+         cg.SetPreconditioner(*prec3);
+
+         cg.Mult(B, X);
+      }
       a2.RecoverFEMSolution(X, b2, distance);
-      delete prec;
    }
+
+   delete prec1;
+   delete prec2;
+   delete prec3;
 
    // Shift the distance values to have minimum at zero.
    double d_min_loc = distance.Min();
@@ -278,7 +434,6 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
                  << "keys evvRj*******A\n" << std::flush;
    }
 }
-
 
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
                                                ParGridFunction &fdist)

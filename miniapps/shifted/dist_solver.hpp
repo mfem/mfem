@@ -19,6 +19,38 @@ namespace mfem
 
 double AvgElementSize(ParMesh &pmesh);
 
+//Encapsulate different solver options here
+struct SolverConfig
+{
+   enum SolverType
+   {
+      JACOBI = 0,
+      FA_HYPRE = 1,
+      LOR_HYPRE = 2,
+      FA_AMGX = 3,
+      LOR_AMGX = 4,
+      ALG_CEED = 5
+   };
+   SolverType type;
+   SolverConfig(SolverType type_) : type(type_) { };
+   SolverConfig() : type(FA_HYPRE) { };
+};
+
+struct LOR
+{
+   std::unique_ptr<ParMesh> mesh;
+
+   H1_FECollection fec;
+   ParFiniteElementSpace fes;
+   ParBilinearForm a;
+   OperatorPtr A;
+   IntegrationRules irs;
+
+   LOR(ParMesh &mesh_ho, int order, Coefficient &coeff, Array<int> &ess_dofs,
+       bool simplex);
+};
+
+
 class DistanceSolver
 {
 protected:
@@ -55,9 +87,15 @@ public:
 class HeatDistanceSolver : public DistanceSolver
 {
 public:
-   HeatDistanceSolver(double diff_coeff)
-      : DistanceSolver(), parameter_t(diff_coeff), smooth_steps(0),
-        diffuse_iter(1), transform(true), vis_glvis(false) { }
+   HeatDistanceSolver(double diff_coeff, SolverConfig solverConfig_)
+      : DistanceSolver(), solverConfig(solverConfig_),
+        parameter_t(diff_coeff),
+        smooth_steps(0), diffuse_iter(1), transform(true), vis_glvis(false) { }
+
+   Solver * ConfigurePreconditioner(ParBilinearForm &a,
+                                    Coefficient &coeff,
+                                    Array<int> &ess_tdof_list,
+                                    OperatorPtr * A = NULL);
 
    // The computed distance is not "signed". In addition to the standard usage
    // (with zero level sets), this function can be applied to point sources when
@@ -65,6 +103,8 @@ public:
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
+   std::unique_ptr<LOR> lor;
+   SolverConfig solverConfig;
    double parameter_t;
    int smooth_steps, diffuse_iter;
    bool transform, vis_glvis;
