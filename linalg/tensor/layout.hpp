@@ -401,6 +401,12 @@ class Static3dThreadLayout<BatchSize, DimX>
 {
 public:
    MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX
+   }
+
+   MFEM_HOST_DEVICE inline
    constexpr Static3dThreadLayout(int size0)
    {
       // TODO Verify in debug that size0==DimX
@@ -429,6 +435,12 @@ class Static3dThreadLayout<BatchSize, DimX, DimY>
 {
 public:
    MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX && DimY < BlockSizeY
+   }
+
+   MFEM_HOST_DEVICE inline
    constexpr Static3dThreadLayout(int size0, int size1)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
@@ -456,6 +468,13 @@ template <int BatchSize, int DimX, int DimY, int DimZ>
 class Static3dThreadLayout<BatchSize, DimX, DimY, DimZ>
 {
 public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX && DimY < BlockSizeY
+      // TODO verify that DimZ < BlockSizeZ
+   }
+
    MFEM_HOST_DEVICE inline
    constexpr Static3dThreadLayout(int size0, int size1, int size2)
    {
@@ -486,8 +505,15 @@ class Static3dThreadLayout<BatchSize, DimX, DimY, DimZ, Dims...>
 private:
    StaticLayout<Dims...> layout;
 public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX && DimY < BlockSizeY
+      // TODO verify that DimZ < BlockSizeZ
+   }
+
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   Static3dThreadLayout(int size0, int size1, int size2, Sizes... sizes)
+   constexpr Static3dThreadLayout(int size0, int size1, int size2, Sizes... sizes)
    : layout(sizes...)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY && size2==DimZ
@@ -499,7 +525,7 @@ public:
    {
       // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
-      return layout(idx...);
+      return layout.index(idx...);
    }
 
    // Can be constexpr if Tensor inherit from Layout
@@ -533,7 +559,7 @@ public:
    {
       // TODO verify that idx0 < size0 && idx1 < size1 && idx2 < size2
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
-      return layout(idx...);
+      return layout.index(idx...);
    }
 
    // Can be constexpr if Tensor inherit from Layout
