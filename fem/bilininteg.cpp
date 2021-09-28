@@ -2978,6 +2978,12 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          elmat(i,i) *= (sigma - beta);
       }
    }
+
+/*
+   SparseMatrix selmat(elmat); 
+   selmat.PrintMatlab();
+   exit(1);
+*/
 }
 
 

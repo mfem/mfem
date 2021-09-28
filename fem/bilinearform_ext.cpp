@@ -246,8 +246,6 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    elem_restrict = NULL;
    int_face_restrict_lex = NULL;
    bdr_face_restrict_lex = NULL;
-   int_face_normD_restrict_lex = NULL;
-   bdr_face_normD_restrict_lex = NULL;
 }
 
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
@@ -271,7 +269,9 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
    {
       int_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Interior);
+                                 FaceType::Interior,
+                                 L2FaceValues::DoubleValued,
+                                 a->GetFaceRestrictionDerivatives());
       faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
@@ -282,38 +282,11 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       bdr_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Boundary,
-                                 m);
+                                 m,
+                                 a->GetFaceRestrictionDerivatives());
       faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
-   }
-
-   // Normal derivative at face restrictions
-   // Construct face restriction operators only if the bilinear form has
-   // interior or boundary face integrators
-   if (int_face_normD_restrict_lex == NULL && a->GetNDFBFI()->Size() > 0)
-   {
-      Array<BilinearFormIntegrator*> &intNDFaceIntegrators = *a->GetNDFBFI();
-      int_face_normD_restrict_lex = trialFes->GetFaceNormalDerivRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Interior,
-                                 intNDFaceIntegrators[0]->GetIntRule());
-      faceNormDIntX.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
-      faceNormDIntY.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
-      faceNormDIntY.UseDevice(true); // ensure 'faceNormDIntY = 0.0' is done on device
-   }
-
-   if (bdr_face_normD_restrict_lex == NULL && a->GetNDBFBFI()->Size() > 0)
-   {
-      Array<BilinearFormIntegrator*> &bdyNDFaceIntegrators = *a->GetNDBFBFI();
-      bdr_face_normD_restrict_lex = trialFes->GetFaceNormalDerivRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Boundary,
-                                 bdyNDFaceIntegrators[0]->GetIntRule(),
-                                 m);
-      faceNormDBdrX.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());
-      faceNormDBdrY.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());
-      faceNormDBdrY.UseDevice(true); // ensure 'faceNormDBdrY = 0.0' is done on device
    }
 }
 
@@ -345,7 +318,7 @@ void PABilinearFormExtension::Assemble()
    {
       bdrFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
    }
-
+/*
    Array<BilinearFormIntegrator*> &intNDFaceIntegrators = *a->GetNDFBFI();
    const int intNDFaceIntegratorCount = intNDFaceIntegrators.Size();
    for (int i = 0; i < intNDFaceIntegratorCount; ++i)
@@ -359,6 +332,7 @@ void PABilinearFormExtension::Assemble()
    {
       bdrNDFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
    }
+*/
 
 }
 
@@ -407,8 +381,6 @@ void PABilinearFormExtension::Update()
    elem_restrict = nullptr;
    int_face_restrict_lex = nullptr;
    bdr_face_restrict_lex = nullptr;
-   int_face_normD_restrict_lex = nullptr;
-   bdr_face_normD_restrict_lex = nullptr;
 }
 
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -438,7 +410,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
 #if timings_on > 0
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    std::cout << "% timings for various kernels " << std::endl;
    int num_timings = 20;
    int timelines[20];
@@ -522,71 +493,8 @@ timelines[tid] = __LINE__;
 timings[tid++] = std::chrono::system_clock::now();
 #endif
 
-   //Vector xint = x;
-   //Vector xbdy = x;
-   Vector yint = y;
-   Vector ybdy = y;
-   yint = 0.0;
-   ybdy = 0.0;
-
-   Array<BilinearFormIntegrator*> &intNormalDerivFaceIntegrators = *a->GetNDFBFI();
-   const int iNDFISz = intNormalDerivFaceIntegrators.Size();
-   if (int_face_normD_restrict_lex && iNDFISz>0)
-   {
-      int_face_normD_restrict_lex->Mult(x, faceNormDIntX);
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-
-      if (faceNormDIntX.Size()>0)
-      {
-         faceNormDIntY = 0.0;
-         for (int i = 0; i < iNDFISz; ++i)
-         {
-            intNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDIntX, faceNormDIntY);
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-         }
-         int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, yint);
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-      }
-   }
-
-   Array<BilinearFormIntegrator*> &bdrNormalDerivFaceIntegrators = *a->GetNDBFBFI();
-   const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();
-   if (bdr_face_normD_restrict_lex && bNDFISz>0)
-   {
-      bdr_face_normD_restrict_lex->Mult(x, faceNormDBdrX);
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-      if (faceNormDBdrX.Size()>0)
-      {
-         faceNormDBdrY = 0.0;
-         for (int i = 0; i < bNDFISz; ++i)
-         {
-            bdrNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDBdrX, faceNormDBdrY);
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-         }
-         bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, ybdy);
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-      }
-   }
-
 #ifdef MFEM_DEBUG
+/*
    std::cout << "begin y" << std::endl;
    y.Print(std::cout,1);
    std::cout << "faceNormDIntX" << std::endl;
@@ -595,10 +503,9 @@ timings[tid++] = std::chrono::system_clock::now();
    yint.Print(std::cout,1);
    std::cout << "ybdy" << std::endl;
    ybdy.Print(std::cout,1);
+   */
 #endif
 
-   y += ybdy;
-   y += yint;
 #if timings_on > 0 
 timelines[tid] = __LINE__;
 timings[tid++] = std::chrono::system_clock::now();
@@ -618,9 +525,6 @@ timings[tid++] = std::chrono::system_clock::now();
 
    std::cout << "%  total " << total;
    std::cout << std::endl;
-
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
 #endif
 
 
@@ -684,39 +588,6 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             bdrFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
          }
          bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
-      }
-   }
-
-   Array<BilinearFormIntegrator*> &intNormalDerivFaceIntegrators = *a->GetNDFBFI();
-   const int iNDFISz = intNormalDerivFaceIntegrators.Size();
-   if (int_face_normD_restrict_lex && iNDFISz>0)
-   {
-      int_face_normD_restrict_lex->Mult(x, faceNormDIntX);
-      if (faceNormDIntX.Size()>0)
-      {
-         faceNormDIntY = 0.0;
-         for (int i = 0; i < iNDFISz; ++i)
-         {
-            intNormalDerivFaceIntegrators[i]->AddMultTransposePA(faceNormDIntX, faceNormDIntY);
-         }
-         int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, y);
-      }
-   }
-
-
-   Array<BilinearFormIntegrator*> &bdrNormalDerivFaceIntegrators = *a->GetNDBFBFI();
-   const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();
-   if (bdr_face_normD_restrict_lex && bNDFISz>0)
-   {
-      bdr_face_normD_restrict_lex->Mult(x, faceNormDBdrX);
-      if (faceNormDBdrX.Size()>0)
-      {
-         faceNormDBdrY = 0.0;
-         for (int i = 0; i < bNDFISz; ++i)
-         {
-            bdrNormalDerivFaceIntegrators[i]->AddMultTransposePA(faceNormDBdrX, faceNormDBdrY);
-         }
-         bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, y);
       }
    }
 }

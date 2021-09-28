@@ -240,10 +240,13 @@ int main(int argc, char *argv[])
    if (pa)
    {
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a->SetFaceRestrictionDerivatives(1);
       if(intf)
-      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+//      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
       if(bdyf)
-      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+//      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
    }
    else if (eta > 0)
    {
@@ -279,7 +282,7 @@ int main(int argc, char *argv[])
 
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    std::cout << "% done assembling " << std::endl;
-   //exit(1);
+   //exit(0);
    a->Finalize();
 
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
@@ -408,7 +411,7 @@ int main(int argc, char *argv[])
       std::cout << "               ||ydiff|| = " << errnorm << std::endl;
       std::cout << "----------------------------------" << std::endl;
       std::cout << " %} " << std::endl;
-      //exit(1);
+      exit(0);
    }
 
    int print_iter = 3;
@@ -628,5 +631,5 @@ double x1(const Vector &x)
 
 double x2(const Vector &x)
 {
-   return 2.0*x(1);
+   return 2.0*x(1);//*x(1);
 }

@@ -31,7 +31,7 @@ void BilinearForm::AllocMat()
    const Table &elem_dof = fes->GetElementToDofTable();
    Table dof_dof;
 
-   if ((fbfi.Size() > 0) || (ndfbfi.Size() > 0))
+   if (fbfi.Size() > 0)
    {
       // the sparsity pattern is defined from the map: face->element->dof
       Table face_dof, dof_face;
@@ -108,10 +108,6 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
    bfbfi = bf->bfbfi;
    bfbfi_marker = bf->bfbfi_marker;
-
-   ndfbfi = bf->ndfbfi;
-
-   ndbfbfi = bf->ndbfbfi;
  
    AllocMat();
 }
@@ -142,6 +138,11 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       default:
          mfem_error("Unknown assembly level");
    }
+}
+
+void BilinearForm::SetFaceRestrictionDerivatives(int num_face_derivatives_)
+{
+   num_face_derivatives = num_face_derivatives_;
 }
 
 void BilinearForm::EnableStaticCondensation()
@@ -259,21 +260,10 @@ void BilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
    fbfi.Append (bfi);
 }
 
-void BilinearForm::AddInteriorNormalDerivativeFaceIntegrator (BilinearFormIntegrator * bfi)
-{
-   ndfbfi.Append (bfi);
-}
-
 void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
 {
    bfbfi.Append(bfi);
    bfbfi_marker.Append(NULL); // NULL marker means apply everywhere
-}
-
-void BilinearForm::AddBdrNormalDerivativeFaceIntegrator(BilinearFormIntegrator *bfi)
-{
-   ndbfbfi.Append(bfi);
-   ndbfbfi_marker.Append(NULL); // NULL marker means apply everywhere
 }
 
 void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
@@ -585,83 +575,6 @@ void BilinearForm::Assemble(int skip_zeros)
                    (*bfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
                bfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
-               mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
-            }
-         }
-      }
-   }
-
-   if (ndfbfi.Size())
-   {
-      FaceElementTransformations *tr;
-      Array<int> vdofs2;
-
-      int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
-      {
-         tr = mesh -> GetInteriorFaceTransformations (i);
-         if (tr != NULL)
-         {
-            fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-            fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
-            vdofs.Append (vdofs2);
-            for (int k = 0; k < ndfbfi.Size(); k++)
-            {
-               ndfbfi[k] -> AssembleFaceMatrix (*fes -> GetFE (tr -> Elem1No),
-                                              *fes -> GetFE (tr -> Elem2No),
-                                              *tr, elemmat);
-               mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
-            }
-         }
-      }
-   }
-
-   if (ndbfbfi.Size())
-   {
-      FaceElementTransformations *tr;
-      const FiniteElement *fe1, *fe2;
-
-      // Which boundary attributes need to be processed?
-      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-                                 mesh->bdr_attributes.Max() : 0);
-      bdr_attr_marker = 0;
-      for (int k = 0; k < ndbfbfi.Size(); k++)
-      {
-         if (ndbfbfi_marker[k] == NULL)
-         {
-            bdr_attr_marker = 1;
-            break;
-         }
-         Array<int> &bdr_marker = *ndbfbfi_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary face integrator #"
-                     << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
-         {
-            bdr_attr_marker[i] |= bdr_marker[i];
-         }
-      }
-
-      for (int i = 0; i < fes -> GetNBE(); i++)
-      {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
-         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-
-         tr = mesh -> GetBdrFaceTransformations (i);
-         if (tr != NULL)
-         {
-            fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-            fe1 = fes -> GetFE (tr -> Elem1No);
-            // The fe2 object is really a dummy and not used on the boundaries,
-            // but we can't dereference a NULL pointer, and we don't want to
-            // actually make a fake element.
-            fe2 = fe1;
-            for (int k = 0; k < ndbfbfi.Size(); k++)
-            {
-               if (ndbfbfi_marker[k] &&
-                   (*ndbfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
-
-               ndbfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
          }
@@ -1186,8 +1099,6 @@ BilinearForm::~BilinearForm()
       for (k=0; k < bbfi.Size(); k++) { delete bbfi[k]; }
       for (k=0; k < fbfi.Size(); k++) { delete fbfi[k]; }
       for (k=0; k < bfbfi.Size(); k++) { delete bfbfi[k]; }
-      for (k=0; k < ndfbfi.Size(); k++) { delete ndfbfi[k]; }
-      for (k=0; k < ndbfbfi.Size(); k++) { delete ndbfbfi[k]; }
    }
 
    delete ext;

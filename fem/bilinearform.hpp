@@ -98,10 +98,6 @@ protected:
    /// Set of normal derivative interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> ndfbfi;
 
-   /// Set of normal derivative boundary face Integrators to be applied.
-   Array<BilinearFormIntegrator*> ndbfbfi;
-   Array<Array<int>*>             ndbfbfi_marker; ///< Entries are not owned.
-
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -114,7 +110,10 @@ protected:
        diagonal matrix entries and corresponding RHS values upon elimination of
        the constrained DoFs. */
    DiagonalPolicy diag_policy;
-
+ 
+   /// The desired nymber of derivatives restricted to the faces
+   int num_face_derivatives;
+   
    int precompute_sparsity;
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
@@ -132,6 +131,7 @@ protected:
       assembly = AssemblyLevel::LEGACYFULL;
       batch = 1;
       ext = NULL;
+      num_face_derivatives = 0;
    }
 
 private:
@@ -172,6 +172,12 @@ public:
 
        This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+    /// Set the desired nymber of derivatives restricted to the faces
+   void SetFaceRestrictionDerivatives(int num_face_derivatives);
+
+    /// Set the desired nymber of derivatives restricted to the faces
+   int GetFaceRestrictionDerivatives() const { return num_face_derivatives; }
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
@@ -242,12 +248,6 @@ public:
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBFBFI_Marker() { return &bfbfi_marker; }
-
-   /// Access all integrators added with AddInteriorNormalDerivativeFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetNDFBFI() { return &ndfbfi; }
-
-   /// Access all integrators added with AddBdrNormalDerivativeFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetNDBFBFI() { return &ndbfbfi; }
 
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
@@ -353,12 +353,6 @@ public:
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
-
-   /// Adds new interior normal derivative at Face Integrator. Assumes ownership of @a bfi.
-   void AddInteriorNormalDerivativeFaceIntegrator(BilinearFormIntegrator *bfi);
-
-   /// Adds new boundary normal derivative at Face Integrator. Assumes ownership of @a bfi.
-   void AddBdrNormalDerivativeFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
        attributes.

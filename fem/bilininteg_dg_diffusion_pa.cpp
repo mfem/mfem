@@ -79,7 +79,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    }
    else if (ConstantCoefficient *c_Q = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      mfem_error("not yet implemented.");
+      std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // Constant Coefficient
       Qcoeff.SetSize(1);
       Qcoeff(0) = c_Q->constant;
@@ -87,10 +87,13 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    else if (QuadratureFunctionCoefficient* c_Q =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       mfem_error("not yet implemented.");
    }
    else
    {
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
       mfem_error("not yet implemented.");
    }
 
@@ -252,15 +255,13 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             double nor_norm = nor.Norml2();
             double nor_norm2 = nor_norm*nor_norm;
 
+            double h = detJ(p,f_ind)/nor_norm;
+
 #ifdef MFEM_DEBUG
             std::cout << "% nor.Norml2() " <<  nor.Norml2() << std::endl;
             std::cout << "% nor_norm " <<  nor_norm  << std::endl;
             std::cout << "% nor_norm2 " <<  nor_norm2  << std::endl;
-
-            double h = detJ(p,f_ind)/nor_norm;
-
             std::cout << "% h " <<  h << std::endl;
-
 #endif
 
             if (bdy_type_match)
