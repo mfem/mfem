@@ -1359,7 +1359,7 @@ static void PAMassApply(const int dim,
          // case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
          // case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
          // case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
-         // default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
          case 0x23: return ApplyMass<3,0,true,2,3>(NE,B,Bt,D,X,Y);
          case 0x24: return ApplyMass<3,0,true,2,4>(NE,B,Bt,D,X,Y);
          case 0x34: return ApplyMass<3,0,true,3,4>(NE,B,Bt,D,X,Y);
@@ -1373,7 +1373,7 @@ static void PAMassApply(const int dim,
          case 0x78: return ApplyMass<3,0,true,7,8>(NE,B,Bt,D,X,Y);
          case 0x89: return ApplyMass<3,0,true,8,9>(NE,B,Bt,D,X,Y);
          case 0x9A: return ApplyMass<3,0,true,9,10>(NE,B,Bt,D,X,Y);
-         default:   return ApplyMass<3,0,true>(NE,B,Bt,D,X,Y,D1D,Q1D);
+         // default:   return ApplyMass<3,0,true>(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
