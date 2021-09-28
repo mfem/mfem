@@ -930,6 +930,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParFiniteElementSpace &vfespace,
+                      ParFiniteElementSpace &ffespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
                       Vector &weights,
                       int p, double tol, bool visualization = false);
@@ -1481,8 +1482,19 @@ int main(int argc, char *argv[])
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
 
-      AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, coef_gf, coef,
+      AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, ffes, coef_gf, coef,
                        amr_weights, 2, tol_init, visualization);
+
+      u.SetSpace(&ffes);
+      for (int k = 0; k <= num_equations; k++)
+      {
+         offsets[k] = k * fes.GetNDofs();
+      }
+      neu_density.MakeRef(&fes, u, offsets[0]);
+      ion_density.MakeRef(&fes, u, offsets[1]);
+      para_velocity.MakeRef(&fes, u, offsets[2]);
+      ion_energy.MakeRef(&fes, u, offsets[3]);
+      elec_energy.MakeRef(&fes, u, offsets[4]);
    }
    ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
    ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
@@ -2449,6 +2461,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParFiniteElementSpace &vfespace,
+                      ParFiniteElementSpace &ffespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
                       Vector &weights,
                       int p, double tol, bool visualization)
@@ -2539,6 +2552,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       err_fespace.Update();
       fespace.Update();
       vfespace.Update();
+      ffespace.Update();
       gf.Update();
 
       // 22. Load balance the mesh, and update the space and solution. Currently
@@ -2552,6 +2566,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
          err_fespace.Update();
          fespace.Update();
          vfespace.Update();
+         ffespace.Update();
          gf.Update();
       }
    }
