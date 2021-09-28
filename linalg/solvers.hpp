@@ -73,7 +73,7 @@ public:
 
            PrintLevel().Errors().Warnings()
 
-       construct the print level with only errors and warnings enabled.
+       constructs the print level with only errors and warnings enabled.
      */
    struct PrintLevel
    {
@@ -164,10 +164,10 @@ protected:
    /// Limit for the number of iterations the solver is allowed to do
    int max_iter;
 
-   /// Convergence criterion: \f$ ||r||_X <= rel_{tol}*||r_0||_X \f$
+   /// Convergence criterion: \f$ ||r||_X \leq rel_{tol}||r_0||_X \f$
    double rel_tol;
 
-   /// Convergence criterion: \f$ ||r||_X <= abs_{tol} \f$
+   /// Convergence criterion: \f$ ||r||_X \leq abs_{tol} \f$
    double abs_tol;
 
    ///@}
@@ -189,9 +189,11 @@ protected:
                 bool final=false) const;
 
 public:
+   ///
    IterativeSolver();
 
 #ifdef MFEM_USE_MPI
+   ///
    IterativeSolver(MPI_Comm comm_);
 #endif
 
