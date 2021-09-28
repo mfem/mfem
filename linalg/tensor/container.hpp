@@ -175,6 +175,12 @@ private:
 
 public:
    MFEM_HOST_DEVICE
+   BlockContainer()
+   {
+      // TODO verify that DimX <= threadIdx.x
+   }
+
+   MFEM_HOST_DEVICE
    BlockContainer(int size) { /* TODO Verify that size < threadIdx.x */ }
 
    MFEM_HOST_DEVICE
@@ -201,6 +207,13 @@ private:
 
 public:
    MFEM_HOST_DEVICE
+   BlockContainer()
+   {
+      // TODO verify that DimX <= threadIdx.x
+      // TODO verify that DimY <= threadIdx.y
+   }
+
+   MFEM_HOST_DEVICE
    BlockContainer(int size0, int size1) { }
 
    MFEM_HOST_DEVICE
@@ -226,6 +239,13 @@ private:
    StaticContainer<T,Dims...> data;
 
 public:
+   MFEM_HOST_DEVICE
+   BlockContainer(): data()
+   {
+      // TODO verify that DimX <= threadIdx.x
+      // TODO verify that DimY <= threadIdx.y
+   }
+
    template <typename... Sizes> MFEM_HOST_DEVICE
    BlockContainer(int size0, int size1, Sizes... sizes): data(sizes...) { }
 
