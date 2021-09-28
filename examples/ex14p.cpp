@@ -212,8 +212,9 @@ int main(int argc, char *argv[])
    if (pa)
    {
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
-      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+      a->SetFaceRestrictionDerivatives(1);
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
    }
    else if (eta > 0)
    {
