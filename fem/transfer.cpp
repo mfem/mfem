@@ -175,7 +175,8 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
                                             localP[elem_geoms[i]]);
       }
       F.Reset(ran_fes.RefinementMatrix_main(
-                 dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(), localP));
+                 dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(),
+                 dom_fes.GetElementToFaceOrientationTable(), localP));
    }
    else
    {
