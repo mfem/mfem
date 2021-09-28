@@ -25,13 +25,15 @@ namespace mfem
 
 using namespace std;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
    oper = NULL;
    prec = NULL;
    max_iter = 10;
-   print_level = -1;
    rel_tol = abs_tol = 0.0;
 #ifdef MFEM_USE_MPI
    dot_prod_type = 0;
@@ -45,12 +47,13 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
    oper = NULL;
    prec = NULL;
    max_iter = 10;
-   print_level = -1;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
    comm = comm_;
 }
 #endif
+
+#pragma GCC diagnostic pop
 
 double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
@@ -67,6 +70,9 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
    }
 #endif
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
@@ -90,7 +96,7 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
       else // Suppress output.
       {
          print_level = 0;
-         print_options = static_cast<PrintLevel>(0);
+         print_options = PrintLevel::NONE;
       }
    }
 #endif
@@ -121,6 +127,8 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 #endif
 }
 
+#pragma GCC diagnostic pop
+
 IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
    int print_level)
 {
@@ -135,23 +143,14 @@ IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
    switch (print_level)
    {
       case -1:
-         return static_cast<PrintLevel>(0);
-         break;
-
+         return PrintLevel::NONE;
       case 0:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS);
-         break;
-
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS;
       case 1:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS |
-                                        PrintLevel::ITERATION_DETAILS);
-         break;
-
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS |
+                PrintLevel::ITERATION_DETAILS;
       case 2:
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS |
-                                        PrintLevel::SUMMARY);
-         break;
-
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS | PrintLevel::SUMMARY;
       default:
 #ifdef MFEM_USE_MPI
          if (rank == 0)
@@ -159,8 +158,7 @@ IterativeSolver::PrintLevel IterativeSolver::ConvertFromLegacyPrintLevel(
             MFEM_WARNING("Unknown print level " << print_level <<
                          ". Defaulting to level 0.");
 
-         return static_cast<PrintLevel>(PrintLevel::ERRORS | PrintLevel::WARNINGS);
-         break;
+         return PrintLevel::ERRORS | PrintLevel::WARNINGS;
    }
 }
 
