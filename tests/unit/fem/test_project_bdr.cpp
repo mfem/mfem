@@ -67,27 +67,27 @@ TEST_CASE("ProjectBdrCoefficient",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-     int dim = (type == (int)Element::SEGMENT) ? 1 :
-       ((type < (int)Element::TETRAHEDRON) ? 2 : 3);
+      int dim = (type == (int)Element::SEGMENT) ? 1 :
+                ((type < (int)Element::TETRAHEDRON) ? 2 : 3);
 
-     Mesh mesh = (dim == 1) ?
-       Mesh::MakeCartesian1D(n, 2.0) :
-       ((dim == 2) ?
-	Mesh::MakeCartesian2D(n, n, (Element::Type)type, true, 2.0, 3.0) :
-	Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0));
+      Mesh mesh = (dim == 1) ?
+                  Mesh::MakeCartesian1D(n, 2.0) :
+                  ((dim == 2) ?
+                   Mesh::MakeCartesian2D(n, n, (Element::Type)type, true, 2.0, 3.0) :
+                   Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0));
 
-     FunctionCoefficient funcCoef((dim == 1) ?
-				  func_1D_lin :
-				  ((dim == 2) ?
-				   func_2D_lin :
-				   func_3D_lin));
+      FunctionCoefficient funcCoef((dim == 1) ?
+                                   func_1D_lin :
+                                   ((dim == 2) ?
+                                    func_2D_lin :
+                                    func_3D_lin));
 
-     VectorFunctionCoefficient FuncCoef(dim, (dim == 1) ?
-					Func_1D_lin :
-					((dim == 2) ?
-					 Func_2D_lin :
-					 Func_3D_lin));
-     
+      VectorFunctionCoefficient FuncCoef(dim, (dim == 1) ?
+                                         Func_1D_lin :
+                                         ((dim == 2) ?
+                                          Func_2D_lin :
+                                          Func_3D_lin));
+
       SECTION("ProjectBdrCoefficient tests for element type " +
               std::to_string(type))
       {
@@ -102,12 +102,12 @@ TEST_CASE("ProjectBdrCoefficient",
 
          Array<int> bdr_marker(6);
 
-	 double f_val = 0.0;
-	 double h1_val = 0.0;
+         double f_val = 0.0;
+         double h1_val = 0.0;
 
-	 Vector F_val(dim);
-	 Vector h1v_val(dim);	 
-	 
+         Vector F_val(dim);
+         Vector h1v_val(dim);
+
          for (int b = 1; b<=6; b++)
          {
             bdr_marker = 0;
@@ -141,9 +141,9 @@ TEST_CASE("ProjectBdrCoefficient",
                   f_val = funcCoef.Eval(*T, ip);
                   h1_val = h1_xCoef.Eval(*T, ip);
 
-		  FuncCoef.Eval(F_val, *T, ip);
-		  h1v_xCoef.Eval(h1v_val, *T, ip);
-		  
+                  FuncCoef.Eval(F_val, *T, ip);
+                  h1v_xCoef.Eval(h1v_val, *T, ip);
+
                   double h1_dist = h1_val - f_val;
                   double h1v_dist = Distance(F_val, h1v_val, dim);
 
@@ -160,13 +160,13 @@ TEST_CASE("ProjectBdrCoefficient",
                   {
                      std::cout << be << ":" << j << " h1v ("
                                << F_val[0];
-		     if (dim > 1) std::cout << "," << F_val[1];
-		     if (dim > 2) std::cout << "," << F_val[2];
-		     std::cout << ") vs. ("
+                     if (dim > 1) { std::cout << "," << F_val[1]; }
+                     if (dim > 2) { std::cout << "," << F_val[2]; }
+                     std::cout << ") vs. ("
                                << h1v_val[0];
-		     if (dim > 1) std::cout << "," << h1v_val[1];
-		     if (dim > 2) std::cout << "," << h1v_val[2];
-		     std::cout << "), " << h1v_dist << std::endl;
+                     if (dim > 1) { std::cout << "," << h1v_val[1]; }
+                     if (dim > 2) { std::cout << "," << h1v_val[2]; }
+                     std::cout << "), " << h1v_dist << std::endl;
                   }
                }
                h1_err  /= ir.GetNPoints();
@@ -195,13 +195,13 @@ TEST_CASE("ProjectBdrCoefficientTangent",
         type <= (int)Element::HEXAHEDRON; type++)
    {
       int dim = (type < (int)Element::TETRAHEDRON) ? 2 : 3;
-      
+
       Mesh mesh = (dim == 2) ?
-	Mesh::MakeCartesian2D(n, n, (Element::Type)type, true, 2.0, 3.0) :
-	Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+                  Mesh::MakeCartesian2D(n, n, (Element::Type)type, true, 2.0, 3.0) :
+                  Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, (dim == 2) ?
-					 Func_2D_lin : Func_3D_lin);
+                                         Func_2D_lin : Func_3D_lin);
 
       SECTION("ProjectBdrCoefficientTangent tests for element type " +
               std::to_string(type))
@@ -254,17 +254,17 @@ TEST_CASE("ProjectBdrCoefficientTangent",
 
                   nd_val -= f_val;
 
-		  if (dim == 2)
-		    {
-		      nxd[0] = 0.0;
-		      nxd[1] = 0.0;
-		    }
-		  else
-		    {
-		      nxd[0] = normal[1] * nd_val[2] - normal[2] * nd_val[1];
-		      nxd[1] = normal[2] * nd_val[0] - normal[0] * nd_val[2];
-		    }
-		  nxd[2] = normal[0] * nd_val[1] - normal[1] * nd_val[0];
+                  if (dim == 2)
+                  {
+                     nxd[0] = 0.0;
+                     nxd[1] = 0.0;
+                  }
+                  else
+                  {
+                     nxd[0] = normal[1] * nd_val[2] - normal[2] * nd_val[1];
+                     nxd[1] = normal[2] * nd_val[0] - normal[0] * nd_val[2];
+                  }
+                  nxd[2] = normal[0] * nd_val[1] - normal[1] * nd_val[0];
 
                   double nd_dist = nxd.Norml2();
 
@@ -274,11 +274,11 @@ TEST_CASE("ProjectBdrCoefficientTangent",
                   {
                      std::cout << be << ":" << j << " nd ("
                                << f_val[0] << "," << f_val[1];
-		     if (dim > 2) std::cout << "," << f_val[2];
-		     std::cout << ") vs. ("
+                     if (dim > 2) { std::cout << "," << f_val[2]; }
+                     std::cout << ") vs. ("
                                << nd_val[0] << "," << nd_val[1];
-		     if (dim > 2) std::cout << "," << nd_val[2];
-		     std::cout << ") " << nd_dist << std::endl;
+                     if (dim > 2) { std::cout << "," << nd_val[2]; }
+                     std::cout << ") " << nd_dist << std::endl;
                   }
                }
                nd_err  /= ir.GetNPoints();
@@ -305,13 +305,13 @@ TEST_CASE("ProjectBdrCoefficientNormal",
         type <= (int)Element::HEXAHEDRON; type++)
    {
       int dim = (type < (int)Element::TETRAHEDRON) ? 2 : 3;
-      
+
       Mesh mesh = (dim == 2) ?
-	Mesh::MakeCartesian2D(n, n, (Element::Type)type, true, 2.0, 3.0) :
-	Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+                  Mesh::MakeCartesian2D(n, n, (Element::Type)type, true, 2.0, 3.0) :
+                  Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, (dim == 2) ?
-					 Func_2D_lin : Func_3D_lin);
+                                         Func_2D_lin : Func_3D_lin);
 
       SECTION("ProjectBdrCoefficientNormal tests for element type " +
               std::to_string(type))
@@ -321,7 +321,7 @@ TEST_CASE("ProjectBdrCoefficientNormal",
 
          FiniteElementSpace h1v_fespace(&mesh,  &h1_fec, dim);
          FiniteElementSpace  rt_fespace(&mesh,  &rt_fec);
-	 
+
          GridFunction h1v_x( &h1v_fespace);
          GridFunction  rt_x( &rt_fespace);
 
@@ -384,21 +384,21 @@ TEST_CASE("ProjectBdrCoefficientNormal",
                   {
                      std::cout << be << ":" << j << " h1v ("
                                << f_val[0] << "," << f_val[1];
-		     if (dim > 2) std::cout << "," << f_val[2];
-		     std::cout << ") vs. ("
+                     if (dim > 2) { std::cout << "," << f_val[2]; }
+                     std::cout << ") vs. ("
                                << h1v_val[0] << "," << h1v_val[1];
-		     if (dim > 2) std::cout << "," << h1v_val[2];
-		     std::cout << ") " << h1v_dist << std::endl;
+                     if (dim > 2) { std::cout << "," << h1v_val[2]; }
+                     std::cout << ") " << h1v_dist << std::endl;
                   }
                   if (log > 0 && rt_dist > tol)
                   {
                      std::cout << be << ":" << j << " rt ("
                                << f_val[0] << "," << f_val[1];
-		     if (dim > 2) std::cout << "," << f_val[2];
-		     std::cout << ") vs. ("
+                     if (dim > 2) { std::cout << "," << f_val[2]; }
+                     std::cout << ") vs. ("
                                << rt_val[0] << "," << rt_val[1];
-		     if (dim > 2) std::cout << "," << rt_val[2];
-		     std::cout << ") " << rt_dist << std::endl;
+                     if (dim > 2) { std::cout << "," << rt_val[2]; }
+                     std::cout << ") " << rt_dist << std::endl;
                   }
                }
                h1v_err  /= ir.GetNPoints();
