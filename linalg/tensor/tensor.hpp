@@ -247,7 +247,7 @@ using DeviceDTensor = MyDeviceTensor<Rank,double>;
 
 template <typename T, int... Sizes>
 using StaticPointerTensor = Tensor<DeviceContainer<T>,
-                                  StaticLayout<Sizes...> >;
+                                   StaticLayout<Sizes...> >;
 
 template <int... Sizes>
 using StaticPointerDTensor = StaticPointerTensor<double,Sizes...>;
