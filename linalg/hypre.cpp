@@ -4633,7 +4633,8 @@ void HypreBoomerAMG::RecomputeRBMs()
 
       rbms.SetSize(nrbms);
       gf_rbms.SetSize(nrbms);
-      gf_rbms[0] = rbms_rxy.ParallelAverage();
+      gf_rbms[0] = fespace->NewTrueDofVector();
+      rbms_rxy.GetTrueDofs(*gf_rbms[0]);
    }
    else if (dim == 3)
    {
@@ -4652,9 +4653,12 @@ void HypreBoomerAMG::RecomputeRBMs()
 
       rbms.SetSize(nrbms);
       gf_rbms.SetSize(nrbms);
-      gf_rbms[0] = rbms_rxy.ParallelAverage();
-      gf_rbms[1] = rbms_ryz.ParallelAverage();
-      gf_rbms[2] = rbms_rzx.ParallelAverage();
+      gf_rbms[0] = fespace->NewTrueDofVector();
+      gf_rbms[1] = fespace->NewTrueDofVector();
+      gf_rbms[2] = fespace->NewTrueDofVector();
+      rbms_rxy.GetTrueDofs(*gf_rbms[0]);
+      rbms_ryz.GetTrueDofs(*gf_rbms[1]);
+      rbms_rzx.GetTrueDofs(*gf_rbms[2]);
    }
    else
    {
