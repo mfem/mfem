@@ -280,7 +280,11 @@ struct StaticIndex
    template <typename... Idx> MFEM_HOST_DEVICE inline
    static int eval(int first, Idx... args)
    {
-      return first + get_value<Cpt-1,Dims...> * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
+      constexpr int size = get_value<Cpt-1,Dims...>;
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+      MFEM_ASSERT(first<size,"Trying to access out of boundary.");
+#endif
+      return first + size * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
    }
 };
 
