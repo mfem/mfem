@@ -2135,7 +2135,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes,
                                      const ElementDofOrdering e_ordering,
                                      const FaceType type,
-                                     const IntegrationRule* ir,
+                                     //const IntegrationRule* ir,
                                      const L2FaceValues m)
    : L2FaceNormalDRestriction(fes, type, m)
 {
@@ -2266,9 +2266,19 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          const FiniteElement &elf1 = *fes.GetFE(e1);
          const FiniteElement &elf2 = *fes.GetFE(e2);
 
+/*
+         const TensorBasisElement* telf1 = dynamic_cast<const TensorBasisElement*>(fes.GetFE(e1));
+         const TensorBasisElement* telf2 = dynamic_cast<const TensorBasisElement*>(fes.GetFE(e2));
+
+         Poly_1D::Basis el1_basis1d = telf1->GetBasis1D();
+         Poly_1D::Basis el2_basis1d = telf2->GetBasis1D();
+*/
+
+         //tel1_basis1d.Eval(zero.x, bf, gf_nor);
          elf1.Calc1DShape(zero, bf, gf_nor);
          gf_nor *= -1.0;
 
+/*
          if (ir == NULL)
          {
             int order;
@@ -2282,6 +2292,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             }
             ir = &IntRules.Get(Trans0.GetGeometryType(), order);
          }
+         */
 
          // Get Gauss-Lobatto integration points
          IntegrationRule ir_glob_1d;
@@ -2323,6 +2334,8 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             be.SetSize(NP1d);
             Vector ge;
             ge.SetSize(NP1d);
+
+            //tel1_basis1d.Eval(ir_glob_1d.IntPoint(did).x, be, ge);
             elf1.Calc1DShape(ir_glob_1d.IntPoint(did), be, ge);
             for( int p1d = 0; p1d < NP1d; p1d++ )
             {
@@ -2330,6 +2343,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
             }
             if( int_face_match )
             {
+               //tel2_basis1d.Eval(ir_glob_1d.IntPoint(did).x, be, ge);
                elf2.Calc1DShape(ir_glob_1d.IntPoint(did), be, ge);
                for( int p1d = 0; p1d < NP1d; p1d++ )
                {
@@ -2395,12 +2409,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 
             int tan1_id = p % NP1d; // is this correct?
             IntegrationPoint &ip_loc_tan1 = ir_glob_1d.IntPoint(tan1_id);
+
+            //tel1_basis1d.Eval(ip_loc_tan1.x, bf, gf_tan1);
             elf1.Calc1DShape(ip_loc_tan1, bf, gf_tan1);
 
             if( dim == 3 )
             {
                int tan2_id = (p/NP1d) % NP1d; // is this correct?
                IntegrationPoint &ip_loc_tan2 = ir_glob_1d.IntPoint(tan2_id);
+               //tel1_basis1d.Eval(ip_loc_tan2.x, bf, gf_tan2);
                elf1.Calc1DShape(ip_loc_tan2, bf, gf_tan2);
             }
 
@@ -3345,10 +3362,14 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
 
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y_new = Reshape(y.Write(), ndofs_face, vd, num_sides, nf, num_derivatives);
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
 /*
       // Loop over all face dofs
@@ -3384,8 +3405,12 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       auto jac_face_factor = Reshape( jac_face_factors.Read(), dim, ndofs_face, num_faces_per_element, ne);
       int elem_dofs = (dim==3)? D1D*D1D*D1D : D1D*D1D;
 
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
       if(dim == 2)
       {
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          // Loop over all elements
          MFEM_FORALL(e, ne,
          {
@@ -3421,6 +3446,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
             // Restrict to faces
             double R0xu[max_D1D][vdim];
             double R0yu[max_D1D][vdim];
@@ -3441,6 +3468,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   R1yu[d1][c] = u[d1][end][c];
                }
             }
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
             
             double R0yGxu[max_D1D][vdim];
             double R0xGyu[max_D1D][vdim];
@@ -3495,6 +3524,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
             // y = 0 face
             int face_id = 0;
             int face = map_elements_to_faces[num_faces_per_element*e + face_id];
@@ -3514,6 +3545,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   d_y_new(fdof , c, side, face, 1) += dnormal;
                }
             }
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             // x = 1 face
             face_id = 1;
@@ -3535,6 +3568,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
             // y = 1 face
             face_id = 2;
             face = map_elements_to_faces[num_faces_per_element*e + face_id];
@@ -3554,6 +3589,8 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                   d_y_new(fdof , c, side, face, 1) += dnormal;
                }
             }
+
+   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             // x = 0 face
             face_id = 3;
@@ -4473,7 +4510,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    std::cout << "y_new " << std::endl;
    y.Print(std::cout,1);
 
-   std::cout << "multtranspose error " << std::endl << ydiff.Normlinf() << std::endl;
+   std::cout << "mult transpose error " << std::endl << ydiff.Normlinf() << std::endl;
    //exit(1);
 #endif
 

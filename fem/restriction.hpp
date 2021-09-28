@@ -226,7 +226,7 @@ public:
    L2FaceNormalDRestriction(const FiniteElementSpace&, 
                      const ElementDofOrdering,
                      const FaceType,
-                     const IntegrationRule* Intrules,
+                     //const IntegrationRule* Intrules,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
    virtual void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
