@@ -571,6 +571,7 @@ void BlockMatrix::PrintMatlab(std::ostream & os) const
          os << i+1 << " " << row_ind[j]+1 << " " << row_data[j] << std::endl;
       }
    }
+   os << row_offsets.Last() << " " << col_offsets.Last () << " 0.0\n";
 
    os.precision(old_prec);
    os.flags(old_fmt);
