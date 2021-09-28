@@ -298,13 +298,13 @@ public:
        significance for ParMesh, but can be used for purposes beyond this class.
     */
    /// AMR meshes are not supported.
-   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const;
+   void GetGlobalVertexIndices(Array<HYPRE_BigInt> &gi) const;
    /// AMR meshes are not supported.
-   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const;
+   void GetGlobalEdgeIndices(Array<HYPRE_BigInt> &gi) const;
    /// AMR meshes are not supported.
-   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const;
+   void GetGlobalFaceIndices(Array<HYPRE_BigInt> &gi) const;
    /// AMR meshes are supported.
-   void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
+   void GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const;
 
    GroupTopology gtopo;
 

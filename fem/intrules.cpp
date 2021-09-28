@@ -955,7 +955,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
             IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
             int RealOrder = Order;
             while (RealOrder+1 < ir_array->Size() &&
-            /*  */ (*ir_array)[RealOrder+1] == ir)
+                   (*ir_array)[RealOrder+1] == ir)
             {
                RealOrder++;
             }
