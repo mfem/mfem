@@ -405,7 +405,7 @@ public:
    void PrintWarnings() { print_level = true; }
 
    // Return the value of the global relative data oscillation
-   double GetOsc() { return global_osc; }
+   double GetOsc() const { return global_osc; }
 
    // Return the local relative data oscillation errors
    const Vector & GetLocalOscs() const
