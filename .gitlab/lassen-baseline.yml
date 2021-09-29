@@ -18,19 +18,20 @@ stages:
   - baseline_report
   - baseline_publish
 
-baselinecheck_mfem_intel_corona:
-  extends: [.on_corona]
+baselinecheck_mfem_intel_lassen:
+  extends: [.on_lassen]
   stage: baseline_check
   script:
-    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 .gitlab/scripts/baseline-gpu-corona
+    - .gitlab/scripts/baseline
   artifacts:
     when: always
     paths:
       - ${ARTIFACTS_DIR}
   allow_failure: true
 
+
 report_baseline:
-  extends: [.on_corona]
+  extends: [.on_lassen]
   stage: baseline_report
   script:
     - cd ${AUTOTEST_ROOT}/autotest && git pull
@@ -45,11 +46,13 @@ report_baseline:
         cp ${rundir}/*.err ${rundir}/autotest-email.html
       fi
     - git add ${rundir}
-    - git commit -am "Gitlab CI log for baseline on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
+    - git commit -am "Gitlab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
     - git push origin master
 
-baselinepublish_mfem_corona:
-  extends: [.on_corona]
+# This job can only be manually triggered on a pipeline for master branch, or if
+# the pipeline was triggered with REBASELINE="YES"
+baselinepublish_mfem_lassen:
+  extends: [.on_lassen]
   stage: baseline_publish
   rules:
     - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
@@ -59,5 +62,5 @@ baselinepublish_mfem_corona:
 
 include:
   - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/corona-config.yml
+  - local: .gitlab/configs/lassen-config.yml
   - local: .gitlab/configs/setup-baseline.yml
