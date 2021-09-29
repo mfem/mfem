@@ -9,6 +9,9 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+variables:
+  AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM_${MACHINE_NAME}_build_and_test
+
 # setup clones the mfem/data repo in ${BUILD_ROOT}. The build_and_test script
 # then symlinks the repo to the parent directory of the MFEM source directory.
 # Unit tests that depend on the mfem/data repo will then detect that this

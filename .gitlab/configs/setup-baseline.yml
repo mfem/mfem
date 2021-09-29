@@ -14,6 +14,7 @@
 # Note: the value must be consistent with what setup_baseline does.
 variables:
   TPLS_DIR: ${BUILD_ROOT}/tpls
+  AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM_${MACHINE_NAME}_baseline
 
 # The setup_baseline job doesn't rely on MFEM git repo. It prepares a
 # pipeline-wide working directory downloading/updating external repos.
