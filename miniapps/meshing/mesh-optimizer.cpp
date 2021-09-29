@@ -783,6 +783,11 @@ int main(int argc, char *argv[])
    AdaptivityEvaluator *adapt_surface = NULL;
    if (surface_fit_const > 0.0)
    {
+      MFEM_VERIFY(hradaptivity == false,
+                  "Surface fitting with HR is not implemented yet.");
+      MFEM_VERIFY(pa == false,
+                  "Surface fitting with PA is not implemented yet.");
+
       FunctionCoefficient ls_coeff(surface_level_set);
       ls_0.ProjectCoefficient(ls_coeff);
 
@@ -1168,6 +1173,7 @@ int main(int argc, char *argv[])
    delete metric2;
    delete coeff1;
    delete adapt_evaluator;
+   delete adapt_surface;
    delete target_c;
    delete hr_adapt_coeff;
    delete adapt_coeff;
