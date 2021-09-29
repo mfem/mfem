@@ -132,7 +132,7 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 #define MFEM_DISABLE_WARNING_PUSH           __pragma(warning( push ))
 #define MFEM_DISABLE_WARNING_POP            __pragma(warning( pop ))
 #define MFEM_DISABLE_WARNING(warningNumber) __pragma(warning( disable : warningNumber ))
-#define MFEM_DISABLE_WARNING_DEPRECATED     DISABLE_WARNING(4996)
+#define MFEM_DISABLE_WARNING_DEPRECATED     MFEM_DISABLE_WARNING(4996)
 #elif defined(__GNUC__) || defined(__clang__)
 #define MFEM_DO_PRAGMA(X) _Pragma(#X)
 #define MFEM_DISABLE_WARNING_PUSH           MFEM_DO_PRAGMA(GCC diagnostic push)
