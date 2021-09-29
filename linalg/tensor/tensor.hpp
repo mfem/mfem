@@ -244,7 +244,7 @@ using Static2dThreadTensor = Tensor<Static2dThreadContainer<T, Sizes...>,
                                  Static2dThreadLayout<BatchSize, Sizes...> >;
 
 template <int BatchSize, int... Sizes>
-using StaticBlockDTensor = Static2dThreadTensor<double,BatchSize,Sizes...>;
+using Static2dThreadDTensor = Static2dThreadTensor<double,BatchSize,Sizes...>;
 
 /// A Tensor dynamically distributed over a cube of threads
 constexpr int get_Dynamic3dThreadLayout_size(int MaxSize, int Rank)
@@ -430,7 +430,7 @@ using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 // template <int Dim, bool IsTensor, int Dofs, int Quads>
 // class TensorTypeForBasis<Basis<Dim,true,Dofs,Quads>>
 // {
-//    using StaticBlockDTensor<Q>;
+//    using Static2dThreadDTensor<Q>;
 // };
 
 // template <int Dim, bool IsTensor, int Dofs, int Quads>
