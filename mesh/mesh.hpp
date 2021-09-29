@@ -1194,7 +1194,7 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
    /** Return all elements adjacent to the given Face
-       For an NCMesh and a Master face the functio will return more than 2 elements.
+       For an NCMesh and a master face the function will return more than 2 elements.
        For the other two cases (conforming or slave face) it falls back to the
        original GetFaceElements function above */
    void GetFaceElements (int Face, Array<int> & elems) const;
