@@ -70,7 +70,7 @@
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //  Adaptive surface fitting:
-//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e5 -rtol 1e-5 -nor
+//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
 //    mpirun -np 4 pmesh-optimizer -m square01_tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
 //
 //   Blade shape:
@@ -128,8 +128,8 @@ int main (int argc, char *argv[])
    int metric_id         = 1;
    int target_id         = 1;
    double lim_const      = 0.0;
-   double adapt_lim_const = 0.0;
-   double surface_fit_const   = 0.0;
+   double adapt_lim_const   = 0.0;
+   double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;

@@ -2395,6 +2395,29 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
 }
 #endif
 
+void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
+                                           const Array<bool> &smarker,
+                                           Coefficient &coeff,
+                                           AdaptivityEvaluator &ae)
+{
+   sigma = new GridFunction(s0);
+   sigma_marker = &smarker;
+   coeff_sigma = &coeff;
+   sigma_eval = &ae;
+
+   // Compute the restricted sigma.
+   sigma_bar = new GridFunction(*sigma);
+   for (int i = 0; i < sigma_marker->Size(); i++)
+   {
+      if ((*sigma_marker)[i] == false) { (*sigma_bar)(i) = 0.0; }
+   }
+
+   sigma_eval->SetSerialMetaInfo(*s0.FESpace()->GetMesh(),
+                                 *s0.FESpace()->FEColl(), 1);
+   sigma_eval->SetInitialField
+   (*sigma->FESpace()->GetMesh()->GetNodes(), *sigma);
+}
+
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,
@@ -3455,7 +3478,8 @@ void TMOP_Integrator::EnableNormalization(const GridFunction &x)
    ComputeNormalizationEnergies(x, metric_normal, lim_normal, sigma_normal);
    metric_normal = 1.0 / metric_normal;
    lim_normal = 1.0 / lim_normal;
-   if (sigma) { sigma_normal = 1.0 / sigma_normal; }
+   //if (sigma) { sigma_normal = 1.0 / sigma_normal; }
+   if (sigma) { sigma_normal = lim_normal; }
 }
 
 #ifdef MFEM_USE_MPI
