@@ -290,10 +290,6 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
-   cout << "Mesh curvature: ";
-   if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
-   else { cout << "(NONE)"; }
-   cout << endl;
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
 
