@@ -493,8 +493,8 @@ void ParGridFunction::GetDerivative(int comp, int der_comp,
    gcomm.Bcast(overlap);
 
    // Accumulate for all dofs.
-   gcomm.Reduce<double>(der.GetMemory(), GroupCommunicator::Sum);
-   gcomm.Bcast<double>(der.GetMemory());
+   gcomm.Reduce<double>(der.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(der.HostReadWrite());
 
    for (int i = 0; i < overlap.Size(); i++)
    {
