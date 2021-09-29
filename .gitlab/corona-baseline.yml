@@ -22,7 +22,7 @@ baselinecheck_mfem_intel_corona:
   extends: [.on_corona]
   stage: baseline_check
   script:
-    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 .gitlab/scripts/baseline-gpu-corona
+    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 .gitlab/scripts/baseline
   artifacts:
     when: always
     paths:
