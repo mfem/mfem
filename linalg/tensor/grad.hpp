@@ -65,7 +65,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             false,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -170,7 +171,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             false,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
