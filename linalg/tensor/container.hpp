@@ -162,26 +162,26 @@ public:
 };
 
 /// Statically sized owning Container distributed over a plane of threads.
-/// TODO This should only be used on device in combination with BlockLayout.
+/// TODO This should only be used on device in combination with Static2dThreadLayout.
 template <typename T, int... Dims>
-class BlockContainer;
+class Static2dThreadContainer;
 
 /// 1D special case
 template <typename T, int DimX>
-class BlockContainer<T,DimX>
+class Static2dThreadContainer<T,DimX>
 {
 private:
    T data;
 
 public:
    MFEM_HOST_DEVICE
-   BlockContainer()
+   Static2dThreadContainer()
    {
       // TODO verify that DimX <= threadIdx.x
    }
 
    MFEM_HOST_DEVICE
-   BlockContainer(int size) { /* TODO Verify that size < threadIdx.x */ }
+   Static2dThreadContainer(int size) { /* TODO Verify that size < threadIdx.x */ }
 
    MFEM_HOST_DEVICE
    const T& operator[](int i) const
@@ -200,21 +200,21 @@ public:
 
 /// 2D special case
 template <typename T, int DimX, int DimY>
-class BlockContainer<T,DimX, DimY>
+class Static2dThreadContainer<T,DimX, DimY>
 {
 private:
    T data;
 
 public:
    MFEM_HOST_DEVICE
-   BlockContainer()
+   Static2dThreadContainer()
    {
       // TODO verify that DimX <= threadIdx.x
       // TODO verify that DimY <= threadIdx.y
    }
 
    MFEM_HOST_DEVICE
-   BlockContainer(int size0, int size1) { }
+   Static2dThreadContainer(int size0, int size1) { }
 
    MFEM_HOST_DEVICE
    const T& operator[](int i) const
@@ -233,21 +233,21 @@ public:
 
 /// 3D and more general case
 template <typename T, int DimX, int DimY, int... Dims>
-class BlockContainer<T,DimX,DimY,Dims...>
+class Static2dThreadContainer<T,DimX,DimY,Dims...>
 {
 private:
    StaticContainer<T,Dims...> data;
 
 public:
    MFEM_HOST_DEVICE
-   BlockContainer(): data()
+   Static2dThreadContainer(): data()
    {
       // TODO verify that DimX <= threadIdx.x
       // TODO verify that DimY <= threadIdx.y
    }
 
    template <typename... Sizes> MFEM_HOST_DEVICE
-   BlockContainer(int size0, int size1, Sizes... sizes): data(sizes...) { }
+   Static2dThreadContainer(int size0, int size1, Sizes... sizes): data(sizes...) { }
 
    MFEM_HOST_DEVICE
    const T& operator[](int i) const
@@ -338,7 +338,7 @@ struct get_container_type_t<StaticContainer<T,Dims...>>
 };
 
 template <typename T, int... Dims>
-struct get_container_type_t<BlockContainer<T,Dims...>>
+struct get_container_type_t<Static2dThreadContainer<T,Dims...>>
 {
    using type = T;
 };
@@ -369,7 +369,7 @@ struct get_container_sizes_t<StaticContainer<T, Dims...>>
 };
 
 template <typename T, int... Dims>
-struct get_container_sizes_t<BlockContainer<T, Dims...>>
+struct get_container_sizes_t<Static2dThreadContainer<T, Dims...>>
 {
    using type = int_list<Dims...>;
 };
@@ -401,10 +401,10 @@ struct get_unsized_container<StaticContainer<T, Dims...>>
 };
 
 template <typename T, int... Dims>
-struct get_unsized_container<BlockContainer<T, Dims...>>
+struct get_unsized_container<Static2dThreadContainer<T, Dims...>>
 {
    template <int... Sizes>
-   using type = BlockContainer<T, Sizes...>;
+   using type = Static2dThreadContainer<T, Sizes...>;
 };
 
 template <typename T, typename Container>

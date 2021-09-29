@@ -145,21 +145,21 @@ public:
 
 /// Layout using a thread plane to distribute data
 template <int BatchSize, int... Dims>
-class BlockLayout;
+class Static2dThreadLayout;
 
 template <int BatchSize, int DimX>
-class BlockLayout<BatchSize, DimX>
+class Static2dThreadLayout<BatchSize, DimX>
 {
 public:
    MFEM_HOST_DEVICE
-   constexpr BlockLayout()
+   constexpr Static2dThreadLayout()
    {
       // TODO verify that size0 < BlockSizeX
       // TODO verify that BlockSizeZ == BatchSize
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr BlockLayout(int size0)
+   constexpr Static2dThreadLayout(int size0)
    {
       // TODO Verify in debug that size0==DimX
       // TODO verify that size0 < BlockSizeX
@@ -167,7 +167,7 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   constexpr BlockLayout(const Layout& rhs)
+   constexpr Static2dThreadLayout(const Layout& rhs)
    {
       // TODO verifications
    }
@@ -189,18 +189,18 @@ public:
 };
 
 template <int BatchSize, int DimX, int DimY>
-class BlockLayout<BatchSize, DimX, DimY>
+class Static2dThreadLayout<BatchSize, DimX, DimY>
 {
 public:
    MFEM_HOST_DEVICE
-   constexpr BlockLayout()
+   constexpr Static2dThreadLayout()
    {
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
       // TODO verify that BlockSizeZ == BatchSize
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr BlockLayout(int size0, int size1)
+   constexpr Static2dThreadLayout(int size0, int size1)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
@@ -208,7 +208,7 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   constexpr BlockLayout(const Layout& rhs)
+   constexpr Static2dThreadLayout(const Layout& rhs)
    {
       // TODO verifications
    }
@@ -230,20 +230,20 @@ public:
 };
 
 template <int BatchSize, int DimX, int DimY, int... Dims>
-class BlockLayout<BatchSize, DimX, DimY, Dims...>
+class Static2dThreadLayout<BatchSize, DimX, DimY, Dims...>
 {
 private:
    StaticLayout<Dims...> layout;
 public:
    MFEM_HOST_DEVICE
-   constexpr BlockLayout()
+   constexpr Static2dThreadLayout()
    {
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
       // TODO verify that BlockSizeZ == BatchSize
    }
 
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   constexpr BlockLayout(int size0, int size1, Sizes... sizes)
+   constexpr Static2dThreadLayout(int size0, int size1, Sizes... sizes)
    : layout(sizes...)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
@@ -252,7 +252,7 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   constexpr BlockLayout(const Layout& rhs)
+   constexpr Static2dThreadLayout(const Layout& rhs)
    {
       // TODO verifications
    }
@@ -274,7 +274,7 @@ public:
 };
 
 template <int Rank, int BatchSize>
-class DynamicBlockLayout
+class Dynamic2dThreadLayout
 {
 private:
    const int size0;
@@ -282,7 +282,7 @@ private:
    DynamicLayout<Rank-2> layout;
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   DynamicBlockLayout(int size0, int size1,  Sizes... sizes)
+   Dynamic2dThreadLayout(int size0, int size1,  Sizes... sizes)
    : size0(size0), size1(size1), layout(sizes...)
    {
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
@@ -290,7 +290,7 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   DynamicBlockLayout(const Layout &rhs)
+   Dynamic2dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>()),
      size1(rhs.template Size<1>()),
      layout(rhs.template Get<0>(0).template Get<0>(0))
@@ -316,13 +316,13 @@ public:
 };
 
 template <int BatchSize>
-class DynamicBlockLayout<1,BatchSize>
+class Dynamic2dThreadLayout<1,BatchSize>
 {
 private:
    const int size0;
 public:
    MFEM_HOST_DEVICE inline
-   DynamicBlockLayout(int size0)
+   Dynamic2dThreadLayout(int size0)
    : size0(size0)
    {
       // TODO verify that size0 < BlockSizeX
@@ -330,7 +330,7 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   DynamicBlockLayout(const Layout &rhs)
+   Dynamic2dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>())
    {
       // static_assert(1 == get_layout_rank<Layout>,
@@ -353,14 +353,14 @@ public:
 };
 
 template <int BatchSize>
-class DynamicBlockLayout<2,BatchSize>
+class Dynamic2dThreadLayout<2,BatchSize>
 {
 private:
    const int size0;
    const int size1;
 public:
    MFEM_HOST_DEVICE inline
-   DynamicBlockLayout(int size0, int size1)
+   Dynamic2dThreadLayout(int size0, int size1)
    : size0(size0), size1(size1)
    {
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
@@ -368,7 +368,7 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   DynamicBlockLayout(const Layout &rhs)
+   Dynamic2dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>()),
      size1(rhs.template Size<1>())
    {
@@ -991,13 +991,13 @@ struct get_layout_rank_v<StaticELayout<Dims...>>
 };
 
 template <int BatchSize, int... Dims>
-struct get_layout_rank_v<BlockLayout<BatchSize, Dims...>>
+struct get_layout_rank_v<Static2dThreadLayout<BatchSize, Dims...>>
 {
    static constexpr int value = sizeof...(Dims);
 };
 
 template <int Rank, int BatchSize>
-struct get_layout_rank_v<DynamicBlockLayout<Rank, BatchSize>>
+struct get_layout_rank_v<Dynamic2dThreadLayout<Rank, BatchSize>>
 {
    static constexpr int value = Rank;
 };
@@ -1037,7 +1037,7 @@ struct is_dynamic_layout_v<DynamicLayout<Rank>>
 };
 
 template <int Rank, int BatchSize>
-struct is_dynamic_layout_v<DynamicBlockLayout<Rank,BatchSize>>
+struct is_dynamic_layout_v<Dynamic2dThreadLayout<Rank,BatchSize>>
 {
    static constexpr bool value = true;
 };
@@ -1071,7 +1071,7 @@ struct is_static_layout_v<StaticLayout<Dims...>>
 };
 
 template <int BatchSize, int... Dims>
-struct is_static_layout_v<BlockLayout<BatchSize,Dims...>>
+struct is_static_layout_v<Static2dThreadLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
@@ -1139,13 +1139,13 @@ struct is_2d_threaded_layout_v
 };
 
 template <int BatchSize, int... Dims>
-struct is_2d_threaded_layout_v<BlockLayout<BatchSize,Dims...>>
+struct is_2d_threaded_layout_v<Static2dThreadLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
 
 template <int Rank, int BatchSize>
-struct is_2d_threaded_layout_v<DynamicBlockLayout<Rank,BatchSize>>
+struct is_2d_threaded_layout_v<Dynamic2dThreadLayout<Rank,BatchSize>>
 {
    static constexpr bool value = true;
 };
@@ -1196,25 +1196,25 @@ struct is_serial_layout_dim_v
 };
 
 template <int BatchSize, int... Dims>
-struct is_serial_layout_dim_v<BlockLayout<BatchSize,Dims...>, 0>
+struct is_serial_layout_dim_v<Static2dThreadLayout<BatchSize,Dims...>, 0>
 {
    static constexpr bool value = false;
 };
 
 template <int BatchSize, int... Dims>
-struct is_serial_layout_dim_v<BlockLayout<BatchSize,Dims...>, 1>
+struct is_serial_layout_dim_v<Static2dThreadLayout<BatchSize,Dims...>, 1>
 {
    static constexpr bool value = false;
 };
 
 template <int Rank, int BatchSize>
-struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
+struct is_serial_layout_dim_v<Dynamic2dThreadLayout<Rank,BatchSize>, 0>
 {
    static constexpr bool value = false;
 };
 
 template <int Rank, int BatchSize>
-struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+struct is_serial_layout_dim_v<Dynamic2dThreadLayout<Rank,BatchSize>, 1>
 {
    static constexpr bool value = false;
 };
@@ -1266,25 +1266,25 @@ struct is_threaded_layout_dim_v
 };
 
 template <int BatchSize, int... Dims>
-struct is_threaded_layout_dim_v<BlockLayout<BatchSize,Dims...>, 0>
+struct is_threaded_layout_dim_v<Static2dThreadLayout<BatchSize,Dims...>, 0>
 {
    static constexpr bool value = true;
 };
 
 template <int BatchSize, int... Dims>
-struct is_threaded_layout_dim_v<BlockLayout<BatchSize,Dims...>, 1>
+struct is_threaded_layout_dim_v<Static2dThreadLayout<BatchSize,Dims...>, 1>
 {
    static constexpr bool value = true;
 };
 
 template <int Rank, int BatchSize>
-struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
+struct is_threaded_layout_dim_v<Dynamic2dThreadLayout<Rank,BatchSize>, 0>
 {
    static constexpr bool value = true;
 };
 
 template <int Rank, int BatchSize>
-struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+struct is_threaded_layout_dim_v<Dynamic2dThreadLayout<Rank,BatchSize>, 1>
 {
    static constexpr bool value = true;
 };
@@ -1359,13 +1359,13 @@ struct get_layout_size_v<N, StaticELayout<Dims...>>
 };
 
 template <int N, int BatchSize, int... Dims>
-struct get_layout_size_v<N, BlockLayout<BatchSize, Dims...>>
+struct get_layout_size_v<N, Static2dThreadLayout<BatchSize, Dims...>>
 {
    static constexpr int value = get_value<N, Dims...>;
 };
 
 template <int N, int Rank, int BatchSize>
-struct get_layout_size_v<N, DynamicBlockLayout<Rank, BatchSize>>
+struct get_layout_size_v<N, Dynamic2dThreadLayout<Rank, BatchSize>>
 {
    static constexpr int value = Dynamic;
 };
@@ -1414,13 +1414,13 @@ struct get_layout_sizes_t<StaticELayout<Dims...>>
 };
 
 template <int BatchSize, int... Dims>
-struct get_layout_sizes_t<BlockLayout<BatchSize, Dims...>>
+struct get_layout_sizes_t<Static2dThreadLayout<BatchSize, Dims...>>
 {
    using type = int_list<Dims...>;
 };
 
 template <int Rank, int BatchSize>
-struct get_layout_sizes_t<DynamicBlockLayout<Rank,BatchSize>>
+struct get_layout_sizes_t<Dynamic2dThreadLayout<Rank,BatchSize>>
 {
    using type = int_repeat<Dynamic,Rank>;
 };
@@ -1454,13 +1454,13 @@ struct get_layout_batch_size_v
 };
 
 template <int BatchSize, int... Dims>
-struct get_layout_batch_size_v<BlockLayout<BatchSize, Dims...>>
+struct get_layout_batch_size_v<Static2dThreadLayout<BatchSize, Dims...>>
 {
    static constexpr int value = BatchSize;
 };
 
 template <int Rank, int BatchSize>
-struct get_layout_batch_size_v<DynamicBlockLayout<Rank, BatchSize>>
+struct get_layout_batch_size_v<Dynamic2dThreadLayout<Rank, BatchSize>>
 {
    static constexpr int value = BatchSize;
 };
@@ -1509,19 +1509,19 @@ struct get_layout_capacity_v<
 };
 
 template <int BatchSize, int DimX>
-struct get_layout_capacity_v<BlockLayout<BatchSize, DimX>>
+struct get_layout_capacity_v<Static2dThreadLayout<BatchSize, DimX>>
 {
    static constexpr int value = BatchSize;
 };
 
 template <int BatchSize, int DimX, int DimY>
-struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY>>
+struct get_layout_capacity_v<Static2dThreadLayout<BatchSize, DimX, DimY>>
 {
    static constexpr int value = BatchSize;
 };
 
 template <int BatchSize, int DimX, int DimY, int... Dims>
-struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY, Dims...>>
+struct get_layout_capacity_v<Static2dThreadLayout<BatchSize, DimX, DimY, Dims...>>
 {
    static constexpr int value = BatchSize * prod(Dims...);
 };
@@ -1590,17 +1590,17 @@ struct get_layout_result_type<StaticELayout<Sizes...>>
 };
 
 template <int BatchSize, int... Sizes>
-struct get_layout_result_type<BlockLayout<BatchSize,Sizes...>>
+struct get_layout_result_type<Static2dThreadLayout<BatchSize,Sizes...>>
 {
    template <int... Dims>
-   using type = BlockLayout<BatchSize,Dims...>;
+   using type = Static2dThreadLayout<BatchSize,Dims...>;
 };
 
 template <int Rank, int BatchSize>
-struct get_layout_result_type<DynamicBlockLayout<Rank,BatchSize>>
+struct get_layout_result_type<Dynamic2dThreadLayout<Rank,BatchSize>>
 {
    template <int myRank>
-   using type = DynamicBlockLayout<myRank,BatchSize>;
+   using type = Dynamic2dThreadLayout<myRank,BatchSize>;
 };
 
 template <int BatchSize, int... Sizes>

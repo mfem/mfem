@@ -36,19 +36,19 @@ struct DefaultKernelConfig
 
    /// Defines the dynamic type of Tensor used for computation on CUDA.
    template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
-   using DynamicCUDATensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
+   using DynamicCUDATensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
    /// Defines the static type of Tensor used for computation on CUDA.
    template <typename T, int BatchSize, int... Sizes>
-   using StaticCUDATensor = StaticBlockTensor<T, BatchSize, Sizes...>;
+   using StaticCUDATensor = Static2dThreadTensor<T, BatchSize, Sizes...>;
 
    /// Defines the dynamic type of Tensor used for computation on Hip.
    template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
-   using DynamicHipTensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
+   using DynamicHipTensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
    /// Defines the static type of Tensor used for computation on Hip.
    template <typename T, int BatchSize, int... Sizes>
-   using StaticHipTensor = StaticBlockTensor<T, BatchSize, Sizes...>;
+   using StaticHipTensor = Static2dThreadTensor<T, BatchSize, Sizes...>;
 
 #if defined(__CUDA_ARCH__)
    // CUDA types

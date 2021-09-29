@@ -227,24 +227,24 @@ constexpr int get_DynamicBlockLayout_size(int MaxSize, int Rank)
 }
 
 template <int Rank, typename T, int BatchSize, int MaxSize = 16>
-using DynamicBlockTensor = Tensor<
+using Dynamic2dThreadTensor = Tensor<
                               StaticContainer<
                                  T,
                                  get_DynamicBlockLayout_size(MaxSize,Rank)
                               >,
-                              DynamicBlockLayout<Rank,BatchSize>
+                              Dynamic2dThreadLayout<Rank,BatchSize>
                            >;
 
 template <int Rank, int BatchSize, int MaxSize = 16>
-using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
+using Dynamic2dThreadDTensor = Dynamic2dThreadTensor<Rank,double,BatchSize,MaxSize>;
 
 /// A Tensor statically distributed over a plane of threads
 template <typename T, int BatchSize, int... Sizes>
-using StaticBlockTensor = Tensor<BlockContainer<T, Sizes...>,
-                                 BlockLayout<BatchSize, Sizes...> >;
+using Static2dThreadTensor = Tensor<Static2dThreadContainer<T, Sizes...>,
+                                 Static2dThreadLayout<BatchSize, Sizes...> >;
 
 template <int BatchSize, int... Sizes>
-using StaticBlockDTensor = StaticBlockTensor<double,BatchSize,Sizes...>;
+using StaticBlockDTensor = Static2dThreadTensor<double,BatchSize,Sizes...>;
 
 /// A Tensor dynamically distributed over a cube of threads
 constexpr int get_Dynamic3dThreadLayout_size(int MaxSize, int Rank)
@@ -329,19 +329,19 @@ using StaticCPUTensor = StaticTensor<T, Sizes...>;
 
 /// Defines the dynamic type of Tensor used for computation on CUDA.
 template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
-using DynamicCUDATensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
+using DynamicCUDATensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on CUDA.
 template <typename T, int BatchSize, int... Sizes>
-using StaticCUDATensor = StaticBlockTensor<T, BatchSize, Sizes...>;
+using StaticCUDATensor = Static2dThreadTensor<T, BatchSize, Sizes...>;
 
 /// Defines the dynamic type of Tensor used for computation on Hip.
 template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
-using DynamicHipTensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
+using DynamicHipTensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on Hip.
 template <typename T, int BatchSize, int... Sizes>
-using StaticHipTensor = StaticBlockTensor<T, BatchSize, Sizes...>;
+using StaticHipTensor = Static2dThreadTensor<T, BatchSize, Sizes...>;
 
 /// A structure that defines static and dynamic Tensor types for an architecture
 struct DeviceTensorType
@@ -469,10 +469,10 @@ using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 // };
 
 // template <typename T, int... Sizes>
-// class TypeOf<StaticBlockTensor<T,Sizes...>>
+// class TypeOf<Static2dThreadTensor<T,Sizes...>>
 // {
 //    template <int... YourSizes>
-//    using type = StaticBlockTensor<T,YourSizes...>;
+//    using type = Static2dThreadTensor<T,YourSizes...>;
 // };
 
 } // namespace mfem
