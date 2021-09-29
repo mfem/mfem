@@ -1585,7 +1585,7 @@ public:
 
        Adds the term @f$ \int c (z(x) - z_0(x_0))^2 @f$, where z0(x0) is a given
        function on the starting mesh, and z(x) is its image on the new mesh.
-       Minimizing this, means that a node at x0 is allowed to move to a
+       Minimizing this term means that a node at x0 is allowed to move to a
        position x(x0) only if z(x) ~ z0(x0).
        Such term can be used for tangential mesh relaxation.
 
@@ -1600,6 +1600,24 @@ public:
                                AdaptivityEvaluator &ae);
 #endif
 
+   /** @brief Fitting of certain DOFs to the zero level set of a function.
+
+       Having a level set function s0(x0) on the starting mesh, and a set of
+       marked nodes (or DOFs), we move these nodes to the zero level set of s0.
+       If s(x) is the image of s0(x0) on the current mesh, this function adds to
+       the TMOP functional the term @f$ \int c \bar{s}(x))^2 @f$, where
+       @f$\bar{s}(x)@f$ is the restriction of s(x) on the aligned DOFs.
+       Minimizing this term means that a marked node at x0 is allowed to move to
+       a position x(x0) only if s(x) ~ 0.
+       Such term can be used for surface fitting and tangential relaxation.
+
+       @param[in] s0      The level set function on the initial mesh.
+       @param[in] smarker Indicates which DOFs will be aligned.
+       @param[in] coeff   Coefficient c for the above integral.
+       @param[in] ae      AdaptivityEvaluator to compute s(x) from s0(x0). */
+   void EnableSurfaceFitting(const GridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
 #ifdef MFEM_USE_MPI
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
