@@ -186,9 +186,10 @@ int main(int argc, char *argv[])
 
    // 8. Apply custom refiner settings.
    coeffrefiner.SetIntRule(irs);
-   coeffrefiner.SetMaxElements( max_elems);
+   coeffrefiner.SetMaxElements(max_elems);
    coeffrefiner.SetThreshold(osc_threshold);
    coeffrefiner.SetNCLimit(nc_limit);
+   coeffrefiner.PrintWarnings();
 
    // 9. Preprocess mesh to control osc (piecewise-affine function).
    //    This is mostly just a verification check. The oscillation should

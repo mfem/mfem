@@ -261,7 +261,8 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       // Exit if the global threshold or maximum number of elements is reached.
       if (global_osc < threshold || globalNE > max_elements)
       {
-         if (global_osc > threshold && globalNE > max_elements && rank == 0)
+         if (global_osc > threshold && globalNE > max_elements && rank == 0 &&
+             print_level)
          {
             MFEM_WARNING("Reached maximum number of elements "
                          "before resolving data to tolerance.");
