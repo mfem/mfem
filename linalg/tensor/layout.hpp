@@ -180,7 +180,6 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -222,7 +221,6 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -267,7 +265,6 @@ public:
       return layout.index(idx...);
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -310,7 +307,6 @@ public:
       return layout.index(idx...);
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -348,7 +344,6 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
@@ -389,12 +384,283 @@ public:
       return 0;
    }
 
-   // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
       static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
       return N==0? size0 : size1;
+   }
+};
+
+/// Layout using a thread cube to distribute data
+template <int BatchSize, int... Dims>
+class Static3dThreadLayout;
+
+template <int BatchSize, int DimX>
+class Static3dThreadLayout<BatchSize, DimX>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout(int size0)
+   {
+      // TODO Verify in debug that size0==DimX
+      // TODO verify that size0 < BlockSizeX
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0) const
+   {
+      // TODO verify that idx0 < DimX
+      // TODO verify that idx0 == threadIdx.x
+      return 0;
+   }
+
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      return DimX;
+   }
+};
+
+template <int BatchSize, int DimX, int DimY>
+class Static3dThreadLayout<BatchSize, DimX, DimY>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX && DimY < BlockSizeY
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout(int size0, int size1)
+   {
+      // TODO Verify in debug that size0==DimX && size1==DimY
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return 0;
+   }
+
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      return get_value<N,DimX,DimY>;
+   }
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ>
+class Static3dThreadLayout<BatchSize, DimX, DimY, DimZ>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX && DimY < BlockSizeY
+      // TODO verify that DimZ < BlockSizeZ
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout(int size0, int size1, int size2)
+   {
+      // TODO Verify in debug that size0==DimX && size1==DimY
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that size2 < BlockSizeZ
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return 0;
+   }
+
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<3,"Accessed size is higher than the rank of the Tensor.");
+      return get_value<N,DimX,DimY,DimZ>;
+   }
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ, int... Dims>
+class Static3dThreadLayout<BatchSize, DimX, DimY, DimZ, Dims...>
+{
+private:
+   StaticLayout<Dims...> layout;
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout()
+   {
+      // TODO verify that DimX < BlockSizeX && DimY < BlockSizeY
+      // TODO verify that DimZ < BlockSizeZ
+   }
+
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
+   constexpr Static3dThreadLayout(int size0, int size1, int size2, Sizes... sizes)
+   : layout(sizes...)
+   {
+      // TODO Verify in debug that size0==DimX && size1==DimY && size2==DimZ
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY && size2 < BlockSizeZ
+   }
+
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2, Idx... idx) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return layout.index(idx...);
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<rank<DimX,DimY,DimZ,Dims...>,"Accessed size is higher than the rank of the Tensor.");
+      return get_value<N,DimX,DimY,DimZ,Dims...>;
+   }
+};
+
+template <int Rank, int BatchSize>
+class Dynamic3dThreadLayout
+{
+private:
+   const int size0;
+   const int size1;
+   const int size2;
+   DynamicLayout<Rank-3> layout;
+public:
+   template <typename... Sizes> MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0, int size1, int size2, Sizes... sizes)
+   : size0(size0), size1(size1), size2(size2), layout(sizes...)
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2, Idx... idx) const
+   {
+      // TODO verify that idx0 < size0 && idx1 < size1 && idx2 < size2
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return layout.index(idx...);
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
+      return Dynamic3dThreadLayoutSize<N,Rank>::eval(size0,size1,size2,layout);
+   }
+};
+
+template <int BatchSize>
+class Dynamic3dThreadLayout<1,BatchSize>
+{
+private:
+   const int size0;
+public:
+   MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0)
+   : size0(size0)
+   {
+      // TODO verify that size0 < BlockSizeX
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx) const
+   {
+      // TODO verify that idx < DimX
+      return 0;
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      return size0;
+   }
+};
+
+template <int BatchSize>
+class Dynamic3dThreadLayout<2,BatchSize>
+{
+private:
+   const int size0;
+   const int size1;
+public:
+   MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0, int size1)
+   : size0(size0), size1(size1)
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1) const
+   {
+      // TODO verify that idx0 < size0 && idx1 < size1
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return 0;
+   }
+
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      return N==0? size0 : size1;
+   }
+};
+
+template <int BatchSize>
+class Dynamic3dThreadLayout<3,BatchSize>
+{
+private:
+   const int size0;
+   const int size1;
+   const int size2;
+public:
+   MFEM_HOST_DEVICE inline
+   Dynamic3dThreadLayout(int size0, int size1, int size2)
+   : size0(size0), size1(size1), size2(size2)
+   {
+      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY && size2 < BlockSizeZ
+   }
+
+   MFEM_HOST_DEVICE inline
+   constexpr int index(int idx0, int idx1, int idx2) const
+   {
+      // TODO verify that idx0 < size0 && idx1 < size1 && idx2 < size2
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      return 0;
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N> MFEM_HOST_DEVICE inline
+   constexpr int Size() const
+   {
+      static_assert(N>=0 && N<3,"Accessed size is higher than the rank of the Tensor.");
+      return N==0? size0 : (N==1? size1 : size2);
    }
 };
 
@@ -736,6 +1002,18 @@ struct get_layout_rank_v<DynamicBlockLayout<Rank, BatchSize>>
    static constexpr int value = Rank;
 };
 
+template <int BatchSize, int... Dims>
+struct get_layout_rank_v<Static3dThreadLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = sizeof...(Dims);
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_rank_v<Dynamic3dThreadLayout<Rank, BatchSize>>
+{
+   static constexpr int value = Rank;
+};
+
 template <int I, typename Layout>
 struct get_layout_rank_v<RestrictedLayout<I,Layout>>
 {
@@ -764,6 +1042,11 @@ struct is_dynamic_layout_v<DynamicBlockLayout<Rank,BatchSize>>
    static constexpr bool value = true;
 };
 
+template <int Rank, int BatchSize>
+struct is_dynamic_layout_v<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   static constexpr bool value = true;
+};
 
 template <int N, typename Layout>
 struct is_dynamic_layout_v<RestrictedLayout<N,Layout>>
@@ -781,14 +1064,20 @@ struct is_static_layout_v
    static constexpr bool value = false;
 };
 
+template<int... Dims>
+struct is_static_layout_v<StaticLayout<Dims...>>
+{
+   static constexpr bool value = true;
+};
+
 template <int BatchSize, int... Dims>
 struct is_static_layout_v<BlockLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
 
-template<int... Dims>
-struct is_static_layout_v<StaticLayout<Dims...>>
+template <int BatchSize, int... Dims>
+struct is_static_layout_v<Static3dThreadLayout<BatchSize,Dims...>>
 {
    static constexpr bool value = true;
 };
@@ -870,6 +1159,35 @@ struct is_2d_threaded_layout_v<RestrictedLayout<N,Layout>>
 template <typename Layout>
 constexpr bool is_2d_threaded_layout = is_2d_threaded_layout_v<Layout>::value;
 
+// is_3d_threaded_layout
+template <typename Layout>
+struct is_3d_threaded_layout_v
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_3d_threaded_layout_v<Static3dThreadLayout<BatchSize,Dims...>>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_3d_threaded_layout_v<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   static constexpr bool value = true;
+};
+
+template <int N, typename Layout>
+struct is_3d_threaded_layout_v<RestrictedLayout<N,Layout>>
+{
+   static constexpr bool value = is_3d_threaded_layout_v<Layout>::value;
+};
+
+template <typename Layout>
+constexpr bool is_3d_threaded_layout = is_3d_threaded_layout_v<Layout>::value;
+
+
 // is_serial_layout_dim
 template <typename Layout, int N>
 struct is_serial_layout_dim_v
@@ -897,6 +1215,42 @@ struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
 
 template <int Rank, int BatchSize>
 struct is_serial_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 0>
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_serial_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 2>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 0>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = false;
+};
+
+template <int Rank, int BatchSize>
+struct is_serial_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 2>
 {
    static constexpr bool value = false;
 };
@@ -931,6 +1285,42 @@ struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 0>
 
 template <int Rank, int BatchSize>
 struct is_threaded_layout_dim_v<DynamicBlockLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 0>
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <int BatchSize, int... Dims>
+struct is_threaded_layout_dim_v<Static3dThreadLayout<BatchSize,Dims...>, 2>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 0>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 1>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_threaded_layout_dim_v<Dynamic3dThreadLayout<Rank,BatchSize>, 2>
 {
    static constexpr bool value = true;
 };
@@ -980,6 +1370,18 @@ struct get_layout_size_v<N, DynamicBlockLayout<Rank, BatchSize>>
    static constexpr int value = Dynamic;
 };
 
+template <int N, int BatchSize, int... Dims>
+struct get_layout_size_v<N, Static3dThreadLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = get_value<N, Dims...>;
+};
+
+template <int N, int Rank, int BatchSize>
+struct get_layout_size_v<N, Dynamic3dThreadLayout<Rank, BatchSize>>
+{
+   static constexpr int value = Dynamic;
+};
+
 template <int N, int I, typename Layout>
 struct get_layout_size_v<N,RestrictedLayout<I,Layout>>
 {
@@ -1023,6 +1425,18 @@ struct get_layout_sizes_t<DynamicBlockLayout<Rank,BatchSize>>
    using type = int_repeat<Dynamic,Rank>;
 };
 
+template <int BatchSize, int... Dims>
+struct get_layout_sizes_t<Static3dThreadLayout<BatchSize, Dims...>>
+{
+   using type = int_list<Dims...>;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_sizes_t<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   using type = int_repeat<Dynamic,Rank>;
+};
+
 template <int N, typename Layout>
 struct get_layout_sizes_t<RestrictedLayout<N,Layout>>
 {
@@ -1047,6 +1461,18 @@ struct get_layout_batch_size_v<BlockLayout<BatchSize, Dims...>>
 
 template <int Rank, int BatchSize>
 struct get_layout_batch_size_v<DynamicBlockLayout<Rank, BatchSize>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int... Dims>
+struct get_layout_batch_size_v<Static3dThreadLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_batch_size_v<Dynamic3dThreadLayout<Rank, BatchSize>>
 {
    static constexpr int value = BatchSize;
 };
@@ -1096,6 +1522,31 @@ struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY>>
 
 template <int BatchSize, int DimX, int DimY, int... Dims>
 struct get_layout_capacity_v<BlockLayout<BatchSize, DimX, DimY, Dims...>>
+{
+   static constexpr int value = BatchSize * prod(Dims...);
+};
+
+template <int BatchSize, int DimX>
+struct get_layout_capacity_v<Static3dThreadLayout<BatchSize, DimX>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY>
+struct get_layout_capacity_v<Static3dThreadLayout<BatchSize, DimX, DimY>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ>
+struct get_layout_capacity_v<Static3dThreadLayout<BatchSize, DimX, DimY, DimZ>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int BatchSize, int DimX, int DimY, int DimZ, int... Dims>
+struct get_layout_capacity_v<
+   Static3dThreadLayout<BatchSize, DimX, DimY, DimZ, Dims...>>
 {
    static constexpr int value = BatchSize * prod(Dims...);
 };
@@ -1150,6 +1601,20 @@ struct get_layout_result_type<DynamicBlockLayout<Rank,BatchSize>>
 {
    template <int myRank>
    using type = DynamicBlockLayout<myRank,BatchSize>;
+};
+
+template <int BatchSize, int... Sizes>
+struct get_layout_result_type<Static3dThreadLayout<BatchSize,Sizes...>>
+{
+   template <int... Dims>
+   using type = Static3dThreadLayout<BatchSize,Dims...>;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_result_type<Dynamic3dThreadLayout<Rank,BatchSize>>
+{
+   template <int myRank>
+   using type = Dynamic3dThreadLayout<myRank,BatchSize>;
 };
 
 template <typename Layout, typename Enable = void>
