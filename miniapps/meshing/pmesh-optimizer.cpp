@@ -301,13 +301,6 @@ int main (int argc, char *argv[])
       mesh->UniformRefinement();
    }
    const int dim = mesh->Dimension();
-   if (myid == 0)
-   {
-      cout << "Mesh curvature: ";
-      if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
-      else { cout << "(NONE)"; }
-      cout << endl;
-   }
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
