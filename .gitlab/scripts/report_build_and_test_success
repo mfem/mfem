@@ -17,13 +17,14 @@ cd ${AUTOTEST_ROOT}/autotest && git pull
 mkdir -p ${MACHINE_NAME}
 
 rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
-rundir=$(.gitlab/scripts/safe_create_rundir $rundir)
+rundir=$(${CI_PROJECT_DIR}/.gitlab/scripts/safe_create_rundir $rundir)
 
 echo "The ${MACHINE_NAME} jobs were successful" > ${rundir}/gitlab.out
 echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
 
 msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
 
+git pull
 git add ${rundir}
 git commit -am "${msg}"
 git push origin master
