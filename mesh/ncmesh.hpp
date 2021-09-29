@@ -224,9 +224,17 @@ public:
 
       const MeshId& LookUp(int index, int *type = NULL) const;
 
+      const Array<int> & GetInvIndex() const
+      {
+         if (!inv_index.Size()) { BuildInvIndex(); }
+         return inv_index;
+      }
+
       ~NCList() { Clear(); }
+
    private:
       mutable Array<int> inv_index;
+      void BuildInvIndex() const;
    };
 
    /// Return the current list of conforming and nonconforming faces.

@@ -3236,40 +3236,7 @@ long NCMesh::NCList::TotalSize() const
 
 const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 {
-   if (!inv_index.Size())
-   {
-      int max_index = -1;
-      for (int i = 0; i < conforming.Size(); i++)
-      {
-         max_index = std::max(conforming[i].index, max_index);
-      }
-      for (int i = 0; i < masters.Size(); i++)
-      {
-         max_index = std::max(masters[i].index, max_index);
-      }
-      for (int i = 0; i < slaves.Size(); i++)
-      {
-         if (slaves[i].index < 0) { continue; }
-         max_index = std::max(slaves[i].index, max_index);
-      }
-
-      inv_index.SetSize(max_index + 1);
-      inv_index = -1;
-
-      for (int i = 0; i < conforming.Size(); i++)
-      {
-         inv_index[conforming[i].index] = (i << 2);
-      }
-      for (int i = 0; i < masters.Size(); i++)
-      {
-         inv_index[masters[i].index] = (i << 2) + 1;
-      }
-      for (int i = 0; i < slaves.Size(); i++)
-      {
-         if (slaves[i].index < 0) { continue; }
-         inv_index[slaves[i].index] = (i << 2) + 2;
-      }
-   }
+   if (!inv_index.Size()) { BuildInvIndex(); }
 
    MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
    int key = inv_index[index];
@@ -3296,6 +3263,40 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
    }
 }
 
+void NCMesh::NCList::BuildInvIndex() const
+{
+   int max_index = -1;
+   for (int i = 0; i < conforming.Size(); i++)
+   {
+      max_index = std::max(conforming[i].index, max_index);
+   }
+   for (int i = 0; i < masters.Size(); i++)
+   {
+      max_index = std::max(masters[i].index, max_index);
+   }
+   for (int i = 0; i < slaves.Size(); i++)
+   {
+      if (slaves[i].index < 0) { continue; }
+      max_index = std::max(slaves[i].index, max_index);
+   }
+
+   inv_index.SetSize(max_index + 1);
+   inv_index = -1;
+
+   for (int i = 0; i < conforming.Size(); i++)
+   {
+      inv_index[conforming[i].index] = (i << 2);
+   }
+   for (int i = 0; i < masters.Size(); i++)
+   {
+      inv_index[masters[i].index] = (i << 2) + 1;
+   }
+   for (int i = 0; i < slaves.Size(); i++)
+   {
+      if (slaves[i].index < 0) { continue; }
+      inv_index[slaves[i].index] = (i << 2) + 2;
+   }
+}
 
 //// Neighbors /////////////////////////////////////////////////////////////////
 
