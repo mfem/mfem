@@ -28,7 +28,7 @@ setup:
     - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
     - if [ ! -d data ]; then git clone ${MFEM_DATA_REPO}; fi
     - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
-    - cd ${AUTOTEST_ROOT}
+    - mkdir -p ${AUTOTEST_ROOT} && cd ${AUTOTEST_ROOT}
     - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
     - cd autotest && git pull && cd ..
 
