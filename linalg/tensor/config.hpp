@@ -274,66 +274,6 @@ struct get_config_batchsize_v<KernelConfig<Configs...>>
 template <typename Config>
 constexpr int get_config_batchsize = get_config_batchsize_v<Config>::value;
 
-// config_use_1dthreads
-template <typename Config>
-struct config_use_1dthreads_v
-{
-   static constexpr bool value = false; // TODO
-};
-
-template <typename Config>
-constexpr bool config_use_1dthreads = config_use_1dthreads_v<Config>::value;
-
-// config_use_2dthreads
-template <typename Config>
-struct config_use_2dthreads_v
-{
-   static constexpr bool value = true; // TODO
-};
-
-template <typename Config>
-constexpr bool config_use_2dthreads = config_use_2dthreads_v<Config>::value;
-
-// config_use_3dthreads
-template <typename Config>
-struct config_use_3dthreads_v
-{
-   static constexpr bool value = false; // TODO
-};
-
-template <typename Config>
-constexpr bool config_use_3dthreads = config_use_3dthreads_v<Config>::value;
-
-// config_use_xthreads
-template <typename Config>
-struct config_use_xthreads_v
-{
-   static constexpr bool value = true; // TODO
-};
-
-template <typename Config>
-constexpr bool config_use_xthreads = config_use_xthreads_v<Config>::value;
-
-// config_use_ythreads
-template <typename Config>
-struct config_use_ythreads_v
-{
-   static constexpr bool value = true; // TODO
-};
-
-template <typename Config>
-constexpr bool config_use_ythreads = config_use_ythreads_v<Config>::value;
-
-// config_use_zthreads
-template <typename Config>
-struct config_use_zthreads_v
-{
-   static constexpr bool value = true; // TODO
-};
-
-template <typename Config>
-constexpr bool config_use_zthreads = config_use_zthreads_v<Config>::value;
-
 // ResultTensor
 template <typename Config, typename Enable = std::enable_if_t<is_config<Config>> >
 struct config_result_tensor
@@ -363,6 +303,25 @@ template <typename Config, int... Sizes>
 using ConfigResultTensor = typename config_result_tensor<Config>
                               ::template type<Sizes...>;
 
+// config_use_xthreads
+template <typename Config>
+constexpr bool config_use_xthreads = is_threaded_layout_dim<
+                                        typename ConfigResultTensor<Config,1>
+                                           ::layout,0>;
+
+// config_use_ythreads
+template <typename Config>
+constexpr bool config_use_ythreads = is_threaded_layout_dim<
+                                        typename ConfigResultTensor<Config,1>
+                                           ::layout,1>;
+
+// config_use_zthreads
+template <typename Config>
+constexpr bool config_use_zthreads = is_threaded_layout_dim<
+                                        typename ConfigResultTensor<Config,1>
+                                           ::layout,2>;
+
+// Print function
 template <typename... Configs>
 std::ostream& operator<<(std::ostream &os,
                          const KernelConfig<Configs...> &config)
