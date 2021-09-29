@@ -2458,12 +2458,18 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
          loc_sum += std::abs((*sigma_bar)(i));
       }
    }
+   err_avg = loc_sum / loc_cnt;
+   err_max = loc_max;
 
+#ifdef MFEM_USE_MPI
+   if (targetC->Parallel() == false) { return; }
    int glob_cnt;
-   MPI_Allreduce(&loc_max, &err_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-   MPI_Allreduce(&loc_cnt, &glob_cnt, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&loc_sum, &err_avg, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Comm comm = targetC->GetComm();
+   MPI_Allreduce(&loc_max, &err_max, 1, MPI_DOUBLE, MPI_MAX, comm);
+   MPI_Allreduce(&loc_cnt, &glob_cnt, 1, MPI_INT, MPI_SUM, comm);
+   MPI_Allreduce(&loc_sum, &err_avg, 1, MPI_DOUBLE, MPI_SUM, comm);
    err_avg = err_avg / glob_cnt;
+#endif
 }
 
 void TMOP_Integrator::UpdateAfterMeshTopologyChange()
