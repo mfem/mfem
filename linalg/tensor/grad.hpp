@@ -226,6 +226,124 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    return v;
 }
 
+// 2D threaded version where each thread computes one value.
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 2 &&
+             true,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
+{
+   constexpr int Dim = 2;
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_B[basis_size];
+   MFEM_SHARED double s_G[basis_size];
+   const auto B = basis.GetB(s_B);
+   const auto G = basis.GetG(s_G);
+   constexpr int D1D = get_basis_dofs<Basis>;
+   constexpr int Q1D = get_basis_quads<Basis>;
+   double Bqx[D1D], Bqy[D1D];
+   double Gqx[D1D], Gqy[D1D];
+   Static2dThreadDTensor<1,Q1D,Q1D,Dim> Gu;
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_UNROLL(D1D)
+         for (int d = 0; d < D1D; d++)
+         {
+            Bqx[d] = B(qx,d);
+            Bqy[d] = B(qy,d);
+            Gqx[d] = G(qx,d);
+            Gqy[d] = G(qy,d);
+         }
+         double du_dx = 0.0;
+         double du_dy = 0.0;
+         MFEM_UNROLL(D1D)
+         for (int dy = 0; dy < D1D; dy++)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dx = 0; dx < D1D; dx++)
+            {
+               const double val = u(dx,dy);
+               du_dx += Gqx[dx] * Bqy[dy] * val;
+               du_dy += Bqx[dx] * Gqy[dy] * val;
+            }
+         }
+         Gu(qx,qy,0) = du_dx;
+         Gu(qx,qy,1) = du_dy;
+      }
+   }
+   return Gu;
+}
+
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             is_tensor_basis<Basis> &&
+             get_basis_dim<Basis> == 2 &&
+             true,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
+{
+   constexpr int Dim = 2;
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_B[basis_size];
+   MFEM_SHARED double s_G[basis_size];
+   auto Bt = basis.GetBt(s_B);
+   auto Gt = basis.GetGt(s_G);
+   constexpr int D1D = get_basis_dofs<Basis>;
+   constexpr int Q1D = get_basis_quads<Basis>;
+   double Bdx[Q1D], Bdy[Q1D];
+   double Gdx[Q1D], Gdy[Q1D];
+   Static2dThreadDTensor<1,Q1D,Q1D> Gtu;
+   // Load u into shared memory
+   MFEM_SHARED double shared_mem[Q1D*Q1D*Dim];
+   StaticPointerDTensor<Q1D,Q1D,Dim> s_u(shared_mem);
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         for (int d = 0; d < Dim; d++)
+         {
+            s_u(qx,qy,d) = u(qx,qy,d);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dx,x,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_UNROLL(Q1D)
+         for (int q = 0; q < Q1D; q++)
+         {
+            Bdx[q] = Bt(dx,q);
+            Bdy[q] = Bt(dy,q);
+            Gdx[q] = Gt(dx,q);
+            Gdy[q] = Gt(dy,q);
+         }
+         double res = 0.0;
+         MFEM_UNROLL(Q1D)
+         for (int qy = 0; qy < Q1D; qy++)
+         {
+            MFEM_UNROLL(Q1D)
+            for (int qx = 0; qx < Q1D; qx++)
+            {
+               res += Gdx[qx] * Bdy[qy] * s_u(qx,qy,0);
+               res += Bdx[qx] * Gdy[qy] * s_u(qx,qy,1);
+            }
+         }
+         Gtu(dx,dy) = res;
+      }
+   }
+   return Gtu;
+}
+
 // 3D threaded version where each thread computes one value.
 template <typename Basis,
           typename Dofs,
