@@ -79,6 +79,10 @@ add_mfem_miniapp(stokes_ref
 	MAIN stokes_ref.cpp
 	LIBRARIES mfem)
 
+add_mfem_miniapp(stokes_ref01
+        MAIN stokes_ref01.cpp
+        LIBRARIES mfem)
+
 add_mfem_miniapp(stokes_uni
         MAIN stokes_uni.cpp
         LIBRARIES mfem)
