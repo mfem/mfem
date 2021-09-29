@@ -18,6 +18,12 @@ namespace mfem
 static constexpr int Dynamic = 0;
 static constexpr int Error = -1;
 
+#if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__))
+static constexpr bool is_device = true;
+#else
+static constexpr bool is_device = false;
+#endif
+
 /// Getter for the N-th dimension value
 template <int N, int... Dims>
 struct get_value_v;
