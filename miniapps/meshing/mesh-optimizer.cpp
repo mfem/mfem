@@ -1093,15 +1093,6 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
-   if (visualization && surface_fit_const > 0.0)
-   {
-      socketstream vis2, vis3;
-      common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                             600, 900, 300, 300);
-      common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Surface dof",
-                             900, 900, 300, 300);
-   }
-
    const double fin_energy = a.GetGridFunctionEnergy(x) /
                              (hradaptivity ? mesh->GetNE() : 1);
    double fin_metric_energy = fin_energy;
@@ -1138,6 +1129,22 @@ int main(int argc, char *argv[])
       socketstream vis0;
       common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
                              600, 600, 300, 300);
+   }
+
+   if (surface_fit_const > 0.0)
+   {
+      if (visualization)
+      {
+         socketstream vis2, vis3;
+         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                600, 900, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Surface dof",
+                                900, 900, 300, 300);
+      }
+      double err_avg, err_max;
+      he_nlf_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      std::cout << "Avg fitting error: " << err_avg << std::endl
+                << "Max fitting error: " << err_max << std::endl;
    }
 
    // 17. Visualize the mesh displacement.

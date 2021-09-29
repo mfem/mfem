@@ -937,9 +937,6 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   bool Parallel() const { return (comm != MPI_COMM_NULL); }
-#else
-   bool Parallel() const { return false; }
 #endif
 
    // should be called only if avg_volume == 0.0, i.e. avg_volume is not
@@ -975,6 +972,13 @@ public:
         uses_phys_coords(false), comm(mpicomm) { }
 #endif
    virtual ~TargetConstructor() { }
+
+#ifdef MFEM_USE_MPI
+   bool Parallel() const { return (comm != MPI_COMM_NULL); }
+   MPI_Comm GetComm() const { return comm; }
+#else
+   bool Parallel() const { return false; }
+#endif
 
    /** @brief Set the nodes to be used in the target-matrix construction.
 
@@ -1619,6 +1623,7 @@ public:
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
 #ifdef MFEM_USE_MPI
+   /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
