@@ -1913,7 +1913,7 @@ static void PADiffusionApply(const int dim,
          // case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
          // case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
          // case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
-         // default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
          case 0x22: return ApplyDiff<2,0,true,2,2,16>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x33: return ApplyDiff<2,0,true,3,3,16>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x44: return ApplyDiff<2,0,true,4,4,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
@@ -1922,7 +1922,7 @@ static void PADiffusionApply(const int dim,
          case 0x77: return ApplyDiff<2,0,true,7,7,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x88: return ApplyDiff<2,0,true,8,8,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x99: return ApplyDiff<2,0,true,9,9,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
-         default:   return ApplyDiff<2,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         // default:   return ApplyDiff<2,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
 
