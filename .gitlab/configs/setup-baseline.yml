@@ -29,13 +29,13 @@ setup_baseline:
   variables:
     GIT_STRATEGY: none
   script:
-    - echo "BUILD_ROOT: ${BUILD_ROOT}"
+    - echo "BUILD_ROOT ${BUILD_ROOT}"
     - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
     - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
     - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
     - cd tests && git pull origin && cd ..
-    - echo "AUTOTEST_ROOT: ${AUTOTEST_ROOT}"
+    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
     - cd ${AUTOTEST_ROOT}
     - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
     - cd autotest && git pull && cd ..
