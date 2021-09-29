@@ -835,6 +835,9 @@ public:
       : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
