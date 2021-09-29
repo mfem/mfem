@@ -21,6 +21,9 @@ Version 4.3.1 (development)
 - Updated the hypre interface according to changes in hypre-2.22.1. The ADS
   solver is now fully working on GPUs.
 
+- Coefficient::SetTime now propagates the new time into internally stored
+  Coefficient objects.
+
 - Added initial support for google-benchmarks in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
