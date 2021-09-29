@@ -186,7 +186,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                   const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
 
                   mass[qx] += wy * wy * ((c == 0) ? op(qx,qy,0,e) :
-                  op(qx,qy,symmetric ? 2 : 3, e));
+                                         op(qx,qy,symmetric ? 2 : 3, e));
                }
             }
 
@@ -237,7 +237,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
          const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
-         (symmetric ? 5 : 8));
+                                         (symmetric ? 5 : 8));
 
          double mass[MAX_Q1D];
 
