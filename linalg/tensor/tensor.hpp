@@ -292,6 +292,49 @@ using Static3dThreadTensor = Tensor<StaticContainer<
 template <int BatchSize, int... Sizes>
 using Static3dThreadDTensor = Static3dThreadTensor<double,BatchSize,Sizes...>;
 
+/// A threaded tensor type with Dim threaded dimensions
+template <int Dim>
+struct ThreadTensor;
+
+template <>
+struct ThreadTensor<1>
+{
+   template <typename T, int BatchSize, int... Sizes>
+   using static_type = Static2dThreadTensor<T,BatchSize,Sizes...>;
+
+   template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+   using dynamic_type = Dynamic2dThreadTensor<Rank,T,BatchSize,MaxSize>;
+};
+
+template <>
+struct ThreadTensor<2>
+{
+   template <typename T, int BatchSize, int... Sizes>
+   using static_type = Static2dThreadTensor<T,BatchSize,Sizes...>;
+
+   template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+   using dynamic_type = Dynamic2dThreadTensor<Rank,T,BatchSize,MaxSize>;
+};
+
+template <>
+struct ThreadTensor<3>
+{
+   template <typename T, int BatchSize, int... Sizes>
+   using static_type = Static3dThreadTensor<T,BatchSize,Sizes...>;
+
+   template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+   using dynamic_type = Dynamic3dThreadTensor<Rank,T,BatchSize,MaxSize>;
+};
+
+template <int Dim, typename T, int BatchSize, int... Sizes>
+using StaticThreadTensor = typename ThreadTensor<Dim>
+                              ::template static_type<T,BatchSize,Sizes...>;
+
+template <int Dim, int Rank, typename T, int BatchSize, int MaxSize = 16>
+using DynamicThreadTensor = typename ThreadTensor<Dim>
+                               ::template dynamic_type<Rank,T,BatchSize,MaxSize>;
+
+
 /// A tensor using a read write access pointer and a dynamic data layout.
 // Backward compatible if renamed in DeviceTensor
 template <int Rank, typename T>
