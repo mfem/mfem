@@ -235,7 +235,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D], Bdy[Q1D];
-   ResultTensor<Basis,Q1D,Q1D> Btu;
+   ResultTensor<Basis,D1D,D1D> Btu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D];
    StaticPointerDTensor<Q1D,Q1D> s_u(shared_mem);
@@ -342,7 +342,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
-   ResultTensor<Basis,Q1D,Q1D,Q1D> Btu;
+   ResultTensor<Basis,D1D,D1D,D1D> Btu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D*Q1D];
    StaticPointerDTensor<Q1D,Q1D,Q1D> s_u(shared_mem);

@@ -302,7 +302,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D], Bdy[Q1D];
    double Gdx[Q1D], Gdy[Q1D];
-   ResultTensor<Basis,Q1D,Q1D> Gtu;
+   ResultTensor<Basis,D1D,D1D> Gtu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D*Dim];
    StaticPointerDTensor<Q1D,Q1D,Dim> s_u(shared_mem);
@@ -432,7 +432,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
    double Gdx[Q1D], Gdy[Q1D], Gdz[Q1D];
-   ResultTensor<Basis,Q1D,Q1D,Q1D> Gtu;
+   ResultTensor<Basis,D1D,D1D,D1D> Gtu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D*Q1D*Dim];
    StaticPointerDTensor<Q1D,Q1D,Q1D,Dim> s_u(shared_mem);
