@@ -328,6 +328,7 @@ public:
 class CoefficientRefiner : public MeshOperator
 {
 protected:
+   bool print_level = false;
    int nc_limit = 1;
    int nonconforming = -1;
    int order;
@@ -399,6 +400,9 @@ public:
 
    // Set a custom integration rule
    void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
+
+   // Set print level
+   void PrintWarnings() { print_level = true; }
 
    // Return the value of the global relative data oscillation
    double GetOsc() { return global_osc; }
