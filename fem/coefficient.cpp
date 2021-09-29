@@ -331,6 +331,12 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
+void MatrixFunctionCoefficient::SetTime(double t)
+{
+   if (Q) { Q->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
