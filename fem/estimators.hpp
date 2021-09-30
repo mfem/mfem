@@ -230,6 +230,7 @@ public:
       local error estimates for Neumann boundary elements may be affected.
    *  The present PARALLEL implementation ignores all face patches which cross a
       processor boundary. This may have unexpected consequences.
+   *  ANISOTROPIC REFINEMENT NOT YET SUPPORTED.
 
  */
 class NewZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
