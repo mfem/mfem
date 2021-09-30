@@ -141,7 +141,9 @@ void SimpleAMG::FormRestriction()
    R.Swap(R_);
 }
 
-SimpleAMG::SimpleAMG(const SparseMatrix &A_, Solver &smoother_, const solverBackend &backend, MPI_Comm comm, std::string amgConfig) : A(A_), smoother(smoother_)
+SimpleAMG::SimpleAMG(const SparseMatrix &A_, Solver &smoother_,
+                     const solverBackend &backend, MPI_Comm comm, std::string amgConfig) : A(A_),
+   smoother(smoother_)
 {
    FormRestriction();
    Ac.reset(RAP(A, R));
@@ -164,12 +166,14 @@ SimpleAMG::SimpleAMG(const SparseMatrix &A_, Solver &smoother_, const solverBack
       row_starts[1] = Ac->Height();
       Ac_par.reset(new HypreParMatrix(comm, Ac->Height(), row_starts, Ac.get()));
       coarse_solver.reset(new HypreBoomerAMG(*Ac_par));
-   } else if (backend == solverBackend::AMG_AMGX) {
-     AmgXSolver *amg = new AmgXSolver;
-     amg->ReadParameters(amgConfig,AmgXSolver::CONFIG_SRC::EXTERNAL);
-     amg->InitSerial();
-     amg->SetOperator(*Ac);
-     coarse_solver.reset(amg);
+   }
+   else if (backend == solverBackend::AMG_AMGX)
+   {
+      AmgXSolver *amg = new AmgXSolver;
+      amg->ReadParameters(amgConfig,AmgXSolver::CONFIG_SRC::EXTERNAL);
+      amg->InitSerial();
+      amg->SetOperator(*Ac);
+      coarse_solver.reset(amg);
    }
 }
 

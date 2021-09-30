@@ -27,7 +27,7 @@ namespace mfem
 
 DRSmoother::DRSmoother(DisjointSets *clustering, const SparseMatrix *a,
                        bool use_composite, double sc, bool use_l1, const Operator *op)
-  : l1(use_l1), scale(sc), composite(use_composite), A(a)
+   : l1(use_l1), scale(sc), composite(use_composite), A(a)
 {
    MFEM_VERIFY(use_l1 == false, "l1 scaling not currently supported.");
 
@@ -83,31 +83,34 @@ namespace kernels
 #endif
 
 template <int DIM>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void computeSmootherAction(const double *__restrict__ d,
-								     const double *__restrict__ g,
-								     const double *__restrict__ v,
-								     double       *__restrict__ ret)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void computeSmootherAction(
+   const double *__restrict__ d,
+   const double *__restrict__ g,
+   const double *__restrict__ v,
+   double       *__restrict__ ret)
 {
-  auto d0givi = g[0]*v[0];
+   auto d0givi = g[0]*v[0];
 
-  MFEM_UNROLL(DIM-1)
-  for (int i = 1; i < DIM; ++i) d0givi += g[i]*v[i]; // make the givi portion
-  d0givi *= d[0]; // and finally the d0
+   MFEM_UNROLL(DIM-1)
+   for (int i = 1; i < DIM; ++i) { d0givi += g[i]*v[i]; } // make the givi portion
+   d0givi *= d[0]; // and finally the d0
 
-  MFEM_UNROLL(DIM)
-  for (int i = 0; i < DIM; ++i) {
-    ret[i] = d0givi*g[i];
-    if (i) ret[i] += d[i]*v[i];
-  }
-  return;
+   MFEM_UNROLL(DIM)
+   for (int i = 0; i < DIM; ++i)
+   {
+      ret[i] = d0givi*g[i];
+      if (i) { ret[i] += d[i]*v[i]; }
+   }
+   return;
 }
 
 // specialize for DIM = 1 since g = 1 so we save the multiply
 template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<1>(const double *__restrict__ d,
-								 const double *__restrict__ g,
-								 const double *__restrict__ v,
-								 double       *__restrict__ ret)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<1>
+(const double *__restrict__ d,
+ const double *__restrict__ g,
+ const double *__restrict__ v,
+ double       *__restrict__ ret)
 {
    ret[0] = d[0]*v[0];
    return;
@@ -116,45 +119,47 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<1>(const double *_
 } // namespace kernels
 
 template <int DIM>
-static void forAllDispatchMult(int				&totalSize,
-			       const int			 clusterPackSize,
-			       const double			 scale,
-			       const int *__restrict__		 c,
-			       const double *__restrict__	 dgBegin,
-			       const double *__restrict__	 b,
-			       double *__restrict__		 x)
+static void forAllDispatchMult(int           &totalSize,
+                               const int         clusterPackSize,
+                               const double         scale,
+                               const int *__restrict__       c,
+                               const double *__restrict__    dgBegin,
+                               const double *__restrict__    b,
+                               double *__restrict__       x)
 {
    const int     size = clusterPackSize/DIM;
    const double *dg   = dgBegin+totalSize;
-   MFEM_FORALL_3D_GRID_STREAM(group, size, MFEM_CUDA_BLOCKS, 1, 1, 1, MFEM_STREAM_NEXT,
+   MFEM_FORALL_3D_GRID_STREAM(group, size, MFEM_CUDA_BLOCKS, 1, 1, 1,
+                              MFEM_STREAM_NEXT,
    {
-     group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
-     if (group < size) {
-      double diags[DIM],gcoeffs[DIM],vin[DIM],vout[DIM];
-      int    cmap[DIM];
+      group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
+      if (group < size)
+      {
+         double diags[DIM],gcoeffs[DIM],vin[DIM],vout[DIM];
+         int    cmap[DIM];
 
-      // load the diagonals of g^TAg ("D")
-      MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) diags[i]     = dg[2*DIM*group+i];
+         // load the diagonals of g^TAg ("D")
+         MFEM_UNROLL(DIM)
+         for (int i = 0; i < DIM; ++i) { diags[i]     = dg[2*DIM*group+i]; }
 
-      // load the coefficient array ("G")
-      MFEM_UNROLL(DIM)
-	for (int i = 0; i < DIM; ++i) gcoeffs[i] = dg[2*DIM*group+DIM+i];
+         // load the coefficient array ("G")
+         MFEM_UNROLL(DIM)
+         for (int i = 0; i < DIM; ++i) { gcoeffs[i] = dg[2*DIM*group+DIM+i]; }
 
-      // load the map from packed representation to DOF layout in the vector
-      MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) cmap[i]      = c[DIM*group+i];
+         // load the map from packed representation to DOF layout in the vector
+         MFEM_UNROLL(DIM)
+         for (int i = 0; i < DIM; ++i) { cmap[i]      = c[DIM*group+i]; }
 
-      // load the input vector
-      MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) vin[i]       = b[cmap[i]];
+         // load the input vector
+         MFEM_UNROLL(DIM)
+         for (int i = 0; i < DIM; ++i) { vin[i]       = b[cmap[i]]; }
 
-      kernels::computeSmootherAction<DIM>(diags,gcoeffs,vin,vout);
+         kernels::computeSmootherAction<DIM>(diags,gcoeffs,vin,vout);
 
-      // stream results back down
-      MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) x[cmap[i]]   = scale*vout[i];
-     }
+         // stream results back down
+         MFEM_UNROLL(DIM)
+         for (int i = 0; i < DIM; ++i) { x[cmap[i]]   = scale*vout[i]; }
+      }
    });
    totalSize += 2*clusterPackSize;
    return;
@@ -162,34 +167,36 @@ static void forAllDispatchMult(int				&totalSize,
 
 template <>
 void forAllDispatchMult<1>(int                       &totalSize,
-			   const int                  clusterPackSize,
-			   const double               scale,
-			   const int    *__restrict__ c,
-			   const double *__restrict__ dgBegin,
-			   const double *__restrict__ b,
-			   double       *__restrict__ x)
+                           const int                  clusterPackSize,
+                           const double               scale,
+                           const int    *__restrict__ c,
+                           const double *__restrict__ dgBegin,
+                           const double *__restrict__ b,
+                           double       *__restrict__ x)
 {
-   MFEM_FORALL_3D_GRID_STREAM(group, clusterPackSize, MFEM_CUDA_BLOCKS, 1, 1, 1, MFEM_STREAM_NEXT,
+   MFEM_FORALL_3D_GRID_STREAM(group, clusterPackSize, MFEM_CUDA_BLOCKS, 1, 1, 1,
+                              MFEM_STREAM_NEXT,
    {
-     group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
-     if (group < clusterPackSize) {
-       double vout;
+      group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
+      if (group < clusterPackSize)
+      {
+         double vout;
 
-       // load the diagonals of g^TAg ("D")
-       const auto diags = dgBegin[group];
+         // load the diagonals of g^TAg ("D")
+         const auto diags = dgBegin[group];
 
-       // load the map from packed representation to DOF layout in the vector
-       const auto cmap  = c[group];
+         // load the map from packed representation to DOF layout in the vector
+         const auto cmap  = c[group];
 
-       // load the input vector
-       const auto vin   = b[cmap];
+         // load the input vector
+         const auto vin   = b[cmap];
 
-       // G is unused
-       kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
+         // G is unused
+         kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
 
-       // stream results back down
-       x[cmap] = scale*vout;
-     }
+         // stream results back down
+         x[cmap] = scale*vout;
+      }
    });
    totalSize += clusterPackSize; // no interleaving
    return;
@@ -209,12 +216,12 @@ static inline bool isCloseAtTol(double a, double b,
 }
 #endif
 
-#define	DISPATCH_MULT_CASE_SIZE_(N_)					\
-  {									\
-    case N_:								\
-      forAllDispatchMult<N_>(totalSize,cpackSize,scale,			\
-			     clusterPack[i].Read(),devDG,devB,devX);	\
-      break;								\
+#define  DISPATCH_MULT_CASE_SIZE_(N_)              \
+  {                           \
+    case N_:                        \
+      forAllDispatchMult<N_>(totalSize,cpackSize,scale,        \
+              clusterPack[i].Read(),devDG,devB,devX); \
+      break;                        \
   }
 
 void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
@@ -231,22 +238,22 @@ void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
       {
          switch (i+1)
          {
-	   DISPATCH_MULT_CASE_SIZE_(1);
-	   DISPATCH_MULT_CASE_SIZE_(2);
-	   DISPATCH_MULT_CASE_SIZE_(3);
-	   DISPATCH_MULT_CASE_SIZE_(4);
-	   DISPATCH_MULT_CASE_SIZE_(5);
-	   DISPATCH_MULT_CASE_SIZE_(6);
-	   DISPATCH_MULT_CASE_SIZE_(7);
-	   DISPATCH_MULT_CASE_SIZE_(8);
-	   DISPATCH_MULT_CASE_SIZE_(9);
-	   DISPATCH_MULT_CASE_SIZE_(10);
-	   DISPATCH_MULT_CASE_SIZE_(11);
-	   DISPATCH_MULT_CASE_SIZE_(12);
-	   DISPATCH_MULT_CASE_SIZE_(13);
-	 default:
-	   MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
-	   break;
+               DISPATCH_MULT_CASE_SIZE_(1);
+               DISPATCH_MULT_CASE_SIZE_(2);
+               DISPATCH_MULT_CASE_SIZE_(3);
+               DISPATCH_MULT_CASE_SIZE_(4);
+               DISPATCH_MULT_CASE_SIZE_(5);
+               DISPATCH_MULT_CASE_SIZE_(6);
+               DISPATCH_MULT_CASE_SIZE_(7);
+               DISPATCH_MULT_CASE_SIZE_(8);
+               DISPATCH_MULT_CASE_SIZE_(9);
+               DISPATCH_MULT_CASE_SIZE_(10);
+               DISPATCH_MULT_CASE_SIZE_(11);
+               DISPATCH_MULT_CASE_SIZE_(12);
+               DISPATCH_MULT_CASE_SIZE_(13);
+            default:
+               MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
+               break;
          }
       }
    }
@@ -434,11 +441,12 @@ namespace kernels
 // Load a dense submatrix from global memory into local memory using efficient RO data
 // cache loads
 template <int LDA>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int    *__restrict__ I,
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int    *__restrict__
+                                                      I,
                                                       const int    *__restrict__ J,
-						      const double *__restrict__ data,
+                                                      const double *__restrict__ data,
                                                       const int    *__restrict__ clusters,
-						      double       *__restrict__ subMat)
+                                                      double       *__restrict__ subMat)
 {
    MFEM_UNROLL(LDA)
    for (int i = 0; i < LDA; ++i)
@@ -457,7 +465,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int    *__restrict__
          {
             if (dof_j == clusters[k])
             {
-	       MFEM_MAT_COL_MAJOR(subMat,LDA,i,k) = data[j];
+               MFEM_MAT_COL_MAJOR(subMat,LDA,i,k) = data[j];
                break;
             }
          }
@@ -470,29 +478,33 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int    *__restrict__
 template <int LDA>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag(const double *__restrict__ G,
                                                  const double *__restrict__ A,
-						 double       *__restrict__ result)
+                                                 double       *__restrict__ result)
 {
-  result[0] = 0;
-  MFEM_UNROLL(LDA-1)
-  for (int i = 1; i < LDA; ++i) result[i] = MFEM_MAT_COL_MAJOR(A,LDA,i,i);
+   result[0] = 0;
+   MFEM_UNROLL(LDA-1)
+   for (int i = 1; i < LDA; ++i) { result[i] = MFEM_MAT_COL_MAJOR(A,LDA,i,i); }
 
-  MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i) {
-    const auto gi = G[i];
+   MFEM_UNROLL(LDA)
+   for (int i = 0; i < LDA; ++i)
+   {
+      const auto gi = G[i];
 
-    MFEM_UNROLL(LDA)
-    for (int j = 0; j < LDA; ++j) {
-      result[0] += MFEM_MAT_COL_MAJOR(A,LDA,j,i)*G[j]*gi; // let the gods decide double
-							  // precision round-off error
-    }
-  }
-  return;
+      MFEM_UNROLL(LDA)
+      for (int j = 0; j < LDA; ++j)
+      {
+         result[0] += MFEM_MAT_COL_MAJOR(A,LDA,j,
+                                         i)*G[j]*gi; // let the gods decide double
+         // precision round-off error
+      }
+   }
+   return;
 }
 
 // declare generic template so size 4+ compiles. Sadly constexpr if is c++17...
-template <int d> void CalcEigenvalues(const double *data, double *lambda, double *vec)
+template <int d> void CalcEigenvalues(const double *data, double *lambda,
+                                      double *vec)
 {
-  MFEM_ABORT_KERNEL("This kernel should never be called\n");
+   MFEM_ABORT_KERNEL("This kernel should never be called\n");
 }
 
 enum class MATRIX_FACTOR_TYPE {CHOLESKY};
@@ -500,192 +512,214 @@ enum class MATRIX_FACTOR_TYPE {CHOLESKY};
 // Solves Ax = b assuming that A is in cholesky factorized, i.e. A = L L^T. This routine
 // is also the equivalent of computing x = A^-1 b
 template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInv(const double *__restrict__ mat,
-						   const double *__restrict__ b,
-						   double       *__restrict__ x)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void   matMultInv(const double *__restrict__
+                                                     mat,
+                                                     const double *__restrict__ b,
+                                                     double       *__restrict__ x)
 {
-  // scratch space to hold the intermediate soln
-  double y[LDA];
+   // scratch space to hold the intermediate soln
+   double y[LDA];
 
-  // forward substitution
-  MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i) {
-    auto tmp = b[i];
+   // forward substitution
+   MFEM_UNROLL(LDA)
+   for (int i = 0; i < LDA; ++i)
+   {
+      auto tmp = b[i];
 
-    for (int j = 0; j < i; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j];
-    y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
-  }
+      for (int j = 0; j < i; ++j) { tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j]; }
+      y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+   }
 
-  // backward substitution
-  MFEM_UNROLL(LDA)
-  for (auto i = LDA-1; i > -1; --i) {
-    auto tmp = y[i];
+   // backward substitution
+   MFEM_UNROLL(LDA)
+   for (auto i = LDA-1; i > -1; --i)
+   {
+      auto tmp = y[i];
 
-    // indices are flipped here for transpose
-    for (auto j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*x[j];
-    x[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
-  }
-  return;
+      // indices are flipped here for transpose
+      for (auto j = i+1; j < LDA; ++j) { tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*x[j]; }
+      x[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+   }
+   return;
 }
 
 // Does matmultinv inplace on the input vector
 template <int LDA, MATRIX_FACTOR_TYPE F,
-	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInvInPlace(const double *__restrict__ mat,
-							  double       *__restrict__ b)
+          std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void   matMultInvInPlace(
+   const double *__restrict__ mat,
+   double       *__restrict__ b)
 {
-  // scratch space to hold the intermediate soln
-  double y[LDA];
+   // scratch space to hold the intermediate soln
+   double y[LDA];
 
-  // forward substitution
-  MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i) {
-    auto tmp = b[i];
+   // forward substitution
+   MFEM_UNROLL(LDA)
+   for (int i = 0; i < LDA; ++i)
+   {
+      auto tmp = b[i];
 
-    for (int j = 0; j < i; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j];
-    y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
-  }
+      for (int j = 0; j < i; ++j) { tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j]; }
+      y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+   }
 
-  // backward substitution
-  MFEM_UNROLL(LDA)
-  for (auto i = LDA-1; i > -1; --i) {
-    auto tmp = y[i];
+   // backward substitution
+   MFEM_UNROLL(LDA)
+   for (auto i = LDA-1; i > -1; --i)
+   {
+      auto tmp = y[i];
 
-    // indices are flipped here for transpose
-    for (auto j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*b[j];
-    b[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
-  }
-  return;
+      // indices are flipped here for transpose
+      for (auto j = i+1; j < LDA; ++j) { tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*b[j]; }
+      b[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+   }
+   return;
 }
 
 template <int LDA, MATRIX_FACTOR_TYPE F,
-	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactorInPlace(double *__restrict__ mat)
+          std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactorInPlace(
+   double *__restrict__ mat)
 {
-  // compute in-place lower cholesky using Cholesky-Crout algorithm for matrix A = LL^T
-  MFEM_UNROLL(LDA)
-  for (int j = 0; j < LDA; ++j) {
-    auto x = MFEM_MAT_COL_MAJOR(mat,LDA,j,j);
+   // compute in-place lower cholesky using Cholesky-Crout algorithm for matrix A = LL^T
+   MFEM_UNROLL(LDA)
+   for (int j = 0; j < LDA; ++j)
+   {
+      auto x = MFEM_MAT_COL_MAJOR(mat,LDA,j,j);
 
-    // trip count is known at compile time
-    for (int k = 0; k < j; ++k) x -= MFEM_MAT_COL_MAJOR(mat,LDA,j,k)*MFEM_MAT_COL_MAJOR(mat,LDA,j,k);
+      // trip count is known at compile time
+      for (int k = 0; k < j; ++k) { x -= MFEM_MAT_COL_MAJOR(mat,LDA,j,k)*MFEM_MAT_COL_MAJOR(mat,LDA,j,k); }
 
-    x = sqrt(x);
-    MFEM_MAT_COL_MAJOR(mat,LDA,j,j) = x;
+      x = sqrt(x);
+      MFEM_MAT_COL_MAJOR(mat,LDA,j,j) = x;
 
-    const auto r = 1.0/x;
+      const auto r = 1.0/x;
 
-    MFEM_UNROLL(LDA)
-    for (auto i = j+1; i < LDA; ++i) {
-      x = MFEM_MAT_COL_MAJOR(mat,LDA,i,j);
+      MFEM_UNROLL(LDA)
+      for (auto i = j+1; i < LDA; ++i)
+      {
+         x = MFEM_MAT_COL_MAJOR(mat,LDA,i,j);
 
-      // trip count also known at compile time
-      for (int k = 0; k < j; ++k) x -= MFEM_MAT_COL_MAJOR(mat,LDA,i,k)*MFEM_MAT_COL_MAJOR(mat,LDA,j,k);
-      MFEM_MAT_COL_MAJOR(mat,LDA,i,j) = x*r;
-    }
-  }
-  return;
-}
-
-template <int LDA, MATRIX_FACTOR_TYPE F,
-	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactor(const double *__restrict__ mat,
-						  double       *__restrict__ factored)
-{
-  MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i) {
-    for (int k = 0; k < i; ++k) {
-      auto tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,k);
-
-      for (int j = 0; j < k; ++j) {
-	tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,k,j);
+         // trip count also known at compile time
+         for (int k = 0; k < j; ++k) { x -= MFEM_MAT_COL_MAJOR(mat,LDA,i,k)*MFEM_MAT_COL_MAJOR(mat,LDA,j,k); }
+         MFEM_MAT_COL_MAJOR(mat,LDA,i,j) = x*r;
       }
-      MFEM_MAT_COL_MAJOR(factored,LDA,i,k) = tmp/MFEM_MAT_COL_MAJOR(factored,LDA,k,k);
-    }
+   }
+   return;
+}
 
-    auto tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
-    for (int j = 0; j < i; ++j) {
-      tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,i,j);
-    }
-    MFEM_MAT_COL_MAJOR(factored,LDA,i,i) = sqrt(tmp);
-  }
-  return;
+template <int LDA, MATRIX_FACTOR_TYPE F,
+          std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactor(const double *__restrict__
+                                                  mat,
+                                                  double       *__restrict__ factored)
+{
+   MFEM_UNROLL(LDA)
+   for (int i = 0; i < LDA; ++i)
+   {
+      for (int k = 0; k < i; ++k)
+      {
+         auto tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,k);
+
+         for (int j = 0; j < k; ++j)
+         {
+            tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,k,
+                                                                           j);
+         }
+         MFEM_MAT_COL_MAJOR(factored,LDA,i,k) = tmp/MFEM_MAT_COL_MAJOR(factored,LDA,k,k);
+      }
+
+      auto tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+      for (int j = 0; j < i; ++j)
+      {
+         tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,i,
+                                                                        j);
+      }
+      MFEM_MAT_COL_MAJOR(factored,LDA,i,i) = sqrt(tmp);
+   }
+   return;
 }
 
 template <int LDA>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE double vecDot(const double *__restrict__ v1,
-						 const double *__restrict__ v2)
+                                                 const double *__restrict__ v2)
 {
-  auto ret = v1[0]*v2[0];
+   auto ret = v1[0]*v2[0];
 
-  MFEM_UNROLL(LDA-1)
-  for (int i = 1; i < LDA; ++i)	ret += v1[i]*v2[i];
+   MFEM_UNROLL(LDA-1)
+   for (int i = 1; i < LDA; ++i) { ret += v1[i]*v2[i]; }
 
-  return ret;
+   return ret;
 }
 
 template <int LDA>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void vecNormalize(double *v)
 {
-  auto mod = v[0]*v[0];
+   auto mod = v[0]*v[0];
 
-  MFEM_UNROLL(LDA-1)
-  for (int i = 1; i < LDA; ++i) mod += v[i]*v[i];
+   MFEM_UNROLL(LDA-1)
+   for (int i = 1; i < LDA; ++i) { mod += v[i]*v[i]; }
 
-  mod = 1.0/sqrt(mod);
+   mod = 1.0/sqrt(mod);
 
-  MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i) v[i] *= mod;
-  return;
+   MFEM_UNROLL(LDA)
+   for (int i = 0; i < LDA; ++i) { v[i] *= mod; }
+   return;
 }
 
 template <int LDA, MATRIX_FACTOR_TYPE F,
-	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+          std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE double matVAV(const double *__restrict__ mat,
-						 const double *__restrict__ v)
+                                                 const double *__restrict__ v)
 {
-  double scratch[LDA];
+   double scratch[LDA];
 
-  matMultInv<LDA,F>(mat,v,scratch); // scratch <- A @ vec
-  return vecDot<LDA>(v,scratch);    // dot <- sratch @ vec
+   matMultInv<LDA,F>(mat,v,scratch); // scratch <- A @ vec
+   return vecDot<LDA>(v,scratch);    // dot <- sratch @ vec
 }
 
 // constexpr square root for doubles using the newton-raphson method
-MFEM_HOST_DEVICE double constexpr sqrtNewtonRaphson(double x, double curr, double prev)
+MFEM_HOST_DEVICE double constexpr sqrtNewtonRaphson(double x, double curr,
+                                                    double prev)
 {
-  return curr == prev ? curr : sqrtNewtonRaphson(x,0.5*(curr+x/curr),curr);
+   return curr == prev ? curr : sqrtNewtonRaphson(x,0.5*(curr+x/curr),curr);
 }
 
 MFEM_HOST_DEVICE double constexpr constexprSqrt(double x)
 {
-  return x >= 0 && x < 99999999999999.9 ? sqrtNewtonRaphson(x,x,0) : std::nan("1");
+   return x >= 0 &&
+          x < 99999999999999.9 ? sqrtNewtonRaphson(x,x,0) : std::nan("1");
 }
 
 template <int LDA, MATRIX_FACTOR_TYPE F,
-	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *__restrict__ mat,
-								 double       *__restrict__ vec,
-								 const double               atol = 1e-6)
+          std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void   computeLowestEigenVector(
+   const double *__restrict__ mat,
+   double       *__restrict__ vec,
+   const double               atol = 1e-6)
 {
-  MFEM_UNROLL(LDA)
-  for (int i = 0; i < LDA; ++i)	vec[i] = 1.0/constexprSqrt(static_cast<double>(LDA));
+   MFEM_UNROLL(LDA)
+   for (int i = 0; i < LDA; ++i) { vec[i] = 1.0/constexprSqrt(static_cast<double>(LDA)); }
 
-  double matfactored[LDA*LDA];
-  matFactor<LDA,F>(mat,matfactored); // matfactored <- chol(mat)
+   double matfactored[LDA*LDA];
+   matFactor<LDA,F>(mat,matfactored); // matfactored <- chol(mat)
 
-  auto val = matVAV<LDA,F>(matfactored,vec); // val <- vec @ A @ vec
+   auto val = matVAV<LDA,F>(matfactored,vec); // val <- vec @ A @ vec
 
-  int iter = 0;
-  MFEM_UNROLL(5)
-  do {
-    matMultInvInPlace<LDA,F>(matfactored,vec);      // vec <- A @ vec
-    vecNormalize<LDA>(vec);                         // vec <- vec/norm(vec)
-    auto valTmp = matVAV<LDA,F>(matfactored,vec); // valTmp <- vec @ A @ vec
-    if (fabs(val-valTmp) < atol) break;
-    val = valTmp;
-  } while (++iter < 30); // can't just use while (true) as nvcc has ICE when using debug
-			 // flag with pseudo-infinite inlined loops
-  return;
+   int iter = 0;
+   MFEM_UNROLL(5)
+   do
+   {
+      matMultInvInPlace<LDA,F>(matfactored,vec);      // vec <- A @ vec
+      vecNormalize<LDA>(vec);                         // vec <- vec/norm(vec)
+      auto valTmp = matVAV<LDA,F>(matfactored,vec); // valTmp <- vec @ A @ vec
+      if (fabs(val-valTmp) < atol) { break; }
+      val = valTmp;
+   }
+   while (++iter <
+          30);   // can't just use while (true) as nvcc has ICE when using debug
+   // flag with pseudo-infinite inlined loops
+   return;
 }
 #undef MFEM_MAT_COL_MAJOR
 #undef MFEM_MAT_ROW_MAJOR
@@ -694,97 +728,100 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *_
 
 template <int LDA>
 static void forAllDispatchCoeffs(int                        &totalSize,
-				 const int                  clusterPackSize,
-				 const int    *__restrict__ I,
-				 const int    *__restrict__ J,
-				 const double *__restrict__ data,
-				 const int    *__restrict__ clusters,
-				 double       *__restrict__ retBase)
+                                 const int                  clusterPackSize,
+                                 const int    *__restrict__ I,
+                                 const int    *__restrict__ J,
+                                 const double *__restrict__ data,
+                                 const int    *__restrict__ clusters,
+                                 double       *__restrict__ retBase)
 {
-  auto ret = retBase+totalSize;
+   auto ret = retBase+totalSize;
 
-  if (LDA <= 3) {
+   if (LDA <= 3)
+   {
 #define SUBMAT membuf
 #define EIGVAL (SUBMAT+(LDA*LDA))
 #define EIGVEC (EIGVAL+LDA)
-   MFEM_FORALL(group, clusterPackSize/LDA,
-   {
-      using namespace kernels;
-
-      double membuf[(LDA*LDA)+LDA+(LDA*LDA)]; // unified memory buffer
-      int    minEigIdx = 0;
-
-      // must zero the submatrix, theres no guarantee the super-matrix has a full NxN's
-      // worth of stuff.
-      MFEM_UNROLL(LDA*LDA)
-      for (int i = 0; i < LDA*LDA; ++i) SUBMAT[i] = 0.0;
-
-      loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,SUBMAT);
-      CalcEigenvalues<LDA>(SUBMAT,EIGVAL,EIGVEC);
+      MFEM_FORALL(group, clusterPackSize/LDA,
       {
-         // search the eigenvalues for the smallest eigenvalue, note the "index" here is
-         // just multiples of LDA to make indexing easier
-         auto smallestEigVal = EIGVAL[0];
-         MFEM_UNROLL(LDA-1)
-         for (int i = 1; i < LDA; ++i)
+         using namespace kernels;
+
+         double membuf[(LDA*LDA)+LDA+(LDA*LDA)]; // unified memory buffer
+         int    minEigIdx = 0;
+
+         // must zero the submatrix, theres no guarantee the super-matrix has a full NxN's
+         // worth of stuff.
+         MFEM_UNROLL(LDA*LDA)
+         for (int i = 0; i < LDA*LDA; ++i) SUBMAT[i] = 0.0;
+
+         loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,SUBMAT);
+         CalcEigenvalues<LDA>(SUBMAT,EIGVAL,EIGVEC);
          {
-            if (EIGVAL[i] < smallestEigVal)
+            // search the eigenvalues for the smallest eigenvalue, note the "index" here is
+            // just multiples of LDA to make indexing easier
+            auto smallestEigVal = EIGVAL[0];
+            MFEM_UNROLL(LDA-1)
+            for (int i = 1; i < LDA; ++i)
             {
-               smallestEigVal = EIGVAL[i];
-               minEigIdx += LDA;
+               if (EIGVAL[i] < smallestEigVal)
+               {
+                  smallestEigVal = EIGVAL[i];
+                  minEigIdx += LDA;
+               }
             }
          }
-      }
-      vecNormalize<LDA>(EIGVEC+minEigIdx);
+         vecNormalize<LDA>(EIGVEC+minEigIdx);
 
-      // compute g^T A g, reusing eigVal in place of results
-      GTAGDiag<LDA>(EIGVEC+minEigIdx,SUBMAT,EIGVAL);
+         // compute g^T A g, reusing eigVal in place of results
+         GTAGDiag<LDA>(EIGVEC+minEigIdx,SUBMAT,EIGVAL);
 
-      // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
-      // [LDA,2*LDA)
-      MFEM_UNROLL(LDA)
-      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/(EIGVAL[i]);
+         // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
+         // [LDA,2*LDA)
+         MFEM_UNROLL(LDA)
+         for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/(EIGVAL[i]);
 
-      MFEM_UNROLL(LDA)
-      for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = EIGVEC[minEigIdx+i];
-   });
+         MFEM_UNROLL(LDA)
+         for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = EIGVEC[minEigIdx+i];
+      });
 #undef SUBMAT
 #undef EIGVEC
 #undef EIGVAL
-  } else {
-#define SUBMAT membuf
-#define	EIGVEC (SUBMAT+(LDA*LDA))
-#define DIAGS  (EIGVEC+LDA)
-   MFEM_FORALL(group, clusterPackSize/LDA,
+   }
+   else
    {
-     using namespace kernels;
+#define SUBMAT membuf
+#define  EIGVEC (SUBMAT+(LDA*LDA))
+#define DIAGS  (EIGVEC+LDA)
+      MFEM_FORALL(group, clusterPackSize/LDA,
+      {
+         using namespace kernels;
 
-     double membuf[(LDA*LDA)+LDA+LDA]; // unified memory buffer
+         double membuf[(LDA*LDA)+LDA+LDA]; // unified memory buffer
 
-     MFEM_UNROLL(LDA*LDA)
-     for (int i = 0; i < LDA*LDA; ++i) SUBMAT[i] = 0.0;
+         MFEM_UNROLL(LDA*LDA)
+         for (int i = 0; i < LDA*LDA; ++i) SUBMAT[i] = 0.0;
 
-     loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,SUBMAT);
-     computeLowestEigenVector<LDA,MATRIX_FACTOR_TYPE::CHOLESKY>(SUBMAT,EIGVEC,1e-7);
-     vecNormalize<LDA>(EIGVEC);
+         loadSubmatLDG<LDA>(I,J,data,clusters+LDA*group,SUBMAT);
+         computeLowestEigenVector<LDA,MATRIX_FACTOR_TYPE::CHOLESKY>(SUBMAT,EIGVEC,1e-7);
+         vecNormalize<LDA>(EIGVEC);
 
-     // compute g^T A g
-     GTAGDiag<LDA>(EIGVEC,SUBMAT,DIAGS);
+         // compute g^T A g
+         GTAGDiag<LDA>(EIGVEC,SUBMAT,DIAGS);
 
-     // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
-     // [LDA,2*LDA), same as above
-     MFEM_UNROLL(LDA)
-     for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/(DIAGS[i]);
+         // stream to global memory, g^TAg in slots [0,LDA) and coefficients in slots
+         // [LDA,2*LDA), same as above
+         MFEM_UNROLL(LDA)
+         for (int i = 0; i < LDA; ++i) ret[2*LDA*group+i]     = 1.0/(DIAGS[i]);
 
-     MFEM_UNROLL(LDA)
-     for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = EIGVEC[i];
-   });
+         MFEM_UNROLL(LDA)
+         for (int i = 0; i < LDA; ++i) ret[2*LDA*group+LDA+i] = EIGVEC[i];
+      });
 #undef SUBMAT
 #undef EIGVEC
 #undef DIAGS
-  }
-  totalSize += 2*clusterPackSize;
-  return;
+   }
+   totalSize += 2*clusterPackSize;
+   return;
 }
 
 // For LDA = 1 the coeffs are always = 1, (so no point storing them in the interleaved
@@ -792,12 +829,12 @@ static void forAllDispatchCoeffs(int                        &totalSize,
 // coefficients  even if they aren't used we must specialize
 template <>
 void forAllDispatchCoeffs<1>(int                        &totalSize,
-			     const int                  clusterPackSize,
-			     const int    *__restrict__ I,
-			     const int    *__restrict__ J,
-			     const double *__restrict__ data,
-			     const int    *__restrict__ clusters,
-			     double       *__restrict__ ret)
+                             const int                  clusterPackSize,
+                             const int    *__restrict__ I,
+                             const int    *__restrict__ J,
+                             const double *__restrict__ data,
+                             const int    *__restrict__ clusters,
+                             double       *__restrict__ ret)
 {
    MFEM_FORALL(group, clusterPackSize,
    {
@@ -810,12 +847,12 @@ void forAllDispatchCoeffs<1>(int                        &totalSize,
    return;
 }
 
-#define DISPATCH_COEFFS_CASE_SIZE_(N_)					\
-  {									\
-    case N_:								\
-      forAllDispatchCoeffs<N_>(totalSize,cpackSize,devI,devJ,devData,	\
-			       clusterPack[i].Read(),devCoeffArray);	\
-      break;								\
+#define DISPATCH_COEFFS_CASE_SIZE_(N_)             \
+  {                           \
+    case N_:                        \
+      forAllDispatchCoeffs<N_>(totalSize,cpackSize,devI,devJ,devData,   \
+                clusterPack[i].Read(),devCoeffArray); \
+      break;                        \
   }
 
 __global__ void markerKernelFormGBegin() {}
@@ -842,8 +879,8 @@ void DRSmoother::FormG(const DisjointSets *clustering)
          const auto csize = (i+1)*sizeCounter[i];
 
          clusterPack[i].SetSize(csize);
-         if (!i) totalCoeffSize += csize;   // don't inteleave for size = 1
-	 else    totalCoeffSize += 2*csize; // the rest will be interleaved
+         if (!i) { totalCoeffSize += csize; }   // don't inteleave for size = 1
+         else { totalCoeffSize += 2*csize; } // the rest will be interleaved
       }
       // can allocate the full coefficient array now
       diagonal_scaling.SetSize(totalCoeffSize);
@@ -879,22 +916,22 @@ void DRSmoother::FormG(const DisjointSets *clustering)
       {
          switch (i+1)
          {
-	   DISPATCH_COEFFS_CASE_SIZE_(1);
-	   DISPATCH_COEFFS_CASE_SIZE_(2);
-	   DISPATCH_COEFFS_CASE_SIZE_(3);
-	   DISPATCH_COEFFS_CASE_SIZE_(4);
-	   DISPATCH_COEFFS_CASE_SIZE_(5);
-	   DISPATCH_COEFFS_CASE_SIZE_(6);
-	   DISPATCH_COEFFS_CASE_SIZE_(7);
-	   DISPATCH_COEFFS_CASE_SIZE_(8);
-	   DISPATCH_COEFFS_CASE_SIZE_(9);
-	   DISPATCH_COEFFS_CASE_SIZE_(10);
-	   DISPATCH_COEFFS_CASE_SIZE_(11);
-	   DISPATCH_COEFFS_CASE_SIZE_(12);
-	   DISPATCH_COEFFS_CASE_SIZE_(13);
-	 default:
-	   MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
-	   break;
+               DISPATCH_COEFFS_CASE_SIZE_(1);
+               DISPATCH_COEFFS_CASE_SIZE_(2);
+               DISPATCH_COEFFS_CASE_SIZE_(3);
+               DISPATCH_COEFFS_CASE_SIZE_(4);
+               DISPATCH_COEFFS_CASE_SIZE_(5);
+               DISPATCH_COEFFS_CASE_SIZE_(6);
+               DISPATCH_COEFFS_CASE_SIZE_(7);
+               DISPATCH_COEFFS_CASE_SIZE_(8);
+               DISPATCH_COEFFS_CASE_SIZE_(9);
+               DISPATCH_COEFFS_CASE_SIZE_(10);
+               DISPATCH_COEFFS_CASE_SIZE_(11);
+               DISPATCH_COEFFS_CASE_SIZE_(12);
+               DISPATCH_COEFFS_CASE_SIZE_(13);
+            default:
+               MFEM_ABORT("Clustering of size "<<i+1<<" not yet implemented");
+               break;
          }
       }
    }

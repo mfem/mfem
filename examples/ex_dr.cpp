@@ -109,11 +109,11 @@ int main(int argc, char *argv[])
    int bounds[2];
    if (solver == "boomer-amg")
    {
-     //A_par = SimpleAMG::ToHypreParMatrix(A.As<SparseMatrix>(), MPI_COMM_WORLD,
-     //                                     bounds);
-   //auto hamg = new HypreBoomerAMG(*A_par);
-   //hamg->SetPrintLevel(0);
-   //prec = hamg;
+      //A_par = SimpleAMG::ToHypreParMatrix(A.As<SparseMatrix>(), MPI_COMM_WORLD,
+      //                                     bounds);
+      //auto hamg = new HypreBoomerAMG(*A_par);
+      //hamg->SetPrintLevel(0);
+      //prec = hamg;
    }
    else if (solver == "direct")
    {
@@ -189,18 +189,21 @@ int main(int argc, char *argv[])
       }
       if (solver == "two-level")
       {
-	const auto Alor = A.As<SparseMatrix>();
-	prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::DIRECT, MPI_COMM_WORLD);
+         const auto Alor = A.As<SparseMatrix>();
+         prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::DIRECT,
+                              MPI_COMM_WORLD);
       }
       else if (solver == "amg_hypre")
       {
-	const auto Alor = A.As<SparseMatrix>();
-	prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::AMG_HYPRE, MPI_COMM_WORLD);
+         const auto Alor = A.As<SparseMatrix>();
+         prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::AMG_HYPRE,
+                              MPI_COMM_WORLD);
       }
       else if (solver == "amg_amgx")
       {
-	const auto Alor = A.As<SparseMatrix>();
-	prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::AMG_AMGX, MPI_COMM_WORLD,std::string("amgx.json"));
+         const auto Alor = A.As<SparseMatrix>();
+         prec = new SimpleAMG(*Alor, *smoother, SimpleAMG::solverBackend::AMG_AMGX,
+                              MPI_COMM_WORLD,std::string("amgx.json"));
       }
       else if (solver == "smoother")
       {

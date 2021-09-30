@@ -51,6 +51,12 @@ const int MAX_Q1D = 14;
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
 
+#define MFEM_FORALL_STREAM(i,N,S,...)         \
+   ForallWrap<1>(true,N,                                 \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+       [&] MFEM_LAMBDA (int i) {__VA_ARGS__},    \
+       0,0,0,0,S)
+
 // MFEM_FORALL with a 2D CUDA block
 #define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                   \
    ForallWrap<2>(true,N,                                 \
@@ -75,7 +81,7 @@ const int MAX_Q1D = 14;
 
 // MFEM_FORALL with a 3D CUDA block and grid
 // With G=0, this is the same as MFEM_FORALL_3D(i,N,X,Y,Z,...)
-#define MFEM_FORALL_3D_GRID_STREAM(i,N,X,Y,Z,G,S,...)	 \
+#define MFEM_FORALL_3D_GRID_STREAM(i,N,X,Y,Z,G,S,...)  \
    ForallWrap<3>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},  \
@@ -441,9 +447,9 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-     if (DIM == 1) { return CuWrap1D(N, d_body, S); }
-     if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z, S); }
-     if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z, G, S); }
+      if (DIM == 1) { return CuWrap1D(N, d_body, S); }
+      if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z, S); }
+      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z, G, S); }
    }
 #endif
 

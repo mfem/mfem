@@ -13,8 +13,9 @@ struct _b_UserCtx
 
    _b_UserCtx(const char *dev,const char *file, const char *smoother,
               const char *solver, const char *amg, int ord, int ref, double jacobi) :
-     device(dev),mesh(file,1,1),smootherType(smoother),solverType(solver),amgConfig(amg),
-     order(ord),refine(ref),jacobiVal(jacobi)
+      device(dev),mesh(file,1,1),smootherType(smoother),solverType(solver),
+      amgConfig(amg),
+      order(ord),refine(ref),jacobiVal(jacobi)
    {
       for (int i = 0; i < ref; ++i) { mesh.UniformRefinement(); }
       device.Print();
@@ -121,8 +122,10 @@ static UserCtx ParseCommandLineOptions(int argc, char *argv[])
    args.AddOption(&meshFile,"-m","--mesh","Input mesh file");
    args.AddOption(&smoother,"-s","--smoother",
                   "Smoother to use (one of GS-Gauss Seidel, DR-distributive relaxation)");
-   args.AddOption(&solver,"-S","--solver","Which solver to use (either direct, simpleamg, or amgx");
-   args.AddOption(&amg,"-A","--amg-config","Path to amg config file, if using amgx");
+   args.AddOption(&solver,"-S","--solver",
+                  "Which solver to use (either direct, simpleamg, or amgx");
+   args.AddOption(&amg,"-A","--amg-config",
+                  "Path to amg config file, if using amgx");
    args.AddOption(&order,"-o","--order","Polynomial degree");
    args.AddOption(&jacobiVal,"-jv","--jacobi-value","Jacobi smoother value");
    args.AddOption(&nRefine,"-r","--refine",
@@ -175,21 +178,29 @@ int main(int argc, char *argv[])
    std::unique_ptr<Solver> smoother;
 
    chrono.Start();
-   if (ctx->smootherType == "DR") {
-     LORInfo lorInfo(*lor.GetFESpace().GetMesh(),ctx->mesh,ctx->order);
-     smoother.reset(new DRSmoother(lorInfo.Cluster(),&ALor,dim == 3));
-   } else if (ctx->smootherType == "GS") {
-     smoother.reset(new GSSmoother(ALor));
-   } else if (ctx->smootherType == "J") {
-     smoother.reset(new DSmoother(ALor,0,ctx->jacobiVal));
-   } else {
-     MFEM_ABORT("Unknown smoother type "<<ctx->smootherType);
+   if (ctx->smootherType == "DR")
+   {
+      LORInfo lorInfo(*lor.GetFESpace().GetMesh(),ctx->mesh,ctx->order);
+      chrono.Clear();
+      smoother.reset(new DRSmoother(lorInfo.Cluster(),&ALor,dim == 3));
    }
-
-   LORSolver<SimpleAMG> lorSol(lor,ALor,*smoother,SimpleAMG::solverBackend::AMG_AMGX,MPI_COMM_WORLD,ctx->amgConfig);
+   else if (ctx->smootherType == "GS")
+   {
+      smoother.reset(new GSSmoother(ALor));
+   }
+   else if (ctx->smootherType == "J")
+   {
+      smoother.reset(new DSmoother(ALor,0,ctx->jacobiVal));
+   }
+   else
+   {
+      MFEM_ABORT("Unknown smoother type "<<ctx->smootherType);
+   }
    chrono.Stop();
    out<<"Setup time = "<<chrono.RealTime()<<std::endl;
-   chrono.Clear();
+
+   LORSolver<SimpleAMG> lorSol(lor,ALor,*smoother,
+                               SimpleAMG::solverBackend::AMG_AMGX,MPI_COMM_WORLD,ctx->amgConfig);
 
    chrono.Start();
    PCG(*A,lorSol,B,X,1,500,1e-12,0.0);

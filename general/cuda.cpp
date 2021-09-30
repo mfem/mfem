@@ -194,8 +194,8 @@ int CuGetDeviceCount()
 
 const DeviceStreamPool<Backend::CUDA,5>& cudaPool()
 {
-  static DeviceStreamPool<Backend::CUDA,5> pool;
-  return pool;
+   static DeviceStreamPool<Backend::CUDA,5> pool;
+   return pool;
 }
 
 } // namespace mfem

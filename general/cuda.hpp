@@ -26,7 +26,7 @@
 #define MFEM_HOST_DEVICE __host__ __device__
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
-#define	MFEM_TIME_CALL(cnt_,msg_,...) CuTimeCall<cnt_>(msg_,[&]() {__VA_ARGS__})
+#define  MFEM_TIME_CALL(cnt_,msg_,...) CuTimeCall<cnt_>(msg_,[&]() {__VA_ARGS__})
 
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
@@ -104,32 +104,34 @@ int CuGetDeviceCount();
 template <int count, typename LMBDA>
 inline void CuTimeCall(const char msg[], LMBDA &&lmbda)
 {
-  cudaEvent_t start,stop;
-  float       timeT = 0.0f,timeLo = 9999999999.9f,timeHi = 0.0f;
-  int         runCount = 0;
+   cudaEvent_t start,stop;
+   float       timeT = 0.0f,timeLo = 9999999999.9f,timeHi = 0.0f;
+   int         runCount = 0;
 
-  MFEM_GPU_CHECK(cudaEventCreate(&start));
-  MFEM_GPU_CHECK(cudaEventCreate(&stop));
-  MFEM_DEVICE_SYNC;
-  for (; runCount < count; ++runCount) {
-    float time = 0.0f;
+   MFEM_GPU_CHECK(cudaEventCreate(&start));
+   MFEM_GPU_CHECK(cudaEventCreate(&stop));
+   MFEM_DEVICE_SYNC;
+   for (; runCount < count; ++runCount)
+   {
+      float time = 0.0f;
 
-    MFEM_GPU_CHECK(cudaEventRecord(start,0));
-    lmbda();
-    MFEM_GPU_CHECK(cudaEventRecord(stop,0));
-    MFEM_GPU_CHECK(cudaEventSynchronize(stop));
-    MFEM_GPU_CHECK(cudaEventElapsedTime(&time,start,stop));
-    timeLo = timeLo <= time ? timeLo : time;
-    timeHi = timeHi >= time ? timeHi : time;
-    timeT += time;
-  }
-  MFEM_GPU_CHECK(cudaEventDestroy(start));
-  MFEM_GPU_CHECK(cudaEventDestroy(stop));
-  std::cout<<msg<<"\n";
-  std::cout<<"Total number of iterations "<<runCount<<"\n";
-  std::cout<<"Total elapsed time "<<timeT<<" (ms)\n";
-  std::cout<<"Average time/run "<<timeT/(double)std::max(runCount,1)<<" (ms) Lo "<<timeLo<<" (ms), Hi "<<timeHi<<" (ms)\n";
-  return;
+      MFEM_GPU_CHECK(cudaEventRecord(start,0));
+      lmbda();
+      MFEM_GPU_CHECK(cudaEventRecord(stop,0));
+      MFEM_GPU_CHECK(cudaEventSynchronize(stop));
+      MFEM_GPU_CHECK(cudaEventElapsedTime(&time,start,stop));
+      timeLo = timeLo <= time ? timeLo : time;
+      timeHi = timeHi >= time ? timeHi : time;
+      timeT += time;
+   }
+   MFEM_GPU_CHECK(cudaEventDestroy(start));
+   MFEM_GPU_CHECK(cudaEventDestroy(stop));
+   std::cout<<msg<<"\n";
+   std::cout<<"Total number of iterations "<<runCount<<"\n";
+   std::cout<<"Total elapsed time "<<timeT<<" (ms)\n";
+   std::cout<<"Average time/run "<<timeT/(double)std::max(runCount,
+                                                          1)<<" (ms) Lo "<<timeLo<<" (ms), Hi "<<timeHi<<" (ms)\n";
+   return;
 }
 
 template <std::size_t N> class DeviceStreamPool<Backend::CUDA,N>;
@@ -138,33 +140,38 @@ template <std::size_t N> class DeviceStreamPool<Backend::CUDA,N>;
 template <std::size_t N>
 class DeviceStreamPool<Backend::CUDA,N>
 {
-  using stream_type = cudaStream_t;
-  std::array<stream_type,N> _pool;
+   using stream_type = cudaStream_t;
+   std::array<stream_type,N> _pool;
 
 public:
-  DeviceStreamPool()
-  {
-    for (auto&& stream : _pool) MFEM_GPU_CHECK(cudaStreamCreate(&stream));
-  }
+   DeviceStreamPool()
+   {
+      for (auto&& stream : _pool) { MFEM_GPU_CHECK(cudaStreamCreate(&stream)); }
+   }
 
-  ~DeviceStreamPool()
-  {
-    for (auto&& stream : _pool) MFEM_GPU_CHECK(cudaStreamDestroy(stream));
-  }
+   ~DeviceStreamPool()
+   {
+      for (auto&& stream : _pool) { MFEM_GPU_CHECK(cudaStreamDestroy(stream)); }
+   }
 
-  stream_type get(int idx = -1) const
-  {
-    static std::size_t _currentStream = 0;
+   stream_type get(int idx = MFEM_STREAM_NONE) const
+   {
+      static int currentStream = 0;
 
-    if (idx >= 0) {
-      MFEM_ASSERT(idx < N,"idx "<<idx<<" !< "<<N);
-      return _pool[idx];
-    } else if (idx == MFEM_STREAM_NEXT) {
-      return _pool[(_currentStream++)%N];
-    } else {
-      return NULL;
-    }
-  }
+      switch (idx)
+      {
+         case MFEM_STREAM_NONE:
+            return nullptr;
+         case MFEM_STREAM_NEXT:
+            currentStream = ++currentStream % N;
+            return _pool[currentStream];
+         default:
+            MFEM_ASSERT(idx >= 0 &&
+                        idx < N,"idx "<<idx<<" does not satisfy 0 <=  "idx<<" < "<<N);
+            return _pool[idx];
+      }
+      return nullptr;
+   }
 };
 
 const DeviceStreamPool<Backend::CUDA,5>& cudaPool();
