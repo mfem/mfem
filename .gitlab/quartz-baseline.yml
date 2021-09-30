@@ -49,6 +49,7 @@ report_baseline:
     - git commit -am "GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} with intel ($(date +%Y-%m-%d))"
     - git push origin master
 
+# This job can only be manually triggered on a pipeline for master branch, or if the pipeline was triggered with REBASELINE="YES"
 baselinepublish_mfem_quartz:
   extends: [.on_quartz]
   stage: baseline_publish
