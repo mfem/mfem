@@ -1264,11 +1264,14 @@ public:
     * @param[in] coarse_solve_its Number of iterations to do on coarses level.
     * @param[in] use_mixed_prec Whether or not to do inner level computations in
     *                            single precision.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
     */
    AMGPreconditioner(GinkgoExecutor &exec, SmootherType smoother,
                      const int pre_sweeps, const int post_sweeps,
                      SmootherType coarse_solver, const int coarse_solve_its,
-                     bool use_mixed_prec);
+                     bool use_mixed_prec, const bool skip_sort = false);
 
 };
 
