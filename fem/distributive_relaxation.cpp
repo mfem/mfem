@@ -83,9 +83,12 @@ namespace kernels
 #endif
 
 template <int DIM>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void computeSmootherAction(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void computeSmootherAction(const double *__restrict__ d,
+								     const double *__restrict__ g,
+								     const double *__restrict__ v,
+								     double       *__restrict__ ret)
 {
-  double d0givi = g[0]*v[0];
+  auto d0givi = g[0]*v[0];
 
   MFEM_UNROLL(DIM-1)
   for (int i = 1; i < DIM; ++i) d0givi += g[i]*v[i]; // make the givi portion
@@ -101,7 +104,10 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void computeSmootherAction(const doubl
 
 // specialize for DIM = 1 since g = 1 so we save the multiply
 template <>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<1>(const double *__restrict__ d, const double *__restrict__ g, const double *__restrict__ v, double *__restrict__ ret)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<1>(const double *__restrict__ d,
+								 const double *__restrict__ g,
+								 const double *__restrict__ v,
+								 double       *__restrict__ ret)
 {
    ret[0] = d[0]*v[0];
    return;
@@ -110,9 +116,13 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void computeSmootherAction<1>(const double *_
 } // namespace kernels
 
 template <int DIM>
-static void forAllDispatchMult(int &totalSize, const int clusterPackSize, const double scale,
-			       const int *__restrict__ c, const double *__restrict__ dgBegin,
-			       const double *__restrict__ b, double *__restrict__ x)
+static void forAllDispatchMult(int				&totalSize,
+			       const int			 clusterPackSize,
+			       const double			 scale,
+			       const int *__restrict__		 c,
+			       const double *__restrict__	 dgBegin,
+			       const double *__restrict__	 b,
+			       double *__restrict__		 x)
 {
    const int     size = clusterPackSize/DIM;
    const double *dg   = dgBegin+totalSize;
@@ -151,9 +161,13 @@ static void forAllDispatchMult(int &totalSize, const int clusterPackSize, const 
 }
 
 template <>
-void forAllDispatchMult<1>(int &totalSize, const int clusterPackSize, const double scale,
-			   const int *__restrict__ c, const double *__restrict__ dgBegin,
-			   const double *__restrict__ b, double *__restrict__ x)
+void forAllDispatchMult<1>(int                       &totalSize,
+			   const int                  clusterPackSize,
+			   const double               scale,
+			   const int    *__restrict__ c,
+			   const double *__restrict__ dgBegin,
+			   const double *__restrict__ b,
+			   double       *__restrict__ x)
 {
    MFEM_FORALL_3D_GRID(group, clusterPackSize, MFEM_CUDA_BLOCKS, 1, 1, 1,
    {
@@ -162,13 +176,13 @@ void forAllDispatchMult<1>(int &totalSize, const int clusterPackSize, const doub
        double vout;
 
        // load the diagonals of g^TAg ("D")
-       const double diags = dgBegin[group];
+       const auto diags = dgBegin[group];
 
        // load the map from packed representation to DOF layout in the vector
-       const int    cmap  = c[group];
+       const auto cmap  = c[group];
 
        // load the input vector
-       const double vin   = b[cmap];
+       const auto vin   = b[cmap];
 
        // G is unused
        kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
@@ -445,21 +459,23 @@ namespace kernels
 // Load a dense submatrix from global memory into local memory using efficient RO data
 // cache loads
 template <int LDA>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
-                                                      const int *__restrict__ J, const double *__restrict__ data,
-                                                      const int *__restrict__ clusters, double *__restrict__ subMat)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int    *__restrict__ I,
+                                                      const int    *__restrict__ J,
+						      const double *__restrict__ data,
+                                                      const int    *__restrict__ clusters,
+						      double       *__restrict__ subMat)
 {
    MFEM_UNROLL(LDA)
    for (int i = 0; i < LDA; ++i)
    {
-      const int dof_i = clusters[i];
-      const int dofLo = I[dof_i];
-      const int dofHi = I[dof_i+1];
+      const auto dof_i = clusters[i];
+      const auto dofLo = I[dof_i];
+      const auto dofHi = I[dof_i+1];
       // shouldn't unroll here, we don't know trip count and nvcc is kinda terrible at
       // guessing it
-      for (int j = dofLo; j < dofHi; ++j)
+      for (auto j = dofLo; j < dofHi; ++j)
       {
-         const int dof_j = J[j];
+         const auto dof_j = J[j];
 
          MFEM_UNROLL(LDA)
          for (int k = 0; k < LDA; ++k)
@@ -478,7 +494,8 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
 // compute diag(g^T x A x g) for generic sizes
 template <int LDA>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag(const double *__restrict__ G,
-                                                 const double *__restrict__ A, double *__restrict__ result)
+                                                 const double *__restrict__ A,
+						 double       *__restrict__ result)
 {
   result[0] = 0;
   MFEM_UNROLL(LDA-1)
@@ -486,7 +503,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag(const double *__restrict__ G,
 
   MFEM_UNROLL(LDA)
   for (int i = 0; i < LDA; ++i) {
-    const double gi = G[i];
+    const auto gi = G[i];
 
     MFEM_UNROLL(LDA)
     for (int j = 0; j < LDA; ++j) {
@@ -498,14 +515,19 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void GTAGDiag(const double *__restrict__ G,
 }
 
 // declare generic template so size 4+ compiles. Sadly constexpr if is c++17...
-template <int d> void CalcEigenvalues(const double *data, double *lambda, double *vec) { MFEM_ABORT_KERNEL("This kernel should never be called\n");}
+template <int d> void CalcEigenvalues(const double *data, double *lambda, double *vec)
+{
+  MFEM_ABORT_KERNEL("This kernel should never be called\n");
+}
 
 enum class MATRIX_FACTOR_TYPE {CHOLESKY};
 
 // Solves Ax = b assuming that A is in cholesky factorized, i.e. A = L L^T. This routine
 // is also the equivalent of computing x = A^-1 b
 template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInv(const double *__restrict__ mat, const double *__restrict__ b, double *__restrict__ x)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInv(const double *__restrict__ mat,
+						   const double *__restrict__ b,
+						   double       *__restrict__ x)
 {
   // scratch space to hold the intermediate soln
   double y[LDA];
@@ -513,7 +535,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInv(const double *__restrict__ ma
   // forward substitution
   MFEM_UNROLL(LDA)
   for (int i = 0; i < LDA; ++i) {
-    double tmp = b[i];
+    auto tmp = b[i];
 
     for (int j = 0; j < i; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j];
     y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
@@ -521,19 +543,21 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInv(const double *__restrict__ ma
 
   // backward substitution
   MFEM_UNROLL(LDA)
-  for (int i = LDA-1; i > -1; --i) {
-    double tmp = y[i];
+  for (auto i = LDA-1; i > -1; --i) {
+    auto tmp = y[i];
 
     // indices are flipped here for transpose
-    for (int j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*x[j];
+    for (auto j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*x[j];
     x[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
   }
   return;
 }
 
 // Does matmultinv inplace on the input vector
-template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInvInPlace(const double *__restrict__ mat, double *__restrict__ b)
+template <int LDA, MATRIX_FACTOR_TYPE F,
+	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInvInPlace(const double *__restrict__ mat,
+							  double       *__restrict__ b)
 {
   // scratch space to hold the intermediate soln
   double y[LDA];
@@ -541,7 +565,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInvInPlace(const double *__restri
   // forward substitution
   MFEM_UNROLL(LDA)
   for (int i = 0; i < LDA; ++i) {
-    double tmp = b[i];
+    auto tmp = b[i];
 
     for (int j = 0; j < i; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,i,j)*y[j];
     y[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
@@ -549,23 +573,24 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	matMultInvInPlace(const double *__restri
 
   // backward substitution
   MFEM_UNROLL(LDA)
-  for (int i = LDA-1; i > -1; --i) {
-    double tmp = y[i];
+  for (auto i = LDA-1; i > -1; --i) {
+    auto tmp = y[i];
 
     // indices are flipped here for transpose
-    for (int j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*b[j];
+    for (auto j = i+1; j < LDA; ++j) tmp -= MFEM_MAT_COL_MAJOR(mat,LDA,j,i)*b[j];
     b[i] = tmp/MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
   }
   return;
 }
 
-template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
+template <int LDA, MATRIX_FACTOR_TYPE F,
+	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactorInPlace(double *__restrict__ mat)
 {
   // compute in-place lower cholesky using Cholesky-Crout algorithm for matrix A = LL^T
   MFEM_UNROLL(LDA)
   for (int j = 0; j < LDA; ++j) {
-    double x = MFEM_MAT_COL_MAJOR(mat,LDA,j,j);
+    auto x = MFEM_MAT_COL_MAJOR(mat,LDA,j,j);
 
     // trip count is known at compile time
     for (int k = 0; k < j; ++k) x -= MFEM_MAT_COL_MAJOR(mat,LDA,j,k)*MFEM_MAT_COL_MAJOR(mat,LDA,j,k);
@@ -573,10 +598,10 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactorInPlace(double *__restrict__ ma
     x = sqrt(x);
     MFEM_MAT_COL_MAJOR(mat,LDA,j,j) = x;
 
-    const double r = 1.0/x;
+    const auto r = 1.0/x;
 
     MFEM_UNROLL(LDA)
-    for (int i = j+1; i < LDA; ++i) {
+    for (auto i = j+1; i < LDA; ++i) {
       x = MFEM_MAT_COL_MAJOR(mat,LDA,i,j);
 
       // trip count also known at compile time
@@ -587,13 +612,15 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactorInPlace(double *__restrict__ ma
   return;
 }
 
-template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactor(const double *__restrict__ mat, double *__restrict__ factored)
+template <int LDA, MATRIX_FACTOR_TYPE F,
+	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactor(const double *__restrict__ mat,
+						  double       *__restrict__ factored)
 {
   MFEM_UNROLL(LDA)
   for (int i = 0; i < LDA; ++i) {
     for (int k = 0; k < i; ++k) {
-      double tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,k);
+      auto tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,k);
 
       for (int j = 0; j < k; ++j) {
 	tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,k,j);
@@ -601,7 +628,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactor(const double *__restrict__ mat
       MFEM_MAT_COL_MAJOR(factored,LDA,i,k) = tmp/MFEM_MAT_COL_MAJOR(factored,LDA,k,k);
     }
 
-    double tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
+    auto tmp = MFEM_MAT_COL_MAJOR(mat,LDA,i,i);
     for (int j = 0; j < i; ++j) {
       tmp -= MFEM_MAT_COL_MAJOR(factored,LDA,i,j)*MFEM_MAT_COL_MAJOR(factored,LDA,i,j);
     }
@@ -611,9 +638,10 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void matFactor(const double *__restrict__ mat
 }
 
 template <int LDA>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE double vecDot(const double *__restrict__ v1, const double *__restrict__ v2)
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE double vecDot(const double *__restrict__ v1,
+						 const double *__restrict__ v2)
 {
-  double ret = v1[0]*v2[0];
+  auto ret = v1[0]*v2[0];
 
   MFEM_UNROLL(LDA-1)
   for (int i = 1; i < LDA; ++i)	ret += v1[i]*v2[i];
@@ -624,7 +652,7 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE double vecDot(const double *__restrict__ v1, 
 template <int LDA>
 MFEM_HOST_DEVICE MFEM_FORCE_INLINE void vecNormalize(double *v)
 {
-  double mod = v[0]*v[0];
+  auto mod = v[0]*v[0];
 
   MFEM_UNROLL(LDA-1)
   for (int i = 1; i < LDA; ++i) mod += v[i]*v[i];
@@ -636,8 +664,10 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void vecNormalize(double *v)
   return;
 }
 
-template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE double matVAV(const double *__restrict__ mat, const double *__restrict__ v)
+template <int LDA, MATRIX_FACTOR_TYPE F,
+	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE double matVAV(const double *__restrict__ mat,
+						 const double *__restrict__ v)
 {
   double scratch[LDA];
 
@@ -656,8 +686,11 @@ MFEM_HOST_DEVICE double constexpr constexprSqrt(double x)
   return x >= 0 && x < 99999999999999.9 ? sqrtNewtonRaphson(x,x,0) : std::nan("1");
 }
 
-template <int LDA, MATRIX_FACTOR_TYPE F, typename std::enable_if<MATRIX_FACTOR_TYPE::CHOLESKY==F,bool>::type = true>
-MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *__restrict__ mat, double *__restrict__ vec, const double atol = 1e-6)
+template <int LDA, MATRIX_FACTOR_TYPE F,
+	  std::enable_if_t<MATRIX_FACTOR_TYPE::CHOLESKY==F,int> = 1>
+MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *__restrict__ mat,
+								 double       *__restrict__ vec,
+								 const double               atol = 1e-6)
 {
   MFEM_UNROLL(LDA)
   for (int i = 0; i < LDA; ++i)	vec[i] = 1.0/constexprSqrt(static_cast<double>(LDA));
@@ -665,14 +698,14 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *_
   double matfactored[LDA*LDA];
   matFactor<LDA,F>(mat,matfactored); // matfactored <- chol(mat)
 
-  double val = matVAV<LDA,F>(matfactored,vec); // val <- vec @ A @ vec
+  auto val = matVAV<LDA,F>(matfactored,vec); // val <- vec @ A @ vec
 
   int iter = 0;
   MFEM_UNROLL(5)
   do {
     matMultInvInPlace<LDA,F>(matfactored,vec);      // vec <- A @ vec
     vecNormalize<LDA>(vec);                         // vec <- vec/norm(vec)
-    double valTmp = matVAV<LDA,F>(matfactored,vec); // valTmp <- vec @ A @ vec
+    auto valTmp = matVAV<LDA,F>(matfactored,vec); // valTmp <- vec @ A @ vec
     if (fabs(val-valTmp) < atol) break;
     val = valTmp;
   } while (++iter < 30); // can't just use while (true) as nvcc has ICE when using debug
@@ -685,15 +718,15 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void	computeLowestEigenVector(const double *_
 } // namespace kernels
 
 template <int LDA>
-static void forAllDispatchCoeffs(int &totalSize,
-				 const int clusterPackSize,
-				 const int *__restrict__ I,
-				 const int *__restrict__ J,
+static void forAllDispatchCoeffs(int                        &totalSize,
+				 const int                  clusterPackSize,
+				 const int    *__restrict__ I,
+				 const int    *__restrict__ J,
 				 const double *__restrict__ data,
-				 const int *__restrict__ clusters,
-				 double *__restrict__ retBase)
+				 const int    *__restrict__ clusters,
+				 double       *__restrict__ retBase)
 {
-  double *ret = retBase+totalSize;
+  auto ret = retBase+totalSize;
 
   if (LDA <= 3) {
 #define SUBMAT membuf
@@ -716,7 +749,7 @@ static void forAllDispatchCoeffs(int &totalSize,
       {
          // search the eigenvalues for the smallest eigenvalue, note the "index" here is
          // just multiples of LDA to make indexing easier
-         double smallestEigVal = EIGVAL[0];
+         auto smallestEigVal = EIGVAL[0];
          MFEM_UNROLL(LDA-1)
          for (int i = 1; i < LDA; ++i)
          {
@@ -775,22 +808,21 @@ static void forAllDispatchCoeffs(int &totalSize,
 #undef EIGVEC
 #undef DIAGS
   }
-  MFEM_DEVICE_SYNC;
   totalSize += 2*clusterPackSize;
   return;
 }
 
 // For LDA = 1 the coeffs are always = 1, (so no point storing them in the interleaved
 // format detailed above). Since NVCC is not able to elide the loading of the initial
-// coefficients   even if they aren't used we must specialize
+// coefficients  even if they aren't used we must specialize
 template <>
-void forAllDispatchCoeffs<1>(int &totalSize,
-			     const int clusterPackSize,
-			     const int *__restrict__ I,
-			     const int *__restrict__ J,
+void forAllDispatchCoeffs<1>(int                        &totalSize,
+			     const int                  clusterPackSize,
+			     const int    *__restrict__ I,
+			     const int    *__restrict__ J,
 			     const double *__restrict__ data,
-			     const int *__restrict__ clusters,
-			     double *__restrict__ ret)
+			     const int    *__restrict__ clusters,
+			     double       *__restrict__ ret)
 {
    MFEM_FORALL(group, clusterPackSize,
    {
@@ -799,7 +831,6 @@ void forAllDispatchCoeffs<1>(int &totalSize,
       kernels::loadSubmatLDG<1>(I,J,data,clusters+group,&diag_value);
       ret[group] = 1.0/diag_value;
    });
-   MFEM_DEVICE_SYNC;
    totalSize += clusterPackSize; // no interleaving
    return;
 }
@@ -817,10 +848,10 @@ __global__ void markerKernelFormGEnd() {}
 
 void DRSmoother::FormG(const DisjointSets *clustering)
 {
-   const Array<int> &bounds = clustering->GetBounds();
-   const Array<int> &elems  = clustering->GetElems();
-   const Array<int> &sizeCounter = clustering->GetSizeCounter();
-   const int         sizeCtrSize = sizeCounter.Size();
+   const auto &bounds = clustering->GetBounds();
+   const auto &elems  = clustering->GetElems();
+   const auto &sizeCounter = clustering->GetSizeCounter();
+   const auto sizeCtrSize  = sizeCounter.Size();
    // vector of clusters arranged by size. Entry i contains all the clusters of size i+1
    // (as there are no 0 sized clusters) in the order that they appear in elems.
    clusterPack.resize(sizeCtrSize);
@@ -833,7 +864,7 @@ void DRSmoother::FormG(const DisjointSets *clustering)
       // loop over all the packed vectors setting size, ignore size 0
       for (int i = 0; i < sizeCtrSize; ++i)
       {
-         const int csize = (i+1)*sizeCounter[i];
+         const auto csize = (i+1)*sizeCounter[i];
 
          clusterPack[i].SetSize(csize);
          if (!i) totalCoeffSize += csize;   // don't inteleave for size = 1
@@ -847,8 +878,9 @@ void DRSmoother::FormG(const DisjointSets *clustering)
    for (int i = 0; i < bounds.Size()-1; ++i)
    {
       // get size of cluster and adjust it
-      const int csize = bounds[i+1]-bounds[i], adjustedCsize = csize-1;
-      const int ci    = clusterIter[adjustedCsize];
+      const auto csize = bounds[i+1]-bounds[i];
+      const auto adjustedCsize = csize-1;
+      const auto ci    = clusterIter[adjustedCsize];
 
       // append the cluster to the appropriate packed vector
       for (int j = 0; j < csize; ++j)
@@ -866,7 +898,7 @@ void DRSmoother::FormG(const DisjointSets *clustering)
    // running total of all the coefficients transfered so far
    for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
    {
-      const int cpackSize = clusterPack[i].Size();
+      const auto cpackSize = clusterPack[i].Size();
 
       if (cpackSize)
       {
@@ -902,11 +934,11 @@ void PrintClusteringStats(std::ostream &out, const DisjointSets *clustering)
 {
    Array<int> unique_group_sizes;
    Array<int> group_size_counts;
-   const Array<int> &bounds = clustering->GetBounds();
+   const auto &bounds = clustering->GetBounds();
 
    for (int i = 0; i < bounds.Size()-1; ++i)
    {
-      const int size = bounds[i+1] - bounds[i];
+      const auto size = bounds[i+1] - bounds[i];
 
       int j = 0;
       for (; j < unique_group_sizes.Size(); ++j)
