@@ -37,11 +37,17 @@ class Runner(object):
         continue
       setuptime = refsetup.search(line)
       if setuptime:
-        self.setuptime[smoother][device] = setuptime.group(1)
+        if device not in self.setuptime[smoother]:
+          self.setuptime[smoother][device] = [setuptime.group(1)]
+        else:
+          self.setuptime[smoother][device].append(setuptime.group(1))
         continue
       solvetime = refsolve.search(line)
       if solvetime:
-        self.solvetime[smoother][device] = solvetime.group(1)
+        if device not in self.solvetime[smoother]:
+          self.solvetime[smoother][device] = [solvetime.group(1)]
+        else:
+          self.solvetime[smoother][device].append(solvetime.group(1))
         continue
       itercnt = refiter.search(line)
       if itercnt:
@@ -54,6 +60,7 @@ class Runner(object):
     import time
     import subprocess
 
+    nit = 10
     for device in ['cpu','cuda']:
       argListBase = self.argList+['--device',device]
       for smoother in ['J','GS','DR']:
@@ -61,17 +68,26 @@ class Runner(object):
         argStr = ' '.join(argList)
         print('Running {}'.format(argStr),end='\t',flush=True)
         start = time.time()
-        with subprocess.Popen(argList,stdout=subprocess.PIPE,stderr=subprocess.PIPE) as runner:
-          (out,err) = runner.communicate()
-          assert not runner.returncode,'{} raised returncode {}:\nstdout: {}\nstderr:{}'.format(argStr,runner.returncode,out.decode(),err.decode())
-        self.parseOutput(out.decode(),device,smoother)
-        print('success {:.3f} seconds'.format(time.time()-start))
+        for _ in range(nit):
+          with subprocess.Popen(argList,stdout=subprocess.PIPE,stderr=subprocess.PIPE) as runner:
+            (out,err) = runner.communicate()
+            assert not runner.returncode,'{} raised returncode {}:\nstdout: {}\nstderr:{}'.format(argStr,runner.returncode,out.decode(),err.decode())
+          self.parseOutput(out.decode(),device,smoother)
+        print('success average time: {:.3f} seconds'.format((time.time()-start)/float(nit)))
     return
 
   def get(self):
+    def averageTimes(timeDict):
+      averaged = {}
+      for smoother,devices in timeDict.items():
+        averaged[smoother] = {}
+        for device,timings in devices.items():
+          averaged[smoother][device] = sum(float(t) for t in timings)/float(len(timings))
+      return averaged
+
     return {
-      'setuptime' : self.setuptime,
-      'solvetime' : self.solvetime,
+      'setuptime' : averageTimes(self.setuptime),
+      'solvetime' : averageTimes(self.solvetime),
       'itercount' : self.itercount,
       'jval'      : self.jval,
       'elemcount' : self.elems,
@@ -89,8 +105,11 @@ def main(exe,ordRange,refine,mesh,outFile,jacobiVal):
       runner = Runner(exe,'--order',str(order),'--refine',str(refine),'--mesh',mesh,'--jacobi-value',str(jacobiVal))
       runner.run()
       results[order] = runner.get()
-  except AssertionError as ae:
-    print(ae)
+  except Exception as e:
+    print(e)
+    res = runner.get()
+    if res:
+      results[order] = res
     print('\nsaving progress so far')
 
   with open(outFile,'w') as fd:
@@ -105,7 +124,7 @@ def main(exe,ordRange,refine,mesh,outFile,jacobiVal):
 if __name__ == '__main__':
   import argparse
 
-  defaultOutput = 'output_o{ordmin}_{ordmax}_r{refine}_j{jval}.json'
+  defaultOutput = 'output_o{ordmin}_{ordmax}_r{refine}_j{jval}'
   parser = argparse.ArgumentParser(description='Collect timing results for DRSmoothers',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument('exec',help='path to example to time')
   parser.add_argument('-o','--order-range',metavar='int',default=[4,13],type=int,nargs=2,dest='ordrange')
@@ -115,8 +134,7 @@ if __name__ == '__main__':
   parser.add_argument('-jv','--jacobi-value',default=0.666,type=float,help='Jacobi smoother value',dest='jv')
   args = parser.parse_args()
 
-  if args.target == defaultOutput:
-    args.target = args.target.format(ordmin=args.ordrange[0],ordmax=args.ordrange[1],refine=args.refine,jval=str(args.jv).replace('.','_'))
+  args.target = args.target.format(ordmin=args.ordrange[0],ordmax=args.ordrange[1],refine=args.refine,jval=str(args.jv).replace('.','_'))
 
   if not args.target.endswith('.json'):
     args.target += '.json'

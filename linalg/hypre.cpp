@@ -3178,7 +3178,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       CuWrap1D(height, [=] MFEM_DEVICE (int i)
       {
          d_l1_norms[i] = std::abs(d_l1_norms[i]);
-      });
+      }, MFEM_STREAM_NONE);
 #else
       for (int i = 0; i < height; i++)
       {

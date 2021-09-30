@@ -132,33 +132,38 @@ inline void CuTimeCall(const char msg[], LMBDA &&lmbda)
   return;
 }
 
-template <std::size_t N> struct DeviceStreamPool<Backend::CUDA,N>;
+template <std::size_t N> class DeviceStreamPool<Backend::CUDA,N>;
 
 #ifdef MFEM_USE_CUDA
 template <std::size_t N>
-struct DeviceStreamPool<Backend::CUDA,N>
+class DeviceStreamPool<Backend::CUDA,N>
 {
-  std::array<cudaStream_t,N> pool;
-  std::size_t                currentStream = 0;
+  using stream_type = cudaStream_t;
+  std::array<stream_type,N> _pool;
 
 public:
   DeviceStreamPool()
   {
-    for (int i = 0; i < N; ++i) {MFEM_GPU_CHECK(cudaStreamCreate(&pool[i]));}
+    for (auto&& stream : _pool) MFEM_GPU_CHECK(cudaStreamCreate(&stream));
   }
 
   ~DeviceStreamPool()
   {
-    for (int i = 0; i < N; ++i) {MFEM_GPU_CHECK(cudaStreamDestroy(pool[i]));}
+    for (auto&& stream : _pool) MFEM_GPU_CHECK(cudaStreamDestroy(stream));
   }
 
-  auto get(std::size_t idx = -1) -> decltype(pool[0])
+  stream_type get(int idx = -1) const
   {
-    if (idx > 0) {
+    static std::size_t _currentStream = 0;
+
+    if (idx >= 0) {
       MFEM_ASSERT(idx < N,"idx "<<idx<<" !< "<<N);
-      return pool[idx];
+      return _pool[idx];
+    } else if (idx == MFEM_STREAM_NEXT) {
+      return _pool[(_currentStream++)%N];
+    } else {
+      return NULL;
     }
-    return pool[(currentStream++)%N];
   }
 };
 

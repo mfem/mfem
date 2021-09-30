@@ -102,7 +102,7 @@ struct Backend
    };
 };
 
-template <Backend::Id, std::size_t N> struct DeviceStreamPool;
+template <Backend::Id, std::size_t N> class DeviceStreamPool;
 #define	MFEM_STREAM_NEXT -1
 #define MFEM_STREAM_NONE -2
 #define MFEM_STREAM(id)  id

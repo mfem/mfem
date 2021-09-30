@@ -126,7 +126,7 @@ static void forAllDispatchMult(int				&totalSize,
 {
    const int     size = clusterPackSize/DIM;
    const double *dg   = dgBegin+totalSize;
-   MFEM_FORALL_3D_GRID(group, size, MFEM_CUDA_BLOCKS, 1, 1, 1,
+   MFEM_FORALL_3D_GRID_STREAM(group, size, MFEM_CUDA_BLOCKS, 1, 1, 1, MFEM_STREAM_NEXT,
    {
      group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
      if (group < size) {
@@ -169,7 +169,7 @@ void forAllDispatchMult<1>(int                       &totalSize,
 			   const double *__restrict__ b,
 			   double       *__restrict__ x)
 {
-   MFEM_FORALL_3D_GRID(group, clusterPackSize, MFEM_CUDA_BLOCKS, 1, 1, 1,
+   MFEM_FORALL_3D_GRID_STREAM(group, clusterPackSize, MFEM_CUDA_BLOCKS, 1, 1, 1, MFEM_STREAM_NEXT,
    {
      group = group*MFEM_THREAD_SIZE(x)+MFEM_THREAD_ID(x);
      if (group < clusterPackSize) {

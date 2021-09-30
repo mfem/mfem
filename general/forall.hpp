@@ -311,7 +311,7 @@ void CuKernel3D(const int N, BODY body)
 }
 
 template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-void CuWrap1D(const int N, DBODY &&d_body, const std::size_t S)
+void CuWrap1D(const int N, DBODY &&d_body, const int S)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
@@ -321,7 +321,7 @@ void CuWrap1D(const int N, DBODY &&d_body, const std::size_t S)
 
 template <typename DBODY>
 void CuWrap2D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int BZ, const std::size_t S)
+              const int X, const int Y, const int BZ, const int S)
 {
    if (N==0) { return; }
    MFEM_VERIFY(BZ>0, "");
@@ -333,7 +333,7 @@ void CuWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void CuWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z, const int G, const std::size_t S)
+              const int X, const int Y, const int Z, const int G, const int S)
 {
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
@@ -408,7 +408,7 @@ template <const int DIM, typename DBODY, typename HBODY>
 inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
-                       const int G=0, const std::size_t S=MFEM_STREAM_NONE)
+                       const int G=0, const int S=MFEM_STREAM_NONE)
 {
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
