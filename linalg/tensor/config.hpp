@@ -308,23 +308,33 @@ template <typename Config, int... Sizes>
 using ConfigResultTensor = typename config_result_tensor<Config>
                               ::template type<Sizes...>;
 
+template <typename Config>
+struct config_threads
+{
+#if defined(MFEM_USE_CUDA)
+   using tensor = typename Config::configs::template StaticCUDATensor<double,1,1>;
+#elif defined(MFEM_USE_HIP)
+   using tensor = typename Config::configs::template StaticHipTensor<double,1,1>;
+#else
+   using tensor = typename Config::configs::template StaticCPUTensor<double,1,1>;
+#endif
+   using layout = typename tensor::layout;
+   static constexpr bool xthreads = is_threaded_layout_dim<layout,0>;
+   static constexpr bool ythreads = is_threaded_layout_dim<layout,1>;
+   static constexpr bool zthreads = is_threaded_layout_dim<layout,2>;
+};
+
 // config_use_xthreads
 template <typename Config>
-constexpr bool config_use_xthreads = is_threaded_layout_dim<
-                                        typename ConfigResultTensor<Config,1>
-                                           ::layout,0>;
+constexpr bool config_use_xthreads = config_threads<Config>::xthreads;
 
 // config_use_ythreads
 template <typename Config>
-constexpr bool config_use_ythreads = is_threaded_layout_dim<
-                                        typename ConfigResultTensor<Config,1>
-                                           ::layout,1>;
+constexpr bool config_use_ythreads = config_threads<Config>::ythreads;
 
 // config_use_zthreads
 template <typename Config>
-constexpr bool config_use_zthreads = is_threaded_layout_dim<
-                                        typename ConfigResultTensor<Config,1>
-                                           ::layout,2>;
+constexpr bool config_use_zthreads = config_threads<Config>::zthreads;
 
 // Print function
 template <typename... Configs>
