@@ -1138,46 +1138,32 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
    *NCFace = faces_info[Face].NCFace;
 }
 
-void Mesh::GetFaceElements (int Face, Array<int> & elems) const
+void Mesh::GetFaceElements(int face, Array<int> & elems) const
 {
-   int el1, el2;
-   if (ncmesh && Dimension()>1)
+   bool nonconforming_face = ncmesh && (faces_info[face].NCFace != -1);
+   if (nonconforming_face)
    {
-      const mfem::NCMesh::NCList & l = ncmesh->GetNCList(Dimension()-1);
-      const Array<int> & inv_index = l.GetInvIndex();
-      int key = inv_index[Face];
-      int type = (key >= 0) ? (key & 0x3) : -1;
-      switch (type)
+      int nc_index = faces_info[face].NCFace;
+      const NCFaceInfo &nc_info = nc_faces_info[nc_index];
+      if (!nc_info.Slave)
       {
-         // case of conforming or slave
-         case 0:
-         case 2:
-            GetFaceElements(Face, &el1, &el2);
-            if (el1 != -1) { elems.Append(el1); }
-            if (el2 != -1) { elems.Append(el2); }
-            break;
-         // case of a master face
-         default:
-            int jbeg = l.masters[key>>2].slaves_begin;
-            int jend = l.masters[key>>2].slaves_end;
-            for (int j = jbeg; j<jend ; j++)
-            {
-               int face_s = l.slaves[j].index;
-               GetFaceElements(face_s, &el1, &el2);
-               if (el1 != -1) { elems.Append(el1); }
-               if (el2 != -1) { elems.Append(el2); }
-            }
-            elems.Sort();
-            elems.Unique();
-            break;
+         const mfem::NCMesh::NCList &nc_list = ncmesh->GetNCList(Dim-1);
+         elems.Append(ncmesh->elements[nc_list.masters[nc_index].element].index);
+         int j_begin = nc_list.masters[nc_index].slaves_begin;
+         int j_end = nc_list.masters[nc_index].slaves_end;
+         for (int j = j_begin; j<j_end ; j++)
+         {
+            elems.Append(ncmesh->elements[nc_list.slaves[j].element].index);
+         }
+         return;
       }
    }
-   else
-   {
-      GetFaceElements(Face, &el1, &el2);
-      if (el1 != -1) { elems.Append(el1); }
-      if (el2 != -1) { elems.Append(el2); }
-   }
+   // Conforming face or slave face. In case of nonconforming master face, early
+   // return above.
+   int el1, el2;
+   GetFaceElements(face, &el1, &el2);
+   if (el1 != -1) { elems.Append(el1); }
+   if (el2 != -1) { elems.Append(el2); }
 }
 
 
