@@ -907,7 +907,6 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         int with_subdomains = 1,
                         bool with_coeff = false);
 
-Vector Legendre1D(double x, int order);
 Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
                   int order, int dim);
 
@@ -917,11 +916,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            Vector &error_estimates,
                            int with_subdomains = 1,
                            bool with_coeff = false);
-
-void GetFaceElements(FiniteElementSpace & RT0Space, int face,
-                     Array<int> & elems);
-
-void GetElementPatch(Mesh &mesh, Array<int> &neighbor_elems, Mesh &face_patch);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

@@ -14,7 +14,6 @@
 #include "gridfunc.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
-#include "../general/tic_toc.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -4138,23 +4137,12 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       nsd = ufes->GetMesh()->attributes.Max();
    }
 
-   StopWatch chrono;
-   double time = 0.0;
-   double time1 = 0.0;
    double total_error = 0.0;
-
-   RT_FECollection RT0fec(0,dim);
-   FiniteElementSpace RT0fes(mesh,&RT0fec);
-
    for (int iface = 0; iface < nfaces; iface++)
    {
       // 1. Find all elements in the face patch.
       Array<int> neighbor_elems;
-      chrono.Clear();
-      chrono.Start();
-      GetFaceElements(RT0fes, iface, neighbor_elems);
-      chrono.Stop();
-      time += chrono.RealTime();
+      mesh->GetFaceElements(iface, neighbor_elems);
       int num_neighbor_elems = neighbor_elems.Size();
 
       // 2. Check if boundary face and continue if true.
@@ -4253,18 +4241,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
 
-      // Hack to deal with singularity of A
-      //      for (int l = 0; l < num_basis_functions; l++)
-      //      {
-      //         A(l,l) += 1e-8;
-      //      }
-
       // Solve for polynomial coefficients
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
       double TOL = 1e-9;
-      chrono.Clear();
-      chrono.Start();
       if (!lu.Factor(num_basis_functions,TOL))
       {
          // singular matrix
@@ -4272,8 +4252,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          cin.get();
       }
       lu.Solve(num_basis_functions, dim, b);
-      chrono.Stop();
-      time1 += chrono.RealTime();
 
       // Construct l2-minimizing global polynomial
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
@@ -4359,108 +4337,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                     MPI_SUM, pfes->GetComm());
    }
 #endif // MFEM_USE_MPI
-   mfem::out << "GetFaceElements time : " << time << endl;
-   mfem::out << "GetFaceElements time / face : " << time/nfaces << endl;
-   mfem::out << "LU factor/solve time = " << time1 << endl;
-
    return std::sqrt(total_error);
-}
-
-void GetFaceElements(FiniteElementSpace & RT0Space, int face,
-                     Array<int> & elems)
-{
-   Mesh & mesh = *RT0Space.GetMesh();
-
-   const SparseMatrix * P = RT0Space.GetConformingProlongation();
-   const SparseMatrix * R = RT0Space.GetConformingRestriction();
-
-   int el1, el2;
-   if (P)
-   {
-      SparseMatrix * Pt = Transpose(*P);
-      const int * col = P->GetRowColumns(face);
-      int numslaves = Pt->RowSize(col[0]);
-      const int * master = R->GetRowColumns(col[0]);
-
-      if ((master[0] == face && numslaves == 1) ||
-          master[0] != face)
-      {
-         mesh.GetFaceElements(face,&el1,&el2);
-         if (el2 == -1 || el1 == -1)
-         {
-            int el = (el1 == -1)? el2 : el1;
-            elems.Append(el);
-         }
-         else
-         {
-            elems.Append(el1);
-            elems.Append(el2);
-         }
-      }
-      else
-      {
-         MFEM_VERIFY(numslaves > 1, "Check numslaves");
-         const int * slaves = Pt->GetRowColumns(col[0]);
-         for (int j=0; j<numslaves; j++)
-         {
-            mesh.GetFaceElements(slaves[j],&el1,&el2);
-            if (el1 != -1) { elems.Append(el1); }
-            if (el2 != -1) { elems.Append(el2); }
-         }
-      }
-   }
-   else
-   {
-      mesh.GetFaceElements(face,&el1,&el2);
-      if (el2 == -1 || el1 == -1)
-      {
-         int el = (el1 == -1)? el2 : el1;
-         elems.Append(el);
-      }
-      else
-      {
-         elems.Append(el1);
-         elems.Append(el2);
-      }
-   }
-   elems.Sort();
-   elems.Unique();
-}
-
-void GetElementPatch(Mesh &mesh, Array<int> &patch_elems, Mesh &face_patch)
-{
-   // Count the number of elements in the final patch
-   int num_elements = patch_elems.Size();
-
-   // Count the number of boundary elements in the final patch
-   int num_bdr_elements = 0;
-   Array<int> bdr_elements;
-   for (int i = 0; i < num_elements; i++)
-   {
-      int ielem = patch_elems[i];
-      Array<int> element_faces;
-      Array<int> ori;
-      mesh.GetElementFaces(ielem, element_faces, ori);
-
-      int e1 = -1, e2 = -1;
-      for (int j = 0; j < element_faces.Size(); j++)
-      {
-         mesh.GetFaceElements(j, &e1, &e2);
-         bool interior_face = false;
-         for (int k = i+1; k < num_elements; k++)
-         {
-            if (e1 == patch_elems[k]) { interior_face = true; }
-            if (e2 == patch_elems[k]) { interior_face = true; }
-         }
-         if (!interior_face) { num_bdr_elements++; }
-      }
-   }
-   // Mesh patch(mesh.Dimension(), mesh.GetNV(), num_elements, num_bdr_elements, mesh.SpaceDimension())
-
-
-
-
-
 }
 
 double ComputeElementLpDistance(double p, int i,
