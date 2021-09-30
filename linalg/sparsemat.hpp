@@ -14,18 +14,13 @@
 
 // Data types for sparse matrix
 
+#include "../general/backends.hpp"
 #include "../general/mem_alloc.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
-
-#ifdef MFEM_USE_CUDA
-#include <cusparse.h>
-#include <library_types.h>
-#include "../general/cuda.hpp"
-#endif
 
 namespace mfem
 {
@@ -95,14 +90,17 @@ protected:
    cusparseStatus_t status;
    static cusparseHandle_t handle;
    cusparseMatDescr_t descr=0;
+   static int SparseMatrixCount;
    static size_t bufferSize;
    static void *dBuffer;
    mutable bool initBuffers{false};
-
-   static int SparseMatrixCount;
+#if CUDA_VERSION >= 10010
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
+#else
+   mutable cusparseMatDescr_t matA_descr;
+#endif
 #endif
 
 public:
@@ -154,7 +152,7 @@ public:
    SparseMatrix(const Vector & v);
 
    // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
-   void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
+   void UseCuSparse(bool useCuSparse_ = true) { useCuSparse = useCuSparse_;}
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -528,6 +526,12 @@ public:
    void SetSubMatrixTranspose(const Array<int> &rows, const Array<int> &cols,
                               const DenseMatrix &subm, int skip_zeros = 1);
 
+   /** Insert the DenseMatrix into this SparseMatrix at the specified rows and
+       columns. If \c skip_zeros==0 , all entries from the DenseMatrix are
+       added including zeros. If \c skip_zeros==2 , no zeros are added to the
+       SparseMatrix regardless of their position in the matrix. Otherwise, the
+       default \c skip_zeros behavior is to omit the zero from the SparseMatrix
+       unless it would break the symmetric structure of the SparseMatrix. */
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
 

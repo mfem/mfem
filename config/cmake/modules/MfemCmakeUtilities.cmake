@@ -47,6 +47,7 @@ endfunction()
 macro(mfem_add_executable NAME)
   if (MFEM_USE_HIP)
     hip_add_executable(${NAME} ${ARGN})
+    set_target_properties(${NAME} PROPERTIES LINKER_LANGUAGE CXX)
   else()
     add_executable(${NAME} ${ARGN})
   endif()
@@ -763,7 +764,7 @@ function(mfem_export_mk_files)
       MFEM_USE_GNUTLS MFEM_USE_GSLIB MFEM_USE_NETCDF MFEM_USE_PETSC
       MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
       MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD
-      MFEM_USE_ADIOS2)
+      MFEM_USE_ADIOS2 MFEM_USE_BENCHMARK MFEM_USE_PARELAG)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)

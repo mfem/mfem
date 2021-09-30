@@ -39,8 +39,17 @@
 //   Adapted analytic shape+orientation:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
+//   Adapted analytic shape and/or size with hr-adaptivity:
+//     mesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -tid 10 -ni 50 -li 20 -hmid 55 -mid 7 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
+//
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//   Adapted discrete size 3D with PA:
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
+//   Adapted discrete size 3D with PA on device (requires CUDA).
+//   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
@@ -119,12 +128,18 @@ int main(int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
+   bool hradaptivity     = false;
+   int h_metric_id       = -1;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
+   const char *devopt    = "cpu";
+   bool pa               = false;
+   int n_hr_iter         = 5;
+   int n_h_iter          = 1;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -215,6 +230,12 @@ int main(int argc, char *argv[])
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
+   args.AddOption(&hradaptivity, "-hr", "--hr-adaptivity", "-no-hr",
+                  "--no-hr-adaptivity",
+                  "Enable hr-adaptivity.");
+   args.AddOption(&h_metric_id, "-hmid", "--h-metric",
+                  "Same options as metric_id. Used to determine refinement"
+                  " type for each element if h-adaptivity is enabled.");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -231,6 +252,15 @@ int main(int argc, char *argv[])
                   "Set the verbosity level - 0, 1, or 2.");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
+   args.AddOption(&devopt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&n_hr_iter, "-nhr", "--n_hr_iter",
+                  "Number of hr-adaptivity iterations.");
+   args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
+                  "Number of h-adaptivity iterations per r-adaptivity"
+                  "iteration.");
    args.Parse();
    if (!args.Good())
    {
@@ -238,6 +268,16 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   if (h_metric_id < 0) { h_metric_id = metric_id; }
+
+   if (hradaptivity)
+   {
+      MFEM_VERIFY(strcmp(devopt,"cpu")==0, "HR-adaptivity is currently only"
+                  " supported on cpus.");
+   }
+   Device device(devopt);
+   device.Print();
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -248,7 +288,9 @@ int main(int argc, char *argv[])
    else { cout << "(NONE)"; }
    cout << endl;
 
-   // 3. Define a finite element space on the mesh. Here we use vector finite
+   if (hradaptivity) { mesh->EnsureNCMesh(); }
+
+   // 3. Define a finite element space on the mesh-> Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
    //    number of components in the vector finite element space is specified by
    //    the last parameter of the FiniteElementSpace constructor.
@@ -307,6 +349,7 @@ int main(int argc, char *argv[])
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
+   rdm.HostReadWrite();
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < fespace->GetNDofs(); i++)
    {
@@ -378,14 +421,50 @@ int main(int argc, char *argv[])
          cout << "Unknown metric_id: " << metric_id << endl;
          return 3;
    }
+   TMOP_QualityMetric *h_metric = NULL;
+   if (hradaptivity)
+   {
+      switch (h_metric_id)
+      {
+         case 1: h_metric = new TMOP_Metric_001; break;
+         case 2: h_metric = new TMOP_Metric_002; break;
+         case 7: h_metric = new TMOP_Metric_007; break;
+         case 9: h_metric = new TMOP_Metric_009; break;
+         case 55: h_metric = new TMOP_Metric_055; break;
+         case 56: h_metric = new TMOP_Metric_056; break;
+         case 58: h_metric = new TMOP_Metric_058; break;
+         case 77: h_metric = new TMOP_Metric_077; break;
+         case 315: h_metric = new TMOP_Metric_315; break;
+         case 316: h_metric = new TMOP_Metric_316; break;
+         case 321: h_metric = new TMOP_Metric_321; break;
+         default: cout << "Metric_id not supported for h-adaptivity: " << h_metric_id <<
+                          endl;
+            return 3;
+      }
+   }
+
+   if (metric_id < 300 || h_metric_id < 300)
+   {
+      MFEM_VERIFY(dim == 2, "Incompatible metric for 3D meshes");
+   }
+   if (metric_id >= 300 || h_metric_id >= 300)
+   {
+      MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
+   }
+
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
+   HRHessianCoefficient *hr_adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    GridFunction aspr3d(&ind_fesv);
+
+   const AssemblyLevel al =
+      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
+
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -400,13 +479,13 @@ int main(int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 5: // Discrete size 2D
+      case 5: // Discrete size 2D or 3D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -416,8 +495,16 @@ int main(int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         FunctionCoefficient ind_coeff(discrete_size_2d);
-         size.ProjectCoefficient(ind_coeff);
+         if (dim == 2)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_2d);
+            size.ProjectCoefficient(ind_coeff);
+         }
+         else if (dim == 3)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_3d);
+            size.ProjectCoefficient(ind_coeff);
+         }
          tc->SetSerialDiscreteTargetSize(size);
          target_c = tc;
          break;
@@ -432,7 +519,7 @@ int main(int argc, char *argv[])
          disc.ProjectCoefficient(ind_coeff);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -523,7 +610,7 @@ int main(int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -546,7 +633,7 @@ int main(int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -578,6 +665,18 @@ int main(int argc, char *argv[])
          target_c = tc;
          break;
       }
+      // Targets used for hr-adaptivity tests.
+      case 9:  // size target in an annular region.
+      case 10: // size+aspect-ratio in an annular region.
+      case 11: // size+aspect-ratio target for a rotate sine wave
+      {
+         target_t = TargetConstructor::GIVEN_FULL;
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
+         hr_adapt_coeff = new HRHessianCoefficient(dim, target_id - 9);
+         tc->SetAnalyticTargetSpec(NULL, NULL, hr_adapt_coeff);
+         target_c = tc;
+         break;
+      }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
    if (target_c == NULL)
@@ -585,8 +684,15 @@ int main(int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c,
+                                                       h_metric);
+
+   // Finite differences for computations of derivatives.
+   if (fdscheme)
+   {
+      MFEM_VERIFY(pa == false, "PA for finite differences is not implemented.");
+      he_nlf_integ->EnableFiniteDifferences(x);
+   }
    he_nlf_integ->SetExactActionFlag(exactaction);
 
    // Setup the quadrature rules for the TMOP integrator.
@@ -620,7 +726,8 @@ int main(int argc, char *argv[])
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   GridFunction dist(fespace);
+   FiniteElementSpace dist_fespace(mesh, fec); // scalar space
+   GridFunction dist(&dist_fespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
@@ -633,10 +740,12 @@ int main(int argc, char *argv[])
    AdaptivityEvaluator *adapt_evaluator = NULL;
    if (adapt_lim_const > 0.0)
    {
+      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
+
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta_0.ProjectCoefficient(alim_coeff);
 
-      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
+      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG(al); }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
@@ -663,6 +772,7 @@ int main(int argc, char *argv[])
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
@@ -676,7 +786,8 @@ int main(int argc, char *argv[])
       he_nlf_integ->SetCoefficient(*coeff1);
 
       // Second metric.
-      metric2 = new TMOP_Metric_077;
+      if (dim == 2) { metric2 = new TMOP_Metric_077; }
+      else          { metric2 = new TMOP_Metric_315; }
       TMOP_Integrator *he_nlf_integ2 = NULL;
       if (combomet == 1)
       {
@@ -684,10 +795,10 @@ int main(int argc, char *argv[])
             TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
          target_c2->SetVolumeScale(0.01);
          target_c2->SetNodes(x0);
-         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
+         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
          he_nlf_integ2->SetCoefficient(coeff2);
       }
-      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c); }
+      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
       he_nlf_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
@@ -700,7 +811,12 @@ int main(int argc, char *argv[])
 
       a.AddDomainIntegrator(combo);
    }
-   else { a.AddDomainIntegrator(he_nlf_integ); }
+   else
+   {
+      a.AddDomainIntegrator(he_nlf_integ);
+   }
+
+   if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
@@ -736,7 +852,9 @@ int main(int argc, char *argv[])
       tauval -= 0.01 * h0.Min();
    }
 
-   const double init_energy = a.GetGridFunctionEnergy(x);
+   // For HR tests, the energy is normalized by the number of elements.
+   const double init_energy = a.GetGridFunctionEnergy(x) /
+                              (hradaptivity ? mesh->GetNE() : 1);
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.
@@ -829,7 +947,15 @@ int main(int argc, char *argv[])
       minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1);
       if (lin_solver == 3 || lin_solver == 4)
       {
-         S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+         if (pa)
+         {
+            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
+            S_prec = new OperatorJacobiSmoother;
+         }
+         else
+         {
+            S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+         }
          minres->SetPreconditioner(*S_prec);
       }
       S = minres;
@@ -856,13 +982,25 @@ int main(int argc, char *argv[])
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   solver.SetOperator(a);
-   solver.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
-   if (solver.GetConverged() == false)
+
+   // hr-adaptivity solver.
+   // If hr-adaptivity is disabled, r-adaptivity is done once using the
+   // TMOPNewtonSolver.
+   // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
+   // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
+   // The solver terminates if an h-adaptivity iteration does not modify
+   // any element in the mesh.
+   TMOPHRSolver hr_solver(*mesh, a, solver,
+                          x, move_bnd, hradaptivity,
+                          mesh_poly_deg, h_metric_id,
+                          n_hr_iter, n_h_iter);
+   hr_solver.AddGridFunctionForUpdate(&x0);
+   if (adapt_lim_const > 0.)
    {
-      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
+      hr_solver.AddGridFunctionForUpdate(&zeta_0);
+      hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
+   hr_solver.Mult();
 
    // 15. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
@@ -872,14 +1010,15 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
-   // 16. Compute the amount of energy decrease.
-   const double fin_energy = a.GetGridFunctionEnergy(x);
+   const double fin_energy = a.GetGridFunctionEnergy(x) /
+                             (hradaptivity ? mesh->GetNE() : 1);
    double metric_part = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
-      metric_part = a.GetGridFunctionEnergy(x);
+      metric_part = a.GetGridFunctionEnergy(x) /
+                    (hradaptivity ? mesh->GetNE() : 1);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
    }
@@ -892,7 +1031,7 @@ int main(int argc, char *argv[])
    cout << "The strain energy decreased by: " << setprecision(12)
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
-   // 17. Visualize the final mesh and metric values.
+   // 16. Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -906,13 +1045,13 @@ int main(int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
-   // 18. Visualize the mesh displacement.
+   // 17. Visualize the mesh displacement.
    if (visualization)
    {
-      x0 -= x;
       osockstream sock(19916, "localhost");
       sock << "solution\n";
       mesh->Print(sock);
+      x0 -= x;
       x0.Save(sock);
       sock.send();
       sock << "window_title 'Displacements'\n"
@@ -921,15 +1060,16 @@ int main(int argc, char *argv[])
            << "keys jRmclA" << endl;
    }
 
-   // 19. Free the used memory.
-   delete S_prec;
    delete S;
+   delete S_prec;
    delete target_c2;
    delete metric2;
    delete coeff1;
    delete adapt_evaluator;
    delete target_c;
+   delete hr_adapt_coeff;
    delete adapt_coeff;
+   delete h_metric;
    delete metric;
    delete fespace;
    delete fec;

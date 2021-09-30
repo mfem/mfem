@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    //    use discontinuous finite elements of the specified order >= 0.
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl;

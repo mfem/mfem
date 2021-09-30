@@ -27,6 +27,7 @@ namespace mfem
     Geometry::TETRAHEDRON - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1)
     Geometry::CUBE - the unit cube
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
+    Geometry::PYRAMID - w/ vert. (0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1)
 */
 class Geometry
 {
@@ -34,7 +35,7 @@ public:
    enum Type
    {
       INVALID = -1,
-      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM,
+      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PYRAMID,
       NUM_GEOMETRIES
    };
 
@@ -101,6 +102,25 @@ public:
    void GetPerfPointMat(int GeomType, DenseMatrix &pm);
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
+
+   /// Returns true if the given @a geom is of tensor-product type (i.e. if geom
+   /// is a segment, quadrilateral, or hexahedron), returns false otherwise.
+   static bool IsTensorProduct(Type geom)
+   { return geom == SEGMENT || geom == SQUARE || geom == CUBE; }
+
+   /// Returns the Geometry::Type corresponding to a tensor-product of the
+   /// given dimension.
+   static Type TensorProductGeometry(int dim)
+   {
+      switch (dim)
+      {
+         case 0: return POINT;
+         case 1: return SEGMENT;
+         case 2: return SQUARE;
+         case 3: return CUBE;
+         default: MFEM_ABORT("Invalid dimension."); return INVALID;
+      }
+   }
 
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
@@ -232,7 +252,26 @@ template <> struct Geometry::Constants<Geometry::PRISM>
    };
 };
 
-// Defined in fe.cpp to ensure construction after 'mfem::WedgeFE'.
+template <> struct Geometry::Constants<Geometry::PYRAMID>
+{
+   static const int Dimension = 3;
+   static const int NumVert = 5;
+   static const int NumEdges = 8;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 5;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 4;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   // Upper-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+// Defined in fe.cpp to ensure construction after 'mfem::TriangleFE' and
+// `mfem::TetrahedronFE`.
 extern Geometry Geometries;
 
 

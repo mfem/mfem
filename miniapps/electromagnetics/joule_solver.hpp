@@ -214,7 +214,7 @@ public:
    // E is the input, w is the output which is L2 heating.
    void GetJouleHeating(ParGridFunction &E_gf, ParGridFunction &w_gf) const;
 
-   void SetTime(const double _t);
+   void SetTime(const double t_);
 
    // Write all the hypre matrices and vectors to disk.
    void Debug(const char *basefilename, double time);

@@ -14,18 +14,21 @@
 # This script is meant be launched in the root directory of MFEM to compile all
 # the dependencies of MFEM for all the specs in CI. By doing so, we obtain a
 # Spack instance that can be used as an upstream.
-# Note: needs mfem-uberenv in MFEM repo (run tests/gitlab/get_mfem_uberenv)
+# Note: needs mfem-uberenv in MFEM repo (run tests/gitlab/get_mfem_uberenv)
 
 # This patch applies shared permissions to Spack installations.
 cd tests/uberenv
 git apply upstream-permission.patch
 cd -
 
+# Get the hostname
+hostid=${HOSTNAME//[[:digit:]]/}
+
 # call uberenv for all specs in CI
-git grep -e "^[^#]" .gitlab | grep "SPEC" \
-                            | cut -d' ' -f6- \
-                            | sed 's/"//g' \
-                            | while read -r line; do
+git grep -e "^[^#]" .gitlab/$hostid* | grep "SPEC" \
+                                     | cut -d' ' -f6- \
+                                     | sed 's/"//g' \
+                                     | while read -r line; do
   python ./tests/uberenv/uberenv.py --spec="$line"
 done
 

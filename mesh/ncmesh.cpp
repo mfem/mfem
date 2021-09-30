@@ -612,7 +612,7 @@ int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
    // get (degenerate) faces and assign face attributes
    int v0 = el.node[0], v1 = el.node[1];
    faces.Get(v0, v0, v0, v0)->attribute = vattr1;
-   faces.Get(v1, v1, v1 ,v1)->attribute = vattr2;
+   faces.Get(v1, v1, v1, v1)->attribute = vattr2;
 
    return new_id;
 }
@@ -2283,7 +2283,6 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
-   mesh.elements.SetSize(NElements);
    mesh.elements.SetSize(0);
 
    mesh.boundary.SetSize(0);
@@ -4321,7 +4320,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
    if (!transforms.embeddings.Size())
    {
       transforms.Clear();
-      transforms.embeddings.SetSize(leaf_elements.Size());
+      transforms.embeddings.SetSize(NElements);
 
       std::string ref_path;
       ref_path.reserve(100);
@@ -4455,7 +4454,8 @@ struct RefType
 void CoarseFineTransformations::GetCoarseToFineMap(
    const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
    Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
-   Array<mfem::Geometry::Type> &ref_type_to_geom) const
+   Array<mfem::Geometry::Type> &ref_type_to_geom,
+   bool get_coarse_to_fine_only) const
 {
    const int fine_ne = embeddings.Size();
    int coarse_ne = -1;
@@ -4494,6 +4494,11 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    {
       coarse_to_fine.GetJ()[i] = cf_j[i].two;
    }
+
+   if (get_coarse_to_fine_only) { return; }
+   MFEM_VERIFY(fine_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
+               "GetCoarseToFineMap is not fully supported for derefined meshes."
+               " Set 'get_coarse_to_fine_only=true'.")
 
    using internal::RefType;
    using std::map;
@@ -4534,6 +4539,18 @@ void CoarseFineTransformations::GetCoarseToFineMap(
       }
    }
    ref_type_to_matrix.ShiftUpI();
+}
+
+void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &fine_mesh,
+                                                   Table &coarse_to_fine) const
+{
+   Array<int> coarse_to_ref_type;
+   Table ref_type_to_matrix;
+   Array<mfem::Geometry::Type> ref_type_to_geom;
+   bool get_coarse_to_fine_only = true;
+   GetCoarseToFineMap(fine_mesh, coarse_to_fine, coarse_to_ref_type,
+                      ref_type_to_matrix, ref_type_to_geom,
+                      get_coarse_to_fine_only);
 }
 
 void NCMesh::ClearTransforms()
