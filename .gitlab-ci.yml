@@ -28,37 +28,37 @@ stages:
   - sub-pipelines
 
 # Trigger subpipelines:
-#quartz-build-and-test:
-#  stage: sub-pipelines
-#  variables:
-#    _AUTOTEST: $AUTOTEST
-#  trigger:
-#    include: .gitlab/quartz-build-and-test.yml
-#    strategy: depend
-#
-#quartz-baseline:
-#  stage: sub-pipelines
-#  variables:
-#    _AUTOTEST: $AUTOTEST
-#  trigger:
-#    include: .gitlab/quartz-baseline.yml
-#    strategy: depend
-#
-#lassen-build-and-test:
-#  stage: sub-pipelines
-#  variables:
-#    _AUTOTEST: $AUTOTEST
-#  trigger:
-#    include: .gitlab/lassen-build-and-test.yml
-#    strategy: depend
-#
-#lassen-baseline:
-#  stage: sub-pipelines
-#  variables:
-#    _AUTOTEST: $AUTOTEST
-#  trigger:
-#    include: .gitlab/lassen-baseline.yml
-#    strategy: depend
+quartz-build-and-test:
+  stage: sub-pipelines
+  variables:
+    _AUTOTEST: $AUTOTEST
+  trigger:
+    include: .gitlab/quartz-build-and-test.yml
+    strategy: depend
+
+quartz-baseline:
+  stage: sub-pipelines
+  variables:
+    _AUTOTEST: $AUTOTEST
+  trigger:
+    include: .gitlab/quartz-baseline.yml
+    strategy: depend
+
+lassen-build-and-test:
+  stage: sub-pipelines
+  variables:
+    _AUTOTEST: $AUTOTEST
+  trigger:
+    include: .gitlab/lassen-build-and-test.yml
+    strategy: depend
+
+lassen-baseline:
+  stage: sub-pipelines
+  variables:
+    _AUTOTEST: $AUTOTEST
+  trigger:
+    include: .gitlab/lassen-baseline.yml
+    strategy: depend
 
 corona-build-and-test:
   stage: sub-pipelines
