@@ -24,14 +24,12 @@ allocate_resource:
   script:
     - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
-  needs: [setup]
 
 # Build and test jobs, simply provide a spec
 rocm_gcc_8.3.1:
   variables:
     SPEC: "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906"
   extends: .build_and_test_on_corona
-  needs: [allocate_resource]
 
 # Release slurm allocation
 release_resource:
@@ -42,7 +40,6 @@ release_resource:
   script:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
-  needs: [rocm_gcc_8.3.1]
 
 # Jobs report
 report_job_success:
