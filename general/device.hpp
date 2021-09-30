@@ -102,6 +102,10 @@ struct Backend
    };
 };
 
+template <Backend::Id, std::size_t N> struct DeviceStreamPool;
+#define	MFEM_STREAM_NEXT -1
+#define MFEM_STREAM_NONE -2
+#define MFEM_STREAM(id)  id
 
 /** @brief The MFEM Device class abstracts hardware devices such as GPUs, as
     well as programming models such as CUDA, OCCA, RAJA and OpenMP. */

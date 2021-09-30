@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
+#include "device.hpp"
 #include <iostream>
 
 // CUDA block size used by MFEM.
@@ -130,6 +131,39 @@ inline void CuTimeCall(const char msg[], LMBDA &&lmbda)
   std::cout<<"Average time/run "<<timeT/(double)std::max(runCount,1)<<" (ms) Lo "<<timeLo<<" (ms), Hi "<<timeHi<<" (ms)\n";
   return;
 }
+
+template <std::size_t N> struct DeviceStreamPool<Backend::CUDA,N>;
+
+#ifdef MFEM_USE_CUDA
+template <std::size_t N>
+struct DeviceStreamPool<Backend::CUDA,N>
+{
+  std::array<cudaStream_t,N> pool;
+  std::size_t                currentStream = 0;
+
+public:
+  DeviceStreamPool()
+  {
+    for (int i = 0; i < N; ++i) {MFEM_GPU_CHECK(cudaStreamCreate(&pool[i]));}
+  }
+
+  ~DeviceStreamPool()
+  {
+    for (int i = 0; i < N; ++i) {MFEM_GPU_CHECK(cudaStreamDestroy(pool[i]));}
+  }
+
+  auto get(std::size_t idx = -1) -> decltype(pool[0])
+  {
+    if (idx > 0) {
+      MFEM_ASSERT(idx < N,"idx "<<idx<<" !< "<<N);
+      return pool[idx];
+    }
+    return pool[(currentStream++)%N];
+  }
+};
+
+const DeviceStreamPool<Backend::CUDA,5>& cudaPool();
+#endif
 
 } // namespace mfem
 

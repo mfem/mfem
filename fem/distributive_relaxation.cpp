@@ -217,36 +217,11 @@ static inline bool isCloseAtTol(double a, double b,
       break;								\
   }
 
-template <int N>
-struct UniqueCudaStreams
-{
-private:
-  cudaStream_t streams[N];
-  int          currentStream = 0;
-
-public:
-  UniqueCudaStreams()
-  {
-    for (int i = 0; i < N; ++i) {MFEM_GPU_CHECK(cudaStreamCreate(streams+i));}
-  }
-
-  ~UniqueCudaStreams()
-  {
-    for (int i = 0; i < N; ++i) {MFEM_GPU_CHECK(cudaStreamDestroy(streams[i]));}
-  }
-
-  cudaStream_t getStream()
-  {
-    return streams[(currentStream++)%N];
-  }
-};
-
 void DRSmoother::DRSmootherJacobi(const Vector &b, Vector &x) const
 {
    auto devDG = diagonal_scaling.Read();
    auto devB  = b.Read();
    auto devX  = x.Write();
-   static UniqueCudaStreams<4> streams;
 
    for (int i = 0, totalSize = 0; i < clusterPack.size(); ++i)
    {

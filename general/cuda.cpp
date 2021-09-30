@@ -11,6 +11,7 @@
 
 #include "backends.hpp"
 #include "globals.hpp"
+#include "cuda.hpp"
 
 namespace mfem
 {
@@ -189,6 +190,12 @@ int CuGetDeviceCount()
    MFEM_GPU_CHECK(cudaGetDeviceCount(&num_gpus));
 #endif
    return num_gpus;
+}
+
+const DeviceStreamPool<Backend::CUDA,5>& cudaPool()
+{
+  static DeviceStreamPool<Backend::CUDA,5> pool;
+  return pool;
 }
 
 } // namespace mfem

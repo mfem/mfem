@@ -38,14 +38,8 @@ const int MAX_Q1D = 14;
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
-#  if defined(__CUDA_ARCH__)
-#    define MFEM_LDG(m_) __ldg(m_)
-#  else
-#    define MFEM_LDG(m_) *(m_)
-#  endif
 #else
 #define MFEM_UNROLL(N)
-#define MFEM_LDG(m_)     *(m_)
 #endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
@@ -78,6 +72,15 @@ const int MAX_Q1D = 14;
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,Z,G)
+
+// MFEM_FORALL with a 3D CUDA block and grid
+// With G=0, this is the same as MFEM_FORALL_3D(i,N,X,Y,Z,...)
+#define MFEM_FORALL_3D_GRID_STREAM(i,N,X,Y,Z,G,S,...)	 \
+   ForallWrap<3>(true,N,                                 \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},  \
+                 X,Y,Z,G,S)
+
 
 // MFEM_FORALL that uses the basic CPU backend when use_dev is false. See for
 // example the functions in vector.cpp, where we don't want to use the mfem
@@ -308,34 +311,34 @@ void CuKernel3D(const int N, BODY body)
 }
 
 template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-void CuWrap1D(const int N, DBODY &&d_body)
+void CuWrap1D(const int N, DBODY &&d_body, const std::size_t S)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
-   CuKernel1D<<<GRID,BLCK>>>(N, d_body);
+   CuKernel1D<<<GRID,BLCK,0,cudaPool().get(S)>>>(N, d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
 void CuWrap2D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int BZ)
+              const int X, const int Y, const int BZ, const std::size_t S)
 {
    if (N==0) { return; }
    MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   CuKernel2D<<<GRID,BLCK>>>(N,d_body);
+   CuKernel2D<<<GRID,BLCK,0,cudaPool().get(S)>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
 void CuWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z, const int G)
+              const int X, const int Y, const int Z, const int G, const std::size_t S)
 {
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   CuKernel3D<<<GRID,BLCK>>>(N,d_body);
+   CuKernel3D<<<GRID,BLCK,0,cudaPool().get(S)>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -400,13 +403,12 @@ void HipWrap3D(const int N, DBODY &&d_body,
 
 #endif // MFEM_USE_HIP
 
-
 /// The forall kernel body wrapper
 template <const int DIM, typename DBODY, typename HBODY>
 inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
-                       const int G=0)
+                       const int G=0, const std::size_t S=MFEM_STREAM_NONE)
 {
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
@@ -439,9 +441,9 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-      if (DIM == 1) { return CuWrap1D(N, d_body); }
-      if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z, G); }
+     if (DIM == 1) { return CuWrap1D(N, d_body, S); }
+     if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z, S); }
+     if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z, G, S); }
    }
 #endif
 
