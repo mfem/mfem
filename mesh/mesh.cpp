@@ -1138,6 +1138,49 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
    *NCFace = faces_info[Face].NCFace;
 }
 
+void Mesh::GetFaceElements (int Face, Array<int> & elems) const
+{
+   int el1, el2;
+   if (ncmesh && Dimension()>1)
+   {
+      const mfem::NCMesh::NCList & l = ncmesh->GetNCList(Dimension()-1);
+      const Array<int> & inv_index = l.GetInvIndex();
+      int key = inv_index[Face];
+      int type = (key >= 0) ? (key & 0x3) : -1;
+      switch (type)
+      {
+         // case of conforming or slave
+         case 0:
+         case 2:
+            GetFaceElements(Face, &el1, &el2);
+            if (el1 != -1) { elems.Append(el1); }
+            if (el2 != -1) { elems.Append(el2); }
+            break;
+         // case of a master face
+         default:
+            int jbeg = l.masters[key>>2].slaves_begin;
+            int jend = l.masters[key>>2].slaves_end;
+            for (int j = jbeg; j<jend ; j++)
+            {
+               int face_s = l.slaves[j].index;
+               GetFaceElements(face_s, &el1, &el2);
+               if (el1 != -1) { elems.Append(el1); }
+               if (el2 != -1) { elems.Append(el2); }
+            }
+            elems.Sort();
+            elems.Unique();
+            break;
+      }
+   }
+   else
+   {
+      GetFaceElements(Face, &el1, &el2);
+      if (el1 != -1) { elems.Append(el1); }
+      if (el2 != -1) { elems.Append(el2); }
+   }
+}
+
+
 Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 {
    switch (Dim)
@@ -6364,9 +6407,12 @@ void Mesh::GenerateNCFaceInfo()
       const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
 
-      faces_info[master.index].NCFace = nc_faces_info.Size();
+      FaceInfo &master_fi = faces_info[master.index];
+      master_fi.NCFace = nc_faces_info.Size();
       nc_faces_info.Append(NCFaceInfo(false, master.local, NULL));
       // NOTE: one of the unused members stores local face no. to be used below
+      MFEM_ASSERT(master_fi.Elem2No == -1, "internal error");
+      MFEM_ASSERT(master_fi.Elem2Inf == -1, "internal error");
    }
 
    // add records for slave faces
