@@ -122,9 +122,7 @@ int main(int argc, char *argv[])
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
-   //    meshes need to be reoriented before we can define high-order Nedelec
-   //    spaces on them (this is needed in the ADS solver below).
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -134,13 +132,12 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -216,7 +213,7 @@ int main(int argc, char *argv[])
       HypreParMatrix A;
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-      HYPRE_Int glob_size = A.GetGlobalNumRows();
+      HYPRE_BigInt glob_size = A.GetGlobalNumRows();
       if (myid == 0)
       {
          cout << "Size of linear system: " << glob_size << endl;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,10 +17,8 @@ namespace mfem
 
 static void TestSolve(FiniteElementSpace &fespace);
 
-
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
-//
 TEST_CASE("Variable Order FiniteElementSpace",
           "[FiniteElementCollection]"
           "[FiniteElementSpace]"

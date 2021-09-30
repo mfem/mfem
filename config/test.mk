@@ -39,7 +39,7 @@ set -- $$($(1) $(SHELL) -c "$(2)" 2>&1); while [ "$$#" -gt 3 ]; do shift; done
 endef
 define TIMECMD.NOTGNU
 set -- $$($(1) -l $(SHELL) -c "{ $(2); } > /dev/null 2>&1" 2>&1; echo $$?); \
-set -- "$$1"s "$$(($$7/1024))"kB "$${60}"
+set -- "$$1"s "$$(($$7/1024))"kB "$${!#}"
 endef
 define TIMECMD.BASH
 TIMEFORMAT=$$'%3Rs'; \
@@ -57,22 +57,27 @@ TIMECMD := $(word 1,$(TIMECMD))
 ifneq (,$(filter test%,$(MAKECMDGOALS)))
    MAKEFLAGS += -k
 endif
-# Test runs of the examples/miniapps with parameters - check exit code
+# Test runs of the examples/miniapps with parameters - check exit code:
+# 0 means success, 255 means the test was skipped, anything else means error
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) $(if $(5),,-no-vis )$(4) \
      > $(1).stderr 2>&1); \
-   if [ "$$3" = 0 ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
-   rm -f $(1).stderr; exit $$3
+   err="$$3"; \
+   if [ "$$3" = 0 ]; then $(PRINT_OK); \
+   else if [ "$$3" = 255 ]; then $(PRINT_SKIP); err=0; \
+   else $(PRINT_FAILED); cat $(1).stderr; fi; fi; \
+   rm -f $(1).stderr; exit $$err
 
 # Test runs of the examples/miniapps - check exit code and if a file exists
+# See mfem-test for the interpretation of the error code
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) -no-vis > $(1).stderr 2>&1); \
    err="$$3"; \
-   if [ "$$3" = 0 ] && [ -e $(4) ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; err=64; fi; \
+   if [ "$$3" = 0 ] && [ -e $(4) ]; then $(PRINT_OK); \
+   else if [ "$$3" = 255 ] && [ -e $(4) ]; then $(PRINT_SKIP); err=0; \
+   else $(PRINT_FAILED); cat $(1).stderr; err=64; fi; fi; \
    rm -f $(1).stderr; exit $$err
 
 .PHONY: test test-par-YES test-par-NO test-ser test-par test-clean test-print
@@ -80,6 +85,26 @@ mfem-test-file = \
 # What sets of tests to run in serial and parallel
 test-par-YES: $(PAR_$(MFEM_TESTS):=-test-par) $(SEQ_$(MFEM_TESTS):=-test-seq)
 test-par-NO:  $(SEQ_$(MFEM_TESTS):=-test-seq)
+ifeq ($(MFEM_USE_CUDA),YES)
+.PHONY: test-par-YES-cuda test-par-NO-cuda test-ser-cuda test-par-cuda test-cuda
+test-par-YES: test-par-YES-cuda
+test-par-NO:  test-par-NO-cuda
+test-par-YES-cuda: test-par-cuda test-ser-cuda
+test-par-NO-cuda:  test-ser-cuda
+test-ser-cuda: $(SEQ_DEVICE_$(MFEM_TESTS):=-test-seq-cuda)
+test-par-cuda: $(PAR_DEVICE_$(MFEM_TESTS):=-test-par-cuda)
+test-cuda: test-par-$(MFEM_USE_MPI)-cuda clean-exec
+endif
+ifeq ($(MFEM_USE_HIP),YES)
+.PHONY: test-par-YES-hip test-par-NO-hip test-ser-hip test-par-hip test-hip
+test-par-YES: test-par-YES-hip
+test-par-NO:  test-par-NO-hip
+test-par-YES-hip: test-par-hip test-ser-hip
+test-par-NO-hip:  test-ser-hip
+test-ser-hip: $(SEQ_DEVICE_$(MFEM_TESTS):=-test-seq-hip)
+test-par-hip: $(PAR_DEVICE_$(MFEM_TESTS):=-test-par-hip)
+test-hip: test-par-$(MFEM_USE_MPI)-hip clean-exec
+endif
 test-ser:     test-par-NO
 test-par:     test-par-YES
 test:         all test-par-$(MFEM_USE_MPI) clean-exec

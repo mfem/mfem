@@ -11,35 +11,14 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "run_unit_tests.hpp"
+
+bool launch_all_non_regression_tests = false;
+std::string mfem_data_dir;
 
 int main(int argc, char *argv[])
 {
    mfem::Device device("cuda");
-
-   // There must be exactly one instance.
-   Catch::Session session;
-
-   // Apply provided command line arguments.
-   int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
-
-   auto cfg = session.configData();
-
-   cfg.testsOrTags.push_back("[CUDA]");
-
-#ifdef MFEM_USE_MPI
-   // Exclude tests marked as Parallel in a serial run, even when compiled with
-   // MPI. This is done because there is no MPI session initialized.
-   cfg.testsOrTags.push_back("~[Parallel]");
-#endif
-
-   session.useConfigData(cfg);
-
-   int result = session.run();
-
-   return result;
+   // Include only tests labeled with CUDA. Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"[CUDA]", "~[Parallel]"});
 }

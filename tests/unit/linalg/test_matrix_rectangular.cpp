@@ -153,6 +153,9 @@ TEST_CASE("ParallelFormRectangular",
 
       subtract(B, *field2_tdof, *field2_tdof);
       REQUIRE(field2_tdof->Norml2() == MFEM_Approx(0.0));
+
+      delete field2_tdof;
+      delete field_tdof;
    }
 }
 
@@ -259,6 +262,12 @@ TEST_CASE("HypreParMatrixBlocks",
       REQUIRE(error < 1.e-12);
 
       delete H;
+      delete BT;
+      delete B;
+      delete MW;
+      delete MR;
+      delete l2_coll;
+      delete hdiv_coll;
    }
 }
 

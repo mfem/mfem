@@ -119,6 +119,9 @@
 // Enable the use of SIMD in the high performance templated classes
 #cmakedefine MFEM_USE_SIMD
 
+// Enable MFEM functionality based on the FMS library
+#cmakedefine MFEM_USE_FMS
+
 // Enable MFEM functionality based on Conduit
 #cmakedefine MFEM_USE_CONDUIT
 
@@ -151,6 +154,9 @@
 // Enable MFEM functionality based on the ADIOS2 library
 #cmakedefine MFEM_USE_ADIOS2
 
+// Enable MFEM functionality based on the Caliper library
+#cmakedefine MFEM_USE_CALIPER
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
@@ -168,5 +174,8 @@
 
 // Enable interface to the MKL CPardiso library.
 #cmakedefine MFEM_USE_MKL_CPARDISO
+
+// Enable MFEM functionality based on the Google Benchmark library.
+#cmakedefine MFEM_USE_BENCHMARK
 
 #endif // MFEM_CONFIG_HEADER

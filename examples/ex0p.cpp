@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
    //    high-order Lagrange finite elements of the given order.
    H1_FECollection fec(order, mesh.Dimension());
    ParFiniteElementSpace fespace(&mesh, &fec);
-   HYPRE_Int total_num_dofs = fespace.GlobalTrueVSize();
+   HYPRE_BigInt total_num_dofs = fespace.GlobalTrueVSize();
    if (mpi.Root()) { cout << "Number of unknowns: " << total_num_dofs << endl; }
 
    // 6. Extract the list of all the boundary DOFs. These will be marked as
