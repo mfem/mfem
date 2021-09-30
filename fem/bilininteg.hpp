@@ -213,6 +213,10 @@ public:
                              of the method may choose not to scale the "flux"
                              function by any coefficients describing the
                              integrator.
+       @param[in] ir  If passed (the defualt value is NULL), the implementation
+                        of the method will ignore the fluxelem parameter and,
+                        instead, compute the discrete flux at the points specified
+                        by the integration rule ir.
     */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
