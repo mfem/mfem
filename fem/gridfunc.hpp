@@ -907,9 +907,11 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         int with_subdomains = 1,
                         bool with_coeff = false);
 
+/// Defines the global polynomial space used by NewZZErorrEstimator
 Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
                   int order, int dim);
 
+/// A ``true'' ZZ error estimator which uses face-based patches
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
                            GridFunction &flux,

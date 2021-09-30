@@ -202,23 +202,35 @@ public:
    }
 };
 
-/** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
-    error estimation procedure.
+/** @brief The NewZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
+    error estimation procedure [1,2] using face-based patches [3].
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    [1] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
     and a posteriori error estimates. Part 1: The recovery technique.
     Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    [2] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
     and a posteriori error estimates. Part 2: Error estimates and adaptivity.
     Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
 
-    Bartels, S. and Carstensen, C., Each averaging technique yields reliable
+    [3] Bartels, S. and Carstensen, C., Each averaging technique yields reliable
     a posteriori error control in FEM on unstructured grids. Part II: Higher
     order FEM. Math. Comp. 71(239), 971-994 (2002)
 
     The required BilinearFormIntegrator must implement the methods
     ComputeElementFlux() and ComputeFluxEnergy().
+
+   COMMENTS:
+   *  The present implementation ignores all single-element patches corresponding
+      to boundary faces. This is appropriate for Dirichlet boundaries, but
+      suboptimal for Neumann boundaries. Reference 3 shows that a constrained
+      least-squares problem, where the reconstructed flux is constrained by the
+      Neumann boundary data, is appropriate to handle this case.
+      THIS CONSTRAINED LS PROBLEM IS NOT IMPLEMENTED, so it is possible that the
+      local error estimates for Neumann boundary elements may be affected.
+   *  The present PARALLEL implementation ignores all face patches which cross a
+      processor boundary. This may have unexpected consequences.
+      
  */
 class NewZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
 {
@@ -251,6 +263,8 @@ protected:
 
 public:
    /** @brief Construct a new NewZienkiewiczZhuEstimator object.
+    * The arguments are intentionally similar to the ZienkiewiczZhuEstimator
+    * constructor
        @param integ    This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
@@ -271,6 +285,8 @@ public:
    { }
 
    /** @brief Construct a new NewZienkiewiczZhuEstimator object.
+    * The arguments are intentionally similar to the ZienkiewiczZhuEstimator
+    * constructor
        @param integ    This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
@@ -297,7 +313,11 @@ public:
    /** @brief Enable/disable anisotropic estimates. To enable this option, the
        BilinearFormIntegrator must support the 'd_energy' parameter in its
        ComputeFluxEnergy() method. */
-   void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
+   void SetAnisotropic(bool aniso = true)
+   {
+      MFEM_WARNING("Anisotropic refinement is not implemented yet.")
+      anisotropic = aniso;
+   }
 
    /** @brief Set the way the flux is averaged (smoothed) across elements.
 
