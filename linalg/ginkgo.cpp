@@ -1187,7 +1187,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                ic_fact_type::build()
                .with_both_factors(false)
                .on(executor);
-            auto inner_solver_s = gko::preconditioner::Ic<>::build()
+            using lower_trs_type = gko::solver::LowerTrs<float, int>;
+            auto inner_solver_s = gko::preconditioner::Ic<lower_trs_type, int>::build()
                                   .with_factorization_factory(fact_factory_s)
                                   .on(executor);
             smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
@@ -1214,7 +1215,67 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                ic_fact_type::build()
                .with_both_factors(false)
                .on(executor);
-            auto inner_solver_s = gko::preconditioner::Ic<>::build()
+            using lower_trs_type = gko::solver::LowerTrs<float, int>;
+            auto inner_solver_s = gko::preconditioner::Ic<lower_trs_type, int>::build()
+                                  .with_factorization_factory(fact_factory_s)
+                                  .on(executor);
+            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
+                                                                pre_sweeps, 0.9);
+         }
+         break;
+      }
+      case AMGPreconditioner::IC_ISAI :
+      {
+         using ic_fact_type = gko::factorization::Ic<double, int>;
+         std::shared_ptr<ic_fact_type::Factory> fact_factory =
+            ic_fact_type::build()
+            .with_both_factors(false)
+            .on(executor);
+         using lower_trs_type = gko::preconditioner::LowerIsai<double, int>;
+         auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
+                             .with_factorization_factory(fact_factory)
+                             .on(executor);
+         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver),
+                                                            pre_sweeps, 0.9);
+
+         if (use_mixed_prec)
+         {
+            using ic_fact_type = gko::factorization::Ic<float, int>;
+            std::shared_ptr<ic_fact_type::Factory> fact_factory_s =
+               ic_fact_type::build()
+               .with_both_factors(false)
+               .on(executor);
+            using lower_trs_type = gko::preconditioner::LowerIsai<float, int>;
+            auto inner_solver_s = gko::preconditioner::Ic<lower_trs_type, int>::build()
+                                  .with_factorization_factory(fact_factory_s)
+                                  .on(executor);
+            smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
+                                                                pre_sweeps, 0.9);
+         }
+         break;
+      }
+      case AMGPreconditioner::PARIC_ISAI :
+      {
+         using ic_fact_type = gko::factorization::ParIc<double, int>;
+         std::shared_ptr<ic_fact_type::Factory> fact_factory =
+            ic_fact_type::build()
+            .with_both_factors(false)
+            .on(executor);
+         using lower_trs_type = gko::preconditioner::LowerIsai<double, int>;
+         auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
+                             .with_factorization_factory(fact_factory)
+                             .on(executor);
+         smoother_gen = gko::solver::build_smoother<double>(gko::share(inner_solver),
+                                                            pre_sweeps, 0.9);
+         if (use_mixed_prec)
+         {
+            using ic_fact_type = gko::factorization::ParIc<float, int>;
+            std::shared_ptr<ic_fact_type::Factory> fact_factory_s =
+               ic_fact_type::build()
+               .with_both_factors(false)
+               .on(executor);
+            using lower_trs_type = gko::preconditioner::LowerIsai<float, int>;
+            auto inner_solver_s = gko::preconditioner::Ic<lower_trs_type, int>::build()
                                   .with_factorization_factory(fact_factory_s)
                                   .on(executor);
             smoother_gen_s = gko::solver::build_smoother<float>(gko::share(inner_solver_s),
@@ -1287,7 +1348,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                ic_fact_type::build()
                .with_both_factors(false)
                .on(executor);
-            auto inner_solver = gko::preconditioner::Ic<>::build()
+            using lower_trs_type = gko::solver::LowerTrs<float, int>;
+            auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
@@ -1317,7 +1379,8 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                ic_fact_type::build()
                .with_both_factors(false)
                .on(executor);
-            auto inner_solver = gko::preconditioner::Ic<>::build()
+            using lower_trs_type = gko::solver::LowerTrs<float, int>;
+            auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
@@ -1331,6 +1394,70 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                .with_both_factors(false)
                .on(executor);
             auto inner_solver = gko::preconditioner::Ic<>::build()
+                                .with_factorization_factory(fact_factory)
+                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
+                                                                       inner_solver), coarse_solve_its, 0.9);
+         }
+         break;
+      }
+      case AMGPreconditioner::IC_ISAI :
+      {
+         if (use_mixed_prec)
+         {
+            using ic_fact_type = gko::factorization::Ic<float, int>;
+            std::shared_ptr<ic_fact_type::Factory> fact_factory =
+               ic_fact_type::build()
+               .with_both_factors(false)
+               .on(executor);
+            using lower_trs_type = gko::preconditioner::LowerIsai<float, int>;
+            auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
+                                .with_factorization_factory(fact_factory)
+                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
+                                                                   coarse_solve_its, 0.9);
+         }
+         else
+         {
+            using ic_fact_type = gko::factorization::Ic<double, int>;
+            std::shared_ptr<ic_fact_type::Factory> fact_factory =
+               ic_fact_type::build()
+               .with_both_factors(false)
+               .on(executor);
+            using lower_trs_type = gko::preconditioner::LowerIsai<double, int>;
+            auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
+                                .with_factorization_factory(fact_factory)
+                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(
+                                                                       inner_solver), coarse_solve_its, 0.9);
+         }
+         break;
+      }
+      case AMGPreconditioner::PARIC_ISAI :
+      {
+         if (use_mixed_prec)
+         {
+            using ic_fact_type = gko::factorization::ParIc<float, int>;
+            std::shared_ptr<ic_fact_type::Factory> fact_factory =
+               ic_fact_type::build()
+               .with_both_factors(false)
+               .on(executor);
+            using lower_trs_type = gko::preconditioner::LowerIsai<float, int>;
+            auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
+                                .with_factorization_factory(fact_factory)
+                                .on(executor);
+            coarse_solver_gen = gko::solver::build_smoother<float>(gko::share(inner_solver),
+                                                                   coarse_solve_its, 0.9);
+         }
+         else
+         {
+            using ic_fact_type = gko::factorization::ParIc<double, int>;
+            std::shared_ptr<ic_fact_type::Factory> fact_factory =
+               ic_fact_type::build()
+               .with_both_factors(false)
+               .on(executor);
+            using lower_trs_type = gko::preconditioner::LowerIsai<double, int>;
+            auto inner_solver = gko::preconditioner::Ic<lower_trs_type, int>::build()
                                 .with_factorization_factory(fact_factory)
                                 .on(executor);
             coarse_solver_gen = gko::solver::build_smoother<double>(gko::share(

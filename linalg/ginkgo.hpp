@@ -1250,7 +1250,9 @@ public:
       BLOCK_JACOBI = 1,
       IC = 2,
       PARIC = 3,
-      CG = 4
+      IC_ISAI = 4,
+      PARIC_ISAI = 5,
+      CG = 6
    };
 
    /**
