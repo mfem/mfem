@@ -1491,21 +1491,21 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
    // Top level (fine grid) will sort by default unless told otherwise.
    if (skip_sort == true)
    {
-     // Only need a special top level if using mixed precision; otherwise, mg_level_gen will
-     // work for all (no sorting on every level, double precision throughout)
-     if (use_mixed_prec == true) 
-     {
-       mg_top_level_gen = amgx_pgm::build()
-                          .with_deterministic(true)
-                          .with_skip_sorting(true)
-                          .on(executor);
-     }
+      // Only need a special top level if using mixed precision; otherwise, mg_level_gen will
+      // work for all (no sorting on every level, double precision throughout)
+      if (use_mixed_prec == true)
+      {
+         mg_top_level_gen = amgx_pgm::build()
+                            .with_deterministic(true)
+                            .with_skip_sorting(true)
+                            .on(executor);
+      }
    }
-   else 
+   else
    {
-     mg_top_level_gen = amgx_pgm::build()
-                        .with_deterministic(true)
-                        .on(executor);
+      mg_top_level_gen = amgx_pgm::build()
+                         .with_deterministic(true)
+                         .on(executor);
    }
    // Other levels should always skip sort.
    mg_level_gen = amgx_pgm::build()
@@ -1516,9 +1516,9 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
    // Single precision levels (for mixed-precision)
    using amgx_pgm_s = gko::multigrid::AmgxPgm<float, int>;
    auto mg_level_gen_s = amgx_pgm_s::build()
-                          .with_deterministic(true)
-                          .with_skip_sorting(true)
-                          .on(executor);
+                         .with_deterministic(true)
+                         .with_skip_sorting(true)
+                         .on(executor);
 
    using mg = gko::solver::Multigrid;
    // Selector for the multigrid levels (double/single precision)
@@ -1538,37 +1538,37 @@ AMGPreconditioner::AMGPreconditioner(GinkgoExecutor &exec,
                     .with_coarsest_solver(gko::share(coarse_solver_gen))
                     .with_criteria(
                        gko::stop::Iteration::build().with_max_iters(1u).on(executor))
-                     .with_zero_guess(true)
+                    .with_zero_guess(true)
                     .on(executor);
    }
    else
    {
       if (skip_sort == true) // Can use same mg_level for all levels
       {
-        precond_gen = mg::build()
-                      .with_min_coarse_rows(64u)
-                      //                    .with_max_levels(9u)
-                      .with_pre_smoother(gko::share(smoother_gen))
-                      .with_mg_level(gko::share(mg_level_gen))
-                      .with_coarsest_solver(gko::share(coarse_solver_gen))
-                      .with_criteria(
-                         gko::stop::Iteration::build().with_max_iters(1u).on(executor))
-                      .with_zero_guess(true)
-                      .on(executor);
+         precond_gen = mg::build()
+                       .with_min_coarse_rows(64u)
+                       //                    .with_max_levels(9u)
+                       .with_pre_smoother(gko::share(smoother_gen))
+                       .with_mg_level(gko::share(mg_level_gen))
+                       .with_coarsest_solver(gko::share(coarse_solver_gen))
+                       .with_criteria(
+                          gko::stop::Iteration::build().with_max_iters(1u).on(executor))
+                       .with_zero_guess(true)
+                       .on(executor);
       }
-      else 
+      else
       {
-        precond_gen = mg::build()
-                      .with_min_coarse_rows(64u)
-                      //                    .with_max_levels(9u)
-                      .with_pre_smoother(gko::share(smoother_gen))
-                      .with_mg_level(gko::share(mg_top_level_gen), gko::share(mg_level_gen))
-                      .with_level_selector(selector)
-                      .with_coarsest_solver(gko::share(coarse_solver_gen))
-                      .with_criteria(
-                         gko::stop::Iteration::build().with_max_iters(1u).on(executor))
-                      .with_zero_guess(true)
-                      .on(executor);
+         precond_gen = mg::build()
+                       .with_min_coarse_rows(64u)
+                       //                    .with_max_levels(9u)
+                       .with_pre_smoother(gko::share(smoother_gen))
+                       .with_mg_level(gko::share(mg_top_level_gen), gko::share(mg_level_gen))
+                       .with_level_selector(selector)
+                       .with_coarsest_solver(gko::share(coarse_solver_gen))
+                       .with_criteria(
+                          gko::stop::Iteration::build().with_max_iters(1u).on(executor))
+                       .with_zero_guess(true)
+                       .on(executor);
       }
    }
 }
