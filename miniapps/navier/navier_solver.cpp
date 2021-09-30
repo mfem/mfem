@@ -113,11 +113,6 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
-   pmesh_lor = new ParMesh(
-      ParMesh::MakeRefined(*pmesh, order, BasisType::GaussLobatto));
-   pfec_lor = new H1_FECollection(1);
-   pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
-
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
@@ -241,12 +236,8 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      Sp_form_lor = new ParBilinearForm(pfes_lor);
-      Sp_form_lor->UseExternalIntegrators();
-      CopyDBFIntegrators(Sp_form, Sp_form_lor);
-      Sp_form_lor->Assemble();
-      Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
-      SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
+      lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
+      SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
       SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
@@ -1140,13 +1131,10 @@ NavierSolver::~NavierSolver()
    delete H_form;
    delete SpInv;
    delete MvInvPC;
-   delete Sp_form_lor;
    delete SpInvOrthoPC;
    delete SpInvPC;
+   delete lor;
    delete f_form;
-   delete pfes_lor;
-   delete pfec_lor;
-   delete pmesh_lor;
    delete MvInv;
    delete vfec;
    delete pfec;
