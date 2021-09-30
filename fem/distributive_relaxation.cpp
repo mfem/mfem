@@ -125,25 +125,25 @@ static void forAllDispatchMult(int &totalSize, const int clusterPackSize, const 
 
       // load the diagonals of g^TAg ("D")
       MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) diags[i]   = MFEM_LDG(dg+2*DIM*group+i);
+      for (int i = 0; i < DIM; ++i) diags[i]     = dg[2*DIM*group+i];
 
       // load the coefficient array ("G")
       MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) gcoeffs[i] = MFEM_LDG(dg+2*DIM*group+DIM+i);
+	for (int i = 0; i < DIM; ++i) gcoeffs[i] = dg[2*DIM*group+DIM+i];
 
       // load the map from packed representation to DOF layout in the vector
       MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) cmap[i]    = MFEM_LDG(c+DIM*group+i);
+      for (int i = 0; i < DIM; ++i) cmap[i]      = c[DIM*group+i];
 
       // load the input vector
       MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) vin[i]     = MFEM_LDG(b+cmap[i]);
+      for (int i = 0; i < DIM; ++i) vin[i]       = b[cmap[i]];
 
       kernels::computeSmootherAction<DIM>(diags,gcoeffs,vin,vout);
 
       // stream results back down
       MFEM_UNROLL(DIM)
-      for (int i = 0; i < DIM; ++i) x[cmap[i]] = scale*vout[i];
+      for (int i = 0; i < DIM; ++i) x[cmap[i]]   = scale*vout[i];
      }
    });
    totalSize += 2*clusterPackSize;
@@ -162,13 +162,13 @@ void forAllDispatchMult<1>(int &totalSize, const int clusterPackSize, const doub
        double vout;
 
        // load the diagonals of g^TAg ("D")
-       const double diags = MFEM_LDG(dgBegin+group);
+       const double diags = dgBegin[group];
 
        // load the map from packed representation to DOF layout in the vector
-       const int    cmap  = MFEM_LDG(c+group);
+       const int    cmap  = c[group];
 
        // load the input vector
-       const double vin   = MFEM_LDG(b+cmap);
+       const double vin   = b[cmap];
 
        // G is unused
        kernels::computeSmootherAction<1>(&diags,NULL,&vin,&vout);
@@ -452,21 +452,21 @@ MFEM_HOST_DEVICE MFEM_FORCE_INLINE void loadSubmatLDG(const int *__restrict__ I,
    MFEM_UNROLL(LDA)
    for (int i = 0; i < LDA; ++i)
    {
-      const int dof_i = MFEM_LDG(clusters+i);
-      const int dofLo = MFEM_LDG(I+dof_i);
-      const int dofHi = MFEM_LDG(I+dof_i+1);
+      const int dof_i = clusters[i];
+      const int dofLo = I[dof_i];
+      const int dofHi = I[dof_i+1];
       // shouldn't unroll here, we don't know trip count and nvcc is kinda terrible at
       // guessing it
       for (int j = dofLo; j < dofHi; ++j)
       {
-         const int dof_j = MFEM_LDG(J+j);
+         const int dof_j = J[j];
 
          MFEM_UNROLL(LDA)
          for (int k = 0; k < LDA; ++k)
          {
-            if (dof_j == MFEM_LDG(clusters+k))
+            if (dof_j == clusters[k])
             {
-	       MFEM_MAT_COL_MAJOR(subMat,LDA,i,k) = MFEM_LDG(data+j);
+	       MFEM_MAT_COL_MAJOR(subMat,LDA,i,k) = data[j];
                break;
             }
          }
