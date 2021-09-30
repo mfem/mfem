@@ -5,7 +5,10 @@ preconditioning. It is a part of the SciDAC project of [Tokamak Disruption Simul
 
 It currently supports a 2D reduced resistive MHD model. For details of the model as well as physics-based
 preconditioning, see [Chacón, Luis, Dana A. Knoll, and J. M. Finn. "An implicit, nonlinear reduced resistive MHD solver." JCP 2002].
-Other MHD models will be developed soon.
+Other MHD models will be developed .
+
+./mhd: 2D reduced resistive MHD
+./rmhd: 2D reduced resistive MHD but in (R,Z)
 
 ### Some highlights of the miniapp
 * Both implicit and explicit MHD solvers are available

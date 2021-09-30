@@ -1,0 +1,20 @@
+# matrix-free Jacobian action, preconditioner constructed using PetscPreconditionerFactory
+-snes_monitor
+-snes_mf_operator
+-snes_max_it 20
+-snes_rtol 1e-3
+#
+-ksp_type gmres
+#-ksp_monitor_true_residual
+#-ksp_view
+#-s1_ksp_view
+-s1_ksp_rtol 1e-6
+-s1_ksp_converged_reason
+-s1_pc_type hypre
+#-s1_ksp_monitor
+#
+#-s2_ksp_view
+-s2_ksp_rtol 1e-6
+-s2_ksp_converged_reason
+#-s2_ksp_monitor
+#-pc_type jacobi this flag will overwrite shell!!
