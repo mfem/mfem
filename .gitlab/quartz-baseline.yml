@@ -34,6 +34,7 @@ report_baseline:
   stage: baseline_report
   script:
     - cd ${AUTOTEST_ROOT}/autotest && git pull
+    - mkdir -p ${MACHINE_NAME}
     - rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-${BASELINE_TEST}-${CI_COMMIT_REF_SLUG}"
     - rundir=$(${CI_PROJECT_DIR}/.gitlab/scripts/safe_create_rundir ${rundir})
     - cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
