@@ -808,6 +808,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          {
             if ( interp_index==InterpConfig::conforming || side!=master_side )
             {
+               // No interpolation
                MFEM_FOREACH_THREAD(dof,x,nd)
                {
                   const int i = face*nd + dof;
@@ -1231,7 +1232,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
                   // interpolation operator for simplicity.
                   SetSharedFaceDofsScatterIndices2(face,f_ind);
                }
-               else
+               else // local non-conforming slave
                {
                   // Contrary to the conforming case, there is no need to call
                   // PermuteFaceL2, the permutation is achieved by the

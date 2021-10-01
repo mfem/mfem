@@ -406,7 +406,8 @@ protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
-       the face described by the @a face.
+       the face described by the @a face. The ordering of the face dofs of elem1
+       is lexicographic relative to elem1.
 
        @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
@@ -415,7 +416,8 @@ protected:
                                    const int face_index);
 
    /** @brief Set the scattering indices of elem2, and increment the offsets for
-       the face described by the @a face.
+       the face described by the @a face. The ordering of the face dofs of elem2
+       is lexicographic relative to elem2.
 
        @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
@@ -425,7 +427,7 @@ protected:
 
    /** @brief Permute and set the scattering indices of elem2, and increment the
        offsets for the face described by the @a face. The permutation orders the
-       dofs of elem2 as the ones of elem1.
+       dofs of elem2 lexicographically as the ones of elem1.
 
        @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.
