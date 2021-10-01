@@ -38,7 +38,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
 
    constexpr int D = get_basis_dofs<Basis>;
    ResultTensor<Basis,D> u(u_e);
-   return B * u;
+   // return B * u;
+   return ContractX(B,u); // ?
 }
 
 // 1D Tensor
@@ -116,7 +117,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    MFEM_SHARED double s_Bt[basis_size];
    auto Bt = basis.GetBt(s_Bt);
 
-   return Bt * u;
+   // return Bt * u;
+   return ContractX(Bt,u); // ?
 }
 
 // 1D Tensor
