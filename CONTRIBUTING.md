@@ -112,6 +112,7 @@ The MFEM source code has the following structure:
   |   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── fe
   │   ├── qinterp
   │   └── tmop
   ├── general
@@ -581,10 +582,10 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   semi-automated manner.
 
 - This instance is meant to complete CI testing with tests on Livermore
-  Computing systems. Gitlab pipeline status is reported in the corresponding
+  Computing systems. GitLab pipeline status is reported in the corresponding
   GitHub pull request.
 
-- In Gitlab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
+- In GitLab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
 
 - No change to the MFEM repo can be made on this instance.
 

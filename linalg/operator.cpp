@@ -210,6 +210,11 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
    }
 }
 
+void Operator::PrintMatlab(std::ostream &out) const
+{
+   PrintMatlab(out, width, height);
+}
+
 
 void TimeDependentOperator::ExplicitMult(const Vector &, Vector &) const
 {
