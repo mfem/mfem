@@ -4288,9 +4288,13 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          {
             f(0) += b[i] * p(i);
             f(1) += b[i + num_basis_functions] * p(i);
+            // mfem::out << "num_basis_functions = " << num_basis_functions << endl;
+            // mfem::out << "i = " << i << endl;
+            // mfem::out << "b.size = " << b.Size() << endl;
             if (dim == 3)
             {
-               f(2) += b[i + num_basis_functions * num_basis_functions] * p(i);
+
+               f(2) += b[i + num_basis_functions + num_basis_functions] * p(i);
             }
          }
       };

@@ -152,8 +152,11 @@ int main(int argc, char *argv[])
    //     flux to get an error indicator. We need to supply the space for the
    //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
    FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
+   // ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+
+   NewZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+
+   estimator.SetAnisotropic(false);
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
@@ -220,6 +223,7 @@ int main(int argc, char *argv[])
       // 19. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
+         cout << "num elements = " << mesh.GetNE() << endl;
          sol_sock.precision(8);
          sol_sock << "solution\n" << mesh << x << flush;
       }
