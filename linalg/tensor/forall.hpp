@@ -24,7 +24,7 @@ namespace mfem
    constexpr int Bsize = get_config_batchsize<Config>;                         \
    const int Xthreads = config_use_xthreads<Config> ? threads : 1;             \
    const int Ythreads = config_use_ythreads<Config> ? threads : 1;             \
-   const int Zthreads = Bsize * ( config_use_ythreads<Config> ? threads : 1 ); \
+   const int Zthreads = Bsize * ( config_use_zthreads<Config> ? threads : 1 ); \
    ForallWrap<3>(true,N,                                                       \
                  [=] MFEM_DEVICE (int i) mutable {__VA_ARGS__},                \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},                        \
