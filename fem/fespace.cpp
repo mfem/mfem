@@ -942,9 +942,9 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
          }
          else
          {
-            // TODO (if needed):
-            // res = new L2FaceRestriction(*this, e_ordering, type, m, num_face_derivatives);
             res = new L2FaceNormalDRestriction(*this, e_ordering, type, /*IntRule,*/ m);
+            // TODO (if needed): replace this with 
+            // res = new L2FaceNormalDRestriction(*this, e_ordering, type, m, num_face_derivatives);
          }
       }
       else
@@ -952,39 +952,6 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
          res = new H1FaceRestriction(*this, e_ordering, type);
       }
       L2F[key] = res;
-      return res;
-   }
-}
-
-const Operator *FiniteElementSpace::GetFaceNormalDerivRestriction(
-   ElementDofOrdering e_ordering, FaceType type, const IntegrationRule* IntRule, L2FaceValues mul) const
-{
-
-   exit(1);
-   const bool is_dg_space = IsDGSpace();
-   const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
-                          L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
-   // If FaceRestriction matching parameters in key has been constructed, grab it
-   auto itr = L2FnormD.find(key);
-   if (itr != L2FnormD.end())
-   {
-      return itr->second;
-   }
-   else
-   {
-      // Otherwise create it
-      Operator* res;
-      if (is_dg_space)
-      {
-         res = new L2FaceNormalDRestriction(*this, e_ordering, type, /*IntRule,*/ m);
-      }
-      else
-      {
-         res = NULL;
-         MFEM_ABORT("Not yet implemented");
-      }
-      L2FnormD[key] = res;
       return res;
    }
 }
@@ -2174,13 +2141,6 @@ void FiniteElementSpace::Destroy()
    {
       delete x.second;
    }
-   /*
-   // todo check to make sure this works
-   for (auto &x : L2FnormD)
-   {
-      delete x.second;
-   }
-   */
    for (int i = 0; i < E2IFQ_array.Size(); i++)
    {
       delete E2IFQ_array[i];

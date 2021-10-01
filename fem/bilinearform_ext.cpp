@@ -415,7 +415,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      // needs A = P^T A_L P
       elem_restrict->Mult(x, localX);
 #if timings_on > 0 
 timelines[tid] = __LINE__;

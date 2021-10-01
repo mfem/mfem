@@ -12,7 +12,6 @@
 #ifndef MFEM_RESTRICTION
 #define MFEM_RESTRICTION
 
-#include "nonlininteg.hpp"
 #include "../linalg/operator.hpp"
 #include "../mesh/mesh.hpp"
 

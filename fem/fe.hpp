@@ -2087,7 +2087,6 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
-
 };
 
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
@@ -2104,7 +2103,6 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
-
 };
 
 class VectorTensorFiniteElement : public VectorFiniteElement,

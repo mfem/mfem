@@ -41,11 +41,9 @@ public:
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const; 
-   // P
 
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const; 
-   // PˆT
 
    /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
@@ -74,12 +72,9 @@ protected:
    mutable Vector faceBdrX, faceBdrY;
    mutable Vector faceNormDIntX, faceNormDIntY;
    mutable Vector faceNormDBdrX, faceNormDBdrY;
-   // elem_restrict is P
    const Operator *elem_restrict; // Not owned
    const Operator *int_face_restrict_lex; // Not owned
    const Operator *bdr_face_restrict_lex; // Not owned
-   const Operator *int_face_normD_restrict_lex; // Not owned
-   const Operator *bdr_face_normD_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);

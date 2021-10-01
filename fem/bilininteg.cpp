@@ -2850,7 +2850,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       }
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
       adjJ.Mult(ni, nh);
-
       if (kappa_is_nonzero)
       {
          wq = ni * nor;

@@ -147,7 +147,6 @@ protected:
    };
    using map_L2F = std::unordered_map<const key_face,Operator*,key_hash>;
    mutable map_L2F L2F;
-   mutable map_L2F L2FnormD;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
    mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
@@ -359,10 +358,6 @@ public:
       ElementDofOrdering e_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued,
       int num_face_derivatives = 0) const;
-
-   virtual const Operator *GetFaceNormalDerivRestriction(
-      ElementDofOrdering e_ordering, FaceType, const IntegrationRule*,
-      L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
