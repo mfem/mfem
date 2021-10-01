@@ -29,7 +29,7 @@ double lambda;
 double resiG;
 double ep=.2;
 int icase = 1;
-
+ParMesh *pmesh;
 
 //this is an AMR update function for VSize (instead of TrueVSize)
 //It is only called in the initial stage of AMR to generate an adaptive mesh
@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
 
    //amr_levels+=ser_ref_levels; this is not needed any more
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
@@ -969,7 +969,7 @@ int main(int argc, char *argv[])
    double end = MPI_Wtime();
 
    //++++++Save the solutions (only if paraview or visit is not turned on).
-   if (false)
+   if (true)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));

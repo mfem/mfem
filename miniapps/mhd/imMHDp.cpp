@@ -821,7 +821,7 @@ int main(int argc, char *argv[])
          psi.SaveAsOne(osolpsi);
          phi.SaveAsOne(osolphi);
       }
-      else if (false)
+      else if (true)
       {
          mesh_name << "mesh." << setfill('0') << setw(6) << myid;
          mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
