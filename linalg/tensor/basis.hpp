@@ -851,6 +851,28 @@ std::enable_if_t<
    static constexpr int value = D*Q;
 };
 
+template <typename Config>
+struct get_basis_capacity_v<ConfigBasis<Config>,
+std::enable_if_t<
+   get_config_dofs<Config> == Dynamic &&
+   get_config_quads<Config> == Dynamic &&
+   is_tensor_config<Config>
+> >
+{
+   static constexpr int value = DynamicMaxSize*DynamicMaxSize;
+};
+
+template <typename Config>
+struct get_basis_capacity_v<ConfigBasis<Config>,
+std::enable_if_t<
+   get_config_dofs<Config> == Dynamic &&
+   get_config_quads<Config> == Dynamic &&
+   !is_tensor_config<Config>
+> >
+{
+   static constexpr int value = 64*64;
+};
+
 template <typename Basis>
 struct get_basis_capacity_v<Grad<Basis>, std::enable_if_t<is_basis<Basis>> >
 {
