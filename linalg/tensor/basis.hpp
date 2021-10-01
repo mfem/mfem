@@ -47,9 +47,8 @@ using StaticSharedBasisTensor = BasisTensor<Dim,true,StaticPointerDTensor<Q,D>>;
 
 /// Represent the rank 2 tensor containing B or G with dynamic sizes
 template <int Dim>
-using DynamicBasisNonTensor = BasisTensor<Dim,
-                                          false,
-                                          DynamicDTensor<2,pow(16,2*Dim)>>;
+using DynamicBasisNonTensor = BasisTensor<
+   Dim, false, DynamicDTensor<2,pow(DynamicMaxSize,2*Dim)>>;
 
 /// Represent the rank 2 tensor containing B or G with static sizes
 template <int Dim, int Q, int D>
@@ -233,7 +232,7 @@ struct Basis<Dim,true,Dynamic,Dynamic>
 {
    static constexpr int dim = Dim;
    static constexpr bool isTensor = true;
-   static constexpr int MaxSize = pow(16,2);
+   static constexpr int MaxSize = pow(DynamicMaxSize,2);
    const int dofs1D;
    const int quads1D;
    const int dofs;
@@ -396,7 +395,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 {
    static constexpr int dim = Dim;
    static constexpr bool isTensor = false;
-   static constexpr int MaxSize = pow(16,3);
+   static constexpr int MaxSize = pow(DynamicMaxSize,3);
    const int dofs;
    const int quads;
    const double *B;
@@ -819,19 +818,25 @@ constexpr int get_basis_size = get_basis_size_v<N,Basis>::value;
 template <typename Basis, typename Enable = void> //std::enable_if_t<is_basis<Basis>> >
 struct get_basis_capacity_v
 {
-   static constexpr int value = 16*16; // TODO
+   static constexpr int value = DynamicMaxSize*DynamicMaxSize; // TODO
 };
 
-template <int Dim, bool IsTensor>
-struct get_basis_capacity_v<Basis<Dim,IsTensor,Dynamic,Dynamic>,void>
+template <int Dim>
+struct get_basis_capacity_v<Basis<Dim,true,Dynamic,Dynamic>,void>
 {
-   static constexpr int value = 16*16;
+   static constexpr int value = DynamicMaxSize*DynamicMaxSize;
 };
 
-template <int Dim, bool IsTensor, int D, int Q>
-struct get_basis_capacity_v<Basis<Dim,IsTensor,D,Q>,void>
+template <int Dim>
+struct get_basis_capacity_v<Basis<Dim,false,Dynamic,Dynamic>,void>
 {
-   static constexpr int value = D*Q;
+   static constexpr int value = 64*64;
+};
+
+template <int Dim, bool IsTensor, int Dofs, int Quads>
+struct get_basis_capacity_v<Basis<Dim,IsTensor,Dofs,Quads>,void>
+{
+   static constexpr int value = Dofs*Quads;
 };
 
 template <typename Config>
@@ -870,7 +875,7 @@ struct get_basis_capacity_v<Trans<Grad<Basis>>, std::enable_if_t<is_basis<Basis>
 // template <int Dim, bool IsTensor, typename TensorType>
 // struct get_basis_capacity_v<BasisTensor<Dim, IsTensor, TensorType>>
 // {
-//    static constexpr int value = 16*16; // TODO
+//    static constexpr int value = DynamicMaxSize*DynamicMaxSize; // TODO
 // };
 
 template <typename Basis>

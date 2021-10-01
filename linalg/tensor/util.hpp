@@ -17,6 +17,7 @@ namespace mfem
 
 static constexpr int Dynamic = 0;
 static constexpr int Error = -1;
+static constexpr int DynamicMaxSize = 16;
 
 #if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__))
 static constexpr bool is_device = true;

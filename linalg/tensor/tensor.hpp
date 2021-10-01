@@ -202,11 +202,11 @@ public:
 // Behavioral Tensor types
 
 /// Dynamically sized Tensor
-template <int Rank, typename T, int MaxSize = pow(16,Rank)>
+template <int Rank, typename T, int MaxSize = pow(DynamicMaxSize,Rank)>
 using DynamicTensor = Tensor<StaticContainer<T, MaxSize>,
                              DynamicLayout<Rank> >;
 
-template <int Rank, int MaxSize = pow(16,Rank)>
+template <int Rank, int MaxSize = pow(DynamicMaxSize,Rank)>
 using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
 
 /// Statically sized Tensor
@@ -226,7 +226,7 @@ constexpr int get_DynamicBlockLayout_size(int MaxSize, int Rank)
    return Rank>2 ? pow(MaxSize,Rank-2) : 1;
 }
 
-template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic2dThreadTensor = Tensor<
                               StaticContainer<
                                  T,
@@ -235,7 +235,7 @@ using Dynamic2dThreadTensor = Tensor<
                               Dynamic2dThreadLayout<Rank,BatchSize>
                            >;
 
-template <int Rank, int BatchSize, int MaxSize = 16>
+template <int Rank, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic2dThreadDTensor = Dynamic2dThreadTensor<Rank,double,BatchSize,MaxSize>;
 
 /// A Tensor statically distributed over a plane of threads
@@ -252,7 +252,7 @@ constexpr int get_Dynamic3dThreadLayout_size(int MaxSize, int Rank)
    return Rank>3 ? pow(MaxSize,Rank-3) : 1;
 }
 
-template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic3dThreadTensor = Tensor<
                                  StaticContainer<
                                     T,
@@ -261,7 +261,7 @@ using Dynamic3dThreadTensor = Tensor<
                                  Dynamic3dThreadLayout<Rank,BatchSize>
                               >;
 
-template <int Rank, int BatchSize, int MaxSize = 16>
+template <int Rank, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic3dThreadDTensor = Dynamic3dThreadTensor<Rank,double,BatchSize,MaxSize>;
 
 /// A Tensor statically distributed over a plane of threads
@@ -302,7 +302,7 @@ struct ThreadTensor<1>
    template <typename T, int BatchSize, int... Sizes>
    using static_type = Static2dThreadTensor<T,BatchSize,Sizes...>;
 
-   template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+   template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
    using dynamic_type = Dynamic2dThreadTensor<Rank,T,BatchSize,MaxSize>;
 };
 
@@ -312,7 +312,7 @@ struct ThreadTensor<2>
    template <typename T, int BatchSize, int... Sizes>
    using static_type = Static2dThreadTensor<T,BatchSize,Sizes...>;
 
-   template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+   template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
    using dynamic_type = Dynamic2dThreadTensor<Rank,T,BatchSize,MaxSize>;
 };
 
@@ -322,7 +322,7 @@ struct ThreadTensor<3>
    template <typename T, int BatchSize, int... Sizes>
    using static_type = Static3dThreadTensor<T,BatchSize,Sizes...>;
 
-   template <int Rank, typename T, int BatchSize, int MaxSize = 16>
+   template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
    using dynamic_type = Dynamic3dThreadTensor<Rank,T,BatchSize,MaxSize>;
 };
 
@@ -330,7 +330,7 @@ template <int Dim, typename T, int BatchSize, int... Sizes>
 using StaticThreadTensor = typename ThreadTensor<Dim>
                               ::template static_type<T,BatchSize,Sizes...>;
 
-template <int Dim, int Rank, typename T, int BatchSize, int MaxSize = 16>
+template <int Dim, int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
 using DynamicThreadTensor = typename ThreadTensor<Dim>
                                ::template dynamic_type<Rank,T,BatchSize,MaxSize>;
 
@@ -363,7 +363,7 @@ using ReadDTensor = ReadTensor<Rank,double>;
 // Architecture Tensor types
 
 /// Defines the dynamic type of Tensor used for computation on CPU.
-template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
 using DynamicCPUTensor = DynamicTensor<Rank, T, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on CPU.
@@ -371,7 +371,7 @@ template <typename T, int BatchSize, int... Sizes>
 using StaticCPUTensor = StaticTensor<T, Sizes...>;
 
 /// Defines the dynamic type of Tensor used for computation on CUDA.
-template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
 using DynamicCUDATensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on CUDA.
@@ -379,7 +379,7 @@ template <typename T, int BatchSize, int... Sizes>
 using StaticCUDATensor = Static2dThreadTensor<T, BatchSize, Sizes...>;
 
 /// Defines the dynamic type of Tensor used for computation on Hip.
-template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
 using DynamicHipTensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on Hip.
@@ -391,27 +391,27 @@ struct DeviceTensorType
 {
 #ifdef __CUDA_ARCH__
    // CUDA types
-   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
    using dynamic_type = DynamicCUDATensor<Rank,T,BatchSize,MaxSize>;
 
    template <typename T, int BatchSize, int... Sizes>
    using static_type = StaticCUDATensor<T,BatchSize,Sizes...>;
 #elif defined(__HIP_DEVICE_COMPILE__)
    // Hip types
-   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
    using dynamic_type = DynamicHipTensor<Rank,T,BatchSize,MaxSize>;
 
    template <typename T, int BatchSize, int... Sizes>
    using static_type = StaticHipTensor<T,BatchSize,Sizes...>;
 #elif defined(FUGAKU_ARCH) // extension exemple
-   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
    using dynamic_type = DynamicCPUTensor<Rank,T,BatchSize,MaxSize>;
 
    template <typename T, int BatchSize, int... Sizes>
    using static_type = StaticCPUTensor<T,BatchSize,Sizes...>;
 #else
    // CPU types
-   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
    using dynamic_type = DynamicCPUTensor<Rank,T,BatchSize,MaxSize>;
 
    template <typename T, int BatchSize, int... Sizes>
@@ -420,10 +420,10 @@ struct DeviceTensorType
 };
 
 /// Defines the dynamic Tensor type for the compiling architecture
-template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
 using DynamicDeviceTensor = DeviceTensorType::dynamic_type<Rank,T,BatchSize,MaxSize>;
 
-template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
+template <int Rank, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
 using DynamicDeviceDTensor = DynamicDeviceTensor<Rank,double,BatchSize,MaxSize>;
 
 /// Defines the static Tensor type for the compiling architecture
