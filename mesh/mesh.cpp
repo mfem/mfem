@@ -1069,6 +1069,42 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
    *NCFace = faces_info[Face].NCFace;
 }
 
+int Mesh::GetFaceElements2(int face, Array<int> & elems) const
+{
+   int type = -1; // -1: bdr; 0: conforming, 1: slave, 2: master
+   bool nonconforming_face = ncmesh && (faces_info[face].NCFace != -1);
+   if (nonconforming_face)
+   {
+      int nc_index = faces_info[face].NCFace;
+      const NCFaceInfo &nc_info = nc_faces_info[nc_index];
+      if (!nc_info.Slave)
+      {
+         type = 2;
+         const mfem::NCMesh::NCList &nc_list = ncmesh->GetNCList(Dim-1);
+         elems.Append(ncmesh->elements[nc_list.masters[nc_index].element].index);
+         int j_begin = nc_list.masters[nc_index].slaves_begin;
+         int j_end = nc_list.masters[nc_index].slaves_end;
+         for (int j = j_begin; j<j_end ; j++)
+         {
+            elems.Append(ncmesh->elements[nc_list.slaves[j].element].index);
+         }
+         return type;
+      }
+   }
+   // Conforming face or slave face. In case of nonconforming master face, early
+   // return above.
+   int el1, el2;
+   GetFaceElements(face, &el1, &el2);
+   elems.Append(el1);
+   if (el2 != -1) 
+   {
+      type = (nonconforming_face) ? 1 : 0;
+      elems.Append(el2);
+   }   
+   return type;
+}
+
+
 Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 {
    switch (Dim)
