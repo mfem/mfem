@@ -570,7 +570,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          // Array<ComplexCoefficientByAttr*> & sbcs,
                          void (*j_r_src)(const Vector&, Vector&),
                          void (*j_i_src)(const Vector&, Vector&),
-                         bool vis_u, bool pa)
+                         bool vis_u, bool cyl, bool pa)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -653,6 +653,12 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      etaCoef_(etaCoef),
      kReCoef_(kReCoef),
      kImCoef_(kImCoef),
+     cylSymm_(cyl),
+     cylMassCoef_(muCoef),
+     cylStiffnessReCoef_(epsInvReCoef),
+     cylStiffnessImCoef_(epsInvImCoef),
+     cylSourceReCoef_(epsInvReCoef),
+     cylSourceImCoef_(epsInvImCoef),
      SReCoef_(NULL),
      SImCoef_(NULL),
      DReCoef_(NULL),
@@ -844,6 +850,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    posMassCoef_ = new ProductCoefficient(*omega2Coef_,
                                          *muCoef_);
 
+   if (cylSymm_)
+   {
+      cylMassCoef_.SetCoefficient(*massCoef_);
+   }
+   
    // Impedance of free space
    if ( abcs.Size() > 0 )
    {
@@ -932,9 +943,18 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    // Bilinear Forms
    a1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
    if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
-                            new CurlCurlIntegrator(*epsInvImCoef_));
-   a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
+   if (!cylSymm_)
+   {
+     a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
+			      new CurlCurlIntegrator(*epsInvImCoef_));
+     a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
+   }
+   else
+   {
+     a1_->AddDomainIntegrator(new CurlCurlIntegrator(cylStiffnessReCoef_),
+			      new CurlCurlIntegrator(cylStiffnessImCoef_));
+     a1_->AddDomainIntegrator(new VectorFEMassIntegrator(cylMassCoef_), NULL);
+   }
    if (kReCoef_ || kImCoef_)
    {
       if (pa_)
@@ -1733,6 +1753,11 @@ CPDSolverDH::Solve()
    HypreParMatrix * A1C = A1Z->GetSystemMatrix();
    SuperLURowLocMatrix A_SuperLU(*A1C);
    SuperLUSolver AInv(MPI_COMM_WORLD);
+   AInv.SetPrintStatistics(true);
+   // AInv.SetNumLookAheads(10);
+   // AInv.SetReplaceTinyPivot(true);
+   // AInv.SetEquilibriate(false);
+   // AInv.SetIterativeRefine(superlu::SLU_DOUBLE);
    AInv.SetOperator(A_SuperLU);
    // solver.Mult(RHS1, H);
 

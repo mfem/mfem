@@ -367,6 +367,7 @@ public:
                void (*j_r_src)(const Vector&, Vector&),
                void (*j_i_src)(const Vector&, Vector&),
                bool vis_u = false,
+	       bool cyl = false,
                bool pa = false);
    ~CPDSolverDH();
 
@@ -628,6 +629,83 @@ private:
       }
    };
 
+   class CylStiffnessCoef : public MatrixCoefficient
+   {
+   private:
+     MatrixCoefficient &A_;
+     mutable Vector x_;
+     
+   public:
+     CylStiffnessCoef(MatrixCoefficient &A)
+       : MatrixCoefficient(3), A_(A), x_(3) {}
+
+     void Eval(DenseMatrix &M, ElementTransformation &T,
+	       const IntegrationPoint &ip)
+     {
+       T.Transform(ip, x_);
+       
+       A_.Eval(M, T, ip);
+
+       M(0,0) /= x_[1];
+       M(1,0) /= x_[1];
+       M(0,1) /= x_[1];
+       M(1,1) /= x_[1];
+
+       M(2,2) *= x_[1];
+     }
+   };
+  
+   class CylMassCoef : public MatrixCoefficient
+   {
+   private:
+     Coefficient &A_;
+     mutable Vector x_;
+     
+   public:
+     CylMassCoef(Coefficient &A)
+       : MatrixCoefficient(3), A_(A), x_(3) {}
+
+     void SetCoefficient(Coefficient &A) { A_ = A; }
+     
+     void Eval(DenseMatrix &M, ElementTransformation &T,
+	       const IntegrationPoint &ip)
+     {
+       T.Transform(ip, x_);
+
+       double a = A_.Eval(T, ip);
+
+       M.SetSize(3);
+       M = 0.0;
+       
+       M(0,0) = a * x_[1];
+       M(1,1) = a * x_[1];
+       M(2,2) = a / x_[1];
+     }
+   };
+  
+   class CylSourceCoef : public MatrixCoefficient
+   {
+   private:
+     MatrixCoefficient &A_;
+     mutable Vector x_;
+     
+   public:
+     CylSourceCoef(MatrixCoefficient &A)
+       : MatrixCoefficient(3), A_(A), x_(3) {}
+
+     void Eval(DenseMatrix &M, ElementTransformation &T,
+	       const IntegrationPoint &ip)
+     {
+       T.Transform(ip, x_);
+
+       A_.Eval(M, T, ip);
+       
+       M(2,0) *= x_[1];
+       M(2,1) *= x_[1];
+       M(2,2) *= x_[1];
+     }
+   };
+  
    void collectBdrAttributes(const Array<AttributeArrays*> & aa,
                              Array<int> & attr_marker);
 
@@ -751,6 +829,13 @@ private:
    VectorCoefficient * kReCoef_;        // Wave Vector
    VectorCoefficient * kImCoef_;        // Wave Vector
 
+   bool cylSymm_;
+   CylMassCoef      cylMassCoef_;
+   CylStiffnessCoef cylStiffnessReCoef_;
+   CylStiffnessCoef cylStiffnessImCoef_;
+   CylSourceCoef    cylSourceReCoef_;
+   CylSourceCoef    cylSourceImCoef_;
+  
    Coefficient * SReCoef_; // Stix S Coefficient
    Coefficient * SImCoef_; // Stix S Coefficient
    Coefficient * DReCoef_; // Stix D Coefficient

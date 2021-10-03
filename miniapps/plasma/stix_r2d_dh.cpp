@@ -391,6 +391,7 @@ int main(int argc, char *argv[])
 
    bool logo = false;
    bool per_y = false;
+   bool cyl = false;
    bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -403,6 +404,10 @@ int main(int argc, char *argv[])
    args.AddOption(&per_y, "-per-y", "--periodic-in-y", "-no-per-y",
                   "--not-periodic-in-y",
                   "The input mesh is periodic in the y-direction.");
+   args.AddOption(&cyl, "-cyl", "--cylindrical-coords", "-cart",
+                  "--cartesian-coords",
+                  "Cartesian (x, y, z) coordinates or "
+		  "Cylindrical (z, rho, phi).");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -467,6 +472,9 @@ int main(int argc, char *argv[])
 #endif
 #ifdef MFEM_USE_STRUMPACK
                   ", 5 - STRUMPACK"
+#endif
+#ifdef MFEM_USE_MUMPS
+                  ", 6 - MUMPS"
 #endif
                  );
    args.AddOption(&solOpts.maxIter, "-sol-it", "--solver-iterations",
@@ -791,7 +799,7 @@ int main(int argc, char *argv[])
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
-   mesh->EnsureNCMesh();
+   // mesh->EnsureNCMesh();
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -1287,7 +1295,7 @@ int main(int argc, char *argv[])
                    (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
                    j_src_r : NULL,
                    (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
-                   j_src_i : NULL, vis_u, pa);
+                   j_src_i : NULL, vis_u, cyl, pa);
 
    // Initialize GLVis visualization
    if (visualization)
