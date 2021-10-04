@@ -71,6 +71,7 @@ set(SRCS
   linearform_ext.cpp
   lininteg.cpp
   lininteg_domain.cpp
+  lininteg_vector_domain.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp

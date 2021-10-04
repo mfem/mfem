@@ -17,8 +17,6 @@
 #ifdef MFEM_USE_BENCHMARK
 
 #include "benchmark/benchmark.h"
-#define MFEM_DEBUG_COLOR 157
-#include "../../general/debug.hpp"
 
 using namespace mfem;
 namespace bm = benchmark;

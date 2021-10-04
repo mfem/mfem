@@ -22,7 +22,7 @@
 /// Base class for the test and the bench for the LinearForm extension
 struct LinExt
 {
-   const int N, p, q, dim = 3;
+   const int N, p, q, dim;
    Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace fes;
@@ -33,11 +33,13 @@ struct LinExt
    const int dofs;
    double mdofs;
 
-   LinExt(int p, int vdim):
+   LinExt(int p, int dim, int vdim):
       N(Device::IsEnabled()?32:8),
       p(p),
       q(2*p + 3),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
+      dim(dim),
+      mesh(dim ==3 ? Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON):
+           (assert(dim==2), Mesh::MakeCartesian2D(N,N,Element::QUADRILATERAL))),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec, vdim),
       geom_type(fes.GetFE(0)->GetGeomType()),
@@ -56,17 +58,18 @@ struct LinExt
 
 ////////////////////////////////////////////////////////////////////////////////
 /// TEST for LinearFormExtension
-template<int VDIM>
+template<int DIM, typename LFI>
 struct Test: public LinExt
 {
+   Vector v;
    LinearForm c;
    ConstantCoefficient f;
-   Test(int order, const double pi = M_PI): LinExt(order, VDIM), c(&fes), f(pi)
+   Test(int order, const double pi = M_PI): LinExt(order,DIM,1), c(&fes), f(pi)
    {
       b.SetAssemblyLevel(LinearAssemblyLevel::FULL);
       c.SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
-      b.AddDomainIntegrator(new DomainLFIntegrator(f));
-      c.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.AddDomainIntegrator(new LFI(f));
+      c.AddDomainIntegrator(new LFI(f));
       MFEM_DEVICE_SYNC;
    }
 
@@ -76,29 +79,75 @@ struct Test: public LinExt
       c.Assemble();
       const double btb = b*b;
       const double ctc = c*c;
-      MFEM_VERIFY(almost_equal(btb, ctc), "almost_equal test error!");
+      //dbg("%.21e %.21e", btb,ctc);
+      MFEM_VERIFY(almost_equal(btb,ctc,10), "almost_equal test error!");
       MFEM_DEVICE_SYNC;
       mdofs += MDofs();
    }
 };
 
 /// Linear Form Extension Tests
-#define LinExtTest(VDIM)\
-static void TEST_##VDIM##D(bm::State &state){\
-   Test<VDIM> ker(state.range(0));\
+#define LinExtTest(DIM,Kernel)\
+static void TEST_##Kernel(bm::State &state){\
+   Test<DIM,Kernel##Integrator> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
-BENCHMARK(TEST_##VDIM##D)->DenseRange(1,6)->Unit(bm::kMillisecond);
+BENCHMARK(TEST_##Kernel)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// 1D scalar linear form tests
-LinExtTest(1)
+LinExtTest(3,DomainLF)
+
+////////////////////////////////////////////////////////////////////////////////
+/// VectorTEST for LinearFormExtension
+template<typename LFI, int DIM, int VDIM>
+struct VectorTest: public LinExt
+{
+   Vector v;
+   LinearForm c;
+   VectorConstantCoefficient f;
+   VectorTest(int order, const double pi = M_PI):
+      LinExt(order, DIM, VDIM),
+      v(VDIM),
+      c(&fes),
+      f((v=pi,v))
+   {
+      b.SetAssemblyLevel(LinearAssemblyLevel::FULL);
+      c.SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
+      b.AddDomainIntegrator(new LFI(f));
+      c.AddDomainIntegrator(new LFI(f));
+      MFEM_DEVICE_SYNC;
+   }
+
+   void benchmark() override
+   {
+      b.Assemble();
+      c.Assemble();
+      const double btb = b*b;
+      const double ctc = c*c;
+      //dbg("%.21e %.21e", btb,ctc);
+      MFEM_VERIFY(almost_equal(btb,ctc,10), "almost_equal test error!");
+      MFEM_DEVICE_SYNC;
+      mdofs += MDofs();
+   }
+};
+
+/// Linear Form Extension Tests
+#define VectorLinExtTest(Kernel,DIM,VDIM)\
+static void VTEST_##Kernel(bm::State &state){\
+   VectorTest<Kernel##Integrator,DIM,VDIM> ker(state.range(0));\
+   while (state.KeepRunning()) { ker.benchmark(); }\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
+BENCHMARK(VTEST_##Kernel)->DenseRange(1,6)->Unit(bm::kMillisecond);
+
+/// Vector linear form tests
+VectorLinExtTest(VectorDomainLF,3,3)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// BENCH for LinearFormExtension
-template<int VDIM, enum LinearAssemblyLevel LINEAR_ASSEMBLY_LEVEL>
+template<int DIM, int VDIM, enum LinearAssemblyLevel LINEAR_ASSEMBLY_LEVEL>
 struct Bench: public LinExt
 {
-   Bench(int order): LinExt(order, VDIM)
+   Bench(int order): LinExt(order, DIM, VDIM)
    {
       b.SetAssemblyLevel(LINEAR_ASSEMBLY_LEVEL);
       b.AddDomainIntegrator(new DomainLFIntegrator(one));
@@ -114,16 +163,17 @@ struct Bench: public LinExt
 };
 
 /// Linear Form Extension Benchs
-#define LinExtBench(VDIM,LVL)\
+#define LinExtBench(DIM,VDIM,LVL)\
 static void BENCH_##LVL##_##VDIM##D(bm::State &state){\
-   Bench<VDIM,LinearAssemblyLevel::LVL> ker(state.range(0));\
+   Bench<DIM,VDIM,LinearAssemblyLevel::LVL> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
 BENCHMARK(BENCH_##LVL##_##VDIM##D)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// 1D scalar linear form bench
-LinExtBench(1,FULL)
-LinExtBench(1,LEGACY)
+//LinExtBench(1,FULL)
+//LinExtBench(1,LEGACY)
+LinExtBench(3,3,FULL)
 
 /// 2D vector linear form bench
 //LinExtBench(2,FULL)
@@ -136,7 +186,8 @@ LinExtBench(1,LEGACY)
 
 /** ****************************************************************************
  * @brief main entry point
- * --benchmark_filter=TB1
+ * --benchmark_filter=TEST
+ * --benchmark_filter=BENCH
  * --benchmark_context=device=cuda
  */
 int main(int argc, char *argv[])
