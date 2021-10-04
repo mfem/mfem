@@ -49,7 +49,8 @@ private:
                                  BilinearForm &a_to,
                                  GetIntegratorsFn get_integrators,
                                  GetMarkersFn get_markers,
-                                 AddIntegratorMarkersFn add_integrator,
+                                 AddIntegratorMarkersFn add_integrator_marker,
+                                 AddIntegratorFn add_integrator,
                                  const IntegrationRule *ir);
 
    /// Resets the integration rules of the integrators of @a a to their original
