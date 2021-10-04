@@ -544,7 +544,7 @@ private:
    Type type_;
    Vector p_;
 
-   const int np_[6] = {1, 7, 9, 7, 7, 7};
+   const int np_[6] = {1, 7, 9, 7, 7, 8};
 
    mutable Vector x_;
 

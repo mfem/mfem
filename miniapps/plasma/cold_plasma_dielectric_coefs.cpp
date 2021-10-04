@@ -1191,10 +1191,11 @@ double PlasmaProfile::Eval(ElementTransformation &T,
           double lambda_n = p_[2]; // Damping length
           double nu = p_[3]; // Strength of decline
           Vector x0(&p_[4], 3);
+          int ind = (int)rint(p_[7]);
 
           x_ -= x0;
           //double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-          return (pmax - pmin) * pow(cosh(pow((x_[0] / lambda_n), nu)), -1.0) + pmin;
+          return (pmax - pmin) * pow(cosh(pow((x_[ind] / lambda_n), nu)), -1.0) + pmin;
        }
        break;
       default:
