@@ -19,7 +19,7 @@
 // double f(const double x) { return std::sin(M_PI*x*0.125); }
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Base class for the test and the bench for the LinearForm extension
+/// Base class for the LinearForm extension test and the bench
 struct LinExt
 {
    const int N, p, q, dim;
@@ -38,7 +38,7 @@ struct LinExt
       p(p),
       q(2*p + 3),
       dim(dim),
-      mesh(dim ==3 ? Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON):
+      mesh(dim==3 ? Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON):
            (assert(dim==2), Mesh::MakeCartesian2D(N,N,Element::QUADRILATERAL))),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec, vdim),
@@ -58,13 +58,15 @@ struct LinExt
 
 ////////////////////////////////////////////////////////////////////////////////
 /// TEST for LinearFormExtension
-template<int DIM, typename LFI>
+template<typename LFI, int DIM, int VDIM>
 struct Test: public LinExt
 {
-   Vector v;
    LinearForm c;
    ConstantCoefficient f;
-   Test(int order, const double pi = M_PI): LinExt(order,DIM,1), c(&fes), f(pi)
+   Test(int order, const double pi = M_PI):
+      LinExt(order,DIM,VDIM),
+      c(&fes),
+      f(pi)
    {
       b.SetAssemblyLevel(LinearAssemblyLevel::FULL);
       c.SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
@@ -79,23 +81,23 @@ struct Test: public LinExt
       c.Assemble();
       const double btb = b*b;
       const double ctc = c*c;
-      //dbg("%.21e %.21e", btb,ctc);
       MFEM_VERIFY(almost_equal(btb,ctc,10), "almost_equal test error!");
       MFEM_DEVICE_SYNC;
       mdofs += MDofs();
    }
 };
 
-/// Linear Form Extension Tests
-#define LinExtTest(DIM,Kernel)\
-static void TEST_##Kernel(bm::State &state){\
-   Test<DIM,Kernel##Integrator> ker(state.range(0));\
+/// Scalar Linear Form Extension Tests
+#define LinExtTest(Kernel,DIM)\
+static void TEST_##Kernel##_##DIM##D(bm::State &state){\
+   Test<Kernel##Integrator,DIM,1> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
-BENCHMARK(TEST_##Kernel)->DenseRange(1,6)->Unit(bm::kMillisecond);
+BENCHMARK(TEST_##Kernel##_##DIM##D)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
-/// 1D scalar linear form tests
-LinExtTest(3,DomainLF)
+/// Scalar linear form tests, VDIM = DIM
+LinExtTest(DomainLF,2)
+LinExtTest(DomainLF,3)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// VectorTEST for LinearFormExtension
@@ -105,11 +107,11 @@ struct VectorTest: public LinExt
    Vector v;
    LinearForm c;
    VectorConstantCoefficient f;
-   VectorTest(int order, const double pi = M_PI):
+   VectorTest(int order):
       LinExt(order, DIM, VDIM),
       v(VDIM),
       c(&fes),
-      f((v=pi,v))
+      f((v.Randomize(),v))
    {
       b.SetAssemblyLevel(LinearAssemblyLevel::FULL);
       c.SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
@@ -124,22 +126,22 @@ struct VectorTest: public LinExt
       c.Assemble();
       const double btb = b*b;
       const double ctc = c*c;
-      //dbg("%.21e %.21e", btb,ctc);
       MFEM_VERIFY(almost_equal(btb,ctc,10), "almost_equal test error!");
       MFEM_DEVICE_SYNC;
       mdofs += MDofs();
    }
 };
 
-/// Linear Form Extension Tests
+/// Vector Linear Form Extension Tests
 #define VectorLinExtTest(Kernel,DIM,VDIM)\
-static void VTEST_##Kernel(bm::State &state){\
+static void TEST_##Kernel##_##DIM##D(bm::State &state){\
    VectorTest<Kernel##Integrator,DIM,VDIM> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
-BENCHMARK(VTEST_##Kernel)->DenseRange(1,6)->Unit(bm::kMillisecond);
+BENCHMARK(TEST_##Kernel##_##DIM##D)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
-/// Vector linear form tests
+/// Vector linear form tests, VDIM = DIM
+VectorLinExtTest(VectorDomainLF,2,2)
 VectorLinExtTest(VectorDomainLF,3,3)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,26 +164,61 @@ struct Bench: public LinExt
    }
 };
 
-/// Linear Form Extension Benchs
-#define LinExtBench(DIM,VDIM,LVL)\
-static void BENCH_##LVL##_##VDIM##D(bm::State &state){\
-   Bench<DIM,VDIM,LinearAssemblyLevel::LVL> ker(state.range(0));\
+/// Linear Form Extension Scalar Benchs
+#define LinExtBench(LVL,DIM)\
+static void BENCH_##LVL##_DomainLF_##DIM##D(bm::State &state){\
+   Bench<DIM,1,LinearAssemblyLevel::LVL> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
-BENCHMARK(BENCH_##LVL##_##VDIM##D)->DenseRange(1,6)->Unit(bm::kMillisecond);
+BENCHMARK(BENCH_##LVL##_DomainLF_##DIM##D)->DenseRange(1,6)->Unit(bm::kMicrosecond);
 
-/// 1D scalar linear form bench
-//LinExtBench(1,FULL)
-//LinExtBench(1,LEGACY)
-LinExtBench(3,3,FULL)
+/// 2D scalar linear form bench
+LinExtBench(LEGACY,2)
+LinExtBench(FULL,2)
+
+/// 3D scalar linear form bench
+LinExtBench(LEGACY,3)
+LinExtBench(FULL,3)
+
+////////////////////////////////////////////////////////////////////////////////
+/// Vector BENCH for LinearFormExtension
+template<int DIM, int VDIM, enum LinearAssemblyLevel LINEAR_ASSEMBLY_LEVEL>
+struct VectorBench: public LinExt
+{
+   Vector v;
+   VectorConstantCoefficient f;
+   VectorBench(int order): LinExt(order, DIM, VDIM),
+      v(VDIM),
+      f((v.Randomize(),v))
+   {
+      b.SetAssemblyLevel(LINEAR_ASSEMBLY_LEVEL);
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+      MFEM_DEVICE_SYNC;
+   }
+
+   void benchmark() override
+   {
+      b.Assemble();
+      MFEM_DEVICE_SYNC;
+      mdofs += MDofs();
+   }
+};
+
+/// Linear Form Extension Vector Benchs
+#define VectorLinExtBench(LVL,DIM)\
+static void BENCH_##LVL##_VectorDomainLF##DIM##D(bm::State &state){\
+   Bench<DIM,1,LinearAssemblyLevel::LVL> ker(state.range(0));\
+   while (state.KeepRunning()) { ker.benchmark(); }\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
+BENCHMARK(BENCH_##LVL##_VectorDomainLF##DIM##D)->DenseRange(1,6)->Unit(bm::kMicrosecond);
 
 /// 2D vector linear form bench
-//LinExtBench(2,FULL)
-//LinExtBench(2,LEGACY)
+VectorLinExtBench(LEGACY,2)
+VectorLinExtBench(FULL,2)
 
 /// 3D vector linear form bench
-//LinExtBench(3,FULL)
-//LinExtBench(3,LEGACY)
+VectorLinExtBench(LEGACY,3)
+VectorLinExtBench(FULL,3)
 
 
 /** ****************************************************************************

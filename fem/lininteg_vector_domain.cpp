@@ -20,23 +20,119 @@ namespace mfem
 {
 
 template<int D1D, int Q1D> static
-void Kernel(const int ND,
-            const int NE,
-            const double *marks,
-            const double *d2q,
-            const int *idx,
-            const double *jacobians,
-            const double *weights,
-            const Vector &coeff,
-            double * __restrict y)
+void Kernel2D(const int ND,
+              const int NE,
+              const double *marks,
+              const double *d2q,
+              const int *idx,
+              const double *jacobians,
+              const double *weights,
+              const Vector &coeff,
+              double * __restrict y)
 {
+   constexpr int DIM = 2;
+   constexpr int VDIM = 2;
+
+   const bool constant_coeff = coeff.Size() == 1;
+
+   const auto F = coeff.Read();
+   const auto M = Reshape(marks, NE);
+   const auto B = Reshape(d2q, Q1D,D1D);
+   const auto J = Reshape(jacobians, Q1D,Q1D,DIM,DIM,NE);
+   const auto W = Reshape(weights, Q1D,Q1D);
+   const auto I = Reshape(idx, D1D,D1D, NE);
+   const auto C = constant_coeff ?
+                  Reshape(F,1,1,1,1):
+                  Reshape(F,VDIM,Q1D,Q1D,NE);
+   auto Y = Reshape(y,ND,VDIM);
+
+   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+   {
+      if (M(e) < 1.0) return;
+
+      MFEM_SHARED double Bt[D1D][Q1D];
+      MFEM_SHARED double sm0[Q1D*Q1D];
+      MFEM_SHARED double sm1[Q1D*Q1D];
+      double (*QQ)[Q1D] = (double (*)[Q1D]) (sm0);
+      double (*QD)[D1D] = (double (*)[D1D]) (sm1);
+
+      const double constant_val = C(0,0,0,0);
+
+
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            Bt[dy][qx] = B(qx,dy);
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int c = 0; c < VDIM; ++ c)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               const double J11 = J(qx,qy,0,0,e);
+               const double J21 = J(qx,qy,1,0,e);
+               const double J12 = J(qx,qy,0,1,e);
+               const double J22 = J(qx,qy,1,1,e);
+               const double detJ = (J11*J22)-(J21*J12);
+               const double coeff_xyz = C(c,qx,qy,e);
+               const double coeff_val = constant_coeff ? constant_val : coeff_xyz;
+               QQ[qy][qx] = W(qx,qy) * coeff_val * detJ;
+
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double dq = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx) { dq += QQ[qy][qx] * Bt[dx][qx]; }
+               QD[qy][dx] = dq;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double dd = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy) { dd += QD[qy][dx] * Bt[dy][qy]; }
+               const int gid = I(dx,dy,e);
+               const int idx = gid >= 0 ? gid : -1 - gid;
+               AtomicAdd(Y(idx,c), dd);
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+
+template<int D1D, int Q1D> static
+void Kernel3D(const int ND,
+              const int NE,
+              const double *marks,
+              const double *d2q,
+              const int *idx,
+              const double *jacobians,
+              const double *weights,
+              const Vector &coeff,
+              double * __restrict y)
+{
+   constexpr int DIM = 3;
    constexpr int VDIM = 3;
    const bool constant_coeff = coeff.Size() == 1;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto B = Reshape(d2q, Q1D, D1D);
-   const auto J = Reshape(jacobians, Q1D,Q1D,Q1D,3,3,NE);
+   const auto B = Reshape(d2q, Q1D,D1D);
+   const auto J = Reshape(jacobians, Q1D,Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
    const auto C = constant_coeff ?
@@ -44,11 +140,9 @@ void Kernel(const int ND,
                   Reshape(F,VDIM,Q1D,Q1D,Q1D,NE);
    auto Y = Reshape(y,ND,VDIM);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
-      const double mark = M(e);
-      assert(mark > 0.0);
-      if (mark < 1.0) return;
+      if (M(e) < 1.0) return;
 
       double u[Q1D];
       MFEM_SHARED double s_B[Q1D][D1D];
@@ -168,7 +262,6 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   //dbg("dim:%d",dim);
 
    const FiniteElement &el = *fes.GetFE(0);
    const Geometry::Type geom_type = el.GetGeomType();
@@ -198,7 +291,6 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
 
    const int vdim = fes.GetVDim();
    const int qvdim = Q.GetVDim();
-   //dbg("vdim:%d qvdim:%d",vdim,qvdim);
    assert(qvdim == vdim);
 
    Vector coeff;
@@ -254,12 +346,21 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
 
    switch (id) // orders 1~6
    {
-      case 0x3322: Ker=Kernel<2,2>; break; // 1
-      case 0x3333: Ker=Kernel<3,3>; break; // 2
-      case 0x3344: Ker=Kernel<4,4>; break; // 3
-      case 0x3355: Ker=Kernel<5,5>; break; // 4
-      case 0x3366: Ker=Kernel<6,6>; break; // 5
-      case 0x3377: Ker=Kernel<7,7>; break; // 6
+      // 2D kernels
+      case 0x2222: Ker=Kernel2D<2,2>; break; // 1
+      case 0x2233: Ker=Kernel2D<3,3>; break; // 2
+      case 0x2244: Ker=Kernel2D<4,4>; break; // 3
+      case 0x2255: Ker=Kernel2D<5,5>; break; // 4
+      case 0x2266: Ker=Kernel2D<6,6>; break; // 5
+      case 0x2277: Ker=Kernel2D<7,7>; break; // 6
+
+      // 3D kernels
+      case 0x3322: Ker=Kernel3D<2,2>; break; // 1
+      case 0x3333: Ker=Kernel3D<3,3>; break; // 2
+      case 0x3344: Ker=Kernel3D<4,4>; break; // 3
+      case 0x3355: Ker=Kernel3D<5,5>; break; // 4
+      case 0x3366: Ker=Kernel3D<6,6>; break; // 5
+      case 0x3377: Ker=Kernel3D<7,7>; break; // 6
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
    Ker(ND,NE,M,B,I,J,W,coeff,Y);
