@@ -94,7 +94,7 @@ public:
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
          "Open uniform", "Closed uniform", "Open half uniform",
-         "Seredipity", "Closed Gauss-Legendre",
+         "Serendipity", "Closed Gauss-Legendre",
          "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
