@@ -17,6 +17,8 @@
 #ifdef MFEM_USE_BENCHMARK
 
 #include "benchmark/benchmark.h"
+#define MFEM_DEBUG_COLOR 157
+#include "../../general/debug.hpp"
 
 using namespace mfem;
 namespace bm = benchmark;
@@ -32,6 +34,17 @@ extern std::map<std::string, std::string> *global_context;
 
 namespace mfem
 {
+
+template<class T>
+typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
+almost_equal(const T x, const T y, const int ulp = 2)
+{
+   const T neg = std::fabs(x-y);
+   const T sum = std::fabs(x+y);
+   constexpr T min = std::numeric_limits<T>::min();
+   constexpr T epsilon = std::numeric_limits<T>::epsilon();
+   return (neg <= epsilon * sum * ulp) || (neg < min);
+}
 
 constexpr std::size_t KB = (1<<10);
 
