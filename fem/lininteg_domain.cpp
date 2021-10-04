@@ -217,8 +217,6 @@ void DomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
       }
    }
 
-   const double *C = coeff.Read();
-
    const int id = (dim<<8) |(D1D << 4) | Q1D;
 
    void (*Ker)(const int NE,
@@ -238,8 +236,8 @@ void DomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
       case 0x355: Ker=Kernel<5,5>; break; // 4
       case 0x366: Ker=Kernel<6,6>; break; // 5
       case 0x377: Ker=Kernel<7,7>; break; // 6
-      case 0x388: Ker=Kernel<8,8>; break; // 7
-      case 0x399: Ker=Kernel<9,9>; break; // 8
+      //case 0x388: Ker=Kernel<8,8>; break; // 7
+      //case 0x399: Ker=Kernel<9,9>; break; // 8
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
    Ker(NE,M,B,I,J,W,coeff,Y);

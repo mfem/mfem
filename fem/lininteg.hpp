@@ -233,6 +233,10 @@ public:
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
+   virtual void AssemblePA(const FiniteElementSpace &fes,
+                           const Vector &mark,
+                           Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
