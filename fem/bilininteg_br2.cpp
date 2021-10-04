@@ -16,20 +16,39 @@
 namespace mfem
 {
 
-DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
-                                                   double e) : eta(e)
+DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(
+   FiniteElementSpace &fes, double e) : eta(e), Q(NULL)
 {
+   PrecomputeMassInverse(fes);
+}
+
+DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(
+   FiniteElementSpace &fes, Coefficient &Q_, double e) : eta(e), Q(&Q_)
+{
+   PrecomputeMassInverse(fes);
+}
+
+DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(
+   FiniteElementSpace *fes, double e) : eta(e), Q(NULL)
+{
+   PrecomputeMassInverse(*fes);
+}
+
+void DGDiffusionBR2Integrator::PrecomputeMassInverse(FiniteElementSpace &fes)
+{
+   MFEM_VERIFY(fes.IsDGSpace(),
+               "The BR2 integrator is only defined for DG spaces.");
    // Precompute local mass matrix inverses needed for the lifting operators
    // First compute offsets and total size needed (e.g. for mixed meshes or
    // p-refinement)
-   int nel = fes->GetNE();
+   int nel = fes.GetNE();
    Minv_offsets.SetSize(nel+1);
    ipiv_offsets.SetSize(nel+1);
    ipiv_offsets[0] = 0;
    Minv_offsets[0] = 0;
    for (int i=0; i<nel; ++i)
    {
-      int dof = fes->GetFE(i)->GetDof();
+      int dof = fes.GetFE(i)->GetDof();
       ipiv_offsets[i+1] = ipiv_offsets[i] + dof;
       Minv_offsets[i+1] = Minv_offsets[i] + dof*dof;
    }
@@ -37,7 +56,7 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
 #ifdef MFEM_USE_MPI
    // When running in parallel, we also need to compute the local mass matrices
    // of face neighbor elements
-   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace *>(fes);
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace *>(&fes);
    if (pfes != NULL)
    {
       ParMesh *pmesh = pfes->GetParMesh();
@@ -64,15 +83,15 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
    {
       const FiniteElement *fe = NULL;
       ElementTransformation *tr = NULL;
-      if (i < fes->GetNE())
+      if (i < fes.GetNE())
       {
-         fe = fes->GetFE(i);
-         tr = fes->GetElementTransformation(i);
+         fe = fes.GetFE(i);
+         tr = fes.GetElementTransformation(i);
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         int inbr = i - fes->GetNE();
+         int inbr = i - fes.GetNE();
          fe = pfes->GetFaceNbrFE(inbr);
          tr = pfes->GetParMesh()->GetFaceNbrElementTransformation(inbr);
 #endif
@@ -161,7 +180,8 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
          el2.CalcShape(eip2, shape2);
       }
 
-      double w = sqrt((factor + 1)*eta)*ip.weight*Trans.Face->Weight();
+      double q = Q ? Q->Eval(*Trans.Elem1, eip1) : 1.0;
+      double w = sqrt((factor + 1)*eta*q)*ip.weight*Trans.Face->Weight();
 
       for (int i = 0; i < ndof1; i++)
       {
