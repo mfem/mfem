@@ -321,12 +321,16 @@ void Update(ParFiniteElementSpace & H1FESpace,
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
+void record_cmd_line(int argc, char *argv[]);
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
    if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
    display_banner(mfem::out);
+
+   if (mpi.Root()) { record_cmd_line(argc, argv); }
 
    int logging = 1;
 
@@ -1552,6 +1556,40 @@ void display_banner(ostream & os)
       << "  plasma dielectric for the wave equation is formulated using"
       << " the \"Stix\"" << endl
       << "  notation, \"S, D, P\"." << endl<< endl << flush;
+}
+
+void record_cmd_line(int argc, char *argv[])
+{
+   ofstream ofs("stix_r2d_dh_cmd.txt");
+
+   for (int i=0; i<argc; i++)
+   {
+      ofs << argv[i] << " ";
+      if (strcmp(argv[i], "-dpp"    ) == 0 ||
+          strcmp(argv[i], "-tpp"    ) == 0 ||
+          strcmp(argv[i], "-B"      ) == 0 ||
+          strcmp(argv[i], "-k-vec"  ) == 0 ||
+          strcmp(argv[i], "-q"      ) == 0 ||
+          strcmp(argv[i], "-rod"    ) == 0 ||
+          strcmp(argv[i], "-slab"   ) == 0 ||
+          strcmp(argv[i], "-abcs"   ) == 0 ||
+          strcmp(argv[i], "-sbcs"   ) == 0 ||
+          strcmp(argv[i], "-pecs"   ) == 0 ||
+          strcmp(argv[i], "-dbcs-pw") == 0 ||
+          strcmp(argv[i], "-dbcs1"  ) == 0 ||
+          strcmp(argv[i], "-dbcs2"  ) == 0 ||
+          strcmp(argv[i], "-dbcv1"  ) == 0 ||
+          strcmp(argv[i], "-dbcv2"  ) == 0 ||
+          strcmp(argv[i], "-nbcs1"  ) == 0 ||
+          strcmp(argv[i], "-nbcs2"  ) == 0 ||
+          strcmp(argv[i], "-nbcv1"  ) == 0 ||
+          strcmp(argv[i], "-nbcv2"  ) == 0)
+      {
+         ofs << "'" << argv[++i] << "' ";
+      }
+   }
+   ofs << endl << flush;
+   ofs.close();
 }
 
 // The Impedance is an optional coefficient defined on boundary surfaces which
