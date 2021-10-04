@@ -24,13 +24,18 @@ void Kernel(const int NE,
             const int *idx,
             const double *jacobians,
             const double *weights,
+            const Vector &coeff,
             double* __restrict Y)
 {
+   const bool constant_coeff = coeff.Size() == 1;
+
+   const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
    const auto B = Reshape(d2q, Q1D, D1D);
    const auto J = Reshape(jacobians, Q1D,Q1D,Q1D,3,3,NE);
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
+   const auto C = constant_coeff ? Reshape(F,1,1,1,1):Reshape(F,Q1D,Q1D,Q1D,NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
@@ -41,6 +46,7 @@ void Kernel(const int NE,
       double u[Q1D];
       MFEM_SHARED double s_B[Q1D][D1D];
       MFEM_SHARED double s_q[Q1D][Q1D][Q1D];
+      const double constant_val = C(0,0,0,0);
 
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
@@ -69,8 +75,9 @@ void Kernel(const int NE,
                const double detJ = J11 * (J22 * J33 - J32 * J23) -
                                    J21 * (J12 * J33 - J32 * J13) +
                                    J31 * (J12 * J23 - J22 * J13);
-               const double coeff = 1.0;
-               s_q[qz][qy][qx] = W(qx,qy,qz) * coeff * detJ;
+               const double coeff_xyz = C(qx,qy,qz,e);
+               const double coeff_val = constant_coeff ? constant_val:coeff_xyz;
+               s_q[qz][qy][qx] = W(qx,qy,qz) * coeff_val * detJ;
             }
          }
       }
@@ -175,21 +182,67 @@ void DomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
    const int NE = fes.GetMesh()->GetNE();
+   const int NQ = ir->GetNPoints();
+
+   Vector coeff;
+
+   if (ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(&Q))
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
+   else if (QuadratureFunctionCoefficient *cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
+   {
+      const QuadratureFunction &qfun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qfun.Size() == NE*NQ,
+                  "Incompatible QuadratureFunction dimension \n");
+      MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different.\n");
+      qfun.Read();
+      coeff.MakeRef(const_cast<QuadratureFunction&>(qfun),0);
+   }
+   else
+   {
+      coeff.SetSize(NQ * NE);
+      auto C = Reshape(coeff.HostWrite(), NQ, NE);
+      for (int e = 0; e < NE; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < NQ; ++q)
+         {
+            C(q,e) = Q.Eval(T, ir->IntPoint(q));
+         }
+      }
+   }
+
+   const double *C = coeff.Read();
 
    const int id = (dim<<8) |(D1D << 4) | Q1D;
 
+   void (*Ker)(const int NE,
+               const double *marks,
+               const double *d2q,
+               const int *idx,
+               const double *jacobians,
+               const double *weights,
+               const Vector &C,
+               double *Y) = nullptr;
+
    switch (id) // orders 1~6
    {
-      case 0x322: return Kernel<2,2>(NE,M,B,I,J,W,Y); // 1
-      case 0x333: return Kernel<3,3>(NE,M,B,I,J,W,Y); // 2
-      case 0x344: return Kernel<4,4>(NE,M,B,I,J,W,Y); // 3
-      case 0x355: return Kernel<5,5>(NE,M,B,I,J,W,Y); // 4
-      case 0x366: return Kernel<6,6>(NE,M,B,I,J,W,Y); // 5
-      case 0x377: return Kernel<7,7>(NE,M,B,I,J,W,Y); // 6
-      case 0x388: return Kernel<8,8>(NE,M,B,I,J,W,Y); // 7
-      case 0x399: return Kernel<9,9>(NE,M,B,I,J,W,Y); // 8
+      case 0x322: Ker=Kernel<2,2>; break; // 1
+      case 0x333: Ker=Kernel<3,3>; break; // 2
+      case 0x344: Ker=Kernel<4,4>; break; // 3
+      case 0x355: Ker=Kernel<5,5>; break; // 4
+      case 0x366: Ker=Kernel<6,6>; break; // 5
+      case 0x377: Ker=Kernel<7,7>; break; // 6
+      case 0x388: Ker=Kernel<8,8>; break; // 7
+      case 0x399: Ker=Kernel<9,9>; break; // 8
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
+   Ker(NE,M,B,I,J,W,coeff,Y);
 }
 
 } // namespace mfem
