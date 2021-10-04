@@ -71,8 +71,7 @@ public:
    virtual ~Wedge() { }
 };
 
-// Defined in fe.cpp to ensure construction after 'mfem::poly1d'.
-extern class H1_WedgeElement WedgeFE;
+extern class LinearWedgeFiniteElement WedgeFE;
 
 }
 

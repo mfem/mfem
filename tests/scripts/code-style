@@ -22,7 +22,7 @@ case $1 in
           -h|-help    prints this usage information and exits
 
    This script checks if the code in mfem_dir conforms to the MFEM C++ style
-   (currently based on astyle-2.05.1). Note that the comparison is done with
+   (currently based on astyle-3.1). Note that the comparison is done with
    "git diff", so all differences between mfem_dir and the repository will be
    reported. The local changes can be erased (lost!) with "git checkout .".
 
@@ -74,7 +74,7 @@ if [ -s "$test_name.err" ]; then
 
 To correct this error, run 'make style' and make sure that:
 
-1) You are using Artistic Style 2.05.1 ("astyle --version").
+1) You are using Artistic Style 3.1 ("astyle --version").
 2) There is no use of std::cout or std::cerr inside the library code (examples
    and miniapps are OK). Use mfem::out and mfem::err instead.
 3) Run "make style" to apply astyle formatting and verify your code.
