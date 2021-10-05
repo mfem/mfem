@@ -105,12 +105,14 @@ The MFEM source code has the following structure:
   │   ├── caliper
   │   ├── ginkgo
   │   ├── hiop
+  │   ├── jupyter
   │   ├── petsc
   │   ├── pumi
   │   ├── sundials
   |   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── fe
   │   ├── qinterp
   │   └── tmop
   ├── general
@@ -126,6 +128,7 @@ The MFEM source code has the following structure:
   │   ├── mtop
   │   ├── navier
   │   ├── nurbs
+  │   ├── parelag
   │   ├── performance
   │   ├── shifted
   │   ├── solvers
@@ -327,7 +330,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
     documentation in source comments.
   - Consistent code styling is enforced with `make style` in the top-level
     directory. This requires [Artistic Style](http://astyle.sourceforge.net) (we
-    specifically use version 2.05.1). See also the file `config/mfem.astylerc`.
+    specifically use version 3.1). See also the file `config/mfem.astylerc`.
   - Use `mfem::out` and `mfem::err` instead of `std::cout` and `std::cerr` in
     internal library code. (You can use `std` in examples and miniapps.)
   - When manually resolving conflicts during a merge, make sure to mention the
@@ -579,10 +582,10 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   semi-automated manner.
 
 - This instance is meant to complete CI testing with tests on Livermore
-  Computing systems. Gitlab pipeline status is reported in the corresponding
+  Computing systems. GitLab pipeline status is reported in the corresponding
   GitHub pull request.
 
-- In Gitlab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
+- In GitLab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
 
 - No change to the MFEM repo can be made on this instance.
 

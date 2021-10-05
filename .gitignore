@@ -292,16 +292,27 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/parelag/MultilevelHcurlHdivSolver
+miniapps/parelag/*.mesh
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
 tests/unit/punit_tests
+tests/unit/cunit_tests
+tests/unit/pcunit_tests
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
 tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
+
+# Benchmark binaries
+tests/benchmarks/bench_ceed
+tests/benchmarks/bench_tmop
+tests/benchmarks/bench_vector
+tests/benchmarks/bench_virtuals
 
 # Test script output
 tests/scripts/*.err
@@ -319,3 +330,6 @@ build-*/*
 # PETSc automated build
 petsc-build/*
 pkg.gitcommit
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints

@@ -131,6 +131,7 @@ public:
    int GetNVertices() const { return NVertices; }
    int GetNEdges() const { return NEdges; }
    int GetNFaces() const { return NFaces; }
+   virtual int GetNGhostElements() const { return 0; }
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -159,7 +160,6 @@ public:
        Note that if anisotropic refinements are present in the mesh, some of the
        derefinements may have to be skipped to preserve mesh consistency. */
    virtual void Derefine(const Array<int> &derefs);
-
 
    // master/slave lists
 

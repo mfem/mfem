@@ -15,6 +15,12 @@
 #include "../general/forall.hpp"
 #include <climits>
 
+#ifdef MFEM_USE_MPI
+
+#include "pfespace.hpp"
+
+#endif
+
 namespace mfem
 {
 
@@ -161,8 +167,8 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
          for (int j = offset; j < nextOffset; ++j)
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dofValue += (d_indices[j] >= 0) ? d_x(idx_j % nd, c,
-            idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
+            dofValue += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+                         -d_x(idx_j % nd, c, idx_j / nd));
          }
          d_y(t?c:i,t?i:c) = dofValue;
       }
@@ -675,6 +681,19 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      gather_indices(nf*dof)
 {
    if (nf==0) { return; }
+
+#ifdef MFEM_USE_MPI
+
+   // If the underlying finite element space is parallel, ensure the face
+   // neighbor information is generated.
+   if (const ParFiniteElementSpace *pfes
+       = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      pfes->GetParMesh()->ExchangeFaceNbrData();
+   }
+
+#endif
+
    // If fespace == H1
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);

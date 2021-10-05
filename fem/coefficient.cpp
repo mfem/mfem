@@ -423,6 +423,7 @@ MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                   const IntegrationPoint &ip)
 {
+   K.SetSize(height, width);
    for (int i = 0; i < height; i++)
    {
       for (int j = 0; j < width; j++)
