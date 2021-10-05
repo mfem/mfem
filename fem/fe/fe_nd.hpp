@@ -403,8 +403,8 @@ public:
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
 
    virtual void ProjectMatrixCoefficient(MatrixCoefficient &mc,
-					 ElementTransformation &T,
-					 Vector &dofs) const;
+                                         ElementTransformation &T,
+                                         Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,

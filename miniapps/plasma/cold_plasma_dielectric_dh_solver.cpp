@@ -854,7 +854,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    {
       cylMassCoef_.SetCoefficient(*massCoef_);
    }
-   
+
    // Impedance of free space
    if ( abcs.Size() > 0 )
    {
@@ -945,15 +945,15 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    if (!cylSymm_)
    {
-     a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
-			      new CurlCurlIntegrator(*epsInvImCoef_));
-     a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
+      a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
+                               new CurlCurlIntegrator(*epsInvImCoef_));
+      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
    }
    else
    {
-     a1_->AddDomainIntegrator(new CurlCurlIntegrator(cylStiffnessReCoef_),
-			      new CurlCurlIntegrator(cylStiffnessImCoef_));
-     a1_->AddDomainIntegrator(new VectorFEMassIntegrator(cylMassCoef_), NULL);
+      a1_->AddDomainIntegrator(new CurlCurlIntegrator(cylStiffnessReCoef_),
+                               new CurlCurlIntegrator(cylStiffnessImCoef_));
+      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(cylMassCoef_), NULL);
    }
    if (kReCoef_ || kImCoef_)
    {

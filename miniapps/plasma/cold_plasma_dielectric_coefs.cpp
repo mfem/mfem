@@ -777,7 +777,7 @@ StixPCoef::StixPCoef(const ParGridFunction & B,
    : StixCoefBase(B, density, temp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, realPart)
 {
-  std::cout << "*** WARNING: Stix P has been rescaled! ***" << std::endl;
+   std::cout << "*** WARNING: Stix P has been rescaled! ***" << std::endl;
 }
 
 double StixPCoef::Eval(ElementTransformation &T,
@@ -1185,19 +1185,19 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       }
       break;
       case PEDESTAL:
-       {
-          double pmin = p_[0];
-          double pmax = p_[1];
-          double lambda_n = p_[2]; // Damping length
-          double nu = p_[3]; // Strength of decline
-          Vector x0(&p_[4], 3);
-          int ind = (int)rint(p_[7]);
+      {
+         double pmin = p_[0];
+         double pmax = p_[1];
+         double lambda_n = p_[2]; // Damping length
+         double nu = p_[3]; // Strength of decline
+         Vector x0(&p_[4], 3);
+         int ind = (int)rint(p_[7]);
 
-          x_ -= x0;
-          //double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-          return (pmax - pmin) * pow(cosh(pow((x_[ind] / lambda_n), nu)), -1.0) + pmin;
-       }
-       break;
+         x_ -= x0;
+         //double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         return (pmax - pmin) * pow(cosh(pow((x_[ind] / lambda_n), nu)), -1.0) + pmin;
+      }
+      break;
       default:
          return 0.0;
    }

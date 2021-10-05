@@ -68,8 +68,8 @@ inline double nu_ei(double charge, double coul_log, double mass,
 // Collisional frequency profile from Kohno et al 2017:
 inline double nu_art(double x)
 {
-  // return (3e11*exp(-x/0.1));
-  return (1e9*exp(-(x-0.65)/0.04));
+   // return (3e11*exp(-x/0.1));
+   return (1e9*exp(-(x-0.65)/0.04));
 }
 
 void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
@@ -538,7 +538,7 @@ public:
 class PlasmaProfile : public Coefficient
 {
 public:
-  enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL};
+   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL};
 
 private:
    Type type_;

@@ -411,7 +411,7 @@ int main(int argc, char *argv[])
    args.AddOption(&cyl, "-cyl", "--cylindrical-coords", "-cart",
                   "--cartesian-coords",
                   "Cartesian (x, y, z) coordinates or "
-		  "Cylindrical (z, rho, phi).");
+                  "Cylindrical (z, rho, phi).");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",

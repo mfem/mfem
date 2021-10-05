@@ -301,7 +301,7 @@ public:
 
    virtual void ProjectMatrixCoefficient(MatrixCoefficient &mc,
                                          ElementTransformation &Trans,
-					 Vector &dofs) const;
+                                         Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
