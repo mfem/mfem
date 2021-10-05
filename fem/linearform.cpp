@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 // Implementation of class LinearForm
-
+#include "../general/debug.hpp"
 #include "fem.hpp"
 
 namespace mfem
@@ -123,6 +123,8 @@ void LinearForm::Assemble()
 {
    if (ext)
    {
+#warning operator= 0.0 ?
+      Vector::operator=(0.0);
       ext->Assemble();
       return;
    }
@@ -169,7 +171,7 @@ void LinearForm::Assemble()
                {
                   doftrans->TransformDual(elemvect);
                }
-               AddElementVector (vdofs, elemvect);
+               AddElementVector(vdofs, elemvect);
             }
          }
       }

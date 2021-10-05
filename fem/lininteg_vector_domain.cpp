@@ -58,7 +58,6 @@ void Kernel2D(const int ND,
 
       const double constant_val = C(0,0,0,0);
 
-
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -79,8 +78,8 @@ void Kernel2D(const int ND,
                const double J12 = J(qx,qy,0,1,e);
                const double J22 = J(qx,qy,1,1,e);
                const double detJ = (J11*J22)-(J21*J12);
-               const double coeff_xyz = C(c,qx,qy,e);
-               const double coeff_val = constant_coeff ? constant_val : coeff_xyz;
+               const double coeff_val =
+                  constant_coeff ? constant_val : C(c,qx,qy,e);
                QQ[qy][qx] = W(qx,qy) * coeff_val * detJ;
 
             }
@@ -178,8 +177,8 @@ void Kernel3D(const int ND,
                   const double detJ = J11 * (J22 * J33 - J32 * J23) -
                                       J21 * (J12 * J33 - J32 * J13) +
                                       J31 * (J12 * J23 - J22 * J13);
-                  const double coeff_xyz = C(c,qx,qy,qz,e);
-                  const double coeff_val = constant_coeff ? constant_val:coeff_xyz;
+                  const double coeff_val =
+                     constant_coeff ? constant_val : C(c,qx,qy,qz,e);
                   s_q[qz][qy][qx] = W(qx,qy,qz) * coeff_val * detJ;
                }
             }
