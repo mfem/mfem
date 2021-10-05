@@ -22,19 +22,19 @@ namespace mfem
 {
 
 template<int D1D, int Q1D> static
-void Kernel2D(const int ND,
-              const int NE,
-              const double *marks,
-              const double *b,
-              const double *g,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double* __restrict y)
+void VectorDomainLFGradIntegratorAssemble2D(const int ND,
+                                            const int NE,
+                                            const double *marks,
+                                            const double *b,
+                                            const double *g,
+                                            const int *idx,
+                                            const double *jacobians,
+                                            const double *weights,
+                                            const Vector &coeff,
+                                            double* __restrict y)
 {
    constexpr int DIM = 2;
-   constexpr int VDIM = 2;
+   constexpr int VDIM = 1;
 
    const bool constant_coeff = coeff.Size() == 1;
 
@@ -47,7 +47,7 @@ void Kernel2D(const int ND,
    const auto I = Reshape(idx, D1D,D1D, NE);
    const auto C = constant_coeff ?
                   Reshape(F,1,1,1,1,1):
-                  Reshape(F,DIM,VDIM,Q1D,Q1D,NE);
+                  Reshape(F,VDIM,DIM,Q1D,Q1D,NE);
    auto Y = Reshape(y,ND,VDIM);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
@@ -89,6 +89,7 @@ void Kernel2D(const int ND,
                Jloc[2] = J(qx,qy,0,1,e);
                Jloc[3] = J(qx,qy,1,1,e);
                const double detJ = kernels::Det<2>(Jloc);
+               //if (e==0) { dbg("det:%.8e",detJ); }
                kernels::CalcInverse<2>(Jloc, Jinv);
                const double weight = W(qx,qy);
                const double u = constant_coeff ? C(0,0,0,0,0) : C(c,0,qx,qy,e);
@@ -165,19 +166,19 @@ static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
 }
 
 template<int D1D, int Q1D> static
-void Kernel3D(const int ND,
-              const int NE,
-              const double *marks,
-              const double *b,
-              const double *g,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double* __restrict y)
+void VectorDomainLFGradIntegratorAssemble3D(const int ND,
+                                            const int NE,
+                                            const double *marks,
+                                            const double *b,
+                                            const double *g,
+                                            const int *idx,
+                                            const double *jacobians,
+                                            const double *weights,
+                                            const Vector &coeff,
+                                            double* __restrict y)
 {
    constexpr int DIM = 3;
-   constexpr int VDIM = 3;
+   constexpr int VDIM = 1;
 
    const bool constant_coeff = coeff.Size() == 1;
 
@@ -190,7 +191,7 @@ void Kernel3D(const int ND,
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
    const auto C = constant_coeff ?
                   Reshape(F,1,1,1,1,1,1):
-                  Reshape(F,DIM,VDIM,Q1D,Q1D,Q1D,NE);
+                  Reshape(F,VDIM,DIM,Q1D,Q1D,Q1D,NE);
    auto Y = Reshape(y,ND,VDIM);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
@@ -246,9 +247,9 @@ void Kernel3D(const int ND,
                   const double detJ = kernels::Det<3>(Jloc);
                   kernels::CalcInverse<3>(Jloc, Jinv);
                   const double weight = W(qx,qy,qz);
-                  const double u = constant_coeff ? C(0,0,0,0,0) : C(0,c,qx,qy,qz,c,e);
-                  const double v = constant_coeff ? C(0,0,0,0,0) : C(1,c,qx,qy,qz,c,e);
-                  const double w = constant_coeff ? C(0,0,0,0,0) : C(2,c,qx,qy,qz,c,e);
+                  const double u = constant_coeff ? C(0,0,0,0,0,0) : C(c,0,qx,qy,qz,e);
+                  const double v = constant_coeff ? C(0,0,0,0,0,0) : C(c,1,qx,qy,qz,e);
+                  const double w = constant_coeff ? C(0,0,0,0,0,0) : C(c,2,qx,qy,qz,e);
                   QQQ0[qz][qy][qx] = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
                   QQQ1[qz][qy][qx] = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
                   QQQ2[qz][qy][qx] = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
@@ -397,9 +398,15 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const int ND = fes.GetNDofs();
    const int NE = fes.GetMesh()->GetNE();
    const int NQ = ir->GetNPoints();
+   //dbg("D1D:%d Q1D:%d",D1D,Q1D);
+
+   const int vdim = fes.GetVDim();
+   const int qvdim = Q.GetVDim();
+   //const int spaceDim = fes.GetMesh()->SpaceDimension();
+   //dbg("dim:%d vdim:%d qvdim:%d spaceDim:%d",dim,vdim,qvdim,spaceDim);
+   assert(qvdim == vdim);
 
    Vector coeff;
-   const int qvdim = Q.GetVDim();
 
    if (ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(&Q))
    {
@@ -425,10 +432,11 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
       auto C = Reshape(coeff.HostWrite(), qvdim, NQ, NE);
       for (int e = 0; e < NE; ++e)
       {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
+         ElementTransformation &Tr = *fes.GetElementTransformation(e);
          for (int q = 0; q < NQ; ++q)
          {
-            Q.Eval(Qvec, T, ir->IntPoint(q));
+            const IntegrationPoint &ip = ir->IntPoint(q);
+            Q.Eval(Qvec, Tr, ip);
             for (int c=0; c<qvdim; ++c)
             {
                C(c,q,e) = Qvec[c];
@@ -437,7 +445,7 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
       }
    }
 
-   const int id = (dim<<8) |(D1D << 4) | Q1D;
+   const int id = (vdim<<12) | (dim<<8) | (D1D << 4) | Q1D;
 
    void (*Ker)(const int ND,
                const int NE,
@@ -453,21 +461,21 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    switch (id) // orders 1~6
    {
       // 2D kernels
-      case 0x222: Ker=Kernel2D<2,2>; break; // 1
-      /*      case 0x233: Ker=Kernel2D<3,3>; break; // 2
-            case 0x244: Ker=Kernel2D<4,4>; break; // 3
-            case 0x255: Ker=Kernel2D<5,5>; break; // 4
-            case 0x266: Ker=Kernel2D<6,6>; break; // 5
-            case 0x277: Ker=Kernel2D<7,7>; break; // 6
+      case 0x2222: Ker=VectorDomainLFGradIntegratorAssemble2D<2,2>; break; // 1
+      case 0x2233: Ker=VectorDomainLFGradIntegratorAssemble2D<3,3>; break; // 2
+      case 0x2244: Ker=VectorDomainLFGradIntegratorAssemble2D<4,4>; break; // 3
+      case 0x2255: Ker=VectorDomainLFGradIntegratorAssemble2D<5,5>; break; // 4
+      case 0x2266: Ker=VectorDomainLFGradIntegratorAssemble2D<6,6>; break; // 5
+      case 0x2277: Ker=VectorDomainLFGradIntegratorAssemble2D<7,7>; break; // 6
 
-            // 3D kernels
-            case 0x322: Ker=Kernel3D<2,2>; break; // 1
-            case 0x333: Ker=Kernel3D<3,3>; break; // 2
-            case 0x344: Ker=Kernel3D<4,4>; break; // 3
-            case 0x355: Ker=Kernel3D<5,5>; break; // 4
-            case 0x366: Ker=Kernel3D<6,6>; break; // 5
-            case 0x377: Ker=Kernel3D<7,7>; break; // 6
-      */
+      // 3D kernels
+      case 0x3322: Ker=VectorDomainLFGradIntegratorAssemble3D<2,2>; break; // 1
+      case 0x3333: Ker=VectorDomainLFGradIntegratorAssemble3D<3,3>; break; // 2
+      case 0x3344: Ker=VectorDomainLFGradIntegratorAssemble3D<4,4>; break; // 3
+      case 0x3355: Ker=VectorDomainLFGradIntegratorAssemble3D<5,5>; break; // 4
+      case 0x3366: Ker=VectorDomainLFGradIntegratorAssemble3D<6,6>; break; // 5
+      case 0x3377: Ker=VectorDomainLFGradIntegratorAssemble3D<7,7>; break; // 6
+
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
    Ker(ND,NE,M,B,G,I,J,W,coeff,Y);

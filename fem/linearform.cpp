@@ -121,13 +121,7 @@ void LinearForm::SetAssemblyLevel(LinearAssemblyLevel assembly_level)
 
 void LinearForm::Assemble()
 {
-   if (ext)
-   {
-#warning operator= 0.0 ?
-      Vector::operator=(0.0);
-      ext->Assemble();
-      return;
-   }
+   if (ext) { return ext->Assemble(); }
 
    Array<int> vdofs;
    ElementTransformation *eltrans;

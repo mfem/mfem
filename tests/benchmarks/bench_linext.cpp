@@ -62,7 +62,7 @@ struct LinExt
 
    LinExt(int problem, int order, int dim, int vdim):
       problem(problem),
-      N(Device::IsEnabled()?32:16),
+      N(Device::IsEnabled()?32:8),
       p(order),
       q(2*p),
       dim(dim),
@@ -226,8 +226,8 @@ LinExtTest(3,DomainLFGrad,2,1)
 LinExtTest(3,DomainLFGrad,3,1)
 
 /// Vector Grad linear form tests
-LinExtTest(4,VectorDomainLFGrad,2,1)//2)
-LinExtTest(4,VectorDomainLFGrad,3,1)//3)
+LinExtTest(4,VectorDomainLFGrad,2,2)
+LinExtTest(4,VectorDomainLFGrad,3,3)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// BENCH for LinearFormExtension
@@ -238,7 +238,6 @@ struct Bench: public LinExt
    Bench(int problem, int order): LinExt(problem, order, DIM, VDIM),
       i(LEVEL == LinearAssemblyLevel::LEGACY ? 0 : 1)
    {
-      lf[i]->AddDomainIntegrator(new DomainLFIntegrator(one));
       MFEM_DEVICE_SYNC;
    }
 
@@ -257,7 +256,7 @@ static void BENCH_##LVL##_##Kernel##_##DIM##D(bm::State &state){\
    Bench<DIM,VDIM,LinearAssemblyLevel::LVL> ker(Problem, order);\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
-BENCHMARK(BENCH_##LVL##_##Kernel##_##DIM##D)->DenseRange(1,1)->Unit(bm::kMicrosecond);
+BENCHMARK(BENCH_##LVL##_##Kernel##_##DIM##D)->DenseRange(1,6)->Unit(bm::kMicrosecond);
 
 /// 2D scalar linear form bench
 LinExtBench(1,DomainLF,LEGACY,2,1)
@@ -288,8 +287,8 @@ LinExtBench(4,VectorDomainLFGrad,LEGACY,2,2)
 LinExtBench(4,VectorDomainLFGrad,FULL,2,2)
 
 /// 3D Grad Vector linear form bench
-//LinExtBench(4,VectorDomainLFGrad,LEGACY,3,3)
-//LinExtBench(4,VectorDomainLFGrad,FULL,3,3)
+LinExtBench(4,VectorDomainLFGrad,LEGACY,3,3)
+LinExtBench(4,VectorDomainLFGrad,FULL,3,3)
 
 /** ****************************************************************************
  * @brief main entry point

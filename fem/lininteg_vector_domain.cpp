@@ -20,15 +20,15 @@ namespace mfem
 {
 
 template<int D1D, int Q1D> static
-void Kernel2D(const int ND,
-              const int NE,
-              const double *marks,
-              const double *d2q,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double * __restrict y)
+void VectorDomainLFIntegratorAssemble2D(const int ND,
+                                        const int NE,
+                                        const double *marks,
+                                        const double *d2q,
+                                        const int *idx,
+                                        const double *jacobians,
+                                        const double *weights,
+                                        const Vector &coeff,
+                                        double * __restrict y)
 {
    constexpr int DIM = 2;
    constexpr int VDIM = 2;
@@ -112,17 +112,16 @@ void Kernel2D(const int ND,
    });
 }
 
-
 template<int D1D, int Q1D> static
-void Kernel3D(const int ND,
-              const int NE,
-              const double *marks,
-              const double *d2q,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double * __restrict y)
+void VectorDomainLFIntegratorAssemble3D(const int ND,
+                                        const int NE,
+                                        const double *marks,
+                                        const double *d2q,
+                                        const int *idx,
+                                        const double *jacobians,
+                                        const double *weights,
+                                        const Vector &coeff,
+                                        double * __restrict y)
 {
    constexpr int DIM = 3;
    constexpr int VDIM = 3;
@@ -346,20 +345,20 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    switch (id) // orders 1~6
    {
       // 2D kernels
-      case 0x2222: Ker=Kernel2D<2,2>; break; // 1
-      case 0x2233: Ker=Kernel2D<3,3>; break; // 2
-      case 0x2244: Ker=Kernel2D<4,4>; break; // 3
-      case 0x2255: Ker=Kernel2D<5,5>; break; // 4
-      case 0x2266: Ker=Kernel2D<6,6>; break; // 5
-      case 0x2277: Ker=Kernel2D<7,7>; break; // 6
+      case 0x2222: Ker=VectorDomainLFIntegratorAssemble2D<2,2>; break; // 1
+      case 0x2233: Ker=VectorDomainLFIntegratorAssemble2D<3,3>; break; // 2
+      case 0x2244: Ker=VectorDomainLFIntegratorAssemble2D<4,4>; break; // 3
+      case 0x2255: Ker=VectorDomainLFIntegratorAssemble2D<5,5>; break; // 4
+      case 0x2266: Ker=VectorDomainLFIntegratorAssemble2D<6,6>; break; // 5
+      case 0x2277: Ker=VectorDomainLFIntegratorAssemble2D<7,7>; break; // 6
 
       // 3D kernels
-      case 0x3322: Ker=Kernel3D<2,2>; break; // 1
-      case 0x3333: Ker=Kernel3D<3,3>; break; // 2
-      case 0x3344: Ker=Kernel3D<4,4>; break; // 3
-      case 0x3355: Ker=Kernel3D<5,5>; break; // 4
-      case 0x3366: Ker=Kernel3D<6,6>; break; // 5
-      case 0x3377: Ker=Kernel3D<7,7>; break; // 6
+      case 0x3322: Ker=VectorDomainLFIntegratorAssemble3D<2,2>; break; // 1
+      case 0x3333: Ker=VectorDomainLFIntegratorAssemble3D<3,3>; break; // 2
+      case 0x3344: Ker=VectorDomainLFIntegratorAssemble3D<4,4>; break; // 3
+      case 0x3355: Ker=VectorDomainLFIntegratorAssemble3D<5,5>; break; // 4
+      case 0x3366: Ker=VectorDomainLFIntegratorAssemble3D<6,6>; break; // 5
+      case 0x3377: Ker=VectorDomainLFIntegratorAssemble3D<7,7>; break; // 6
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
    Ker(ND,NE,M,B,I,J,W,coeff,Y);

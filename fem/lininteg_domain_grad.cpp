@@ -19,16 +19,16 @@ namespace mfem
 {
 
 template<int D1D, int Q1D> static
-void Kernel2D(const int ND,
-              const int NE,
-              const double *marks,
-              const double *b,
-              const double *g,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double* __restrict y)
+void DomainLFGradIntegratorAssemble2D(const int ND,
+                                      const int NE,
+                                      const double *marks,
+                                      const double *b,
+                                      const double *g,
+                                      const int *idx,
+                                      const double *jacobians,
+                                      const double *weights,
+                                      const Vector &coeff,
+                                      double* __restrict y)
 {
    constexpr int DIM = 2;
 
@@ -158,16 +158,16 @@ static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
 }
 
 template<int D1D, int Q1D> static
-void Kernel3D(const int ND,
-              const int NE,
-              const double *marks,
-              const double *b,
-              const double *g,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double* __restrict y)
+void DomainLFGradIntegratorAssemble3D(const int ND,
+                                      const int NE,
+                                      const double *marks,
+                                      const double *b,
+                                      const double *g,
+                                      const int *idx,
+                                      const double *jacobians,
+                                      const double *weights,
+                                      const Vector &coeff,
+                                      double* __restrict y)
 {
    constexpr int DIM = 3;
 
@@ -441,20 +441,20 @@ void DomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    switch (id) // orders 1~6
    {
       // 2D kernels
-      case 0x222: Ker=Kernel2D<2,2>; break; // 1
-      case 0x233: Ker=Kernel2D<3,3>; break; // 2
-      case 0x244: Ker=Kernel2D<4,4>; break; // 3
-      case 0x255: Ker=Kernel2D<5,5>; break; // 4
-      case 0x266: Ker=Kernel2D<6,6>; break; // 5
-      case 0x277: Ker=Kernel2D<7,7>; break; // 6
+      case 0x222: Ker=DomainLFGradIntegratorAssemble2D<2,2>; break; // 1
+      case 0x233: Ker=DomainLFGradIntegratorAssemble2D<3,3>; break; // 2
+      case 0x244: Ker=DomainLFGradIntegratorAssemble2D<4,4>; break; // 3
+      case 0x255: Ker=DomainLFGradIntegratorAssemble2D<5,5>; break; // 4
+      case 0x266: Ker=DomainLFGradIntegratorAssemble2D<6,6>; break; // 5
+      case 0x277: Ker=DomainLFGradIntegratorAssemble2D<7,7>; break; // 6
 
       // 3D kernels
-      case 0x322: Ker=Kernel3D<2,2>; break; // 1
-      case 0x333: Ker=Kernel3D<3,3>; break; // 2
-      case 0x344: Ker=Kernel3D<4,4>; break; // 3
-      case 0x355: Ker=Kernel3D<5,5>; break; // 4
-      case 0x366: Ker=Kernel3D<6,6>; break; // 5
-      case 0x377: Ker=Kernel3D<7,7>; break; // 6
+      case 0x322: Ker=DomainLFGradIntegratorAssemble3D<2,2>; break; // 1
+      case 0x333: Ker=DomainLFGradIntegratorAssemble3D<3,3>; break; // 2
+      case 0x344: Ker=DomainLFGradIntegratorAssemble3D<4,4>; break; // 3
+      case 0x355: Ker=DomainLFGradIntegratorAssemble3D<5,5>; break; // 4
+      case 0x366: Ker=DomainLFGradIntegratorAssemble3D<6,6>; break; // 5
+      case 0x377: Ker=DomainLFGradIntegratorAssemble3D<7,7>; break; // 6
 
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
