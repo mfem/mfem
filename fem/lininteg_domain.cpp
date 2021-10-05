@@ -23,14 +23,14 @@ namespace mfem
 {
 
 template<int D1D, int Q1D, int NBZ=1> static
-void Kernel2D(const int NE,
-              const double *marks,
-              const double *d2q,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double* __restrict Y)
+void DomainLFIntegratorAssemble2D(const int NE,
+                                  const double *marks,
+                                  const double *d2q,
+                                  const int *idx,
+                                  const double *jacobians,
+                                  const double *weights,
+                                  const Vector &coeff,
+                                  double* __restrict Y)
 {
    constexpr int DIM = 2;
 
@@ -112,16 +112,15 @@ void Kernel2D(const int NE,
    });
 }
 
-
 template<int D1D, int Q1D> static
-void Kernel3D(const int NE,
-              const double *marks,
-              const double *d2q,
-              const int *idx,
-              const double *jacobians,
-              const double *weights,
-              const Vector &coeff,
-              double* __restrict Y)
+void DomainLFIntegratorAssemble3D(const int NE,
+                                  const double *marks,
+                                  const double *d2q,
+                                  const int *idx,
+                                  const double *jacobians,
+                                  const double *weights,
+                                  const Vector &coeff,
+                                  double* __restrict Y)
 {
    const bool constant_coeff = coeff.Size() == 1;
 
@@ -327,20 +326,20 @@ void DomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    switch (id) // orders 1~6
    {
       // 2D kernels
-      case 0x222: Ker=Kernel2D<2,2>; break; // 1
-      case 0x233: Ker=Kernel2D<3,3>; break; // 2
-      case 0x244: Ker=Kernel2D<4,4>; break; // 3
-      case 0x255: Ker=Kernel2D<5,5>; break; // 4
-      case 0x266: Ker=Kernel2D<6,6>; break; // 5
-      case 0x277: Ker=Kernel2D<7,7>; break; // 6
+      case 0x222: Ker=DomainLFIntegratorAssemble2D<2,2>; break; // 1
+      case 0x233: Ker=DomainLFIntegratorAssemble2D<3,3>; break; // 2
+      case 0x244: Ker=DomainLFIntegratorAssemble2D<4,4>; break; // 3
+      case 0x255: Ker=DomainLFIntegratorAssemble2D<5,5>; break; // 4
+      case 0x266: Ker=DomainLFIntegratorAssemble2D<6,6>; break; // 5
+      case 0x277: Ker=DomainLFIntegratorAssemble2D<7,7>; break; // 6
 
       // 3D kernels
-      case 0x322: Ker=Kernel3D<2,2>; break; // 1
-      case 0x333: Ker=Kernel3D<3,3>; break; // 2
-      case 0x344: Ker=Kernel3D<4,4>; break; // 3
-      case 0x355: Ker=Kernel3D<5,5>; break; // 4
-      case 0x366: Ker=Kernel3D<6,6>; break; // 5
-      case 0x377: Ker=Kernel3D<7,7>; break; // 6
+      case 0x322: Ker=DomainLFIntegratorAssemble3D<2,2>; break; // 1
+      case 0x333: Ker=DomainLFIntegratorAssemble3D<3,3>; break; // 2
+      case 0x344: Ker=DomainLFIntegratorAssemble3D<4,4>; break; // 3
+      case 0x355: Ker=DomainLFIntegratorAssemble3D<5,5>; break; // 4
+      case 0x366: Ker=DomainLFIntegratorAssemble3D<6,6>; break; // 5
+      case 0x377: Ker=DomainLFIntegratorAssemble3D<7,7>; break; // 6
 
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }

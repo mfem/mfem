@@ -326,9 +326,12 @@ void VectorDomainLFIntegrator::AssembleDeltaElementVect(
 void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
+   static int e = 0;
+
    int dof = el.GetDof();
    int vdim = Q.GetVDim();
    int spaceDim = Tr.GetSpaceDim();
+   if (e==0) { dbg("vdim:%d spaceDim:%d",vdim,spaceDim); }
 
    dshape.SetSize(dof, spaceDim);
 
@@ -349,6 +352,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
 
       Tr.SetIntPoint(&ip);
       const double det = Tr.Weight();
+      //if (e==0) { dbg("det:%.8e",det); }
 
       el.CalcPhysDShape(Tr, dshape);
       Q.Eval(Qvec, Tr, ip);
@@ -368,6 +372,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
          }
       }
    }
+   e+=1;
 }
 
 void VectorDomainLFGradIntegrator::AssembleDeltaElementVect(
