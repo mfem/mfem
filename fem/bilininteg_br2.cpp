@@ -174,13 +174,14 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
 
       Trans.Loc1.Transform(ip, eip1);
       el1.CalcShape(eip1, shape1);
+
+      double q = Q ? Q->Eval(*Trans.Elem1, eip1) : 1.0;
       if (ndof2)
       {
          Trans.Loc2.Transform(ip, eip2);
          el2.CalcShape(eip2, shape2);
+         if (Q) { q = 0.5*(q + Q->Eval(*Trans.Elem2, eip2)); }
       }
-
-      double q = Q ? Q->Eval(*Trans.Elem1, eip1) : 1.0;
       double w = sqrt((factor + 1)*eta*q)*ip.weight*Trans.Face->Weight();
 
       for (int i = 0; i < ndof1; i++)
