@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-
+#include "../general/debug.hpp"
 #include "fem.hpp"
 #include <cmath>
 
@@ -86,6 +86,9 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
 
    dshape.SetSize(dof, spaceDim);
 
+   DenseMatrix vshape;
+   vshape.SetSize(dof, spaceDim);
+
    elvect.SetSize(dof);
    elvect = 0.0;
 
@@ -118,7 +121,7 @@ void DomainLFGradIntegrator::AssembleDeltaElementVect(
    int spaceDim = Trans.GetSpaceDim();
 
    dshape.SetSize(dof, spaceDim);
-   fe.CalcPhysDShape(Trans, dshape);
+   fe.CalcDShape(Trans.GetIntPoint(), dshape);
 
    vec_delta->EvalDelta(Qvec, Trans, Trans.GetIntPoint());
 
@@ -289,7 +292,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       val = Tr.Weight();
 
       el.CalcShape(ip, shape);
-      Q.Eval (Qvec, Tr, ip);
+      Q.Eval(Qvec, Tr, ip);
 
       for (int k = 0; k < vdim; k++)
       {
@@ -318,6 +321,59 @@ void VectorDomainLFIntegrator::AssembleDeltaElementVect(
    elvect.SetSize(dof*vdim);
    DenseMatrix elvec_as_mat(elvect.GetData(), dof, vdim);
    MultVWt(shape, Qvec, elvec_as_mat);
+}
+
+void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+   int vdim = Q.GetVDim();
+   int spaceDim = Tr.GetSpaceDim();
+
+   dshape.SetSize(dof, spaceDim);
+
+   Vector pelvect(dof);
+   elvect.SetSize(dof*vdim);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      const double det = Tr.Weight();
+
+      el.CalcPhysDShape(Tr, dshape);
+      Q.Eval(Qvec, Tr, ip);
+
+      for (int idx = 0; idx < vdim/spaceDim; ++idx)
+      {
+         Vector part_x(spaceDim);
+         for (int jdx = 0; jdx < spaceDim; ++jdx)
+         {
+            part_x(jdx) = Qvec(idx*spaceDim+jdx);
+         }
+         part_x *= ip.weight * det;
+         dshape.Mult(part_x, pelvect);
+         for (int j = 0; j < dof; ++j)
+         {
+            elvect(j+dof*idx) += pelvect(j);
+         }
+      }
+   }
+}
+
+void VectorDomainLFGradIntegrator::AssembleDeltaElementVect(
+   const FiniteElement&, ElementTransformation&, Vector&)
+{
+   MFEM_ABORT("Not implemented!");
 }
 
 void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
