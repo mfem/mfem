@@ -136,13 +136,13 @@ protected:
        convention the orientation of Elem1 is always set to 0, serving as the
        reference orientation. The orientation of Elem2 relatively to Elem1 is
        therefore determined just by using the orientation of Elem2. An important
-       special case is the one of interior non-conforming slave faces, the
-       orientation is always set to 0 due to a different processing of
-       orientations in NCMesh, and should therefore be disregarded.
-       For this reason, an extra array contains the orientations of
-       non-conforming slave faces: nc_faces_orientation. The orientation in this
-       specific case is accessed using the FaceInfo::NCFace integer as an index
-       into nc_faces_orientation.
+       special case is the one of non-conforming faces, the orientation should
+       be composed with the PointMatrix, which also contains orientation
+       information. A special treatment should be done for 2D, the orientation
+       in the PointMatrix is not included, therefore when applying the
+       PointMatrix transformation, the PointMatrix should be flipped, except for
+       shared non-conforming slave faces where the transformation can be applied
+       as is.
 
        Another special case is the case of shared non-conforming faces. Ghost
        faces use a different design based on so called "ghost" faces.
@@ -210,10 +210,6 @@ protected:
 
    Array<FaceInfo> faces_info;
    Array<NCFaceInfo> nc_faces_info;
-   // This array stores the face orientation of non-conforming slave faces, the
-   // orientation of the slave face should be accessed with the ncface index
-   // given by Mesh::GetFaceInfos.
-   Array<int> nc_faces_orientation;
 
    Table *el_to_edge;
    Table *el_to_face;
