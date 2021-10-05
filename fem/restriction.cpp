@@ -1430,7 +1430,7 @@ void L2FaceRestriction::SetFaceDofsScatterIndices2(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(face.conformity==Mesh::FaceConformity::NonConformingSlave,
+   MFEM_ASSERT(face.IsLocal() && face.IsNonConformingSlave(),
                "This method should only be used on non-conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -1657,9 +1657,10 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
    const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
    // In the case of non-conforming slave shared face the master face is elem1.
    const int master_side = face.IsSharedNonConformingSlave() ? 0 : 1;
-   const int face_key = master_side == 1 ?
-                        face.elem_1_local_face + 6*face.elem_2_local_face :
-                        face.elem_2_local_face + 6*face.elem_1_local_face ;
+   // const int face_key = master_side == 1 ?
+   //                      face.elem_1_local_face + 6*face.elem_2_local_face :
+   //                      face.elem_2_local_face + 6*face.elem_1_local_face ;
+   const int face_key = face_index;
    // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
    Key key(ptMat, face_key);
    auto itr = interp_map.find(key);
@@ -1690,14 +1691,13 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    const int face_id2 = face.elem_2_local_face;
 
    const bool is_ghost_slave = face.IsSharedNonConformingSlave();
-   const int slave_face_id = is_ghost_slave ? face_id2 : face_id1;
    const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
 
    // Computation of the interpolation matrix from master
    // (coarse) face to slave (fine) face.
    // Assumes all trace elements are the same.
    const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
    const int dof = trace_fe->GetDof();
    DenseMatrix* interpolator = new DenseMatrix(dof,dof);
    Vector shape(dof);
@@ -1726,6 +1726,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
          const IntegrationRule & nodes = trace_fe->GetNodes();
          const int dof1d = fes.GetFE(0)->GetOrder()+1;
          const int dim = fes.GetMesh()->SpaceDimension();
+         const int orientation = face.elem_2_orientation;
          for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = nodes[i];
@@ -1733,7 +1734,13 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
             f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
             trace_fe->CalcShape(f_ip, shape);
-            int li = ToLexOrdering(dim, slave_face_id, dof1d, i);
+            int li = ToLexOrdering(dim, master_face_id, dof1d, i);
+            if ( !face.IsSharedNonConformingSlave() )
+            {
+               // master side is elem 2, so we permute to order dofs as elem 1.
+               li = PermuteFaceL2(dim, face_id2, face_id1,
+                                  orientation, dof1d, li);
+            }
             for (int j = 0; j < dof; j++)
             {
                const int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
@@ -1744,13 +1751,21 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
       break;
       case Geometry::SEGMENT:
       {
-         // For ghost faces the orientation is not properly set.
-         const int orientation = face.IsShared() ? 1 : face.elem_2_orientation;
+         const int orientation = face.elem_2_orientation;
          MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
          MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
          double x_min, x_max;
-         x_min = (*ptMat)(0,0);
-         x_max = (*ptMat)(0,1);
+         // PointMatrix needs to be flipped
+         if ( !face.IsSharedNonConformingSlave() )
+         {
+            x_min = (*ptMat)(0,1);
+            x_max = (*ptMat)(0,0);
+         }
+         else
+         {
+            x_min = (*ptMat)(0,0);
+            x_max = (*ptMat)(0,1);
+         }
          const IntegrationRule & nodes = trace_fe->GetNodes();
          const int dof1d = fes.GetFE(0)->GetOrder()+1;
          const int dim = fes.GetMesh()->SpaceDimension();
@@ -1762,8 +1777,12 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             int li = ToLexOrdering(dim, master_face_id, dof1d, i);
             // We need to permute since the orientation is not
             // in the PointMatrix in 2D.
-            li = PermuteFaceL2(dim, master_face_id, face_id1,
-                               orientation, dof1d, li);
+            if ( !face.IsSharedNonConformingSlave() )
+            {
+               // master side is elem 2, so we permute to order dofs as elem 1.
+               li = PermuteFaceL2(dim, face_id2, face_id1,
+                                  orientation, dof1d, li);
+            }
             for (int j = 0; j < dof; j++)
             {
                const int lj = ToLexOrdering(dim, master_face_id, dof1d, j);

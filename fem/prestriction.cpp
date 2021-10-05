@@ -796,7 +796,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
       auto interp = Reshape(interpolators, nd, nd, nc_size);
-      static constexpr int max_nd = 16*16;
+      static constexpr int max_nd = 1024;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
       {
@@ -861,7 +861,6 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   }
                   MFEM_SYNC_THREAD;
                   MFEM_FOREACH_THREAD(dofOut,x,nd)
-                  for (int dofOut = 0; dofOut<nd; dofOut++)
                   {
                      double res = 0.0;
                      for (int dofIn = 0; dofIn<nd; dofIn++)
@@ -968,7 +967,6 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                }
                MFEM_SYNC_THREAD;
                MFEM_FOREACH_THREAD(dofOut,x,nd)
-               for (int dofOut = 0; dofOut<nd; dofOut++)
                {
                   double res = 0.0;
                   for (int dofIn = 0; dofIn<nd; dofIn++)
@@ -1023,7 +1021,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
       auto interp = Reshape(interpolators, nd, nd, nc_size);
-      static constexpr int max_nd = 16*16;
+      static constexpr int max_nd = 1024;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
       {
@@ -1062,7 +1060,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
       auto interp = Reshape(interpolators, nd, nd, nc_size);
-      static constexpr int max_nd = 16*16;
+      static constexpr int max_nd = 1024;
       MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nd, 1, 1,
       {

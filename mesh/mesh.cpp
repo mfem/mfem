@@ -1149,7 +1149,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          {
             face.conformity = FaceConformity::NonConformingSlave;
             MFEM_ASSERT(inf2%64==0, "unexpected slave face orientation.");
-            face.elem_2_orientation = nc_faces_orientation[ncface];
+            face.elem_2_orientation = inf2%64;
          }
       }
       else // e2<0
