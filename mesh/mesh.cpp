@@ -6425,7 +6425,6 @@ void Mesh::GenerateNCFaceInfo()
 
    nc_faces_info.SetSize(0);
    nc_faces_info.Reserve(list.masters.Size() + list.slaves.Size());
-   nc_faces_orientation.SetSize(faces_info.Size());
 
    int nfaces = GetNumFaces();
 
@@ -6463,7 +6462,6 @@ void Mesh::GenerateNCFaceInfo()
       //       matrix. In 2D, the point matrix has the orientation of the parent
       //       edge, so its columns need to be flipped when applying it, see
       //       ApplyLocalSlaveTransformation.
-      nc_faces_orientation[slave_fi.NCFace] = slave.orientation;
 
       nc_faces_info.Append(
          NCFaceInfo(true, slave.master,
