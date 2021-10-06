@@ -679,7 +679,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      elem_dofs(fes.GetFE(0)->GetDof()),
      nfdofs(nf*face_dofs),
      scatter_indices(nf*face_dofs),
-     offsets(ndofs+1),
+     gather_offsets(ndofs+1),
      gather_indices(nf*face_dofs),
      face_map(face_dofs)
 {
@@ -766,7 +766,7 @@ void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    const int nd = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_offsets = offsets.Read();
+   auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, nf);
    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
@@ -796,7 +796,7 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
-      offsets[i] = 0;
+      gather_offsets[i] = 0;
    }
 
    // Computation of scatter indices and offsets
@@ -821,7 +821,7 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
 }
 
@@ -853,9 +853,9 @@ void H1FaceRestriction::ComputeGatherIndices(
    // Reset offsets to their initial value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
 void H1FaceRestriction::SetFaceDofsScatterIndices(
@@ -887,7 +887,7 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
       const int gid = elem_map[elem_index*elem_dofs + did];
       const int lid = face_dofs*face_index + d;
       scatter_indices[lid] = gid;
-      ++offsets[gid + 1];
+      ++gather_offsets[gid + 1];
    }
 }
 
@@ -917,7 +917,7 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
       const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
       const int gid = elem_map[elem_index*elem_dofs + did];
       const int lid = face_dofs*face_index + d;
-      gather_indices[offsets[gid]++] = lid;
+      gather_indices[gather_offsets[gid]++] = lid;
    }
 }
 
@@ -1064,7 +1064,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      nfdofs(nf*face_dofs),
      scatter_indices1(nf*face_dofs),
      scatter_indices2(m==L2FaceValues::DoubleValued?nf*face_dofs:0),
-     offsets(ndofs+1),
+     gather_offsets(ndofs+1),
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*face_dofs),
      face_map(face_dofs)
 {
@@ -1167,7 +1167,7 @@ void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    const int vd = vdim;
    const bool t = byvdim;
    const int dofs = nfdofs;
-   auto d_offsets = offsets.Read();
+   auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
 
    if (m == L2FaceValues::DoubleValued)
@@ -1331,7 +1331,7 @@ void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
-      offsets[i] = 0;
+      gather_offsets[i] = 0;
    }
 
    // Computation of scatter indices and offsets
@@ -1363,7 +1363,7 @@ void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
 }
 
@@ -1396,9 +1396,9 @@ void L2FaceRestriction::ComputeGatherIndices(
    // Reset offsets to their correct value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
 void L2FaceRestriction::SetFaceDofsScatterIndices1(
@@ -1422,7 +1422,7 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
       const int gid = elem_map[elem_index*elem_dofs + did];
       const int lid = face_dofs*face_index + d;
       scatter_indices1[lid] = gid;
-      ++offsets[gid + 1];
+      ++gather_offsets[gid + 1];
    }
 }
 
@@ -1450,7 +1450,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
       const int gid = elem_map[elem_index*elem_dofs + did]; // global_dof_elem2
       const int lid = face_dofs*face_index + d; // restriction_dof_elem2
       scatter_indices2[lid] = gid;
-      ++offsets[gid + 1];
+      ++gather_offsets[gid + 1];
    }
 }
 
@@ -1521,7 +1521,7 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
       const int gid = elem_map[elem_index*elem_dofs + did];
       const int lid = face_dofs*face_index + d;
       // We don't shift lid to express that it's elem1 of the face
-      gather_indices[offsets[gid]++] = lid;
+      gather_indices[gather_offsets[gid]++] = lid;
    }
 }
 
@@ -1549,7 +1549,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
       const int gid = elem_map[elem_index*elem_dofs + did];
       const int lid = face_dofs*face_index + d;
       // We shift lid to express that it's elem2 of the face
-      gather_indices[offsets[gid]++] = nfdofs + lid;
+      gather_indices[gather_offsets[gid]++] = nfdofs + lid;
    }
 }
 
@@ -2003,7 +2003,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 
    // Gathering of face dofs into element dofs
    const int dofs = nfdofs;
-   auto d_offsets = offsets.Read();
+   auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
    if ( m==L2FaceValues::DoubleValued )
    {
@@ -2098,7 +2098,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
-      offsets[i] = 0;
+      gather_offsets[i] = 0;
    }
 
    // Computation of scatter and offsets indices
@@ -2146,7 +2146,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
 
    // Transform the interpolation matrix map into a contiguous memory structure.
@@ -2190,9 +2190,9 @@ void NCL2FaceRestriction::ComputeGatherIndices(
    // Switch back offsets to their correct value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
 } // namespace mfem
