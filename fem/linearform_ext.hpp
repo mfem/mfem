@@ -42,10 +42,12 @@ public:
 class PALinearFormExtension : public LinearFormExtension
 {
 protected:
-   const FiniteElementSpace *fes; // Not owned
+   const FiniteElementSpace &fes; // Not owned
+   const Mesh &mesh;
    const Array<LinearFormIntegrator*> &domain_integs;
    const Array<Array<int>*> &domain_integs_marker;
-   Vector mark;
+   Vector marks, attributes;
+   const int NE, mesh_attributes_size;
 
 public:
    PALinearFormExtension(LinearForm*);

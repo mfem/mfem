@@ -34,7 +34,7 @@ void DomainLFIntegratorAssemble2D(const int NE,
 {
    constexpr int DIM = 2;
 
-   const bool constant_coeff = coeff.Size() == 1;
+   const bool cst_coeff = coeff.Size() == 1;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -42,7 +42,7 @@ void DomainLFIntegratorAssemble2D(const int NE,
    const auto J = Reshape(jacobians, Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D, NE);
-   const auto C = constant_coeff ? Reshape(F,1,1,1):Reshape(F,Q1D,Q1D,NE);
+   const auto C = cst_coeff ? Reshape(F,1,1,1):Reshape(F,Q1D,Q1D,NE);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,NBZ,
    {
@@ -53,7 +53,7 @@ void DomainLFIntegratorAssemble2D(const int NE,
       MFEM_SHARED double sm1[NBZ][Q1D*Q1D];
 
       const int tidz = MFEM_THREAD_ID(z);
-      const double constant_val = C(0,0,0);
+      const double cst_val = C(0,0,0);
 
       double (*Bt)[Q1D] = (double (*)[Q1D]) smB;
       double (*QQ)[Q1D] = (double (*)[Q1D]) (sm0 + tidz);
@@ -68,8 +68,7 @@ void DomainLFIntegratorAssemble2D(const int NE,
             const double J12 = J(qx,qy,0,1,e);
             const double J22 = J(qx,qy,1,1,e);
             const double detJ = (J11*J22)-(J21*J12);
-            const double coeff_val =
-            constant_coeff ? constant_val : C(qx,qy,e);
+            const double coeff_val = cst_coeff ? cst_val : C(qx,qy,e);
             QQ[qy][qx] = W(qx,qy) * coeff_val * detJ;
          }
       }

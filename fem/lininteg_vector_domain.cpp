@@ -33,7 +33,7 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
    constexpr int DIM = 2;
    constexpr int VDIM = 2;
 
-   const bool constant_coeff = coeff.Size() == 1;
+   const bool cst_coeff = coeff.Size() == VDIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -41,9 +41,10 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
    const auto J = Reshape(jacobians, Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D, NE);
-   const auto C = constant_coeff ?
-                  Reshape(F,1,1,1,1):
+   const auto C = cst_coeff ?
+                  Reshape(F,VDIM,1,1,1):
                   Reshape(F,VDIM,Q1D,Q1D,NE);
+
    auto Y = Reshape(y,ND,VDIM);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
@@ -56,7 +57,6 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
       double (*QQ)[Q1D] = (double (*)[Q1D]) (sm0);
       double (*QD)[D1D] = (double (*)[D1D]) (sm1);
 
-      const double constant_val = C(0,0,0,0);
 
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
@@ -69,6 +69,7 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
 
       for (int c = 0; c < VDIM; ++ c)
       {
+         const double cst_val = C(c,0,0,0);
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -78,8 +79,7 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
                const double J12 = J(qx,qy,0,1,e);
                const double J22 = J(qx,qy,1,1,e);
                const double detJ = (J11*J22)-(J21*J12);
-               const double coeff_val =
-                  constant_coeff ? constant_val : C(c,qx,qy,e);
+               const double coeff_val = cst_coeff ? cst_val : C(c,qx,qy,e);
                QQ[qy][qx] = W(qx,qy) * coeff_val * detJ;
 
             }
@@ -125,7 +125,8 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
 {
    constexpr int DIM = 3;
    constexpr int VDIM = 3;
-   const bool constant_coeff = coeff.Size() == 1;
+
+   const bool cst_coeff = coeff.Size() == VDIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -133,9 +134,8 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
    const auto J = Reshape(jacobians, Q1D,Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
-   const auto C = constant_coeff ?
-                  Reshape(F,1,1,1,1,1):
-                  Reshape(F,VDIM,Q1D,Q1D,Q1D,NE);
+   const auto C = cst_coeff ?
+                  Reshape(F,VDIM,1,1,1,1) : Reshape(F,VDIM,Q1D,Q1D,Q1D,NE);
    auto Y = Reshape(y,ND,VDIM);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
@@ -145,7 +145,6 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
       double u[Q1D];
       MFEM_SHARED double s_B[Q1D][D1D];
       MFEM_SHARED double s_q[Q1D][Q1D][Q1D];
-      const double constant_val = C(0,0,0,0,0);
 
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
@@ -158,6 +157,7 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
 
       for (int c = 0; c < VDIM; ++ c)
       {
+         const double cst_val = C(c,0,0,0,0);
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -176,8 +176,7 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
                   const double detJ = J11 * (J22 * J33 - J32 * J23) -
                                       J21 * (J12 * J33 - J32 * J13) +
                                       J31 * (J12 * J23 - J22 * J13);
-                  const double coeff_val =
-                     constant_coeff ? constant_val : C(c,qx,qy,qz,e);
+                  const double coeff_val = cst_coeff ? cst_val : C(c,qx,qy,qz,e);
                   s_q[qz][qy][qx] = W(qx,qy,qz) * coeff_val * detJ;
                }
             }
@@ -293,10 +292,10 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
 
    Vector coeff;
 
-   if (ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(&Q))
+   if (VectorConstantCoefficient *vcQ =
+          dynamic_cast<VectorConstantCoefficient*>(&Q))
    {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
+      coeff = vcQ->GetVec();
    }
    else if (VectorQuadratureFunctionCoefficient *vQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
@@ -312,7 +311,6 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    }
    else
    {
-      // VectorCoefficient
       coeff.SetSize(vdim * NQ * NE);
       auto C = Reshape(coeff.HostWrite(), vdim, NQ, NE);
       Vector Qvec(vdim);

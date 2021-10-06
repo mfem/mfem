@@ -34,9 +34,10 @@ void VectorDomainLFGradIntegratorAssemble2D(const int ND,
                                             double* __restrict y)
 {
    constexpr int DIM = 2;
-   constexpr int VDIM = 1;
+   constexpr int VDIM = 2;
+   constexpr int VDIM_i_DIM = VDIM/DIM;
 
-   const bool constant_coeff = coeff.Size() == 1;
+   const bool cst_coeff = coeff.Size() == VDIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -45,10 +46,11 @@ void VectorDomainLFGradIntegratorAssemble2D(const int ND,
    const auto J = Reshape(jacobians, Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D, NE);
-   const auto C = constant_coeff ?
-                  Reshape(F,1,1,1,1,1):
-                  Reshape(F,VDIM,DIM,Q1D,Q1D,NE);
-   auto Y = Reshape(y,ND,VDIM);
+   const auto C = cst_coeff ?
+                  Reshape(F,VDIM,1,1,1):
+                  Reshape(F,VDIM,Q1D,Q1D,NE);
+
+   auto Y = Reshape(y,ND,1);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -77,7 +79,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int ND,
       }
       MFEM_SYNC_THREAD;
 
-      for (int c = 0; c < VDIM; ++ c)
+      for (int c = 0; c < VDIM_i_DIM; ++ c)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -89,11 +91,10 @@ void VectorDomainLFGradIntegratorAssemble2D(const int ND,
                Jloc[2] = J(qx,qy,0,1,e);
                Jloc[3] = J(qx,qy,1,1,e);
                const double detJ = kernels::Det<2>(Jloc);
-               //if (e==0) { dbg("det:%.8e",detJ); }
                kernels::CalcInverse<2>(Jloc, Jinv);
                const double weight = W(qx,qy);
-               const double u = constant_coeff ? C(0,0,0,0,0) : C(c,0,qx,qy,e);
-               const double v = constant_coeff ? C(0,0,0,0,0) : C(c,1,qx,qy,e);
+               const double u = cst_coeff ? C(0,0,0,0) : C(0,qx,qy,e);
+               const double v = cst_coeff ? C(1,0,0,0) : C(1,qx,qy,e);
                QQ0[qy][qx] = Jinv[0]*u + Jinv[2]*v;
                QQ1[qy][qx] = Jinv[1]*u + Jinv[3]*v;
                QQ0[qy][qx] *= weight * detJ;
@@ -178,9 +179,10 @@ void VectorDomainLFGradIntegratorAssemble3D(const int ND,
                                             double* __restrict y)
 {
    constexpr int DIM = 3;
-   constexpr int VDIM = 1;
+   constexpr int VDIM = 3;
+   constexpr int VDIM_i_DIM = VDIM/DIM;
 
-   const bool constant_coeff = coeff.Size() == 1;
+   const bool constant_coeff = coeff.Size() == VDIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -190,8 +192,8 @@ void VectorDomainLFGradIntegratorAssemble3D(const int ND,
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
    const auto C = constant_coeff ?
-                  Reshape(F,1,1,1,1,1,1):
-                  Reshape(F,VDIM,DIM,Q1D,Q1D,Q1D,NE);
+                  Reshape(F,VDIM,1,1,1,1):
+                  Reshape(F,VDIM,Q1D,Q1D,Q1D,NE);
    auto Y = Reshape(y,ND,VDIM);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
@@ -228,7 +230,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int ND,
       }
       MFEM_SYNC_THREAD;
 
-      for (int c = 0; c < VDIM; ++ c)
+      for (int c = 0; c < VDIM_i_DIM; ++ c)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -247,9 +249,9 @@ void VectorDomainLFGradIntegratorAssemble3D(const int ND,
                   const double detJ = kernels::Det<3>(Jloc);
                   kernels::CalcInverse<3>(Jloc, Jinv);
                   const double weight = W(qx,qy,qz);
-                  const double u = constant_coeff ? C(0,0,0,0,0,0) : C(c,0,qx,qy,qz,e);
-                  const double v = constant_coeff ? C(0,0,0,0,0,0) : C(c,1,qx,qy,qz,e);
-                  const double w = constant_coeff ? C(0,0,0,0,0,0) : C(c,2,qx,qy,qz,e);
+                  const double u = constant_coeff ? C(0,0,0,0,0) : C(0,qx,qy,qz,e);
+                  const double v = constant_coeff ? C(1,0,0,0,0) : C(1,qx,qy,qz,e);
+                  const double w = constant_coeff ? C(2,0,0,0,0) : C(2,qx,qy,qz,e);
                   QQQ0[qz][qy][qx] = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
                   QQQ1[qz][qy][qx] = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
                   QQQ2[qz][qy][qx] = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
@@ -370,7 +372,6 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
 {
    const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();
-   const int dim = mesh->Dimension();
 
    const FiniteElement &el = *fes.GetFE(0);
    const Geometry::Type geom_type = el.GetGeomType();
@@ -398,24 +399,24 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const int ND = fes.GetNDofs();
    const int NE = fes.GetMesh()->GetNE();
    const int NQ = ir->GetNPoints();
-   //dbg("D1D:%d Q1D:%d",D1D,Q1D);
 
-   const int vdim = fes.GetVDim();
-   const int qvdim = Q.GetVDim();
-   //const int spaceDim = fes.GetMesh()->SpaceDimension();
-   //dbg("dim:%d vdim:%d qvdim:%d spaceDim:%d",dim,vdim,qvdim,spaceDim);
-   assert(qvdim == vdim);
+   //const int vdim = fes.GetVDim();
+   const int dim = el.GetDim();
+   const int vdim = Q.GetVDim();
+   //dbg("dim:%d vdim:%d",dim,vdim);
 
    Vector coeff;
 
-   if (ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(&Q))
+   if (VectorConstantCoefficient *vcQ =
+          dynamic_cast<VectorConstantCoefficient*>(&Q))
    {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
+      const Vector& qvec = vcQ->GetVec();
+      coeff = qvec;
    }
    else if (QuadratureFunctionCoefficient *cQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
    {
+      dbg("QuadratureFunctionCoefficient");
       const QuadratureFunction &qfun = cQ->GetQuadFunction();
       MFEM_VERIFY(qfun.Size() == NE*NQ,
                   "Incompatible QuadratureFunction dimension \n");
@@ -427,9 +428,9 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    }
    else
    {
-      Vector Qvec(qvdim);
-      coeff.SetSize(qvdim * NQ * NE);
-      auto C = Reshape(coeff.HostWrite(), qvdim, NQ, NE);
+      Vector Qvec(vdim);
+      coeff.SetSize( vdim * NQ * NE);
+      auto C = Reshape(coeff.HostWrite(), vdim, NQ, NE);
       for (int e = 0; e < NE; ++e)
       {
          ElementTransformation &Tr = *fes.GetElementTransformation(e);
@@ -437,7 +438,7 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
          {
             const IntegrationPoint &ip = ir->IntPoint(q);
             Q.Eval(Qvec, Tr, ip);
-            for (int c=0; c<qvdim; ++c)
+            for (int c = 0; c<vdim; ++c)
             {
                C(c,q,e) = Qvec[c];
             }

@@ -174,6 +174,8 @@ public:
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
        coefficients. */
    Array<LinearFormIntegrator*> *GetDLFI() { return &domain_integs; }
+
+   /// Access the element attribute marker (of length mesh->attributes)
    Array<Array<int>*> *GetDLFIM() { return &domain_integs_marker; }
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are

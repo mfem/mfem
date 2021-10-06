@@ -326,17 +326,14 @@ void VectorDomainLFIntegrator::AssembleDeltaElementVect(
 void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   static int e = 0;
+   const int dim = el.GetDim();
+   const int ndof = el.GetDof();
+   const int vdim = Q.GetVDim();
 
-   int dof = el.GetDof();
-   int vdim = Q.GetVDim();
-   int spaceDim = Tr.GetSpaceDim();
-   if (e==0) { dbg("vdim:%d spaceDim:%d",vdim,spaceDim); }
+   dshape.SetSize(ndof, dim);
 
-   dshape.SetSize(dof, spaceDim);
-
-   Vector pelvect(dof);
-   elvect.SetSize(dof*vdim);
+   Vector pelvect(ndof);
+   elvect.SetSize(ndof*vdim);
    elvect = 0.0;
 
    const IntegrationRule *ir = IntRule;
@@ -346,33 +343,23 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int q = 0; q < ir->GetNPoints(); q++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-
+      const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint(&ip);
       const double det = Tr.Weight();
-      //if (e==0) { dbg("det:%.8e",det); }
-
+      const double w = ip.weight * det;
       el.CalcPhysDShape(Tr, dshape);
       Q.Eval(Qvec, Tr, ip);
-
-      for (int idx = 0; idx < vdim/spaceDim; ++idx)
+      for (int c = 0; c < vdim/dim; c++)
       {
-         Vector part_x(spaceDim);
-         for (int jdx = 0; jdx < spaceDim; ++jdx)
-         {
-            part_x(jdx) = Qvec(idx*spaceDim+jdx);
-         }
-         part_x *= ip.weight * det;
+         Vector part_x(vdim);
+         for (int j = 0; j < dim; ++j) { part_x(j) = Qvec(c*dim+j); }
+         part_x *= w;
          dshape.Mult(part_x, pelvect);
-         for (int j = 0; j < dof; ++j)
-         {
-            elvect(j+dof*idx) += pelvect(j);
-         }
+         for (int d = 0; d < ndof; ++d) { elvect(d + c * ndof) += pelvect(d); }
       }
    }
-   e+=1;
 }
 
 void VectorDomainLFGradIntegrator::AssembleDeltaElementVect(

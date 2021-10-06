@@ -14,6 +14,11 @@
 
 #include "linearform.hpp"
 
+#define MFEM_DEBUG_COLOR 201
+#include "../general/debug.hpp"
+
+#include "../general/forall.hpp"
+
 namespace mfem
 {
 
@@ -23,16 +28,26 @@ LinearFormExtension::~LinearFormExtension() { }
 
 PALinearFormExtension::PALinearFormExtension(LinearForm *lf):
    LinearFormExtension(lf),
-   fes(lf->FESpace()),
+   fes(*lf->FESpace()),
+   mesh(*fes.GetMesh()),
    domain_integs(*lf->GetDLFI()),
-   domain_integs_marker(*lf->GetDLFIM()) { }
+   domain_integs_marker(*lf->GetDLFIM()), // element attribute marker
+   NE(fes.GetNE()),
+   mesh_attributes_size(fes.GetMesh()->attributes.Size())
+{
+   //dbg("NE:%d",NE);
+   marks.SetSize(NE);
+   marks.UseDevice(true);
+
+   attributes.SetSize(NE);
+   attributes.UseDevice(true);
+
+   // Fill the attributes vector on host
+   for (int i=0; i<NE; i++) { attributes[i] = fes.GetMesh()->GetAttribute(i); }
+}
 
 void PALinearFormExtension::Assemble()
 {
-   const int NE = fes->GetNE();
-
-   mark.SetSize(NE);
-   mark.UseDevice(true);
 
    lf->Vector::operator=(0.0);
 
@@ -45,28 +60,31 @@ void PALinearFormExtension::Assemble()
 
    for (int k = 0; k < domain_integs.Size(); ++k)
    {
-      if (domain_integs_marker[k] != NULL)
+      if (domain_integs_marker[k] != nullptr)
       {
-         MFEM_VERIFY(fes->GetMesh()->attributes.Size() ==
-                     domain_integs_marker[k]->Size(),
+         MFEM_VERIFY(mesh_attributes_size == domain_integs_marker[k]->Size(),
                      "invalid element marker for domain linear form "
                      "integrator #" << k << ", counting from zero");
       }
 
-      mark = 0.0;
-      mark.HostReadWrite();
+      marks = 0.0;
 
-      for (int i = 0; i < NE; i++)
+      const Array<int> *dimks = domain_integs_marker[k];
+      const bool no_dimk =  dimks == nullptr;
+      const auto dimk = no_dimk ? nullptr : dimks->Read();
+      const auto attr = attributes.Read();
+      auto mark = marks.ReadWrite();
+
+      MFEM_FORALL(i, NE,
       {
-         const int elem_attr = fes->GetMesh()->GetAttribute(i);
-         if (domain_integs_marker[k] == NULL ||
-             (*(domain_integs_marker[k]))[elem_attr-1] == 1)
-         {
-            mark[i] = 1.0;
-         }
-      }
-      domain_integs[k]->AssemblePA(*fes, mark, *lf);
+         const int elem_attr = attr[i];
+         const bool elem_attr_eq_1 = no_dimk ? false : dimk[elem_attr-1] == 1;
+         if (no_dimk || elem_attr_eq_1) { mark[i] = 1.0; }
+      });
+
+      domain_integs[k]->AssemblePA(fes, marks, *lf);
    }
+   //assert(false);
 }
 
 } // namespace mfem
