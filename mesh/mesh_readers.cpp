@@ -426,6 +426,28 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       j = cell_offsets[i];
    }
 
+   // determine spaceDim based on min/max differences detected each dimension
+   spaceDim = 0;
+   if (np > 0)
+   {
+      double min_value, max_value;
+      for (int d = 3; d > 0; --d)
+      {
+         min_value = max_value = points(3*0 + d-1);
+         for (int i = 1; i < np; i++)
+         {
+            min_value = std::min(min_value, points(3*i + d-1));
+            max_value = std::max(max_value, points(3*i + d-1));
+            if (min_value != max_value)
+            {
+               spaceDim = d;
+               break;
+            }
+         }
+         if (spaceDim > 0) { break; }
+      }
+   }
+
    if (order == 1 && !lagrange_elem)
    {
       NumOfVertices = np;
@@ -500,25 +522,6 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // No boundary is defined in a VTK mesh
       NumOfBdrElements = 0;
 
-      // determine spaceDim based on min/max differences detected each dimension
-      if (vertices.Size() > 0)
-      {
-         double min_value, max_value;
-         for (int d=0; d<3; ++d)
-         {
-            min_value = max_value = vertices[0](d);
-            for (int i = 1; i < vertices.Size(); i++)
-            {
-               min_value = std::min(min_value,vertices[i](d));
-               max_value = std::max(max_value,vertices[i](d));
-               if (min_value != max_value)
-               {
-                  spaceDim++;
-                  break;
-               }
-            }
-         }
-      }
       // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
@@ -1895,6 +1898,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
          ho_pyr[2] = pyr14; ho_pyr[3] = pyr30;
 
+         bool has_nonpositive_phys_domain = false;
+         bool has_positive_phys_domain = false;
+
          if (binary)
          {
             int n_elem_part = 0; // partial sum of elements that are read
@@ -1945,17 +1951,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      vert_indices[vi] = it->second;
                   }
 
-                  // non-positive attributes are not allowed in MFEM
+                  // Non-positive attributes are not allowed in MFEM. However,
+                  // by default, Gmsh sets the physical domain of all elements
+                  // to zero. In the case that all elements have physical domain
+                  // zero, we will given them attribute 1. If only some elements
+                  // have physical domain zero, we will throw an error.
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                                "By default Gmsh sets element tags (attributes)"
-                                " to '0' but MFEM requires that they be"
-                                " positive integers.\n"
-                                "Use \"Physical Curve\", \"Physical Surface\","
-                                " or \"Physical Volume\" to set tags/attributes"
-                                " for all curves, surfaces, or volumes in your"
-                                " Gmsh geometry to values which are >= 1.");
+                     has_nonpositive_phys_domain = true;
+                     phys_domain = 1;
+                  }
+                  else
+                  {
+                     has_positive_phys_domain = true;
                   }
 
                   // initialize the mesh element
@@ -2172,17 +2180,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   vert_indices[vi] = it->second;
                }
 
-               // non-positive attributes are not allowed in MFEM
+               // Non-positive attributes are not allowed in MFEM. However,
+               // by default, Gmsh sets the physical domain of all elements
+               // to zero. In the case that all elements have physical domain
+               // zero, we will given them attribute 1. If only some elements
+               // have physical domain zero, we will throw an error.
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                             "By default Gmsh sets element tags (attributes)"
-                             " to '0' but MFEM requires that they be"
-                             " positive integers.\n"
-                             "Use \"Physical Curve\", \"Physical Surface\","
-                             " or \"Physical Volume\" to set tags/attributes"
-                             " for all curves, surfaces, or volumes in your"
-                             " Gmsh geometry to values which are >= 1.");
+                  has_nonpositive_phys_domain = true;
+                  phys_domain = 1;
+               }
+               else
+               {
+                  has_positive_phys_domain = true;
                }
 
                // initialize the mesh element
@@ -2366,6 +2376,24 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                } // switch (type_of_element)
             } // el (all elements)
          } // if ASCII
+
+         if (has_positive_phys_domain && has_nonpositive_phys_domain)
+         {
+            MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                       "By default Gmsh sets element tags (attributes)"
+                       " to '0' but MFEM requires that they be"
+                       " positive integers.\n"
+                       "Use \"Physical Curve\", \"Physical Surface\","
+                       " or \"Physical Volume\" to set tags/attributes"
+                       " for all curves, surfaces, or volumes in your"
+                       " Gmsh geometry to values which are >= 1.");
+         }
+         else if (has_nonpositive_phys_domain)
+         {
+            mfem::out << "\nGmsh reader: all element attributes were zero.\n"
+                      << "MFEM only supports positive element attributes.\n"
+                      << "Setting element attributes to 1.\n\n";
+         }
 
          if (!elements_3D.empty())
          {

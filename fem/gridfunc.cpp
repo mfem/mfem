@@ -502,25 +502,24 @@ const
    {
       doftrans->InvTransformPrimal(loc_data);
    }
-   for (int k = 0; k < n; k++)
-      if (FElem->GetMapType() == FiniteElement::VALUE)
+   if (FElem->GetMapType() == FiniteElement::VALUE)
+   {
+      for (int k = 0; k < n; k++)
       {
-         for (int k = 0; k < n; k++)
-         {
-            FElem->CalcShape(ir.IntPoint(k), DofVal);
-            vals(k) = DofVal * loc_data;
-         }
+         FElem->CalcShape(ir.IntPoint(k), DofVal);
+         vals(k) = DofVal * loc_data;
       }
-      else
+   }
+   else
+   {
+      ElementTransformation *Tr = fes->GetElementTransformation(i);
+      for (int k = 0; k < n; k++)
       {
-         ElementTransformation *Tr = fes->GetElementTransformation(i);
-         for (int k = 0; k < n; k++)
-         {
-            Tr->SetIntPoint(&ir.IntPoint(k));
-            FElem->CalcPhysShape(*Tr, DofVal);
-            vals(k) = DofVal * loc_data;
-         }
+         Tr->SetIntPoint(&ir.IntPoint(k));
+         FElem->CalcPhysShape(*Tr, DofVal);
+         vals(k) = DofVal * loc_data;
       }
+   }
 }
 
 void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
@@ -2257,9 +2256,10 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
       }
       fe = fes->GetBE(i);
       T = fes->GetBdrElementTransformation(i);
-      fes->GetBdrElementDofs(i, dofs);
+      DofTransformation *dof_tr = fes->GetBdrElementDofs(i, dofs);
       lvec.SetSize(fe->GetDof());
       fe->Project(vcoeff, *T, lvec);
+      if (dof_tr) { dof_tr->TransformPrimal(lvec); }
       accumulate_dofs(dofs, lvec, *this, values_counter);
    }
 
