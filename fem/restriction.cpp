@@ -674,15 +674,17 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      nf(fes.GetNFbyType(type)),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs()),
      face_dofs(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
      elem_dofs(fes.GetFE(0)->GetDof()),
      nfdofs(nf*face_dofs),
+     ndofs(fes.GetNDofs()),
      scatter_indices(nf*face_dofs),
      gather_offsets(ndofs+1),
      gather_indices(nf*face_dofs),
      face_map(face_dofs)
 {
+
+}
 
 H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                                      const ElementDofOrdering e_ordering,
@@ -1054,14 +1056,14 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs()),
      face_dofs(nf > 0 ?
                fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
                : 0),
      elem_dofs(fes.GetFE(0)->GetDof()),
+     nfdofs(nf*face_dofs),
+     ndofs(fes.GetNDofs()),
      type(type),
      m(m),
-     nfdofs(nf*face_dofs),
      scatter_indices1(nf*face_dofs),
      scatter_indices2(m==L2FaceValues::DoubleValued?nf*face_dofs:0),
      gather_offsets(ndofs+1),

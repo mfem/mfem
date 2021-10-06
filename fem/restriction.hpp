@@ -175,10 +175,10 @@ protected:
    const int nf; // Number of faces of the requested type
    const int vdim;
    const bool byvdim;
-   const int ndofs; // Total number of dofs
    const int face_dofs; // Number of dofs on each face
    const int elem_dofs; // Number of dofs in each element
    const int nfdofs; // Total number of face E-vector dofs
+   const int ndofs; // Total number of dofs
    Array<int> scatter_indices; // Scattering indices for element 1 on each face
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
@@ -281,12 +281,12 @@ protected:
    const int ne; // Number of elements
    const int vdim; // vdim
    const bool byvdim;
-   const int ndofs; // Total number of dofs
    const int face_dofs; // Number of dofs on each face
    const int elem_dofs; // Number of dofs in each element
+   const int nfdofs; // Total number of dofs on the faces
+   const int ndofs; // Total number of dofs
    const FaceType type;
    const L2FaceValues m;
-   const int nfdofs; // Total number of dofs on the faces
    Array<int> scatter_indices1; // Scattering indices for element 1 on each face
    Array<int> scatter_indices2; // Scattering indices for element 2 on each face
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
