@@ -41,7 +41,7 @@ ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
                "H1FaceRestriction.");
 
    // Assuming all finite elements are using Gauss-Lobatto.
-   height = vdim*nf*dof;
+   height = vdim*nf*face_dofs;
    width = fes.GetVSize();
    const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (dof_reorder && nf > 0)
@@ -71,7 +71,7 @@ ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
 void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 {
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
+   const int nd = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
 
@@ -158,7 +158,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    x_interp = x;
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
+   const int nd = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    if ( type==FaceType::Interior )
@@ -344,7 +344,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    MFEM_VERIFY(pfes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto dofs
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
    width = pfes.GetVSize();
    const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
@@ -380,7 +380,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    x_gf.ExchangeFaceNbrData();
 
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
+   const int nd = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    const int threshold = ndofs;
@@ -453,24 +453,24 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
    {
       return L2FaceRestriction::FillI(mat, keep_nbr_block);
    }
-   const int face_dofs = dof;
+   const int nd = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
-   MFEM_FORALL(fdof, nf*face_dofs,
+   MFEM_FORALL(fdof, nf*nd,
    {
-      const int f  = fdof/face_dofs;
-      const int iF = fdof%face_dofs;
-      const int iE1 = d_indices1[f*face_dofs+iF];
+      const int f  = fdof/nd;
+      const int iF = fdof%nd;
+      const int iE1 = d_indices1[f*nd+iF];
       if (iE1 < Ndofs)
       {
-         AddNnz(iE1,I,face_dofs);
+         AddNnz(iE1,I,nd);
       }
-      const int iE2 = d_indices2[f*face_dofs+iF];
+      const int iE2 = d_indices2[f*nd+iF];
       if (iE2 < Ndofs)
       {
-         AddNnz(iE2,I,face_dofs);
+         AddNnz(iE2,I,nd);
       }
    });
 }
@@ -478,7 +478,7 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
 void ParL2FaceRestriction::FillI(SparseMatrix &mat,
                                  SparseMatrix &face_mat) const
 {
-   const int face_dofs = dof;
+   const int nd = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
@@ -488,16 +488,16 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
    {
       I_face[i] = 0;
    });
-   MFEM_FORALL(fdof, nf*face_dofs,
+   MFEM_FORALL(fdof, nf*nd,
    {
-      const int f  = fdof/face_dofs;
-      const int iF = fdof%face_dofs;
-      const int iE1 = d_indices1[f*face_dofs+iF];
+      const int f  = fdof/nd;
+      const int iF = fdof%nd;
+      const int iE1 = d_indices1[f*nd+iF];
       if (iE1 < Ndofs)
       {
-         for (int jF = 0; jF < face_dofs; jF++)
+         for (int jF = 0; jF < nd; jF++)
          {
-            const int jE2 = d_indices2[f*face_dofs+jF];
+            const int jE2 = d_indices2[f*nd+jF];
             if (jE2 < Ndofs)
             {
                AddNnz(iE1,I,1);
@@ -508,12 +508,12 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
             }
          }
       }
-      const int iE2 = d_indices2[f*face_dofs+iF];
+      const int iE2 = d_indices2[f*nd+iF];
       if (iE2 < Ndofs)
       {
-         for (int jF = 0; jF < face_dofs; jF++)
+         for (int jF = 0; jF < nd; jF++)
          {
-            const int jE1 = d_indices1[f*face_dofs+jF];
+            const int jE1 = d_indices1[f*nd+jF];
             if (jE1 < Ndofs)
             {
                AddNnz(iE2,I,1);
@@ -535,36 +535,36 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
    {
       return L2FaceRestriction::FillJAndData(ea_data, mat, keep_nbr_block);
    }
-   const int face_dofs = dof;
+   const int nd = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
-   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
+   auto mat_fea = Reshape(ea_data.Read(), nd, nd, 2, nf);
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   MFEM_FORALL(fdof, nf*face_dofs,
+   MFEM_FORALL(fdof, nf*nd,
    {
-      const int f  = fdof/face_dofs;
-      const int iF = fdof%face_dofs;
-      const int iE1 = d_indices1[f*face_dofs+iF];
+      const int f  = fdof/nd;
+      const int iF = fdof%nd;
+      const int iE1 = d_indices1[f*nd+iF];
       if (iE1 < Ndofs)
       {
-         const int offset = AddNnz(iE1,I,face_dofs);
-         for (int jF = 0; jF < face_dofs; jF++)
+         const int offset = AddNnz(iE1,I,nd);
+         for (int jF = 0; jF < nd; jF++)
          {
-            const int jE2 = d_indices2[f*face_dofs+jF];
+            const int jE2 = d_indices2[f*nd+jF];
             J[offset+jF] = jE2;
             Data[offset+jF] = mat_fea(jF,iF,1,f);
          }
       }
-      const int iE2 = d_indices2[f*face_dofs+iF];
+      const int iE2 = d_indices2[f*nd+iF];
       if (iE2 < Ndofs)
       {
-         const int offset = AddNnz(iE2,I,face_dofs);
-         for (int jF = 0; jF < face_dofs; jF++)
+         const int offset = AddNnz(iE2,I,nd);
+         for (int jF = 0; jF < nd; jF++)
          {
-            const int jE1 = d_indices1[f*face_dofs+jF];
+            const int jE1 = d_indices1[f*nd+jF];
             J[offset+jF] = jE1;
             Data[offset+jF] = mat_fea(jF,iF,0,f);
          }
@@ -576,27 +576,27 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
                                         SparseMatrix &mat,
                                         SparseMatrix &face_mat) const
 {
-   const int face_dofs = dof;
+   const int nd = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
-   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
+   auto mat_fea = Reshape(ea_data.Read(), nd, nd, 2, nf);
    auto I = mat.ReadWriteI();
    auto I_face = face_mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto J_face = face_mat.WriteJ();
    auto Data = mat.WriteData();
    auto Data_face = face_mat.WriteData();
-   MFEM_FORALL(fdof, nf*face_dofs,
+   MFEM_FORALL(fdof, nf*nd,
    {
-      const int f  = fdof/face_dofs;
-      const int iF = fdof%face_dofs;
-      const int iE1 = d_indices1[f*face_dofs+iF];
+      const int f  = fdof/nd;
+      const int iF = fdof%nd;
+      const int iE1 = d_indices1[f*nd+iF];
       if (iE1 < Ndofs)
       {
-         for (int jF = 0; jF < face_dofs; jF++)
+         for (int jF = 0; jF < nd; jF++)
          {
-            const int jE2 = d_indices2[f*face_dofs+jF];
+            const int jE2 = d_indices2[f*nd+jF];
             if (jE2 < Ndofs)
             {
                const int offset = AddNnz(iE1,I,1);
@@ -611,12 +611,12 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
             }
          }
       }
-      const int iE2 = d_indices2[f*face_dofs+iF];
+      const int iE2 = d_indices2[f*nd+iF];
       if (iE2 < Ndofs)
       {
-         for (int jF = 0; jF < face_dofs; jF++)
+         for (int jF = 0; jF < nd; jF++)
          {
-            const int jE1 = d_indices1[f*face_dofs+jF];
+            const int jE1 = d_indices1[f*nd+jF];
             if (jE1 < Ndofs)
             {
                const int offset = AddNnz(iE2,I,1);
@@ -740,7 +740,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "ParNCL2FaceRestriction.");
    // Assuming all finite elements are using Gauss-Lobatto dofs
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
    width = pfes.GetVSize();
    const bool dof_reorder = (ordering==ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
@@ -777,7 +777,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    x_gf.ExchangeFaceNbrData();
 
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
+   const int nd = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    const int threshold = ndofs;
@@ -1009,7 +1009,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    x_interp = x;
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
+   const int nd = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    // Interpolation from slave to master face dofs
