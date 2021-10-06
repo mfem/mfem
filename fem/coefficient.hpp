@@ -125,6 +125,48 @@ public:
                        const IntegrationPoint &ip);
 };
 
+/** @brief A piecewise coefficient with the pieces keyed off the element
+    attribute numbers. */
+class PWCoefficient : public Coefficient
+{
+private:
+   std::map<int, Coefficient*> pieces;
+
+   void InitMap(const Array<int> & attr,
+                const Array<Coefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise coefficient
+   explicit PWCoefficient() {}
+
+   /// Construct the coefficient using a arrays describing the pieces
+   /** \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of Coefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       value of zero being returned for that attribute.
+   */
+   PWCoefficient(const Array<int> & attr,
+                 const Array<Coefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Update the coefficients with new arrays
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<Coefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Add a single Coefficient for a particular attribute
+   void AddCoefficient(int attr, Coefficient & coef)
+   { pieces[attr] = &coef; }
+
+   /// Evaluate the coefficient.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
 /// A general function coefficient
 class FunctionCoefficient : public Coefficient
 {
@@ -402,6 +444,47 @@ public:
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
+};
+
+/** @brief A piecewise vector-valued coefficient with the pieces keyed off the
+    element attribute numbers. */
+class PWVectorCoefficient : public VectorCoefficient
+{
+private:
+   std::map<int, VectorCoefficient*> pieces;
+
+   void InitMap(const Array<int> & attr,
+                const Array<VectorCoefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise vector coefficient of dimension vd
+   explicit PWVectorCoefficient(int vd): VectorCoefficient(vd) {}
+
+   /// Construct the coefficient using an arrays describing the pieces
+   /** \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of VectorCoefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero vector being returned for that attribute.
+   */
+   PWVectorCoefficient(int vd, const Array<int> & attr,
+                       const Array<VectorCoefficient*> & coefs)
+      : VectorCoefficient(vd) { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Update the coefficients with new arrays
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<VectorCoefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Add a single coefficient for a particular attribute
+   void AddCoefficient(int attr, VectorCoefficient & coef);
+
+   /// Evaluate the coefficient.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
 };
 
 /// A general vector function coefficient
@@ -763,6 +846,64 @@ public:
                      const IntegrationPoint &ip) { M = mat; }
 };
 
+
+/** @brief A piecewise matrix-valued coefficient with the pieces keyed off the
+    element attribute numbers. */
+class PWMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   std::map<int, MatrixCoefficient*> pieces;
+
+   void InitMap(const Array<int> & attr,
+                const Array<MatrixCoefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise matrix coefficient of dimension dim by dim
+   explicit PWMatrixCoefficient(int dim, bool symm = false)
+      : MatrixCoefficient(dim, symm) {}
+
+   /// Constructs a piecewise matrix coefficient of dimension h by w
+   explicit PWMatrixCoefficient(int h, int w, bool symm = false)
+      : MatrixCoefficient(h, w, symm) {}
+
+   /// Construct the coefficient using an arrays describing the pieces
+   /** @a attr is an array of attribute numbers for each piece
+       @a coefs is the corresponding array of MatrixCoefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero matrix being returned.
+   */
+   PWMatrixCoefficient(int dim, const Array<int> & attr,
+                       const Array<MatrixCoefficient*> & coefs,
+                       bool symm=false)
+      : MatrixCoefficient(dim, symm) { InitMap(attr, coefs); }
+
+   /// Construct the coefficient using an arrays describing the pieces
+   /** \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of MatrixCoefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero matrix being returned for that attribute.
+   */
+   PWMatrixCoefficient(int h, int w, const Array<int> & attr,
+                       const Array<MatrixCoefficient*> & coefs,
+                       bool symm=false)
+      : MatrixCoefficient(h, w, symm) { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Update the coefficients with new arrays
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<MatrixCoefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Add a single coefficient for a particular attribute
+   void AddCoefficient(int attr, MatrixCoefficient & coef);
+
+   /// Evaluate the coefficient.
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
 
 /** @brief A matrix coefficient with an optional scalar coefficient multiplier
     \a q.  The matrix function can either be represented by a std function or
