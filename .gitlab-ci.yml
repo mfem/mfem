@@ -27,6 +27,9 @@
 stages:
   - sub-pipelines
 
+variables:
+  CUSTOM_CI_BUILDS_DIR: "/usr/workspace/mfem/gitlab-runner"
+
 # Trigger subpipelines:
 quartz-build-and-test:
   stage: sub-pipelines
