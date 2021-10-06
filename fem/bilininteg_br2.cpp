@@ -170,19 +170,24 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
+      Trans.SetAllIntPoints(&ip);
 
-      Trans.Loc1.Transform(ip, eip1);
+      const IntegrationPoint &eip1 = Trans.Elem1->GetIntPoint();
       el1.CalcShape(eip1, shape1);
-
       double q = Q ? Q->Eval(*Trans.Elem1, eip1) : 1.0;
       if (ndof2)
       {
-         Trans.Loc2.Transform(ip, eip2);
+         const IntegrationPoint &eip2 = Trans.Elem2->GetIntPoint();
          el2.CalcShape(eip2, shape2);
+         // Set coefficient value q to the average of the values on either side
          if (Q) { q = 0.5*(q + Q->Eval(*Trans.Elem2, eip2)); }
       }
+      // Take sqrt here because
+      //    eta (r_e([u]), r_e([v])) = (sqrt(eta) r_e([u]), sqrt(eta) r_e([v]))
       double w = sqrt((factor + 1)*eta*q)*ip.weight*Trans.Face->Weight();
+      // r_e is defined by, (r_e([u]), tau) = <[u], {tau}>, so we pick up a
+      // factor of 0.5 on interior faces from the average term.
+      if (ndof2) { w *= 0.5; }
 
       for (int i = 0; i < ndof1; i++)
       {
