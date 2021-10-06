@@ -863,8 +863,8 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
    const int face_index,
    const ElementDofOrdering ordering)
 {
-   MFEM_ASSERT(face.conformity!=Mesh::FaceConformity::NonConformingMaster,
-               "This method should not be used on non-conforming master faces.");
+   MFEM_ASSERT(!(face.IsLocal() && face.IsNonConformingMaster()),
+               "This method should not be used on local non-conforming master faces.");
    MFEM_ASSERT(face.elem_1_orientation==0,
                "FaceRestriction used on degenerated mesh.");
 
@@ -896,8 +896,8 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
    const int face_index,
    const ElementDofOrdering ordering)
 {
-   MFEM_ASSERT(face.conformity!=Mesh::FaceConformity::NonConformingMaster,
-               "This method should not be used on non-conforming master faces.");
+   MFEM_ASSERT(!(face.IsLocal() && face.IsNonConformingMaster()),
+               "This method should not be used on local non-conforming master faces.");
 
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));

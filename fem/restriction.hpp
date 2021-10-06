@@ -519,13 +519,11 @@ struct InterpConfig
 
    // Non-conforming face
    InterpConfig(int side, int nc_index)
-      : config(side==1?nc_index: -1 - nc_index)
+      : config(side==1?nc_index: -2 - nc_index)
    { }
 
-   MFEM_HOST_DEVICE
    InterpConfig(const InterpConfig&) = default;
 
-   MFEM_HOST_DEVICE
    InterpConfig &operator=(const InterpConfig &rhs) = default;
 
    MFEM_HOST_DEVICE
@@ -537,7 +535,7 @@ struct InterpConfig
    MFEM_HOST_DEVICE
    int GetInterpolatorIndex() const
    {
-      return config<-1? -1-config : config;
+      return config<-1? -2-config : config;
    }
 };
 
