@@ -176,7 +176,7 @@ protected:
    const int vdim;
    const bool byvdim;
    const int ndofs; // Total number of dofs
-   const int dof; // Number of dofs on each face
+   const int face_dofs; // Number of dofs on each face
    const int elem_dofs; // Number of dofs in each element
    const int nfdofs; // Total number of face E-vector dofs
    Array<int> scatter_indices; // Scattering indices for element 1 on each face
@@ -282,7 +282,7 @@ protected:
    const int vdim; // vdim
    const bool byvdim;
    const int ndofs; // Total number of dofs
-   const int dof; // Number of dofs on each face
+   const int face_dofs; // Number of dofs on each face
    const int elem_dofs; // Number of dofs in each element
    const FaceType type;
    const L2FaceValues m;
