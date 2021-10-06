@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.Assemble();
+   a.Assemble(0);
 
    OperatorPtr Ah;
    Vector B, X;
@@ -485,6 +485,16 @@ int main(int argc, char *argv[])
       mumps.SetOperator(*A);
       mumps.Mult(B,X);
       delete A;
+   }
+#endif
+#ifdef MFEM_USE_MUMPS
+   if (!pa && mumps_solver)
+   {
+      ComplexHypreParMatrix * A = Ah.As<ComplexHypreParMatrix>();
+      ComplexMUMPSSolver cmumps;
+      cmumps.SetPrintLevel(0);
+      cmumps.SetOperator(*A);
+      cmumps.Mult(B,X);
    }
 #endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
