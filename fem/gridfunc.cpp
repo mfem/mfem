@@ -4110,6 +4110,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            Vector &error_estimates,
                            int with_subdomains,
                            bool with_coeff)
+                           // double p_mean)
 {
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
@@ -4117,7 +4118,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
-   // int sdim = mesh->SpaceDimension();
+   int sdim = mesh->SpaceDimension();
    int nfe = ufes->GetNE();
    int nfaces = ufes->GetNF();
 
@@ -4181,9 +4182,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          patch_order = max(patch_order, ufes->GetElementOrder(ielem));
       }
       int num_basis_functions = pow(patch_order+1,dim);
-      int flux_order = 2*patch_order;
+      int flux_order = 2*patch_order + 2;
       DenseMatrix A(num_basis_functions);
-      Array<double> b(dim * num_basis_functions);
+      Array<double> b(sdim * num_basis_functions);
       A = 0.0;
       b = 0.0;
 
@@ -4256,13 +4257,18 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             for (int l = 0; l < num_basis_functions; l++)
             {
                // Loop through each component of the discrete flux
-               for (int n = 0; n < dim; n++)
+               for (int n = 0; n < sdim; n++)
                {
                   b[l + n * num_basis_functions] += p(l) * fl(k + n * num_integration_pts);
                }
             }
          }
       }
+
+      // for (int i = 0; i < num_basis_functions; i++)
+      // {
+      //    A(i,i) += 1e-8;
+      // }
 
       // 2.D. Solve for polynomial coefficients
       Array<int> ipiv(num_basis_functions);
@@ -4274,31 +4280,28 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          mfem::out << "iface = " << iface << " : A is singular" << mfem::endl;
          cin.get();
       }
-      lu.Solve(num_basis_functions, dim, b);
+      lu.Solve(num_basis_functions, sdim, b);
 
       // 2.D. Construct l2-minimizing global polynomial
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
          Vector p(num_basis_functions);
          p = LegendreND(x, xmax, xmin, patch_order, dim);
-         f(0) = 0.0;
-         f(1) = 0.0;
-         if (x.Size() == 3 || dim == 3) { f(2) = 0.0; }
+         f = 0.0;
+         // f(0) = 0.0;
+         // if (x.Size() > 1 || sdim > 1) { f(1) = 0.0; }
+         // if (x.Size() == 3 || sdim == 3) { f(2) = 0.0; }
          for (int i = 0; i < num_basis_functions; i++)
          {
-            f(0) += b[i] * p(i);
-            f(1) += b[i + num_basis_functions] * p(i);
-            // mfem::out << "num_basis_functions = " << num_basis_functions << endl;
-            // mfem::out << "i = " << i << endl;
-            // mfem::out << "b.size = " << b.Size() << endl;
-            if (dim == 3)
+            for (int j = 0; j < sdim; j++)
             {
-
-               f(2) += b[i + num_basis_functions + num_basis_functions] * p(i);
+               f(j) += b[i + j * num_basis_functions] * p(i);
             }
          }
       };
-      VectorFunctionCoefficient global_poly(dim, global_poly_tmp);
+      VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
+
+
 
       // 3. Compute error contribution from face.
       // 3.A. Locally project/interpolate global polynomial to elements in patch
@@ -4320,6 +4323,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
          flux_offset += fdofs.Size();
       }
+
 
       // 3.B. Loop through each element and compute distance between
       //      projected flux and discrete flux
@@ -4348,12 +4352,13 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       for (int i = 0; i < num_neighbor_elems; i++)
       {
          int ielem = neighbor_elems[i];
-         error_estimates(ielem) += patch_error;
+         error_estimates(ielem) = max(error_estimates(ielem),patch_error);
+         // error_estimates(ielem) += patch_error;
          counters[ielem] += 1;
       }
    }
 
-   // 5. Average error contributions
+   // 5. Average error contributions (using appropriate power mean).
    for (int ielem = 0; ielem < nfe; ielem++)
    {
       if (counters[ielem] == 0)
@@ -4363,7 +4368,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
       else
       {
-         error_estimates(ielem) /= counters[ielem];
+         // error_estimates(ielem) /= counters[ielem];
          error_estimates(ielem) = sqrt(error_estimates(ielem));
       }
    }
