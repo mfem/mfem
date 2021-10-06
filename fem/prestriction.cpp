@@ -257,19 +257,18 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          }
          else // Non-conforming face
          {
+            SetFaceDofsScatterIndices(face, f_ind, ordering);
             if (face.IsSharedNonConformingSlave())
             {
                // In this case the local face is the master (coarse) face, thus
                // we need to interpolate the values on the slave (fine) face.
                interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
-               SetFaceDofsScatterIndices(face, f_ind, ordering);
             }
             else
             {
                // Treated as a conforming face since we only extract values from
                // the local slave (fine) face.
                interpolations.RegisterFaceConformingInterpolation(face,f_ind);
-               SetFaceDofsScatterIndices(face, f_ind, ordering);
             }
             f_ind++;
          }
@@ -1216,25 +1215,12 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
             SetFaceDofsScatterIndices1(face,f_ind);
             if ( m==L2FaceValues::DoubleValued )
             {
-               if ( face.IsSharedNonConformingSlave() )
+               if ( face.IsShared() )
                {
-                  // In the case of ghost non-conforming face the master (coarse)
-                  // face is elem1, and the slave face is elem2, so I think we
-                  // should permute the dofs of elem2.
-                  PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
-               }
-               else if ( face.IsSharedNonConformingMaster() )
-               {
-                  // Contrary to the conforming case, there is no need to call
-                  // PermuteFaceL2, the permutation is achieved by the
-                  // interpolation operator for simplicity.
                   PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
                }
                else // local non-conforming slave
                {
-                  // Contrary to the conforming case, there is no need to call
-                  // PermuteFaceL2, the permutation is achieved by the
-                  // interpolation operator for simplicity.
                   PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
                }
             }
@@ -1289,17 +1275,7 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
              type==FaceType::Interior &&
              face.IsLocal())
          {
-            if (face.IsConforming())
-            {
-               PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
-            }
-            else
-            {
-               // Contrary to the conforming case, there is no need to call
-               // PermuteFaceL2, the permutation is achieved by the
-               // interpolation operator for simplicity.
-               PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
-            }
+            PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
          }
          f_ind++;
       }

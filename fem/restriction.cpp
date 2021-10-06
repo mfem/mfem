@@ -1426,36 +1426,12 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    }
 }
 
-void L2FaceRestriction::SetFaceDofsScatterIndices2(
-   const Mesh::FaceInformation &face,
-   const int face_index)
-{
-   MFEM_ASSERT(face.IsLocal() && face.IsNonConformingSlave(),
-               "This method should only be used on non-conforming faces.");
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elem_map = e2dTable.GetJ();
-   const int face_id2 = face.elem_2_local_face;
-   const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_index = face.elem_2_index;
-   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
-
-   for (int d = 0; d < dof; ++d)
-   {
-      const int did = face_map[d];
-      const int gid = elem_map[elem_index*elem_dofs + did];
-      const int lid = dof*face_index + d;
-      scatter_indices2[lid] = gid;
-      ++offsets[gid + 1];
-   }
-}
-
 void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   // MFEM_ASSERT(face.IsLocal() && face.IsConforming(),
-   //             "This method should only be used on local conforming faces.");
+   MFEM_ASSERT(face.IsLocal(),
+               "This method should only be used on local faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.elem_2_index;
@@ -1478,44 +1454,13 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    }
 }
 
-void L2FaceRestriction::SetSharedFaceDofsScatterIndices2(
-   const Mesh::FaceInformation &face,
-   const int face_index)
-{
-#ifdef MFEM_USE_MPI
-   MFEM_ASSERT(face.IsSharedNonConformingMaster(),
-               "This method should only be used on ghost non-conforming master faces.");
-   const int face_id2 = face.elem_2_local_face;
-   const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_index = face.elem_2_index;
-   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
-   Array<int> sharedDofs;
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
-   pfes.GetFaceNbrElementVDofs(elem_index, sharedDofs);
-
-   for (int d = 0; d < dof; ++d)
-   {
-      const int face_dof = face_map[d];
-      const int did = face_dof;
-      const int gid = sharedDofs[did];
-      const int lid = dof*face_index + d;
-      // Trick to differentiate dof location inter/shared:
-      // we shift the gid by ndofs.
-      scatter_indices2[lid] = ndofs+gid;
-   }
-#endif
-}
-
 void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
-   // MFEM_ASSERT(face.IsShared() &&
-   //             (face.IsConforming() || face.IsSharedNonConformingSlave()),
-   //             "This method should only be used on conforming shared faces.");
+   MFEM_ASSERT(face.IsShared(),
+               "This method should only be used on shared faces.");
    const int elem_index = face.elem_2_index;
    const int face_id1 = face.elem_1_local_face;
    const int face_id2 = face.elem_2_local_face;
@@ -1580,36 +1525,12 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    }
 }
 
-void L2FaceRestriction::SetFaceDofsGatherIndices2(
-   const Mesh::FaceInformation &face,
-   const int face_index)
-{
-   MFEM_ASSERT(face.IsLocal() && face.IsNonConformingSlave(),
-               "This method should only be used on local non-conforming faces.");
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elem_map = e2dTable.GetJ();
-   const int face_id2 = face.elem_2_local_face;
-   const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_index = face.elem_2_index;
-   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
-
-   for (int d = 0; d < dof; ++d)
-   {
-      const int did = face_map[d];
-      const int gid = elem_map[elem_index*elem_dofs + did];
-      const int lid = dof*face_index + d;
-      // We shift lid to express that it's elem2 of the face
-      gather_indices[offsets[gid]++] = nfdofs + lid;
-   }
-}
-
 void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   // MFEM_ASSERT(face.IsLocal() && face.IsConforming(),
-   //             "This method should only be used on local conforming faces.");
+   MFEM_ASSERT(face.IsLocal(),
+               "This method should only be used on local faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.elem_2_index;
@@ -1787,8 +1708,6 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             f_ip.x = x_min + (x_max - x_min) * ip.x;
             trace_fe->CalcShape(f_ip, shape);
             int li = ToLexOrdering(dim, master_face_id, dof1d, i);
-            // We need to permute since the orientation is not
-            // in the PointMatrix in 2D.
             if ( !face.IsSharedNonConformingSlave() )
             {
                // master side is elem 2, so we permute to order dofs as elem 1.
@@ -2198,19 +2117,14 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
          SetFaceDofsScatterIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
+            PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             if ( face.IsConforming() )
             {
                interpolations.RegisterFaceConformingInterpolation(face,f_ind);
-               PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             }
             else // Non-conforming face
             {
                interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
-               // Contrary to the conforming case, there is no need to call
-               // PermuteFaceL2, the permutation is achieved by the
-               // interpolation operator for simplicity.
-               // SetFaceDofsScatterIndices2(face,f_ind);
-               PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             }
          }
          f_ind++;
@@ -2264,17 +2178,7 @@ void NCL2FaceRestriction::ComputeGatherIndices(
               type==FaceType::Interior &&
               face.IsInterior() )
          {
-            // if ( face.IsConforming() )
-            // {
-               PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
-            // }
-            // else
-            // {
-            //    // Contrary to the conforming case, there is no need to call
-            //    // PermuteFaceL2, the permutation is achieved by the
-            //    // interpolation operator for simplicity.
-            //    SetFaceDofsGatherIndices2(face,f_ind);
-            // }
+            PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
          }
          f_ind++;
       }
