@@ -462,7 +462,8 @@ public:
    explicit PWVectorCoefficient(int vd): VectorCoefficient(vd) {}
 
    /// Construct the coefficient using an arrays describing the pieces
-   /** \param attr - an array of attribute numbers for each piece
+   /** \param vd - dimension of the vector-valued result
+       \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of VectorCoefficient pointers
        Any missing attributes or NULL coefficient pointers will result in a
        zero vector being returned for that attribute.
@@ -868,8 +869,10 @@ public:
       : MatrixCoefficient(h, w, symm) {}
 
    /// Construct the coefficient using an arrays describing the pieces
-   /** @a attr is an array of attribute numbers for each piece
-       @a coefs is the corresponding array of MatrixCoefficient pointers
+   /** \param dim - size of the square matrix-valued result
+       \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of MatrixCoefficient pointers
+       \param symm - true is the result will be symmetric, false otherwise
        Any missing attributes or NULL coefficient pointers will result in a
        zero matrix being returned.
    */
@@ -879,8 +882,11 @@ public:
       : MatrixCoefficient(dim, symm) { InitMap(attr, coefs); }
 
    /// Construct the coefficient using an arrays describing the pieces
-   /** \param attr - an array of attribute numbers for each piece
+   /** \param h - height of the matrix-valued result
+       \param w - width of the matrix-valued result
+       \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of MatrixCoefficient pointers
+       \param symm - true is the result will be symmetric, false otherwise
        Any missing attributes or NULL coefficient pointers will result in a
        zero matrix being returned for that attribute.
    */
