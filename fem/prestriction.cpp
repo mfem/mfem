@@ -175,8 +175,9 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
+         const int master_side = conf.GetNonConformingMasterSide();
          const int interp_index = conf.GetInterpolatorIndex();
-         if ( interp_index!=InterpConfig::conforming )
+         if ( interp_index!=InterpConfig::conforming && master_side==0 )
          {
             // Interpolation from fine to coarse
             for (int c = 0; c < vd; ++c)
@@ -1227,14 +1228,14 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
                   // Contrary to the conforming case, there is no need to call
                   // PermuteFaceL2, the permutation is achieved by the
                   // interpolation operator for simplicity.
-                  SetSharedFaceDofsScatterIndices2(face,f_ind);
+                  PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
                }
                else // local non-conforming slave
                {
                   // Contrary to the conforming case, there is no need to call
                   // PermuteFaceL2, the permutation is achieved by the
                   // interpolation operator for simplicity.
-                  SetFaceDofsScatterIndices2(face,f_ind);
+                  PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
                }
             }
          }
@@ -1297,7 +1298,7 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
                // Contrary to the conforming case, there is no need to call
                // PermuteFaceL2, the permutation is achieved by the
                // interpolation operator for simplicity.
-               SetFaceDofsGatherIndices2(face,f_ind);
+               PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
             }
          }
          f_ind++;

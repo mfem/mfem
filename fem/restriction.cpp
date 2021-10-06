@@ -1454,8 +1454,8 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(face.IsLocal() && face.IsConforming(),
-               "This method should only be used on local conforming faces.");
+   // MFEM_ASSERT(face.IsLocal() && face.IsConforming(),
+   //             "This method should only be used on local conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.elem_2_index;
@@ -1513,9 +1513,9 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int face_index)
 {
 #ifdef MFEM_USE_MPI
-   MFEM_ASSERT(face.IsShared() &&
-               (face.IsConforming() || face.IsSharedNonConformingSlave()),
-               "This method should only be used on conforming shared faces.");
+   // MFEM_ASSERT(face.IsShared() &&
+   //             (face.IsConforming() || face.IsSharedNonConformingSlave()),
+   //             "This method should only be used on conforming shared faces.");
    const int elem_index = face.elem_2_index;
    const int face_id1 = face.elem_1_local_face;
    const int face_id2 = face.elem_2_local_face;
@@ -1608,8 +1608,8 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(face.IsLocal() && face.IsConforming(),
-               "This method should only be used on local conforming faces.");
+   // MFEM_ASSERT(face.IsLocal() && face.IsConforming(),
+   //             "This method should only be used on local conforming faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.elem_2_index;
@@ -1699,6 +1699,9 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    const FiniteElement *trace_fe =
       fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
    const int dof = trace_fe->GetDof();
+   const TensorBasisElement* el =
+      dynamic_cast<const TensorBasisElement*>(trace_fe);
+   const auto dof_map = el->GetDofMap();
    DenseMatrix* interpolator = new DenseMatrix(dof,dof);
    Vector shape(dof);
    IntegrationPoint f_ip;
@@ -1729,7 +1732,8 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
          const int orientation = face.elem_2_orientation;
          for (int i = 0; i < dof; i++)
          {
-            const IntegrationPoint &ip = nodes[i];
+            const int ni = (dof_map.Size()==0) ? i : dof_map[i];
+            const IntegrationPoint &ip = nodes[ni];
             double xi = ip.x, eta = ip.y;
             f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
             f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
@@ -1743,8 +1747,15 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             }
             for (int j = 0; j < dof; j++)
             {
-               const int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
-               (*interpolator)(li,lj) = shape(j);
+               int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
+               if ( !face.IsSharedNonConformingSlave() )
+               {
+                  // master side is elem 2, so we permute to order dofs as elem 1.
+                  lj = PermuteFaceL2(dim, face_id2, face_id1,
+                                     orientation, dof1d, lj);
+               }
+               const int nj = (dof_map.Size()==0) ? j : dof_map[j];
+               (*interpolator)(li,lj) = shape(nj);
             }
          }
       }
@@ -1771,7 +1782,8 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
          const int dim = fes.GetMesh()->SpaceDimension();
          for (int i = 0; i < dof; i++)
          {
-            const IntegrationPoint &ip = nodes[i];
+            const int ni = (dof_map.Size()==0) ? i : dof_map[i];
+            const IntegrationPoint &ip = nodes[ni];
             f_ip.x = x_min + (x_max - x_min) * ip.x;
             trace_fe->CalcShape(f_ip, shape);
             int li = ToLexOrdering(dim, master_face_id, dof1d, i);
@@ -1785,8 +1797,15 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
             }
             for (int j = 0; j < dof; j++)
             {
-               const int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
-               (*interpolator)(li,lj) = shape(j);
+               int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
+               if ( !face.IsSharedNonConformingSlave() )
+               {
+                  // master side is elem 2, so we permute to order dofs as elem 1.
+                  lj = PermuteFaceL2(dim, face_id2, face_id1,
+                                     orientation, dof1d, lj);
+               }
+               const int nj = (dof_map.Size()==0) ? j : dof_map[j];
+               (*interpolator)(li,lj) = shape(nj);
             }
          }
       }
@@ -2190,7 +2209,8 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
                // Contrary to the conforming case, there is no need to call
                // PermuteFaceL2, the permutation is achieved by the
                // interpolation operator for simplicity.
-               SetFaceDofsScatterIndices2(face,f_ind);
+               // SetFaceDofsScatterIndices2(face,f_ind);
+               PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             }
          }
          f_ind++;
@@ -2244,17 +2264,17 @@ void NCL2FaceRestriction::ComputeGatherIndices(
               type==FaceType::Interior &&
               face.IsInterior() )
          {
-            if ( face.IsConforming() )
-            {
+            // if ( face.IsConforming() )
+            // {
                PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
-            }
-            else
-            {
-               // Contrary to the conforming case, there is no need to call
-               // PermuteFaceL2, the permutation is achieved by the
-               // interpolation operator for simplicity.
-               SetFaceDofsGatherIndices2(face,f_ind);
-            }
+            // }
+            // else
+            // {
+            //    // Contrary to the conforming case, there is no need to call
+            //    // PermuteFaceL2, the permutation is achieved by the
+            //    // interpolation operator for simplicity.
+            //    SetFaceDofsGatherIndices2(face,f_ind);
+            // }
          }
          f_ind++;
       }
