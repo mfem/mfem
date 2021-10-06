@@ -287,8 +287,6 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const int NQ = ir->GetNPoints();
 
    const int vdim = fes.GetVDim();
-   const int qvdim = Q.GetVDim();
-   assert(qvdim == vdim);
 
    Vector coeff;
 
