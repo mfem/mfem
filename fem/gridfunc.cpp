@@ -4142,12 +4142,14 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    for (int iface = 0; iface < nfaces; iface++)
    {
       // 1.A. Find all elements in the face patch.
+      int type;
       Array<int> neighbor_elems;
-      mesh->GetFaceElements(iface, neighbor_elems);
+      Array<int> neighbor_faces;
+      type = mesh->GetFaceElementsAndFaces(iface, neighbor_elems, neighbor_faces);
       int num_neighbor_elems = neighbor_elems.Size();
-
+      
       // 1.B. Check if boundary face and continue if true.
-      if (num_neighbor_elems < 2)
+      if (type == -1)
       {
          continue;
       }
@@ -4182,7 +4184,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          patch_order = max(patch_order, ufes->GetElementOrder(ielem));
       }
       int num_basis_functions = pow(patch_order+1,dim);
-      int flux_order = 2*patch_order + 2;
+      int flux_order = 2*patch_order + 1;
       DenseMatrix A(num_basis_functions);
       Array<double> b(sdim * num_basis_functions);
       A = 0.0;
@@ -4265,11 +4267,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
 
-      // for (int i = 0; i < num_basis_functions; i++)
-      // {
-      //    A(i,i) += 1e-8;
-      // }
-
       // 2.D. Solve for polynomial coefficients
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
@@ -4277,8 +4274,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       if (!lu.Factor(num_basis_functions,TOL))
       {
          // singular matrix
-         mfem::out << "iface = " << iface << " : A is singular" << mfem::endl;
-         cin.get();
+         for (int i = 0; i < num_basis_functions; i++)
+         {
+            A(i,i) += 1e-8;
+         }
+         lu.Factor(num_basis_functions,TOL);
       }
       lu.Solve(num_basis_functions, sdim, b);
 
@@ -4288,9 +4288,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          Vector p(num_basis_functions);
          p = LegendreND(x, xmax, xmin, patch_order, dim);
          f = 0.0;
-         // f(0) = 0.0;
-         // if (x.Size() > 1 || sdim > 1) { f(1) = 0.0; }
-         // if (x.Size() == 3 || sdim == 3) { f(2) = 0.0; }
          for (int i = 0; i < num_basis_functions; i++)
          {
             for (int j = 0; j < sdim; j++)
@@ -4301,10 +4298,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       };
       VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
 
-
-
-      // 3. Compute error contribution from face.
-      // 3.A. Locally project/interpolate global polynomial to elements in patch
+      // 3. Compute error contributions from the face.
+      // 3.A. Locally project/interpolate global polynomial onto the patch
       int flux_offset= 0;
       Vector patch_flux_vector(nfdofs);
       Array<int> vdofs;
@@ -4322,12 +4317,19 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             doftrans->TransformPrimal(flux_temp_vector);
          }
          flux_offset += fdofs.Size();
+         // Only project for the primary element if at a slave face or a master face
+         if (type != 0)
+         {
+            break;
+         }
       }
 
 
-      // 3.B. Loop through each element and compute distance between
-      //      projected flux and discrete flux
+      // 3.B. Loop through each element, compute distance between the
+      //      projected flux and the discrete flux, and accumulate
+      //      the (squared) local errors
       flux_offset = 0;
+      double element_error = 0.0;
       double patch_error = 0.0;
       for (int i = 0; i < num_neighbor_elems; i++)
       {
@@ -4343,34 +4345,18 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          Vector flux_temp_vector(patch_flux_vector.GetData()+flux_offset, fdofs.Size());
          flux_offset += fdofs.Size();
          fl -= flux_temp_vector;
-         patch_error += blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
+         element_error = blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
                                                NULL);
+         patch_error += element_error;
+         error_estimates(ielem) += element_error;
+         counters[ielem] += 1;
+         // Only compute for the primary element if at a slave face or a master face
+         if (type != 0)
+         {
+            break;
+         }
       }
       total_error += patch_error;
-
-      // 4. Accumulate (squared) error contributions among elements in patch
-      for (int i = 0; i < num_neighbor_elems; i++)
-      {
-         int ielem = neighbor_elems[i];
-         error_estimates(ielem) = max(error_estimates(ielem),patch_error);
-         // error_estimates(ielem) += patch_error;
-         counters[ielem] += 1;
-      }
-   }
-
-   // 5. Average error contributions (using appropriate power mean).
-   for (int ielem = 0; ielem < nfe; ielem++)
-   {
-      if (counters[ielem] == 0)
-      {
-         // In this case,
-         error_estimates(ielem) = std::numeric_limits<double>::max();
-      }
-      else
-      {
-         // error_estimates(ielem) /= counters[ielem];
-         error_estimates(ielem) = sqrt(error_estimates(ielem));
-      }
    }
 
 #ifdef MFEM_USE_MPI
@@ -4382,6 +4368,12 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                     MPI_SUM, pfes->GetComm());
    }
 #endif // MFEM_USE_MPI
+   for (int ielem = 0; ielem < nfe; ielem++)
+   {
+      error_estimates(ielem) = sqrt(error_estimates(ielem));
+      // cout << "element number = " << endl;
+      // cout << "counter = " << counters[ielem] << endl;
+   }
    return std::sqrt(total_error);
 }
 
