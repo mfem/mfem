@@ -1199,7 +1199,8 @@ public:
        original GetFaceElements function above */
    void GetFaceElements (int Face, Array<int> & elems) const;
 
-   int GetFaceElementsAndFaces(int face, Array<int> & elems, Array<int> & faces) const;
+   int GetFaceElementsAndFaces(int face, Array<int> & elems,
+                               Array<int> & faces) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;

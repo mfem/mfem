@@ -1166,7 +1166,8 @@ void Mesh::GetFaceElements(int face, Array<int> & elems) const
    if (el2 != -1) { elems.Append(el2); }
 }
 
-int Mesh::GetFaceElementsAndFaces(int face, Array<int> & elems, Array<int> & faces) const
+int Mesh::GetFaceElementsAndFaces(int face, Array<int> & elems,
+                                  Array<int> & faces) const
 {
    int type = -1; // -1: bdr; 0: conforming, 1: slave, 2: master
    bool nonconforming_face = ncmesh && (faces_info[face].NCFace != -1);
@@ -1215,7 +1216,7 @@ int Mesh::GetFaceElementsAndFaces(int face, Array<int> & elems, Array<int> & fac
          faces.Append(face);
       }
       return type;
-   }   
+   }
 }
 
 Geometry::Type Mesh::GetFaceGeometryType(int Face) const

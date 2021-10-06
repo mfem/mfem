@@ -6,7 +6,7 @@ sns.set()
 sns.set_context("paper", font_scale=1.5)
 sns.set_style("ticks")
 
-order = 2
+order = 3
 
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')

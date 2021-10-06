@@ -215,8 +215,8 @@ int main(int argc, char *argv[])
       const Vector &zzerr = estimator->GetLocalErrors();
       chrono.Stop();
       mfem::out << "get local errors time: " << chrono.RealTime() << endl;
-      // double ZZ_error = zzerr.Norml2();
-      double ZZ_error = estimator->GetTotalError();
+      double ZZ_error = zzerr.Norml2();
+      // double ZZ_error = estimator->GetTotalError();
 
       // estimate convergence rate
       double H10_rate = 0.0;

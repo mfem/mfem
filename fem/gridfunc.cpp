@@ -4110,7 +4110,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            Vector &error_estimates,
                            int with_subdomains,
                            bool with_coeff)
-                           // double p_mean)
+// double p_mean)
 {
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
@@ -4147,7 +4147,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       Array<int> neighbor_faces;
       type = mesh->GetFaceElementsAndFaces(iface, neighbor_elems, neighbor_faces);
       int num_neighbor_elems = neighbor_elems.Size();
-      
+
       // 1.B. Check if boundary face and continue if true.
       if (type == -1)
       {
@@ -4346,7 +4346,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          flux_offset += fdofs.Size();
          fl -= flux_temp_vector;
          element_error = blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
-                                               NULL);
+                                                NULL);
          patch_error += element_error;
          error_estimates(ielem) += element_error;
          counters[ielem] += 1;
@@ -4370,11 +4370,17 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 #endif // MFEM_USE_MPI
    for (int ielem = 0; ielem < nfe; ielem++)
    {
-      error_estimates(ielem) = sqrt(error_estimates(ielem));
-      // cout << "element number = " << endl;
-      // cout << "counter = " << counters[ielem] << endl;
+      if (counters == 0)
+      {
+         error_estimates(ielem) == std::numeric_limits<double>::max();
+      }
+      else
+      {
+         error_estimates(ielem) /= counters[ielem]/2.0;
+         error_estimates(ielem) = sqrt(error_estimates(ielem));
+      }
    }
-   return std::sqrt(total_error);
+   return std::sqrt(total_error/2.0);
 }
 
 double ComputeElementLpDistance(double p, int i,
