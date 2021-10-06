@@ -15,6 +15,9 @@
 #include "../fem/kernels.hpp"
 #include "../linalg/kernels.hpp"
 
+#define MFEM_DEBUG_COLOR 206
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -32,7 +35,7 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
 {
    constexpr int DIM = 2;
 
-   const bool constant_coeff = coeff.Size() == 1;
+   const bool cst_coeff = coeff.Size() == DIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -41,14 +44,18 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
    const auto J = Reshape(jacobians, Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D, NE);
-   const auto C = constant_coeff ?
-                  Reshape(F,1,1,1,1):
+   const auto C = cst_coeff ?
+                  Reshape(F,DIM,1,1,1) :
                   Reshape(F,DIM,Q1D,Q1D,NE);
+
    auto Y = Reshape(y,ND);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
       if (M(e) < 1.0) { return; }
+
+      const double cst_val0 = C(0,0,0,0);
+      const double cst_val1 = C(1,0,0,0);
 
       MFEM_SHARED double sBG[2][D1D*Q1D];
       MFEM_SHARED double sm0[2][Q1D*Q1D];
@@ -85,8 +92,8 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
             const double detJ = kernels::Det<2>(Jloc);
             kernels::CalcInverse<2>(Jloc, Jinv);
             const double weight = W(qx,qy);
-            const double u = constant_coeff ? C(0,0,0,0) : C(0,qx,qy,e);
-            const double v = constant_coeff ? C(0,0,0,0) : C(1,qx,qy,e);
+            const double u = cst_coeff ? cst_val0 : C(0,qx,qy,e);
+            const double v = cst_coeff ? cst_val1 : C(1,qx,qy,e);
             QQ0[qy][qx] = Jinv[0]*u + Jinv[2]*v;
             QQ1[qy][qx] = Jinv[1]*u + Jinv[3]*v;
             QQ0[qy][qx] *= weight * detJ;
@@ -171,7 +178,7 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
 {
    constexpr int DIM = 3;
 
-   const bool constant_coeff = coeff.Size() == 1;
+   const bool cst_coeff = coeff.Size() == DIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -180,14 +187,17 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
    const auto J = Reshape(jacobians, Q1D,Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
-   const auto C = constant_coeff ?
-                  Reshape(F,1,1,1,1,1):
-                  Reshape(F,DIM,Q1D,Q1D,Q1D,NE);
+   const auto C = cst_coeff ?
+                  Reshape(F,DIM,1,1,1,1) : Reshape(F,DIM,Q1D,Q1D,Q1D,NE);
    auto Y = Reshape(y,ND);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
       if (M(e) < 1.0) { return; }
+
+      const double cst_val0 = C(0,0,0,0,0);
+      const double cst_val1 = C(1,0,0,0,0);
+      const double cst_val2 = C(2,0,0,0,0);
 
       MFEM_SHARED double sBG[2][Q1D*D1D];
       double (*Bt)[Q1D] = (double (*)[Q1D]) sBG[0];
@@ -222,9 +232,9 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
                const double detJ = kernels::Det<3>(Jloc);
                kernels::CalcInverse<3>(Jloc, Jinv);
                const double weight = W(qx,qy,qz);
-               const double u = constant_coeff ? C(0,0,0,0,0) : C(0,qx,qy,qz,e);
-               const double v = constant_coeff ? C(0,0,0,0,0) : C(1,qx,qy,qz,e);
-               const double w = constant_coeff ? C(0,0,0,0,0) : C(2,qx,qy,qz,e);
+               const double u = cst_coeff ? cst_val0 : C(0,qx,qy,qz,e);
+               const double v = cst_coeff ? cst_val1 : C(1,qx,qy,qz,e);
+               const double w = cst_coeff ? cst_val2 : C(2,qx,qy,qz,e);
                QQQ0[qz][qy][qx] = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
                QQQ1[qz][qy][qx] = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
                QQQ2[qz][qy][qx] = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
@@ -389,15 +399,16 @@ void DomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    Vector coeff;
    const int qvdim = Q.GetVDim();
 
-   if (ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(&Q))
+   if (VectorConstantCoefficient *vcQ =
+          dynamic_cast<VectorConstantCoefficient*>(&Q))
    {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
+      const Vector& qvec = vcQ->GetVec();
+      coeff = qvec;
    }
-   else if (QuadratureFunctionCoefficient *cQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
+   else if (VectorQuadratureFunctionCoefficient *vqQ =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
    {
-      const QuadratureFunction &qfun = cQ->GetQuadFunction();
+      const QuadratureFunction &qfun = vqQ->GetQuadFunction();
       MFEM_VERIFY(qfun.Size() == NE*NQ,
                   "Incompatible QuadratureFunction dimension \n");
       MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
@@ -408,6 +419,7 @@ void DomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    }
    else
    {
+      // vector_function_coeff
       Vector Qvec(qvdim);
       coeff.SetSize(qvdim * NQ * NE);
       auto C = Reshape(coeff.HostWrite(), qvdim, NQ, NE);

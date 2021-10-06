@@ -17,31 +17,15 @@
 #ifdef MFEM_USE_BENCHMARK
 
 constexpr int seed = 0x100001b3;
-
-////////////////////////////////////////////////////////////////////////////////
-/// Exact solution parameters:
-static constexpr double sol_s[3] = { -0.32, 0.15, 0.24 };
-static constexpr double sol_k[3] = { 1.21, 1.45, 1.37 };
-static void gradu_exact(const Vector &x, Vector &grad)
-{
-   grad.SetSize(x.Size());
-   double *g = grad.GetData();
-   double val = 1.0;
-   for (int d = 0; d < x.Size(); d++)
-   {
-      const double y = M_PI*(sol_s[d]+sol_k[d]*x(d));
-      const double f = sin(y);
-      for (int j = 0; j < d; j++) { g[j] *= f; }
-      g[d] = val*M_PI*sol_k[d]*cos(y);
-      val *= f;
-   }
-}
+static void gradu_exact(const Vector &x, Vector &grad);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Base class for the LinearForm extension test and the bench
 struct LinExt
 {
    const int problem, N, p, q, dim;
+   const bool test;
+   const Element::Type type;
    Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace fes;
@@ -53,22 +37,24 @@ struct LinExt
    const int dofs;
    double mdofs;
 
-   Vector v;
+   Vector v,qv,qvd;
    ConstantCoefficient constant_coeff;
-   VectorConstantCoefficient vector_constant_coeff;
+   VectorConstantCoefficient vdim_constant_coeff;
+   VectorConstantCoefficient qvdim_constant_coeff;
    VectorFunctionCoefficient vector_function_coeff;
 
    LinearForm *lf[2];
 
-   LinExt(int problem, int order, int dim, int vdim):
+   LinExt(int problem, int order, int dim, int vdim, bool test):
       problem(problem),
-      N(Device::IsEnabled()?32:8),
+      N(Device::IsEnabled() ? 32 : test?3:8),
       p(order),
       q(2*p),
       dim(dim),
+      test(test),
+      type(dim==3 ? Element::HEXAHEDRON : Element::QUADRILATERAL),
       mesh(dim==3 ?
-           Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON):
-           Mesh::MakeCartesian2D(N,N,Element::QUADRILATERAL)),
+           Mesh::MakeCartesian3D(N,N,N,type) : Mesh::MakeCartesian2D(N,N,type)),
       fec(p, dim),
       fes(&mesh, &fec, vdim),
       fespace(new FiniteElementSpace(&mesh, &fec, dim)),
@@ -79,12 +65,14 @@ struct LinExt
       dofs(fes.GetTrueVSize()),
       mdofs(0.0),
       v(vdim),
+      qv(dim),
       constant_coeff(M_PI),
-      vector_constant_coeff((v.Randomize(seed),v)),
+      vdim_constant_coeff((v.Randomize(seed),v)),
+      qvdim_constant_coeff((qv.Randomize(seed),qv)),
       vector_function_coeff(dim, gradu_exact),
       lf{new LinearForm(&fes), new LinearForm(&fes)}
    {
-      assert(dim==2 || dim==3);
+      MFEM_VERIFY(dim==2||dim==3, "Only 2D and 3D tests are supported!");
       SetupRandomMesh();
       SetupLinearForms();
       lf[0]->SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
@@ -159,21 +147,43 @@ struct LinExt
          else if (problem==2) // VectorDomainLFIntegrator
          {
             VectorDomainLFIntegrator *vdlfi;
-            vdlfi = new VectorDomainLFIntegrator(vector_constant_coeff);
+            if (test)
+            {
+               // takes longer as we are filling on the host the coefficient
+               vdlfi = new VectorDomainLFIntegrator(vector_function_coeff);
+            }
+            else // bench: just use constant coefficient
+            {
+               vdlfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
+            }
             vdlfi->SetIntRule(ir);
             lf[i]->AddDomainIntegrator(vdlfi);
          }
          else if (problem==3) // DomainLFGradIntegrator
          {
             DomainLFGradIntegrator *dlfgi;
-            dlfgi = new DomainLFGradIntegrator(vector_function_coeff);
+            if (test)
+            {
+               dlfgi = new DomainLFGradIntegrator(vector_function_coeff);
+            }
+            else
+            {
+               dlfgi = new DomainLFGradIntegrator(qvdim_constant_coeff);
+            }
             dlfgi->SetIntRule(ir);
             lf[i]->AddDomainIntegrator(dlfgi);
          }
          else if (problem==4) // VectorDomainLFGradIntegrator
          {
             VectorDomainLFGradIntegrator *vdlfgi;
-            vdlfgi = new VectorDomainLFGradIntegrator(vector_constant_coeff);
+            if (test)
+            {
+               vdlfgi = new VectorDomainLFGradIntegrator(vector_function_coeff);
+            }
+            else
+            {
+               vdlfgi = new VectorDomainLFGradIntegrator(qvdim_constant_coeff);
+            }
             vdlfgi->SetIntRule(ir);
             lf[i]->AddDomainIntegrator(vdlfgi);
          }
@@ -183,11 +193,31 @@ struct LinExt
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+/// Exact solution parameters:
+static constexpr double sol_s[3] = { -0.32, 0.15, 0.24 };
+static constexpr double sol_k[3] = { 1.21, 1.45, 1.37 };
+static void gradu_exact(const Vector &x, Vector &grad)
+{
+   grad.SetSize(x.Size());
+   double *g = grad.GetData();
+   double val = 1.0;
+   for (int d = 0; d < x.Size(); d++)
+   {
+      const double y = M_PI*(sol_s[d]+sol_k[d]*x(d));
+      const double f = sin(y);
+      for (int j = 0; j < d; j++) { g[j] *= f; }
+      g[d] = val*M_PI*sol_k[d]*cos(y);
+      val *= f;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 /// TEST for LinearFormExtension
 template<int DIM, int VDIM>
 struct Test: public LinExt
 {
-   Test(int problem, int order): LinExt(problem,order,DIM,VDIM)
+   static constexpr bool testing = true;
+   Test(int problem, int order): LinExt(problem,order,DIM,VDIM,testing)
    {
       MFEM_DEVICE_SYNC;
    }
@@ -209,8 +239,8 @@ struct Test: public LinExt
 static void TEST_##Kernel##_##DIM##D(bm::State &state){\
    const int order = state.range(0);\
    Test<DIM,VDIM> ker(Problem,order);\
-   while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
+   while(state.KeepRunning()) { ker.benchmark();}\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(),bm::Counter::kIsRate);}\
 BENCHMARK(TEST_##Kernel##_##DIM##D)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// Scalar linear form tests
@@ -235,7 +265,8 @@ template<int DIM, int VDIM, enum LinearAssemblyLevel LEVEL>
 struct Bench: public LinExt
 {
    const int i;
-   Bench(int problem, int order): LinExt(problem, order, DIM, VDIM),
+   static constexpr bool testing = false;
+   Bench(int problem, int order): LinExt(problem,order,DIM,VDIM,testing),
       i(LEVEL == LinearAssemblyLevel::LEGACY ? 0 : 1)
    {
       MFEM_DEVICE_SYNC;
