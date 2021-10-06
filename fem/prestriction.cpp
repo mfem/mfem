@@ -203,7 +203,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
 
    // Gathering of face dofs into element dofs
-   auto d_offsets = offsets.Read();
+   auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x_interp.Read(), nd, vd, nf);
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
@@ -233,7 +233,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
-      offsets[i] = 0;
+      gather_offsets[i] = 0;
    }
 
    // Computation of scatter indices and offsets
@@ -284,7 +284,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
 
    // Transform the interpolation matrix map into a contiguous memory structure.
@@ -319,9 +319,9 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    // Reset offsets to their correct value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
@@ -645,7 +645,7 @@ void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
-      offsets[i] = 0;
+      gather_offsets[i] = 0;
    }
 
    // Computation of scatter indices and offsets
@@ -684,7 +684,7 @@ void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
 }
 
@@ -717,9 +717,9 @@ void ParL2FaceRestriction::ComputeGatherIndices(
    // Reset offsets to their correct value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
 ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
@@ -1094,7 +1094,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 
    // Gathering of face dofs into element dofs
    const int dofs = nfdofs;
-   auto d_offsets = offsets.Read();
+   auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
    if ( m==L2FaceValues::DoubleValued )
    {
@@ -1177,7 +1177,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
    {
-      offsets[i] = 0;
+      gather_offsets[i] = 0;
    }
 
    // Computation of scatter and offsets indices
@@ -1244,7 +1244,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
 
    // Transform the interpolation matrix map into a contiguous memory structure.
@@ -1287,9 +1287,9 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
    // Switch back offsets to their correct value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
 } // namespace mfem
