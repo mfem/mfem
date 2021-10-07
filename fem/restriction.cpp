@@ -1584,10 +1584,9 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
    const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
    // In the case of non-conforming slave shared face the master face is elem1.
    const int master_side = face.IsSharedNonConformingSlave() ? 0 : 1;
-   // const int face_key = master_side == 1 ?
-   //                      face.elem_1_local_face + 6*face.elem_2_local_face :
-   //                      face.elem_2_local_face + 6*face.elem_1_local_face ;
-   const int face_key = face_index;
+   const int face_key = (master_side == 0 ? 1000 : 0) +
+                        face.elem_1_local_face + 6*face.elem_2_local_face +
+                        36*face.elem_2_orientation ;
    // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
    Key key(ptMat, face_key);
    auto itr = interp_map.find(key);
