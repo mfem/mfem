@@ -166,10 +166,9 @@ public:
 
    /** @brief Set the way the flux is averaged (smoothed) across elements.
 
-       When @a fa is zero (default), averaging is performed globally. When @a fa
-       is non-zero, the flux averaging is performed locally for each mesh
-       attribute, i.e. the flux is not averaged across interfaces between
-       different mesh attributes. */
+       When @a fa is zero (default), averaging is performed across interfaces
+       between different mesh attributes. When @a fa is non-zero, the flux is
+       not averaged across interfaces between different mesh attributes. */
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
@@ -226,10 +225,9 @@ public:
       suboptimal for Neumann boundaries. Reference 3 shows that a constrained
       least-squares problem, where the reconstructed flux is constrained by the
       Neumann boundary data, is appropriate to handle this case.
-      THIS CONSTRAINED LS PROBLEM IS NOT IMPLEMENTED, so it is possible that the
-      local error estimates for Neumann boundary elements may be affected.
-   *  The present PARALLEL implementation ignores all face patches which cross a
-      processor boundary. This may have unexpected consequences.
+      THIS CONSTRAINED LS PROBLEM IS NOT YET IMPLEMENTED, so it is possible that
+      the local error estimates for Neumann boundary elements may be affected.
+   *  THIS IMPLEMENTATION IS ONLY SERIAL.
    *  ANISOTROPIC REFINEMENT NOT YET SUPPORTED.
 
  */
@@ -242,6 +240,7 @@ protected:
    bool anisotropic;
    Array<int> aniso_flags;
    int flux_averaging; // see SetFluxAveraging()
+   double tichonov_coeff;
 
    BilinearFormIntegrator *integ; ///< Not owned.
    GridFunction *solution; ///< Not owned.
@@ -278,6 +277,7 @@ public:
         total_error(),
         anisotropic(false),
         flux_averaging(0),
+        tichonov_coeff(0.0),
         integ(&integ),
         solution(&sol),
         flux_space(flux_fes),
@@ -300,6 +300,7 @@ public:
         total_error(),
         anisotropic(false),
         flux_averaging(0),
+        tichonov_coeff(0.0),
         integ(&integ),
         solution(&sol),
         flux_space(&flux_fes),
@@ -320,12 +321,20 @@ public:
       anisotropic = aniso;
    }
 
+   /** @brief Solve a Tichonov-regularized least-squares problem for the
+    *         reconstructed fluxes. This is epsecially helpful for when not
+    *         using tensor product elements, which typically require fewer
+    *         integration points. */
+   void SetTichonovRegularization(double lambda = 1.0e-8)
+   {
+      tichonov_coeff = lambda;
+   }
+
    /** @brief Set the way the flux is averaged (smoothed) across elements.
 
-       When @a fa is zero (default), averaging is performed globally. When @a fa
-       is non-zero, the flux averaging is performed locally for each mesh
-       attribute, i.e. the flux is not averaged across interfaces between
-       different mesh attributes. */
+       When @a fa is zero (default), averaging is performed across interfaces
+       between different mesh attributes. When @a fa is non-zero, the flux is
+       not averaged across interfaces between different mesh attributes. */
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
@@ -350,12 +359,12 @@ public:
    /// Reset the error estimator.
    virtual void Reset() override { current_sequence = -1; }
 
-   // /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
-   //     FiniteElementSpace, flux_space. */
-   // virtual ~NewZienkiewiczZhuEstimator()
-   // {
-   //    if (own_flux_fes) { delete flux_space; }
-   // }
+   /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
+       FiniteElementSpace, flux_space. */
+   virtual ~NewZienkiewiczZhuEstimator()
+   {
+      if (own_flux_fes) { delete flux_space; }
+   }
 };
 
 

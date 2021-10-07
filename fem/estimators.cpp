@@ -41,7 +41,8 @@ void NewZienkiewiczZhuEstimator::ComputeEstimates()
    total_error = NewZZErrorEstimator(*integ, *solution, flux,
                                      error_estimates,
                                      flux_averaging,
-                                     with_coeff);
+                                     with_coeff,
+                                     tichonov_coeff);
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }

@@ -917,7 +917,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &flux,
                            Vector &error_estimates,
                            int with_subdomains = 1,
-                           bool with_coeff = false);
+                           bool with_coeff = false,
+                           double tichonov_coeff = 0.0);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

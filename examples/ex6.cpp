@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 
    NewZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
 
-   // estimator.SetAnisotropic(false);
+   estimator.SetAnisotropic(false);
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
-   // refiner.SetNCLimit(1);
+   refiner.SetNCLimit(1);
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.

@@ -4109,9 +4109,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &flux,
                            Vector &error_estimates,
                            int with_subdomains,
-                           bool with_coeff)
-// double p_mean)
+                           bool with_coeff,
+                           double tichonov_coeff)
 {
+   MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
    ElementTransformation *Transf;
@@ -4131,7 +4132,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    Array<int> counters(nfe);
    counters = 0;
 
-   // Compute number of subdomains
+   // Compute the number of subdomains
    int nsd = 1;
    if (with_subdomains)
    {
@@ -4267,13 +4268,21 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
 
-      // 2.D. Solve for polynomial coefficients
+      // 2.D. Shift spectrum of A with to avoid conditioning issues.
+      for (int i = 0; i < num_basis_functions; i++)
+      {
+         A(i,i) += tichonov_coeff;
+      }
+
+      // 2.E. Solve for polynomial coefficients
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
       double TOL = 1e-9;
       if (!lu.Factor(num_basis_functions,TOL))
       {
-         // singular matrix
+         // Singular matrix
+         mfem::out << "NewZZErrorEstimator: Matrix A is singular.\t"
+                   << "Consider increasing tichonov_coeff." << endl;
          for (int i = 0; i < num_basis_functions; i++)
          {
             A(i,i) += 1e-8;
@@ -4282,7 +4291,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
       lu.Solve(num_basis_functions, sdim, b);
 
-      // 2.D. Construct l2-minimizing global polynomial
+      // 2.F. Construct l2-minimizing global polynomial
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
          Vector p(num_basis_functions);
@@ -4323,7 +4332,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             break;
          }
       }
-
 
       // 3.B. Loop through each element, compute distance between the
       //      projected flux and the discrete flux, and accumulate
@@ -4368,11 +4376,17 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                     MPI_SUM, pfes->GetComm());
    }
 #endif // MFEM_USE_MPI
+
+   // 4. Calibrate the final error estimates. Note that the l2 norm of
+   //    error_estimates vector converges to total_error.
+   //    The error estimates have been calibrated so that high order
+   //    benchmark problems with tensor product elements are asymptotically
+   //    exact.
    for (int ielem = 0; ielem < nfe; ielem++)
    {
       if (counters == 0)
       {
-         error_estimates(ielem) == std::numeric_limits<double>::max();
+         error_estimates(ielem) = std::numeric_limits<double>::max();
       }
       else
       {
@@ -4380,7 +4394,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          error_estimates(ielem) = sqrt(error_estimates(ielem));
       }
    }
-   return std::sqrt(total_error/2.0);
+   return std::sqrt(total_error/dim);
 }
 
 double ComputeElementLpDistance(double p, int i,
