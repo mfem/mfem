@@ -349,12 +349,16 @@ void AddConvectionIntegrators(BilinearForm &k, Coefficient &rho,
    }
 }
 
-void test_pa_convection(const char *meshname, int order, int prob)
+void test_pa_convection(const char *meshname, int order, int prob, int refinement)
 {
    INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    mesh.SetCurvature(mesh.GetNodalFESpace()->GetElementOrder(0));
+   for (int r = 0; r < refinement; r++)
+   {
+      mesh.RandomRefinement(0.6,false,1,4);
+   }
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;
@@ -426,28 +430,23 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
    auto prob = GENERATE(0, 1, 2);
    auto order_2d = GENERATE(2, 3, 4);
    auto order_3d = GENERATE(2);
+   // refinement > 0 => Non-conforming mesh
+   auto refinement_2d = GENERATE(0,1,2);
+   auto refinement_3d = GENERATE(0,1);
 
    SECTION("2D")
    {
-      test_pa_convection("../../data/periodic-square.mesh", order_2d, prob);
-      test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, prob);
-      test_pa_convection("../../data/star-q3.mesh", order_2d, prob);
+      test_pa_convection("../../data/periodic-square.mesh", order_2d, prob, refinement_2d);
+      test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, prob, refinement_2d);
+      test_pa_convection("../../data/star-q3.mesh", order_2d, prob, refinement_2d);
+      test_pa_convection("../../data/unstructured-quad-square.msh", order_2d, prob, refinement_2d);
    }
 
    SECTION("3D")
    {
-      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob);
-      test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob);
-   }
-
-   SECTION("AMR 2D")
-   {
-      test_pa_convection("../../data/amr-quad.mesh", order_2d, prob);
-   }
-
-   SECTION("AMR 3D")
-   {
-      test_pa_convection("../../data/fichera-amr.mesh", order_3d, prob);
+      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob, refinement_3d);
+      test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob, refinement_3d);
+      test_pa_convection("../../data/unstructured-hex-cube.msh", order_3d, prob, refinement_3d);
    }
 
 } // test case
