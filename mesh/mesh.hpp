@@ -1328,6 +1328,7 @@ public:
             case FaceType::Boundary:
                return IsBoundary();
          }
+         return false;
       }
 
       /// @brief Return true if the face is a conforming face.
