@@ -349,7 +349,8 @@ void AddConvectionIntegrators(BilinearForm &k, Coefficient &rho,
    }
 }
 
-void test_pa_convection(const char *meshname, int order, int prob, int refinement)
+void test_pa_convection(const char *meshname, int order, int prob,
+                        int refinement)
 {
    INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
    Mesh mesh(meshname, 1, 1);

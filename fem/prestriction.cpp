@@ -71,7 +71,7 @@ ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
 void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 {
    // Assumes all elements have the same number of dofs
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
 
@@ -79,11 +79,11 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
    {
       auto d_indices = scatter_indices.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
       MFEM_FORALL(i, nfdofs,
       {
-         const int dof = i % nd;
-         const int face = i / nd;
+         const int dof = i % nface_dofs;
+         const int face = i / nface_dofs;
          const int idx = d_indices[i];
          for (int c = 0; c < vd; ++c)
          {
@@ -95,14 +95,14 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
    {
       auto d_indices = scatter_indices.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
@@ -111,9 +111,9 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
          const int side = 0;
          if ( interp_index==InterpConfig::conforming || side!=master_side )
          {
-            MFEM_FOREACH_THREAD(dof,x,nd)
+            MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
-               const int i = face*nd + dof;
+               const int i = face*nface_dofs + dof;
                const int idx = d_indices[i];
                for (int c = 0; c < vd; ++c)
                {
@@ -126,18 +126,18 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
             for (int c = 0; c < vd; ++c)
             {
                // Load the face dofs in shared memory
-               MFEM_FOREACH_THREAD(dof,x,nd)
+               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                {
-                  const int i = face*nd + dof;
+                  const int i = face*nface_dofs + dof;
                   const int idx = d_indices[i];
                   dofs[dof] = d_x(t?c:idx, t?idx:c);
                }
                MFEM_SYNC_THREAD;
                // Apply the interpolation to the face dofs
-               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
                {
                   double res = 0.0;
-                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
                   {
                      res += interp(dofOut, dofIn, interp_index)*dofs[dofIn];
                   }
@@ -158,20 +158,20 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    x_interp = x;
    // Assumes all elements have the same number of dofs
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    if ( type==FaceType::Interior )
    {
       // Interpolation from slave to master face dofs
-      auto d_x = Reshape(x_interp.ReadWrite(), nd, vd, nf);
+      auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
@@ -182,15 +182,15 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
             // Interpolation from fine to coarse
             for (int c = 0; c < vd; ++c)
             {
-               MFEM_FOREACH_THREAD(dof,x,nd)
+               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                {
                   dofs[dof] = d_x(dof, c, face);
                }
                MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
                {
                   double res = 0.0;
-                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
                   {
                      res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
                   }
@@ -205,7 +205,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    // Gathering of face dofs into element dofs
    auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
-   auto d_x = Reshape(x_interp.Read(), nd, vd, nf);
+   auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, nf);
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
@@ -217,7 +217,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
          for (int j = offset; j < nextOffset; ++j)
          {
             int idx_j = d_indices[j];
-            dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
+            dofValue +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
          }
          d_y(t?c:i,t?i:c) += dofValue;
       }
@@ -380,7 +380,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    x_gf.ExchangeFaceNbrData();
 
    // Assumes all elements have the same number of dofs
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    const int threshold = ndofs;
@@ -393,11 +393,11 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
                                 t?vd:nsdofs, t?nsdofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
       MFEM_FORALL(i, nfdofs,
       {
-         const int dof = i % nd;
-         const int face = i / nd;
+         const int dof = i % nface_dofs;
+         const int face = i / nface_dofs;
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
@@ -426,11 +426,11 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
       MFEM_FORALL(i, nfdofs,
       {
-         const int dof = i % nd;
-         const int face = i / nd;
+         const int dof = i % nface_dofs;
+         const int face = i / nface_dofs;
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
@@ -453,24 +453,24 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
    {
       return L2FaceRestriction::FillI(mat, keep_nbr_block);
    }
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
-   MFEM_FORALL(fdof, nf*nd,
+   MFEM_FORALL(fdof, nf*nface_dofs,
    {
-      const int f  = fdof/nd;
-      const int iF = fdof%nd;
-      const int iE1 = d_indices1[f*nd+iF];
+      const int f  = fdof/nface_dofs;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
       if (iE1 < Ndofs)
       {
-         AddNnz(iE1,I,nd);
+         AddNnz(iE1,I,nface_dofs);
       }
-      const int iE2 = d_indices2[f*nd+iF];
+      const int iE2 = d_indices2[f*nface_dofs+iF];
       if (iE2 < Ndofs)
       {
-         AddNnz(iE2,I,nd);
+         AddNnz(iE2,I,nface_dofs);
       }
    });
 }
@@ -478,7 +478,7 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
 void ParL2FaceRestriction::FillI(SparseMatrix &mat,
                                  SparseMatrix &face_mat) const
 {
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
@@ -488,16 +488,16 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
    {
       I_face[i] = 0;
    });
-   MFEM_FORALL(fdof, nf*nd,
+   MFEM_FORALL(fdof, nf*nface_dofs,
    {
-      const int f  = fdof/nd;
-      const int iF = fdof%nd;
-      const int iE1 = d_indices1[f*nd+iF];
+      const int f  = fdof/nface_dofs;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
       if (iE1 < Ndofs)
       {
-         for (int jF = 0; jF < nd; jF++)
+         for (int jF = 0; jF < nface_dofs; jF++)
          {
-            const int jE2 = d_indices2[f*nd+jF];
+            const int jE2 = d_indices2[f*nface_dofs+jF];
             if (jE2 < Ndofs)
             {
                AddNnz(iE1,I,1);
@@ -508,12 +508,12 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
             }
          }
       }
-      const int iE2 = d_indices2[f*nd+iF];
+      const int iE2 = d_indices2[f*nface_dofs+iF];
       if (iE2 < Ndofs)
       {
-         for (int jF = 0; jF < nd; jF++)
+         for (int jF = 0; jF < nface_dofs; jF++)
          {
-            const int jE1 = d_indices1[f*nd+jF];
+            const int jE1 = d_indices1[f*nface_dofs+jF];
             if (jE1 < Ndofs)
             {
                AddNnz(iE2,I,1);
@@ -535,36 +535,36 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
    {
       return L2FaceRestriction::FillJAndData(ea_data, mat, keep_nbr_block);
    }
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
-   auto mat_fea = Reshape(ea_data.Read(), nd, nd, 2, nf);
+   auto mat_fea = Reshape(ea_data.Read(), nface_dofs, nface_dofs, 2, nf);
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   MFEM_FORALL(fdof, nf*nd,
+   MFEM_FORALL(fdof, nf*nface_dofs,
    {
-      const int f  = fdof/nd;
-      const int iF = fdof%nd;
-      const int iE1 = d_indices1[f*nd+iF];
+      const int f  = fdof/nface_dofs;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
       if (iE1 < Ndofs)
       {
-         const int offset = AddNnz(iE1,I,nd);
-         for (int jF = 0; jF < nd; jF++)
+         const int offset = AddNnz(iE1,I,nface_dofs);
+         for (int jF = 0; jF < nface_dofs; jF++)
          {
-            const int jE2 = d_indices2[f*nd+jF];
+            const int jE2 = d_indices2[f*nface_dofs+jF];
             J[offset+jF] = jE2;
             Data[offset+jF] = mat_fea(jF,iF,1,f);
          }
       }
-      const int iE2 = d_indices2[f*nd+iF];
+      const int iE2 = d_indices2[f*nface_dofs+iF];
       if (iE2 < Ndofs)
       {
-         const int offset = AddNnz(iE2,I,nd);
-         for (int jF = 0; jF < nd; jF++)
+         const int offset = AddNnz(iE2,I,nface_dofs);
+         for (int jF = 0; jF < nface_dofs; jF++)
          {
-            const int jE1 = d_indices1[f*nd+jF];
+            const int jE1 = d_indices1[f*nface_dofs+jF];
             J[offset+jF] = jE1;
             Data[offset+jF] = mat_fea(jF,iF,0,f);
          }
@@ -576,27 +576,27 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
                                         SparseMatrix &mat,
                                         SparseMatrix &face_mat) const
 {
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int Ndofs = ndofs;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
-   auto mat_fea = Reshape(ea_data.Read(), nd, nd, 2, nf);
+   auto mat_fea = Reshape(ea_data.Read(), nface_dofs, nface_dofs, 2, nf);
    auto I = mat.ReadWriteI();
    auto I_face = face_mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto J_face = face_mat.WriteJ();
    auto Data = mat.WriteData();
    auto Data_face = face_mat.WriteData();
-   MFEM_FORALL(fdof, nf*nd,
+   MFEM_FORALL(fdof, nf*nface_dofs,
    {
-      const int f  = fdof/nd;
-      const int iF = fdof%nd;
-      const int iE1 = d_indices1[f*nd+iF];
+      const int f  = fdof/nface_dofs;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
       if (iE1 < Ndofs)
       {
-         for (int jF = 0; jF < nd; jF++)
+         for (int jF = 0; jF < nface_dofs; jF++)
          {
-            const int jE2 = d_indices2[f*nd+jF];
+            const int jE2 = d_indices2[f*nface_dofs+jF];
             if (jE2 < Ndofs)
             {
                const int offset = AddNnz(iE1,I,1);
@@ -611,12 +611,12 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
             }
          }
       }
-      const int iE2 = d_indices2[f*nd+iF];
+      const int iE2 = d_indices2[f*nface_dofs+iF];
       if (iE2 < Ndofs)
       {
-         for (int jF = 0; jF < nd; jF++)
+         for (int jF = 0; jF < nface_dofs; jF++)
          {
-            const int jE1 = d_indices1[f*nd+jF];
+            const int jE1 = d_indices1[f*nface_dofs+jF];
             if (jE1 < Ndofs)
             {
                const int offset = AddNnz(iE2,I,1);
@@ -777,7 +777,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    x_gf.ExchangeFaceNbrData();
 
    // Assumes all elements have the same number of dofs
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    const int threshold = ndofs;
@@ -790,14 +790,14 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
                                 t?vd:nsdofs, t?nsdofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
@@ -808,9 +808,9 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
             if ( interp_index==InterpConfig::conforming || side!=master_side )
             {
                // No interpolation
-               MFEM_FOREACH_THREAD(dof,x,nd)
+               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                {
-                  const int i = face*nd + dof;
+                  const int i = face*nface_dofs + dof;
                   const int idx = side==0 ? d_indices1[i] : d_indices2[i];
                   if (idx>-1 && idx<threshold) // local interior face
                   {
@@ -840,9 +840,9 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
             {
                for (int c = 0; c < vd; ++c)
                {
-                  MFEM_FOREACH_THREAD(dof,x,nd)
+                  MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                   {
-                     const int i = face*nd + dof;
+                     const int i = face*nface_dofs + dof;
                      const int idx = side==0 ? d_indices1[i] : d_indices2[i];
                      if (idx>-1 && idx<threshold) // local interior face
                      {
@@ -859,10 +859,10 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      }
                   }
                   MFEM_SYNC_THREAD;
-                  MFEM_FOREACH_THREAD(dofOut,x,nd)
+                  MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
                   {
                      double res = 0.0;
-                     for (int dofIn = 0; dofIn<nd; dofIn++)
+                     for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
                      {
                         res += interp(dofOut, dofIn, interp_index)*dofs[dofIn];
                      }
@@ -878,11 +878,11 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
       MFEM_FORALL(i, nfdofs,
       {
-         const int dof = i % nd;
-         const int face = i / nd;
+         const int dof = i % nface_dofs;
+         const int face = i / nface_dofs;
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
@@ -898,14 +898,14 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 16*16;
-      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
@@ -914,9 +914,9 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int side = 0;
          if ( interp_index==InterpConfig::conforming || side!=master_side )
          {
-            MFEM_FOREACH_THREAD(dof,x,nd)
+            MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
-               const int i = face*nd + dof;
+               const int i = face*nface_dofs + dof;
                const int idx = d_indices1[i];
                if (idx>-1 && idx<threshold) // interior face
                {
@@ -946,9 +946,9 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          {
             for (int c = 0; c < vd; ++c)
             {
-               MFEM_FOREACH_THREAD(dof,x,nd)
+               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                {
-                  const int i = face*nd + dof;
+                  const int i = face*nface_dofs + dof;
                   const int idx = d_indices1[i];
                   if (idx>-1 && idx<threshold) // interior face
                   {
@@ -965,10 +965,10 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   }
                }
                MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
                {
                   double res = 0.0;
-                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
                   {
                      res += interp(dofOut, dofIn, interp_index)*dofs[dofIn];
                   }
@@ -983,11 +983,11 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
       MFEM_FORALL(i, nfdofs,
       {
-         const int dof = i % nd;
-         const int face = i / nd;
+         const int dof = i % nface_dofs;
+         const int face = i / nface_dofs;
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
@@ -1009,20 +1009,20 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    x_interp = x;
    // Assumes all elements have the same number of dofs
-   const int nd = face_dofs;
+   const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
    // Interpolation from slave to master face dofs
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      auto d_x = Reshape(x_interp.ReadWrite(), nd, vd, 2, nf);
+      auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, 2, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
@@ -1033,15 +1033,15 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
             // Interpolation from fine to coarse
             for (int c = 0; c < vd; ++c)
             {
-               MFEM_FOREACH_THREAD(dof,x,nd)
+               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                {
                   dofs[dof] = d_x(dof, c, master_side, face);
                }
                MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
                {
                   double res = 0.0;
-                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
                   {
                      res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
                   }
@@ -1054,14 +1054,14 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
    {
-      auto d_x = Reshape(x_interp.ReadWrite(), nd, vd, nf);
+      auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nd, nd, nc_size);
+      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nd<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nd, 1, 1,
+      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
       {
          MFEM_SHARED double dofs[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
@@ -1072,15 +1072,15 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
             // Interpolation from fine to coarse
             for (int c = 0; c < vd; ++c)
             {
-               MFEM_FOREACH_THREAD(dof,x,nd)
+               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                {
                   dofs[dof] = d_x(dof, c, face);
                }
                MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dofOut,x,nd)
+               MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
                {
                   double res = 0.0;
-                  for (int dofIn = 0; dofIn<nd; dofIn++)
+                  for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
                   {
                      res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
                   }
@@ -1098,7 +1098,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    auto d_indices = gather_indices.Read();
    if ( m==L2FaceValues::DoubleValued )
    {
-      auto d_x = Reshape(x_interp.Read(), nd, vd, 2, nf);
+      auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, 2, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
@@ -1113,8 +1113,8 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
                bool isE1 = idx_j < dofs;
                idx_j = isE1 ? idx_j : idx_j - dofs;
                dofValue +=  isE1 ?
-               d_x(idx_j % nd, c, 0, idx_j / nd)
-               :d_x(idx_j % nd, c, 1, idx_j / nd);
+               d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
+               :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
             }
             d_y(t?c:i,t?i:c) += dofValue;
          }
@@ -1122,7 +1122,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
    else // Single valued
    {
-      auto d_x = Reshape(x_interp.Read(), nd, vd, nf);
+      auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
@@ -1134,7 +1134,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
             for (int j = offset; j < nextOffset; ++j)
             {
                int idx_j = d_indices[j];
-               dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
+               dofValue +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
             }
             d_y(t?c:i,t?i:c) += dofValue;
          }
