@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&which_estimator, "-est", "--estimator",
                   "Which estimator to use: "
-                  "0 = ZZ, 1 = Kelly. Defaults to ZZ.");
+                  "0 = ZZ, 1 = Kelly, 2 = True ZZ. Defaults to ZZ.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -211,6 +211,12 @@ int main(int argc, char *argv[])
       {
          auto flux_fes = new FiniteElementSpace(&mesh, &flux_fec, sdim);
          estimator = new KellyErrorEstimator(*integ, x, flux_fes);
+         break;
+      }
+      case 2:
+      {
+         auto flux_fes = new FiniteElementSpace(&mesh, &fec, sdim);
+         estimator = new NewZienkiewiczZhuEstimator(*integ, x, flux_fes);
          break;
       }
 

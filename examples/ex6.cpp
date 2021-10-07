@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
-   refiner.SetNCLimit(1);
+   // refiner.SetNCLimit(1);
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
