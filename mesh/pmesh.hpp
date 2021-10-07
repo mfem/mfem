@@ -357,6 +357,36 @@ public:
        with indices offset by the local number of elements. */
    Table *GetFaceToAllElementTable() const;
 
+   /// Returns (a pointer to an object containing) the following data:
+   ///
+   /// 1) Elem1No - the index of the first element that contains this face this
+   ///    is the element that has the same outward unit normal vector as the
+   ///    face;
+   ///
+   /// 2) Elem2No - the index of the second element that contains this face this
+   ///    element has outward unit normal vector as the face multiplied with -1;
+   ///
+   /// 3) Elem1, Elem2 - pointers to the ElementTransformation's of the first
+   ///    and the second element respectively;
+   ///
+   /// 4) Face - pointer to the ElementTransformation of the face;
+   ///
+   /// 5) Loc1, Loc2 - IntegrationPointTransformation's mapping the face
+   ///    coordinate system to the element coordinate system (both in their
+   ///    reference elements). Used to transform IntegrationPoints from face to
+   ///    element. More formally, let:
+   ///       TL1, TL2 be the transformations represented by Loc1, Loc2,
+   ///       TE1, TE2 - the transformations represented by Elem1, Elem2,
+   ///       TF - the transformation represented by Face, then
+   ///       TF(x) = TE1(TL1(x)) = TE2(TL2(x)) for all x in the reference face.
+   ///
+   /// 6) FaceGeom - the base geometry for the face.
+   ///
+   /// The mask specifies which fields in the structure to return:
+   ///    mask & 1 - Elem1, mask & 2 - Elem2
+   ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
+   /// These mask values are defined in the ConfigMasks enum type as part of the
+   /// FaceElementTransformations class in fem/eltrans.hpp.
    FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31) override;
