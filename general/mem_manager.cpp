@@ -33,7 +33,8 @@
 #endif
 
 #ifdef MFEM_USE_UMPIRE
-#include "umpire/Umpire.hpp"
+#include <umpire/Umpire.hpp>
+#include <umpire/strategy/DynamicPool.hpp>
 
 // Make sure Umpire is build with CUDA support if MFEM is built with it.
 #if defined(MFEM_USE_CUDA) && !defined(UMPIRE_ENABLE_CUDA)
