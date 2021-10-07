@@ -763,6 +763,13 @@ public:
       tdata.New(i*j*k);
    }
 
+   DenseTensor(double *d, int i, int j, int k)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.Wrap(d, i*j*k, false);
+   }
+
    DenseTensor(int i, int j, int k, MemoryType mt)
       : Mk(NULL, i, j)
    {
@@ -811,6 +818,9 @@ public:
 
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
+
+   /// Copy assignment operator (performs a deep copy)
+   DenseTensor &operator=(const DenseTensor &other);
 
    DenseMatrix &operator()(int k)
    {

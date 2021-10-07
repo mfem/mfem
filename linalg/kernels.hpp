@@ -276,6 +276,20 @@ void Add(const int height, const int width, const TA *Adata, TB *Bdata)
    }
 }
 
+/** @brief Compute B +=alpha*A, where the matrices A and B are of size
+    @a height x @a width with data @a Adata and @a Bdata. */
+template<typename TA, typename TB>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width,
+         const double alpha, const TA *Adata, TB *Bdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Bdata[i] += alpha * Adata[i];
+   }
+}
+
 /** @brief Compute B = alpha*A, where the matrices A and B are of size
     @a height x @a width with data @a Adata and @a Bdata. */
 template<typename TA, typename TB>
@@ -289,7 +303,6 @@ void Set(const int height, const int width,
       Bdata[i] = alpha * Adata[i];
    }
 }
-
 
 /** @brief Matrix-matrix multiplication: A = B * C, where the matrices A, B and
     C are of sizes @a Aheight x @a Awidth, @a Aheight x @a Bwidth and @a Bwidth

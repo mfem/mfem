@@ -48,29 +48,36 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
+#endif // MFEM_USE_MPI
 
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
-                                         ParGridFunction& sol_,
-                                         ParFiniteElementSpace& flux_fespace_,
+                                         GridFunction& sol_,
+                                         FiniteElementSpace& flux_fespace_,
                                          const Array<int> &attributes_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(&flux_fespace_)
    , own_flux_fespace(false)
+#ifdef MFEM_USE_MPI
+   , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
+#endif // MFEM_USE_MPI
 {
    ResetCoefficientFunctions();
 }
 
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
-                                         ParGridFunction& sol_,
-                                         ParFiniteElementSpace* flux_fespace_,
+                                         GridFunction& sol_,
+                                         FiniteElementSpace* flux_fespace_,
                                          const Array<int> &attributes_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(flux_fespace_)
    , own_flux_fespace(true)
+#ifdef MFEM_USE_MPI
+   , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
+#endif // MFEM_USE_MPI
 {
    ResetCoefficientFunctions();
 }
@@ -85,29 +92,31 @@ KellyErrorEstimator::~KellyErrorEstimator()
 
 void KellyErrorEstimator::ResetCoefficientFunctions()
 {
-   compute_element_coefficient = [](ParMesh* pmesh, const int e)
+   compute_element_coefficient = [](Mesh* mesh, const int e)
    {
       return 1.0;
    };
 
-   compute_face_coefficient = [](ParMesh* pmesh, const int f,
+   compute_face_coefficient = [](Mesh* mesh, const int f,
                                  const bool shared_face)
    {
       auto FT = [&]()
       {
+#ifdef MFEM_USE_MPI
          if (shared_face)
          {
-            return pmesh->GetSharedFaceTransformations(f);
+            return dynamic_cast<ParMesh*>(mesh)->GetSharedFaceTransformations(f);
          }
-         return pmesh->GetFaceElementTransformations(f);
+#endif // MFEM_USE_MPI
+         return mesh->GetFaceElementTransformations(f);
       }();
       const auto order = FT->GetFE()->GetOrder();
 
       // Poor man's face diameter.
       double diameter = 0.0;
 
-      Vector p1(pmesh->SpaceDimension());
-      Vector p2(pmesh->SpaceDimension());
+      Vector p1(mesh->SpaceDimension());
+      Vector p2(mesh->SpaceDimension());
       // NOTE: We have no direct access to vertices for shared faces,
       // so we fall back to compute the positions from the element.
       // This can also be modified to compute the diameter for non-linear
@@ -148,17 +157,23 @@ void KellyErrorEstimator::ComputeEstimates()
 
    flux_space->Update(false);
 
-   auto xfes      = solution->ParFESpace();
+   auto xfes = solution->FESpace();
    MFEM_ASSERT(xfes->GetVDim() == 1,
                "Estimation for vector-valued problems not implemented yet.");
-   auto pmesh     = xfes->GetParMesh();
+   auto mesh = xfes->GetMesh();
 
    this->error_estimates.SetSize(xfes->GetNE());
    this->error_estimates = 0.0;
 
    // 1. Compute fluxes in discontinuous space
-   ParGridFunction flux(flux_space);
-   flux = 0.0;
+   GridFunction *flux =
+#ifdef MFEM_USE_MPI
+      isParallel ? new ParGridFunction(dynamic_cast<ParFiniteElementSpace*>
+                                       (flux_space)) :
+#endif // MFEM_USE_MPI
+      new GridFunction(flux_space);
+
+   *flux = 0.0;
 
    // We pre-sort the array to speed up the search in the following loops.
    if (attributes.Size())
@@ -184,21 +199,21 @@ void KellyErrorEstimator::ComputeEstimates()
                                           *flux_space->GetFE(e), el_f, true);
 
       flux_space->GetElementVDofs(e, fdofs);
-      flux.AddElementVector(fdofs, el_f);
+      flux->AddElementVector(fdofs, el_f);
    }
 
    // 2. Add error contribution from local interior faces
-   for (int f = 0; f < pmesh->GetNumFaces(); f++)
+   for (int f = 0; f < mesh->GetNumFaces(); f++)
    {
-      auto FT = pmesh->GetFaceElementTransformations(f);
+      auto FT = mesh->GetFaceElementTransformations(f);
 
       auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
       const auto nip = int_rule.GetNPoints();
 
-      if (pmesh->FaceIsInterior(f))
+      if (mesh->FaceIsInterior(f))
       {
          int Inf1, Inf2, NCFace;
-         pmesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
+         mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
 
          // Convention
          // * Conforming face: Face side with smaller element id handles
@@ -229,18 +244,18 @@ void KellyErrorEstimator::ComputeEstimates()
                FT->Loc1.Transform(fip, ip);
 
                Vector val(flux_space->GetVDim());
-               flux.GetVectorValue(FT->Elem1No, ip, val);
+               flux->GetVectorValue(FT->Elem1No, ip, val);
 
                // And build scalar product with normal
-               Vector normal(pmesh->SpaceDimension());
+               Vector normal(mesh->SpaceDimension());
                FT->Face->SetIntPoint(&fip);
-               if (pmesh->Dimension() == pmesh->SpaceDimension())
+               if (mesh->Dimension() == mesh->SpaceDimension())
                {
                   CalcOrtho(FT->Face->Jacobian(), normal);
                }
                else
                {
-                  Vector ref_normal(pmesh->Dimension());
+                  Vector ref_normal(mesh->Dimension());
                   FT->Loc1.Transf.SetIntPoint(&fip);
                   CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
                   auto &e1 = FT->GetElement1Transformation();
@@ -260,18 +275,18 @@ void KellyErrorEstimator::ComputeEstimates()
                FT->Loc2.Transform(fip, ip);
 
                Vector val(flux_space->GetVDim());
-               flux.GetVectorValue(FT->Elem2No, ip, val);
+               flux->GetVectorValue(FT->Elem2No, ip, val);
 
                // And build scalar product with normal
-               Vector normal(pmesh->SpaceDimension());
+               Vector normal(mesh->SpaceDimension());
                FT->Face->SetIntPoint(&fip);
-               if (pmesh->Dimension() == pmesh->SpaceDimension())
+               if (mesh->Dimension() == mesh->SpaceDimension())
                {
                   CalcOrtho(FT->Face->Jacobian(), normal);
                }
                else
                {
-                  Vector ref_normal(pmesh->Dimension());
+                  Vector ref_normal(mesh->Dimension());
                   FT->Loc1.Transf.SetIntPoint(&fip);
                   CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
                   auto &e1 = FT->GetElement1Transformation();
@@ -287,7 +302,7 @@ void KellyErrorEstimator::ComputeEstimates()
             {
                jumps(i) *= jumps(i);
             }
-            auto h_k_face = compute_face_coefficient(pmesh, f, false);
+            auto h_k_face = compute_face_coefficient(mesh, f, false);
             double jump_integral = h_k_face*jumps.Sum();
 
             // A local face is shared between two local elements, so we
@@ -300,9 +315,37 @@ void KellyErrorEstimator::ComputeEstimates()
       }
    }
 
+   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+
+#ifdef MFEM_USE_MPI
+   if (!isParallel)
+#endif // MFEM_USE_MPI
+   {
+      // Finalize element errors
+      for (int e = 0; e < xfes->GetNE(); e++)
+      {
+         auto factor = compute_element_coefficient(mesh, e);
+         // The sqrt belongs to the norm and hₑ to the indicator.
+         error_estimates(e) = sqrt(factor * error_estimates(e));
+      }
+
+      total_error = error_estimates.Norml2();
+      delete flux;
+      return;
+   }
+
+#ifdef MFEM_USE_MPI
+
    // 3. Add error contribution from shared interior faces
    // Synchronize face data.
-   flux.ExchangeFaceNbrData();
+
+   ParGridFunction *pflux = dynamic_cast<ParGridFunction*>(flux);
+   MFEM_VERIFY(pflux, "flux is not a ParGridFunction pointer");
+
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   MFEM_VERIFY(pmesh, "mesh is not a ParMesh pointer");
+
+   pflux->ExchangeFaceNbrData();
 
    for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
    {
@@ -330,17 +373,17 @@ void KellyErrorEstimator::ComputeEstimates()
          FT->Loc1.Transform(fip, ip);
 
          Vector val(flux_space->GetVDim());
-         flux.GetVectorValue(FT->Elem1No, ip, val);
+         flux->GetVectorValue(FT->Elem1No, ip, val);
 
-         Vector normal(pmesh->SpaceDimension());
+         Vector normal(mesh->SpaceDimension());
          FT->Face->SetIntPoint(&fip);
-         if (pmesh->Dimension() == pmesh->SpaceDimension())
+         if (mesh->Dimension() == mesh->SpaceDimension())
          {
             CalcOrtho(FT->Face->Jacobian(), normal);
          }
          else
          {
-            Vector ref_normal(pmesh->Dimension());
+            Vector ref_normal(mesh->Dimension());
             FT->Loc1.Transf.SetIntPoint(&fip);
             CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
             auto &e1 = FT->GetElement1Transformation();
@@ -361,18 +404,18 @@ void KellyErrorEstimator::ComputeEstimates()
          FT->Loc2.Transform(fip, ip);
 
          Vector val(flux_space->GetVDim());
-         flux.GetVectorValue(FT->Elem2No, ip, val);
+         flux->GetVectorValue(FT->Elem2No, ip, val);
 
          // Evaluate gauss point
-         Vector normal(pmesh->SpaceDimension());
+         Vector normal(mesh->SpaceDimension());
          FT->Face->SetIntPoint(&fip);
-         if (pmesh->Dimension() == pmesh->SpaceDimension())
+         if (mesh->Dimension() == mesh->SpaceDimension())
          {
             CalcOrtho(FT->Face->Jacobian(), normal);
          }
          else
          {
-            Vector ref_normal(pmesh->Dimension());
+            Vector ref_normal(mesh->Dimension());
             CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
             auto &e1 = FT->GetElement1Transformation();
             e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
@@ -387,7 +430,7 @@ void KellyErrorEstimator::ComputeEstimates()
       {
          jumps(i) *= jumps(i);
       }
-      auto h_k_face = compute_face_coefficient(pmesh, sf, true);
+      auto h_k_face = compute_face_coefficient(mesh, sf, true);
       double jump_integral = h_k_face*jumps.Sum();
 
       error_estimates(FT->Elem1No) += jump_integral;
@@ -395,25 +438,26 @@ void KellyErrorEstimator::ComputeEstimates()
       // because the error is stored on the remote process and
       // recomputed there.
    }
+   delete flux;
 
    // Finalize element errors
    for (int e = 0; e < xfes->GetNE(); e++)
    {
-      auto factor = compute_element_coefficient(pmesh, e);
+      auto factor = compute_element_coefficient(mesh, e);
       // The sqrt belongs to the norm and hₑ to the indicator.
       error_estimates(e) = sqrt(factor * error_estimates(e));
    }
 
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
-
    // Finish by computing the global error.
-   double process_local_error = error_estimates.Sum();
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(xfes);
+   MFEM_VERIFY(pfes, "xfes is not a ParFiniteElementSpace pointer");
+
+   double process_local_error = pow(error_estimates.Norml2(),2.0);
    MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
-                 MPI_SUM, xfes->GetComm());
-}
-
+                 MPI_SUM, pfes->GetComm());
+   total_error = sqrt(total_error);
 #endif // MFEM_USE_MPI
-
+}
 
 void LpErrorEstimator::ComputeEstimates()
 {

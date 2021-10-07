@@ -189,6 +189,7 @@ namespace mfem {
  * - <a class="el" href="field-diff_8cpp_source.html">Field Diff</a>: compare grid functions on different meshes
  * - <a class="el" href="field-interp_8cpp_source.html">Field Interp</a>: transfer a grid functions between meshes
  * - <a class="el" href="distance_8cpp_source.html">Distance</a>: finite element distance function solver
+ * - <a class="el" href="diffusion_8cpp_source.html">Shifted Diffusion</a>: shifted boundary diffusion solver
  * - <a class="el" href="distance_8cpp_source.html">Block Solvers</a>: comparison of saddle point system solvers
  * - <a class="el" href="parheat_8cpp_source.html">Optimization gradients</a>: Gradients of PDE-constrained function
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem

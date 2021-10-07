@@ -371,6 +371,8 @@ public:
       AddQualityMetric(sh_metric, 1.-gamma_);
       AddQualityMetric(sz_metric, gamma_);
    }
+   virtual int Id() const { return 80; }
+   double GetGamma() const { return gamma; }
 
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
@@ -590,6 +592,52 @@ public:
    virtual int Id() const { return 321; }
 };
 
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
+{
+protected:
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_332(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_302),
+      sz_metric(new TMOP_Metric_315)
+   {
+      // (1-gamma) mu_302 + gamma mu_315
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 332; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
+{
+protected:
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_333(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_302),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_302 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 333; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
+};
+
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
 class TMOP_Metric_352 : public TMOP_QualityMetric
 {
@@ -804,6 +852,8 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -1007,14 +1057,31 @@ protected:
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
 
+   // DenseMatrix to hold target_spec values for the (children of the)
+   // element being refined to consider for h-refinement.
+   DenseMatrix tspec_refine;
+   // Vector to hold the target_spec values for the coarse version of the
+   // current mesh. Used for derefinement decision with hr-adaptivity.
+   Vector tspec_derefine;
+
    // Components of Target Jacobian at each quadrature point of an element. This
    // is required for computation of the derivative using chain rule.
    mutable DenseTensor Jtrcomp;
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-   const FiniteElementSpace *tspec_fes;
-   const FiniteElementSpace *tspec_fesv;
+   FiniteElementSpace *tspec_fesv;         //owned
+   FiniteElementSpace *coarse_tspec_fesv;  //not owned, derefinement FESpace
+   GridFunction *tspec_gf;                 //owned, uses tspec and tspec_fes
+   // discrete adaptivity
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *ptspec_fesv;     //owned, needed for derefinement to
+   // get update operator.
+   ParGridFunction *tspec_pgf;             // similar to tspec_gf
+#endif
+
+   int amr_el;
+   double lim_min_size;
 
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
@@ -1026,7 +1093,7 @@ protected:
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
-   void FinalizeSerialDiscreteTargetSpec();
+   void FinalizeSerialDiscreteTargetSpec(const GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
    void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
    void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
@@ -1038,16 +1105,16 @@ public:
         ncomp(0),
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
-        tspec_fes(NULL), tspec_fesv(NULL),
+        tspec_refine(), tspec_derefine(),
+        tspec_fesv(NULL), coarse_tspec_fesv(NULL), tspec_gf(NULL),
+#ifdef MFEM_USE_MPI
+        ptspec_fesv(NULL), tspec_pgf(NULL),
+#endif
+        amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
         adapt_eval(NULL) { }
 
-   virtual ~DiscreteAdaptTC()
-   {
-      delete adapt_eval;
-      delete tspec_fes;
-      delete tspec_fesv;
-   }
+   virtual ~DiscreteAdaptTC();
 
    /** @name Target specification methods.
        The following methods are used to specify geometric parameters of the
@@ -1077,6 +1144,20 @@ public:
    /// Used in combination with the Update methods to avoid extra computations.
    void ResetUpdateFlags()
    { good_tspec = good_tspec_grad = good_tspec_hess = false; }
+
+   /// Get one of the discrete fields from tspec.
+   void GetDiscreteTargetSpec(GridFunction &tspec_, int idx);
+   /// Get the FESpace associated with tspec.
+   FiniteElementSpace *GetTSpecFESpace() { return tspec_fesv; }
+   /// Get the entire tspec.
+   GridFunction *GetTSpecData() { return tspec_gf; }
+   /// Update all discrete fields based on tspec and update for AMR
+   void UpdateAfterMeshTopologyChange();
+
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *GetTSpecParFESpace() { return ptspec_fesv; }
+   void ParUpdateAfterMeshTopologyChange();
+#endif
 
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. If @a use_flags is true, repeated
@@ -1134,6 +1215,36 @@ public:
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
+
+   // Generates tspec_vals for target construction using intrule
+   // Used for the refinement component in hr-adaptivity.
+   void SetTspecFromIntRule(int e_id, const IntegrationRule &intrule);
+
+   // Targets based on discrete functions can result in invalid (negative)
+   // size at the quadrature points. This method can be used to set a
+   // minimum target size.
+   void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
+
+   /// Computes target specification data with respect to the coarse FE space.
+   void SetTspecDataForDerefinement(FiniteElementSpace *fes);
+
+   // Reset refinement data associated with h-adaptivity component.
+   void ResetRefinementTspecData()
+   {
+      tspec_refine.Clear();
+      amr_el = -1;
+   }
+
+   // Reset derefinement data associated with h-adaptivity component.
+   void ResetDerefinementTspecData()
+   {
+      tspec_derefine.Destroy();
+      coarse_tspec_fesv = NULL;
+   }
+
+   // Used to specify the fine element for determining energy of children of a
+   // parent element.
+   void SetRefinementSubElement(int amr_el_) { amr_el = amr_el_; }
 };
 
 class TMOPNewtonSolver;
@@ -1151,6 +1262,7 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
+   TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
@@ -1177,6 +1289,9 @@ protected:
 
    // Adaptive limiting.
    const GridFunction *zeta_0;       // Not owned.
+#ifdef MFEM_USE_MPI
+   const ParGridFunction *pzeta_0;
+#endif
    GridFunction *zeta;               // Owned. Updated by adapt_eval.
    Coefficient *coeff_zeta;          // Not owned.
    AdaptivityEvaluator *adapt_eval;  // Not owned.
@@ -1287,7 +1402,7 @@ protected:
 #endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshChange(const Vector &new_x);
+   void UpdateAfterMeshPositionChange(const Vector &new_x);
 
    void DisableLimiting()
    {
@@ -1345,11 +1460,13 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
 public:
-   /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
-       @param[in] tc Target-matrix construction algorithm to use (not owned). */
-   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
-      : metric(m), targetC(tc), IntegRules(NULL), integ_order(-1),
-        coeff1(NULL), metric_normal(1.0),
+   /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
+       @param[in] tc   Target-matrix construction algorithm to use (not owned).
+       @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
+                   TMOP_QualityMetric *hm)
+      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+        integ_order(-1), coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
@@ -1357,7 +1474,14 @@ public:
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
 
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
+      : TMOP_Integrator(m, tc, m) { }
+
    ~TMOP_Integrator();
+
+   /// Release the device memory of large PA allocations. This will copy device
+   /// memory back to the host before releasing.
+   void ReleasePADeviceMemory();
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
@@ -1424,6 +1548,22 @@ public:
                                    ElementTransformation &T,
                                    const Vector &elfun);
 
+   /** @brief Computes the mean of the energies of the given element's children.
+
+       In addition to the inputs for GetElementEnergy, this function requires an
+       IntegrationRule to be specified that will give the decomposition of the
+       given element based on the refinement type being considered. */
+   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+                                             ElementTransformation &T,
+                                             const Vector &elfun,
+                                             const IntegrationRule &irule);
+
+   /// This function is similar to GetElementEnergy, but ignores components
+   /// such as limiting etc. to compute the element energy.
+   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
+                                               ElementTransformation &T,
+                                               const Vector &elfun);
+
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
                                       const Vector &elfun, Vector &elvect);
@@ -1431,6 +1571,13 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
+
+   void UpdateAfterMeshTopologyChange();
+#ifdef MFEM_USE_MPI
+   void ParUpdateAfterMeshTopologyChange();
+#endif
 
    // PA extension
    using NonlinearFormIntegrator::AssemblePA;
@@ -1509,6 +1656,15 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+                                             ElementTransformation &T,
+                                             const Vector &elfun,
+                                             const IntegrationRule &irule);
+
+   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
+                                               ElementTransformation &T,
+                                               const Vector &elfun);
 
    /// Normalization factor that considers all integrators in the combination.
    void EnableNormalization(const GridFunction &x);
