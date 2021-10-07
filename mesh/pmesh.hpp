@@ -391,14 +391,21 @@ public:
       int FaceNo,
       int mask = 31) override;
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D).
+   /** Get the FaceElementTransformations for the given shared face (edge 2D)
+       using the shared face index @a sf. @a fill2 specify if the information
+       for elem2 of the face should be computed or not.
        In the returned object, 1 and 2 refer to the local and the neighbor
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
+   /** Get the FaceElementTransformations for the given shared face (edge 2D)
+       using the face index @a FaceNo. @a fill2 specify if the information
+       for elem2 of the face should be computed or not.
+       In the returned object, 1 and 2 refer to the local and the neighbor
+       elements, respectively. */
    FaceElementTransformations *
-   GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2);
+   GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)
