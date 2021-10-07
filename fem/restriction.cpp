@@ -882,14 +882,16 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
    const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    GetFaceDofs(dim, face_id, dof1d, face_map); // Only for quad and hex
 
-   for (int d = 0; d < face_dofs; ++d)
+   for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
-      const int face_dof = face_map[d];
-      const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
-      const int gid = elem_map[elem_index*elem_dofs + did];
-      const int lid = face_dofs*face_index + d;
-      scatter_indices[lid] = gid;
-      ++gather_offsets[gid + 1];
+      const int nat_volume_dof = face_map[face_dof];
+      const int volume_dof = (!dof_reorder)?
+                             nat_volume_dof:
+                             dof_map[nat_volume_dof];
+      const int global_dof = elem_map[elem_index*elem_dofs + volume_dof];
+      const int restriction_dof = face_dofs*face_index + face_dof;
+      scatter_indices[restriction_dof] = global_dof;
+      ++gather_offsets[global_dof + 1];
    }
 }
 
@@ -913,13 +915,13 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
    const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    GetFaceDofs(dim, face_id, dof1d, face_map); // Only for quad and hex
 
-   for (int d = 0; d < face_dofs; ++d)
+   for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
-      const int face_dof = face_map[d];
-      const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
-      const int gid = elem_map[elem_index*elem_dofs + did];
-      const int lid = face_dofs*face_index + d;
-      gather_indices[gather_offsets[gid]++] = lid;
+      const int nat_volume_dof = face_map[face_dof];
+      const int volume_dof = (!dof_reorder)?nat_volume_dof:dof_map[nat_volume_dof];
+      const int global_dof = elem_map[elem_index*elem_dofs + volume_dof];
+      const int restriction_dof = face_dofs*face_index + face_dof;
+      gather_indices[gather_offsets[global_dof]++] = restriction_dof;
    }
 }
 
@@ -1418,13 +1420,13 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const int elem_index = face.elem_1_index;
    GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
 
-   for (int d = 0; d < face_dofs; ++d)
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
-      const int did = face_map[d];
-      const int gid = elem_map[elem_index*elem_dofs + did];
-      const int lid = face_dofs*face_index + d;
-      scatter_indices1[lid] = gid;
-      ++gather_offsets[gid + 1];
+      const int volume_dof_elem1 = face_map[face_dof_elem1];
+      const int global_dof_elem1 = elem_map[elem_index*elem_dofs + volume_dof_elem1];
+      const int restriction_dof_elem1 = face_dofs*face_index + face_dof_elem1;
+      scatter_indices1[restriction_dof_elem1] = global_dof_elem1;
+      ++gather_offsets[global_dof_elem1 + 1];
    }
 }
 
@@ -1444,15 +1446,16 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
 
-   for (int d = 0; d < face_dofs; ++d) // d -> face_dof_elem1
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
-      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                   orientation, dof1d, d);
-      const int did = face_map[pd]; // did -> volume_dof_elem2
-      const int gid = elem_map[elem_index*elem_dofs + did]; // global_dof_elem2
-      const int lid = face_dofs*face_index + d; // restriction_dof_elem2
-      scatter_indices2[lid] = gid;
-      ++gather_offsets[gid + 1];
+      const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d,
+                                               face_dof_elem1);
+      const int volume_dof_elem2 = face_map[face_dof_elem2];
+      const int global_dof_elem2 = elem_map[elem_index*elem_dofs + volume_dof_elem2];
+      const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
+      scatter_indices2[restriction_dof_elem2] = global_dof_elem2;
+      ++gather_offsets[global_dof_elem2 + 1];
    }
 }
 
@@ -1470,21 +1473,20 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
-   Array<int> sharedDofs;
+   Array<int> face_nbr_dofs;
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
-   pfes.GetFaceNbrElementVDofs(elem_index, sharedDofs);
+   pfes.GetFaceNbrElementVDofs(elem_index, face_nbr_dofs);
 
-   for (int d = 0; d < face_dofs; ++d)
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
-      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                   orientation, dof1d, d);
-      const int face_dof = face_map[pd];
-      const int did = face_dof;
-      const int gid = sharedDofs[did];
-      const int lid = face_dofs*face_index + d;
+      const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, face_dof_elem1);
+      const int volume_dof_elem2 = face_map[face_dof_elem2];
+      const int global_dof_elem2 = face_nbr_dofs[volume_dof_elem2];
+      const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
       // Trick to differentiate dof location inter/shared
-      scatter_indices2[lid] = ndofs+gid;
+      scatter_indices2[restriction_dof_elem2] = ndofs+global_dof_elem2;
    }
 #endif
 }
@@ -1498,8 +1500,8 @@ void L2FaceRestriction::SetBoundaryDofsScatterIndices2(
 
    for (int d = 0; d < face_dofs; ++d)
    {
-      const int lid = face_dofs*face_index + d;
-      scatter_indices2[lid] = -1;
+      const int restriction_dof_elem2 = face_dofs*face_index + d;
+      scatter_indices2[restriction_dof_elem2] = -1;
    }
 }
 
@@ -1517,13 +1519,13 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const int elem_index = face.elem_1_index;
    GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
 
-   for (int d = 0; d < face_dofs; ++d)
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
-      const int did = face_map[d];
-      const int gid = elem_map[elem_index*elem_dofs + did];
-      const int lid = face_dofs*face_index + d;
-      // We don't shift lid to express that it's elem1 of the face
-      gather_indices[gather_offsets[gid]++] = lid;
+      const int volume_dof_elem1 = face_map[face_dof_elem1];
+      const int global_dof_elem1 = elem_map[elem_index*elem_dofs + volume_dof_elem1];
+      const int restriction_dof_elem1 = face_dofs*face_index + face_dof_elem1;
+      // We don't shift restriction_dof_elem1 to express that it's elem1 of the face
+      gather_indices[gather_offsets[global_dof_elem1]++] = restriction_dof_elem1;
    }
 }
 
@@ -1543,15 +1545,17 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
 
-   for (int d = 0; d < face_dofs; ++d)
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
-      const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                   orientation, dof1d, d);
-      const int did = face_map[pd];
-      const int gid = elem_map[elem_index*elem_dofs + did];
-      const int lid = face_dofs*face_index + d;
-      // We shift lid to express that it's elem2 of the face
-      gather_indices[gather_offsets[gid]++] = nfdofs + lid;
+      const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d,
+                                               face_dof_elem1);
+      const int volume_dof_elem2 = face_map[face_dof_elem2];
+      const int global_dof_elem2 = elem_map[elem_index*elem_dofs + volume_dof_elem2];
+      const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
+      // We shift restriction_dof_elem2 to express that it's elem2 of the face
+      gather_indices[gather_offsets[global_dof_elem2]++] = nfdofs +
+                                                           restriction_dof_elem2;
    }
 }
 
