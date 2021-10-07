@@ -1483,7 +1483,7 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
       const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, face_dof_elem1);
       const int volume_dof_elem2 = face_map[face_dof_elem2];
-      const int global_dof_elem2 = face_nbr_dof_values[volume_dof_elem2];
+      const int global_dof_elem2 = face_nbr_dofs[volume_dof_elem2];
       const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
       // Trick to differentiate dof location inter/shared
       scatter_indices2[restriction_dof_elem2] = ndofs+global_dof_elem2;
