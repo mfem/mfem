@@ -233,9 +233,10 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   quad_order = mesh_poly_deg + 4;
-   //   quad_order = 8;
-   //   quad_order = mesh_poly_deg*2;
+#warning quad_order set from command line
+   // quad_order = mesh_poly_deg + 4;
+   // quad_order = 8;
+   // quad_order = mesh_poly_deg*2;
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);

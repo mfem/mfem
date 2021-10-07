@@ -14,9 +14,12 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 
+#include "../../general/debug.hpp"
+
 namespace mfem
 {
 
+#if 1
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
                            const int NE,
                            const Array<double> &b_,
@@ -113,7 +116,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
       kernels::internal::GradXt<MD1,MQ1>(D1D,Q1D,BG,DDQ,Y,e);
    });
 }
+#endif
 
+#if 1
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D_fast,
                            const int ND,
                            const int NE,
@@ -215,6 +220,94 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D_fast,
       kernels::internal::GradXt<MD1,MQ1>(D1D,Q1D,BG,DDQ,M,YD,e);
    });
 }
+#endif
+
+/******************************************************************************/
+template<int D1D, int Q1D, int NBK> MFEM_GLOBAL static
+MFEM_LAUNCH_BOUNDS(Q1D*Q1D*Q1D, NBK) // 2 registers
+// AddMultGradPA_Kernel_3D_fast with launch
+void AMGPA(const int NE,
+           const DeviceTensor<4,const int> M_,
+           const DeviceTensor<2,const double> B_,
+           const DeviceTensor<2,const double> G_,
+           const DeviceTensor<6,const double> J_,
+           const DeviceTensor<8,const double> H_,
+           const ConstDeviceMatrix XD,
+           DeviceMatrix YD)
+{
+   constexpr int DIM = 3; // 2x
+
+   MFEM_SHARED double sm0[9][Q1D*Q1D*Q1D];
+   MFEM_SHARED double sm1[9][Q1D*Q1D*Q1D];
+   MFEM_SHARED double BG[2][Q1D*D1D];
+
+   double (*DDD)[D1D*D1D*D1D] = (double (*)[D1D*D1D*D1D]) sm0;
+   double (*DDQ)[D1D*D1D*Q1D] = (double (*)[D1D*D1D*Q1D]) sm1;
+   double (*DQQ)[D1D*Q1D*Q1D] = (double (*)[D1D*Q1D*Q1D]) sm0;
+   double (*QQQ)[Q1D*Q1D*Q1D] = (double (*)[Q1D*Q1D*Q1D]) sm1;
+
+   MFEM_FORALL_GRID_3D(e, NE)
+   {
+      kernels::internal::LoadX<D1D>(e,D1D,M_,XD,DDD);
+      kernels::internal::LoadBG<D1D,Q1D>(D1D,Q1D,B_,G_,BG);
+
+      kernels::internal::GradX<D1D,Q1D>(D1D,Q1D,BG,DDD,DDQ);
+      kernels::internal::GradY<D1D,Q1D>(D1D,Q1D,BG,DDQ,DQQ);
+      kernels::internal::GradZ<D1D,Q1D>(D1D,Q1D,BG,DQQ,QQQ);
+
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const double *Jtr = &J_(0,0,qx,qy,qz,e);
+
+               // Jrt = Jtr^{-1}
+               double Jrt[9];
+               kernels::CalcInverse<3>(Jtr, Jrt);
+
+               // Jpr = X^T.DSh
+               double Jpr[9];
+               kernels::internal::PullGrad<Q1D>(Q1D, qx,qy,qz, QQQ, Jpr);
+
+               // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+               double Jpt[9];
+               kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
+
+               // B = Jpt : H
+               double B[9];
+               DeviceMatrix M(B,3,3);
+               ConstDeviceMatrix J(Jpt,3,3);
+               for (int i = 0; i < DIM; i++)
+               {
+                  for (int j = 0; j < DIM; j++)
+                  {
+                     M(i,j) = 0.0;
+                     for (int r = 0; r < DIM; r++)
+                     {
+                        for (int c = 0; c < DIM; c++)
+                        {
+                           M(i,j) += H_(r,c,i,j,qx,qy,qz,e) * J(r,c);
+                        }
+                     }
+                  }
+               }
+
+               // Y +=  DS . M^t += DSh . (Jrt . M^t)
+               double A[9];
+               kernels::MultABt(3,3,3, Jrt, B, A);
+               kernels::internal::PushGrad<Q1D>(Q1D, qx,qy,qz, A, QQQ);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      kernels::internal::LoadBGt<D1D,Q1D>(D1D,Q1D,B_,G_,BG);
+      kernels::internal::GradZt<D1D,Q1D>(D1D,Q1D,BG,QQQ,DQQ);
+      kernels::internal::GradYt<D1D,Q1D>(D1D,Q1D,BG,DQQ,DDQ);
+      kernels::internal::GradXt<D1D,Q1D>(D1D,Q1D,BG,DDQ,M_,YD,e);
+   }
+}
 
 void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
 {
@@ -231,6 +324,8 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
 
    if (!fast)
    {
+      // rs2: Prec Solve Time: 0.315
+      // rs3: Prec Solve Time: 2.442
       MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D,id,NE,B,G,J,H,R,C);
    }
    else
@@ -241,7 +336,38 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
       const ElementRestriction *ER = dynamic_cast<const ElementRestriction*>(ERop);
       MFEM_VERIFY(ER, "Not supported!");
       const int *M = ER->GatherMap().Read();
-      MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D_fast,id,ND,NE,M,B,G,J,H,R,C);
+
+      //MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D_fast,id,ND,NE,M,B,G,J,H,R,C);
+
+      constexpr int DIM = 3;
+      const auto m = Reshape(M, D1D,D1D,D1D, NE);
+      const auto b = Reshape(B.Read(), Q1D,D1D);
+      const auto g = Reshape(G.Read(), Q1D,D1D);
+      const auto j = Reshape(J.Read(), DIM,DIM, Q1D,Q1D,Q1D, NE);
+      const auto h = Reshape(H.Read(), DIM,DIM, DIM,DIM, Q1D,Q1D,Q1D, NE);
+      const auto x = Reshape(R.Read(), ND,DIM);
+      auto y = Reshape(C.ReadWrite(), ND,DIM);
+
+      void (*Ker)(const int NE,
+                  const DeviceTensor<4,const int> M,
+                  const DeviceTensor<2,const double> B,
+                  const DeviceTensor<2,const double> G,
+                  const DeviceTensor<6,const double> J,
+                  const DeviceTensor<8,const double> H,
+                  const ConstDeviceMatrix XD,
+                  DeviceMatrix YD) = nullptr;
+
+      constexpr int NBK = 0; // best if 0
+
+      switch (id) // orders 1~6
+      {
+         case 0x36: Ker = AMGPA<3,6,NBK>; break;
+         case 0x46: Ker = AMGPA<4,6,NBK>; break;
+         default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id);
+      }
+
+      MFEM_LAUNCH_KERNEL(Ker,NE,dim3(Q1D,Q1D,Q1D),0)(NE,m,b,g,j,h,x,y);
+      MFEM_DEVICE_SYNC;
    }
 }
 
