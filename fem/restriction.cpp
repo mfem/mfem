@@ -121,8 +121,8 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
       const int j = plus ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
       {
-         const double dofValue = d_x(t?c:j, t?j:c);
-         d_y(i % nd, c, i / nd) = plus ? dofValue : -dofValue;
+         const double dof_value = d_x(t?c:j, t?j:c);
+         d_y(i % nd, c, i / nd) = plus ? dof_value : -dof_value;
       }
    });
 }
@@ -161,17 +161,17 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
+      const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dofValue += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
-                         -d_x(idx_j % nd, c, idx_j / nd));
+            dof_value += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+                          -d_x(idx_j % nd, c, idx_j / nd));
          }
-         d_y(t?c:i,t?i:c) = dofValue;
+         d_y(t?c:i,t?i:c) = dof_value;
       }
    });
 }
@@ -189,16 +189,16 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
+      const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dofValue += d_x(idx_j % nd, c, idx_j / nd);
+            dof_value += d_x(idx_j % nd, c, idx_j / nd);
          }
-         d_y(t?c:i,t?i:c) = dofValue;
+         d_y(t?c:i,t?i:c) = dof_value;
       }
    });
 }
@@ -215,15 +215,15 @@ void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
-      const int nextOffset = d_offsets[i + 1];
+      const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         double dofValue = 0;
-         const int j = nextOffset - 1;
+         double dof_value = 0;
+         const int j = next_offset - 1;
          const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-         dofValue = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+         dof_value = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
          -d_x(idx_j % nd, c, idx_j / nd);
-         d_y(t?c:i,t?i:c) = dofValue;
+         d_y(t?c:i,t?i:c) = dof_value;
       }
    });
 }
@@ -245,10 +245,10 @@ void ElementRestriction::BooleanMask(Vector& y) const
    for (int i = 0; i < ndofs; ++i)
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i+1];
+      const int next_offset = d_offsets[i+1];
       for (int c = 0; c < vd; ++c)
       {
-         for (int j = offset; j < nextOffset; ++j)
+         for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = d_indices[j];
             if (d_x(t?c:i,t?i:c))
@@ -326,8 +326,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          const int i_E = e*elt_dofs + i;
          const int i_L = d_gatherMap[i_E];
          const int i_offset = d_offsets[i_L];
-         const int i_nextOffset = d_offsets[i_L+1];
-         const int i_nbElts = i_nextOffset - i_offset;
+         const int i_next_offset = d_offsets[i_L+1];
+         const int i_nbElts = i_next_offset - i_offset;
          for (int e_i = 0; e_i < i_nbElts; ++e_i)
          {
             const int i_E = d_indices[i_offset+e_i];
@@ -338,8 +338,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             const int j_E = e*elt_dofs + j;
             const int j_L = d_gatherMap[j_E];
             const int j_offset = d_offsets[j_L];
-            const int j_nextOffset = d_offsets[j_L+1];
-            const int j_nbElts = j_nextOffset - j_offset;
+            const int j_next_offset = d_offsets[j_L+1];
+            const int j_nbElts = j_next_offset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
             {
                GetAndIncrementNnzIndex(i_L, I);
@@ -400,8 +400,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          const int i_E = e*elt_dofs + i;
          const int i_L = d_gatherMap[i_E];
          const int i_offset = d_offsets[i_L];
-         const int i_nextOffset = d_offsets[i_L+1];
-         const int i_nbElts = i_nextOffset - i_offset;
+         const int i_next_offset = d_offsets[i_L+1];
+         const int i_nbElts = i_next_offset - i_offset;
          for (int e_i = 0; e_i < i_nbElts; ++e_i)
          {
             const int i_E = d_indices[i_offset+e_i];
@@ -413,8 +413,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             const int j_E = e*elt_dofs + j;
             const int j_L = d_gatherMap[j_E];
             const int j_offset = d_offsets[j_L];
-            const int j_nextOffset = d_offsets[j_L+1];
-            const int j_nbElts = j_nextOffset - j_offset;
+            const int j_next_offset = d_offsets[j_L+1];
+            const int j_nbElts = j_next_offset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
             {
                const int nnz = GetAndIncrementNnzIndex(i_L, I);
@@ -775,16 +775,16 @@ void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
+      const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = d_indices[j];
-            dofValue +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
+            dof_value +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
          }
-         d_y(t?c:i,t?i:c) += dofValue;
+         d_y(t?c:i,t?i:c) += dof_value;
       }
    });
 }
@@ -1181,20 +1181,20 @@ void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
+         const int next_offset = d_offsets[i + 1];
          for (int c = 0; c < vd; ++c)
          {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
+            double dof_value = 0;
+            for (int j = offset; j < next_offset; ++j)
             {
                int idx_j = d_indices[j];
                bool isE1 = idx_j < dofs;
                idx_j = isE1 ? idx_j : idx_j - dofs;
-               dofValue +=  isE1 ?
+               dof_value +=  isE1 ?
                d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
                :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
             }
-            d_y(t?c:i,t?i:c) += dofValue;
+            d_y(t?c:i,t?i:c) += dof_value;
          }
       });
    }
@@ -1205,16 +1205,16 @@ void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
+         const int next_offset = d_offsets[i + 1];
          for (int c = 0; c < vd; ++c)
          {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
+            double dof_value = 0;
+            for (int j = offset; j < next_offset; ++j)
             {
                int idx_j = d_indices[j];
-               dofValue +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
+               dof_value +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
             }
-            d_y(t?c:i,t?i:c) += dofValue;
+            d_y(t?c:i,t?i:c) += dof_value;
          }
       });
    }
@@ -1748,7 +1748,7 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
    const int nc_size = interp_map.size();
    MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");
    interpolators.SetSize(face_dofs*face_dofs*nc_size);
-   auto interp = Reshape(interpolators.HostWrite(),face_dofs,face_dofs,nc_size);
+   auto d_interp = Reshape(interpolators.HostWrite(),face_dofs,face_dofs,nc_size);
    for (auto val : interp_map)
    {
       const int idx = val.second.first;
@@ -1757,7 +1757,7 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
       {
          for (int j = 0; j < face_dofs; j++)
          {
-            interp(i,j,idx) = interpolator(i,j);
+            d_interp(i,j,idx) = interpolator(i,j);
          }
       }
       delete val.second.second;
@@ -1822,8 +1822,8 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolations.GetInterpolators().Read(),
-                            nface_dofs, nface_dofs, nc_size);
+      auto d_interp = Reshape(interpolations.GetInterpolators().Read(),
+                              nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
@@ -1858,14 +1858,14 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      dofs[dof] = d_x(t?c:idx, t?idx:c);
                   }
                   MFEM_SYNC_THREAD;
-                  MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
+                  MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
                   {
                      double res = 0.0;
-                     for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
+                     for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                      {
-                        res += interp(dofOut, dofIn, interp_index)*dofs[dofIn];
+                        res += d_interp(dof_out, dof_in, interp_index)*dofs[dof_in];
                      }
-                     d_y(dofOut, c, side, face) = res;
+                     d_y(dof_out, c, side, face) = res;
                   }
                   MFEM_SYNC_THREAD;
                }
@@ -1932,7 +1932,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+      auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
@@ -1951,14 +1951,14 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
                   dofs[dof] = d_x(dof, c, master_side, face);
                }
                MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
+               MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
                {
                   double res = 0.0;
-                  for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
+                  for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
-                     res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
+                     res += d_interp(dof_in, dof_out, interp_index)*dofs[dof_in];
                   }
-                  d_x(dofOut, c, master_side, face) = res;
+                  d_x(dof_out, c, master_side, face) = res;
                }
                MFEM_SYNC_THREAD;
             }
@@ -1972,7 +1972,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
       auto interpolators = interpolations.GetInterpolators().Read();
       const int nc_size = interpolations.GetNumInterpolators();
-      auto interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+      auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 16*16;
       MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
       MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
@@ -1991,14 +1991,14 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
                   dofs[dof] = d_x(dof, c, face);
                }
                MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dofOut,x,nface_dofs)
+               MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
                {
                   double res = 0.0;
-                  for (int dofIn = 0; dofIn<nface_dofs; dofIn++)
+                  for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
-                     res += interp(dofIn, dofOut, interp_index)*dofs[dofIn];
+                     res += d_interp(dof_in, dof_out, interp_index)*dofs[dof_in];
                   }
-                  d_x(dofOut, c, face) = res;
+                  d_x(dof_out, c, face) = res;
                }
                MFEM_SYNC_THREAD;
             }
@@ -2017,20 +2017,20 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
+         const int next_offset = d_offsets[i + 1];
          for (int c = 0; c < vd; ++c)
          {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
+            double dof_value = 0;
+            for (int j = offset; j < next_offset; ++j)
             {
                int idx_j = d_indices[j];
                bool isE1 = idx_j < dofs;
                idx_j = isE1 ? idx_j : idx_j - dofs;
-               dofValue +=  isE1 ?
+               dof_value +=  isE1 ?
                d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
                :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
             }
-            d_y(t?c:i,t?i:c) += dofValue;
+            d_y(t?c:i,t?i:c) += dof_value;
          }
       });
    }
@@ -2041,16 +2041,16 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
+         const int next_offset = d_offsets[i + 1];
          for (int c = 0; c < vd; ++c)
          {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
+            double dof_value = 0;
+            for (int j = offset; j < next_offset; ++j)
             {
                int idx_j = d_indices[j];
-               dofValue +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
+               dof_value +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
             }
-            d_y(t?c:i,t?i:c) += dofValue;
+            d_y(t?c:i,t?i:c) += dof_value;
          }
       });
    }
