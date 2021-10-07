@@ -1561,9 +1561,16 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    }
 
    // Construct cpts_global array on hypre matrix structure
+#if !defined(HYPRE_DEVELOP_BRANCH) && HYPRE_DEVELOP_NUMBER >= 42
+   HYPRE_BigInt cpts_global[2];
+
+   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+                              CF_marker, NULL, cpts_global);
+#else
    HYPRE_BigInt *cpts_global;
    hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
+#endif
 
    // Extract submatrix into *submat
 #ifdef hypre_IntArrayData
@@ -1575,7 +1582,9 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
                                         "FF", &submat, threshold);
 #endif
 
+#if !(!defined(HYPRE_DEVELOP_BRANCH) && HYPRE_DEVELOP_NUMBER >= 42)
    mfem_hypre_TFree(cpts_global);
+#endif
 #ifdef hypre_IntArrayData
    hypre_IntArrayDestroy(CF_marker);
 #endif
