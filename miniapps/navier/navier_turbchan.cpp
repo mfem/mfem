@@ -48,7 +48,7 @@ void vel_ic_reichardt(const Vector &coords, double t, Vector &u)
    double z = coords(2);
 
    double C = 5.17;
-   double k = 0.41;
+   double k = 0.4;
    double eps = 1e-2;
 
    if (y < 0)
@@ -68,7 +68,7 @@ void vel_ic_reichardt(const Vector &coords, double t, Vector &u)
    double alpha = kx * 2.0 * M_PI / 2.0 * M_PI;
    double beta = kz * 2.0 * M_PI / M_PI;
 
-   u(0) = u(0) + eps * beta * sin(alpha * x) * cos(beta * z);
+   u(0) += eps * beta * sin(alpha * x) * cos(beta * z);
    u(1) = eps * sin(alpha * x) * sin(beta * z);
    u(2) = -eps * alpha * cos(alpha * x) * sin(beta * z);
 }
@@ -83,6 +83,8 @@ void vel_wall(const Vector &x, double t, Vector &u)
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
+
+   Device("ceed-cpu");
 
    double delta = 1.0;
    double Lx = 2.0 * M_PI;
@@ -176,11 +178,16 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if (step % 100 == 0)
+      if (step % 1000 == 0)
       {
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
          pvdc.Save();
+      }
+
+      if (t > 5.0)
+      {
+         dt = 1e-2;
       }
 
       if (mpi.Root())
