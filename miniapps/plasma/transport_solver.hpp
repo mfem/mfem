@@ -2749,7 +2749,7 @@ struct CG2DG : Operator
    const HypreParMatrix *P;
    SparseMatrix C;
    mutable Vector z;
-   CG2DG(const ParFiniteElementSpace &fes_dg);
+   CG2DG(const ParFiniteElementSpace &fes_dg, const Array<int> &cg_ess_tdof_list);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    HypreParMatrix *ParallelAssemble(); // Caller must delete returned matrix

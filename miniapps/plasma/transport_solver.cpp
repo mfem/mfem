@@ -2071,7 +2071,7 @@ void TransportPrec::SetOperator(const Operator &op)
    }
 }
 
-CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_)
+CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_, const Array<int> &cg_ess_tdof_list)
    : Operator(fes_dg_.GetTrueVSize()),
      fes_dg(fes_dg_),
      fec_cg(fes_dg.GetOrder(0), fes_dg.GetParMesh()->Dimension()),
@@ -2110,26 +2110,16 @@ CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_)
       mat.SetSubMatrix(vdofs_dg, vdofs_cg, elmat, skip_zeros);
    }
 
-   // Zero out the boundary
-   // /*
-   Vector column_scaling(ndof_dg);
+   // Zero out the boundary for homogeneous Dirichlet BC
+
+   Vector column_scaling(ndof_cg);
    column_scaling = 1.0;
-   for (int ib=0; ib<fes_cg.GetNBE(); ++ib)
-   {
-     const int bdrAttr = fes_cg.GetBdrAttribute(ib);
-     //cout << "bdrAttr " << bdrAttr << endl;
-     //if (bdrAttr == 1)
-       {
-	 fes_cg.GetBdrElementVDofs(ib, vdofs_cg);
-	 for (int idx=0; idx<vdofs_cg.Size(); ++idx)
-	   {
-	     int i = vdofs_cg[idx];
-	     column_scaling(i) = 0.0;
-	   }
-       }
-   }
+   for (auto it = cg_ess_tdof_list.begin(); it != cg_ess_tdof_list.end(); ++it)
+     {
+       column_scaling(*it) = 0.0;
+     }
+
    mat.ScaleColumns(column_scaling);
-   // */
 
    mat.Finalize();
    C.Swap(mat);
@@ -3013,7 +3003,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 	  delete D_smoother_;
 	  //delete dg_precond_;
 
-	  cg2dg_ = new CG2DG(*fes_dg);
+	  cg2dg_ = new CG2DG(*fes_dg, cg_ess_tdof_list);
 	  delete CG2DGmat_;
 
 	  const bool algebraic = false;
