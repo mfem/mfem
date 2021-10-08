@@ -41,6 +41,47 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
+// Vector valued quantity to convect
+void quantity(const Vector &x, Vector &u)
+{
+   int dim = x.Size();
+
+   switch (dim)
+   {
+      case 1: u(0) = x[0]*x[0]; break;
+      case 2: u(0) = x[0]*x[0]; u(1) = x[1]*x[1]; break;
+      case 3: u(0) = x[0]*x[0]; u(1) = x[1]*x[1]; u(2) = x[2]*x[2]; break;
+   }
+}
+
+// Quantity after explicit convect
+// (u \cdot \nabla) v
+void convected_quantity(const Vector &x, Vector &u)
+{
+   double a, b, c;
+
+   int dim = x.Size();
+   switch (dim)
+   {
+      case 1:
+         u(0) = 2.*x[0]*(x[0]*x[0]+1.0);
+         break;
+      case 2:
+         a = sqrt(2./3.);
+         b = sqrt(1./3.);
+         u(0) = 2.*a*x[0]*(x[0]*x[0]+1.0);
+         u(1) = 2.*b*x[1]*(x[0]*x[0]+1.0);
+         break;
+      case 3:
+         a = sqrt(3./6.);
+         b = sqrt(2./6.);
+         c = sqrt(1./6.);
+         u(0) = 2.*a*x[0]*(x[0]*x[0]+1.0);
+         u(1) = 2.*b*x[1]*(x[0]*x[0]+1.0);
+         u(2) = 2.*c*x[2]*(x[0]*x[0]+1.0);
+   }
+}
+
 std::string getString(AssemblyLevel assembly)
 {
    switch (assembly)
@@ -328,6 +369,56 @@ void test_ceed_nloperator(const char* input, int order,
    delete vcoeff;
 }
 
+// This function specifically tests convection of a vector valued quantity and
+// using a custom integration rule. The integration rule is chosen s.t. in
+// combination with an appropriate order, it can represent the analytical
+// polynomial functions correctly.
+void test_ceed_convection(const char* input, int order,
+                          const AssemblyLevel assembly)
+{
+   Mesh mesh(input, 1, 1);
+   mesh.EnsureNodes();
+   int dim = mesh.Dimension();
+   H1_FECollection fec(order, dim);
+
+   VectorFunctionCoefficient velocity_coeff(dim, velocity_function);
+
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   BilinearForm conv_op(&fes);
+
+   IntegrationRules rules(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = rules.Get(fes.GetFE(0)->GetGeomType(),
+                                         2 * order - 1);
+
+   ConvectionIntegrator *conv_integ = new ConvectionIntegrator(velocity_coeff, 1);
+   conv_integ->SetIntRule(&ir);
+   conv_op.AddDomainIntegrator(conv_integ);
+   conv_op.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   conv_op.Assemble();
+
+   GridFunction q(&fes), r(&fes), ex(&fes);
+
+   VectorFunctionCoefficient quantity_coeff(dim, quantity);
+   q.ProjectCoefficient(quantity_coeff);
+
+   VectorFunctionCoefficient convected_quantity_coeff(dim, convected_quantity);
+   ex.ProjectCoefficient(convected_quantity_coeff);
+
+   r = 0.0;
+   conv_op.Mult(q, r);
+
+   LinearForm f(&fes);
+   VectorDomainLFIntegrator *vlf_integ = new VectorDomainLFIntegrator(
+      convected_quantity_coeff);
+   vlf_integ->SetIntRule(&ir);
+   f.AddDomainIntegrator(vlf_integ);
+   f.Assemble();
+
+   r -= f;
+
+   REQUIRE(r.Norml2() < 1e-12);
+}
+
 TEST_CASE("CEED mass & diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
@@ -357,6 +448,9 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
                         "../../data/amr-quad.mesh",
                         "../../data/fichera-amr.mesh");
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
+
+   int high_order = 4;
+   test_ceed_convection(mesh, high_order, assembly);
 } // test case
 
 TEST_CASE("CEED non-linear convection", "[CEED],[NLConvection]")
