@@ -15,9 +15,6 @@
 #include "../fem/kernels.hpp"
 #include "../linalg/kernels.hpp"
 
-#define MFEM_DEBUG_COLOR 206
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -452,7 +449,7 @@ void DomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
 
    switch (id) // orders 1~6
    {
-      // 2D kernels
+      // 2D kernels, p=q
       case 0x222: Ker=DomainLFGradIntegratorAssemble2D<2,2>; break; // 1
       case 0x233: Ker=DomainLFGradIntegratorAssemble2D<3,3>; break; // 2
       case 0x244: Ker=DomainLFGradIntegratorAssemble2D<4,4>; break; // 3
@@ -460,13 +457,29 @@ void DomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
       case 0x266: Ker=DomainLFGradIntegratorAssemble2D<6,6>; break; // 5
       case 0x277: Ker=DomainLFGradIntegratorAssemble2D<7,7>; break; // 6
 
-      // 3D kernels
+      // 2D kernels
+      case 0x223: Ker=DomainLFGradIntegratorAssemble2D<2,3>; break; // 1
+      case 0x234: Ker=DomainLFGradIntegratorAssemble2D<3,4>; break; // 2
+      case 0x245: Ker=DomainLFGradIntegratorAssemble2D<4,5>; break; // 3
+      case 0x256: Ker=DomainLFGradIntegratorAssemble2D<5,6>; break; // 4
+      case 0x267: Ker=DomainLFGradIntegratorAssemble2D<6,7>; break; // 5
+      case 0x278: Ker=DomainLFGradIntegratorAssemble2D<7,8>; break; // 6
+
+      // 3D kernels, p=q
       case 0x322: Ker=DomainLFGradIntegratorAssemble3D<2,2>; break; // 1
       case 0x333: Ker=DomainLFGradIntegratorAssemble3D<3,3>; break; // 2
       case 0x344: Ker=DomainLFGradIntegratorAssemble3D<4,4>; break; // 3
       case 0x355: Ker=DomainLFGradIntegratorAssemble3D<5,5>; break; // 4
       case 0x366: Ker=DomainLFGradIntegratorAssemble3D<6,6>; break; // 5
       case 0x377: Ker=DomainLFGradIntegratorAssemble3D<7,7>; break; // 6
+
+      // 3D kernels
+      case 0x323: Ker=DomainLFGradIntegratorAssemble3D<2,3>; break; // 1
+      case 0x334: Ker=DomainLFGradIntegratorAssemble3D<3,4>; break; // 2
+      case 0x345: Ker=DomainLFGradIntegratorAssemble3D<4,5>; break; // 3
+      case 0x356: Ker=DomainLFGradIntegratorAssemble3D<5,6>; break; // 4
+      case 0x367: Ker=DomainLFGradIntegratorAssemble3D<6,7>; break; // 5
+      case 0x378: Ker=DomainLFGradIntegratorAssemble3D<7,8>; break; // 6
 
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
