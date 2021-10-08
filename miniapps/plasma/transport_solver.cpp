@@ -3747,6 +3747,13 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
 
    // blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef, 1.0, 0.5));
 
+   if (cgblf_[index_] == NULL)
+   {
+      cgblf_[index_] = new ParBilinearForm(&h1_fes_);
+   }
+   cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
+   cgblf_[index_]->AddDomainIntegrator(new ConservativeConvectionIntegrator(*dtVCoef));
+
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
    {
