@@ -17,7 +17,6 @@
 #ifdef MFEM_USE_BENCHMARK
 
 constexpr int seed = 0x100001b3;
-static void coeff_func(const Vector &x, Vector &y);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Base class for the LinearForm extension test and the bench
@@ -37,19 +36,18 @@ struct LinExt
    const int dofs;
    double mdofs;
 
-   Vector v,qv,qvd;
+   Vector one_vec, dim_vec, vdim_vec;
    ConstantCoefficient constant_coeff;
+   VectorConstantCoefficient dim_constant_coeff;
    VectorConstantCoefficient vdim_constant_coeff;
-   VectorConstantCoefficient qvdim_constant_coeff;
-   VectorFunctionCoefficient vector_function_coeff;
 
    LinearForm *lf[2];
 
    LinExt(int problem, int order, int dim, int vdim, bool test):
       problem(problem),
-      N(Device::IsEnabled() ? 32 : test?3:8),
+      N(Device::IsEnabled() ? 32 : test?4:8),
       p(order),
-      q(2*p),
+      q(2*p),//+3),
       dim(dim),
       test(test),
       type(dim==3 ? Element::HEXAHEDRON : Element::QUADRILATERAL),
@@ -64,12 +62,12 @@ struct LinExt
       one(1.0),
       dofs(fes.GetTrueVSize()),
       mdofs(0.0),
-      v(vdim),
-      qv(dim),
-      constant_coeff(M_PI),
-      vdim_constant_coeff((v.Randomize(seed),v)),
-      qvdim_constant_coeff((qv.Randomize(seed),qv)),
-      vector_function_coeff(vdim, coeff_func),
+      one_vec(1),
+      dim_vec(dim),
+      vdim_vec(vdim),
+      constant_coeff((one_vec.Randomize(seed),one_vec(0))),
+      dim_constant_coeff((dim_vec.Randomize(seed),dim_vec)),
+      vdim_constant_coeff((vdim_vec.Randomize(seed),vdim_vec)),
       lf{new LinearForm(&fes), new LinearForm(&fes)}
    {
       MFEM_VERIFY(dim==2||dim==3, "Only 2D and 3D tests are supported!");
@@ -103,7 +101,7 @@ struct LinExt
 
       GridFunction rdm(fespace);
       rdm.Randomize(seed);
-      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm -= 0.5; // Shift to random values in [-0.5,0.5].
       rdm *= 1.0/M_PI;
       rdm.HostReadWrite();
       // Scale the random values to be of order of the local mesh size.
@@ -147,43 +145,21 @@ struct LinExt
          else if (problem==2) // VectorDomainLFIntegrator
          {
             VectorDomainLFIntegrator *vdlfi;
-            if (test)
-            {
-               // takes longer as we are filling on the host the coefficient
-               vdlfi = new VectorDomainLFIntegrator(vector_function_coeff);
-            }
-            else // bench: just use constant coefficient
-            {
-               vdlfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
-            }
+            vdlfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
             vdlfi->SetIntRule(ir);
             lf[i]->AddDomainIntegrator(vdlfi);
          }
          else if (problem==3) // DomainLFGradIntegrator
          {
             DomainLFGradIntegrator *dlfgi;
-            if (test)
-            {
-               dlfgi = new DomainLFGradIntegrator(vector_function_coeff);
-            }
-            else
-            {
-               dlfgi = new DomainLFGradIntegrator(qvdim_constant_coeff);
-            }
+            dlfgi = new DomainLFGradIntegrator(dim_constant_coeff);
             dlfgi->SetIntRule(ir);
             lf[i]->AddDomainIntegrator(dlfgi);
          }
          else if (problem==4) // VectorDomainLFGradIntegrator
          {
             VectorDomainLFGradIntegrator *vdlfgi;
-            if (test)
-            {
-               vdlfgi = new VectorDomainLFGradIntegrator(vector_function_coeff);
-            }
-            else
-            {
-               vdlfgi = new VectorDomainLFGradIntegrator(qvdim_constant_coeff);
-            }
+            vdlfgi = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
             vdlfgi->SetIntRule(ir);
             lf[i]->AddDomainIntegrator(vdlfgi);
          }
@@ -191,9 +167,6 @@ struct LinExt
       }
    }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-static void coeff_func(const Vector&, Vector &y) { y.Randomize(seed); }
 
 ////////////////////////////////////////////////////////////////////////////////
 /// TEST for LinearFormExtension
@@ -282,12 +255,12 @@ LinExtBench(1,DomainLF,LEGACY,3,1)
 LinExtBench(1,DomainLF,FULL,3,1)
 
 /// 2D Vector linear form bench
-LinExtBench(2,VectorDomainLF,LEGACY,2,2)
-LinExtBench(2,VectorDomainLF,FULL,2,2)
+LinExtBench(2,VectorDomainLF,LEGACY,2,144)
+LinExtBench(2,VectorDomainLF,FULL,2,144)
 
 /// 3D Vector linear form bench
-LinExtBench(2,VectorDomainLF,LEGACY,3,3)
-LinExtBench(2,VectorDomainLF,FULL,3,3)
+LinExtBench(2,VectorDomainLF,LEGACY,3,144)
+LinExtBench(2,VectorDomainLF,FULL,3,144)
 
 /// 2D Grad Scalar linear form bench
 LinExtBench(3,DomainLFGrad,LEGACY,2,1)
@@ -298,12 +271,12 @@ LinExtBench(3,DomainLFGrad,LEGACY,3,1)
 LinExtBench(3,DomainLFGrad,FULL,3,1)
 
 /// 2D Grad Vector linear form bench
-LinExtBench(4,VectorDomainLFGrad,LEGACY,2,2)
-LinExtBench(4,VectorDomainLFGrad,FULL,2,2)
+LinExtBench(4,VectorDomainLFGrad,LEGACY,2,144)
+LinExtBench(4,VectorDomainLFGrad,FULL,2,144)
 
 /// 3D Grad Vector linear form bench
-LinExtBench(4,VectorDomainLFGrad,LEGACY,3,3)
-LinExtBench(4,VectorDomainLFGrad,FULL,3,3)
+LinExtBench(4,VectorDomainLFGrad,LEGACY,3,144)
+LinExtBench(4,VectorDomainLFGrad,FULL,3,144)
 
 /** ****************************************************************************
  * @brief main entry point

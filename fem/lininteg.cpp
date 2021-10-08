@@ -86,9 +86,6 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
 
    dshape.SetSize(dof, spaceDim);
 
-   DenseMatrix vshape;
-   vshape.SetSize(dof, spaceDim);
-
    elvect.SetSize(dof);
    elvect = 0.0;
 
@@ -297,7 +294,6 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       for (int k = 0; k < vdim; k++)
       {
          cf = val * Qvec(k);
-
          for (int s = 0; s < dof; s++)
          {
             elvect(dof*k+s) += ip.weight * cf * shape(s);
@@ -327,13 +323,13 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    const int dim = el.GetDim();
-   const int ndof = el.GetDof();
+   const int dof = el.GetDof();
    const int vdim = Q.GetVDim();
+   const int sdim = Tr.GetSpaceDim();
 
-   dshape.SetSize(ndof, dim);
+   dshape.SetSize(dof,sdim);
 
-   Vector pelvect(ndof);
-   elvect.SetSize(ndof*vdim);
+   elvect.SetSize(dof*vdim);
    elvect = 0.0;
 
    const IntegrationRule *ir = IntRule;
@@ -343,22 +339,27 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
+   Vector pelvect(dof);
+   Vector part_x(dim);
+
    for (int q = 0; q < ir->GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir->IntPoint(q);
+
       Tr.SetIntPoint(&ip);
-      const double det = Tr.Weight();
-      const double w = ip.weight * det;
       el.CalcPhysDShape(Tr, dshape);
+
       Q.Eval(Qvec, Tr, ip);
-      dbg("Qvec.Size:%d",Qvec.Size());
-      for (int c = 0; c < vdim/dim; c++)
+      Qvec *= ip.weight * Tr.Weight();
+
+      for (int k = 0; k < vdim; k++)
       {
-         Vector part_x(vdim);
-         for (int j = 0; j < dim; ++j) { part_x(j) = Qvec(c*dim+j); }
-         part_x *= w;
+         for (int d=0; d < sdim; ++d) { part_x(d) = Qvec(k); }
          dshape.Mult(part_x, pelvect);
-         for (int d = 0; d < ndof; ++d) { elvect(d + c * ndof) += pelvect(d); }
+         for (int s = 0; s < dof; ++s)
+         {
+            elvect(s+k*dof) += pelvect(s);
+         }
       }
    }
 }
