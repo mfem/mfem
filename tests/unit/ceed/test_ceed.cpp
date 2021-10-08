@@ -393,7 +393,7 @@ void test_ceed_convection(const char* input, int order,
    ConvectionIntegrator *conv_integ = new ConvectionIntegrator(velocity_coeff, 1);
    conv_integ->SetIntRule(&ir);
    conv_op.AddDomainIntegrator(conv_integ);
-   conv_op.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   conv_op.SetAssemblyLevel(assembly);
    conv_op.Assemble();
 
    GridFunction q(&fes), r(&fes), ex(&fes);
