@@ -351,6 +351,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
       const double w = ip.weight * det;
       el.CalcPhysDShape(Tr, dshape);
       Q.Eval(Qvec, Tr, ip);
+      dbg("Qvec.Size:%d",Qvec.Size());
       for (int c = 0; c < vdim/dim; c++)
       {
          Vector part_x(vdim);

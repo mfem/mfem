@@ -20,7 +20,8 @@ namespace mfem
 {
 
 template<int D1D, int Q1D> static
-void VectorDomainLFIntegratorAssemble2D(const int ND,
+void VectorDomainLFIntegratorAssemble2D(const int vdim,
+                                        const int ND,
                                         const int NE,
                                         const double *marks,
                                         const double *d2q,
@@ -31,9 +32,8 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
                                         double * __restrict y)
 {
    constexpr int DIM = 2;
-   constexpr int VDIM = 2;
 
-   const bool cst_coeff = coeff.Size() == VDIM;
+   const bool cst_coeff = coeff.Size() == vdim;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -42,10 +42,10 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
    const auto W = Reshape(weights, Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D, NE);
    const auto C = cst_coeff ?
-                  Reshape(F,VDIM,1,1,1):
-                  Reshape(F,VDIM,Q1D,Q1D,NE);
+                  Reshape(F,vdim,1,1,1):
+                  Reshape(F,vdim,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,ND,VDIM);
+   auto Y = Reshape(y,ND,vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -67,7 +67,7 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
       }
       MFEM_SYNC_THREAD;
 
-      for (int c = 0; c < VDIM; ++ c)
+      for (int c = 0; c < vdim; ++ c)
       {
          const double cst_val = C(c,0,0,0);
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -113,7 +113,8 @@ void VectorDomainLFIntegratorAssemble2D(const int ND,
 }
 
 template<int D1D, int Q1D> static
-void VectorDomainLFIntegratorAssemble3D(const int ND,
+void VectorDomainLFIntegratorAssemble3D(const int vdim,
+                                        const int ND,
                                         const int NE,
                                         const double *marks,
                                         const double *d2q,
@@ -124,9 +125,8 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
                                         double * __restrict y)
 {
    constexpr int DIM = 3;
-   constexpr int VDIM = 3;
 
-   const bool cst_coeff = coeff.Size() == VDIM;
+   const bool cst_coeff = coeff.Size() == vdim;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
@@ -135,8 +135,9 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
    const auto C = cst_coeff ?
-                  Reshape(F,VDIM,1,1,1,1) : Reshape(F,VDIM,Q1D,Q1D,Q1D,NE);
-   auto Y = Reshape(y,ND,VDIM);
+                  Reshape(F,vdim,1,1,1,1) :
+                  Reshape(F,vdim,Q1D,Q1D,Q1D,NE);
+   auto Y = Reshape(y,ND,vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -155,7 +156,7 @@ void VectorDomainLFIntegratorAssemble3D(const int ND,
       }
       MFEM_SYNC_THREAD;
 
-      for (int c = 0; c < VDIM; ++ c)
+      for (int c = 0; c < vdim; ++ c)
       {
          const double cst_val = C(c,0,0,0,0);
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -256,8 +257,8 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
                                           const Vector &mark,
                                           Vector &b)
 {
-   const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();
+   const int vdim = fes.GetVDim();
    const int dim = mesh->Dimension();
 
    const FiniteElement &el = *fes.GetFE(0);
@@ -266,6 +267,7 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const IntegrationRule *ir =
       IntRule ? IntRule : &IntRules.Get(geom_type, qorder);
    const int flags = GeometricFactors::JACOBIANS;
+   const MemoryType mt = Device::GetDeviceMemoryType();
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -285,8 +287,6 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const int ND = fes.GetNDofs();
    const int NE = fes.GetMesh()->GetNE();
    const int NQ = ir->GetNPoints();
-
-   const int vdim = fes.GetVDim();
 
    Vector coeff;
 
@@ -318,17 +318,15 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
          for (int q = 0; q < NQ; ++q)
          {
             Q.Eval(Qvec, T, ir->IntPoint(q));
-            for (int i=0; i<vdim; ++i)
-            {
-               C(i,q,e) = Qvec[i];
-            }
+            for (int i=0; i<vdim; ++i) { C(i,q,e) = Qvec[i]; }
          }
       }
    }
 
-   const int id = (vdim<<12) | (dim<<8) | (D1D << 4) | Q1D;
+   const int id = (dim<<8) | (D1D << 4) | Q1D;
 
-   void (*Ker)(const int ND,
+   void (*Ker)(const int vdim,
+               const int ND,
                const int NE,
                const double *marks,
                const double *d2q,
@@ -341,23 +339,23 @@ void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
    switch (id) // orders 1~6
    {
       // 2D kernels
-      case 0x2222: Ker=VectorDomainLFIntegratorAssemble2D<2,2>; break; // 1
-      case 0x2233: Ker=VectorDomainLFIntegratorAssemble2D<3,3>; break; // 2
-      case 0x2244: Ker=VectorDomainLFIntegratorAssemble2D<4,4>; break; // 3
-      case 0x2255: Ker=VectorDomainLFIntegratorAssemble2D<5,5>; break; // 4
-      case 0x2266: Ker=VectorDomainLFIntegratorAssemble2D<6,6>; break; // 5
-      case 0x2277: Ker=VectorDomainLFIntegratorAssemble2D<7,7>; break; // 6
+      case 0x222: Ker=VectorDomainLFIntegratorAssemble2D<2,2>; break; // 1
+      case 0x233: Ker=VectorDomainLFIntegratorAssemble2D<3,3>; break; // 2
+      case 0x244: Ker=VectorDomainLFIntegratorAssemble2D<4,4>; break; // 3
+      case 0x255: Ker=VectorDomainLFIntegratorAssemble2D<5,5>; break; // 4
+      case 0x266: Ker=VectorDomainLFIntegratorAssemble2D<6,6>; break; // 5
+      case 0x277: Ker=VectorDomainLFIntegratorAssemble2D<7,7>; break; // 6
 
       // 3D kernels
-      case 0x3322: Ker=VectorDomainLFIntegratorAssemble3D<2,2>; break; // 1
-      case 0x3333: Ker=VectorDomainLFIntegratorAssemble3D<3,3>; break; // 2
-      case 0x3344: Ker=VectorDomainLFIntegratorAssemble3D<4,4>; break; // 3
-      case 0x3355: Ker=VectorDomainLFIntegratorAssemble3D<5,5>; break; // 4
-      case 0x3366: Ker=VectorDomainLFIntegratorAssemble3D<6,6>; break; // 5
-      case 0x3377: Ker=VectorDomainLFIntegratorAssemble3D<7,7>; break; // 6
+      case 0x322: Ker=VectorDomainLFIntegratorAssemble3D<2,2>; break; // 1
+      case 0x333: Ker=VectorDomainLFIntegratorAssemble3D<3,3>; break; // 2
+      case 0x344: Ker=VectorDomainLFIntegratorAssemble3D<4,4>; break; // 3
+      case 0x355: Ker=VectorDomainLFIntegratorAssemble3D<5,5>; break; // 4
+      case 0x366: Ker=VectorDomainLFIntegratorAssemble3D<6,6>; break; // 5
+      case 0x377: Ker=VectorDomainLFIntegratorAssemble3D<7,7>; break; // 6
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
-   Ker(ND,NE,M,B,I,J,W,coeff,Y);
+   Ker(vdim,ND,NE,M,B,I,J,W,coeff,Y);
 }
 
 } // namespace mfem
