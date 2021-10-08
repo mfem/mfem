@@ -2869,8 +2869,6 @@ private:
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
       Array<ParBilinearForm*> cgblf_; // Bilinear Form Objects for Gradients
 
-     bool cgblf_init = false;
-
      CG2DG *cg2dg_ = NULL;
      HypreParMatrix *CG2DGmat_ = NULL;
      HypreBoomerAMG *D_amg_ = NULL;

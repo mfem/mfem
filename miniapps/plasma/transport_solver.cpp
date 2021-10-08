@@ -2999,9 +2999,10 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 	  ParFiniteElementSpace *fes_dg = blf_[i]->ParFESpace();
 	  delete cg2dg_;
 	  delete D_amg_;
-	  //delete D_cg_;
 	  delete D_smoother_;
-	  //delete dg_precond_;
+	  // Note that dg_precond_ should not be deleted here,
+	  // as it becomes diag_prec_[i] for IonDensity, which
+	  // gets deleted elsewhere.
 
 	  cg2dg_ = new CG2DG(*fes_dg, cg_ess_tdof_list);
 	  delete CG2DGmat_;
@@ -3016,18 +3017,13 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 	  else // CG discretization version
 	    {
 	      MFEM_VERIFY(cgblf_[i], "");
-	      //if (!cgblf_init)
-		{
-		  cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
-		  cgblf_[i]->Assemble(0);
-		  cgblf_[i]->Finalize(0);
-		  //D_cg_ = cgblf_[i]->ParallelAssemble();
+	      cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
+	      cgblf_[i]->Assemble(0);
+	      cgblf_[i]->Finalize(0);
 
-		  OperatorPtr A_cg;
-		  cgblf_[i]->FormSystemMatrix(cg_ess_tdof_list, A_cg);
-		  D_cg_ = A_cg.As<HypreParMatrix>();
-		  cgblf_init = true;
-		}
+	      OperatorPtr A_cg;
+	      cgblf_[i]->FormSystemMatrix(cg_ess_tdof_list, A_cg);
+	      D_cg_ = A_cg.As<HypreParMatrix>();
 	    }
 
 	  // Set up the preconditioner in CG space
@@ -3038,11 +3034,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 	  else
 	    {
 	      D_amg_ = new HypreBoomerAMG(*D_cg_);
-	      //cout << "Writing D_cg " << endl;
-	      //D_cg_->Print("Dcg.txt");
 	    }
-
-	  //Dmat->Print("Ddg.txt");
 
 	  D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
 	  dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
