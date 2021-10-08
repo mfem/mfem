@@ -2400,12 +2400,14 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
+   delete sigma;
    sigma = new GridFunction(s0);
    sigma_marker = &smarker;
    coeff_sigma = &coeff;
    sigma_eval = &ae;
 
    // Compute the restricted sigma.
+   delete sigma_bar;
    sigma_bar = new GridFunction(*sigma);
    for (int i = 0; i < sigma_marker->Size(); i++)
    {
@@ -2424,12 +2426,14 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
+   delete sigma;
    sigma = new GridFunction(s0);
    sigma_marker = &smarker;
    coeff_sigma = &coeff;
    sigma_eval = &ae;
 
    // Compute the restricted sigma.
+   delete sigma_bar;
    sigma_bar = new GridFunction(*sigma);
    for (int i = 0; i < sigma_marker->Size(); i++)
    {
