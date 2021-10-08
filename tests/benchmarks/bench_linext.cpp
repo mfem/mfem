@@ -17,7 +17,7 @@
 #ifdef MFEM_USE_BENCHMARK
 
 constexpr int seed = 0x100001b3;
-static void gradu_exact(const Vector &x, Vector &grad);
+static void coeff_func(const Vector &x, Vector &y);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Base class for the LinearForm extension test and the bench
@@ -69,7 +69,7 @@ struct LinExt
       constant_coeff(M_PI),
       vdim_constant_coeff((v.Randomize(seed),v)),
       qvdim_constant_coeff((qv.Randomize(seed),qv)),
-      vector_function_coeff(dim, gradu_exact),
+      vector_function_coeff(vdim, coeff_func),
       lf{new LinearForm(&fes), new LinearForm(&fes)}
    {
       MFEM_VERIFY(dim==2||dim==3, "Only 2D and 3D tests are supported!");
@@ -193,23 +193,7 @@ struct LinExt
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Exact solution parameters:
-static constexpr double sol_s[3] = { -0.32, 0.15, 0.24 };
-static constexpr double sol_k[3] = { 1.21, 1.45, 1.37 };
-static void gradu_exact(const Vector &x, Vector &grad)
-{
-   grad.SetSize(x.Size());
-   double *g = grad.GetData();
-   double val = 1.0;
-   for (int d = 0; d < x.Size(); d++)
-   {
-      const double y = M_PI*(sol_s[d]+sol_k[d]*x(d));
-      const double f = sin(y);
-      for (int j = 0; j < d; j++) { g[j] *= f; }
-      g[d] = val*M_PI*sol_k[d]*cos(y);
-      val *= f;
-   }
-}
+static void coeff_func(const Vector&, Vector &y) { y.Randomize(seed); }
 
 ////////////////////////////////////////////////////////////////////////////////
 /// TEST for LinearFormExtension
@@ -248,16 +232,16 @@ LinExtTest(1,DomainLF,2,1)
 LinExtTest(1,DomainLF,3,1)
 
 /// Vector linear form tests
-LinExtTest(2,VectorDomainLF,2,2)
-LinExtTest(2,VectorDomainLF,3,3)
+LinExtTest(2,VectorDomainLF,2,144)
+LinExtTest(2,VectorDomainLF,3,144)
 
 /// Grad linear form tests
 LinExtTest(3,DomainLFGrad,2,1)
 LinExtTest(3,DomainLFGrad,3,1)
 
 /// Vector Grad linear form tests
-LinExtTest(4,VectorDomainLFGrad,2,2)
-LinExtTest(4,VectorDomainLFGrad,3,3)
+LinExtTest(4,VectorDomainLFGrad,2,144)
+LinExtTest(4,VectorDomainLFGrad,3,144)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// BENCH for LinearFormExtension
