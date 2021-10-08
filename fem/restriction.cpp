@@ -36,7 +36,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      nedofs(ne*dof),
      offsets(ndofs+1),
      indices(ne*dof),
-     gatherMap(ne*dof)
+     gather_map(ne*dof)
 {
    // Assuming all finite elements are the same.
    height = vdim*ne*dof;
@@ -61,7 +61,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       dof_map = fe_dof_map.GetData();
    }
    const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
+   const int* element_map = e2dTable.GetJ();
    // We will be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= ndofs; ++i)
    {
@@ -71,7 +71,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int sgid = elementMap[dof*e + d];  // signed
+         const int sgid = element_map[dof*e + d];  // signed
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          ++offsets[gid + 1];
       }
@@ -88,11 +88,11 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       {
          const int sdid = dof_reorder ? dof_map[d] : 0;  // signed
          const int did = (!dof_reorder)?d:(sdid >= 0 ? sdid : -1-sdid);
-         const int sgid = elementMap[dof*e + did];  // signed
+         const int sgid = element_map[dof*e + did];  // signed
          const int gid = (sgid >= 0) ? sgid : -1-sgid;
          const int lid = dof*e + d;
          const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
-         gatherMap[lid] = plus ? gid : -1-gid;
+         gather_map[lid] = plus ? gid : -1-gid;
          indices[offsets[gid]++] = plus ? lid : -1-lid;
       }
    }
@@ -113,10 +113,10 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
    MFEM_FORALL(i, dof*ne,
    {
-      const int gid = d_gatherMap[i];
+      const int gid = d_gather_map[i];
       const bool plus = gid >= 0;
       const int j = plus ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
@@ -135,11 +135,11 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
 
    MFEM_FORALL(i, dof*ne,
    {
-      const int gid = d_gatherMap[i];
+      const int gid = d_gather_map[i];
       const int j = gid >= 0 ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
       {
@@ -313,7 +313,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    auto I = mat.ReadWriteI();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
    MFEM_FORALL(i_L, vd*all_dofs+1,
    {
       I[i_L] = 0;
@@ -324,7 +324,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
       {
          int i_elts[Max];
          const int i_E = e*elt_dofs + i;
-         const int i_L = d_gatherMap[i_E];
+         const int i_L = d_gather_map[i_E];
          const int i_offset = d_offsets[i_L];
          const int i_next_offset = d_offsets[i_L+1];
          const int i_nbElts = i_next_offset - i_offset;
@@ -336,7 +336,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          for (int j = 0; j < elt_dofs; j++)
          {
             const int j_E = e*elt_dofs + j;
-            const int j_L = d_gatherMap[j_E];
+            const int j_L = d_gather_map[j_E];
             const int j_offset = d_offsets[j_L];
             const int j_next_offset = d_offsets[j_L+1];
             const int j_nbElts = j_next_offset - j_offset;
@@ -389,7 +389,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto Data = mat.WriteData();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
    MFEM_FORALL(e, ne,
    {
@@ -398,7 +398,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          int i_elts[Max];
          int i_B[Max];
          const int i_E = e*elt_dofs + i;
-         const int i_L = d_gatherMap[i_E];
+         const int i_L = d_gather_map[i_E];
          const int i_offset = d_offsets[i_L];
          const int i_next_offset = d_offsets[i_L+1];
          const int i_nbElts = i_next_offset - i_offset;
@@ -411,7 +411,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          for (int j = 0; j < elt_dofs; j++)
          {
             const int j_E = e*elt_dofs + j;
-            const int j_L = d_gatherMap[j_E];
+            const int j_L = d_gather_map[j_E];
             const int j_offset = d_offsets[j_L];
             const int j_next_offset = d_offsets[j_L+1];
             const int j_nbElts = j_next_offset - j_offset;
