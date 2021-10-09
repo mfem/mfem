@@ -311,7 +311,7 @@ void test_ceed_operator(const char* input, int order,
    delete vcoeff;
 }
 
-void test_ceed_nloperator(const char* input, int order,
+void test_ceed_nloperator(const char* mesh_filename, int order,
                           const CeedCoeffType coeff_type,
                           const NLProblem pb, const AssemblyLevel assembly)
 {
@@ -319,9 +319,9 @@ void test_ceed_nloperator(const char* input, int order,
                          "coeff_type: " + getString(coeff_type) + "\n" +
                          "pb: " + getString(pb) + "\n" +
                          "order: " + std::to_string(order) + "\n" +
-                         "mesh: " + input;
+                         "mesh: " + mesh_filename;
    INFO(section);
-   Mesh mesh(input, 1, 1);
+   Mesh mesh(mesh_filename, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
    H1_FECollection fec(order, dim);
@@ -373,10 +373,10 @@ void test_ceed_nloperator(const char* input, int order,
 // using a custom integration rule. The integration rule is chosen s.t. in
 // combination with an appropriate order, it can represent the analytical
 // polynomial functions correctly.
-void test_ceed_convection(const char* input, int order,
+void test_ceed_convection(const char* mesh_filename, int order,
                           const AssemblyLevel assembly)
 {
-   Mesh mesh(input, 1, 1);
+   Mesh mesh(mesh_filename, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
    H1_FECollection fec(order, dim);
@@ -439,16 +439,20 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::VecConst,CeedCoeffType::VecGrid,
                               CeedCoeffType::VecQuad);
-   auto pb = GENERATE(Problem::Convection);
-   auto order = GENERATE(1);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
                         "../../data/star-q2.mesh",
                         "../../data/fichera-q2.mesh",
                         "../../data/amr-quad.mesh",
                         "../../data/fichera-amr.mesh");
-   test_ceed_operator(mesh, order, coeff_type, pb, assembly);
+   Problem pb = Problem::Convection;
 
+   // Test that the CEED and MFEM integrators give the same answer
+   int low_order = 1;
+   test_ceed_operator(mesh, low_order, coeff_type, pb, assembly);
+
+   // Apply the CEED convection integrator applied to a vector quantity, check
+   // that we get the exact answer (with sufficiently high polynomial degree)
    int high_order = 4;
    test_ceed_convection(mesh, high_order, assembly);
 } // test case
