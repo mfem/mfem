@@ -918,21 +918,21 @@ void VectorFiniteElement::CalcGradVShape_RT (
    const DenseMatrix &Jinv = Trans.InverseJacobian();
    CalcGradVShape(Trans.GetIntPoint(), gradvshape_ref);
 
-    // apply Piola transformation
-    // gradvshape = (1/det(J)) * J * gradvshape_ref * invJ
-    for (int j=0; j < dof; j++)
-    {
-        DenseMatrix tempMat(dim, dim);
-        tempMat = 0.0;
-        for (int k=0; k<dim; k++) // tempMat = J * gradvshape_ref
-            for (int l=0; l<dim; l++)
-                for (int s=0; s<dim; s++)
-                    tempMat(k,l) += J(k,s)*gradvshape_ref(j,s,l);
+   // apply Piola transformation
+   // gradvshape = (1/det(J)) * J * gradvshape_ref * invJ
+   for (int j=0; j < dof; j++)
+   {
+      DenseMatrix tempMat(dim, dim);
+      tempMat = 0.0;
+      for (int k=0; k<dim; k++) // tempMat = J * gradvshape_ref
+         for (int l=0; l<dim; l++)
+            for (int s=0; s<dim; s++)
+               tempMat(k,l) += J(k,s)*gradvshape_ref(j,s,l);
 
-        gradvshape(j) = 0.0;
-        Mult(tempMat, Jinv, gradvshape(j));
-        gradvshape(j) *= (1.0 / Trans.Weight());
-    }
+      gradvshape(j) = 0.0;
+      Mult(tempMat, Jinv, gradvshape(j));
+      gradvshape(j) *= (1.0 / Trans.Weight());
+   }
 }
 
 void VectorFiniteElement::CalcVShape_ND (

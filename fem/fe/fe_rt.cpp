@@ -255,7 +255,7 @@ CalcGradVShape(const IntegrationPoint &ip,
                DenseTensor &gradvshape) const
 {
    const int pp1 = order;
-    
+   
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_cy(pp1 + 1);
    Vector shape_ox(pp1), shape_oy(pp1);
@@ -264,12 +264,12 @@ CalcGradVShape(const IntegrationPoint &ip,
 #endif
    dshape_ox.SetSize(pp1);
    dshape_oy.SetSize(pp1);
-    
+   
    cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
    obasis1d.Eval(ip.x, shape_ox, dshape_ox);
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
    obasis1d.Eval(ip.y, shape_oy, dshape_oy);
-    
+   
    int o = 0;
    for (int j = 0; j < pp1; j++)
       for (int i = 0; i <= pp1; i++)
@@ -288,7 +288,7 @@ CalcGradVShape(const IntegrationPoint &ip,
          gradvshape(idx, 1, 0) = 0;
          gradvshape(idx, 1, 1) = 0;
       }
-        
+   
    for (int j = 0; j <= pp1; j++)
       for (int i = 0; i < pp1; i++)
       {
