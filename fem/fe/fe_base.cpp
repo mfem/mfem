@@ -46,6 +46,18 @@ void FiniteElement::CalcVShape (
    MFEM_ABORT("method is not implemented for this class");
 }
 
+void FiniteElement::CalcGradVShape (
+   const IntegrationPoint &ip, DenseTensor &gradvshape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
+void FiniteElement::CalcGradVShape (
+   ElementTransformation &Trans, DenseTensor &gradvshape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
 void FiniteElement::CalcDivShape (
    const IntegrationPoint &ip, Vector &divshape) const
 {
@@ -892,6 +904,35 @@ void VectorFiniteElement::CalcVShape_RT (
    CalcVShape(Trans.GetIntPoint(), vshape);
    MultABt(vshape, Trans.Jacobian(), shape);
    shape *= (1.0 / Trans.Weight());
+}
+
+void VectorFiniteElement::CalcGradVShape_RT (
+   ElementTransformation &Trans, DenseTensor &gradvshape) const
+{
+   MFEM_ASSERT(map_type == H_DIV, "");
+#ifdef MFEM_THREAD_SAFE
+   DenseTensor gradvshape_ref(dof, dim, dim);
+#endif
+   gradvshape_ref.SetSize(dof, dim, dim);
+   const DenseMatrix &J = Trans.Jacobian();
+   const DenseMatrix &Jinv = Trans.InverseJacobian();
+   CalcGradVShape(Trans.GetIntPoint(), gradvshape_ref);
+
+    // apply Piola transformation
+    // gradvshape = (1/det(J)) * J * gradvshape_ref * invJ
+    for (int j=0; j < dof; j++)
+    {
+        DenseMatrix tempMat(dim, dim);
+        tempMat = 0.0;
+        for (int k=0; k<dim; k++) // tempMat = J * gradvshape_ref
+            for (int l=0; l<dim; l++)
+                for (int s=0; s<dim; s++)
+                    tempMat(k,l) += J(k,s)*gradvshape_ref(j,s,l);
+
+        gradvshape(j) = 0.0;
+        Mult(tempMat, Jinv, gradvshape(j));
+        gradvshape(j) *= (1.0 / Trans.Weight());
+    }
 }
 
 void VectorFiniteElement::CalcVShape_ND (
