@@ -254,58 +254,58 @@ void RT_QuadrilateralElement ::
 CalcGradVShape(const IntegrationPoint &ip,
                DenseTensor &gradvshape) const
 {
-    const int pp1 = order;
+   const int pp1 = order;
     
 #ifdef MFEM_THREAD_SAFE
-    Vector shape_cx(pp1 + 1), shape_cy(pp1 + 1);
-    Vector shape_ox(pp1), shape_oy(pp1);
-    Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
-    Vector dshape_ox(pp1), dshape_oy(pp1);
+   Vector shape_cx(pp1 + 1), shape_cy(pp1 + 1);
+   Vector shape_ox(pp1), shape_oy(pp1);
+   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
+   Vector dshape_ox(pp1), dshape_oy(pp1);
 #endif
-    dshape_ox.SetSize(pp1);
-    dshape_oy.SetSize(pp1);
+   dshape_ox.SetSize(pp1);
+   dshape_oy.SetSize(pp1);
     
-    cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-    obasis1d.Eval(ip.x, shape_ox, dshape_ox);
-    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-    obasis1d.Eval(ip.y, shape_oy, dshape_oy);
+   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+   obasis1d.Eval(ip.x, shape_ox, dshape_ox);
+   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   obasis1d.Eval(ip.y, shape_oy, dshape_oy);
     
-    int o = 0;
-    for (int j = 0; j < pp1; j++)
-        for (int i = 0; i <= pp1; i++)
-        {
-            int idx, s;
-            if ((idx = dof_map[o++]) < 0)
-            {
-                idx = -1 - idx, s = -1;
-            }
-            else
-            {
-                s = +1;
-            }
-            gradvshape(idx, 0, 0) = s*dshape_cx(i)*shape_oy(j);
-            gradvshape(idx, 0, 1) = s*shape_cx(i)*dshape_oy(j);
-            gradvshape(idx, 1, 0) = 0;
-            gradvshape(idx, 1, 1) = 0;
-        }
+   int o = 0;
+   for (int j = 0; j < pp1; j++)
+      for (int i = 0; i <= pp1; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         gradvshape(idx, 0, 0) = s*dshape_cx(i)*shape_oy(j);
+         gradvshape(idx, 0, 1) = s*shape_cx(i)*dshape_oy(j);
+         gradvshape(idx, 1, 0) = 0;
+         gradvshape(idx, 1, 1) = 0;
+      }
         
-    for (int j = 0; j <= pp1; j++)
-        for (int i = 0; i < pp1; i++)
-        {
-            int idx, s;
-            if ((idx = dof_map[o++]) < 0)
-            {
-                idx = -1 - idx, s = -1;
-            }
-            else
-            {
-                s = +1;
-            }
-            gradvshape(idx, 0, 0) = 0;
-            gradvshape(idx, 0, 1) = 0;
-            gradvshape(idx, 1, 0) = s*dshape_ox(i)*shape_cy(j);
-            gradvshape(idx, 1, 1) = s*shape_ox(i)*dshape_cy(j);
-        }
+   for (int j = 0; j <= pp1; j++)
+      for (int i = 0; i < pp1; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         gradvshape(idx, 0, 0) = 0;
+         gradvshape(idx, 0, 1) = 0;
+         gradvshape(idx, 1, 0) = s*dshape_ox(i)*shape_cy(j);
+         gradvshape(idx, 1, 1) = s*shape_ox(i)*dshape_cy(j);
+      }
 }
 
 void RT_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
@@ -690,7 +690,7 @@ void RT_HexahedronElement ::
 CalcGradVShape(const IntegrationPoint &ip,
                DenseTensor &gradvshape) const
 {
-    MFEM_ABORT("method is not implemented for this class");
+   MFEM_ABORT("method is not implemented for this class");
 }
 
 void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
@@ -898,56 +898,56 @@ void RT_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
 void RT_TriangleElement::CalcGradVShape(const IntegrationPoint &ip,
                                         DenseTensor &gradvshape) const
 {
-    const int p = order - 1;
+   const int p = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
-    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
-    Vector dshape_x(p + 1), dshape_y(p + 1), dshape_l(p + 1);
-    DenseTensor gradu(dof, dim, dim);
+   Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
+   Vector dshape_x(p + 1), dshape_y(p + 1), dshape_l(p + 1);
+   DenseTensor gradu(dof, dim, dim);
 #endif
-    gradu.SetSize(dof, dim, dim);
+   gradu.SetSize(dof, dim, dim);
 
-    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
-    poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
-    poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l);
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l);
 
-    int o = 0;
-    for (int j = 0; j <= p; j++)
-    {
-        for (int i = 0; i + j <= p; i++)
-        {
-            int k = p - i - j;
-            gradu(o,0,0) = (dshape_x(i)*shape_l(k)-shape_x(i)*dshape_l(k))*shape_y(j);
-            gradu(o,0,1) = (dshape_y(j)*shape_l(k)-shape_y(j)*dshape_l(k))*shape_x(i);
-            gradu(o,1,0) = 0.;
-            gradu(o,1,1) = 0.;
-            o++;
+   int o = 0;
+   for (int j = 0; j <= p; j++)
+   {
+      for (int i = 0; i + j <= p; i++)
+      {
+         int k = p - i - j;
+         gradu(o,0,0) = (dshape_x(i)*shape_l(k)-shape_x(i)*dshape_l(k))*shape_y(j);
+         gradu(o,0,1) = (dshape_y(j)*shape_l(k)-shape_y(j)*dshape_l(k))*shape_x(i);
+         gradu(o,1,0) = 0.;
+         gradu(o,1,1) = 0.;
+         o++;
 
-            gradu(o,0,0) = 0.;
-            gradu(o,0,1) = 0.;
-            gradu(o,1,0) = (dshape_x(i)*shape_l(k)-shape_x(i)*dshape_l(k))*shape_y(j);
-            gradu(o,1,1) = (dshape_y(j)*shape_l(k)-shape_y(j)*dshape_l(k))*shape_x(i);
-            o++;
-        }
-    }
+         gradu(o,0,0) = 0.;
+         gradu(o,0,1) = 0.;
+         gradu(o,1,0) = (dshape_x(i)*shape_l(k)-shape_x(i)*dshape_l(k))*shape_y(j);
+         gradu(o,1,1) = (dshape_y(j)*shape_l(k)-shape_y(j)*dshape_l(k))*shape_x(i);
+         o++;
+      }
+   }
 
-    for (int i = 0; i <= p; i++)
-    {
-        int j = p - i;
-        double s = shape_x(i)*shape_y(j);
-        double dsdx = dshape_x(i)*shape_y(j);
-        double dsdy = shape_x(i)*dshape_y(j);
-        gradu(o,0,0) = s + (ip.x - c)*dsdx;
-        gradu(o,0,1) = (ip.x - c)*dsdy;
-        gradu(o,1,0) = (ip.y - c)*dsdx;
-        gradu(o,1,1) = s + (ip.y - c)*dsdy;
-        o++;
-    }
+   for (int i = 0; i <= p; i++)
+   {
+      int j = p - i;
+      double s = shape_x(i)*shape_y(j);
+      double dsdx = dshape_x(i)*shape_y(j);
+      double dsdy = shape_x(i)*dshape_y(j);
+      gradu(o,0,0) = s + (ip.x - c)*dsdx;
+      gradu(o,0,1) = (ip.x - c)*dsdy;
+      gradu(o,1,0) = (ip.y - c)*dsdx;
+      gradu(o,1,1) = s + (ip.y - c)*dsdy;
+      o++;
+   }
 
-    for (int k=0; k<dim; k++)
-    {
-        Ti.Mult(gradu(k), gradvshape(k));
-    }
+   for (int k=0; k<dim; k++)
+   {
+      Ti.Mult(gradu(k), gradvshape(k));
+   }
 }
 
 const double RT_TetrahedronElement::nk[12] =
