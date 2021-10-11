@@ -22,11 +22,11 @@ namespace mfem
 template<int D1D, int Q1D, int NBZ=1, int NBK=1> MFEM_GLOBAL static
 //MFEM_LAUNCH_BOUNDS(Q1D*Q1D*NBZ,NBK)
 void HIP_PAMassApply(const int NE,
-                     const int* __restrict__ MAP,
-                     const double* __restrict__ B,
-                     const double* __restrict__ D,
-                     const double* __restrict__ X,
-                     double* __restrict__ Y)
+                     const int* MAP,
+                     const double* B,
+                     const double* D,
+                     const double* X,
+                     double* Y)
 {
    double u[Q1D];
    const int tz = MFEM_THREAD_ID(z);
@@ -195,7 +195,6 @@ void NDK_HIP_PAMassApply(const int dim,
    const double *D = d.Read();
    const double *X = x.Read();
    double *Y = y.ReadWrite();
-
 
    void (*Ker)(const int NE,
                const int* __restrict__ M,
