@@ -40,6 +40,16 @@ void NDK_AMD_PAMassApply(const int dim,
                          const Vector &X,
                          Vector &Y);
 
+void NDK_HIP_PAMassApply(const int dim,
+                         const int D1D,
+                         const int Q1D,
+                         const int NE,
+                         const FiniteElementSpace *fes,
+                         const DofToQuad *maps,
+                         const Vector &D,
+                         const Vector &X,
+                         Vector &Y);
+
 // PA Mass Integrator
 
 // PA Mass Assemble kernel
@@ -1105,13 +1115,25 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (Device::FastKernelsEnabled())
    {
       const int version = Device::KernelsVersion();
-      MFEM_VERIFY(version < 4, "Unsupported version!");
-      if (version == 3)
+      MFEM_VERIFY(version < 4 || version==7, "Unsupported version!");
+      if (version == 3) // AMD
       {
          NDK_AMD_PAMassApply(dim, dofs1D, quad1D, ne,
                              fespace, maps,
                              pa_data, x, y);
       }
+      // 4 E-vector
+      // 5 fused
+      // 6 MMA
+      else if (version == 7) // HIP
+      {
+         NDK_HIP_PAMassApply(dim, dofs1D, quad1D, ne,
+                             fespace, maps,
+                             pa_data, x, y);
+      }
+      // 0 legacy
+      // 1 fast
+      // 2 libP
       else
       {
          NDK_PAMassApply(dim, dofs1D, quad1D, ne,

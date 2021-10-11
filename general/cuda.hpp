@@ -21,7 +21,10 @@
 #ifdef MFEM_USE_CUDA
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__
+#define MFEM_GLOBAL __global__
 #define MFEM_HOST_DEVICE __host__ __device__
+#define MFEM_LAUNCH_BOUNDS(NTH,NBK) __launch_bounds__(NTH,NBK)
+#define MFEM_DEVICE_CHECK MFEM_GPU_CHECK((cudaDeviceSynchronize(),cudaGetLastError()))
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
@@ -37,12 +40,15 @@
       } \
    } \
    while (0)
+#define MFEM_LAUNCH_KERNEL(Kernel,Grid,Block,Smem,...) \
+    Kernel<<<Grid,Block,sizeof(double)*(Smem),0>>>(__VA_ARGS__)
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
+#define MFEM_GRID_DIM(k) gridDim.k
 #define MFEM_BLOCK_ID(k) blockIdx.k
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
