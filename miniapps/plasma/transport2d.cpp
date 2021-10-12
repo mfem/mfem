@@ -2776,6 +2776,54 @@ public:
    }
 };
 
+/** Coefficient which returns a * sin(kx * (x - c)^2 + w t) + b */
+class SinXSqr1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_, w_;
+
+   mutable Vector x_;
+
+public:
+   SinXSqr1D(double a, double b, double c, double kx, double w)
+      : a_(a), b_(b), c_(c), kx_(kx), w_(w), x_(3) {}
+
+   virtual void SetTime(double t)
+   { cout << "SinXSqr1D::SetTime(" << t << ")" << endl; Coefficient::SetTime(t); }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sin(kx_ * pow(x_[0] - c_, 2) + w_ * time) + b_;
+   }
+};
+
+/** Coefficient which returns MMS source corresponding to
+    a * sin(kx * (x - c)^2 + w t) + b */
+class SinXSqr1DMMS: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_, w_, m_, n_, d_;
+
+   mutable Vector x_;
+
+public:
+   SinXSqr1DMMS(double a, double b, double c, double kx, double w,
+                double m, double n, double d)
+      : a_(a), b_(b), c_(c), kx_(kx), w_(w), m_(m), n_(n), d_(d), x_(3) {}
+
+   virtual void SetTime(double t)
+   { cout << "SinXSqr1DMMS::SetTime(" << t << ")" << endl; Coefficient::SetTime(t); }
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      double p = kx_ * pow(x_[0] - c_, 2) + w_ * time;
+      return a_ * (pow(2.0 * kx_ * (x_[0] - c_), 2) * d_ * sin(p) +
+                   cos(p) * (4.0 * kx_ * m_ * n_ * (x_[0] - c_) * (a_ * sin(p) + b_)
+                             - 2.0 * kx_ * d_ + m_ * n_ * w_));
+   }
+};
+
 class Gaussian1D : public Coefficient
 {
 private:
@@ -3084,6 +3132,18 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       int n;
       input >> a >> b >> n;
       coef_idx = sCoefs.Append(new SinPhi(a, b, n));
+   }
+   else if (name == "SinXSqr1D")
+   {
+      double a, b, c, kx, w;
+      input >> a >> b >> c >> kx >> w;
+      coef_idx = sCoefs.Append(new SinXSqr1D(a, b, c, kx, w));
+   }
+   else if (name == "SinXSqr1DMMS")
+   {
+      double a, b, c, kx, w, m, n, d;
+      input >> a >> b >> c >> kx >> w >> m >> n >> d;
+      coef_idx = sCoefs.Append(new SinXSqr1DMMS(a, b, c, kx, w, m, n, d));
    }
    else if (name == "Gaussian1D")
    {
