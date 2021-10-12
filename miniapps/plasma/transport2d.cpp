@@ -1660,11 +1660,45 @@ int main(int argc, char *argv[])
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
    */
+   for (int i=0; i<5; i++)
+   {
+      ics[i]->SetTime(t_init);
+   }
    neu_density.ProjectCoefficient(*ics[0]);
    ion_density.ProjectCoefficient(*ics[1]);
    para_velocity.ProjectCoefficient(*ics[2]);
    ion_energy.ProjectCoefficient(*ics[3]);
    elec_energy.ProjectCoefficient(*ics[4]);
+
+   ofstream ofserr;
+
+   if (strncmp(es_file,"",1) != 0)
+   {
+      if (mpi.Root())
+      {
+         ofserr.open("transport2d_err.out");
+         ofserr << t_init;
+      }
+      for (int i=0; i<5; i++)
+      {
+         Coefficient * es = ess[i];
+         if (es != NULL)
+         {
+            double nrm = yGF[i]->ComputeL2Error(zeroCoef);
+            es->SetTime(t_init);
+            double err = yGF[i]->ComputeL2Error(*es);
+            if (mpi.Root())
+            {
+               ofserr << '\t' << nrm << '\t' << err;
+            }
+         }
+         else
+         {
+            if (mpi.Root()) { ofserr << '\t' << -1.0; }
+         }
+      }
+      if (mpi.Root()) { ofserr << endl << flush; }
+   }
 
    if (mpi.Root())
    {
@@ -2012,12 +2046,6 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   ofstream ofserr;
-   if (strncmp(es_file,"",1) != 0 && mpi.Root())
-   {
-      ofserr.open("transport2d_err.out");
-   }
-
    socketstream eout;
    vector<socketstream> sout(5);
    char vishost[] = "localhost";
@@ -2082,16 +2110,7 @@ int main(int argc, char *argv[])
                double err = yGF[i]->ComputeL2Error(*es);
                if (mpi.Root())
                {
-                  if (nrm > 0.0)
-                  {
-                     // cout << "\t" << i << "\t" << err/nrm << endl;
-                     ofserr << '\t' << err / nrm;
-                  }
-                  else
-                  {
-                     // cout << "\t" << i << "\t" << err << endl;
-                     ofserr << '\t' << err;
-                  }
+                  ofserr << '\t' << nrm << '\t' << err;
                }
             }
             else
