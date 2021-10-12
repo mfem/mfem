@@ -537,6 +537,7 @@ Before a PR can be merged, it should satisfy the following:
      - [ ] Add a short description of the miniapp in the "Extensive Examples" section of `features.md`.
 - [ ] New capability:
    - [ ] All new public, protected, and private classes, methods, data members, and functions have full Doxygen-style documentation in source comments. Documentation should include descriptions of member data, function arguments and return values, template parameters, and prerequisites for calling new functions.
+   - [ ] Pointer arguments and return values must specify whether ownership is being transferred or lent with the call.
    - [ ] Any new functions should include descriptions of their intended use e.g. for internal use only, user-facing, etc., along with references to example code whenever possible/appropriate.
    - [ ] Consider adding new sample runs in existing examples to highlight the new capability.
    - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery (LLNL only) or submitting them, via pull request, to the gallery section of the `mfem/web` repo.
