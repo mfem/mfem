@@ -163,7 +163,7 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
       case 2:
          return PrintLevel().Errors().Warnings().Summary();
       case 3:
-         return PrintLevel().Errors().Warnings().Summary().FirstAndLast();
+         return PrintLevel().Errors().Warnings().FirstAndLast();
       default:
 #ifdef MFEM_USE_MPI
          if (rank == 0)
@@ -177,23 +177,26 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
 
 int IterativeSolver::GuessLegacyPrintLevel(PrintLevel print_options_)
 {
-   if (print_options_.errors)
+   if (print_options_.iterations)
    {
-      if (print_options_.warnings)
-      {
-         return 1;
-      }
-      else if (print_options_.summary)
-      {
-         if (print_options_.first_and_last)
-         {
-            return 3;
-         }
-         return 2;
-      }
+      return 1;
+   }
+   else if (print_options_.first_and_last)
+   {
+      return 3;
+   }
+   else if (print_options_.summary)
+   {
+      return 2;
+   }
+   else if (print_options_.errors && print_options_.warnings)
+   {
       return 0;
    }
-   return -1;
+   else
+   {
+      return -1;
+   }
 }
 
 void IterativeSolver::SetPreconditioner(Solver &pr)
@@ -750,10 +753,10 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-   if (print_options.iterations)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom << "\n";
+                << nom << (print_options.first_and_last ? " ...\n" : "\n");
    }
    Monitor(0, nom, r, x);
 
@@ -875,18 +878,20 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       nom = betanom;
    }
-   if (print_options.summary || (print_options.errors && !converged))
-   {
-      const auto arf = pow (betanom/nom0, 0.5/final_iter);
-      mfem::out << "PCG: Number of iterations: " << final_iter << '\n'
-                << "   Average reduction factor: " << arf << '\n';
-   }
    if (print_options.first_and_last)
    {
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom0 << '\n'
-                << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
+      mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
                 << betanom << '\n';
+   }
+   if (print_options.summary || (print_options.errors && !converged))
+   {
+      mfem::out << "PCG: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
+   {
+      const auto arf = pow (betanom/nom0, 0.5/final_iter);
+      mfem::out << "Average reduction factor: " << arf << '\n';
    }
    if (print_options.errors && !converged)
    {
@@ -1040,11 +1045,12 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       goto finish;
    }
 
-   if (print_options.iterations)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
-                << "  ||B r|| = " << beta << "\n";
+                << "  ||B r|| = " << beta
+                << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
    Monitor(0, beta, r, x);
@@ -1146,13 +1152,13 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 finish:
    if (print_options.summary || (print_options.errors && !converged))
    {
-      mfem::out << "GMRES: Number of iterations: " << final_iter << '\n'
-                << "   Pass : " << setw(2) << (final_iter-1)/m+1 << '\n'
-                << "   Iteration : " << setw(3) << final_iter << '\n';
+      mfem::out << "GMRES: Number of iterations: " << final_iter << '\n';
    }
    if (print_options.first_and_last)
    {
-      mfem::out << "  ||B r|| = " << final_norm << '\n';
+      mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                << "   Iteration : " << setw(3) << j
+                << "  ||B r|| = " << resid << '\n';
    }
    if (print_options.errors && !converged)
    {
@@ -1199,11 +1205,12 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   if (print_options.iterations)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
-                << "  ||r|| = " << beta << endl;
+                << "  ||r|| = " << beta
+                << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
    Monitor(0, beta, r, x);
@@ -1262,7 +1269,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-         if (print_options.iterations)
+         if (print_options.iterations || (print_options.first_and_last &&
+                                          resid <= final_norm))
          {
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
@@ -1279,8 +1287,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
             if (print_options.summary)
             {
-               mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n'
-                         << "   ||r|| " << final_norm << '\n';
+               mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
             }
 
             for (i= 0; i<=m; i++)
@@ -1324,10 +1331,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    if (print_options.summary || (print_options.errors && !converged))
    {
       mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
-   }
-   if (print_options.first_and_last)
-   {
-      mfem::out << "   ||r|| " << final_norm << '\n';
    }
    if (print_options.errors && !converged)
    {
