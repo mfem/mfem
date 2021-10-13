@@ -105,7 +105,7 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
       else // Suppress output.
       {
          print_level = -1;
-         print_options = PrintLevel();
+         print_options = PrintLevel().None();
       }
    }
 #endif
