@@ -22,12 +22,56 @@
 namespace mfem
 {
 
+enum class GradAlgo { NonTensor, Tensor, Untensorized, NA };
+
+template <typename Basis, typename Dofs, typename Enable = void>
+struct get_grad_algo_v
+{
+   static constexpr GradAlgo value = GradAlgo::NA;
+};
+
+template <typename Basis, typename Dofs>
+struct get_grad_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_non_tensor_basis<Basis>
+   > >
+{
+   static constexpr GradAlgo value = GradAlgo::NonTensor;
+};
+
+template <typename Basis, typename Dofs>
+struct get_grad_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_tensor_basis<Basis> &&
+      !(get_basis_dim<Basis> == 3 &&
+      is_device)
+      // !is_3d_threaded_tensor<Dofs>
+   > >
+{
+   static constexpr GradAlgo value = GradAlgo::Tensor;
+};
+
+template <typename Basis, typename Dofs>
+struct get_grad_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_tensor_basis<Basis> &&
+      (get_basis_dim<Basis> == 3 &&
+      is_device)
+      // is_3d_threaded_tensor<Dofs>
+   > >
+{
+   static constexpr GradAlgo value = GradAlgo::Untensorized;
+};
+
+template <typename Basis, typename Dofs>
+constexpr GradAlgo get_grad_algo = get_grad_algo_v<Basis, Dofs>::value;
+
 // Non-tensor
 // template <int Dim, int D, int Q, typename Dofs>
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_non_tensor_basis<Basis>,
+             get_grad_algo<Basis,Dofs> == GradAlgo::NonTensor,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -45,7 +89,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
+             get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
              get_basis_dim<Basis> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
@@ -64,9 +108,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             !is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -98,9 +141,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             !is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -137,7 +179,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_non_tensor_basis<Basis>,
+             get_grad_algo<Basis,Dofs> == GradAlgo::NonTensor,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
@@ -153,7 +195,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
+             get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
              get_basis_dim<Basis> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
@@ -170,9 +212,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             !is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
@@ -198,9 +239,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             !is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
@@ -232,9 +272,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Untensorized &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u)
@@ -285,9 +324,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Untensorized &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
@@ -350,9 +388,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Untensorized &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u)
@@ -415,9 +452,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             is_device,
+             get_grad_algo<Basis,Dofs> == GradAlgo::Untensorized &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
