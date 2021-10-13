@@ -328,7 +328,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    auto B = basis.GetB(s_B);
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
-   double Bqx[D1D], Bqy[D1D], Bqz[D1D];
+   double Bqx[D1D];//, Bqy[D1D], Bqz[D1D];
    ResultTensor<Basis,Q1D,Q1D,Q1D> Bu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
@@ -340,17 +340,18 @@ auto operator*(const Basis &basis, const Dofs &u)
             for (int d = 0; d < D1D; d++)
             {
                Bqx[d] = B(qx,d);
-               Bqy[d] = B(qy,d);
-               Bqz[d] = B(qz,d);
+               // Bqy[d] = B(qy,d);
+               // Bqz[d] = B(qz,d);
             }
             double res = 0.0;
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
+               const double Bqz = B(qz,dz);
                MFEM_UNROLL(D1D)
                for (int dy = 0; dy < D1D; dy++)
                {
-                  const double Bqyqz = Bqy[dy] * Bqz[dz];
+                  const double Bqyqz = B(qy,dy) * Bqz;
                   MFEM_UNROLL(D1D)
                   for (int dx = 0; dx < D1D; dx++)
                   {
@@ -379,7 +380,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    auto Bt = basis.GetBt(s_B);
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
-   double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
+   double Bdx[Q1D];//, Bdy[Q1D], Bdz[Q1D];
    ResultTensor<Basis,D1D,D1D,D1D> Btu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D*Q1D];
@@ -405,17 +406,18 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
             for (int q = 0; q < Q1D; q++)
             {
                Bdx[q] = Bt(dx,q);
-               Bdy[q] = Bt(dy,q);
-               Bdz[q] = Bt(dz,q);
+               // Bdy[q] = Bt(dy,q);
+               // Bdz[q] = Bt(dz,q);
             }
             double res = 0.0;
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; qz++)
             {
+               const double Bdz = Bt(dz,qz);
                MFEM_UNROLL(Q1D)
                for (int qy = 0; qy < Q1D; qy++)
                {
-                  double Bdydz = Bdy[qy] * Bdz[qz];
+                  double Bdydz = Bt(dy,qy) * Bdz;
                   MFEM_UNROLL(Q1D)
                   for (int qx = 0; qx < Q1D; qx++)
                   {
