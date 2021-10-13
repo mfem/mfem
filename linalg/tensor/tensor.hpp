@@ -221,7 +221,7 @@ template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
 
 /// A Tensor dynamically distributed over a plane of threads
-constexpr int get_DynamicBlockLayout_size(int MaxSize, int Rank)
+constexpr int get_Dynamic2dThreadLayout_size(int MaxSize, int Rank)
 {
    return Rank>2 ? pow(MaxSize,Rank-2) : 1;
 }
@@ -230,7 +230,7 @@ template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic2dThreadTensor = Tensor<
                               StaticContainer<
                                  T,
-                                 get_DynamicBlockLayout_size(MaxSize,Rank)
+                                 get_Dynamic2dThreadLayout_size(MaxSize,Rank)
                               >,
                               Dynamic2dThreadLayout<Rank,BatchSize>
                            >;
@@ -256,7 +256,7 @@ template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic3dThreadTensor = Tensor<
                                  StaticContainer<
                                     T,
-                                    get_DynamicBlockLayout_size(MaxSize,Rank)
+                                    get_Dynamic3dThreadLayout_size(MaxSize,Rank)
                                  >,
                                  Dynamic3dThreadLayout<Rank,BatchSize>
                               >;

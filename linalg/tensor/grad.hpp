@@ -286,8 +286,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    const auto G = basis.GetG(s_G);
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
-   double Bqx[D1D], Bqy[D1D];
-   double Gqx[D1D], Gqy[D1D];
+   double Bqx[D1D];//, Bqy[D1D];
+   double Gqx[D1D];//, Gqy[D1D];
    ResultTensor<Basis,Q1D,Q1D,Dim> Gu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
@@ -297,21 +297,23 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
          for (int d = 0; d < D1D; d++)
          {
             Bqx[d] = B(qx,d);
-            Bqy[d] = B(qy,d);
+            // Bqy[d] = B(qy,d);
             Gqx[d] = G(qx,d);
-            Gqy[d] = G(qy,d);
+            // Gqy[d] = G(qy,d);
          }
          double du_dx = 0.0;
          double du_dy = 0.0;
          MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; dy++)
          {
+            const double Bqydy = B(qy,dy);
+            const double Gqydy = G(qy,dy);
             MFEM_UNROLL(D1D)
             for (int dx = 0; dx < D1D; dx++)
             {
                const double val = u(dx,dy);
-               du_dx += Gqx[dx] * Bqy[dy] * val;
-               du_dy += Bqx[dx] * Gqy[dy] * val;
+               du_dx += Gqx[dx] * Bqydy * val;
+               du_dy += Bqx[dx] * Gqydy * val;
             }
          }
          Gu(qx,qy,0) = du_dx;
@@ -338,8 +340,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    auto Gt = basis.GetGt(s_G);
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
-   double Bdx[Q1D], Bdy[Q1D];
-   double Gdx[Q1D], Gdy[Q1D];
+   double Bdx[Q1D];//, Bdy[Q1D];
+   double Gdx[Q1D];//, Gdy[Q1D];
    ResultTensor<Basis,D1D,D1D> Gtu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D*Dim];
@@ -348,6 +350,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
+         MFEM_UNROLL(Dim)
          for (int d = 0; d < Dim; d++)
          {
             s_u(qx,qy,d) = u(qx,qy,d);
@@ -363,19 +366,23 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
          for (int q = 0; q < Q1D; q++)
          {
             Bdx[q] = Bt(dx,q);
-            Bdy[q] = Bt(dy,q);
+            // Bdy[q] = Bt(dy,q);
             Gdx[q] = Gt(dx,q);
-            Gdy[q] = Gt(dy,q);
+            // Gdy[q] = Gt(dy,q);
          }
          double res = 0.0;
          MFEM_UNROLL(Q1D)
          for (int qy = 0; qy < Q1D; qy++)
          {
+            const double Bdyqy = Bt(dy,qy);
+            const double Gdyqy = Gt(dy,qy);
             MFEM_UNROLL(Q1D)
             for (int qx = 0; qx < Q1D; qx++)
             {
-               res += Gdx[qx] * Bdy[qy] * s_u(qx,qy,0);
-               res += Bdx[qx] * Gdy[qy] * s_u(qx,qy,1);
+               const double val0 = s_u(qx,qy,0);
+               res += Gdx[qx] * Bdyqy * val0;
+               const double val1 = s_u(qx,qy,1);
+               res += Bdx[qx] * Gdyqy * val1;
             }
          }
          Gtu(dx,dy) = res;
@@ -427,20 +434,20 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
-               const double Bqz = B(qz,dz);
-               const double Gqz = G(qz,dz);
+               const double Bqzdz = B(qz,dz);
+               const double Gqzdz = G(qz,dz);
                MFEM_UNROLL(D1D)
                for (int dy = 0; dy < D1D; dy++)
                {
-                  const double Bqy = B(qy,dy);
-                  const double Gqy = G(qy,dy);
+                  const double Bqydy = B(qy,dy);
+                  const double Gqydy = G(qy,dy);
                   MFEM_UNROLL(D1D)
                   for (int dx = 0; dx < D1D; dx++)
                   {
                      const double val = u(dx,dy,dz);
-                     du_dx += Gqx[dx] * Bqy * Bqz * val;
-                     du_dy += Bqx[dx] * Gqy * Bqz * val;
-                     du_dz += Bqx[dx] * Bqy * Gqz * val;
+                     du_dx += Gqx[dx] * Bqydy * Bqzdz * val;
+                     du_dy += Bqx[dx] * Gqydy * Bqzdz * val;
+                     du_dz += Bqx[dx] * Bqydy * Gqzdz * val;
                   }
                }
             }
@@ -520,9 +527,12 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
                   MFEM_UNROLL(Q1D)
                   for (int qx = 0; qx < Q1D; qx++)
                   {
-                     res += Gdx[qx] * Bdy * Bdz * s_u(qx,qy,qz,0);
-                     res += Bdx[qx] * Gdy * Bdz * s_u(qx,qy,qz,1);
-                     res += Bdx[qx] * Bdy * Gdz * s_u(qx,qy,qz,2);
+                     const double val0 = s_u(qx,qy,qz,0);
+                     res += Gdx[qx] * Bdy * Bdz * val0;
+                     const double val1 = s_u(qx,qy,qz,1);
+                     res += Bdx[qx] * Gdy * Bdz * val1;
+                     const double val2 = s_u(qx,qy,qz,2);
+                     res += Bdx[qx] * Bdy * Gdz * val2;
                   }
                }
             }
