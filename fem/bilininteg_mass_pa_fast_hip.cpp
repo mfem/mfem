@@ -197,11 +197,11 @@ void NDK_HIP_PAMassApply(const int dim,
    double *Y = y.ReadWrite();
 
    void (*Ker)(const int NE,
-               const int* __restrict__ M,
-               const double* __restrict__ B,
-               const double* __restrict__ D,
-               const double* __restrict__ X,
-               double* __restrict__ Y) = nullptr;
+               const int *M,
+               const double *B,
+               const double *D,
+               const double *X,
+               double *Y) = nullptr;
 
    const int ver = Device::KernelsVersion();
    const int id = (ver << 8) | (D1D << 4) | Q1D;
