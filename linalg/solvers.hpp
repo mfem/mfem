@@ -116,7 +116,7 @@ private:
 
 protected:
    const Operator *oper;
-   Solver *prec; //< Left preconditioner
+   Solver *prec;
    IterativeSolverMonitor *monitor = nullptr;
 
    /** @name Reporting
