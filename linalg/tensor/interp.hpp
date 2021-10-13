@@ -23,11 +23,51 @@
 namespace mfem
 {
 
+enum class InterpAlgo { NonTensor, Tensor, Untensorized, NA };
+
+template <typename Basis, typename Dofs, typename Enable = void>
+struct get_interp_algo_v
+{
+   static constexpr InterpAlgo value = InterpAlgo::NA;
+};
+
+template <typename Basis, typename Dofs>
+struct get_interp_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_non_tensor_basis<Basis>
+   > >
+{
+   static constexpr InterpAlgo value = InterpAlgo::NonTensor;
+};
+
+template <typename Basis, typename Dofs>
+struct get_interp_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_tensor_basis<Basis> &&
+      !is_3d_threaded_tensor<Dofs>
+   > >
+{
+   static constexpr InterpAlgo value = InterpAlgo::Tensor;
+};
+
+template <typename Basis, typename Dofs>
+struct get_interp_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_tensor_basis<Basis> &&
+      is_3d_threaded_tensor<Dofs>
+   > >
+{
+   static constexpr InterpAlgo value = InterpAlgo::Untensorized;
+};
+
+template <typename Basis, typename Dofs>
+constexpr InterpAlgo get_interp_algo = get_interp_algo_v<Basis, Dofs>::value;
+
 // Non-tensor
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_non_tensor_basis<Basis>,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::NonTensor,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u_e)
@@ -46,7 +86,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
              get_basis_dim<Basis> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
@@ -65,9 +105,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             !is_device,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u_e)
@@ -86,9 +125,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             !is_device,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u_e)
@@ -108,7 +146,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_non_tensor_basis<Basis>,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::NonTensor,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -125,7 +163,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
              get_basis_dim<Basis> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
@@ -142,9 +180,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             !is_device,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -161,9 +198,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             !is_device,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -181,9 +217,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             is_device, // TODO: get_interp_algo<Basis,Dofs> == InterpAlgorithm::Untensor
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
@@ -224,9 +259,8 @@ auto operator*(const Basis &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 2 &&
-             is_device,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
+             get_basis_dim<Basis> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -279,9 +313,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             is_device, // TODO: get_interp_algo<Basis,Dofs> == InterpAlgorithm::Untensor
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
@@ -331,9 +364,8 @@ auto operator*(const Basis &basis, const Dofs &u)
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
-             is_tensor_basis<Basis> &&
-             get_basis_dim<Basis> == 3 &&
-             is_device,
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
+             get_basis_dim<Basis> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
