@@ -402,8 +402,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    const auto G = basis.GetG(s_G);
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
-   double Bqx[D1D], Bqy[D1D], Bqz[D1D];
-   double Gqx[D1D], Gqy[D1D], Gqz[D1D];
+   double Bqx[D1D];//, Bqy[D1D], Bqz[D1D];
+   double Gqx[D1D];//, Gqy[D1D], Gqz[D1D];
    ResultTensor<Basis,Q1D,Q1D,Q1D,Dim> Gu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
@@ -415,11 +415,11 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
             for (int d = 0; d < D1D; d++)
             {
                Bqx[d] = B(qx,d);
-               Bqy[d] = B(qy,d);
-               Bqz[d] = B(qz,d);
+               // Bqy[d] = B(qy,d);
+               // Bqz[d] = B(qz,d);
                Gqx[d] = G(qx,d);
-               Gqy[d] = G(qy,d);
-               Gqz[d] = G(qz,d);
+               // Gqy[d] = G(qy,d);
+               // Gqz[d] = G(qz,d);
             }
             double du_dx = 0.0;
             double du_dy = 0.0;
@@ -427,16 +427,20 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
+               const double Bqz = B(qz,dz);
+               const double Gqz = G(qz,dz);
                MFEM_UNROLL(D1D)
                for (int dy = 0; dy < D1D; dy++)
                {
+                  const double Bqy = B(qy,dy);
+                  const double Gqy = G(qy,dy);
                   MFEM_UNROLL(D1D)
                   for (int dx = 0; dx < D1D; dx++)
                   {
                      const double val = u(dx,dy,dz);
-                     du_dx += Gqx[dx] * Bqy[dy] * Bqz[dz] * val;
-                     du_dy += Bqx[dx] * Gqy[dy] * Bqz[dz] * val;
-                     du_dz += Bqx[dx] * Bqy[dy] * Gqz[dz] * val;
+                     du_dx += Gqx[dx] * Bqy * Bqz * val;
+                     du_dy += Bqx[dx] * Gqy * Bqz * val;
+                     du_dz += Bqx[dx] * Bqy * Gqz * val;
                   }
                }
             }
@@ -466,8 +470,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    auto Gt = basis.GetGt(s_G);
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
-   double Bdx[Q1D], Bdy[Q1D], Bdz[Q1D];
-   double Gdx[Q1D], Gdy[Q1D], Gdz[Q1D];
+   double Bdx[Q1D];//, Bdy[Q1D], Bdz[Q1D];
+   double Gdx[Q1D];//, Gdy[Q1D], Gdz[Q1D];
    ResultTensor<Basis,D1D,D1D,D1D> Gtu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D*Q1D*Dim];
@@ -496,25 +500,29 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
             for (int q = 0; q < Q1D; q++)
             {
                Bdx[q] = Bt(dx,q);
-               Bdy[q] = Bt(dy,q);
-               Bdz[q] = Bt(dz,q);
+               // Bdy[q] = Bt(dy,q);
+               // Bdz[q] = Bt(dz,q);
                Gdx[q] = Gt(dx,q);
-               Gdy[q] = Gt(dy,q);
-               Gdz[q] = Gt(dz,q);
+               // Gdy[q] = Gt(dy,q);
+               // Gdz[q] = Gt(dz,q);
             }
             double res = 0.0;
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; qz++)
             {
+               const double Bdz = Bt(dz,qz);
+               const double Gdz = Gt(dz,qz);
                MFEM_UNROLL(Q1D)
                for (int qy = 0; qy < Q1D; qy++)
                {
+                  const double Bdy = Bt(dy,qy);
+                  const double Gdy = Gt(dy,qy);
                   MFEM_UNROLL(Q1D)
                   for (int qx = 0; qx < Q1D; qx++)
                   {
-                     res += Gdx[qx] * Bdy[qy] * Bdz[qz] * s_u(qx,qy,qz,0);
-                     res += Bdx[qx] * Gdy[qy] * Bdz[qz] * s_u(qx,qy,qz,1);
-                     res += Bdx[qx] * Bdy[qy] * Gdz[qz] * s_u(qx,qy,qz,2);
+                     res += Gdx[qx] * Bdy * Bdz * s_u(qx,qy,qz,0);
+                     res += Bdx[qx] * Gdy * Bdz * s_u(qx,qy,qz,1);
+                     res += Bdx[qx] * Bdy * Gdz * s_u(qx,qy,qz,2);
                   }
                }
             }
