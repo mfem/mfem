@@ -601,9 +601,9 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       nom0 = nom = sqrt(Dot(r, r));
    }
 
-   if (print_options.iterations)
+   if (print_options.iterations | print_options.first_and_last)
    {
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  ||Br|| = "
+      mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
                 << nom << '\n';
    }
 
@@ -644,37 +644,37 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       }
 
       cf = nom/nomold;
-      if (print_options.iterations)
-      {
-         mfem::out << "   Iteration : " << setw(3) << i << "  ||Br|| = "
-                   << nom << "\tConv. rate: " << cf << '\n';
-      }
       nomold = nom;
 
+      bool done = false;
       if (nom < r0)
       {
          converged = true;
          final_iter = i;
-         break;
+         done = true;
       }
 
       if (++i > max_iter)
       {
-         break;
+         done = true;
       }
+
+      if (print_options.iterations || (done && print_options.first_and_last))
+      {
+         mfem::out << "   Iteration : " << setw(3) << right << (i-1)
+                   << "  ||Br|| = " << setw(11) << left << nom
+                   << "\tConv. rate: " << cf << '\n';
+      }
+
+      if (done) { break; }
    }
 
    if (print_options.summary || (print_options.errors && !converged))
    {
       const auto rf = pow (nom/nom0, 1.0/final_iter);
       mfem::out << "SLI: Number of iterations: " << final_iter << '\n'
-                << "   Conv. rate: " << cf << '\n'
-                << "   Average reduction factor: "<< rf << '\n';
-   }
-   if (print_options.first_and_last)
-   {
-      mfem::out << "   ||Br_0|| = " << nom0 << '\n'
-                << "   ||Br_N|| = " << nom << '\n';
+                << "Conv. rate: " << cf << '\n'
+                << "Average reduction factor: "<< rf << '\n';
    }
    if (print_options.errors && !converged)
    {
