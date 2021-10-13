@@ -176,11 +176,9 @@ protected:
                 bool final=false) const;
 
 public:
-   ///
    IterativeSolver();
 
 #ifdef MFEM_USE_MPI
-   ///
    IterativeSolver(MPI_Comm comm_);
 #endif
 
