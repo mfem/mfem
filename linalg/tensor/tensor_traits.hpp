@@ -155,6 +155,28 @@ struct is_2d_threaded_tensor_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool is_2d_threaded_tensor = is_2d_threaded_tensor_v<Tensor>::value;
 
+// is_3d_threaded_tensor
+template <typename Tensor>
+struct is_3d_threaded_tensor_v
+{
+   static constexpr bool value = false;
+};
+
+template <typename C, typename L>
+struct is_3d_threaded_tensor_v<Tensor<C,L>>
+{
+   static constexpr bool value = is_3d_threaded_layout<L>;
+};
+
+template <typename C, typename L>
+struct is_3d_threaded_tensor_v<const Tensor<C,L>>
+{
+   static constexpr bool value = is_3d_threaded_layout<L>;
+};
+
+template <typename Tensor>
+constexpr bool is_3d_threaded_tensor = is_3d_threaded_tensor_v<Tensor>::value;
+
 // is_serial_tensor_dim
 template <typename Tensor, int N>
 constexpr bool is_serial_tensor_dim = is_serial_layout_dim<
