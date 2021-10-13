@@ -425,6 +425,16 @@ public:
    /// Return the local face index for the given shared face.
    int GetSharedFace(int sface) const;
 
+   /** @brief Returns the number of faces according to the requested type, does
+       not count master non-conforming faces.
+
+       If type==Boundary returns only the "true" number of boundary faces
+       contrary to GetNBE() that returns "fake" boundary faces associated to
+       visualization for GLVis.
+       Similarly, if type==Interior, the "fake" boundary faces associated to
+       visualization are counted as interior faces. */
+   int GetNFbyType(FaceType type) const override;
+
    /// See the remarks for the serial version in mesh.hpp
    MFEM_DEPRECATED void ReorientTetMesh() override;
 

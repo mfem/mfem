@@ -3030,6 +3030,13 @@ int ParMesh::GetSharedFace(int sface) const
    }
 }
 
+int ParMesh::GetNFbyType(FaceType type) const
+{
+   MFEM_VERIFY(have_face_nbr_data,
+               "ExchangeFaceNbrData() should be called before using GetNFbyType");
+   return Mesh::GetNFbyType(type);
+}
+
 // shift cyclically 3 integers a, b, c, so that the smallest of
 // order[a], order[b], order[c] is first
 static inline
