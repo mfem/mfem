@@ -604,7 +604,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (print_options.iterations | print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
-                << nom << '\n';
+                << nom << (print_options.first_and_last ? " ..." : "") << '\n';
    }
 
    r0 = std::max(nom*rel_tol, abs_tol);
@@ -1600,10 +1600,10 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       goto loop_end;
    }
 
-   if (print_options.iterations)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
-                << eta << "\n";
+                << eta << (print_options.first_and_last ? " ..." : "") << '\n';
    }
    Monitor(0, eta, *z, x);
 
@@ -1689,10 +1689,15 @@ loop_end:
    final_iter = it;
    final_norm = fabs(eta);
 
+   if (print_options.iterations || print_options.first_and_last)
+   {
+      mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
+                << fabs(eta) << '\n';
+   }
+
    if (print_options.summary || (!converged && print_options.errors))
    {
-      mfem::out << "MINRES: Number of iterations: " << setw(3) << final_iter << '\n'
-                << "   ||r||_B = " << final_norm << '\n';
+      mfem::out << "MINRES: Number of iterations: " << setw(3) << final_iter << '\n';
    }
 
    Monitor(final_iter, final_norm, *z, x, true);
