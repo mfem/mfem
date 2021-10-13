@@ -281,7 +281,7 @@ constexpr int get_Static3dThreadTensor_size(int Size0, int Size1, int Size2)
 }
 
 template <typename... Sizes>
-constexpr int get_Static3dThreadTensor_size(int Size0, int Size1,  int Size2,
+constexpr int get_Static3dThreadTensor_size(int Size0, int Size1, int Size2,
                                             Sizes... sizes)
 {
    return prod(sizes...);

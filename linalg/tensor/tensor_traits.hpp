@@ -235,6 +235,28 @@ struct get_tensor_batch_size_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr int get_tensor_batch_size = get_tensor_batch_size_v<Tensor>::value;
 
+// get_tensor_capacity
+template <typename Tensor>
+struct get_tensor_capacity_v
+{
+   static constexpr int value = Error;
+};
+
+template <typename C, typename L>
+struct get_tensor_capacity_v<Tensor<C,L>>
+{
+   static constexpr int value = get_layout_capacity<L>;
+};
+
+template <typename C, typename L>
+struct get_tensor_capacity_v<const Tensor<C,L>>
+{
+   static constexpr int value = get_layout_capacity<L>;
+};
+
+template <typename Tensor>
+constexpr int get_tensor_capacity = get_tensor_capacity_v<Tensor>::value;
+
 // has_pointer_container
 template <typename Tensor>
 struct has_pointer_container_v
