@@ -950,7 +950,7 @@ public:
        visualization for GLVis.
        Similarly, if type==Interior, the "fake" boundary faces associated to
        visualization are counted as interior faces. */
-   int GetNFbyType(FaceType type) const;
+   virtual int GetNFbyType(FaceType type) const;
 
    /** @brief Return the PointMatrix of NCFace index @a i. */
    const DenseMatrix* GetNCFacesPtMat(int i) const
