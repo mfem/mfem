@@ -66,10 +66,10 @@ public:
 class IterativeSolver : public Solver
 {
 public:
-   /** @brief Settings for the output behavior of the iterative solver.
+   /** @brief Settings for the output behavior of the IterativeSolver.
 
-       Guarantees to suppress all outputs by default. The construction of the
-       wanted print level can be achieved through a builder pattern. E.g.
+       By default, all output is suppressed. The construction of the desired
+       print level can be achieved through a builder pattern, for example
 
            PrintLevel().Errors().Warnings()
 
@@ -77,31 +77,26 @@ public:
      */
    struct PrintLevel
    {
-      /** If a fatal problem has been detected some context-specific
-          information will be reported
-        */
+      /** @brief If a fatal problem has been detected some context-specific
+          information will be reported */
       bool errors = false;
-      /** If a non-fatal problem has been detected some context-specific
-          information will be reported
-        */
+      /** @brief If a non-fatal problem has been detected some context-specific
+          information will be reported */
       bool warnings = false;
       /// Detailed information about each iteration will be reported
       bool iterations = false;
-      /** A summary of the solver process will be reported after the last
-          iteration
-        */
+      /** @brief A summary of the solver process will be reported after the last
+          iteration */
       bool summary = false;
-      /// Information about the first and last iteration will be printed
+      /// @brief Information about the first and last iteration will be printed
       bool first_and_last = false;
 
       /// Initializes the print level to suppress
       PrintLevel() = default;
 
       /** @name Builder
-         These methods are utilized to construct PrintLevel objects
-         through a builder approach, i.e. by chaining the function calls in
-         this group.
-        */
+         These methods are utilized to construct PrintLevel objects through a
+         builder approach by chaining the function calls in this group. */
       ///@{
       PrintLevel &None() { *this = PrintLevel(); return *this; }
       PrintLevel &Warnings() { warnings=true; return *this; }
@@ -124,41 +119,35 @@ protected:
    Solver *prec; //< Left preconditioner
    IterativeSolverMonitor *monitor = nullptr;
 
-   /** @name Report
+   /** @name Reporting
       These options control the internal reporting behavior into ::mfem::out
-      and ::mfem::err of the iterative solvers.
-     */
+      and ::mfem::err of the iterative solvers. */
    ///@{
 
-   /** @brief Legacy print level definition, which is left for compatibility with
-       custom iterative solvers.
-
-       See #print_options for more information.
-     */
+   /** @brief Legacy print level definition, which is left for compatibility
+       with custom iterative solvers. #print_options should be used instead. */
    MFEM_DEPRECATED int print_level = -1;
 
    /** @brief Output behavior for the iterative solver.
 
-       This primarily controls the output behavior of the iterative
-       solvers provided by this library. This member must be synchronized with
-       #print_level to ensure compatibility with custom iterative solvers.
-       See PR2519 for some discussion.
-     */
+       This primarily controls the output behavior of the iterative solvers
+       provided by this library. This member must be synchronized with
+       #print_level to ensure compatibility with custom iterative solvers. */
    PrintLevel print_options;
 
-   /// Construct an appropriate print level from the legacy definition
+   /// Convert a legacy print level integer to a PrintLevel object
    PrintLevel FromLegacyPrintLevel(int);
 
-   // Some heuristics to guess an appropriate legacy print level
+   /// @brief Use some heuristics to guess a legacy print level corresponding to
+   /// the given @a PrintLevel.
    static int GuessLegacyPrintLevel(PrintLevel);
    ///@}
 
    /** @name Convergence
-       @brief Termination criterions for the iterative solvers.
+       @brief Termination criteria for the iterative solvers.
 
-       X denotes the space in which the norm is measured, whose choice depends
-       on the specific iterative solver.
-    */
+       @a X denotes the space in which the norm is measured, whose choice
+       depends on the specific iterative solver. */
    ///@{
 
    /// Limit for the number of iterations the solver is allowed to do
@@ -172,9 +161,7 @@ protected:
 
    ///@}
 
-   /** @name Stats
-       Buffer for the stats which should be reported by specializations.
-     */
+   /// @name Solver statistics
    ///@{
 
    mutable int final_iter;
@@ -197,47 +184,46 @@ public:
    IterativeSolver(MPI_Comm comm_);
 #endif
 
-   /** \addtogroup Convergence
-     */
+   /// @name Convergence
    ///@{
    void SetRelTol(double rtol) { rel_tol = rtol; }
    void SetAbsTol(double atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
    ///@}
 
-   /** @ingroup Report
-       Old way to directly set the behavior on which information will be printed
-       to ::mfem::out and ::mfem::err. The behavior for the print level for all
-       iterative solvers is
-       -1: Suppress all outputs.
-        0: Print information about all detected issues (e.g. no convergence).
-        1: Same as level 0, but with detailed information about each iteration.
-        2: Print detected issues and a summary when the solver terminates.
-        3: Same as 2, but print also the first and last iterations.
-       >3: Custom print options which are dependent on the specific solver.
+   /// @name Reporting
+   ///@{
 
-       In the MPI build just the rank 0 node produces outputs.
+   /// @brief Legacy method to set the level of verbosity of the solver output.
+   /** This is the old way to control what information will be printed to
+       ::mfem::out and ::mfem::err. The behavior for the print level for all
+       iterative solvers is:
 
-       @note It is recommended to use SetPrintLevel(PrintLevels) over this method.
-         If additional custom printing options are required for a derived iterative
-         solver a new SetPrintLevel(PrintLevels) with a custom PrintLevels struct
-         can be defined.
-     */
+       - -1: Suppress all outputs.
+       -  0: Print information about all detected issues (e.g. no convergence).
+       -  1: Same as level 0, but with detailed information about each
+             iteration.
+       -  2: Print detected issues and a summary when the solver terminates.
+       -  3: Same as 2, but print also the first and last iterations.
+       - >3: Custom print options which are dependent on the specific solver.
+
+       In parallel, only rank 0 produces output.
+
+       @note It is recommended to use @ref SetPrintLevel(PrintLevel) instead. */
    virtual void SetPrintLevel(int print_lvl);
 
-   /** @ingroup Report
-       Sets the information reporting behavior in a backwards compatible way.
-       In the MPI build just the rank 0 node produces outputs, if MPI is
-       initialized correctly. Errors are output to ::mfem::err and all other
-       information to ::mfem::out.
+   /// @brief Set the level of verbosity of the solver output.
+   /** In parallel, only rank 0 produces outputs. Errors are output to
+       ::mfem::err and all other information to ::mfem::out.
 
-       @note It is recommended to define new PrintLevel structs if more custom
-         print levels should be supported for a subclass.
-    */
+       @note Not all subclasses of IterativeSolver support all possible options.
+
+       @sa PrintLevel for possible options.
+   */
    void SetPrintLevel(PrintLevel);
+   ///@}
 
-   /** \addtogroup Stats
-     */
+   /// @name Solver statistics
    ///@{
    int GetNumIterations() const { return final_iter; }
    bool GetConverged() const { return converged; }
