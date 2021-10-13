@@ -349,11 +349,12 @@ void AddConvectionIntegrators(BilinearForm &k, Coefficient &rho,
    }
 }
 
-void test_pa_convection(const char *meshname, int order, int prob,
+void test_pa_convection(const std::string &meshname, int order, int prob,
                         int refinement)
 {
-   INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
-   Mesh mesh(meshname, 1, 1);
+   INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob
+        << ", refinement=" << refinement );
+   Mesh mesh(meshname.c_str(), 1, 1);
    mesh.EnsureNodes();
    mesh.SetCurvature(mesh.GetNodalFESpace()->GetElementOrder(0));
    for (int r = 0; r < refinement; r++)
@@ -425,7 +426,7 @@ void test_pa_convection(const char *meshname, int order, int prob,
 }
 
 // Basic unit test for convection
-TEST_CASE("PA Convection", "[PartialAssembly]")
+TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
 {
    // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
    auto prob = GENERATE(0, 1, 2);
@@ -443,8 +444,8 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
                          refinement_2d);
       test_pa_convection("../../data/star-q3.mesh", order_2d, prob,
                          refinement_2d);
-      test_pa_convection("../../data/unstructured-quad-square.msh", order_2d,
-                         prob, refinement_2d);
+      test_pa_convection(mfem_data_dir+"/data/gmsh/v22/unstructured_quad.v22.msh",
+                         order_2d, prob, refinement_2d);
    }
 
    SECTION("3D")
@@ -453,8 +454,8 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
                          refinement_3d);
       test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob,
                          refinement_3d);
-      test_pa_convection("../../data/unstructured-hex-cube.msh", order_3d, prob,
-                         refinement_3d);
+      test_pa_convection(mfem_data_dir+"/data/gmsh/v22/unstructured_hex.v22.msh",
+                         order_3d, prob, refinement_3d);
    }
 
 } // test case
