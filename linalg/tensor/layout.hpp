@@ -414,6 +414,12 @@ public:
       // TODO verify that BlockSizeZ == BatchSize
    }
 
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr Static3dThreadLayout(const Layout& rhs)
+   {
+      // TODO verifications
+   }
+
    MFEM_HOST_DEVICE inline
    constexpr int index(int idx0) const
    {
@@ -446,6 +452,12 @@ public:
       // TODO Verify in debug that size0==DimX && size1==DimY
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
       // TODO verify that BlockSizeZ == BatchSize
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr Static3dThreadLayout(const Layout& rhs)
+   {
+      // TODO verifications
    }
 
    MFEM_HOST_DEVICE inline
@@ -483,6 +495,12 @@ public:
       // TODO verify that size2 < BlockSizeZ
    }
 
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr Static3dThreadLayout(const Layout& rhs)
+   {
+      // TODO verifications
+   }
+
    MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, int idx2) const
    {
@@ -518,6 +536,12 @@ public:
    {
       // TODO Verify in debug that size0==DimX && size1==DimY && size2==DimZ
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY && size2 < BlockSizeZ
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   constexpr Static3dThreadLayout(const Layout& rhs)
+   {
+      // TODO verifications
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
