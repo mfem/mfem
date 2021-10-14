@@ -106,8 +106,11 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)
    {
+      // Note: although n and fes.GetVSize() are typically equal, in
+      // variable-order spaces they may differ, since nonconforming edges/faces
+      // my have fictitious DOFs.
       int n = perm->Size();
-      perm_mat = new SparseMatrix(n, n);
+      perm_mat = new SparseMatrix(n, fes.GetVSize());
       for (int i=0; i<n; ++i)
       {
          double s;
@@ -124,10 +127,21 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
       else { cP = new SparseMatrix(*fes.GetConformingProlongation()); }
       cP_is_set = true;
    }
+   else if (perm != NULL)
+   {
+      cP = perm_mat;
+      cP_is_set = true;
+      perm_mat = NULL;
+   }
    if (fes.GetConformingRestriction() != NULL)
    {
       if (perm) { cR = Mult(*fes.GetConformingRestriction(), *perm_mat_tr); }
       else { cR = new SparseMatrix(*fes.GetConformingRestriction()); }
+   }
+   else if (perm != NULL)
+   {
+      cR = perm_mat_tr;
+      perm_mat_tr = NULL;
    }
 
    delete perm_mat;
