@@ -15,6 +15,85 @@
 namespace mfem
 {
 
+NonlinearForm::NonlinearForm(NonlinearForm &&other)
+   : Operator(other.fes->GetTrueVSize()), assembly(other.assembly),
+     ext(other.ext), fes(other.fes), Grad(other.Grad), cGrad(other.cGrad),
+     sequence(other.fes->GetSequence()), P(other.fes->GetProlongationMatrix()),
+     cP(dynamic_cast<const SparseMatrix*>(P))
+{
+   other.cGrad = nullptr;
+   other.Grad = nullptr;
+   dnfi.SetSize(other.dnfi.Size());
+   for (int i = 0; i <  dnfi.Size(); i++)
+   {
+      dnfi[i] = other.dnfi[i];
+      other.dnfi[i] = nullptr;
+   }
+
+   fnfi.SetSize(other.fnfi.Size());
+   for (int i = 0; i <  fnfi.Size(); i++)
+   {
+      fnfi[i] = other.fnfi[i];
+      other.fnfi[i] = nullptr;
+   }
+
+   bfnfi.SetSize(other.bfnfi.Size());
+   bfnfi_marker.SetSize(other.bfnfi_marker.Size());
+   for (int i = 0; i <  bfnfi.Size(); i++)
+   {
+      bfnfi[i] = other.bfnfi[i];
+      other.bfnfi[i] = nullptr;
+      bfnfi_marker[i] = other.bfnfi_marker[i];
+   }
+   other.ext = nullptr;
+}
+
+NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
+{
+   if (this != &other)
+   {
+      Operator::operator=(std::move(other));
+      delete cGrad;
+      delete Grad;
+      for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
+      for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
+      for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+      delete ext;
+
+      Grad = other.Grad;
+      other.Grad = nullptr;
+      cGrad = other.cGrad;
+      other.cGrad = nullptr;
+
+      dnfi.SetSize(other.dnfi.Size());
+      for (int i = 0; i <  dnfi.Size(); i++)
+      {
+         dnfi[i] = other.dnfi[i];
+         other.dnfi[i] = nullptr;
+      }
+
+      fnfi.SetSize(other.fnfi.Size());
+      for (int i = 0; i <  fnfi.Size(); i++)
+      {
+         fnfi[i] = other.fnfi[i];
+         other.fnfi[i] = nullptr;
+      }
+
+      bfnfi.SetSize(other.bfnfi.Size());
+      bfnfi_marker.SetSize(other.bfnfi_marker.Size());
+      for (int i = 0; i <  bfnfi.Size(); i++)
+      {
+         bfnfi[i] = other.bfnfi[i];
+         other.bfnfi[i] = nullptr;
+         bfnfi_marker[i] = other.bfnfi_marker[i];
+      }
+
+      ext = other.ext;
+      other.ext = nullptr;
+   }
+   return *this;
+}
+
 void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    if (ext)
