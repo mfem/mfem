@@ -32,6 +32,8 @@ class ParPumiMesh;
 class ParMesh : public Mesh
 {
 protected:
+   friend class ParSubMesh;
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -201,6 +203,58 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * The output of the shared edges is chosen by the @a ordering parameter with
+    * the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering Ordering for the shared edges.
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(int ordering, GroupCommunicator& sedge_comm);
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * The output of the shared vertices is chosen by the @a ordering parameter
+    * with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(int ordering, GroupCommunicator& svert_comm);
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * The output of the shared face quadrilaterals is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(int ordering, GroupCommunicator& squad_comm);
+
+   /**
+    * @brief Get the shared face triangles GroupCommunicator.
+    *
+    * The output of the shared face triangles is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] stria_comm
+    */
+   void GetSharedTriCommunicator(int ordering, GroupCommunicator& stria_comm);
+
    // Similar to Mesh::GetFacesTable()
    STable3D *GetSharedFacesTable();
 
@@ -324,6 +378,8 @@ public:
 
    ParNCMesh* pncmesh;
 
+   int *partitioning_cache = nullptr;
+
    int GetNGroups() const { return gtopo.NGroups(); }
 
    ///@{ @name These methods require group > 0
@@ -338,6 +394,46 @@ public:
    void GroupTriangle(int group, int i, int &face, int &o);
    void GroupQuadrilateral(int group, int i, int &face, int &o);
    ///@}
+
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(GroupCommunicator& sedge_comm)
+   {
+      GetSharedEdgeCommunicator(1, sedge_comm);
+   }
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(GroupCommunicator& svert_comm)
+   {
+      GetSharedVertexCommunicator(1, svert_comm);
+   }
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(GroupCommunicator& squad_comm)
+   {
+      GetSharedQuadCommunicator(1, squad_comm);
+   }
+
+   /**
+   * @brief Get the shared face triangles GroupCommunicator.
+   *
+   * @param[out] stria_comm
+   */
+   void GetSharedTriCommunicator(GroupCommunicator& stria_comm)
+   {
+      GetSharedTriCommunicator(1, stria_comm);
+   }
 
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;

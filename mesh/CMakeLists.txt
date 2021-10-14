@@ -17,6 +17,8 @@ set(SRCS
   mesh_operators.cpp
   mesh_readers.cpp
   ncmesh.cpp
+  submesh.cpp
+  submesh_utils.cpp
   nurbs.cpp
   point.cpp
   pyramid.cpp
@@ -38,6 +40,8 @@ set(HDRS
   mesh_operators.hpp
   ncmesh.hpp
   nurbs.hpp
+  submesh.hpp
+  submesh_utils.hpp
   point.hpp
   pyramid.hpp
   quadrilateral.hpp
@@ -53,12 +57,14 @@ set(HDRS
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     pmesh.cpp
-    pncmesh.cpp)
+    pncmesh.cpp
+    psubmesh.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
     pmesh.hpp
-    pncmesh.hpp)
+    pncmesh.hpp
+    psubmesh.hpp)
 endif()
 
 if (MFEM_USE_MESQUITE)
