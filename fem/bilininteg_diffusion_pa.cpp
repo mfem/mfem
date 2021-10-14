@@ -125,7 +125,7 @@ void PADiffusionSetup2D<2>(const int Q1D,
                D(qx,qy,0,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
                D(qx,qy,1,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
                D(qx,qy,2,e) = w_detJ * (symmetric ? (-J21*R12 + J11*R22) :
-               (J22*R12 - J12*R22)); // 2,2 or 1,2
+                                        (J22*R12 - J12*R22)); // 2,2 or 1,2
                if (!symmetric)
                {
                   D(qx,qy,3,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
