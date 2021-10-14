@@ -329,6 +329,8 @@ protected:
    /// Kinematic viscosity (dimensionless).
    double kin_vis;
 
+   IntegrationRules gll_rules;
+
    /// Velocity \f$H^1\f$ finite element collection.
    FiniteElementCollection *vfec = nullptr;
 

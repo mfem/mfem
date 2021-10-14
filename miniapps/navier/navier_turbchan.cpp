@@ -60,7 +60,8 @@ void vel_ic_reichardt(const Vector &coords, double t, Vector &u)
       yp = (1.0 - y) * ctx.Re_tau;
    }
 
-   u(0) = 1.0 / k * log(1.0 + k * yp) + (C - (1.0 / k) * log(k)) * (1 - exp(-yp / 11.0) - yp / 11.0 * exp(-yp / 3.0));
+   u(0) = 1.0 / k * log(1.0 + k * yp) + (C - (1.0 / k) * log(k)) * (1 - exp(
+                                                                       -yp / 11.0) - yp / 11.0 * exp(-yp / 3.0));
 
    double kx = 23.0;
    double kz = 13.0;
@@ -116,7 +117,8 @@ int main(int argc, char *argv[])
    std::vector<Vector> translations = {x_translation, z_translation};
 
    // Create the periodic mesh using the vertex mapping defined by the translation vectors
-   Mesh periodic_mesh = Mesh::MakePeriodic(mesh, mesh.CreatePeriodicVertexMapping(translations));
+   Mesh periodic_mesh = Mesh::MakePeriodic(mesh,
+                                           mesh.CreatePeriodicVertexMapping(translations));
 
    if (mpi.Root())
    {
