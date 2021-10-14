@@ -1088,7 +1088,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
-   const int batch_id = MFEM_THREAD_ID(z);
+   const int batch_id = 0; // MFEM_THREAD_ID(z); // TODO
    Dynamic2dThreadDTensor<3,BatchSize> Bu(Q,Dy,Dz);
    MFEM_SHARED double shared_slice[DynamicMaxSize*DynamicMaxSize*BatchSize];
    DeviceDTensor<3> slice(shared_slice,Dx,Dy,BatchSize);
@@ -1179,7 +1179,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
-   const int batch_id = MFEM_THREAD_ID(z);
+   const int batch_id = 0; // MFEM_THREAD_ID(z); // TODO
    Static2dThreadDTensor<BatchSize,Q,Dy,Dz> Bu;
    MFEM_SHARED double shared_slice[Dx*Dy*BatchSize];
    StaticPointerDTensor<Dx,Dy,BatchSize> slice(shared_slice);
@@ -1230,7 +1230,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
-   const int batch_id = 0;//MFEM_THREAD_ID(z); //TODO
+   const int batch_id = 0; // MFEM_THREAD_ID(z); //TODO
    Static3dThreadDTensor<BatchSize,Q,Dy,Dz> Bu;
    MFEM_SHARED double shared_slice[Dx*Dy*Dz*BatchSize];
    StaticPointerDTensor<Dx,Dy,Dz,BatchSize> slice(shared_slice);
@@ -1321,7 +1321,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
-   const int batch_id = MFEM_THREAD_ID(z);
+   const int batch_id = 0; // MFEM_THREAD_ID(z); // TODO
    Dynamic2dThreadDTensor<3,BatchSize> Bu(Dx,Q,Dz);
    MFEM_SHARED double shared_slice[DynamicMaxSize*DynamicMaxSize*BatchSize];
    DeviceDTensor<3> slice(shared_slice,Dx,Dy,BatchSize);
@@ -1412,7 +1412,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    constexpr int Dy = get_tensor_size<1,Tensor>;
    constexpr int Dz = get_tensor_size<2,Tensor>;
    constexpr int BatchSize = get_tensor_batch_size<Tensor>;
-   const int batch_id = MFEM_THREAD_ID(z);
+   const int batch_id = 0; //MFEM_THREAD_ID(z); //TODO
    Static2dThreadDTensor<BatchSize,Dx,Q,Dz> Bu;
    MFEM_SHARED double shared_slice[Dx*Dy*BatchSize];
    StaticPointerDTensor<Dx,Dy,BatchSize> slice(shared_slice);
@@ -1573,6 +1573,7 @@ auto ContractZ(const Basis &B, const Tensor &u)
          }
       }
    }
+   MFEM_SYNC_THREAD;
    return Bu;
 }
 
@@ -1653,8 +1654,8 @@ auto ContractZ(const Basis &B, const Tensor &u)
             Bu(dx,dy,q) = v;
          }
       }
-      MFEM_SYNC_THREAD;
    }
+   MFEM_SYNC_THREAD;
    return Bu;
 }
 
