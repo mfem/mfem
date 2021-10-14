@@ -25,6 +25,7 @@
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
+#include "submesh.hpp"
 #include "nurbs.hpp"
 #include "wedge.hpp"
 #include "pyramid.hpp"
@@ -36,6 +37,7 @@
 #ifdef MFEM_USE_MPI
 #include "pncmesh.hpp"
 #include "pmesh.hpp"
+#include "psubmesh.hpp"
 #endif
 
 #ifdef MFEM_USE_PUMI
