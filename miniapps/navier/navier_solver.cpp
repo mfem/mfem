@@ -27,7 +27,8 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 }
 
 NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
-   : pmesh(mesh), order(order), kin_vis(kin_vis)
+   : pmesh(mesh), order(order), gll_rules(0, Quadrature1D::GaussLobatto),
+     kin_vis(kin_vis)
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
@@ -119,13 +120,20 @@ void NavierSolver::Setup(double dt)
    Array<int> empty;
 
    // GLL integration rule (Numerical Integration)
-   IntegrationRules rules_ni(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir_ni = rules_ni.Get(vfes->GetFE(0)->GetGeomType(),
-                                               2 * order - 1);
+   const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
+                                                2 * order - 1);
+
+   const IntegrationRule &ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
+                                             2 * order - 1);
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
-   N->AddDomainIntegrator(new VectorConvectionNLFIntegrator(nlcoeff));
+   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
+   if (numerical_integ)
+   {
+      nlc_nlfi->SetIntRule(&ir);
+   }
+   N->AddDomainIntegrator(nlc_nlfi);
    if (partial_assembly)
    {
       N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -133,7 +141,7 @@ void NavierSolver::Setup(double dt)
    }
 
    Mv_form = new ParBilinearForm(vfes);
-   BilinearFormIntegrator *mv_blfi = new VectorMassIntegrator;
+   auto *mv_blfi = new VectorMassIntegrator;
    if (numerical_integ)
    {
       mv_blfi->SetIntRule(&ir_ni);
@@ -147,10 +155,10 @@ void NavierSolver::Setup(double dt)
    Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
-   BilinearFormIntegrator *sp_blfi = new DiffusionIntegrator;
+   auto *sp_blfi = new DiffusionIntegrator;
    if (numerical_integ)
    {
-      // blfi->SetIntRule(&ir_ni);
+      sp_blfi->SetIntRule(&ir_ni);
    }
    Sp_form->AddDomainIntegrator(sp_blfi);
    if (partial_assembly)
@@ -161,7 +169,12 @@ void NavierSolver::Setup(double dt)
    Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
 
    D_form = new ParMixedBilinearForm(vfes, pfes);
-   D_form->AddDomainIntegrator(new VectorDivergenceIntegrator);
+   auto *vd_mblfi = new VectorDivergenceIntegrator();
+   if (numerical_integ)
+   {
+      vd_mblfi->SetIntRule(&ir_ni);
+   }
+   D_form->AddDomainIntegrator(vd_mblfi);
    if (partial_assembly)
    {
       D_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -170,7 +183,12 @@ void NavierSolver::Setup(double dt)
    D_form->FormRectangularSystemMatrix(empty, empty, D);
 
    G_form = new ParMixedBilinearForm(pfes, vfes);
-   G_form->AddDomainIntegrator(new GradientIntegrator);
+   auto *g_mblfi = new GradientIntegrator();
+   if (numerical_integ)
+   {
+      g_mblfi->SetIntRule(&ir_ni);
+   }
+   G_form->AddDomainIntegrator(g_mblfi);
    if (partial_assembly)
    {
       G_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -181,8 +199,15 @@ void NavierSolver::Setup(double dt)
    H_lincoeff.constant = kin_vis;
    H_bdfcoeff.constant = 1.0 / dt;
    H_form = new ParBilinearForm(vfes);
-   H_form->AddDomainIntegrator(new VectorMassIntegrator(H_bdfcoeff));
-   H_form->AddDomainIntegrator(new VectorDiffusionIntegrator(H_lincoeff));
+   auto *hmv_blfi = new VectorMassIntegrator(H_bdfcoeff);
+   auto *hdv_blfi = new VectorDiffusionIntegrator(H_lincoeff);
+   if (numerical_integ)
+   {
+      hmv_blfi->SetIntRule(&ir_ni);
+      hdv_blfi->SetIntRule(&ir_ni);
+   }
+   H_form->AddDomainIntegrator(hmv_blfi);
+   H_form->AddDomainIntegrator(hdv_blfi);
    if (partial_assembly)
    {
       H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -192,16 +217,22 @@ void NavierSolver::Setup(double dt)
 
    FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
    FText_bdr_form = new ParLinearForm(pfes);
-   FText_bdr_form->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(
-                                            *FText_gfcoeff),
-                                         vel_ess_attr);
+   auto *ftext_bnlfi = new BoundaryNormalLFIntegrator(*FText_gfcoeff);
+   if (numerical_integ)
+   {
+      ftext_bnlfi->SetIntRule(&ir_ni);
+   }
+   FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
 
    g_bdr_form = new ParLinearForm(pfes);
    for (auto &vel_dbc : vel_dbcs)
    {
-      g_bdr_form->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(
-                                           *vel_dbc.coeff),
-                                        vel_dbc.attr);
+      auto *gbdr_bnlfi = new BoundaryNormalLFIntegrator(*vel_dbc.coeff);
+      if (numerical_integ)
+      {
+         gbdr_bnlfi->SetIntRule(&ir_ni);
+      }
+      g_bdr_form->AddBoundaryIntegrator(gbdr_bnlfi, vel_dbc.attr);
    }
 
    f_form = new ParLinearForm(vfes);
@@ -212,6 +243,10 @@ void NavierSolver::Setup(double dt)
       // const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
       //                                          4 * order);
       // vdlfi->SetIntRule(&ir);
+      if (numerical_integ)
+      {
+         vdlfi->SetIntRule(&ir_ni);
+      }
       f_form->AddDomainIntegrator(vdlfi);
    }
 
@@ -603,7 +638,14 @@ void NavierSolver::MeanZero(ParGridFunction &v)
    {
       onecoeff.constant = 1.0;
       mass_lf = new ParLinearForm(v.ParFESpace());
-      mass_lf->AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
+      auto *dlfi = new DomainLFIntegrator(onecoeff);
+      if (numerical_integ)
+      {
+         const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
+                                                      2 * order - 1);
+         dlfi->SetIntRule(&ir_ni);
+      }
+      mass_lf->AddDomainIntegrator(dlfi);
       mass_lf->Assemble();
 
       ParGridFunction one_gf(v.ParFESpace());
