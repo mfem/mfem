@@ -77,6 +77,20 @@ public:
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
 
+   /// Explicitly prohibit copy construction/assignment of NonlinearForms
+   NonlinearForm(const NonlinearForm &other) = delete;
+   NonlinearForm& operator=(const NonlinearForm &other) = delete;
+
+   /// Move constructor for NonlinearForm.
+   /** This constructor "steals" the owned data members from the @a other 
+       NonlinearForm. */
+   NonlinearForm(NonlinearForm &&other);
+
+   /// Move assignment operator for NonlinearForm
+   /** This assignment first frees all owned data, then "steals" the owned data
+       members from the @a other NonlinearForm. */
+   NonlinearForm& operator=(NonlinearForm &&other);
+
    /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** For nonlinear operators, the "matrix" assembly levels usually do not make
        sense, so only LEGACY, NONE (matrix-free) and PARTIAL are supported.
