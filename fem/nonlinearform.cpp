@@ -27,14 +27,14 @@ NonlinearForm::NonlinearForm(NonlinearForm &&other)
    for (int i = 0; i <  dnfi.Size(); i++)
    {
       dnfi[i] = other.dnfi[i];
-      other.dnfi[i] = nullptr;   
+      other.dnfi[i] = nullptr;
    }
 
    fnfi.SetSize(other.fnfi.Size());
    for (int i = 0; i <  fnfi.Size(); i++)
    {
       fnfi[i] = other.fnfi[i];
-      other.fnfi[i] = nullptr;   
+      other.fnfi[i] = nullptr;
    }
 
    bfnfi.SetSize(other.bfnfi.Size());
@@ -42,7 +42,7 @@ NonlinearForm::NonlinearForm(NonlinearForm &&other)
    for (int i = 0; i <  bfnfi.Size(); i++)
    {
       bfnfi[i] = other.bfnfi[i];
-      other.bfnfi[i] = nullptr;   
+      other.bfnfi[i] = nullptr;
       bfnfi_marker[i] = other.bfnfi_marker[i];
    }
    other.ext = nullptr;
@@ -69,14 +69,14 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
       for (int i = 0; i <  dnfi.Size(); i++)
       {
          dnfi[i] = other.dnfi[i];
-         other.dnfi[i] = nullptr;   
+         other.dnfi[i] = nullptr;
       }
 
       fnfi.SetSize(other.fnfi.Size());
       for (int i = 0; i <  fnfi.Size(); i++)
       {
          fnfi[i] = other.fnfi[i];
-         other.fnfi[i] = nullptr;   
+         other.fnfi[i] = nullptr;
       }
 
       bfnfi.SetSize(other.bfnfi.Size());
@@ -84,7 +84,7 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
       for (int i = 0; i <  bfnfi.Size(); i++)
       {
          bfnfi[i] = other.bfnfi[i];
-         other.bfnfi[i] = nullptr;   
+         other.bfnfi[i] = nullptr;
          bfnfi_marker[i] = other.bfnfi_marker[i];
       }
 

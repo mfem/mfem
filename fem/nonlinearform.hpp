@@ -82,7 +82,7 @@ public:
    NonlinearForm& operator=(const NonlinearForm &other) = delete;
 
    /// Move constructor for NonlinearForm.
-   /** This constructor "steals" the owned data members from the @a other 
+   /** This constructor "steals" the owned data members from the @a other
        NonlinearForm. */
    NonlinearForm(NonlinearForm &&other);
 
