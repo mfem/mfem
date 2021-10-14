@@ -807,6 +807,7 @@ protected:
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix J, Jinv;
    mutable DenseMatrix curlshape, curlshape_J;
+   mutable DenseMatrix vshapedxt, vshapedxt_bar;
 #endif
    void SetDerivMembers();
 
