@@ -62,15 +62,6 @@ public:
        width (input size). */
    Operator(int h, int w) { height = h; width = w; }
 
-   // /// Explicitly prohibit copy construction/assignment of NonlinearForms
-   // Operator(const Operator &other) = delete;
-   // Operator& operator=(const Operator &other) = delete;
-
-   // /// Operator move constructor
-   // Operator(Operator &&other);
-   // /// Operator move assignment
-   // Operator& operator=(Operator &&other);
-
    /// Get the height (size of output) of the Operator. Synonym with NumRows().
    inline int Height() const { return height; }
    /** @brief Get the number of rows (size of output) of the Operator. Synonym

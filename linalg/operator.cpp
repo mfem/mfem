@@ -48,24 +48,6 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    }
 }
 
-// Operator::Operator(Operator &&other)
-//    : height(other.height), width(other.width)
-// {
-//    other.height = 0;
-//    other.width = 0;
-// }
-
-// Operator& Operator::operator=(Operator &&other)
-// {
-//    if (this != &other)
-//    {
-//       height = other.height;
-//       other.height = 0;
-//       width = other.width;
-//       other.width = 0;
-//    }
-// }
-
 void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Vector &x, Vector &b,
                                 Operator* &Aout, Vector &X, Vector &B,

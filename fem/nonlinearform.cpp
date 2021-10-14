@@ -91,6 +91,7 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
       ext = other.ext;
       other.ext = nullptr;
    }
+   return *this;
 }
 
 void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
