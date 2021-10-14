@@ -18,6 +18,9 @@ Version 4.3.1 (development)
 
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
+- Coefficient::SetTime now propagates the new time into internally stored
+  Coefficient objects.
+
 - Added initial support for google-benchmarks in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
