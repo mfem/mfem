@@ -23,7 +23,7 @@
 namespace mfem
 {
 
-enum class InterpAlgo { NonTensor, Tensor, Untensorized, NA };
+enum class InterpAlgo { NonTensor, Tensor, Untensorized, Legacy, NA };
 
 template <typename Basis, typename Dofs, typename Enable = void>
 struct get_interp_algo_v
@@ -43,26 +43,24 @@ struct get_interp_algo_v<Basis, Dofs,
 template <typename Basis, typename Dofs>
 struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
-      is_tensor_basis<Basis> //&&
-      // !(get_basis_dim<Basis> == 3 &&
-      // is_device)
-      // !is_3d_threaded_tensor<Dofs>
+      is_tensor_basis<Basis> &&
+      !(get_basis_dim<Basis> == 3 &&
+      is_device)
    > >
 {
    static constexpr InterpAlgo value = InterpAlgo::Tensor;
 };
 
-// template <typename Basis, typename Dofs>
-// struct get_interp_algo_v<Basis, Dofs,
-//    std::enable_if_t<
-//       is_tensor_basis<Basis> &&
-//       (get_basis_dim<Basis> == 3 &&
-//       is_device)
-//       // is_3d_threaded_tensor<Dofs>
-//    > >
-// {
-//    static constexpr InterpAlgo value = InterpAlgo::Untensorized;
-// };
+template <typename Basis, typename Dofs>
+struct get_interp_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_tensor_basis<Basis> &&
+      (get_basis_dim<Basis> == 3 &&
+      is_device)
+   > >
+{
+   static constexpr InterpAlgo value = InterpAlgo::Legacy;
+};
 
 template <typename Basis, typename Dofs>
 constexpr InterpAlgo get_interp_algo = get_interp_algo_v<Basis, Dofs>::value;
@@ -438,6 +436,252 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
       }
    }
    return Btu;
+}
+
+// 3D 2dthreaded version extracted from: SmemPAMassApply3D.
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Legacy &&
+             get_basis_dim<Basis> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u)
+{
+   constexpr int Dim = 3;
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_B[basis_size];
+   auto B = basis.GetB(s_B);
+
+   constexpr int D1D = get_basis_dofs<Basis>;
+   constexpr int Q1D = get_basis_quads<Basis>;
+   constexpr int MaxDQ = (Q1D > D1D) ? Q1D : D1D;
+   // shared memory for temporary/intermediary result tensors.
+   MFEM_SHARED double sm0[MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED double sm1[MaxDQ*MaxDQ*MaxDQ];
+   // Load dofs in shared memory
+   StaticPointerDTensor<D1D,D1D,D1D> X(sm0);
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            X(dx,dy,dz) = u(dx,dy,dz);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   // X Contraction
+   StaticPointerDTensor<D1D,D1D,Q1D> DDQ(sm1);
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[D1D];
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            u[dz] = 0;
+         }
+         MFEM_UNROLL(D1D)
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               u[dz] += X(dx,dy,dz) * B(dx,qx);
+            }
+         }
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            DDQ(qx,dy,dz) = u[dz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   // Y Contraction
+   StaticPointerDTensor<D1D,Q1D,Q1D> DQQ(sm0);
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[D1D];
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            u[dz] = 0;
+         }
+         MFEM_UNROLL(D1D)
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; dz++)
+            {
+               u[dz] += DDQ(qx,dy,dz) * B(dy,qy);
+            }
+         }
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            DQQ(qx,qy,dz) = u[dz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   // Z Contraction
+   Static2dThreadDTensor<Q1D,Q1D,Q1D> QQQ;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[Q1D];
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            u[qz] = 0;
+         }
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; qz++)
+            {
+               u[qz] += DQQ(qx,qy,dz) * B(dz,qz);
+            }
+         }
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            QQQ(qx,qy,qz) = u[qz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return QQQ;
+}
+
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Legacy &&
+             get_basis_dim<Basis> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u)
+{
+   constexpr int basis_size = get_basis_capacity<Basis>;
+   MFEM_SHARED double s_B[basis_size];
+   auto Bt = basis.GetBt(s_B);
+
+   constexpr int D1D = get_basis_dofs<Basis>;
+   constexpr int Q1D = get_basis_quads<Basis>;
+   constexpr int MaxDQ = (Q1D > D1D) ? Q1D : D1D;
+   // shared memory for temporary/intermediary result tensors.
+   MFEM_SHARED double sm0[MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED double sm1[MaxDQ*MaxDQ*MaxDQ];
+   // Load dofs in shared memory
+   StaticPointerDTensor<Q1D,Q1D,Q1D> QQQ(sm0);
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            QQQ(qx,qy,qz) = u(qx,qy,qz);
+         }
+      }
+   }
+   // X Contraction
+   StaticPointerDTensor<Q1D,Q1D,D1D> QQD(sm1);
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u[Q1D];
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            u[qz] = 0;
+         }
+         MFEM_UNROLL(Q1D)
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               u[qz] += QQQ(qx,qy,qz) * Bt(qx,dx);
+            }
+         }
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            QQD(dx,qy,qz) = u[qz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   // Y Contraction
+   StaticPointerDTensor<Q1D,D1D,D1D> QDD(sm0);
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u[Q1D];
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            u[qz] = 0;
+         }
+         MFEM_UNROLL(Q1D)
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               u[qz] += QQD(dx,qy,qz) * Bt(qy,dy);
+            }
+         }
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            QDD(dx,dy,qz) = u[qz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   // Z Contraction
+   Static2dThreadDTensor<D1D,D1D,D1D> y;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u[D1D];
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            u[dz] = 0;
+         }
+         MFEM_UNROLL(Q1D)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            MFEM_UNROLL(D1D)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               u[dz] += QDD(dx,dy,qz) * Bt(qz,dz);
+            }
+         }
+         MFEM_UNROLL(D1D)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            y(dx,dy,dz) = u[dz];
+         }
+      }
+   }
+   return y;
 }
 
 } // namespace mfem
