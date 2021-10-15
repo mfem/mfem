@@ -704,6 +704,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
          MFEM_UNROLL(D1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
+            MFEM_UNROLL(Dim)
             for (int d = 0; d < Dim; d++)
             {
                QQQ(qx,qy,qz,d) = u(qx,qy,qz,d);
