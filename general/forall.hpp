@@ -558,7 +558,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-      return RajaCuWrap<Dim>(N, d_body, X, Y, Z, G);
+      return RajaCuWrap<DIM>(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -566,7 +566,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_HIP is allowed, use it
    if (Device::Allows(Backend::RAJA_HIP))
    {
-      return RajaHipWrap<Dim>(N, d_body, X, Y, Z, G);
+      return RajaHipWrap<DIM>(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -574,7 +574,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-      return CuWrap<Dim>(N, d_body, X, Y, Z, G);
+      return CuWrap<DIM>(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -582,7 +582,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
-      return HipWrap<Dim>(N, d_body, X, Y, Z, G);
+      return HipWrap<DIM>(N, d_body, X, Y, Z, G);
    }
 #endif
 
