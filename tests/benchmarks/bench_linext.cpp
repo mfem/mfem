@@ -11,26 +11,44 @@
 
 #include "bench.hpp"
 
-#define MFEM_DEBUG_COLOR 206
-#include "../../general/debug.hpp"
-
 #ifdef MFEM_USE_BENCHMARK
 
-constexpr int seed = 0x100001b3;
+////////////////////////////////////////////////////////////////////////////////
+constexpr int _2D = 2;
+constexpr int _3D = 3;
+constexpr int _GL = false; // Gauss-Legendre, q=p+2
+constexpr int _GLL = true; // Gauss-Legendre-Lobatto, q=p+1
+
+////////////////////////////////////////////////////////////////////////////////
+constexpr int VDIM = 24;
+constexpr int SEED = 0x100001b3;
+
+////////////////////////////////////////////////////////////////////////////////
+/// \brief vdim_vector_function
+/// Used for the VectorFunctionCoefficient in the VectorDomainLFIntegrator
+/// benchmark.
+void vdim_vector_function(const Vector&, Vector &y)
+{
+   y.SetSize(VDIM);
+   y.Randomize(SEED);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Base class for the LinearForm extension test and the bench
+template<int dim, int vdim, bool gll>
 struct LinExt
 {
-   const int problem, N, p, q, dim;
+   const int problem, N, p, q;
    const bool test;
    const Element::Type type;
    Mesh mesh;
    H1_FECollection fec;
-   FiniteElementSpace fes;
-   FiniteElementSpace *fespace;
+   FiniteElementSpace vfes; // vdim finite element space
+   FiniteElementSpace *mfes; // mesh finite elemente space
    GridFunction x;
    const Geometry::Type geom_type;
+   IntegrationRules IntRulesGLL;
+   const IntegrationRule *irGLL;
    const IntegrationRule *ir;
    ConstantCoefficient one;
    const int dofs;
@@ -40,35 +58,39 @@ struct LinExt
    ConstantCoefficient constant_coeff;
    VectorConstantCoefficient dim_constant_coeff;
    VectorConstantCoefficient vdim_constant_coeff;
+   std::function<void(const Vector&, Vector&)> vector_f{vdim_vector_function};
+   VectorFunctionCoefficient vector_function_coeff;
 
    LinearForm *lf[2];
 
-   LinExt(int problem, int order, int dim, int vdim, bool test):
+   LinExt(int problem, int order, bool test):
       problem(problem),
       N(Device::IsEnabled() ? 32 : test?4:8),
       p(order),
-      q(2*p),//+3),
-      dim(dim),
+      q(2*p + (gll?-1:3)),
       test(test),
       type(dim==3 ? Element::HEXAHEDRON : Element::QUADRILATERAL),
       mesh(dim==3 ?
            Mesh::MakeCartesian3D(N,N,N,type) : Mesh::MakeCartesian2D(N,N,type)),
       fec(p, dim),
-      fes(&mesh, &fec, vdim),
-      fespace(new FiniteElementSpace(&mesh, &fec, dim)),
-      x(fespace),
-      geom_type(fes.GetFE(0)->GetGeomType()),
-      ir(&IntRules.Get(geom_type, q)),
+      vfes(&mesh, &fec, vdim),
+      mfes(new FiniteElementSpace(&mesh, &fec, dim)),
+      x(mfes),
+      geom_type(vfes.GetFE(0)->GetGeomType()),
+      IntRulesGLL(0, Quadrature1D::GaussLobatto),
+      irGLL(&IntRulesGLL.Get(geom_type, q)), // Gauss-Legendre-Lobatto
+      ir(&IntRules.Get(geom_type, q)), // Gauss-Legendre
       one(1.0),
-      dofs(fes.GetTrueVSize()),
+      dofs(vfes.GetTrueVSize()),
       mdofs(0.0),
       one_vec(1),
       dim_vec(dim),
       vdim_vec(vdim),
-      constant_coeff((one_vec.Randomize(seed),one_vec(0))),
-      dim_constant_coeff((dim_vec.Randomize(seed),dim_vec)),
-      vdim_constant_coeff((vdim_vec.Randomize(seed),vdim_vec)),
-      lf{new LinearForm(&fes), new LinearForm(&fes)}
+      constant_coeff((one_vec.Randomize(SEED),one_vec(0))),
+      dim_constant_coeff((dim_vec.Randomize(SEED),dim_vec)),
+      vdim_constant_coeff((vdim_vec.Randomize(SEED),vdim_vec)),
+      vector_function_coeff(vdim,vector_f),
+      lf{new LinearForm(&vfes), new LinearForm(&vfes)}
    {
       MFEM_VERIFY(dim==2||dim==3, "Only 2D and 3D tests are supported!");
       SetupRandomMesh();
@@ -81,48 +103,15 @@ struct LinExt
 
    void SetupRandomMesh() noexcept
    {
-      mesh.SetNodalFESpace(fespace);
+      mesh.SetNodalFESpace(mfes);
       mesh.SetNodalGridFunction(&x);
-
-      Vector h0(fespace->GetNDofs());
-      h0 = infinity();
-      Array<int> dofs;
-      for (int i = 0; i < mesh.GetNE(); i++)
-      {
-         // Get the local scalar element degrees of freedom in dofs.
-         fespace->GetElementDofs(i, dofs);
-         // Adjust the value of h0 in dofs based on the local mesh size.
-         const double hi = mesh.GetElementSize(i);
-         for (int j = 0; j < dofs.Size(); j++)
-         {
-            h0(dofs[j]) = fmin(h0(dofs[j]), hi);
-         }
-      }
-
-      GridFunction rdm(fespace);
-      rdm.Randomize(seed);
-      rdm -= 0.5; // Shift to random values in [-0.5,0.5].
-      rdm *= 1.0/M_PI;
-      rdm.HostReadWrite();
-      // Scale the random values to be of order of the local mesh size.
-      for (int i = 0; i < fespace->GetNDofs(); i++)
-      {
-         for (int d = 0; d < dim; d++)
-         {
-            rdm(fespace->DofToVDof(i,d)) *= h0(i);
-         }
-      }
-      Array<int> vdofs;
-      for (int i = 0; i < fespace->GetNBE(); i++)
-      {
-         // Get the vector degrees of freedom in the boundary element.
-         fespace->GetBdrElementVDofs(i, vdofs);
-         // Set the boundary values to zero.
-         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-      }
+      const double jitter = 1./(M_PI*M_PI);
+      const double h0 = mesh.GetElementSize(0);
+      GridFunction rdm(mfes);
+      rdm.Randomize(SEED);
+      rdm -= 0.5; // Shift to random values in [-0.5,0.5]
+      rdm *= jitter * h0; // Scale the random values to be of same order
       x -= rdm;
-      x.SetTrueVector();
-      x.SetFromTrueVector();
    }
 
    virtual void benchmark() = 0;
@@ -139,28 +128,35 @@ struct LinExt
          {
             DomainLFIntegrator *dlfi;
             dlfi = new DomainLFIntegrator(constant_coeff);
-            dlfi->SetIntRule(ir);
+            dlfi->SetIntRule(gll?irGLL:ir);
             lf[i]->AddDomainIntegrator(dlfi);
          }
          else if (problem==2) // VectorDomainLFIntegrator
          {
             VectorDomainLFIntegrator *vdlfi;
-            vdlfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
-            vdlfi->SetIntRule(ir);
+            if (test)
+            {
+               vdlfi = new VectorDomainLFIntegrator(vector_function_coeff);
+            }
+            else
+            {
+               vdlfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
+            }
+            vdlfi->SetIntRule(gll?irGLL:ir);
             lf[i]->AddDomainIntegrator(vdlfi);
          }
          else if (problem==3) // DomainLFGradIntegrator
          {
             DomainLFGradIntegrator *dlfgi;
             dlfgi = new DomainLFGradIntegrator(dim_constant_coeff);
-            dlfgi->SetIntRule(ir);
+            dlfgi->SetIntRule(gll?irGLL:ir);
             lf[i]->AddDomainIntegrator(dlfgi);
          }
          else if (problem==4) // VectorDomainLFGradIntegrator
          {
             VectorDomainLFGradIntegrator *vdlfgi;
             vdlfgi = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
-            vdlfgi->SetIntRule(ir);
+            vdlfgi->SetIntRule(gll?irGLL:ir);
             lf[i]->AddDomainIntegrator(vdlfgi);
          }
          else { MFEM_ABORT("Problem not specified!"); }
@@ -170,113 +166,144 @@ struct LinExt
 
 ////////////////////////////////////////////////////////////////////////////////
 /// TEST for LinearFormExtension
-template<int DIM, int VDIM>
-struct Test: public LinExt
+template<int dim, int vdim, bool gll>
+struct Test: public LinExt<dim,vdim,gll>
 {
+   using LinExt<dim,vdim,gll>::lf;
    static constexpr bool testing = true;
-   Test(int problem, int order): LinExt(problem,order,DIM,VDIM,testing)
-   {
-      MFEM_DEVICE_SYNC;
-   }
 
-   void benchmark() override
+   Test(int problem, int order):LinExt<dim,vdim,gll>(problem,order,testing) { }
+
+   void benchmark()
    {
       lf[0]->Assemble();
       lf[1]->Assemble();
       const double dtd = (*lf[1]) * (*lf[1]);
       const double rtr = (*lf[0]) * (*lf[0]);
-      MFEM_VERIFY(almost_equal(dtd,rtr,10), "almost_equal test error!");
+      const bool almost_eq = almost_equal(dtd,rtr);
+      MFEM_VERIFY(almost_eq, "almost_equal test error!");
       MFEM_DEVICE_SYNC;
-      mdofs += MDofs();
+      this->mdofs += this->MDofs();
    }
 };
 
 /// Scalar Linear Form Extension Tests
-#define LinExtTest(Problem,Kernel,DIM,VDIM)\
-static void TEST_##Kernel##_##DIM##D(bm::State &state){\
+#define LinExtTest(Problem,Kernel,dim,vdim,gll)\
+static void TEST_##Kernel##dim##gll(bm::State &state){\
    const int order = state.range(0);\
-   Test<DIM,VDIM> ker(Problem,order);\
+   Test<dim,vdim,gll> ker(Problem,order);\
    while(state.KeepRunning()) { ker.benchmark();}\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(),bm::Counter::kIsRate);}\
-BENCHMARK(TEST_##Kernel##_##DIM##D)->DenseRange(1,6)->Unit(bm::kMillisecond);
+BENCHMARK(TEST_##Kernel##dim##gll)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
-/// Scalar linear form tests
-LinExtTest(1,DomainLF,2,1)
-LinExtTest(1,DomainLF,3,1)
+/// Scalar linear form tests & Gauss-Legendre-Lobatto, q=p+1
+LinExtTest(1,DomainLF,_2D,1,_GLL)
+LinExtTest(1,DomainLF,_3D,1,_GLL)
 
-/// Vector linear form tests
-LinExtTest(2,VectorDomainLF,2,144)
-LinExtTest(2,VectorDomainLF,3,144)
+/// Vector linear form tests & Gauss-Legendre-Lobatto, q=p+1
+LinExtTest(2,VectorDomainLF,_2D,VDIM,_GLL)
+LinExtTest(2,VectorDomainLF,_3D,VDIM,_GLL)
 
-/// Grad linear form tests
-LinExtTest(3,DomainLFGrad,2,1)
-LinExtTest(3,DomainLFGrad,3,1)
+/// Grad linear form tests & Gauss-Legendre-Lobatto, q=p+1
+LinExtTest(3,DomainLFGrad,_2D,1,_GLL)
+LinExtTest(3,DomainLFGrad,_3D,1,_GLL)
 
-/// Vector Grad linear form tests
-LinExtTest(4,VectorDomainLFGrad,2,144)
-LinExtTest(4,VectorDomainLFGrad,3,144)
+/// Vector Grad linear form tests & Gauss-Legendre-Lobatto, q=p+1
+LinExtTest(4,VectorDomainLFGrad,_2D,VDIM,_GLL)
+LinExtTest(4,VectorDomainLFGrad,_3D,VDIM,_GLL)
+
+/// Scalar linear form tests & Gauss-Legendre, q=p+2
+LinExtTest(1,DomainLF,_2D,1,_GL)
+LinExtTest(1,DomainLF,_3D,1,_GL)
+
+/// Vector linear form tests & Gauss-Legendre, q=p+2
+LinExtTest(2,VectorDomainLF,_2D,VDIM,_GL)
+LinExtTest(2,VectorDomainLF,_3D,VDIM,_GL)
+
+/// Grad linear form tests & Gauss-Legendre, q=p+2
+LinExtTest(3,DomainLFGrad,_2D,1,_GL)
+LinExtTest(3,DomainLFGrad,_3D,1,_GL)
+
+/// Vector Grad linear form tests & Gauss-Legendre, q=p+2
+LinExtTest(4,VectorDomainLFGrad,_2D,VDIM,_GL)
+LinExtTest(4,VectorDomainLFGrad,_3D,VDIM,_GL)
+
 
 ////////////////////////////////////////////////////////////////////////////////
 /// BENCH for LinearFormExtension
-template<int DIM, int VDIM, enum LinearAssemblyLevel LEVEL>
-struct Bench: public LinExt
+template<int dim, int vdim, enum LinearAssemblyLevel lal, bool gll>
+struct Bench: public LinExt<dim,vdim,gll>
 {
-   const int i;
-   static constexpr bool testing = false;
-   Bench(int problem, int order): LinExt(problem,order,DIM,VDIM,testing),
-      i(LEVEL == LinearAssemblyLevel::LEGACY ? 0 : 1)
-   {
-      MFEM_DEVICE_SYNC;
-   }
+   LinearForm &lf;
+   static constexpr bool bench = false;
 
-   void benchmark() override
+   Bench(int problem, int order): LinExt<dim,vdim,gll>(problem,order,bench),
+      lf(*LinExt<dim,vdim,gll>::lf[lal==LinearAssemblyLevel::LEGACY?0:1]) { }
+
+   void benchmark()
    {
-      lf[i]->Assemble();
+      lf.Assemble();
       MFEM_DEVICE_SYNC;
-      mdofs += MDofs();
+      this->mdofs += this->MDofs();
    }
 };
 
 /// Linear Form Extension Scalar Benchs
-#define LinExtBench(Problem,Kernel,LVL,DIM,VDIM)\
-static void BENCH_##LVL##_##Kernel##_##DIM##D(bm::State &state){\
+#define LinExtBench(Problem,Kernel,lal,dim,vdim,gll)\
+static void BENCH_##lal##_##Kernel##dim##gll(bm::State &state){\
    const int order = state.range(0);\
-   Bench<DIM,VDIM,LinearAssemblyLevel::LVL> ker(Problem, order);\
+   Bench<dim,vdim,LinearAssemblyLevel::lal,gll> ker(Problem, order);\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
-BENCHMARK(BENCH_##LVL##_##Kernel##_##DIM##D)->DenseRange(1,6)->Unit(bm::kMicrosecond);
+BENCHMARK(BENCH_##lal##_##Kernel##dim##gll)->DenseRange(1,6)->Unit(bm::kMicrosecond);
 
-/// 2D scalar linear form bench
-LinExtBench(1,DomainLF,LEGACY,2,1)
-LinExtBench(1,DomainLF,FULL,2,1)
+/// Scalar linear form bench & Gauss-Legendre-Lobatto, q=p+1
+LinExtBench(1,DomainLF,LEGACY,_2D,1,_GLL)
+LinExtBench(1,DomainLF,  FULL,_2D,1,_GLL)
+LinExtBench(1,DomainLF,LEGACY,_3D,1,_GLL)
+LinExtBench(1,DomainLF,  FULL,_3D,1,_GLL)
 
-/// 3D scalar linear form bench
-LinExtBench(1,DomainLF,LEGACY,3,1)
-LinExtBench(1,DomainLF,FULL,3,1)
+/// Vector linear form bench & Gauss-Legendre-Lobatto, q=p+1
+LinExtBench(2,VectorDomainLF,LEGACY,_2D,VDIM,_GLL)
+LinExtBench(2,VectorDomainLF,  FULL,_2D,VDIM,_GLL)
+LinExtBench(2,VectorDomainLF,LEGACY,_3D,VDIM,_GLL)
+LinExtBench(2,VectorDomainLF,  FULL,_3D,VDIM,_GLL)
 
-/// 2D Vector linear form bench
-LinExtBench(2,VectorDomainLF,LEGACY,2,144)
-LinExtBench(2,VectorDomainLF,FULL,2,144)
+/// Grad Scalar linear form bench & Gauss-Legendre-Lobatto, q=p+1
+LinExtBench(3,DomainLFGrad,LEGACY,_2D,1,_GLL)
+LinExtBench(3,DomainLFGrad,  FULL,_2D,1,_GLL)
+LinExtBench(3,DomainLFGrad,LEGACY,_3D,1,_GLL)
+LinExtBench(3,DomainLFGrad,  FULL,_3D,1,_GLL)
 
-/// 3D Vector linear form bench
-LinExtBench(2,VectorDomainLF,LEGACY,3,144)
-LinExtBench(2,VectorDomainLF,FULL,3,144)
+/// Vector Grad linear form bench & Gauss-Legendre-Lobatto, q=p+1
+LinExtBench(4,VectorDomainLFGrad,LEGACY,_2D,VDIM,_GLL)
+LinExtBench(4,VectorDomainLFGrad,  FULL,_2D,VDIM,_GLL)
+LinExtBench(4,VectorDomainLFGrad,LEGACY,_3D,VDIM,_GLL)
+LinExtBench(4,VectorDomainLFGrad,  FULL,_3D,VDIM,_GLL)
 
-/// 2D Grad Scalar linear form bench
-LinExtBench(3,DomainLFGrad,LEGACY,2,1)
-LinExtBench(3,DomainLFGrad,FULL,2,1)
+/// Scalar linear form bench & Gauss-Legendre, q=p+2
+LinExtBench(1,DomainLF,LEGACY,_2D,1,_GL)
+LinExtBench(1,DomainLF,  FULL,_2D,1,_GL)
+LinExtBench(1,DomainLF,LEGACY,_3D,1,_GL)
+LinExtBench(1,DomainLF,  FULL,_3D,1,_GL)
 
-/// 3D Grad Scalar linear form bench
-LinExtBench(3,DomainLFGrad,LEGACY,3,1)
-LinExtBench(3,DomainLFGrad,FULL,3,1)
+/// Vector linear form bench & Gauss-Legendre, q=p+2
+LinExtBench(2,VectorDomainLF,LEGACY,_2D,VDIM,_GL)
+LinExtBench(2,VectorDomainLF,  FULL,_2D,VDIM,_GL)
+LinExtBench(2,VectorDomainLF,LEGACY,_3D,VDIM,_GL)
+LinExtBench(2,VectorDomainLF,  FULL,_3D,VDIM,_GL)
 
-/// 2D Grad Vector linear form bench
-LinExtBench(4,VectorDomainLFGrad,LEGACY,2,144)
-LinExtBench(4,VectorDomainLFGrad,FULL,2,144)
+/// Grad Scalar linear form bench & Gauss-Legendre, q=p+2
+LinExtBench(3,DomainLFGrad,LEGACY,_2D,1,_GL)
+LinExtBench(3,DomainLFGrad,  FULL,_2D,1,_GL)
+LinExtBench(3,DomainLFGrad,LEGACY,_3D,1,_GL)
+LinExtBench(3,DomainLFGrad,  FULL,_3D,1,_GL)
 
-/// 3D Grad Vector linear form bench
-LinExtBench(4,VectorDomainLFGrad,LEGACY,3,144)
-LinExtBench(4,VectorDomainLFGrad,FULL,3,144)
+/// Vector Grad linear form bench & Gauss-Legendre, q=p+2
+LinExtBench(4,VectorDomainLFGrad,LEGACY,_2D,VDIM,_GL)
+LinExtBench(4,VectorDomainLFGrad,  FULL,_2D,VDIM,_GL)
+LinExtBench(4,VectorDomainLFGrad,LEGACY,_3D,VDIM,_GL)
+LinExtBench(4,VectorDomainLFGrad,  FULL,_3D,VDIM,_GL)
 
 /** ****************************************************************************
  * @brief main entry point
