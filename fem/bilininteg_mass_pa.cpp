@@ -1207,10 +1207,11 @@ static void ApplyMass(const int ne,
    config_is_tensor<IsTensor> param2;
    config_dofs_is<Dofs> param3;
    config_quads_is<Quads> param4;
-   config_static_device_tensor_is<
-   ThreadTensor<Dim>::template static_type
-   > param5;
-   auto config  = MakeConfig(dofs, quads, param1, param2, param3, param4, param5);
+   // config_static_device_tensor_is<
+   // ThreadTensor<Dim>::template static_type
+   // > param5;
+   auto config  = MakeConfig(dofs, quads, param1, param2, param3,
+                             param4);//, param5);
    auto B       = MakeBasis(config, b.Read(), bt.Read());
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
    const auto D = MakeQData<0>(config, d.Read(), ne);

@@ -109,6 +109,7 @@ private:
    class Init
    {
    public:
+      MFEM_HOST_DEVICE
       static inline int result(int* sizes, T first, Args... args)
       {
          sizes[N - 1] = first;
@@ -121,6 +122,7 @@ private:
    class Init<Dim, Dim, T, Args...>
    {
    public:
+      MFEM_HOST_DEVICE
       static inline int result(int* sizes, T first, Args... args)
       {
          sizes[Dim - 1] = first;
