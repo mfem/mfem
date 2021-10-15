@@ -86,6 +86,11 @@ TEST_CASE("Simple SubMesh construction", "[SubMesh]")
 
    SubMesh submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
 
+   out << "SubMesh statistics:\n"
+     << "NE: " << submesh.GetNE() << "\n"
+     << "NVTX: " << submesh.GetNV() << "\n"
+     << std::endl;
+
    L2_FECollection fec_sub(0, 2);
    FiniteElementSpace l2fes_sub(&submesh, &fec_sub);
    GridFunction attributes_sub_gf(&l2fes_sub);
