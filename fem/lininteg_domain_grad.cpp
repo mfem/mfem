@@ -28,7 +28,7 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
                                       const double *jacobians,
                                       const double *weights,
                                       const Vector &coeff,
-                                      double* __restrict y)
+                                      double *y)
 {
    constexpr int DIM = 2;
 
@@ -65,7 +65,7 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
       double (*QQ1)[Q1D] = (double (*)[Q1D]) sm0[1];
 
       double (*DQ0)[Q1D] = (double (*)[Q1D]) sm1[0];
-      double (*DQ1)[D1D] = (double (*)[D1D]) sm1[1];
+      double (*DQ1)[Q1D] = (double (*)[Q1D]) sm1[1];
 
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {

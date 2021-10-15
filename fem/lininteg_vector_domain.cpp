@@ -13,6 +13,9 @@
 #include "bilininteg.hpp"
 #include "../general/forall.hpp"
 
+#define MFEM_DEBUG_COLOR 118
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -28,6 +31,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         const Vector &coeff,
                                         double * __restrict y)
 {
+   //dbg("coeff.Size():%d vdim:%d",coeff.Size(),vdim);
    constexpr int DIM = 2;
 
    const bool cst_coeff = coeff.Size() == vdim;
@@ -53,7 +57,6 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
       MFEM_SHARED double sm1[Q1D*Q1D];
       double (*QQ)[Q1D] = (double (*)[Q1D]) (sm0);
       double (*QD)[D1D] = (double (*)[D1D]) (sm1);
-
 
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {

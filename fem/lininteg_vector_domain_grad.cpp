@@ -63,7 +63,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
       double (*QQ1)[Q1D] = (double (*)[Q1D]) sm0[1];
 
       double (*DQ0)[Q1D] = (double (*)[Q1D]) sm1[0];
-      double (*DQ1)[D1D] = (double (*)[D1D]) sm1[1];
+      double (*DQ1)[Q1D] = (double (*)[Q1D]) sm1[1];
 
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
