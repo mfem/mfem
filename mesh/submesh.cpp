@@ -32,13 +32,12 @@ struct UniqueIndexGenerator
 
    int Get(int i)
    {
-     auto f = idx.find(i);
-     if (f == idx.end())  
-     {
-       return -1;
-     } 
-
-     return (*f).second;
+      auto f = idx.find(i);
+      if (f == idx.end())
+      {
+         return -1;
+      }
+      return (*f).second;
    }
 
    int GetInverse(int i)
@@ -46,17 +45,17 @@ struct UniqueIndexGenerator
       auto f = idx_inverse.find(i);
       if (f == idx_inverse.end())
       {
-	return -1;
+         return -1;
       }
-
       return (*f).second;
    }
 
    void BuildInverse()
    {
-     std::for_each(idx.begin(), idx.end(), [this] (const std::pair<int, int> &p) {
-	 idx_inverse.insert(std::make_pair(p.second, p.first));
-	 });
+      for (const auto &p : idx)
+      {
+         idx_inverse[p.second] = p.first;
+      }
    }
 
    void Reset()
@@ -68,87 +67,88 @@ struct UniqueIndexGenerator
 
    int Size()
    {
-     return idx.size();
-   }	
+      return counter;
+   }
 };
 
-SubMesh::SubMesh(Mesh &parent, From from, Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
+SubMesh::SubMesh(Mesh &parent, From from,
+                 Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
-  if (From::Domain) {
-    Dim = parent.Dimension();
-  } else {
-    Dim = parent.Dimension() - 1;
-  }
-  spaceDim = parent.SpaceDimension();
+   if (From::Domain)
+   {
+      Dim = parent.Dimension();
+   }
+   else
+   {
+      Dim = parent.Dimension() - 1;
+   }
+   spaceDim = parent.SpaceDimension();
 
-  UniqueIndexGenerator element_ids;
-  UniqueIndexGenerator vertex_ids;
-  for (int i = 0; i < parent.GetNE(); i++)
-  {
-    Element *pel = parent.GetElement(i);
-    int attr = pel->GetAttribute();
+   UniqueIndexGenerator element_ids;
+   UniqueIndexGenerator vertex_ids;
+   for (int i = 0; i < parent.GetNE(); i++)
+   {
+      Element *pel = parent.GetElement(i);
+      int attr = pel->GetAttribute();
 
-    bool in_subdomain = false;
-    for (int a = 0; a < attributes.Size(); a++)
-    {
-      if (attr == attributes[a])
+      bool in_subdomain = false;
+      for (int a = 0; a < attributes.Size(); a++)
       {
-	in_subdomain = true;
-	break;
+         if (attr == attributes[a])
+         {
+            in_subdomain = true;
+            break;
+         }
       }
-    }
-    if (in_subdomain)
-    {
-      element_ids.Add(i);
-    
-      Array<int> v;
-      pel->GetVertices(v);
-      
-      for (int i = 0; i < v.Size(); i++)
+      if (in_subdomain)
       {
-	vertex_ids.Add(v[i]);
+         element_ids.Add(i);
+
+         Array<int> v;
+         pel->GetVertices(v);
+
+         for (int i = 0; i < v.Size(); i++)
+         {
+            vertex_ids.Add(v[i]);
+         }
       }
-    }
-  }
+   }
 
-  element_ids.BuildInverse();
-  vertex_ids.BuildInverse();
+   element_ids.BuildInverse();
+   vertex_ids.BuildInverse();
 
-  InitMesh(Dim, spaceDim, element_ids.Size(), vertex_ids.Size(), 0);
+   InitMesh(Dim, spaceDim, element_ids.Size(), vertex_ids.Size(), 0);
 
-  // Add vertices
-  for (int i = 0; i < vertex_ids.Size(); i++)
-  {
-    int parent_vtx_id = vertex_ids.GetInverse(i);
-    if (vertex_ids.Get(parent_vtx_id) > NumOfVertices)
-    {
+   // Add vertices
+   for (int i = 0; i < vertex_ids.Size(); i++)
+   {
+      int parent_vtx_id = vertex_ids.GetInverse(i);
       AddVertex(parent.GetVertex(parent_vtx_id));
-    }
-  }
+   }
 
-  // Add elements
-  for (int i = 0; i < element_ids.Size(); i++)
-  {
-    int parent_element_id = element_ids.GetInverse(i);
+   // Add elements
+   for (int i = 0; i < element_ids.Size(); i++)
+   {
+      int parent_element_id = element_ids.GetInverse(i);
 
-    Element *parent_el = parent.GetElement(parent_element_id);
-    Element *el = NewElement(parent_el->GetType());
+      Element *parent_el = parent.GetElement(parent_element_id);
+      Element *el = NewElement(parent_el->GetType());
 
-    Array<int> parent_v;
-    parent_el->GetVertices(parent_v);
-    Array<int> v(parent_v.Size());
-    for (int j = 0; j < parent_v.Size(); j++)
-    {
-      v[j] = vertex_ids.Get(parent_v[j]);
-    }
+      Array<int> parent_v;
+      parent_el->GetVertices(parent_v);
+      Array<int> v(parent_v.Size());
+      for (int j = 0; j < parent_v.Size(); j++)
+      {
+         v[j] = vertex_ids.Get(parent_v[j]);
+      }
 
-    el->SetVertices(v);
-    AddElement(el);
-  }
+      el->SetVertices(v);
+      AddElement(el);
+   }
 
-  SetMeshGen();
-  CheckElementOrientation();
-  Finalize();
+   SetMeshGen();
+   CheckElementOrientation();
+   Finalize();
 }
 
 SubMesh::~SubMesh() {}
