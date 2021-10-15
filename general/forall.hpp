@@ -190,7 +190,7 @@ template <>
 struct RajaCuWrap<1>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap1D<BLCK>(N, d_body);
@@ -201,7 +201,7 @@ template <>
 struct RajaCuWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap2D(N, d_body, X, Y, Z);
@@ -212,7 +212,7 @@ template <>
 struct RajaCuWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap3D(N, d_body, X, Y, Z, G);
@@ -292,7 +292,7 @@ template <>
 struct RajaHipWrap<1>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap1D<BLCK>(N, d_body);
@@ -303,7 +303,7 @@ template <>
 struct RajaHipWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap2D(N, d_body, X, Y, Z);
@@ -314,7 +314,7 @@ template <>
 struct RajaHipWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap3D(N, d_body, X, Y, Z, G);
@@ -413,7 +413,7 @@ template <>
 struct CuWrap<1>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap1D<BLCK>(N, d_body);
@@ -424,7 +424,7 @@ template <>
 struct CuWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap2D(N, d_body, X, Y, Z);
@@ -435,7 +435,7 @@ template <>
 struct CuWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap3D(N, d_body, X, Y, Z, G);
@@ -508,7 +508,7 @@ template <>
 struct HipWrap<1>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap1D<BLCK>(N, d_body);
@@ -519,7 +519,7 @@ template <>
 struct HipWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap2D(N, d_body, X, Y, Z);
@@ -530,7 +530,7 @@ template <>
 struct HipWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   void operator()(const int N, DBODY &&d_body,
+   static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap3D(N, d_body, X, Y, Z, G);
@@ -558,7 +558,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-      return RajaCuWrap<DIM>(N, d_body, X, Y, Z, G);
+      return RajaCuWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -566,7 +566,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_HIP is allowed, use it
    if (Device::Allows(Backend::RAJA_HIP))
    {
-      return RajaHipWrap<DIM>(N, d_body, X, Y, Z, G);
+      return RajaHipWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -574,7 +574,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-      return CuWrap<DIM>(N, d_body, X, Y, Z, G);
+      return CuWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -582,7 +582,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
-      return HipWrap<DIM>(N, d_body, X, Y, Z, G);
+      return HipWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
