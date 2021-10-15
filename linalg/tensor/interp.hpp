@@ -532,7 +532,8 @@ auto operator*(const Basis &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // Z Contraction
-   Static2dThreadDTensor<Q1D,Q1D,Q1D> QQQ;
+   constexpr int batchsize = 1;
+   Static2dThreadDTensor<batchsize,Q1D,Q1D,Q1D> QQQ;
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -654,7 +655,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // Z Contraction
-   Static2dThreadDTensor<D1D,D1D,D1D> y;
+   constexpr int batchsize = 1;
+   Static2dThreadDTensor<batchsize,D1D,D1D,D1D> y;
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
