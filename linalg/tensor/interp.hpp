@@ -448,7 +448,6 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
 {
-   constexpr int Dim = 3;
    constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto B = basis.GetB(s_B);
