@@ -753,7 +753,7 @@ The specific libraries and their options are:
   Umpire requires camp when the Umpire version is >= 3.0.0.
   URL: https://github.com/LLNL/Umpire
   Options: UMPIRE_DIR, UMPIRE_OPT, UMPIRE_LIB.
-  Versions: Umpire >= 2.0.0.
+  Versions: Umpire >= 3.0.0.
 
 - Benchmark, used when MFEM_USE_BENCHMARK = YES.
   URL: https://github.com/google/benchmark

@@ -18,6 +18,9 @@ Version 4.3.1 (development)
 
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
+- Coefficient::SetTime now propagates the new time into internally stored
+  Coefficient objects.
+
 - Added initial support for google-benchmarks in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
@@ -306,7 +309,7 @@ Miscellaneous
   * HYPRE >= 2.22.0 for CUDA support
   * libCEED >= 0.8
   * PETSc >= 3.15.0 for CUDA support
-  * RAJA >= 0.13.0
+  * RAJA >= 0.14.0
   see INSTALL for more details.
 
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
