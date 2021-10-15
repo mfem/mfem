@@ -23,7 +23,7 @@ TEST_CASE("Simple SubMesh construction", "[SubMesh]")
    // topology
    //
    // +--------------------------+
-   // |                 |
+   // |                          |
    // |     +-------------+      |
    // |     |             |      |
    // |     |     2       |  1   |
@@ -73,7 +73,7 @@ TEST_CASE("Simple SubMesh construction", "[SubMesh]")
    GridFunction attributes_gf(&l2fes);
    attributes_gf.ProjectCoefficient(attributes_coeff);
 
-   ParaViewDataCollection pvdc("test_submesh_output", &mesh);
+   ParaViewDataCollection pvdc("test_submesh_mesh_output", &mesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(false);
    pvdc.SetCycle(0);
@@ -82,7 +82,19 @@ TEST_CASE("Simple SubMesh construction", "[SubMesh]")
    pvdc.Save();
 
    Array<int> subdomain_attributes(1);
-   subdomain_attributes[0] = 1;
+   subdomain_attributes[0] = 2;
 
    SubMesh submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+
+   L2_FECollection fec_sub(0, 2);
+   FiniteElementSpace l2fes_sub(&submesh, &fec_sub);
+   GridFunction attributes_sub_gf(&l2fes_sub);
+
+   ParaViewDataCollection submesh_pvdc("test_submesh_submesh_output", &submesh);
+   submesh_pvdc.SetDataFormat(VTKFormat::BINARY32);
+   submesh_pvdc.SetHighOrderOutput(false);
+   submesh_pvdc.SetCycle(0);
+   submesh_pvdc.SetTime(0.0);
+   submesh_pvdc.RegisterField("attributes", &attributes_sub_gf);
+   submesh_pvdc.Save();
 }

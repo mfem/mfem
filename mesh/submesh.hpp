@@ -21,6 +21,13 @@ namespace mfem
 class SubMesh : public Mesh
 {
 public:
+   // Indicator from which part of the parent Mesh the SubMesh is created.
+   enum From
+   {
+      Domain,
+      Boundary
+   };
+
    SubMesh(SubMesh &&submesh) = default;
 
    SubMesh& operator=(SubMesh &&submesh) = delete;
@@ -47,10 +54,12 @@ public:
 
 private:
    // Private constructor
-   SubMesh(Mesh &parent, Array<int> attributes, Array<int> element_ids);
+   SubMesh(Mesh &parent, From from, Array<int> element_ids);
 
    // The parent Mesh
    Mesh &parent_;
+
+   From from_;
 
    Array<int> attributes_;
    Array<int> element_ids_;
