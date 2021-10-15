@@ -32,15 +32,15 @@ public:
    /// Default constructor
    DeviceTensor() = delete;
 
-   /// Constructor to initialize a tensor from the Scalar array _data
-   template <typename... Args>
-   DeviceTensor(Scalar* _data, Args... args)
+   /// Constructor to initialize a tensor from the Scalar array data_
+   template <typename... Args> MFEM_HOST_DEVICE
+   DeviceTensor(Scalar* data_, Args... args)
    {
       static_assert(sizeof...(args) == Rank, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Rank, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? _data : NULL;
+      data = (capacity > 0) ? data_ : NULL;
    }
 
    /// Copy constructor
@@ -55,7 +55,7 @@ public:
    }
 
    /// Conversion to `Scalar *`.
-   inline operator Scalar *() const { return data; }
+   MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE inline
@@ -80,11 +80,11 @@ private:
       MFEM_HOST_DEVICE
       static inline int result(const int* sizes, T first, Args... args)
       {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
          MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
-   #endif
+#endif
          return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
-               ::result(sizes, args...);
+                ::result(sizes, args...);
       }
    };
 
@@ -96,9 +96,9 @@ private:
       MFEM_HOST_DEVICE
       static inline int result(const int* sizes, T first, Args... args)
       {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
          MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
-   #endif
+#endif
          return first;
       }
    };
@@ -145,8 +145,16 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 // }
 
 typedef DeviceTensor<1,int> DeviceArray;
+typedef DeviceTensor<1,const int> ConstDeviceArray;
+
 typedef DeviceTensor<1,double> DeviceVector;
+typedef DeviceTensor<1,const double> ConstDeviceVector;
+
 typedef DeviceTensor<2,double> DeviceMatrix;
+typedef DeviceTensor<2,const double> ConstDeviceMatrix;
+
+typedef DeviceTensor<3,double> DeviceCube;
+typedef DeviceTensor<3,const double> ConstDeviceCube;
 
 template <int Quads, int Dofs>
 struct DeviceBasis

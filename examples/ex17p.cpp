@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace fespace(&pmesh, &fec, dim, Ordering::byVDIM);
 
-   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (mpi.Root())
    {
       cout << "Number of finite element unknowns: " << glob_size

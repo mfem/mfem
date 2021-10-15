@@ -17,6 +17,7 @@ list(APPEND SRCS
   error.cpp
   gecko.cpp
   globals.cpp
+  hash.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp

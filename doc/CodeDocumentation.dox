@@ -96,6 +96,8 @@ namespace mfem {
  * - <a class="el" href="ex27p_8cpp_source.html">Example 27p</a>: parallel boundary conditions for the Laplace problem
  * - <a class="el" href="ex28_8cpp_source.html">Example 28</a>: sliding contact in elasticity
  * - <a class="el" href="ex28p_8cpp_source.html">Example 28p</a>: parallel sliding contact in elasticity
+ * - <a class="el" href="ex29_8cpp_source.html">Example 29</a>: Laplace solve on a 3D-embedded surface
+ * - <a class="el" href="ex29p_8cpp_source.html">Example 29p</a>: parallel Laplace solve on a 3D-embedded surface
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
@@ -187,7 +189,9 @@ namespace mfem {
  * - <a class="el" href="field-diff_8cpp_source.html">Field Diff</a>: compare grid functions on different meshes
  * - <a class="el" href="field-interp_8cpp_source.html">Field Interp</a>: transfer a grid functions between meshes
  * - <a class="el" href="distance_8cpp_source.html">Distance</a>: finite element distance function solver
+ * - <a class="el" href="diffusion_8cpp_source.html">Shifted Diffusion</a>: shifted boundary diffusion solver
  * - <a class="el" href="distance_8cpp_source.html">Block Solvers</a>: comparison of saddle point system solvers
+ * - <a class="el" href="parheat_8cpp_source.html">Optimization gradients</a>: Gradients of PDE-constrained function
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *

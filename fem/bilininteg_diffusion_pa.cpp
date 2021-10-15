@@ -133,7 +133,7 @@ void PADiffusionSetup2D<2>(const int Q1D,
                D(qx,qy,0,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
                D(qx,qy,1,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
                D(qx,qy,2,e) = w_detJ * (symmetric ? (-J21*R12 + J11*R22) :
-               (J22*R12 - J12*R22)); // 2,2 or 1,2
+                                        (J22*R12 - J12*R22)); // 2,2 or 1,2
                if (!symmetric)
                {
                   D(qx,qy,3,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
@@ -359,6 +359,8 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -379,7 +381,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    const int sdim = mesh->SpaceDimension();
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
@@ -496,8 +498,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
    }
-   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
-                   Device::GetDeviceMemoryType());
+   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne, mt);
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }
@@ -1856,7 +1857,7 @@ static void ApplyDiff(const int ne,
    config_dofs_is<Dofs> param3;
    config_quads_is<Quads> param4;
    config_static_device_tensor_is<
-      ThreadTensor<Dim>::template static_type
+   ThreadTensor<Dim>::template static_type
    > param5;
    auto config  = MakeConfig(dofs, quads, param1, param2, param3, param4, param5);
    auto B       = MakeBasis(config, b.Read(), bt.Read(), g.Read(), gt.Read());
@@ -1922,7 +1923,7 @@ static void PADiffusionApply(const int dim,
          case 0x77: return ApplyDiff<2,0,true,7,7,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x88: return ApplyDiff<2,0,true,8,8,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x99: return ApplyDiff<2,0,true,9,9,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
-         // default:   return ApplyDiff<2,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+            // default:   return ApplyDiff<2,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
 
@@ -1948,7 +1949,7 @@ static void PADiffusionApply(const int dim,
          case 0x67: return ApplyDiff<3,0,true,6,7>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x78: return ApplyDiff<3,0,true,7,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x89: return ApplyDiff<3,0,true,8,9>(NE,symm,B,G,Bt,Gt,D,X,Y);
-         // default:   return ApplyDiff<3,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+            // default:   return ApplyDiff<3,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");

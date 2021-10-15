@@ -117,6 +117,9 @@
 // Enable the use of SIMD in the high performance templated classes
 // #define MFEM_USE_SIMD
 
+// Enable FMS support
+// #define MFEM_USE_FMS
+
 // Enable Conduit support
 // #define MFEM_USE_CONDUIT
 
@@ -176,5 +179,8 @@
 
 // Enable interface to the MKL CPardiso library.
 // #define MFEM_USE_MKL_CPARDISO
+
+// Enable functionality based on the Google Benchmark library.
+// #define MFEM_USE_BENCHMARK
 
 #endif // MFEM_CONFIG_HEADER

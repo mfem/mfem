@@ -79,24 +79,24 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
    el_l2dof_.reserve(num_refine+1);
    el_l2dof_.push_back(ElemToDof(*coarse_l2_fes_));
 
-   data_.agg_hdivdof.SetSize(num_refine);
-   data_.agg_l2dof.SetSize(num_refine);
-   data_.P_hdiv.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
-   data_.P_l2.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
-   data_.Q_l2.SetSize(num_refine);
+   data_.agg_hdivdof.resize(num_refine);
+   data_.agg_l2dof.resize(num_refine);
+   data_.P_hdiv.resize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+   data_.P_l2.resize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+   data_.Q_l2.resize(num_refine);
    hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
-   data_.C.SetSize(num_refine+1);
+   data_.C.resize(num_refine+1);
 
    hcurl_fes_.reset(new ParFiniteElementSpace(mesh, hcurl_fec_.get()));
    coarse_hcurl_fes_.reset(new ParFiniteElementSpace(*hcurl_fes_));
-   data_.P_hcurl.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+   data_.P_hcurl.resize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
 }
 
 SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
                                const SparseMatrix& agg_elem,
                                const SparseMatrix& elem_dof,
                                const HypreParMatrix& dof_truedof,
-                               Array<int>& agg_starts)
+                               Array<HYPRE_Int>& agg_starts)
 {
    OperatorPtr agg_dof(Mult(agg_elem, elem_dof));
    SparseMatrix& agg_dof_ref = *agg_dof.As<SparseMatrix>();
@@ -131,7 +131,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
 
 void DFSSpaces::MakeDofRelationTables(int level)
 {
-   Array<int> agg_starts(Array<int>(l2_0_fes_->GetDofOffsets(), 2));
+   Array<HYPRE_Int> agg_starts(Array<HYPRE_Int>(l2_0_fes_->GetDofOffsets(), 2));
    auto& elem_agg = (const SparseMatrix&)*l2_0_fes_->GetUpdateOperator();
    OperatorPtr agg_elem(Transpose(elem_agg));
    SparseMatrix& agg_el = *agg_elem.As<SparseMatrix>();
@@ -157,7 +157,7 @@ void DFSSpaces::CollectDFSData()
       {
          P.As<HypreParMatrix>()->DropSmallEntries(1e-16);
       }
-      (level_ < data_.P_l2.Size()-1) ? cfes->Update() : cfes.reset();
+      (level_ < (int)data_.P_l2.size()-1) ? cfes->Update() : cfes.reset();
    };
 
    GetP(data_.P_hdiv[level_], coarse_hdiv_fes_, *hdiv_fes_, true);
@@ -176,7 +176,7 @@ void DFSSpaces::CollectDFSData()
 
    ++level_;
 
-   if (level_ == data_.P_l2.Size()) { DataFinalize(); }
+   if (level_ == (int)data_.P_l2.size()) { DataFinalize(); }
 }
 
 void DFSSpaces::DataFinalize()
@@ -188,7 +188,7 @@ void DFSSpaces::DataFinalize()
    OperatorPtr W(mass.LoseMat());
 
    SparseMatrix P_l2;
-   for (int l = data_.P_l2.Size()-1; l >= 0; --l)
+   for (int l = (int)data_.P_l2.size()-1; l >= 0; --l)
    {
       data_.P_l2[l].As<HypreParMatrix>()->GetDiag(P_l2);
       OperatorPtr PT_l2(Transpose(P_l2));
@@ -263,7 +263,7 @@ SaddleSchwarzSmoother::SaddleSchwarzSmoother(const HypreParMatrix& M,
 
    DenseMatrix B_loc, M_loc;
 
-   for (int agg = 0; agg < solvers_loc_.Size(); agg++)
+   for (int agg = 0; agg < (int)solvers_loc_.size(); agg++)
    {
       GetRowColumnsRef(agg_hdivdof_, agg, hdivdofs_loc_);
       GetRowColumnsRef(agg_l2dof_, agg, l2dofs_loc_);
@@ -291,7 +291,7 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
 
    Pi_x.GetBlock(1) -= coarse_l2_projection;
 
-   for (int agg = 0; agg < solvers_loc_.Size(); agg++)
+   for (int agg = 0; agg < (int)solvers_loc_.size(); agg++)
    {
       GetRowColumnsRef(agg_hdivdof_, agg, hdivdofs_loc_);
       GetRowColumnsRef(agg_l2dof_, agg, l2dofs_loc_);
@@ -348,16 +348,16 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DFSData& data)
    : DarcySolver(M.NumRows(), B.NumRows()), data_(data), param_(data.param),
      BT_(B.Transpose()), BBT_solver_(B, param_.BBT_solve_param),
-     ops_offsets_(data.P_l2.Size()+1), ops_(ops_offsets_.Size()),
+     ops_offsets_(data.P_l2.size()+1), ops_(ops_offsets_.size()),
      blk_Ps_(ops_.Size()-1), smoothers_(ops_.Size())
 {
-   ops_offsets_.Last().MakeRef(DarcySolver::offsets_);
-   ops_.Last() = new BlockOperator(ops_offsets_.Last());
+   ops_offsets_.back().MakeRef(DarcySolver::offsets_);
+   ops_.Last() = new BlockOperator(ops_offsets_.back());
    ops_.Last()->SetBlock(0, 0, const_cast<HypreParMatrix*>(&M));
    ops_.Last()->SetBlock(1, 0, const_cast<HypreParMatrix*>(&B));
    ops_.Last()->SetBlock(0, 1, BT_.Ptr());
 
-   for (int l = data.P_l2.Size(); l >= 0; --l)
+   for (int l = data.P_l2.size(); l >= 0; --l)
    {
       auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
       auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
@@ -429,7 +429,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    own_smoothers = true;
    own_Ps = true;
 
-   if (data_.P_l2.Size() == 0) { return; }
+   if (data_.P_l2.size() == 0) { return; }
 
    if (param_.coupled_solve)
    {
@@ -440,12 +440,12 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    }
    else
    {
-      Array<HypreParMatrix*> ops(data_.P_hcurl.Size()+1);
+      Array<HypreParMatrix*> ops(data_.P_hcurl.size()+1);
       Array<Solver*> smoothers(ops.Size());
-      Array<HypreParMatrix*> Ps(data_.P_hcurl.Size());
+      Array<HypreParMatrix*> Ps(data_.P_hcurl.size());
       own_Ps = false;
 
-      HypreParMatrix& C_finest = *data.C.Last().As<HypreParMatrix>();
+      HypreParMatrix& C_finest = *data.C.back().As<HypreParMatrix>();
       ops.Last() = TwoStepsRAP(C_finest, M, C_finest);
       ops.Last()->EliminateZeroRows();
       ops.Last()->DropSmallEntries(1e-14);
@@ -485,16 +485,20 @@ DivFreeSolver::~DivFreeSolver()
 
 void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
 {
-   Array<Vector> rhss(smoothers_.Size());
-   Array<Vector> sols(smoothers_.Size());
+   std::vector<Vector> rhss(smoothers_.Size());
+   std::vector<Vector> sols(smoothers_.Size());
 
-   rhss.Last().SetDataAndSize(const_cast<Vector&>(rhs), rhs.Size());
-   sols.Last().SetDataAndSize(sol, sol.Size());
+   rhss.back().SetDataAndSize(const_cast<Vector&>(rhs), rhs.Size());
+   sols.back().SetDataAndSize(sol, sol.Size());
 
    for (int l = blk_Ps_.Size()-1; l >= 0; --l)
    {
       rhss[l].SetSize(blk_Ps_[l]->NumCols());
       sols[l].SetSize(blk_Ps_[l]->NumCols());
+
+      sols[l] = 0.0;
+      rhss[l] = 0.0;
+
       blk_Ps_[l]->MultTranspose(rhss[l+1], rhss[l]);
    }
 
@@ -513,14 +517,14 @@ void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
 
 void DivFreeSolver::SolveDivFree(const Vector &rhs, Vector& sol) const
 {
-   Vector rhs_divfree(data_.C.Last()->NumCols());
-   data_.C.Last()->MultTranspose(rhs, rhs_divfree);
+   Vector rhs_divfree(data_.C.back()->NumCols());
+   data_.C.back()->MultTranspose(rhs, rhs_divfree);
 
    Vector potential_divfree(rhs_divfree.Size());
    potential_divfree = 0.0;
    solver_->Mult(rhs_divfree, potential_divfree);
 
-   data_.C.Last()->Mult(potential_divfree, sol);
+   data_.C.back()->Mult(potential_divfree, sol);
 }
 
 void DivFreeSolver::SolvePotential(const Vector& rhs, Vector& sol) const

@@ -154,7 +154,10 @@ public:
    void SubDofOrder(Geometry::Type Geom, int SDim, int Info,
                     Array<int> &dofs) const;
 
-   /// Variable order version of FiniteElementForGeometry
+   /// Variable order version of FiniteElementForGeometry().
+   /** The order parameter @a p represents the order of the highest-dimensional
+       FiniteElement%s the fixed-order collection we want to query. In general,
+       this order is different from the order of the returned FiniteElement. */
    const FiniteElement *GetFE(Geometry::Type geom, int p) const
    {
       if (p == base_p) { return FiniteElementForGeometry(geom); }
@@ -162,7 +165,11 @@ public:
       return var_orders[p]->FiniteElementForGeometry(geom);
    }
 
-   /// Variable order version of DofForGeometry
+   /// Variable order version of DofForGeometry().
+   /** The order parameter @a p represents the order of the highest-dimensional
+       FiniteElement%s the fixed-order collection we want to query. In general,
+       this order is different from the order of the element corresponding to
+       @a geom in that fixed-order collection. */
    int GetNumDof(Geometry::Type geom, int p) const
    {
       if (p == base_p) { return DofForGeometry(geom); }
@@ -170,26 +177,35 @@ public:
       return var_orders[p]->DofForGeometry(geom);
    }
 
-   /// Variable order version of DofOrderForOrientation
-   const int * GetDofOrdering(Geometry::Type geom, int p, int ori) const
+   /// Variable order version of DofOrderForOrientation().
+   /** The order parameter @a p represents the order of the highest-dimensional
+       FiniteElement%s the fixed-order collection we want to query. In general,
+       this order is different from the order of the element corresponding to
+       @a geom in that fixed-order collection. */
+   const int *GetDofOrdering(Geometry::Type geom, int p, int ori) const
    {
       if (p == base_p) { return DofOrderForOrientation(geom, ori); }
       if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
       return var_orders[p]->DofOrderForOrientation(geom, ori);
    }
 
-   /** Return the polynomial degree of the FE collection (corresponds also to
-       the degree returned by GetOrder() of the contained FiniteElements).*/
+   /** @brief Return the order (polynomial degree) of the FE collection,
+       corresponding to the order/degree returned by FiniteElement::GetOrder()
+       of the highest-dimensional FiniteElement%s defined by the collection. */
    int GetOrder() const { return base_p; }
 
+   /// Instantiate a new collection of the same type with a different order.
+   /** Generally, the order parameter @a p is NOT the same as the parameter @a p
+       used by some of the constructors of derived classes. Instead, this @a p
+       represents the order of the new FE collection as it will be returned by
+       its GetOrder() method. */
+   virtual FiniteElementCollection *Clone(int p) const;
+
 protected:
-   const int base_p;
+   const int base_p; ///< Order as returned by GetOrder().
 
    FiniteElementCollection() : base_p(0) {}
    FiniteElementCollection(int p) : base_p(p) {}
-
-   /// Instantiate a new collection of the same type with a different order.
-   virtual FiniteElementCollection* Clone(int p) const;
 
    void InitVarOrder(int p) const;
 
@@ -212,8 +228,7 @@ public:
                             const int btype = BasisType::GaussLobatto);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const
-   { return H1_Elements[GeomType]; }
+      Geometry::Type GeomType) const;
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return H1_dof[GeomType]; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
@@ -230,11 +245,10 @@ public:
    /// Variable order version of GetDofMap
    const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
-   virtual ~H1_FECollection();
-
-protected:
    FiniteElementCollection* Clone(int p) const
    { return new H1_FECollection(p, dim, b_type); }
+
+   virtual ~H1_FECollection();
 };
 
 /** @brief Arbitrary order H1-conforming (continuous) finite elements with
@@ -287,10 +301,7 @@ public:
                    const int map_type = FiniteElement::VALUE);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const
-   {
-      return L2_Elements[GeomType];
-   }
+      Geometry::Type GeomType) const;
    virtual int DofForGeometry(Geometry::Type GeomType) const
    {
       if (L2_Elements[GeomType])
@@ -313,11 +324,10 @@ public:
 
    int GetBasisType() const { return b_type; }
 
-   virtual ~L2_FECollection();
-
-protected:
    FiniteElementCollection* Clone(int p) const
    { return new L2_FECollection(p, dim, b_type, m_type); }
+
+   virtual ~L2_FECollection();
 };
 
 /// Declare an alternative name for L2_FECollection = DG_FECollection
@@ -327,6 +337,8 @@ typedef L2_FECollection DG_FECollection;
 class RT_FECollection : public FiniteElementCollection
 {
 protected:
+   int dim;
+   int cb_type; // closed BasisType
    int ob_type; // open BasisType
    char rt_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
@@ -334,27 +346,28 @@ protected:
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
 
    // Initialize only the face elements
-   void InitFaces(const int order, const int dim, const int map_type,
+   void InitFaces(const int p, const int dim, const int map_type,
                   const bool signs);
 
    // Constructor used by the constructor of the RT_Trace_FECollection and
    // DG_Interface_FECollection classes
-   RT_FECollection(const int order, const int dim, const int map_type,
+   RT_FECollection(const int p, const int dim, const int map_type,
                    const bool signs,
                    const int ob_type = BasisType::GaussLegendre);
 
 public:
-   /** Construct an RT<order> collection. Note that in accordance with the
-       literature, the polynomial degree of RT<order> collection is (order+1).
-       For example, RT0 collection contains vector-valued linear functions.
-       FiniteElementCollection::GetOrder() will then return 1. */
-   RT_FECollection(const int order, const int dim,
+   /// Construct an H(div)-conforming Raviart-Thomas FE collection, RT_p.
+   /** The index @a p corresponds to the space RT_p, as typically denoted in the
+       literature, which contains vector polynomials of degree up to (p+1).
+       For example, the RT_0 collection contains vector-valued linear functions
+       and, in particular, FiniteElementCollection::GetOrder() will,
+       correspondingly, return order 1. */
+   RT_FECollection(const int p, const int dim,
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const
-   { return RT_Elements[GeomType]; }
+      Geometry::Type GeomType) const;
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return RT_dof[GeomType]; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
@@ -362,6 +375,12 @@ public:
    virtual const char *Name() const { return rt_name; }
    virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
+
+   int GetClosedBasisType() const { return cb_type; }
+   int GetOpenBasisType() const { return ob_type; }
+
+   FiniteElementCollection* Clone(int p) const
+   { return new RT_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~RT_FECollection();
 };
@@ -392,6 +411,9 @@ public:
 class ND_FECollection : public FiniteElementCollection
 {
 protected:
+   int dim;
+   int cb_type; // closed BasisType
+   int ob_type; // open BasisType
    char nd_name[32];
    FiniteElement *ND_Elements[Geometry::NumGeom];
    int ND_dof[Geometry::NumGeom];
@@ -402,16 +424,23 @@ public:
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
-   const
-   { return ND_Elements[GeomType]; }
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return ND_dof[GeomType]; }
+
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
+
+   int GetClosedBasisType() const { return cb_type; }
+   int GetOpenBasisType() const { return ob_type; }
+
+   FiniteElementCollection* Clone(int p) const
+   { return new ND_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~ND_FECollection();
 };
@@ -459,6 +488,7 @@ public:
 
    /** @brief Get the order of the NURBS collection: either a positive number,
        when using fixed order, or VariableOrder. */
+   /** @note Not to be confused with FiniteElementCollection::GetOrder(). */
    int GetOrder() const { return mOrder; }
 
    /** @brief Set the order and the name, based on the given @a Order: either a
@@ -493,9 +523,10 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
    const Linear3DFiniteElement TetrahedronFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
-   const H1_WedgeElement WedgeFE;
+   const LinearWedgeFiniteElement WedgeFE;
+   const LinearPyramidFiniteElement PyramidFE;
 public:
-   LinearFECollection() : FiniteElementCollection(1), WedgeFE(1) { }
+   LinearFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -900,10 +931,11 @@ class Const3DFECollection : public FiniteElementCollection
 private:
    const P0TetFiniteElement TetrahedronFE;
    const P0HexFiniteElement ParallelepipedFE;
-   const L2_WedgeElement WedgeFE;
+   const P0WdgFiniteElement WedgeFE;
+   const P0PyrFiniteElement PyramidFE;
 
 public:
-   Const3DFECollection() : FiniteElementCollection(0), WedgeFE(0) { }
+   Const3DFECollection() : FiniteElementCollection(0) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -924,6 +956,8 @@ class LinearDiscont3DFECollection : public FiniteElementCollection
 {
 private:
    const Linear3DFiniteElement TetrahedronFE;
+   const LinearPyramidFiniteElement PyramidFE;
+   const LinearWedgeFiniteElement WedgeFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
 
 public:
@@ -1000,6 +1034,8 @@ class ND1_3DFECollection : public FiniteElementCollection
 private:
    const Nedelec1HexFiniteElement HexahedronFE;
    const Nedelec1TetFiniteElement TetrahedronFE;
+   const Nedelec1WdgFiniteElement WedgeFE;
+   const Nedelec1PyrFiniteElement PyramidFE;
 
 public:
    ND1_3DFECollection() : FiniteElementCollection(1) { }
@@ -1025,6 +1061,8 @@ private:
    const P0QuadFiniteElement QuadrilateralFE;
    const RT0HexFiniteElement HexahedronFE;
    const RT0TetFiniteElement TetrahedronFE;
+   const RT0WdgFiniteElement WedgeFE;
+   const RT0PyrFiniteElement PyramidFE;
 public:
    RT0_3DFECollection() : FiniteElementCollection(1) { }
 
@@ -1075,10 +1113,10 @@ public:
    Local_FECollection(const char *fe_name);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type _GeomType) const
-   { return (GeomType == _GeomType) ? Local_Element : NULL; }
-   virtual int DofForGeometry(Geometry::Type _GeomType) const
-   { return (GeomType == _GeomType) ? Local_Element->GetDof() : 0; }
+      Geometry::Type GeomType_) const
+   { return (GeomType == GeomType_) ? Local_Element : NULL; }
+   virtual int DofForGeometry(Geometry::Type GeomType_) const
+   { return (GeomType == GeomType_) ? Local_Element->GetDof() : 0; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const
    { return NULL; }
