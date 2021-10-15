@@ -27,6 +27,28 @@ ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
    MFEM_VERIFY(!Serial(), "internal MFEM error");
 }
 
+ParNonlinearForm::ParNonlinearForm(ParNonlinearForm &&other)
+   : NonlinearForm(std::move(other)), pGrad(other.pGrad.Type())
+{
+   X.MakeRef(other.fes, other.X.GetData());
+   other.X.MakeRef(other.fes, nullptr);
+   Y.MakeRef(other.fes, other.Y.GetData());
+   other.Y.MakeRef(other.fes, nullptr);
+}
+
+ParNonlinearForm& ParNonlinearForm::operator=(ParNonlinearForm &&other)
+{
+   if (this != &other)
+   {
+      NonlinearForm::operator=(std::move(other));
+      X.MakeRef(other.fes, other.X.GetData());
+      other.X.MakeRef(other.fes, nullptr);
+      Y.MakeRef(other.fes, other.Y.GetData());
+      other.Y.MakeRef(other.fes, nullptr);
+   }
+   return *this;
+}
+
 double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 {
    double loc_energy, glob_energy;

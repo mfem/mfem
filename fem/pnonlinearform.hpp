@@ -31,8 +31,8 @@ protected:
 
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf);
-   ParNonlinearForm(ParNonlinearForm &&other) = default;
-   ParNonlinearForm& operator=(ParNonlinearForm &&other) = default;
+   ParNonlinearForm(ParNonlinearForm &&other);
+   ParNonlinearForm& operator=(ParNonlinearForm &&other);
 
    ParFiniteElementSpace *ParFESpace() const
    { return (ParFiniteElementSpace *)fes; }
