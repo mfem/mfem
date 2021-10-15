@@ -42,26 +42,26 @@ struct get_grad_algo_v<Basis, Dofs,
 template <typename Basis, typename Dofs>
 struct get_grad_algo_v<Basis, Dofs,
    std::enable_if_t<
-      is_tensor_basis<Basis> &&
-      !(get_basis_dim<Basis> == 3 &&
-      is_device)
+      is_tensor_basis<Basis> //&&
+      // !(get_basis_dim<Basis> == 3 &&
+      // is_device)
       // !is_3d_threaded_tensor<Dofs>
    > >
 {
    static constexpr GradAlgo value = GradAlgo::Tensor;
 };
 
-template <typename Basis, typename Dofs>
-struct get_grad_algo_v<Basis, Dofs,
-   std::enable_if_t<
-      is_tensor_basis<Basis> &&
-      (get_basis_dim<Basis> == 3 &&
-      is_device)
-      // is_3d_threaded_tensor<Dofs>
-   > >
-{
-   static constexpr GradAlgo value = GradAlgo::Untensorized;
-};
+// template <typename Basis, typename Dofs>
+// struct get_grad_algo_v<Basis, Dofs,
+//    std::enable_if_t<
+//       is_tensor_basis<Basis> &&
+//       (get_basis_dim<Basis> == 3 &&
+//       is_device)
+//       // is_3d_threaded_tensor<Dofs>
+//    > >
+// {
+//    static constexpr GradAlgo value = GradAlgo::Untensorized;
+// };
 
 template <typename Basis, typename Dofs>
 constexpr GradAlgo get_grad_algo = get_grad_algo_v<Basis, Dofs>::value;

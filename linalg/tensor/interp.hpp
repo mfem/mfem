@@ -43,26 +43,26 @@ struct get_interp_algo_v<Basis, Dofs,
 template <typename Basis, typename Dofs>
 struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
-      is_tensor_basis<Basis> &&
-      !(get_basis_dim<Basis> == 3 &&
-      is_device)
+      is_tensor_basis<Basis> //&&
+      // !(get_basis_dim<Basis> == 3 &&
+      // is_device)
       // !is_3d_threaded_tensor<Dofs>
    > >
 {
    static constexpr InterpAlgo value = InterpAlgo::Tensor;
 };
 
-template <typename Basis, typename Dofs>
-struct get_interp_algo_v<Basis, Dofs,
-   std::enable_if_t<
-      is_tensor_basis<Basis> &&
-      (get_basis_dim<Basis> == 3 &&
-      is_device)
-      // is_3d_threaded_tensor<Dofs>
-   > >
-{
-   static constexpr InterpAlgo value = InterpAlgo::Untensorized;
-};
+// template <typename Basis, typename Dofs>
+// struct get_interp_algo_v<Basis, Dofs,
+//    std::enable_if_t<
+//       is_tensor_basis<Basis> &&
+//       (get_basis_dim<Basis> == 3 &&
+//       is_device)
+//       // is_3d_threaded_tensor<Dofs>
+//    > >
+// {
+//    static constexpr InterpAlgo value = InterpAlgo::Untensorized;
+// };
 
 template <typename Basis, typename Dofs>
 constexpr InterpAlgo get_interp_algo = get_interp_algo_v<Basis, Dofs>::value;
