@@ -252,6 +252,9 @@ public:
    /// Prints the locally owned rows in parallel
    void Print(const char *fname) const;
 
+   /// Reads a HypreParVector from files saved with HypreParVector::Print
+   void Read(MPI_Comm comm, const char *fname);
+
    /// Calls hypre's destroy function
    ~HypreParVector();
 
