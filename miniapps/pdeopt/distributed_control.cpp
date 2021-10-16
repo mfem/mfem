@@ -73,7 +73,7 @@ class ReducedSystemOperator;
  * 
  */
 
-double unit_ball(const Vector & x)
+double indicator_function(const Vector & x)
 {
    double x1 = x(0);
    double x2 = x(1);
@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // 3. Define the target function w.
-   FunctionCoefficient w_coeff(unit_ball);
+   FunctionCoefficient w_coeff(indicator_function);
    ConstantCoefficient negative_one(-1.0);
    ProductCoefficient negative_w_coeff(w_coeff, negative_one);
 
