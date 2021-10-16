@@ -82,7 +82,7 @@ double unit_ball(const Vector & x)
       x3 = x(2);
    }
    double r = sqrt(x1*x1 + x2*x2 + x3*x3);
-   if (r <= 1.0)
+   if (r <= 0.5)
    {
       return 1.0;
    }
@@ -95,14 +95,14 @@ double unit_ball(const Vector & x)
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
    double alpha = 1e-2;
-   double gamma = 1e-1;
-   int max_it = 1e1;
-   double tol = 1e-2;
+   double gamma = 1e0;
+   int max_it = 1e3;
+   double tol = 1e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -191,45 +191,42 @@ int main(int argc, char *argv[])
 
       // B. Solve state equation
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
 
       // C. Recover state variable
       a.RecoverFEMSolution(X, b, u);
 
       // D. Send the solution by socket to a GLVis server.
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream sol_sock(vishost, visport);
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << mesh << u << flush;
-      }
+      // if (visualization)
+      // {
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    socketstream sol_sock(vishost, visport);
+      //    sol_sock.precision(8);
+      //    sol_sock << "solution\n" << mesh << u << flush;
+      // }
 
       // E. Form adjoint equation
       LinearForm c(&state_fes);
       GridFunctionCoefficient u_coeff(&u);
-      u_coeff -= w_coeff;
       c.AddDomainIntegrator(new DomainLFIntegrator(u_coeff));
+      c.AddDomainIntegrator(new DomainLFIntegrator(w_coeff));
       c.Assemble();
       a.FormLinearSystem(ess_tdof_list, u, c, A, X, C);
 
       // F. Solve adjoint equation
-      PCG(*A, M, C, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, C, X, 0, 200, 1e-12, 0.0);
 
       // G. Recover adjoint variable
       a.RecoverFEMSolution(X, c, p);
 
       // H. Constuct gradient function (i.e., \alpha f + p)
-      grad = f_coeff;
+      grad.ProjectGridFunction(p);
+      grad /= alpha;
+      grad += f;
       grad *= alpha;
-      grad += p;
 
-      // I. Update control.
-      grad *= gamma;
-      f_coeff -= grad;
-      
-      // J. Exit if norm of grad is small enough.
+      // I. Compute norm of gradient.
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i=0; i < Geometry::NumGeom; ++i)
@@ -238,11 +235,26 @@ int main(int argc, char *argv[])
       }
       double norm = grad.ComputeL2Error(zero, irs);
 
+      // J. Update control.
+      grad *= gamma;
+      f -= grad;
+
+      // K. Exit if norm of grad is small enough.
+      mfem::out << "norm of gradient = " << norm << endl;
       if (norm < tol)
       {
          break;
       }
 
+   }
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << u << flush;
    }
 
    return 0;
