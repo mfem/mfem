@@ -68,17 +68,11 @@ TEST_CASE("Simple SubMesh construction", "[SubMesh]")
       tmp(i) = mesh.attributes[i];
    }
 
-   PWConstCoefficient attributes_coeff(tmp);
-
-   GridFunction attributes_gf(&l2fes);
-   attributes_gf.ProjectCoefficient(attributes_coeff);
-
    ParaViewDataCollection pvdc("test_submesh_output", &mesh);
-   pvdc.SetDataFormat(VTKFormat::BINARY32);
+   pvdc.SetDataFormat(VTKFormat::ASCII);
    pvdc.SetHighOrderOutput(false);
    pvdc.SetCycle(0);
    pvdc.SetTime(0.0);
-   pvdc.RegisterField("attributes", &attributes_gf);
    pvdc.Save();
 
    Array<int> subdomain_attributes(1);
@@ -91,13 +85,8 @@ TEST_CASE("Simple SubMesh construction", "[SubMesh]")
        << "NVTX: " << submesh.GetNV() << "\n"
        << std::endl;
 
-   L2_FECollection fec_sub(0, 2);
-   FiniteElementSpace l2fes_sub(&submesh, &fec_sub);
-   GridFunction attributes_sub_gf(&l2fes_sub);
-
    pvdc.SetMesh(&submesh);
    pvdc.SetCycle(1);
    pvdc.SetTime(1.0);
-   pvdc.RegisterField("attributes", &attributes_sub_gf);
    pvdc.Save();
 }
