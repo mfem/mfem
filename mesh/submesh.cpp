@@ -85,8 +85,7 @@ SubMesh::SubMesh(Mesh &parent, From from,
             submesh_v[iv] = submesh_vertex_id;
          }
 
-         Element *parent_el = parent.GetElement(i);
-         Element *el = NewElement(parent_el->GetType());
+         Element *el = NewElement(parent.GetElementType(i));
          el->SetVertices(submesh_v);
          AddElement(el);
       }
