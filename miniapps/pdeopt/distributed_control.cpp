@@ -98,8 +98,6 @@ double compute_energy(GridFunction u, FunctionCoefficient w_coeff, GridFunction 
    ConstantCoefficient zero(0.0);
    double energy = f.ComputeL2Error(zero);
    energy *= alpha;
-   // GridFunction target_mismatch = u;
-   // target_mismatch -= w;
    energy += u.ComputeL2Error(w_coeff);
    return energy/2.0;
 }
@@ -242,13 +240,6 @@ int main(int argc, char *argv[])
       grad *= alpha;
 
       // I. Compute norm of gradient.
-      // int order_quad = max(2, 2*order+1);
-      // const IntegrationRule *irs[Geometry::NumGeom];
-      // for (int i=0; i < Geometry::NumGeom; ++i)
-      // {
-      //    irs[i] = &(IntRules.Get(i, order_quad));
-      // }
-      // double norm = grad.ComputeL2Error(zero, irs);
       double norm = grad.ComputeL2Error(zero);
       double energy = compute_energy(u, w_coeff, f, alpha);
 
