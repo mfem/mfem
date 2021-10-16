@@ -84,7 +84,7 @@ double unit_ball(const Vector & x)
    double r = sqrt(x1*x1 + x2*x2 + x3*x3);
    if (r <= 0.5)
    {
-      return 1.0;
+      return -1.0;
    }
    else
    {
@@ -99,10 +99,10 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
-   double alpha = 1e-2;
-   double gamma = 1e0;
-   int max_it = 1e3;
-   double tol = 1e-6;
+   double alpha = 1e-4;
+   double gamma = 1e1;
+   int max_it = 1e4;
+   double tol = 1e-5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
    GridFunction f(&control_fes);
    u = 0.0;
    p = 0.0;
-   f = 1.0;
+   f = 0.0;
 
    // 9. Define the gradient function
    GridFunction grad(&control_fes);
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
       c.AddDomainIntegrator(new DomainLFIntegrator(u_coeff));
       c.AddDomainIntegrator(new DomainLFIntegrator(w_coeff));
       c.Assemble();
-      a.FormLinearSystem(ess_tdof_list, u, c, A, X, C);
+      a.FormLinearSystem(ess_tdof_list, p, c, A, X, C);
 
       // F. Solve adjoint equation
       PCG(*A, M, C, X, 0, 200, 1e-12, 0.0);
