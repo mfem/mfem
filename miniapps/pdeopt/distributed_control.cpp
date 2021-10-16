@@ -3,7 +3,8 @@
 // Compile with: make distributed_control
 //
 // Sample runs:
-//    distributed_control -m ../data/inline-quad.mesh
+//    distributed_control -r 3
+//    distributed_control -m ../../data/star.mesh -r 3
 //
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
@@ -14,7 +15,7 @@
 //                               u = 0    on \partial\Omega
 //         and            a <= f(x) <= b
 //
-//                where w = / 1   if | x | <= 1
+//                where w = / 1   if | x | <= 0.5
 //                          \ 0   otherwise
 //
 //
@@ -84,12 +85,23 @@ double unit_ball(const Vector & x)
    double r = sqrt(x1*x1 + x2*x2 + x3*x3);
    if (r <= 0.5)
    {
-      return -1.0;
+      return 1.0;
    }
    else
    {
       return 0.0;
    }
+}
+
+double compute_energy(GridFunction u, FunctionCoefficient w_coeff, GridFunction f, double alpha)
+{
+   ConstantCoefficient zero(0.0);
+   double energy = f.ComputeL2Error(zero);
+   energy *= alpha;
+   // GridFunction target_mismatch = u;
+   // target_mismatch -= w;
+   energy += u.ComputeL2Error(w_coeff);
+   return energy/2.0;
 }
 
 int main(int argc, char *argv[])
@@ -100,9 +112,10 @@ int main(int argc, char *argv[])
    int order = 2;
    bool visualization = true;
    double alpha = 1e-4;
-   double gamma = 1e1;
-   int max_it = 1e4;
-   double tol = 1e-5;
+   double gamma = 2e0;
+   double epsilon = 1e-1;
+   int max_it = 1e3;
+   double tol = 1e-4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -129,6 +142,8 @@ int main(int argc, char *argv[])
 
    // 3. Define the target function w.
    FunctionCoefficient w_coeff(unit_ball);
+   ConstantCoefficient negative_one(-1.0);
+   ProductCoefficient negative_w_coeff(w_coeff, negative_one);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -160,9 +175,9 @@ int main(int argc, char *argv[])
 
    // 7. Set up the bilinear form a(.,.) for the state and adjoint equation.
    BilinearForm a(&state_fes);
-   ConstantCoefficient one(1.0);
+   ConstantCoefficient diffusion_coeff(epsilon);
    ConstantCoefficient zero(0.0);
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
    a.Assemble();
    OperatorPtr A;
    Vector B, C, X;
@@ -197,20 +212,20 @@ int main(int argc, char *argv[])
       a.RecoverFEMSolution(X, b, u);
 
       // D. Send the solution by socket to a GLVis server.
-      // if (visualization)
-      // {
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
-      //    socketstream sol_sock(vishost, visport);
-      //    sol_sock.precision(8);
-      //    sol_sock << "solution\n" << mesh << u << flush;
-      // }
+      if (visualization && (k % int(max_it/5) == 0) )
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << mesh << u << flush;
+      }
 
       // E. Form adjoint equation
       LinearForm c(&state_fes);
       GridFunctionCoefficient u_coeff(&u);
       c.AddDomainIntegrator(new DomainLFIntegrator(u_coeff));
-      c.AddDomainIntegrator(new DomainLFIntegrator(w_coeff));
+      c.AddDomainIntegrator(new DomainLFIntegrator(negative_w_coeff));
       c.Assemble();
       a.FormLinearSystem(ess_tdof_list, p, c, A, X, C);
 
@@ -227,13 +242,15 @@ int main(int argc, char *argv[])
       grad *= alpha;
 
       // I. Compute norm of gradient.
-      int order_quad = max(2, 2*order+1);
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i=0; i < Geometry::NumGeom; ++i)
-      {
-         irs[i] = &(IntRules.Get(i, order_quad));
-      }
-      double norm = grad.ComputeL2Error(zero, irs);
+      // int order_quad = max(2, 2*order+1);
+      // const IntegrationRule *irs[Geometry::NumGeom];
+      // for (int i=0; i < Geometry::NumGeom; ++i)
+      // {
+      //    irs[i] = &(IntRules.Get(i, order_quad));
+      // }
+      // double norm = grad.ComputeL2Error(zero, irs);
+      double norm = grad.ComputeL2Error(zero);
+      double energy = compute_energy(u, w_coeff, f, alpha);
 
       // J. Update control.
       grad *= gamma;
@@ -241,6 +258,7 @@ int main(int argc, char *argv[])
 
       // K. Exit if norm of grad is small enough.
       mfem::out << "norm of gradient = " << norm << endl;
+      mfem::out << "energy = " << energy << endl;
       if (norm < tol)
       {
          break;
