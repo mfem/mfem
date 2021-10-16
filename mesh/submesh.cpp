@@ -18,62 +18,30 @@ struct UniqueIndexGenerator
 {
    int counter = 0;
    std::unordered_map<int,int> idx;
-   std::unordered_map<int,int> idx_inverse;
 
-   void Add(int i)
+   int Get(int i, bool &new_index)
    {
       auto f = idx.find(i);
       if (f == idx.end())
       {
          idx[i] = counter;
-         counter++;
+         new_index = true;
+         return counter++;
       }
-   }
-
-   int Get(int i)
-   {
-      auto f = idx.find(i);
-      if (f == idx.end())
+      else
       {
-         return -1;
+         new_index = false;
+         return (*f).second;
       }
-      return (*f).second;
-   }
-
-   int GetInverse(int i)
-   {
-      auto f = idx_inverse.find(i);
-      if (f == idx_inverse.end())
-      {
-         return -1;
-      }
-      return (*f).second;
-   }
-
-   void BuildInverse()
-   {
-      for (const auto &p : idx)
-      {
-         idx_inverse[p.second] = p.first;
-      }
-   }
-
-   void Reset()
-   {
-      counter = 0;
-      idx.clear();
-      idx_inverse.clear();
-   }
-
-   int Size()
-   {
-      return counter;
    }
 };
 
 SubMesh::SubMesh(Mesh &parent, From from,
                  Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
+   SetEmpty();
+   NumOfVertices = 0;
+
    if (From::Domain)
    {
       Dim = parent.Dimension();
@@ -84,7 +52,6 @@ SubMesh::SubMesh(Mesh &parent, From from,
    }
    spaceDim = parent.SpaceDimension();
 
-   UniqueIndexGenerator element_ids;
    UniqueIndexGenerator vertex_ids;
    for (int i = 0; i < parent.GetNE(); i++)
    {
@@ -102,50 +69,30 @@ SubMesh::SubMesh(Mesh &parent, From from,
       }
       if (in_subdomain)
       {
-         element_ids.Add(i);
-
          Array<int> v;
          pel->GetVertices(v);
+         Array<int> submesh_v(v.Size());
 
-         for (int i = 0; i < v.Size(); i++)
+         for (int iv = 0; iv < v.Size(); iv++)
          {
-            vertex_ids.Add(v[i]);
+            bool new_vertex;
+            int mesh_vertex_id = v[iv];
+            int submesh_vertex_id = vertex_ids.Get(mesh_vertex_id, new_vertex);
+            if (new_vertex)
+            {
+               AddVertex(parent.GetVertex(mesh_vertex_id));
+            }
+            submesh_v[iv] = submesh_vertex_id;
          }
+
+         Element *parent_el = parent.GetElement(i);
+         Element *el = NewElement(parent_el->GetType());
+         el->SetVertices(submesh_v);
+         AddElement(el);
       }
    }
 
-   element_ids.BuildInverse();
-   vertex_ids.BuildInverse();
-
-   InitMesh(Dim, spaceDim, element_ids.Size(), vertex_ids.Size(), 0);
-
-   // Add vertices
-   for (int i = 0; i < vertex_ids.Size(); i++)
-   {
-      int parent_vtx_id = vertex_ids.GetInverse(i);
-      AddVertex(parent.GetVertex(parent_vtx_id));
-   }
-
-   // Add elements
-   for (int i = 0; i < element_ids.Size(); i++)
-   {
-      int parent_element_id = element_ids.GetInverse(i);
-
-      Element *parent_el = parent.GetElement(parent_element_id);
-      Element *el = NewElement(parent_el->GetType());
-
-      Array<int> parent_v;
-      parent_el->GetVertices(parent_v);
-      Array<int> v(parent_v.Size());
-      for (int j = 0; j < parent_v.Size(); j++)
-      {
-         v[j] = vertex_ids.Get(parent_v[j]);
-      }
-
-      el->SetVertices(v);
-      AddElement(el);
-   }
-
+   SetAttributes();
    SetMeshGen();
    CheckElementOrientation();
    Finalize();
