@@ -18,6 +18,9 @@ Version 4.3.1 (development)
 
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
+- Coefficient::SetTime now propagates the new time into internally stored
+  Coefficient objects.
+
 - Added initial support for google-benchmarks in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
@@ -46,6 +49,11 @@ Version 4.3.1 (development)
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh
   output format if no physical groups are defined) are now successfully loaded,
   and elements are reassigned attribute number 1.
+
+- Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
+  hierarchy of spaces created by the element-based AMG (AMGe) methodology in
+  ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
+  miniapps/parelag directory for more details.
 
 - Fixed several MinGW build issues on Windows.
 
@@ -319,11 +327,6 @@ Miscellaneous
 - Added HIP support to the CMake build system.
 
 - Various other simplifications, extensions, and bugfixes in the code.
-
-- Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
-  hierarchy of spaces created by the element-based AMG (AMGe) methodology in
-  ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
-  miniapps/parelag directory for more details.
 
 API changes
 -----------
