@@ -65,7 +65,7 @@ struct LinExt
 
    LinExt(int problem, int order, bool test):
       problem(problem),
-      N(Device::IsEnabled() ? 32 : test?4:8),
+      N(Device::IsEnabled() ? test?8:32 : test?4:8),
       p(order),
       q(2*p + (gll?-1:3)),
       test(test),
