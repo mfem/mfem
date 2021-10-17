@@ -574,7 +574,7 @@ public:
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = mfem::out) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
    void PrintMM(std::ostream &out = mfem::out) const;

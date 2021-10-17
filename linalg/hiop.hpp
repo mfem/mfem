@@ -41,8 +41,8 @@ private:
    const OptimizationProblem &problem;
 
    // Local and global number of variables and constraints.
-   const long long ntdofs_loc, m_total;
-   long long ntdofs_glob;
+   const hiop::size_type ntdofs_loc, m_total;
+   hiop::size_type ntdofs_glob;
 
    // Initial guess.
    const Vector *x_start;
@@ -78,8 +78,7 @@ public:
         constr_vals(m_total), constr_grads(m_total, ntdofs_loc),
         constr_info_is_current(false)
    {
-      MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_LONG_LONG_INT,
-                    MPI_SUM, comm);
+      MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_HIOP_SIZE_TYPE, MPI_SUM, comm);
    }
 #endif
 
@@ -87,27 +86,27 @@ public:
 
    /** Extraction of problem dimensions:
     *  n is the number of variables, m is the number of constraints. */
-   virtual bool get_prob_sizes(long long int& n, long long int& m);
+   virtual bool get_prob_sizes(hiop::size_type& n, hiop::size_type& m);
 
    /** Provide an primal starting point. This point is subject to adjustments
     *  internally in HiOp. */
-   virtual bool get_starting_point(const long long &n, double *x0);
+   virtual bool get_starting_point(const hiop::size_type &n, double *x0);
 
-   virtual bool get_vars_info(const long long& n, double *xlow, double* xupp,
+   virtual bool get_vars_info(const hiop::size_type &n, double *xlow, double* xupp,
                               NonlinearityType* type);
 
    /** bounds on the constraints
     *  (clow<=-1e20 means no lower bound, cupp>=1e20 means no upper bound) */
-   virtual bool get_cons_info(const long long &m, double *clow, double *cupp,
+   virtual bool get_cons_info(const hiop::size_type &m, double *clow, double *cupp,
                               NonlinearityType* type);
 
    /** Objective function evaluation.
     *  Each rank returns the global objective value. */
-   virtual bool eval_f(const long long& n, const double *x, bool new_x,
+   virtual bool eval_f(const hiop::size_type &n, const double *x, bool new_x,
                        double& obj_value);
 
    /** Gradient of the objective function (local chunk). */
-   virtual bool eval_grad_f(const long long &n, const double *x, bool new_x,
+   virtual bool eval_grad_f(const hiop::size_type &n, const double *x, bool new_x,
                             double *gradf);
 
    /** Evaluates a subset of the constraints cons(x). The subset is of size
@@ -132,8 +131,9 @@ public:
     *  When MPI enabled, every rank populates cons, since the constraints are
     *  not distributed.
     */
-   virtual bool eval_cons(const long long &n, const long long &m,
-                          const long long &num_cons, const long long *idx_cons,
+   virtual bool eval_cons(const hiop::size_type &n, const hiop::size_type &m,
+                          const hiop::size_type &num_cons,
+                          const hiop::index_type *idx_cons,
                           const double *x, bool new_x, double *cons);
 
    /** Evaluates the Jacobian of the subset of constraints indicated by
@@ -147,9 +147,9 @@ public:
     *  When MPI enabled, each rank computes only the local columns of the
     *  Jacobian, that is the partials with respect to local variables.
     */
-   virtual bool eval_Jac_cons(const long long &n, const long long &m,
-                              const long long &num_cons,
-                              const long long *idx_cons,
+   virtual bool eval_Jac_cons(const hiop::size_type &n, const hiop::size_type &m,
+                              const hiop::size_type &num_cons,
+                              const hiop::index_type *idx_cons,
                               const double *x, bool new_x, double *Jac);
 
    /** Specifies column partitioning for distributed memory vectors.
@@ -158,7 +158,8 @@ public:
     *  Example: for a vector x of 6 entries (globally) on 3 ranks, the uniform
     *  column partitioning is cols=[0,2,4,6].
     */
-   virtual bool get_vecdistrib_info(long long global_n, long long *cols);
+   virtual bool get_vecdistrib_info(hiop::size_type global_n,
+                                    hiop::index_type *cols);
 
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm &comm_out)

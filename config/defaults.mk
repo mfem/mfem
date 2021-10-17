@@ -61,7 +61,7 @@ HIP_XLINKER   = -Wl,
 
 ifneq ($(NOTMAC),)
    AR      = ar
-   ARFLAGS = cruv
+   ARFLAGS = crv
    RANLIB  = ranlib
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
@@ -73,7 +73,7 @@ ifneq ($(NOTMAC),)
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
-   ARFLAGS = Scruv
+   ARFLAGS = Scrv
    RANLIB  = ranlib -no_warning_for_no_symbols
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = dylib
@@ -136,6 +136,7 @@ MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
+MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
@@ -150,6 +151,8 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_BENCHMARK     = NO
+MFEM_USE_PARELAG       = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -174,6 +177,10 @@ LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
+ifeq (YES,$(MFEM_USE_CUDA))
+   # This is only necessary when hypre is built with cuda:
+   HYPRE_LIB += -lcusparse -lcurand
+endif
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
@@ -357,6 +364,11 @@ endif
 MPFR_OPT =
 MPFR_LIB = -lmpfr
 
+# FMS and required libraries configuration
+FMS_DIR = $(MFEM_DIR)/../fms
+FMS_OPT = -I$(FMS_DIR)/include
+FMS_LIB = -Wl,-rpath,$(FMS_DIR)/lib -L$(FMS_DIR)/lib -lfms
+
 # Conduit and required libraries configuration
 CONDUIT_DIR = @MFEM_DIR@/../conduit
 CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit
@@ -419,6 +431,11 @@ CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
 CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
 
+# BENCHMARK library configuration
+BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
+BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
+BENCHMARK_LIB = -L$(BENCHMARK_DIR)/lib -lbenchmark -lpthread
+
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
 CEED_OPT = -I$(CEED_DIR)/include
@@ -448,6 +465,11 @@ MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# PARELAG library configuration
+PARELAG_DIR = @MFEM_DIR@/../parelag
+PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
+PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # If YES, enable some informational messages
 VERBOSE = NO
