@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   if (prob >3 || prob <0) prob = 0; // default problem = H1
+   if (prob >3 || prob <0) { prob = 0; } // default problem = H1
    if (prob == 3)
    {
       if (kappa < 0)
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
          gradu = new VectorFunctionCoefficient(dim,gradu_exact);
          b.AddDomainIntegrator(new DomainLFIntegrator(*f));
          b.AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(*scalar_u, one, sigma, kappa));
+            new DGDirichletLFIntegrator(*scalar_u, one, sigma, kappa));
          a.AddDomainIntegrator(new DiffusionIntegrator(one));
          a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
          a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
@@ -224,8 +224,8 @@ int main(int argc, char *argv[])
       }
 
       JumpScaling js(1.0, jump_scaling_type == 2 ? JumpScaling::P_SQUARED_OVER_H
-                        : jump_scaling_type == 1 ? JumpScaling::ONE_OVER_H
-                        : JumpScaling::CONSTANT);
+                     : jump_scaling_type == 1 ? JumpScaling::ONE_OVER_H
+                     : JumpScaling::CONSTANT);
 
       switch (prob)
       {
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
          case 3: rates.AddL2GridFunction(&x,scalar_u,gradu,&one,js); break;
       }
 
-      if (l==sr) break;
+      if (l==sr) { break; }
 
       mesh->UniformRefinement();
       fespace->Update();

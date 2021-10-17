@@ -89,7 +89,7 @@ public:
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   void PrintMatlab(std::ostream & os = mfem::out) const;
+   virtual void PrintMatlab(std::ostream & os = mfem::out) const;
 
    /// @name Matrix interface
    ///@{

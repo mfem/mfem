@@ -95,6 +95,12 @@ public:
       : Vector(data, f->GetVSize())
    { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
+   /** @brief Construct a GridFunction using previously allocated Vector @a base
+       starting at the given offset, @a base_offset. */
+   GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
+      : Vector(base, base_offset, f->GetVSize())
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
        Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
@@ -113,9 +119,9 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Make the GridFunction the owner of #fec and #fes.
-   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
+   void MakeOwner(FiniteElementCollection *fec_) { fec = fec_; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
 
@@ -130,9 +136,7 @@ public:
        or set. */
    Vector &GetTrueVector() { return t_vec; }
 
-   /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
-   /// then `tv` will be set to point to the data of `*this`.
-   /** @warning This method breaks const-ness when all dofs are true. */
+   /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
@@ -306,6 +310,16 @@ public:
 
    void ProjectVectorFieldOn(GridFunction &vec_field, int comp = 0);
 
+   /** @brief Compute a certain derivative of a function's component.
+       Derivatives of the function are computed at the DOF locations of @a der,
+       and averaged over overlapping DOFs. Thus this function projects the
+       derivative to the FiniteElementSpace of @a der.
+       @param[in]  comp  Index of the function's component to be differentiated.
+                         The index is 1-based, i.e., use 1 for scalar functions.
+       @param[in]  der_comp  Use 0/1/2 for derivatives in x/y/z directions.
+       @param[out] der       The resulting derivative (scalar function). The
+                             FiniteElementSpace of this function must be set
+                             before the call. */
    void GetDerivative(int comp, int der_comp, GridFunction &der);
 
    double GetDivergence(ElementTransformation &tr) const;
@@ -337,9 +351,9 @@ public:
     *  through SLBPQ optimization.
     *  Intended to be used for discontinuous FE functions. */
    void ImposeBounds(int i, const Vector &weights,
-                     const Vector &_lo, const Vector &_hi);
+                     const Vector &lo_, const Vector &hi_);
    void ImposeBounds(int i, const Vector &weights,
-                     double _min = 0.0, double _max = infinity());
+                     double min_ = 0.0, double max_ = infinity());
 
    /** On a non-conforming mesh, make sure the function lies in the conforming
        space by multiplying with R and then with P, the conforming restriction
@@ -374,6 +388,10 @@ public:
        on that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, only
+       projecting onto elements with the given @a attribute */
+   void ProjectCoefficient(VectorCoefficient &vcoeff, int attribute);
+
    /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
        but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
@@ -402,6 +420,12 @@ protected:
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
+
+   /** @brief Used for the serial and parallel implementations of the
+       GetDerivative() method; see its documentation. */
+   void AccumulateAndCountDerivativeValues(int comp, int der_comp,
+                                           GridFunction &der,
+                                           Array<int> &zones_per_dof);
 
    void AccumulateAndCountBdrValues(Coefficient *coeff[],
                                     VectorCoefficient *vcoeff, Array<int> &attr,
@@ -671,6 +695,10 @@ public:
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
+   /// Save the GridFunction to a file. The given @a precision will be used for
+   /// ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
 #ifdef MFEM_USE_ADIOS2
    /// Save the GridFunction to a binary output stream using adios2 bp format.
    virtual void Save(adios2stream &out, const std::string& variable_name,
@@ -901,8 +929,8 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
-   ExtrudeCoefficient(Mesh *m, Coefficient &s, int _n)
-      : n(_n), mesh_in(m), sol_in(s) { }
+   ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
+      : n(n_), mesh_in(m), sol_in(s) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ExtrudeCoefficient() { }
 };

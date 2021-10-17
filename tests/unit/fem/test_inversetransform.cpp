@@ -60,7 +60,7 @@ TEST_CASE("InverseElementTransformation",
    Mesh mesh( meshStr );
 
    REQUIRE( mesh.GetNE() == 1 );
-   REQUIRE( mesh.GetNodes() != NULL );
+   REQUIRE( mesh.GetNodes() != nullptr );
 
    // Optionally, dump mesh to disk
    bool dumpMesh = false;

@@ -163,7 +163,7 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             intFaceIntegrators[i]->AddMultMF(faceIntX, faceIntY);
          }
-         int_face_restrict_lex->MultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
       }
    }
 
@@ -179,7 +179,7 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             bdrFaceIntegrators[i]->AddMultMF(faceBdrX, faceBdrY);
          }
-         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
       }
    }
 }
@@ -220,7 +220,7 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             intFaceIntegrators[i]->AddMultTransposeMF(faceIntX, faceIntY);
          }
-         int_face_restrict_lex->MultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
       }
    }
 
@@ -236,7 +236,7 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             bdrFaceIntegrators[i]->AddMultTransposeMF(faceBdrX, faceBdrY);
          }
-         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
       }
    }
 }
@@ -424,7 +424,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
          }
-         int_face_restrict_lex->MultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
       }
    }
 
@@ -440,7 +440,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             bdrFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
          }
-         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
       }
    }
 }
@@ -481,7 +481,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             intFaceIntegrators[i]->AddMultTransposePA(faceIntX, faceIntY);
          }
-         int_face_restrict_lex->MultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
       }
    }
 
@@ -497,7 +497,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             bdrFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
          }
-         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
       }
    }
 }
@@ -664,7 +664,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             Y(j, 0, f) += res;
          });
          // Apply the Interior Face Restriction transposed
-         int_face_restrict_lex->MultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
       }
    }
 
@@ -695,7 +695,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             Y(j, f) += res;
          });
          // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
       }
    }
 }
@@ -790,7 +790,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             Y(j, 0, f) += res;
          });
          // Apply the Interior Face Restriction transposed
-         int_face_restrict_lex->MultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
       }
    }
 
@@ -821,7 +821,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             Y(j, f) += res;
          });
          // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
       }
    }
 }

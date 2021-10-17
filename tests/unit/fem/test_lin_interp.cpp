@@ -144,27 +144,24 @@ TEST_CASE("Identity Linear Interpolators",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh *mesh = NULL;
+      Mesh mesh;
 
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, 2.0);
+         mesh = Mesh::MakeCartesian1D(n, 2.0);
+
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
          dim = 2;
-         mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+         mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
       }
       else
       {
          dim = 3;
-         mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh->ReorientTetMesh();
-         }
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -176,7 +173,7 @@ TEST_CASE("Identity Linear Interpolators",
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
          H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(mesh, &fec_h1);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
          GridFunction f0(&fespace_h1);
          f0.ProjectCoefficient(fCoef);
@@ -184,7 +181,7 @@ TEST_CASE("Identity Linear Interpolators",
          SECTION("Mapping to H1")
          {
             H1_FECollection    fec_h1p(order_h1+1, dim);
-            FiniteElementSpace fespace_h1p(mesh, &fec_h1p);
+            FiniteElementSpace fespace_h1p(&mesh, &fec_h1p);
 
             GridFunction f0p(&fespace_h1p);
 
@@ -199,7 +196,7 @@ TEST_CASE("Identity Linear Interpolators",
          SECTION("Mapping to L2")
          {
             L2_FECollection    fec_l2(order_l2, dim);
-            FiniteElementSpace fespace_l2(mesh, &fec_l2);
+            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             GridFunction f1(&fespace_l2);
 
@@ -216,7 +213,7 @@ TEST_CASE("Identity Linear Interpolators",
             L2_FECollection    fec_l2(order_l2, dim,
                                       BasisType::GaussLegendre,
                                       FiniteElement::INTEGRAL);
-            FiniteElementSpace fespace_l2(mesh, &fec_l2);
+            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             GridFunction f1(&fespace_l2);
 
@@ -232,7 +229,7 @@ TEST_CASE("Identity Linear Interpolators",
       SECTION("Operators on L2 for element type " + std::to_string(type))
       {
          L2_FECollection    fec_l2(order_l2, dim);
-         FiniteElementSpace fespace_l2(mesh, &fec_l2);
+         FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
          GridFunction f0(&fespace_l2);
          f0.ProjectCoefficient(fCoef);
@@ -240,7 +237,7 @@ TEST_CASE("Identity Linear Interpolators",
          SECTION("Mapping to L2")
          {
             L2_FECollection    fec_l2p(order_l2+1, dim);
-            FiniteElementSpace fespace_l2p(mesh, &fec_l2p);
+            FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
             GridFunction f1(&fespace_l2p);
 
@@ -257,7 +254,7 @@ TEST_CASE("Identity Linear Interpolators",
             L2_FECollection    fec_l2p(order_l2+1, dim,
                                        BasisType::GaussLegendre,
                                        FiniteElement::INTEGRAL);
-            FiniteElementSpace fespace_l2p(mesh, &fec_l2p);
+            FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
             GridFunction f1(&fespace_l2p);
 
@@ -276,7 +273,7 @@ TEST_CASE("Identity Linear Interpolators",
          L2_FECollection    fec_l2(order_l2, dim,
                                    BasisType::GaussLegendre,
                                    FiniteElement::INTEGRAL);
-         FiniteElementSpace fespace_l2(mesh, &fec_l2);
+         FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
          GridFunction f0(&fespace_l2);
          f0.ProjectCoefficient(fCoef);
@@ -284,7 +281,7 @@ TEST_CASE("Identity Linear Interpolators",
          SECTION("Mapping to L2")
          {
             L2_FECollection    fec_l2p(order_l2+1, dim);
-            FiniteElementSpace fespace_l2p(mesh, &fec_l2p);
+            FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
             GridFunction f1(&fespace_l2p);
 
@@ -301,7 +298,7 @@ TEST_CASE("Identity Linear Interpolators",
             L2_FECollection    fec_l2p(order_l2+1, dim,
                                        BasisType::GaussLegendre,
                                        FiniteElement::INTEGRAL);
-            FiniteElementSpace fespace_l2p(mesh, &fec_l2p);
+            FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
             GridFunction f1(&fespace_l2p);
 
@@ -325,7 +322,7 @@ TEST_CASE("Identity Linear Interpolators",
          SECTION("Operators on HCurl for element type " + std::to_string(type))
          {
             ND_FECollection    fec_nd(order_nd, dim);
-            FiniteElementSpace fespace_nd(mesh, &fec_nd);
+            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
             GridFunction f1(&fespace_nd);
             f1.ProjectCoefficient(FCoef);
@@ -333,7 +330,7 @@ TEST_CASE("Identity Linear Interpolators",
             SECTION("Mapping to HCurl")
             {
                ND_FECollection    fec_ndp(order_nd+1, dim);
-               FiniteElementSpace fespace_ndp(mesh, &fec_ndp);
+               FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
 
                GridFunction f1p(&fespace_ndp);
 
@@ -348,7 +345,7 @@ TEST_CASE("Identity Linear Interpolators",
             SECTION("Mapping to L2^d")
             {
                L2_FECollection    fec_l2(order_l2, dim);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2, dim);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
 
                GridFunction f2d(&fespace_l2);
 
@@ -365,7 +362,7 @@ TEST_CASE("Identity Linear Interpolators",
                L2_FECollection    fec_l2(order_l2, dim,
                                          BasisType::GaussLegendre,
                                          FiniteElement::INTEGRAL);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2, dim);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
 
                GridFunction f2d(&fespace_l2);
 
@@ -381,7 +378,7 @@ TEST_CASE("Identity Linear Interpolators",
          SECTION("Operators on HDiv for element type " + std::to_string(type))
          {
             RT_FECollection    fec_rt(order_rt, dim);
-            FiniteElementSpace fespace_rt(mesh, &fec_rt);
+            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
             GridFunction f2(&fespace_rt);
             f2.ProjectCoefficient(FCoef);
@@ -389,7 +386,7 @@ TEST_CASE("Identity Linear Interpolators",
             SECTION("Mapping to HDiv")
             {
                RT_FECollection    fec_rtp(order_rt+1, dim);
-               FiniteElementSpace fespace_rtp(mesh, &fec_rtp);
+               FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
 
                GridFunction f2p(&fespace_rtp);
 
@@ -404,7 +401,7 @@ TEST_CASE("Identity Linear Interpolators",
             SECTION("Mapping to L2^d")
             {
                L2_FECollection    fec_l2(order_l2, dim);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2, dim);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
 
                GridFunction f2d(&fespace_l2);
 
@@ -421,7 +418,7 @@ TEST_CASE("Identity Linear Interpolators",
                L2_FECollection    fec_l2(order_l2, dim,
                                          BasisType::GaussLegendre,
                                          FiniteElement::INTEGRAL);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2, dim);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
 
                GridFunction f2d(&fespace_l2);
 
@@ -437,7 +434,7 @@ TEST_CASE("Identity Linear Interpolators",
          SECTION("Operators on H1^d for element type " + std::to_string(type))
          {
             H1_FECollection    fec_h1(order_h1, dim);
-            FiniteElementSpace fespace_h1(mesh, &fec_h1, dim);
+            FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
 
             GridFunction f0(&fespace_h1);
             f0.ProjectCoefficient(FCoef);
@@ -445,7 +442,7 @@ TEST_CASE("Identity Linear Interpolators",
             SECTION("Mapping to HCurl")
             {
                ND_FECollection    fec_ndp(order_nd, dim);
-               FiniteElementSpace fespace_ndp(mesh, &fec_ndp);
+               FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
 
                GridFunction f1(&fespace_ndp);
 
@@ -460,7 +457,7 @@ TEST_CASE("Identity Linear Interpolators",
             SECTION("Mapping to HDiv")
             {
                RT_FECollection    fec_rtp(order_rt, dim);
-               FiniteElementSpace fespace_rtp(mesh, &fec_rtp);
+               FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
 
                GridFunction f2(&fespace_rtp);
 
@@ -512,7 +509,6 @@ TEST_CASE("Identity Linear Interpolators",
               }
          */
       }
-      delete mesh;
    }
 }
 
@@ -527,27 +523,24 @@ TEST_CASE("Derivative Linear Interpolators",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh *mesh = NULL;
+      Mesh mesh;
 
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, 2.0);
+         mesh = Mesh::MakeCartesian1D(n, 2.0);
+
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
          dim = 2;
-         mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+         mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
       }
       else
       {
          dim = 3;
-         mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh->ReorientTetMesh();
-         }
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -560,7 +553,7 @@ TEST_CASE("Derivative Linear Interpolators",
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
          H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(mesh, &fec_h1);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
          GridFunction f0(&fespace_h1);
          f0.ProjectCoefficient(fCoef);
@@ -570,7 +563,7 @@ TEST_CASE("Derivative Linear Interpolators",
             SECTION("Mapping to L2")
             {
                L2_FECollection    fec_l2(order_l2, dim);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
                GridFunction df0(&fespace_l2);
 
@@ -587,7 +580,7 @@ TEST_CASE("Derivative Linear Interpolators",
                L2_FECollection    fec_l2(order_l2, dim,
                                          BasisType::GaussLegendre,
                                          FiniteElement::INTEGRAL);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
                GridFunction df0(&fespace_l2);
 
@@ -606,7 +599,7 @@ TEST_CASE("Derivative Linear Interpolators",
             SECTION("Mapping to HCurl")
             {
                ND_FECollection    fec_nd(order_nd, dim);
-               FiniteElementSpace fespace_nd(mesh, &fec_nd);
+               FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
                GridFunction df0(&fespace_nd);
 
@@ -632,7 +625,7 @@ TEST_CASE("Derivative Linear Interpolators",
          SECTION("Operators on HCurl for element type " + std::to_string(type))
          {
             ND_FECollection    fec_nd(order_nd, dim);
-            FiniteElementSpace fespace_nd(mesh, &fec_nd);
+            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
             GridFunction F1(&fespace_nd);
             F1.ProjectCoefficient(FCoef);
@@ -642,7 +635,7 @@ TEST_CASE("Derivative Linear Interpolators",
                SECTION("Mapping to L2")
                {
                   L2_FECollection    fec_l2(order_l2, dim);
-                  FiniteElementSpace fespace_l2(mesh, &fec_l2);
+                  FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
                   GridFunction dF1(&fespace_l2);
 
@@ -659,7 +652,7 @@ TEST_CASE("Derivative Linear Interpolators",
                   L2_FECollection    fec_l2(order_l2, dim,
                                             BasisType::GaussLegendre,
                                             FiniteElement::INTEGRAL);
-                  FiniteElementSpace fespace_l2(mesh, &fec_l2);
+                  FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
                   GridFunction dF1(&fespace_l2);
 
@@ -677,7 +670,7 @@ TEST_CASE("Derivative Linear Interpolators",
                SECTION("Mapping to HDiv")
                {
                   RT_FECollection    fec_rt(order_rt, dim);
-                  FiniteElementSpace fespace_rt(mesh, &fec_rt);
+                  FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
                   GridFunction dF1(&fespace_rt);
 
@@ -694,7 +687,7 @@ TEST_CASE("Derivative Linear Interpolators",
          SECTION("Operators on HDiv for element type " + std::to_string(type))
          {
             RT_FECollection    fec_rt(order_rt, dim);
-            FiniteElementSpace fespace_rt(mesh, &fec_rt);
+            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
             GridFunction F2(&fespace_rt);
             F2.ProjectCoefficient(FCoef);
@@ -702,7 +695,7 @@ TEST_CASE("Derivative Linear Interpolators",
             SECTION("Mapping to L2")
             {
                L2_FECollection    fec_l2(order_l2, dim);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
                GridFunction dF2(&fespace_l2);
 
@@ -719,7 +712,7 @@ TEST_CASE("Derivative Linear Interpolators",
                L2_FECollection    fec_l2(order_l2, dim,
                                          BasisType::GaussLegendre,
                                          FiniteElement::INTEGRAL);
-               FiniteElementSpace fespace_l2(mesh, &fec_l2);
+               FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
                GridFunction dF2(&fespace_l2);
 
@@ -733,7 +726,6 @@ TEST_CASE("Derivative Linear Interpolators",
             }
          }
       }
-      delete mesh;
    }
 }
 
@@ -751,27 +743,24 @@ TEST_CASE("Product Linear Interpolators",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh *mesh = NULL;
+      Mesh mesh;
 
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, 2.0);
+         mesh = Mesh::MakeCartesian1D(n, 2.0);
+
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
          dim = 2;
-         mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+         mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
       }
       else
       {
          dim = 3;
-         mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh->ReorientTetMesh();
-         }
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -794,7 +783,7 @@ TEST_CASE("Product Linear Interpolators",
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
          H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(mesh, &fec_h1);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
          GridFunction g0(&fespace_h1);
          g0.ProjectCoefficient(gCoef);
@@ -802,7 +791,7 @@ TEST_CASE("Product Linear Interpolators",
          SECTION("Mapping H1 to H1")
          {
             H1_FECollection    fec_h1p(2*order_h1, dim);
-            FiniteElementSpace fespace_h1p(mesh, &fec_h1p);
+            FiniteElementSpace fespace_h1p(&mesh, &fec_h1p);
 
             DiscreteLinearOperator Opf0(&fespace_h1,&fespace_h1p);
             Opf0.AddDomainInterpolator(
@@ -819,10 +808,10 @@ TEST_CASE("Product Linear Interpolators",
             SECTION("Mapping to HCurl")
             {
                ND_FECollection    fec_nd(order_nd, dim);
-               FiniteElementSpace fespace_nd(mesh, &fec_nd);
+               FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
                ND_FECollection    fec_ndp(order_h1+order_nd, dim);
-               FiniteElementSpace fespace_ndp(mesh, &fec_ndp);
+               FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
 
                DiscreteLinearOperator OpF1(&fespace_h1,&fespace_ndp);
                OpF1.AddDomainInterpolator(
@@ -841,7 +830,7 @@ TEST_CASE("Product Linear Interpolators",
          SECTION("Operators on HCurl for element type " + std::to_string(type))
          {
             ND_FECollection    fec_nd(order_nd, dim);
-            FiniteElementSpace fespace_nd(mesh, &fec_nd);
+            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
             GridFunction G1(&fespace_nd);
             G1.ProjectCoefficient(GCoef);
@@ -849,10 +838,10 @@ TEST_CASE("Product Linear Interpolators",
             SECTION("Mapping HCurl to HCurl")
             {
                H1_FECollection    fec_h1(order_h1, dim);
-               FiniteElementSpace fespace_h1(mesh, &fec_h1);
+               FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
                ND_FECollection    fec_ndp(order_nd+order_h1, dim);
-               FiniteElementSpace fespace_ndp(mesh, &fec_ndp);
+               FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
 
                DiscreteLinearOperator Opf0(&fespace_nd,&fespace_ndp);
                Opf0.AddDomainInterpolator(
@@ -869,7 +858,7 @@ TEST_CASE("Product Linear Interpolators",
                SECTION("Mapping to L2")
                {
                   L2_FECollection    fec_l2p(2*order_nd-1, dim);
-                  FiniteElementSpace fespace_l2p(mesh, &fec_l2p);
+                  FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
                   DiscreteLinearOperator OpF1(&fespace_nd,&fespace_l2p);
                   OpF1.AddDomainInterpolator(
@@ -887,7 +876,7 @@ TEST_CASE("Product Linear Interpolators",
                SECTION("Mapping to HDiv")
                {
                   RT_FECollection    fec_rtp(2*order_nd-1, dim);
-                  FiniteElementSpace fespace_rtp(mesh, &fec_rtp);
+                  FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
 
                   DiscreteLinearOperator OpF1(&fespace_nd,&fespace_rtp);
                   OpF1.AddDomainInterpolator(
@@ -903,10 +892,10 @@ TEST_CASE("Product Linear Interpolators",
             SECTION("Mapping to L2")
             {
                RT_FECollection    fec_rt(order_rt, dim);
-               FiniteElementSpace fespace_rt(mesh, &fec_rt);
+               FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
                L2_FECollection    fec_l2p(order_nd+order_rt, dim);
-               FiniteElementSpace fespace_l2p(mesh, &fec_l2p);
+               FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
                DiscreteLinearOperator OpF2(&fespace_nd,&fespace_l2p);
                OpF2.AddDomainInterpolator(
@@ -922,7 +911,7 @@ TEST_CASE("Product Linear Interpolators",
          SECTION("Operators on HDiv for element type " + std::to_string(type))
          {
             RT_FECollection    fec_rt(order_rt, dim);
-            FiniteElementSpace fespace_rt(mesh, &fec_rt);
+            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
             GridFunction G2(&fespace_rt);
             G2.ProjectCoefficient(GCoef);
@@ -930,10 +919,10 @@ TEST_CASE("Product Linear Interpolators",
             SECTION("Mapping to L2")
             {
                ND_FECollection    fec_nd(order_nd, dim);
-               FiniteElementSpace fespace_nd(mesh, &fec_nd);
+               FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
                L2_FECollection    fec_l2p(order_nd+order_rt, dim);
-               FiniteElementSpace fespace_l2p(mesh, &fec_l2p);
+               FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
                DiscreteLinearOperator OpF1(&fespace_rt,&fespace_l2p);
                OpF1.AddDomainInterpolator(

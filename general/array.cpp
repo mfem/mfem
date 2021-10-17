@@ -177,6 +177,7 @@ void Array2D<T>::Print(std::ostream &out, int width_)
 
 template class Array<char>;
 template class Array<int>;
+template class Array<long long>;
 template class Array<double>;
 template class Array2D<int>;
 template class Array2D<double>;

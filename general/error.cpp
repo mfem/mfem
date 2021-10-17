@@ -92,7 +92,7 @@ void mfem_backtrace(int mode, int depth)
    int err = unw_getcontext(&uc);
    err = err ? err : unw_init_local(&cursor, &uc);
 
-   Array<unw_word_t> addrs;
+   Array<unw_word_t> addrs(MemoryType::HOST);
    while (unw_step(&cursor) > 0 && addrs.Size() != depth)
    {
       err = err ? err : unw_get_proc_name(&cursor, name, UNW_NAME_LEN, &offp);

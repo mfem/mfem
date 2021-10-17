@@ -248,6 +248,9 @@ public:
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
 
+   /// Get the device id of the configured device.
+   static inline int GetId() { return Get().dev; }
+
    /** @brief Return true if any of the backends in the backend mask, @a b_mask,
        are allowed. */
    /** This method can be used with any of the Backend::Id constants, the
