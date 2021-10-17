@@ -4633,7 +4633,8 @@ void HypreBoomerAMG::RecomputeRBMs()
 
       rbms.SetSize(nrbms);
       gf_rbms.SetSize(nrbms);
-      gf_rbms[0] = rbms_rxy.ParallelAverage();
+      gf_rbms[0] = fespace->NewTrueDofVector();
+      rbms_rxy.GetTrueDofs(*gf_rbms[0]);
    }
    else if (dim == 3)
    {
@@ -4652,9 +4653,12 @@ void HypreBoomerAMG::RecomputeRBMs()
 
       rbms.SetSize(nrbms);
       gf_rbms.SetSize(nrbms);
-      gf_rbms[0] = rbms_rxy.ParallelAverage();
-      gf_rbms[1] = rbms_ryz.ParallelAverage();
-      gf_rbms[2] = rbms_rzx.ParallelAverage();
+      gf_rbms[0] = fespace->NewTrueDofVector();
+      gf_rbms[1] = fespace->NewTrueDofVector();
+      gf_rbms[2] = fespace->NewTrueDofVector();
+      rbms_rxy.GetTrueDofs(*gf_rbms[0]);
+      rbms_ryz.GetTrueDofs(*gf_rbms[1]);
+      rbms_rzx.GetTrueDofs(*gf_rbms[2]);
    }
    else
    {
@@ -5697,15 +5701,17 @@ HypreLOBPCG::OperatorMatvec( void *matvec_data,
 
    Operator *Aop = (Operator*)A;
 
-   int width = Aop->Width();
-
    hypre_ParVector * xPar = (hypre_ParVector *)x;
    hypre_ParVector * yPar = (hypre_ParVector *)y;
 
-   Vector xVec(xPar->local_vector->data, width);
-   Vector yVec(yPar->local_vector->data, width);
+   HypreParVector xVec(xPar);
+   HypreParVector yVec(yPar);
 
    Aop->Mult( xVec, yVec );
+
+   // Move data back to hypre's device memory location in case the above Mult
+   // operation moved it to host.
+   yVec.HypreReadWrite();
 
    return 0;
 }
@@ -5722,18 +5728,19 @@ HypreLOBPCG::PrecondSolve(void *solver,
                           void *b,
                           void *x)
 {
-   Solver   *PC = (Solver*)solver;
-   Operator *OP = (Operator*)A;
-
-   int width = OP->Width();
+   Solver *PC = (Solver*)solver;
 
    hypre_ParVector * bPar = (hypre_ParVector *)b;
    hypre_ParVector * xPar = (hypre_ParVector *)x;
 
-   Vector bVec(bPar->local_vector->data, width);
-   Vector xVec(xPar->local_vector->data, width);
+   HypreParVector bVec(bPar);
+   HypreParVector xVec(xPar);
 
    PC->Mult( bVec, xVec );
+
+   // Move data back to hypre's device memory location in case the above Mult
+   // operation moved it to host.
+   xVec.HypreReadWrite();
 
    return 0;
 }
