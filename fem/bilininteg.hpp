@@ -2938,10 +2938,11 @@ public:
 
     sum_e eta (r_e([u]), r_e([v]))
 
-    where r_e is the lifting operator defined on each edge e. The parameter eta
-    can be chosen to be one to obtain a stable discretization. The constructor
-    for this integrator requires the finite element space because the lifting
-    operator depends on the element-wise inverse mass matrix.
+    where r_e is the lifting operator defined on each edge e (potentially
+    weighted by a coefficient Q). The parameter eta can be chosen to be one to
+    obtain a stable discretization. The constructor for this integrator requires
+    the finite element space because the lifting operator depends on the
+    element-wise inverse mass matrix.
 
     BR2 stands for the second method of Bassi and Rebay:
 
@@ -2964,14 +2965,28 @@ protected:
    Array<int> ipiv;
    Array<int> ipiv_offsets, Minv_offsets;
 
+   Coefficient *Q;
+
    Vector shape1, shape2;
 
    DenseMatrix R11, R12, R21, R22;
    DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
    DenseMatrix Re, MinvRe;
 
+   /// Precomputes the inverses (LU factorizations) of the local mass matrices.
+   /** @a fes must be a DG space, so the mass matrix is block diagonal, and its
+       inverse can be computed locally. This is required for the computation of
+       the lifting operators @a r_e.
+   */
+   void PrecomputeMassInverse(class FiniteElementSpace &fes);
+
 public:
-   DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
+   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, double e = 1.0);
+   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, Coefficient &Q_,
+                            double e = 1.0);
+   MFEM_DEPRECATED DGDiffusionBR2Integrator(class FiniteElementSpace *fes,
+                                            double e = 1.0);
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
