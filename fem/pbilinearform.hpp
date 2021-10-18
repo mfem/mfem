@@ -216,6 +216,13 @@ protected:
    /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;
 
+   bool keep_nbr_block = false; 
+
+   // Allocate mat - called when (mat == NULL && interior_face_integs.Size() > 0)
+   void pAllocMat();
+
+   void AssembleSharedFaces(int skip_zeros = 1);
+
 private:
    /// Copy construction is not supported; body is undefined.
    ParMixedBilinearForm(const ParMixedBilinearForm &);
@@ -255,6 +262,10 @@ public:
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
    }
+
+   void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
+
+   void Assemble(int skip_zeros = 1); 
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    HypreParMatrix *ParallelAssemble();
