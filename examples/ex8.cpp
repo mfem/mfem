@@ -2,34 +2,7 @@
 //
 // Compile with: make ex8
 //
-// Sample runs:  ex8 -m ../data/square-disc.mesh
-//               ex8 -m ../data/star.mesh
-//               ex8 -m ../data/star-mixed.mesh
-//               ex8 -m ../data/escher.mesh
-//               ex8 -m ../data/fichera.mesh
-//               ex8 -m ../data/fichera-mixed.mesh
-//               ex8 -m ../data/square-disc-p2.vtk
-//               ex8 -m ../data/square-disc-p3.mesh
-//               ex8 -m ../data/star-surf.mesh -o 2
-//               ex8 -m ../data/mobius-strip.mesh
-//
-// Description:  This example code demonstrates the use of the Discontinuous
-//               Petrov-Galerkin (DPG) method in its primal 2x2 block form as a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = f with homogeneous Dirichlet boundary conditions. We
-//               use high-order continuous trial space, a high-order interfacial
-//               (trace) space, and a high-order discontinuous test space
-//               defining a local dual (H^{-1}) norm.
-//
-//               We use the primal form of DPG, see "A primal DPG method without
-//               a first-order reformulation", Demkowicz and Gopalakrishnan, CAM
-//               2013, DOI:10.1016/j.camwa.2013.06.029.
-//
-//               The example highlights the use of interfacial (trace) finite
-//               elements and spaces, trace face integrators and the definition
-//               of block operators and preconditioners.
-//
-//               We recommend viewing examples 1-5 before viewing this example.
+// Sample runs:  ex8 -m ../data/inline-quad.mesh
 
 #include "mfem.hpp"
 #include <fstream>
@@ -41,7 +14,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    bool visualization = 1;
 
@@ -66,6 +39,10 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+
+   cout << "mesh attr max = " << mesh->bdr_attributes.Max() << endl;
+   cout << "mesh bdr elemens = " << mesh->GetNBE() << endl;
+
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -139,6 +116,20 @@ int main(int argc, char *argv[])
    BlockVector x(offsets), b(offsets);
    x = 0.;
 
+   // 7. Set up the mixed bilinear form for the primal trial unknowns, B0,
+   //    the mixed bilinear form for the interfacial unknowns, Bhat,
+   //    the inverse stiffness matrix on the discontinuous test space, Sinv,
+   //    and the stiffness matrix on the continuous trial space, S0.
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   Array<int> ess_hat_bdr(mesh->bdr_attributes.Max());
+   ess_bdr = 0;
+   ess_bdr[0] = 1;
+   ess_bdr[1] = 1;
+   ess_hat_bdr = 1;
+   ess_hat_bdr[0] = 0;
+   ess_hat_bdr[1] = 0;
+
+
    // 6. Set up the linear form F(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (f,phi_i) where f=1.0 and
    //    phi_i are the basis functions in the test finite element fespace.
@@ -147,23 +138,18 @@ int main(int argc, char *argv[])
    F.AddDomainIntegrator(new DomainLFIntegrator(one));
    F.Assemble();
 
-   // 7. Set up the mixed bilinear form for the primal trial unknowns, B0,
-   //    the mixed bilinear form for the interfacial unknowns, Bhat,
-   //    the inverse stiffness matrix on the discontinuous test space, Sinv,
-   //    and the stiffness matrix on the continuous trial space, S0.
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 1;
 
    MixedBilinearForm *B0 = new MixedBilinearForm(x0_space,test_space);
    B0->AddDomainIntegrator(new DiffusionIntegrator(one));
    B0->Assemble();
-   B0->EliminateTrialDofs(ess_bdr, x.GetBlock(x0_var), F);
+   // B0->EliminateTrialDofs(ess_bdr, x.GetBlock(x0_var), F); // will be taken care at the matrix level
    B0->Finalize();
 
    MixedBilinearForm *Bhat = new MixedBilinearForm(xhat_space,test_space);
    Bhat->AddTraceFaceIntegrator(new TraceJumpIntegrator());
    Bhat->Assemble();
    Bhat->Finalize();
+
 
    BilinearForm *Sinv = new BilinearForm(test_space);
    SumIntegrator *Sum = new SumIntegrator;
@@ -187,15 +173,39 @@ int main(int argc, char *argv[])
    // 8. Set up the 1x2 block Least Squares DPG operator, B = [B0  Bhat],
    //    the normal equation operator, A = B^t Sinv B, and
    //    the normal equation right-hand-size, b = B^t Sinv F.
-   BlockOperator B(offsets_test, offsets);
+   BlockMatrix B(offsets_test, offsets);
    B.SetBlock(0,0,&matB0);
    B.SetBlock(0,1,&matBhat);
-   RAPOperator A(B, matSinv, B);
+
+   SparseMatrix & B1 = *B.CreateMonolithic();
+   SparseMatrix & A = *RAP(B1,matSinv,B1);
+
    {
       Vector SinvF(s_test);
       matSinv.Mult(F,SinvF);
-      B.MultTranspose(SinvF, b);
+      B1.MultTranspose(SinvF, b);
    }
+
+   Array<int> ess_tdofs0;
+   Array<int> ess_tdofs1;
+   x0_space->GetEssentialTrueDofs(ess_bdr,ess_tdofs0);
+   xhat_space->GetEssentialTrueDofs(ess_hat_bdr,ess_tdofs1);
+
+
+   // Esential BC on the field variable
+   for (int i = 0; i<ess_tdofs0.Size(); i++)
+   {
+      int j = ess_tdofs0[i];
+      A.EliminateRowCol(j,x[j],b);
+   }
+
+   // Neuman BC on the field variable (equivalently essential BC on the flux variable)
+   for (int i = 0; i<ess_tdofs1.Size(); i++)
+   {
+      int j = ess_tdofs1[i] + x0_space->GetTrueVSize();
+      A.EliminateRowCol(j,x[j],b);
+   }
+
 
    // 9. Set up a block-diagonal preconditioner for the 2x2 normal equation
    //
@@ -204,28 +214,14 @@ int main(int argc, char *argv[])
    //
    //    corresponding to the primal (x0) and interfacial (xhat) unknowns.
    SparseMatrix * Shat = RAP(matBhat, matSinv, matBhat);
+   for (int i = 0; i<ess_tdofs1.Size(); i++)
+   {
+      int j = ess_tdofs1[i];
+      Shat->EliminateRowCol(j);
+   }
 
-#ifndef MFEM_USE_SUITESPARSE
-   const double prec_rtol = 1e-3;
-   const int prec_maxit = 200;
-   CGSolver *S0inv = new CGSolver;
-   S0inv->SetOperator(matS0);
-   S0inv->SetPrintLevel(-1);
-   S0inv->SetRelTol(prec_rtol);
-   S0inv->SetMaxIter(prec_maxit);
-   CGSolver *Shatinv = new CGSolver;
-   Shatinv->SetOperator(*Shat);
-   Shatinv->SetPrintLevel(-1);
-   Shatinv->SetRelTol(prec_rtol);
-   Shatinv->SetMaxIter(prec_maxit);
-   // Disable 'iterative_mode' when using CGSolver (or any IterativeSolver) as
-   // a preconditioner:
-   S0inv->iterative_mode = false;
-   Shatinv->iterative_mode = false;
-#else
    Operator *S0inv = new UMFPackSolver(matS0);
    Operator *Shatinv = new UMFPackSolver(*Shat);
-#endif
 
    BlockDiagonalPreconditioner P(offsets);
    P.SetDiagonalBlock(0, S0inv);
@@ -235,10 +231,9 @@ int main(int argc, char *argv[])
    //     Check the weighted norm of residual for the DPG least square problem.
    //     Wrap the primal variable in a GridFunction for visualization purposes.
    PCG(A, P, b, x, 1, 200, 1e-12, 0.0);
-
    {
       Vector LSres(s_test);
-      B.Mult(x, LSres);
+      B1.Mult(x, LSres);
       LSres -= F;
       double res = sqrt(matSinv.InnerProduct(LSres, LSres));
       cout << "\n|| B0*x0 + Bhat*xhat - F ||_{S^-1} = " << res << endl;
