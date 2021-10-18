@@ -1,23 +1,20 @@
 //                                Solution of distributed control problem
 //
-// Compile with: make distributed_control
+// Compile with: make optimal_design
 //
 // Sample runs:
-//    distributed_control -r 3
-//    distributed_control -m ../../data/star.mesh -r 3
+//    optimal_design -r 3
+//    optimal_design -m ../../data/star.mesh -r 3
 //
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
 //
-//         min J(f) = 1/2 \| u - w \|_{L^2} + \alpha/2 \| f \|_{L^2} 
+//         min J(f) = (f,u)
 //
-//         subject to   - \Delta u = f    in \Omega
-//                               u = 0    on \partial\Omega
+//         subject to   - div( K\nabla u ) = f    in \Omega
+//                                       u = 0    on \partial\Omega
+//         and            \int K dx <= V vol(\Omega)
 //         and            a <= f(x) <= b
-//
-//                where w = / 1   if x^2 + y^2 <= 0.5
-//                          \ 0   otherwise
-//
 //
 
 #include "mfem.hpp"
@@ -32,11 +29,10 @@ class ReducedSystemOperator;
 
 /** The Lagrangian for this problem is
  *    
- *    L(u,f,p) = 1/2 (u - w,u-w) + \alpha/2 (f,f)
- *             - (\nabla u, \nabla p) + (f,p)
+ *    L(u,K,p) = (f,u) - (K \nabla u, \nabla p) + (f,p)
  * 
  *      u, p \in H^1_0(\Omega)
- *      f \in L^2(\Omega)
+ *      K \in L^\infty(\Omega)
  * 
  *  Note that
  * 
@@ -50,38 +46,31 @@ class ReducedSystemOperator;
  *  
  *    \partial_u L = 0        (2)
  * 
- *  delivers the adjoint equation
+ *  delivers the adjoint equation (same as the state ewqn)
  * 
- *    (\nabla p, \nabla v) = (u-w,v)  for all v in H^1_0(\Omega)
+ *    (\nabla p, \nabla v) = (f,v)  for all v in H^1_0(\Omega)
  *    
- *  and at the solutions u and p(u) of (1) and (2), respectively,
+ *  and at the solutions u=p of (1) and (2), respectively,
  * 
- *  D_f J = D_f L = \partial_u L \partial_f u + \partial_p L \partial_f p
- *                + \partial_f L
- *                = \partial_f L
- *                = (\alpha f + p, \cdot)
+ *  D_K J = D_K L = \partial_u L \partial_K u + \partial_p L \partial_K p
+ *                + \partial_K L
+ *                = \partial_K L
+ *                = (|\nabla u|^2, \cdot)
  * 
  * We update the control f_k with projected gradient descent via
  * 
- *  f_{k+1} = P ( f_k - \gamma R_{L^2}^{-1} D_f J )
+ *  K_{k+1} = P_2 ( P_1 ( K_k - \gamma |\nabla u|^2 ) )
  * 
- * where P is the projection operator enforcing a <= u(x) <= b, \gamma is
- * a specified step length and R_{L^2} is the L2-Riesz operator. In other
- * words, we have that
- * 
- * f_{k+1} = max { a, min { b, f_k - \gamma (\alpha f_k + p) } }
+ * where P_1 is the projection operator enforcing (K,1) <= V, P_2 is the
+ * projection operator enforcing a <= u(x) <= b, and \gamma is a specified
+ * step length.
  * 
  */
 
-double indicator_function(const Vector & x)
+double load(const Vector & x)
 {
    double x1 = x(0);
    double x2 = x(1);
-   // double x3 = 0.0;
-   // if (x.Size() == 3)
-   // {
-   //    x3 = x(2);
-   // }
    double r = sqrt(x1*x1 + x2*x2);
    if (r <= 0.5)
    {
@@ -93,14 +82,15 @@ double indicator_function(const Vector & x)
    }
 }
 
-double compute_energy(GridFunction u, FunctionCoefficient w_coeff, GridFunction f, double alpha)
-{
-   ConstantCoefficient zero(0.0);
-   double energy = f.ComputeL2Error(zero);
-   energy *= alpha;
-   energy += u.ComputeL2Error(w_coeff);
-   return energy/2.0;
-}
+// double compute_compliance(GridFunction u, FunctionCoefficient f_coeff)
+// {
+//    u.
+//    ConstantCoefficient zero(0.0);
+//    double energy = f.ComputeL2Error(zero);
+//    energy *= alpha;
+//    energy += u.ComputeL2Error(w_coeff);
+//    return energy/2.0;
+// }
 
 int main(int argc, char *argv[])
 {
@@ -109,9 +99,8 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
-   double alpha = 1e-4;
    double step_length = 1e0;
-   double epsilon = 1e-1;
+   double mass_fraction = 0.5;
    int max_it = 1e3;
    double tol = 1e-4;
    bool momentum = false;
@@ -147,10 +136,8 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 3. Define the target function w.
-   FunctionCoefficient w_coeff(indicator_function);
-   ConstantCoefficient negative_one(-1.0);
-   ProductCoefficient negative_w_coeff(w_coeff, negative_one);
+   // 3. Define the load f.
+   FunctionCoefficient f(load);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -183,17 +170,15 @@ int main(int argc, char *argv[])
    // 7. Set the initial guess for f and the boundary conditions for u and p.
    GridFunction u(&state_fes);
    GridFunction p(&state_fes);
-   GridFunction f(&control_fes);
+   GridFunction K(&control_fes);
    u = 0.0;
    p = 0.0;
-   f = 0.0;
+   K = 1.0;
 
-   // 8. Set up the bilinear form a(.,.) for the state and adjoint equation.
-   BilinearForm a(&state_fes);
-   ConstantCoefficient diffusion_coeff(epsilon);
-   ConstantCoefficient zero(0.0);
-   a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
-   a.Assemble();
+   // 8. Set up the linear form b(.) for the state and adjoint equations.
+   LinearForm b(&state_fes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(f));
+   b.Assemble();
    OperatorPtr A;
    Vector B, C, X;
 
@@ -205,10 +190,10 @@ int main(int argc, char *argv[])
    for (int k = 1; k < max_it; k++)
    {
       // A. Form state equation
-      LinearForm b(&state_fes);
-      GridFunctionCoefficient f_coeff(&f);
-      b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
-      b.Assemble();
+      BilinearForm a(&state_fes);
+      GridFunctionCoefficient diffusion_coeff(K);
+      a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
+      a.Assemble();
       a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
 
       // B. Solve state equation
@@ -228,33 +213,8 @@ int main(int argc, char *argv[])
          sol_sock << "solution\n" << mesh << u << flush;
       }
 
-      // E. Form adjoint equation
-      LinearForm c(&state_fes);
-      GridFunctionCoefficient u_coeff(&u);
-      c.AddDomainIntegrator(new DomainLFIntegrator(u_coeff));
-      c.AddDomainIntegrator(new DomainLFIntegrator(negative_w_coeff));
-      c.Assemble();
-      a.FormLinearSystem(ess_tdof_list, p, c, A, X, C);
-
-      // F. Solve adjoint equation
-      PCG(*A, M, C, X, 0, 200, 1e-12, 0.0);
-
-      // G. Recover adjoint variable
-      a.RecoverFEMSolution(X, c, p);
-
-      // H. Constuct gradient function (i.e., \alpha f + p)
-      GridFunction p_L2(&control_fes);
-      p_L2.ProjectGridFunction(p);
-      if (momentum)
-      {
-         grad *= momentum_param;
-      }
-      else
-      {
-         grad = 0.0;
-      }
-      grad += p_L2;
-      // grad.ProjectGridFunction(p);
+      // H. Constuct gradient function (i.e., |\nabla K|^2)
+      grad.ProjectGridFunction(p);
       grad /= alpha;
       grad += f;
       grad *= alpha;
