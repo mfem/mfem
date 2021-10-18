@@ -3388,7 +3388,6 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1, const F
 void DGPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2, 
                                              FaceElementTransformations &T, DenseMatrix &elmat)
 {
-   int dim = el1.GetDim(); 
    int ndof1 = el1.GetDof(); 
    int ndofs, ndof2; 
    Vector s1(ndof1); 
