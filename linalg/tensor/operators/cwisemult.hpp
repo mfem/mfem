@@ -12,12 +12,9 @@
 #ifndef MFEM_TENSOR_CWISEMULT
 #define MFEM_TENSOR_CWISEMULT
 
-#include "tensor.hpp"
-#include "diagonal_tensor.hpp"
-#include "../../general/backends.hpp"
-#include "../dtensor.hpp"
-#include "product.hpp"
-#include <utility>
+#include "../tensor.hpp"
+#include "../factories/diagonal_tensor.hpp"
+#include "../../../general/backends.hpp"
 
 namespace mfem
 {

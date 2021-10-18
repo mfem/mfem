@@ -12,8 +12,8 @@
 #ifndef MFEM_TENSOR_DOF
 #define MFEM_TENSOR_DOF
 
-#include "util.hpp"
-#include "tensor.hpp"
+#include "../details/util.hpp"
+#include "../tensor.hpp"
 #include "config.hpp"
 
 namespace mfem

@@ -12,10 +12,9 @@
 #ifndef MFEM_TENSOR_GRAD
 #define MFEM_TENSOR_GRAD
 
-#include "tensor.hpp"
-#include "../../general/backends.hpp"
-#include "../dtensor.hpp"
-#include "basis.hpp"
+#include "../tensor.hpp"
+#include "../../../general/backends.hpp"
+#include "../factories/basis.hpp"
 #include "contraction.hpp"
 #include "concatenate.hpp"
 

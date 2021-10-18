@@ -12,8 +12,8 @@
 #ifndef MFEM_CONTRACTION
 #define MFEM_CONTRACTION
 
-#include "tensor.hpp"
-#include "basis.hpp"
+#include "../tensor.hpp"
+#include "../factories/basis.hpp"
 
 namespace mfem
 {

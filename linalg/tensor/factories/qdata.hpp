@@ -12,8 +12,8 @@
 #ifndef MFEM_TENSOR_QDATA
 #define MFEM_TENSOR_QDATA
 
-#include "util.hpp"
-#include "tensor.hpp"
+#include "../details/util.hpp"
+#include "../tensor.hpp"
 #include "diagonal_tensor.hpp"
 #include "config.hpp"
 

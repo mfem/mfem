@@ -12,7 +12,9 @@
 #ifndef MFEM_TENSOR_TRAITS
 #define MFEM_TENSOR_TRAITS
 
-#include "../../general/backends.hpp"
+#include "containers/container_traits.hpp"
+#include "containers/static_container.hpp"
+#include "layouts/layout_traits.hpp"
 
 namespace mfem
 {
@@ -29,18 +31,6 @@ struct get_tensor_rank_v
 {
    static constexpr int value = get_layout_rank<typename Tensor::layout>;
 };
-
-// template <typename C, typename L>
-// struct get_tensor_rank_v<Tensor<C,L>>
-// {
-//    static constexpr int value = Rank;
-// };
-
-// template <typename C, typename L>
-// struct get_tensor_rank_v<const Tensor<C,L>>
-// {
-//    static constexpr int value = Rank;
-// };
 
 template <typename Tensor>
 constexpr int get_tensor_rank = get_tensor_rank_v<Tensor>::value;

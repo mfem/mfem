@@ -12,8 +12,9 @@
 #ifndef MFEM_TENSOR_CONFIG
 #define MFEM_TENSOR_CONFIG
 
-#include "util.hpp"
-#include "tensor.hpp"
+#include "../details/util.hpp"
+#include "../tensor.hpp"
+#include "../tensor_types.hpp"
 
 namespace mfem
 {

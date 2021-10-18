@@ -12,7 +12,7 @@
 #ifndef MFEM_CONCATENATE
 #define MFEM_CONCATENATE
 
-#include "tensor.hpp"
+#include "../tensor.hpp"
 
 namespace mfem
 {

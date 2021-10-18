@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_DET
 
 #include "../../general/backends.hpp"
-#include "tensor.hpp"
+#include "../tensor.hpp"
 
 namespace mfem
 {

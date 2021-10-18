@@ -12,12 +12,10 @@
 #ifndef MFEM_TENSOR_INTERP
 #define MFEM_TENSOR_INTERP
 
-#include "tensor.hpp"
+#include "../tensor.hpp"
 #include "contraction.hpp"
-#include "../../general/backends.hpp"
-#include "../dtensor.hpp"
-#include <utility>
-#include "basis.hpp"
+#include "../../../general/backends.hpp"
+#include "../factories/basis.hpp"
 #include "contraction.hpp"
 
 namespace mfem

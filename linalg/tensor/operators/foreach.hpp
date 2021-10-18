@@ -12,8 +12,8 @@
 #ifndef MFEM_TENSOR_FOREACH
 #define MFEM_TENSOR_FOREACH
 
-#include "../../general/forall.hpp"
-#include "tensor_traits.hpp"
+#include "../../../general/forall.hpp"
+#include "../tensor_traits.hpp"
 
 namespace mfem
 {

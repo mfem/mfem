@@ -12,9 +12,8 @@
 #ifndef MFEM_TENSOR_PROD
 #define MFEM_TENSOR_PROD
 
-#include "tensor.hpp"
-#include "../../general/backends.hpp"
-#include "../dtensor.hpp"
+#include "../tensor.hpp"
+#include "../../../general/backends.hpp"
 
 namespace mfem
 {

@@ -12,8 +12,8 @@
 #ifndef MFEM_BASIS
 #define MFEM_BASIS
 
-#include "util.hpp"
-#include "tensor.hpp"
+#include "../details/util.hpp"
+#include "../tensor.hpp"
 #include "config.hpp"
 
 namespace mfem

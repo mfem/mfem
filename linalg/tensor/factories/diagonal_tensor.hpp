@@ -12,7 +12,7 @@
 #ifndef MFEM_DIAG_TENSOR
 #define MFEM_DIAG_TENSOR
 
-#include "tensor.hpp"
+#include "../tensor.hpp"
 
 namespace mfem
 {
