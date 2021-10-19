@@ -15,12 +15,10 @@
 #include "ceed/mass.hpp"
 
 #include "../linalg/tensor/factories/config.hpp"
-#include "../linalg/tensor/operators/forall.hpp"
 #include "../linalg/tensor/factories/basis.hpp"
 #include "../linalg/tensor/factories/dof.hpp"
 #include "../linalg/tensor/factories/qdata.hpp"
-#include "../linalg/tensor/operators/interp.hpp"
-#include "../linalg/tensor/operators/cwisemult.hpp"
+#include "../linalg/tensor/operators/operators.hpp"
 
 using namespace std;
 
