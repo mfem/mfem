@@ -124,9 +124,6 @@ public:
       return *this;
    }
 
-   // TODO Soft and Hard Get? (lazy accessor or hard copy)
-   // Call it Extract?
-
    /// Lazy accessor for the sub-Tensor extracted from idx in Nth dimension.
    template <int N> MFEM_HOST_DEVICE inline
    auto Get(int idx)
@@ -153,19 +150,6 @@ public:
       L layout(idx,*this);
       return RestrictedTensor(data,layout);
    }
-
-   /// Get the Sub-Tensor extracted from idx in Nth dimension.
-   // template <int N, int... Dims, typename... Idx>
-   // auto MultiGet(int idx0, Idx... idx)
-   // {
-   //    return Get<N>(idx0).MultiGet<Dims...,Idx...>(idx...);
-   // }
-
-   // template <int N, int... Dims, typename... Idx>
-   // auto MultiGet(int idx0, Idx... idx) const
-   // {
-   //    return Get<N>(idx0).MultiGet<Dims...,Idx...>(idx...);
-   // }
 
    /// Generate a Tensor that be read on device
    auto Read()
