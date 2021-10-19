@@ -1221,7 +1221,7 @@ int main(int argc, char *argv[])
    }
    if (dg.kappa < 0.0)
    {
-      dg.kappa = (double)20*(order+1)*(order+1);
+      dg.kappa = (double)(order+1)*(order+1);
    }
    if (op_flag < 0) { op_flag = 0; }
    /*
