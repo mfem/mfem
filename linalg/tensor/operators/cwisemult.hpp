@@ -90,6 +90,103 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    return Du;
 }
 
+// With VDim
+// 1D
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 1 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   constexpr int Quads = 0;
+   constexpr int VDim = 1;
+   constexpr int VD = get_tensor_size<VDim,Tensor>;
+   constexpr int Q_c = get_tensor_size<0,Tensor>;
+   const int Q_r = u.template Size<0>();
+   StaticResultTensor<Tensor,Q_c,VD> Du(Q_r,VD);
+   Foreach<Quads>(u, [&](int q)
+   {
+      auto d = D(q);
+      Foreach<VDim>(u, [&](int vd){
+         Du(q,vd) = d * u(q,vd);
+      });
+   });
+   return Du;
+}
+
+// 2D
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 2 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   constexpr int QuadsX = 0;
+   constexpr int QuadsY = 1;
+   constexpr int VDim = 2;
+   constexpr int VD = get_tensor_size<VDim,Tensor>;
+   constexpr int Q_c = get_tensor_size<0,Tensor>;
+   const int Q_r = u.template Size<0>();
+   StaticResultTensor<Tensor,Q_c,Q_c,VD> Du(Q_r,Q_r,VD);
+   Foreach<QuadsX>(u, [&](int qx)
+   {
+      Foreach<QuadsY>(u, [&](int qy)
+      {
+         auto d = D(qx,qy);
+         Foreach<VDim>(u, [&](int vd){
+            Du(qx,qy,vd) = d * u(qx,qy,vd);
+         });
+      });
+   });
+   return Du;
+}
+
+// 3D
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 3 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 4,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   constexpr int QuadsX = 0;
+   constexpr int QuadsY = 1;
+   constexpr int QuadsZ = 2;
+   constexpr int VDim = 3;
+   constexpr int VD = get_tensor_size<VDim,Tensor>;
+   constexpr int Q_c = get_tensor_size<0,Tensor>;
+   const int Q_r = u.template Size<0>();
+   StaticResultTensor<Tensor,Q_c,Q_c,Q_c,VD> Du(Q_r,Q_r,Q_r,VD);
+   Foreach<QuadsX>(u, [&](int qx)
+   {
+      Foreach<QuadsY>(u, [&](int qy)
+      {
+         Foreach<QuadsZ>(u, [&](int qz)
+         {
+            auto d = D(qx,qy,qz);
+            Foreach<VDim>(u, [&](int vd){
+               Du(qx,qy,qz,vd) = d * u(qx,qy,qz,vd);
+            });
+         });
+      });
+   });
+   return Du;
+}
+
 /// Diagonal Symmetric Tensor product with a Tensor
 // 1D
 template <typename DiagonalSymmTensor,
