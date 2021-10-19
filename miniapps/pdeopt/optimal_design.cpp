@@ -82,16 +82,6 @@ double load(const Vector & x)
    }
 }
 
-// double compute_compliance(GridFunction u, FunctionCoefficient f_coeff)
-// {
-//    u.
-//    ConstantCoefficient zero(0.0);
-//    double energy = f.ComputeL2Error(zero);
-//    energy *= alpha;
-//    energy += u.ComputeL2Error(w_coeff);
-//    return energy/2.0;
-// }
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -99,7 +89,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
-   double step_length = 1e0;
+   double step_length = 1e-2;
    double mass_fraction = 0.5;
    int max_it = 1e3;
    double tol = 1e-4;
@@ -171,9 +161,11 @@ int main(int argc, char *argv[])
    GridFunction u(&state_fes);
    GridFunction p(&state_fes);
    GridFunction K(&control_fes);
+   GridFunction K_old(&control_fes);
    u = 0.0;
    p = 0.0;
    K = 1.0;
+   K_old = 0.0;
 
    // 8. Set up the linear form b(.) for the state and adjoint equations.
    LinearForm b(&state_fes);
@@ -186,12 +178,22 @@ int main(int argc, char *argv[])
    GridFunction grad(&control_fes);
    grad = 0.0;
 
-   // 10. Perform projected gradient descent
+   // 10. Define some tools for later
+   ConstantCoefficient zero(1.0);
+   ConstantCoefficient one(1.0);
+   GridFunction onegf(&control_fes);
+   onegf = 1.0;
+   LinearForm vol_form(&control_fes);
+   vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
+   vol_form.Assemble();
+   double domain_volume = vol_form(onegf);
+
+   // 11. Perform projected gradient descent
    for (int k = 1; k < max_it; k++)
    {
       // A. Form state equation
       BilinearForm a(&state_fes);
-      GridFunctionCoefficient diffusion_coeff(K);
+      GridFunctionCoefficient diffusion_coeff(&K);
       a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
       a.Assemble();
       a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
@@ -210,30 +212,34 @@ int main(int argc, char *argv[])
          int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          sol_sock.precision(8);
-         sol_sock << "solution\n" << mesh << u << flush;
+         sol_sock << "solution\n" << mesh << K << flush;
       }
 
-      // H. Constuct gradient function (i.e., |\nabla K|^2)
-      grad.ProjectGridFunction(p);
-      grad /= alpha;
-      grad += f;
-      grad *= alpha;
-
-      // I. Compute norm of gradient.
-      double norm = grad.ComputeL2Error(zero);
-      double energy = compute_energy(u, w_coeff, f, alpha);
+      // H. Constuct gradient function (i.e., |\nabla u|^2)
+      GradientGridFunctionCoefficient grad_u(&u);
+      InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
+      grad.ProjectCoefficient(norm2_grad_u);
 
       // J. Update control.
       grad *= step_length;
-      f -= grad;
+      K += grad;
 
-      // K. Exit if norm of grad is small enough.
-      mfem::out << "norm of gradient = " << norm << endl;
-      mfem::out << "energy = " << energy << endl;
-      if (norm < tol)
-      {
-         break;
-      }
+      // K. Project onto constraint set
+      double mass = vol_form(K);
+      double scale = mass_fraction * domain_volume / mass;
+      K *= scale;
+
+      // I. Compute norm of update.
+    //   double norm = grad.ComputeL1Error(zero);
+      double compliance = b(u);
+
+      // L. Exit if norm of grad is small enough.
+    //   mfem::out << "norm of update = " << norm << endl;
+      mfem::out << "compliance = " << compliance << endl;
+    //   if (norm < tol)
+    //   {
+    //      break;
+    //   }
 
    }
 
