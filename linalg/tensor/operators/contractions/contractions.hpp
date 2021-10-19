@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_CONTRACTION
-#define MFEM_CONTRACTION
+#ifndef MFEM_CONTRACTIONS
+#define MFEM_CONTRACTIONS
 
 #include "serial/dynamic_contractions.hpp"
 #include "serial/static_contractions.hpp"
@@ -18,4 +18,4 @@
 #include "2d_thread/static_contractions.hpp"
 #include "3d_thread/static_contractions.hpp"
 
-#endif // MFEM_CONTRACTION
+#endif // MFEM_CONTRACTIONS

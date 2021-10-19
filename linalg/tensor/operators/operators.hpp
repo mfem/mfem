@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR_OPERATORS
 #define MFEM_TENSOR_OPERATORS
 
-#include "contractions/contraction.hpp"
+#include "contractions/contractions.hpp"
 #include "interp.hpp"
 #include "grad.hpp"
 #include "divergence.hpp"
