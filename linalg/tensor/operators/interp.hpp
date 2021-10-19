@@ -41,7 +41,8 @@ struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
       is_tensor_basis<Basis> &&
       !(get_basis_dim<Basis> == 3 &&
-      is_device)
+        get_tensor_rank<Dofs> == 3 &&
+        is_device)
    > >
 {
    static constexpr InterpAlgo value = InterpAlgo::Tensor;
@@ -52,7 +53,8 @@ struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
       is_tensor_basis<Basis> &&
       (get_basis_dim<Basis> == 3 &&
-      is_device)
+       get_tensor_rank<Dofs> == 3 &&
+       is_device)
    > >
 {
    static constexpr InterpAlgo value = InterpAlgo::Legacy;
@@ -85,7 +87,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
-             get_basis_dim<Basis> == 1,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Dofs> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u_e)
@@ -104,7 +107,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u_e)
@@ -124,7 +128,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u_e)
@@ -138,6 +143,78 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    auto Bu = ContractX(B,u);
    auto BBu = ContractY(B,Bu);
    return ContractZ(B,BBu);
+}
+
+// 1D Tensor with VDim
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Dofs> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u_e)
+{
+   constexpr int VDim = get_tensor_rank<Dofs> - 1;
+   constexpr int VD = get_tensor_size<VDim,Dofs>;
+   constexpr int Q = get_basis_quads<Basis>;
+   const int Q_r = basis.GetQuads();
+
+   ResultTensor<Basis,Q,VD> v(Q_r,VD);
+   Foreach<VDim>(u_e,[&](int vd)
+   {
+      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+   });
+   return v;
+}
+
+// 2D Tensor with VDim
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u_e)
+{
+   constexpr int VDim = get_tensor_rank<Dofs> - 1;
+   constexpr int VD = get_tensor_size<VDim,Dofs>;
+   constexpr int Q = get_basis_quads<Basis>;
+   const int Q_r = basis.GetQuads();
+
+   ResultTensor<Basis,Q,Q,VD> v(Q_r,Q_r,VD);
+   Foreach<VDim>(u_e,[&](int vd)
+   {
+      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+   });
+   return v;
+}
+
+// 3D Tensor with VDim
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 4,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Basis &basis, const Dofs &u_e)
+{
+   constexpr int VDim = get_tensor_rank<Dofs> - 1;
+   constexpr int VD = get_tensor_size<VDim,Dofs>;
+   constexpr int Q = get_basis_quads<Basis>;
+   const int Q_r = basis.GetQuads();
+
+   ResultTensor<Basis,Q,Q,Q,VD> v(Q_r,Q_r,Q_r,VD);
+   Foreach<VDim>(u_e,[&](int vd)
+   {
+      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+   });
+   return v;
 }
 
 // Non-tensor
@@ -162,7 +239,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
-             get_basis_dim<Basis> == 1,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Dofs> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -179,7 +257,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -197,7 +276,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -211,12 +291,85 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    return ContractX(Bt,BBu);
 }
 
+// 1D Tensor with VDim
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Dofs> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u_e)
+{
+   constexpr int VDim = get_tensor_rank<Dofs> - 1;
+   constexpr int VD = get_tensor_size<VDim,Dofs>;
+   constexpr int D = get_basis_dofs<Basis>;
+   const int D_r = basis.GetDofs();
+
+   ResultTensor<Basis,D,VD> v(D_r,VD);
+   Foreach<VDim>(u_e,[&](int vd)
+   {
+      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+   });
+   return v;
+}
+
+// 2D Tensor with VDim
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u_e)
+{
+   constexpr int VDim = get_tensor_rank<Dofs> - 1;
+   constexpr int VD = get_tensor_size<VDim,Dofs>;
+   constexpr int D = get_basis_dofs<Basis>;
+   const int D_r = basis.GetDofs();
+
+   ResultTensor<Basis,D,D,VD> v(D_r,D_r,VD);
+   Foreach<VDim>(u_e,[&](int vd)
+   {
+      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+   });
+   return v;
+}
+
+// 3D Tensor with VDim
+template <typename Basis,
+          typename Dofs,
+          std::enable_if_t<
+             get_interp_algo<Basis,Dofs> == InterpAlgo::Tensor &&
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 4,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Trans<Basis> &basis, const Dofs &u_e)
+{
+   constexpr int VDim = get_tensor_rank<Dofs> - 1;
+   constexpr int VD = get_tensor_size<VDim,Dofs>;
+   constexpr int D = get_basis_dofs<Basis>;
+   const int D_r = basis.GetDofs();
+
+   ResultTensor<Basis,D,D,D,VD> v(D_r,D_r,D_r,VD);
+   Foreach<VDim>(u_e,[&](int vd)
+   {
+      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+   });
+   return v;
+}
+
 // 2D threaded version where each thread computes one value.
 template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
@@ -261,7 +414,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -318,7 +472,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
@@ -371,7 +526,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Untensorized &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
@@ -439,7 +595,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Legacy &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
@@ -563,7 +720,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_interp_algo<Basis,Dofs> == InterpAlgo::Legacy &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
