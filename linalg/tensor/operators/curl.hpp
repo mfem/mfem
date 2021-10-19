@@ -13,9 +13,8 @@
 #define MFEM_TENSOR_CURL
 
 #include "../tensor.hpp"
-#include "../../general/backends.hpp"
 #include "../factories/basis.hpp"
-#include "contraction.hpp"
+#include "contractions/contraction.hpp"
 #include "concatenate.hpp"
 
 namespace mfem

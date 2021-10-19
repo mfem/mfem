@@ -14,7 +14,7 @@
 
 #include "../tensor.hpp"
 #include "../factories/basis.hpp"
-#include "contraction.hpp"
+#include "contractions/contraction.hpp"
 #include "concatenate.hpp"
 
 namespace mfem
