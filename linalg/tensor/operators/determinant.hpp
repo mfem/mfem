@@ -25,17 +25,17 @@ template <typename Tensor,
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
 {
-   if (J.Size<0>()==3 && J.Size<1>()==3)
+   if (J.template Size<0>()==3 && J.template Size<1>()==3)
    {
       return J(0,0)*J(1,1)*J(2,2)-J(0,2)*J(1,1)*J(2,0)
             +J(0,1)*J(1,2)*J(2,0)-J(0,1)*J(1,0)*J(2,2)
             +J(0,2)*J(1,0)*J(2,1)-J(0,0)*J(1,2)*J(2,1);
    }
-   else if (J.Size<0>()==2 && J.Size<1>()==2)
+   else if (J.template Size<0>()==2 && J.template Size<1>()==2)
    {
       return J(0,0)*J(1,1)-J(0,1)*J(1,0);
    }
-   else if (J.Size<0>()==1 && J.Size<1>()==1)
+   else if (J.template Size<0>()==1 && J.template Size<1>()==1)
    {
       return J(0,0);
    }
