@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LAYOUT
-#define MFEM_LAYOUT
+#ifndef MFEM_LAYOUTS
+#define MFEM_LAYOUTS
 
 #include "dynamic_layout.hpp"
 #include "dynamic_2dthread_layout.hpp"
@@ -79,4 +79,4 @@ class RTLayout;
 
 } // namespace mfem
 
-#endif // MFEM_LAYOUT
+#endif // MFEM_LAYOUTS

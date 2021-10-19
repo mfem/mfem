@@ -13,8 +13,8 @@
 #define MFEM_TENSOR
 
 #include "tensor_traits.hpp"
-#include "containers/container.hpp"
-#include "layouts/layout.hpp"
+#include "containers/containers.hpp"
+#include "layouts/layouts.hpp"
 #include "operators/foreach.hpp"
 #include <iostream>
 
