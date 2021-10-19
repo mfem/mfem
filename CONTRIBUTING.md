@@ -427,6 +427,8 @@ The current list of MFEM editors is:
 
 - @v-dobrev (Veselin Dobrev)
 - @tzanio (Tzanio Kolev)
+- @pazner (Will Pazner)
+- @mlstowell (Mark Stowell)
 
 **The responsibilities of the editors are:**
 
