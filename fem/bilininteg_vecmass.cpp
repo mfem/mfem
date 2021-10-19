@@ -443,7 +443,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_VERIFY(dim==vdim,"dim and vdim should be equal.");
+      MFEM_VERIFY(dim==vdim, "dim and vdim should be equal. dim=" << dim << ", vdim=" << vdim);
       PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
    }
 }
