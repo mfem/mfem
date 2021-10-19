@@ -14,6 +14,9 @@
 #include "gridfunc.hpp"
 #include "ceed/mass.hpp"
 
+#include "../linalg/tensor/factories/factories.hpp"
+#include "../linalg/tensor/operators/operators.hpp"
+
 using namespace std;
 
 namespace mfem
@@ -345,23 +348,89 @@ static void PAVectorMassApply3D(const int NE,
    });
 }
 
+template <int Dim,
+          int VDim,
+          bool IsTensor,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void ApplyMass(const int ne,
+                      const Array<double> &b,
+                      const Array<double> &bt,
+                      const Vector &d,
+                      const Vector &x,
+                      Vector &y,
+                      const int dofs = Dofs,
+                      const int quads = Quads)
+{
+   auto config  = MakeConfig(dofs, quads,
+                             config_dim_is<Dim>(), config_is_tensor<IsTensor>(),
+                             config_dofs_is<Dofs>(), config_quads_is<Quads>());
+   auto B       = MakeBasis(config, b.Read(), bt.Read());
+   const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
+   const auto D = MakeQData<0>(config, d.Read(), ne);
+   auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
+   MFEM_FORALL_CONFIG(config, e, ne,
+   {
+      Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );
+   });
+}
+
 static void PAVectorMassApply(const int dim,
                               const int D1D,
                               const int Q1D,
                               const int NE,
                               const Array<double> &B,
                               const Array<double> &Bt,
-                              const Vector &op,
+                              const Vector &D,
                               const Vector &x,
                               Vector &y)
 {
+   const int id = (D1D << 4) | Q1D;
    if (dim == 2)
    {
-      return PAVectorMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
+      switch (id)
+      {
+         case 0x22: return ApplyMass<2,2,true,2,2,16>(NE,B,Bt,D,x,y);
+         case 0x24: return ApplyMass<2,2,true,2,4,16>(NE,B,Bt,D,x,y);
+         case 0x33: return ApplyMass<2,2,true,3,3,16>(NE,B,Bt,D,x,y);
+         case 0x34: return ApplyMass<2,2,true,3,4,16>(NE,B,Bt,D,x,y);
+         case 0x35: return ApplyMass<2,2,true,3,5,16>(NE,B,Bt,D,x,y);
+         case 0x36: return ApplyMass<2,2,true,3,6,16>(NE,B,Bt,D,x,y);
+         case 0x44: return ApplyMass<2,2,true,4,4,8>(NE,B,Bt,D,x,y);
+         case 0x46: return ApplyMass<2,2,true,4,6,8>(NE,B,Bt,D,x,y);
+         case 0x48: return ApplyMass<2,2,true,4,8,4>(NE,B,Bt,D,x,y);
+         case 0x55: return ApplyMass<2,2,true,5,5,8>(NE,B,Bt,D,x,y);
+         case 0x57: return ApplyMass<2,2,true,5,7,8>(NE,B,Bt,D,x,y);
+         case 0x58: return ApplyMass<2,2,true,5,8,2>(NE,B,Bt,D,x,y);
+         case 0x66: return ApplyMass<2,2,true,6,6,4>(NE,B,Bt,D,x,y);
+         case 0x77: return ApplyMass<2,2,true,7,7,4>(NE,B,Bt,D,x,y);
+         case 0x88: return ApplyMass<2,2,true,8,8,2>(NE,B,Bt,D,x,y);
+         case 0x99: return ApplyMass<2,2,true,9,9,2>(NE,B,Bt,D,x,y);
+         default:   return PAVectorMassApply2D(NE, B, Bt, D, x, y, D1D, Q1D);
+      }
    }
    if (dim == 3)
    {
-      return PAVectorMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+      switch (id)
+      {
+         case 0x23: return ApplyMass<3,3,true,2,3>(NE,B,Bt,D,x,y);
+         case 0x24: return ApplyMass<3,3,true,2,4>(NE,B,Bt,D,x,y);
+         case 0x34: return ApplyMass<3,3,true,3,4>(NE,B,Bt,D,x,y);
+         case 0x35: return ApplyMass<3,3,true,3,5>(NE,B,Bt,D,x,y);
+         case 0x36: return ApplyMass<3,3,true,3,6>(NE,B,Bt,D,x,y);
+         case 0x37: return ApplyMass<3,3,true,3,7>(NE,B,Bt,D,x,y);
+         case 0x45: return ApplyMass<3,3,true,4,5>(NE,B,Bt,D,x,y);
+         case 0x46: return ApplyMass<3,3,true,4,6>(NE,B,Bt,D,x,y);
+         case 0x48: return ApplyMass<3,3,true,4,8>(NE,B,Bt,D,x,y);
+         case 0x56: return ApplyMass<3,3,true,5,6>(NE,B,Bt,D,x,y);
+         case 0x58: return ApplyMass<3,3,true,5,8>(NE,B,Bt,D,x,y);
+         case 0x67: return ApplyMass<3,3,true,6,7>(NE,B,Bt,D,x,y);
+         case 0x78: return ApplyMass<3,3,true,7,8>(NE,B,Bt,D,x,y);
+         case 0x89: return ApplyMass<3,3,true,8,9>(NE,B,Bt,D,x,y);
+         case 0x9A: return ApplyMass<3,3,true,9,10>(NE,B,Bt,D,x,y);
+         default:   return PAVectorMassApply3D(NE, B, Bt, D, x, y, D1D, Q1D);
+      }
    }
    MFEM_ABORT("Unknown kernel.");
 }
@@ -374,6 +443,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
+      MFEM_VERIFY(dim==vdim,"dim and vdim should be equal.");
       PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
    }
 }
