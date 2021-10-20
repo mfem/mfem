@@ -91,15 +91,15 @@ double indicator_function(const Vector & x)
    }
 }
 
-double compute_energy(GridFunction u, FunctionCoefficient w_coeff, GridFunction f, double alpha)
-{
-   ConstantCoefficient zero(0.0);
-   double energy = f.ComputeL2Error(zero);
-   energy *= energy*alpha;
-   double diff = u.ComputeL2Error(w_coeff);
-   energy += diff * diff;
-   return energy/2.0;
-}
+// double line_search(auto compute_energy, GridFunction u, GridFunction grad, double step_length)
+// {
+//    double current_energy = compute_energy(u);
+//    f -= grad;
+//    while (true)
+//    {
+
+//    }
+// }
 
 int main(int argc, char *argv[])
 {
@@ -110,7 +110,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double alpha = 1e-4;
    double step_length = 1e0;
-   double epsilon = 1e-1;
    int max_it = 1e3;
    double tol = 1e-4;
    bool momentum = false;
@@ -189,9 +188,9 @@ int main(int argc, char *argv[])
 
    // 8. Set up the bilinear form a(.,.) for the state and adjoint equation.
    BilinearForm a(&state_fes);
-   ConstantCoefficient diffusion_coeff(epsilon);
+   ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-   a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
    a.Assemble();
    OperatorPtr A;
    Vector B, C, X;
@@ -200,23 +199,18 @@ int main(int argc, char *argv[])
    GridFunction grad(&control_fes);
    grad = 0.0;
 
-   // 10. Connect to GLVis. Prepare for VisIt output.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sout_u,sout_p,sout_f;
-   if (visualization)
+   // 10. Define the energy functional
+   auto compute_energy = [alpha,&zero,&f,&w_coeff] (GridFunction &u)
    {
-      sout_u.open(vishost, visport);
-      sout_p.open(vishost, visport);
-      sout_f.open(vishost, visport);
-      sout_u.precision(8);
-      sout_p.precision(8);
-      sout_f.precision(8);
-   }
+      double energy = f.ComputeL2Error(zero);
+      energy *= energy*alpha;
+      double diff = u.ComputeL2Error(w_coeff);
+      energy += diff * diff;
+      return energy/2.0;
+   };
 
-
-   // 11. Perform projected gradient descent
-   for (int k = 1; k < max_it; k++)
+   // 11. Solve state equation.
+   auto solve_state_eqn = [&ess_tdof_list,&state_fes,&u,&a,&A,&X,&B] (GridFunction &f)
    {
       // A. Form state equation
       LinearForm b(&state_fes);
@@ -231,7 +225,47 @@ int main(int argc, char *argv[])
 
       // C. Recover state variable
       a.RecoverFEMSolution(X, b, u);
+   };
 
+   // // 12. Solve adjoint equation.
+   // auto solve_adjoint_eqn = [&ess_tdof_list,&state_fes,&negative_w_coeff,&p,&a,&A,&X,&B] (GridFunction &u)
+   // {
+   //    // A. Form adjoint equation
+   //    LinearForm b(&state_fes);
+   //    GridFunctionCoefficient u_coeff(&u);
+   //    b.AddDomainIntegrator(new DomainLFIntegrator(u_coeff));
+   //    b.AddDomainIntegrator(new DomainLFIntegrator(negative_w_coeff));
+   //    b.Assemble();
+   //    a.FormLinearSystem(ess_tdof_list, p, b, A, X, B);
+
+   //    // B. Solve adjoint equation
+   //    GSSmoother M((SparseMatrix&)(*A));
+   //    PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+
+   //    // C. Recover adjoint variable
+   //    a.RecoverFEMSolution(X, b, p);
+   // };
+
+   // 13. Connect to GLVis. Prepare for VisIt output.
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sout_u,sout_p,sout_f;
+   if (visualization)
+   {
+      sout_u.open(vishost, visport);
+      sout_p.open(vishost, visport);
+      sout_f.open(vishost, visport);
+      sout_u.precision(8);
+      sout_p.precision(8);
+      sout_f.precision(8);
+   };
+
+
+   // 11. Perform projected gradient descent
+   for (int k = 1; k < max_it; k++)
+   {
+      // Solve state equation for f (updates u)
+      solve_state_eqn(f);
 
       // D. Send the solution by socket to a GLVis server.
       // if (visualization && (k % int(max_it/5) == 0) )
@@ -250,6 +284,7 @@ int main(int argc, char *argv[])
       a.FormLinearSystem(ess_tdof_list, p, c, A, X, C);
 
       // F. Solve adjoint equation
+      GSSmoother M((SparseMatrix&)(*A));
       PCG(*A, M, C, X, 0, 200, 1e-12, 0.0);
 
       // G. Recover adjoint variable
@@ -260,6 +295,9 @@ int main(int argc, char *argv[])
          sout_p << "solution\n" << mesh << p 
                 << "window_title 'Adjoint p'" << flush;
       }
+
+      // // Solve state equation for u (updates p)
+      // solve_adjoint_eqn(u);
 
       // H. Constuct gradient function (i.e., \alpha f + p)
       GridFunction p_L2(&control_fes);
@@ -280,7 +318,7 @@ int main(int argc, char *argv[])
 
       // I. Compute norm of gradient.
       double norm = grad.ComputeL2Error(zero);
-      double energy = compute_energy(u, w_coeff, f, alpha);
+      double energy = compute_energy(u);
 
       // J. Update control.
       grad *= step_length;
