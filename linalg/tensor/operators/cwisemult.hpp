@@ -374,7 +374,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
    return Du;
 }
 
-// 3D
+// 3D with VDim
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
