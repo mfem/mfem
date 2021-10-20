@@ -104,6 +104,23 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+class TMOP_Metric_000 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
+public:
+   // W = |J|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 1; }
+};
+
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
@@ -1622,11 +1639,13 @@ public:
    void EnableSurfaceFitting(const GridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+   void SetSurfaceFittingSourceMeshandFunction(const GridFunction &s0);
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+   void SetSurfaceFittingSourceMeshandFunction(const ParGridFunction &s0);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
 
@@ -1671,6 +1690,8 @@ public:
 #ifdef MFEM_USE_MPI
    void ParUpdateAfterMeshTopologyChange();
 #endif
+   GridFunction *GetSigma() { return sigma; }
+
 
    // PA extension
    using NonlinearFormIntegrator::AssemblePA;

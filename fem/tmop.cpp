@@ -80,6 +80,24 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1(weight, A.GetData());
 }
 
+double TMOP_Metric_000::EvalW(const DenseMatrix &Jpt) const
+{
+   return 0.0;
+}
+
+void TMOP_Metric_000::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   P = 0.0;
+}
+
+void TMOP_Metric_000::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   A = 0.0;
+}
+
 double TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
@@ -2420,6 +2438,14 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    (*sigma->FESpace()->GetMesh()->GetNodes(), *sigma);
 }
 
+void TMOP_Integrator::SetSurfaceFittingSourceMeshandFunction(const GridFunction &s0)
+{
+   sigma_eval->SetSerialMetaInfo(*s0.FESpace()->GetMesh(),
+                                 *s0.FESpace()->FEColl(), 1);
+   sigma_eval->SetInitialField
+   (*s0.FESpace()->GetMesh()->GetNodes(), s0);
+}
+
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,
@@ -2444,6 +2470,14 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                               *s0.ParFESpace()->FEColl(), 1);
    sigma_eval->SetInitialField
    (*sigma->FESpace()->GetMesh()->GetNodes(), *sigma);
+}
+
+void TMOP_Integrator::SetSurfaceFittingSourceMeshandFunction(const ParGridFunction &s0)
+{
+   sigma_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
+                                 *s0.ParFESpace()->FEColl(), 1);
+   sigma_eval->SetInitialField
+   (*s0.FESpace()->GetMesh()->GetNodes(), s0);
 }
 #endif
 
@@ -3137,6 +3171,70 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
    }
 }
 
+//void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
+//                                             IsoparametricTransformation &Tpr,
+//                                             const IntegrationRule &ir_quad,
+//                                             const Vector &weights,
+//                                             DenseMatrix &mat)
+//{
+//   const int el_id = Tpr.ElementNo;
+//   const FiniteElement &el_s = *sigma->FESpace()->GetFE(el_id);
+
+//   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
+//             dof_s = el_s.GetDof(), nqp = ir_quad.GetNPoints();
+
+//   Vector sigma_e, sigma_bar_e;
+//   Vector sigma_bar_q, sigma_q;
+//   Array<int> dofs;
+//   sigma->FESpace()->GetElementDofs(el_id, dofs);
+//   sigma->GetSubVector(dofs, sigma_e);
+//   sigma->GetValues(el_id, ir_quad, sigma_q);
+//   sigma_bar->GetSubVector(dofs, sigma_bar_e);
+//   sigma_bar->GetValues(el_id, ir_quad, sigma_bar_q);
+
+//   // Project the gradient of sigma in the same space.
+//   // The FE coefficients of the gradient go in sigma_grad_e.
+//   DenseMatrix sigma_grad_e(dof_s, dim);
+//   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+//   el_s.ProjectGrad(el_s, Tpr, grad_phys);
+//   Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
+//   grad_phys.Mult(sigma_e, grad_ptr);
+
+//   // Gradient of sigma_bar.
+//   DenseMatrix sigma_bar_grad_e(dof_s, dim);
+//   Vector ptr(sigma_bar_grad_e.GetData(), dof_s * dim);
+//   grad_phys.Mult(sigma_bar_e, ptr);
+
+//   Vector shape_x(dof_x), shape_s(dof_s), grad_q(dim);
+
+//   for (int q = 0; q < nqp; q++)
+//   {
+//      const IntegrationPoint &ip = ir_quad.IntPoint(q);
+//      Tpr.SetIntPoint(&ip);
+//      el_s.CalcShape(ip, shape_s);
+
+//      // Grad of sigma_bar at the current quad point.
+//      sigma_bar_grad_e.MultTranspose(shape_s, grad_q);
+
+//      for (int s = 0; s < dof_s; s++)
+//      {
+//         if ((*sigma_marker)[dofs[s]] == false) { continue; }
+
+//         for (int d = 0; d < dim; d++)
+//         {
+//            // Grad of sigma must be taken at the active DOFs.
+//            grad_q(d) += sigma_grad_e(s, d) * shape_s(s);
+//         }
+//      }
+
+//      grad_q *= 2.0 * sigma_normal * coeff_sigma->Eval(Tpr, ip) *
+//                weights(q) * sigma_bar_q(q);
+
+//      el_x.CalcShape(ip, shape_x);
+//      AddMultVWt(shape_x, grad_q, mat);
+//   }
+//}
+
 void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
                                              IsoparametricTransformation &Tpr,
                                              const IntegrationRule &ir_quad,
@@ -3149,13 +3247,11 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
              dof_s = el_s.GetDof(), nqp = ir_quad.GetNPoints();
 
-   Vector sigma_e, sigma_bar_e;
-   Vector sigma_bar_q;
+   Vector sigma_e;
    Array<int> dofs;
    sigma->FESpace()->GetElementDofs(el_id, dofs);
    sigma->GetSubVector(dofs, sigma_e);
-   sigma_bar->GetSubVector(dofs, sigma_bar_e);
-   sigma_bar->GetValues(el_id, ir_quad, sigma_bar_q);
+   sigma->GetValues(el_id, ir_quad, sigma_q);
 
    // Project the gradient of sigma in the same space.
    // The FE coefficients of the gradient go in sigma_grad_e.
@@ -3165,39 +3261,26 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
    grad_phys.Mult(sigma_e, grad_ptr);
 
-   // Gradient of sigma_bar.
-   DenseMatrix sigma_bar_grad_e(dof_s, dim);
-   Vector ptr(sigma_bar_grad_e.GetData(), dof_s * dim);
-   grad_phys.Mult(sigma_bar_e, ptr);
-
    Vector shape_x(dof_x), shape_s(dof_s), grad_q(dim);
+   const IntegrationRule &ir = el_s.GetNodes();
+   Vector sigma_grad_s(dim);
 
-   for (int q = 0; q < nqp; q++)
+   for (int s = 0; s < dof_s; s++)
    {
-      const IntegrationPoint &ip = ir_quad.IntPoint(q);
+      if ((*sigma_marker)[dofs[s]] == false) { continue; }
+
+      const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
+      el_x.CalcShape(ip, shape_x);
       el_s.CalcShape(ip, shape_s);
 
-      // Grad of sigma_bar at the current quad point.
-      sigma_bar_grad_e.MultTranspose(shape_s, grad_q);
+      // Note that this gradient is already in physical space.
+      sigma_grad_e.MultTranspose(shape_s, sigma_grad_s);
 
-      for (int s = 0; s < dof_s; s++)
-      {
-         if ((*sigma_marker)[dofs[s]] == false) { continue; }
+      sigma_grad_s *= 2.0 * sigma_normal * coeff_sigma->Eval(Tpr, ip) * sigma_e(s);
 
-         for (int d = 0; d < dim; d++)
-         {
-            // Grad of sigma must be taken at the active DOFs.
-            grad_q(d) += sigma_grad_e(s, d) * shape_s(s);
-         }
-      }
-
-      grad_q *= 2.0 * sigma_normal * coeff_sigma->Eval(Tpr, ip) *
-                weights(q) * sigma_bar_q(q);
-
-      el_x.CalcShape(ip, shape_x);
-      AddMultVWt(shape_x, grad_q, mat);
-   }
+      AddMultVWt(shape_x, sigma_grad_s, mat);
+  }
 }
 
 void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
@@ -3206,20 +3289,17 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                                               const Vector &weights,
                                               DenseMatrix &mat)
 {
-   const int el_id = Tpr.ElementNo, nqp = ir_quad.GetNPoints();
+   const int el_id = Tpr.ElementNo;
    const FiniteElement &el_s = *sigma->FESpace()->GetFE(el_id);
 
    const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
              dof_s = el_s.GetDof();
 
-   Vector sigma_e, sigma_bar_e;
-   Vector sigma_bar_q;
+   Vector sigma_e;
 
    Array<int> dofs;
    sigma->FESpace()->GetElementDofs(el_id, dofs);
    sigma->GetSubVector(dofs, sigma_e);
-   sigma_bar->GetSubVector(dofs, sigma_bar_e);
-   sigma_bar->GetValues(el_id, ir_quad, sigma_bar_q);
 
    // Project the gradient of sigma in the same space.
    // The FE coefficients of the gradient go in sigma_grad_e.
@@ -3229,76 +3309,153 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
    grad_phys.Mult(sigma_e, grad_ptr);
 
-   // Gradient of sigma_bar.
-   DenseMatrix sigma_bar_grad_e(dof_s, dim);
-   Vector ptr(sigma_bar_grad_e.GetData(), dof_s * dim);
-   grad_phys.Mult(sigma_bar_e, ptr);
-
    // Project the gradient of each gradient of sigma in the same space.
    // The FE coefficients of the second derivatives go in sigma_grad_grad_e.
    DenseMatrix sigma_grad_grad_e(dof_s * dim, dim);
    Mult(grad_phys, sigma_grad_e, sigma_grad_grad_e);
-
-   // Project the gradient of each gradient of sigma in the same space.
-   // The FE coefficients of the second derivatives go in sigma_grad_grad_e.
-   DenseMatrix sigma_bar_grad_grad_e(dof_s * dim, dim);
-   Mult(grad_phys, sigma_bar_grad_e, sigma_bar_grad_grad_e);
    // Reshape to be more convenient later (no change in the data).
-   sigma_bar_grad_grad_e.SetSize(dof_s, dim * dim);
+   sigma_grad_grad_e.SetSize(dof_s, dim * dim);
 
-   DenseMatrix sigma_bar_grad_grad_q(dim, dim);
+   const IntegrationRule &ir = el_s.GetNodes();
+   Vector shape_x(dof_x), shape_s(dof_s);
 
-   Vector shape_x(dof_x), shape_s(dof_s), sigma_bar_grad_q(dim);
-   DenseMatrix dshape_s(dof_s, dim);
+   Vector sigma_grad_s(dim);
+   DenseMatrix sigma_grad_grad_s(dim, dim);
 
-   for (int q = 0; q < nqp; q++)
+   for (int s = 0; s < dof_s; s++)
    {
-      const IntegrationPoint &ip = ir_quad.IntPoint(q);
+      if ((*sigma_marker)[dofs[s]] == false) { continue; }
+
+      const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
-      el_s.CalcShape(ip, shape_s);
       el_x.CalcShape(ip, shape_x);
-      // We could reuse grad_phys, but this is more accurate.
-      el_s.CalcPhysDShape(Tpr, dshape_s);
+      el_s.CalcShape(ip, shape_s);
 
-      // Grad of sigma_bar at the current quad point.
-      sigma_bar_grad_e.MultTranspose(shape_s, sigma_bar_grad_q);
-
-      // Grad-grad of sigma_bar at the current quad point.
-      Vector gg_ptr(sigma_bar_grad_grad_q.GetData(), dim * dim);
-      sigma_bar_grad_grad_e.MultTranspose(shape_s, gg_ptr);
+      // These are the sums over k at the dof s (looking at the notes).
+      sigma_grad_e.MultTranspose(shape_s, sigma_grad_s);
+      Vector gg_ptr(sigma_grad_grad_s.GetData(), dim * dim);
+      sigma_grad_grad_e.MultTranspose(shape_s, gg_ptr);
 
       // Loops over the local matrix.
-      const double w = 2.0 * sigma_normal *
-                       coeff_sigma->Eval(Tpr, ip) * weights(q);
+      const double w = sigma_normal * coeff_sigma->Eval(Tpr, ip);
       for (int i = 0; i < dof_x * dim; i++)
       {
          const int idof = i % dof_x, idim = i / dof_x;
          for (int j = 0; j <= i; j++)
          {
             const int jdof = j % dof_x, jdim = j / dof_x;
-
-            double Di = sigma_bar_grad_q(idim),
-                   Dj = sigma_bar_grad_q(jdim),
-                   DD = sigma_bar_grad_grad_q(idim, jdim);
-            for (int s = 0; s < dof_s; s++)
-            {
-               if ((*sigma_marker)[dofs[s]] == false) { continue; }
-
-               Di += sigma_grad_e(s, idim) * shape_s(s);
-               Dj += sigma_grad_e(s, jdim) * shape_s(s);
-               DD += sigma_grad_e(s, idim) * dshape_s(s, jdim) +
-                     sigma_grad_grad_e(dof_s * idim + s, jdim) * shape_s(s) +
-                     sigma_grad_e(s, jdim) * dshape_s(s, idim);
-            }
-            const double entry = w * (Di * Dj + sigma_bar_q(q) * DD) *
-                                 shape_x(idof) * shape_x(jdof);
-
+            const double entry =
+               w * ( 2.0 * sigma_grad_s(idim) * shape_x(idof) *
+                     /* */ sigma_grad_s(jdim) * shape_x(jdof) +
+                     2.0 * sigma_e(s) * sigma_grad_grad_s(idim, jdim) *
+                     /* */ shape_x(idof) * shape_x(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
       }
    }
 }
+
+
+//void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
+//                                              IsoparametricTransformation &Tpr,
+//                                              const IntegrationRule &ir_quad,
+//                                              const Vector &weights,
+//                                              DenseMatrix &mat)
+//{
+//   const int el_id = Tpr.ElementNo, nqp = ir_quad.GetNPoints();
+//   const FiniteElement &el_s = *sigma->FESpace()->GetFE(el_id);
+
+//   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
+//             dof_s = el_s.GetDof();
+
+//   Vector sigma_e, sigma_bar_e;
+//   Vector sigma_bar_q;
+
+//   Array<int> dofs;
+//   sigma->FESpace()->GetElementDofs(el_id, dofs);
+//   sigma->GetSubVector(dofs, sigma_e);
+//   sigma_bar->GetSubVector(dofs, sigma_bar_e);
+//   sigma_bar->GetValues(el_id, ir_quad, sigma_bar_q);
+
+//   // Project the gradient of sigma in the same space.
+//   // The FE coefficients of the gradient go in sigma_grad_e.
+//   DenseMatrix sigma_grad_e(dof_s, dim);
+//   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+//   el_s.ProjectGrad(el_s, Tpr, grad_phys);
+//   Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
+//   grad_phys.Mult(sigma_e, grad_ptr);
+
+//   // Gradient of sigma_bar.
+//   DenseMatrix sigma_bar_grad_e(dof_s, dim);
+//   Vector ptr(sigma_bar_grad_e.GetData(), dof_s * dim);
+//   grad_phys.Mult(sigma_bar_e, ptr);
+
+//   // Project the gradient of each gradient of sigma in the same space.
+//   // The FE coefficients of the second derivatives go in sigma_grad_grad_e.
+//   DenseMatrix sigma_grad_grad_e(dof_s * dim, dim);
+//   Mult(grad_phys, sigma_grad_e, sigma_grad_grad_e);
+
+//   // Project the gradient of each gradient of sigma in the same space.
+//   // The FE coefficients of the second derivatives go in sigma_grad_grad_e.
+//   DenseMatrix sigma_bar_grad_grad_e(dof_s * dim, dim);
+//   Mult(grad_phys, sigma_bar_grad_e, sigma_bar_grad_grad_e);
+//   // Reshape to be more convenient later (no change in the data).
+//   sigma_bar_grad_grad_e.SetSize(dof_s, dim * dim);
+
+//   DenseMatrix sigma_bar_grad_grad_q(dim, dim);
+
+//   Vector shape_x(dof_x), shape_s(dof_s), sigma_bar_grad_q(dim);
+//   DenseMatrix dshape_s(dof_s, dim);
+
+//   for (int q = 0; q < nqp; q++)
+//   {
+//      const IntegrationPoint &ip = ir_quad.IntPoint(q);
+//      Tpr.SetIntPoint(&ip);
+//      el_s.CalcShape(ip, shape_s);
+//      el_x.CalcShape(ip, shape_x);
+//      // We could reuse grad_phys, but this is more accurate.
+//      el_s.CalcPhysDShape(Tpr, dshape_s);
+
+//      // Grad of sigma_bar at the current quad point.
+//      sigma_bar_grad_e.MultTranspose(shape_s, sigma_bar_grad_q);
+
+//      // Grad-grad of sigma_bar at the current quad point.
+//      Vector gg_ptr(sigma_bar_grad_grad_q.GetData(), dim * dim);
+//      sigma_bar_grad_grad_e.MultTranspose(shape_s, gg_ptr);
+
+//      // Loops over the local matrix.
+//      const double w = 2.0 * sigma_normal *
+//                       coeff_sigma->Eval(Tpr, ip) * weights(q);
+//      for (int i = 0; i < dof_x * dim; i++)
+//      {
+//         const int idof = i % dof_x, idim = i / dof_x;
+//         for (int j = 0; j <= i; j++)
+//         {
+//            const int jdof = j % dof_x, jdim = j / dof_x;
+
+//            double Di = sigma_bar_grad_q(idim),
+//                   Dj = sigma_bar_grad_q(jdim),
+//                   DD = sigma_bar_grad_grad_q(idim, jdim);
+//            for (int s = 0; s < dof_s; s++)
+//            {
+//               if ((*sigma_marker)[dofs[s]] == false) { continue; }
+
+//               Di += sigma_grad_e(s, idim) * shape_s(s);
+//               Dj += sigma_grad_e(s, jdim) * shape_s(s);
+//               DD += sigma_grad_e(s, idim) * dshape_s(s, jdim) +
+//                     sigma_grad_grad_e(dof_s * idim + s, jdim) * shape_s(s) +
+//                     sigma_grad_e(s, jdim) * dshape_s(s, idim);
+//            }
+//            const double entry = w * (Di * Dj + sigma_bar_q(q) * DD) *
+//                                 shape_x(idof) * shape_x(jdof);
+
+//            mat(i, j) += entry;
+//            if (i != j) { mat(j, i) += entry; }
+//         }
+//      }
+//   }
+//}
 
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         ElementTransformation &T,
