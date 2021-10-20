@@ -9,7 +9,7 @@
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
 //
-//         min J(f) = 1/2 \| u - w \|_{L^2} + \alpha/2 \| f \|_{L^2} 
+//         min J(f) = 1/2 \| u - w \|^2_{L^2} + \alpha/2 \| f \|^2_{L^2} 
 //
 //         subject to   - \Delta u = f    in \Omega
 //                               u = 0    on \partial\Omega
@@ -27,8 +27,6 @@
 
 using namespace std;
 using namespace mfem;
-
-class ReducedSystemOperator;
 
 /** The Lagrangian for this problem is
  *    
@@ -97,8 +95,9 @@ double compute_energy(GridFunction u, FunctionCoefficient w_coeff, GridFunction 
 {
    ConstantCoefficient zero(0.0);
    double energy = f.ComputeL2Error(zero);
-   energy *= alpha;
-   energy += u.ComputeL2Error(w_coeff);
+   energy *= energy*alpha;
+   double diff = u.ComputeL2Error(w_coeff);
+   energy += diff * diff;
    return energy/2.0;
 }
 
@@ -201,7 +200,22 @@ int main(int argc, char *argv[])
    GridFunction grad(&control_fes);
    grad = 0.0;
 
-   // 10. Perform projected gradient descent
+   // 10. Connect to GLVis. Prepare for VisIt output.
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sout_u,sout_p,sout_f;
+   if (visualization)
+   {
+      sout_u.open(vishost, visport);
+      sout_p.open(vishost, visport);
+      sout_f.open(vishost, visport);
+      sout_u.precision(8);
+      sout_p.precision(8);
+      sout_f.precision(8);
+   }
+
+
+   // 11. Perform projected gradient descent
    for (int k = 1; k < max_it; k++)
    {
       // A. Form state equation
@@ -218,14 +232,13 @@ int main(int argc, char *argv[])
       // C. Recover state variable
       a.RecoverFEMSolution(X, b, u);
 
+
       // D. Send the solution by socket to a GLVis server.
-      if (visualization && (k % int(max_it/5) == 0) )
+      // if (visualization && (k % int(max_it/5) == 0) )
+      if (visualization)
       {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream sol_sock(vishost, visport);
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << mesh << u << flush;
+         sout_u << "solution\n" << mesh << u
+                << "window_title 'State u'" << flush;
       }
 
       // E. Form adjoint equation
@@ -241,6 +254,12 @@ int main(int argc, char *argv[])
 
       // G. Recover adjoint variable
       a.RecoverFEMSolution(X, c, p);
+
+      if (visualization)
+      {
+         sout_p << "solution\n" << mesh << p 
+                << "window_title 'Adjoint p'" << flush;
+      }
 
       // H. Constuct gradient function (i.e., \alpha f + p)
       GridFunction p_L2(&control_fes);
@@ -267,6 +286,12 @@ int main(int argc, char *argv[])
       grad *= step_length;
       f -= grad;
 
+      if (visualization)
+      {
+         sout_f << "solution\n" << mesh << f 
+                << "window_title 'Control f'" << flush;
+      }
+
       // K. Exit if norm of grad is small enough.
       mfem::out << "norm of gradient = " << norm << endl;
       mfem::out << "energy = " << energy << endl;
@@ -275,15 +300,6 @@ int main(int argc, char *argv[])
          break;
       }
 
-   }
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << u << flush;
    }
 
    return 0;
