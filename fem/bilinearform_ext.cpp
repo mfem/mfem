@@ -436,35 +436,65 @@ timings[tid++] = std::chrono::system_clock::now();
 #endif
    }
 
+   Vector yint(y);
+   yint = 0.0;
+   Vector ybdy(yint);
+
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
+
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
       int_face_restrict_lex->Mult(x, faceIntX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       if (faceIntX.Size()>0)
       {
          faceIntY = 0.0;
          for (int i = 0; i < iFISz; ++i)
          {
             intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
          }
-         int_face_restrict_lex->MultTranspose(faceIntY, y);
+         int_face_restrict_lex->MultTranspose(faceIntY, yint);
       }
    }
+
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
       bdr_face_restrict_lex->Mult(x, faceBdrX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       if (faceBdrX.Size()>0)
       {
          faceBdrY = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
             bdrFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
          }
-         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->MultTranspose(faceBdrY, ybdy);
       }
    }
 #if timings_on > 0 
@@ -472,18 +502,35 @@ timelines[tid] = __LINE__;
 timings[tid++] = std::chrono::system_clock::now();
 #endif
 
-#ifdef MFEM_DEBUG
-/*
-   std::cout << "begin y" << std::endl;
-   y.Print(std::cout,1);
-   std::cout << "faceNormDIntX" << std::endl;
-   faceNormDIntX.Print(std::cout,1);
-   std::cout << "yint" << std::endl;
-   yint.Print(std::cout,1);
-   std::cout << "ybdy" << std::endl;
-   ybdy.Print(std::cout,1);
-   */
+   Vector yold(y);
+   y = 0.0;
+   y += yint;
+   y += ybdy;
+
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
 #endif
+
+   /*
+   std::cout << "       begin y" << std::endl;
+   yold.Print(std::cout,1);
+   //std::cout << "       faceBdrX" << std::endl;
+   //faceBdrX.Print(std::cout,1);
+   std::cout << "       faceBdrY" << std::endl;
+   faceBdrY.Print(std::cout,1);
+   //std::cout << "       faceIntX" << std::endl;
+   //faceIntX.Print(std::cout,1);
+   std::cout << "       faceIntY" << std::endl;
+   faceIntY.Print(std::cout,1);
+   std::cout << "       yint" << std::endl;
+   yint.Print(std::cout,1);
+   std::cout << "       ybdy" << std::endl;
+   ybdy.Print(std::cout,1);
+   std::cout << "       end y" << std::endl;
+   y.Print(std::cout,1);
+   */
+ 
 
 #if timings_on > 0 
 timelines[tid] = __LINE__;

@@ -3408,14 +3408,14 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y_new = Reshape(y.Write(), ndofs_face, vd, num_sides, nf, num_derivatives);
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
 /*
       // Loop over all face dofs
@@ -3451,7 +3451,7 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       auto jac_face_factor = Reshape( jac_face_factors.Read(), dim, ndofs_face, num_faces_per_element, ne);
       int elem_dofs = (dim==3)? D1D*D1D*D1D : D1D*D1D;
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//  std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
       if(dim == 2)
       {           
@@ -3493,7 +3493,7 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             // Restrict to faces
             double R0xu[max_D1D][vdim];
@@ -3516,7 +3516,7 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
             
             double R0yGxu[max_D1D][vdim];
             double R0xGyu[max_D1D][vdim];
@@ -3571,12 +3571,13 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             // y = 0 face
             int face_id = 0;
             int face = map_elements_to_faces[num_faces_per_element*e + face_id];
             int side = map_elements_to_sides[num_faces_per_element*e + face_id];
+            std::cout << "e " << e << "  faceid " << face_id << " face " << face << " side " << side << std::endl;
             if(side>=0)
             for (int d1 = 0; d1 < D1D; d1++)
             {
@@ -3594,12 +3595,13 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             // x = 1 face
             face_id = 1;
             face = map_elements_to_faces[num_faces_per_element*e + face_id];
             side = map_elements_to_sides[num_faces_per_element*e + face_id];
+            std::cout << "e " << e << "  faceid " << face_id << " face " << face << " side " << side << std::endl;
             if(side>=0)
             for (int d1 = 0; d1 < D1D; d1++)
             {
@@ -3617,12 +3619,14 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             // y = 1 face
             face_id = 2;
             face = map_elements_to_faces[num_faces_per_element*e + face_id];
             side = map_elements_to_sides[num_faces_per_element*e + face_id];
+
+            std::cout << "e " << e << "  faceid " << face_id << " face " << face << " side " << side << std::endl;
             if(side>=0)
             for (int d1 = 0; d1 < D1D; d1++)
             {
@@ -3640,12 +3644,13 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
                }
             }
 
-   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+//   std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
             // x = 0 face
             face_id = 3;
             face = map_elements_to_faces[num_faces_per_element*e + face_id];
             side = map_elements_to_sides[num_faces_per_element*e + face_id];
+            std::cout << "e " << e << "  faceid " << face_id << " face " << face << " side " << side << std::endl;
             if(side>=0)
             for (int d1 = 0; d1 < D1D; d1++)
             {
@@ -4312,7 +4317,6 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                 std::cout << std::endl;
             }
 #endif
-
 
             for( int face_id = 0 ; face_id < num_faces_per_element ; face_id++ )
             {

@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
    bool set_bc = true;
    bool lob = true;
 
-   int initial = 0;
+   int initial = 1;
    bool bdyf = true;
    bool intf = true;
    
@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
    xfull.ProjectCoefficient(f);
 
    afull->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
-   afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
+//   afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
    if(intf)
    afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
    if(bdyf)
@@ -326,8 +326,8 @@ int main(int argc, char *argv[])
          case 4:
             for(int i = 0; i < x.Size() ; i++ )
             {
-               test(i) = i;
-               testfull(i) = i;
+               test(i) = std::rand() % 100;
+               testfull(i) = test(i);
             }
             break;
          default:
@@ -390,7 +390,8 @@ int main(int argc, char *argv[])
          }
 */
 
-#ifdef MFEM_DEBUG
+
+
          std::cout << " %{ " << std::endl;
          std::cout << "               yout" << std::endl;
          yout.Print(mfem::out,1);
@@ -398,7 +399,28 @@ int main(int argc, char *argv[])
          youtfull.Print(mfem::out,1);
          std::cout << "               ydiff" << std::endl;
          ydiff.Print(mfem::out,1);
-#endif
+      
+
+        {
+/*
+            Array<int> ess_tdof_list;
+            if (mesh->bdr_attributes.Size())
+            {
+               Array<int> ess_bdr(mesh->bdr_attributes.Max());
+               ess_bdr = set_bc ? 1 : 0;
+               fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+            }
+            OperatorPtr Afull;
+            Vector Bfull, Xfull;
+            Xfull = 1;
+
+            afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
+
+            Afull->PrintMatlab(std::cout);
+
+            //exit(1);
+            */
+        } 
 
       }
 
@@ -436,6 +458,9 @@ int main(int argc, char *argv[])
       
       afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
       OperatorJacobiSmoother Mfull(*afull, ess_tdof_list);
+
+      //Afull->PrintMatlab(std::cout);
+      //exit(1);
 
       std::chrono::time_point<std::chrono::system_clock> StartTime;
       std::chrono::time_point<std::chrono::system_clock> EndTime;
@@ -631,5 +656,5 @@ double x1(const Vector &x)
 
 double x2(const Vector &x)
 {
-   return 2.0*x(1);//*x(1);
+   return x(0);//*x(1);
 }
