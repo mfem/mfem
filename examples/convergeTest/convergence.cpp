@@ -307,12 +307,15 @@ void u_grad_exact(const Vector &x, Vector &u)
 double u_exact_2(const Vector &x)
 {
    return sin(x(1))*exp(x(0));
+   // return sin(28*x(0))*sin(28*x(1));
 }
 
 void u_grad_exact_2(const Vector &x, Vector &u)
 {
    u(0) = sin(x(1))*exp(x(0));
    u(1) = cos(x(1))*exp(x(0));
+   // u(0) = 28*sin(28*x(1))*cos(28*x(0));
+   // u(1) = 28*sin(28*x(0))*cos(28*x(1));
 }
 
 int main(int argc, char *argv[])
