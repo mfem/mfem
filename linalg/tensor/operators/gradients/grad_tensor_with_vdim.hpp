@@ -28,7 +28,6 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 {
-   constexpr int Dim = get_basis_dim<Basis>;
    constexpr int VDim = get_tensor_rank<Dofs> - 1;
    constexpr int VD = get_tensor_size<VDim,Dofs>;
    constexpr int Q = get_basis_quads<Basis>;
