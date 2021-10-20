@@ -29,7 +29,7 @@ PDEOPT_COMMON_SRC =
 
 PDEOPT_COMMON_OBJ = $(PDEOPT_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = distributed_control
+SEQ_MINIAPPS = distributed_control optimal_design
 PAR_MINIAPPS = 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -77,4 +77,3 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf distributed_control*
