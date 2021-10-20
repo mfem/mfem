@@ -5,6 +5,7 @@
 // Sample runs:
 //    optimal_design -r 3
 //    optimal_design -m ../../data/star.mesh -r 3
+//    optimal_design -sl 1 -m ../../data/mobius-strip.mesh -r 4
 //
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
@@ -80,6 +81,7 @@ double load(const Vector & x)
    {
       return 0.0;
    }
+//    return 1.0;
 }
 
 int main(int argc, char *argv[])
@@ -93,8 +95,6 @@ int main(int argc, char *argv[])
    double mass_fraction = 0.5;
    int max_it = 1e3;
    double tol = 1e-4;
-   bool momentum = false;
-   double momentum_param = 0.9;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -107,12 +107,11 @@ int main(int argc, char *argv[])
                   "Step length for gradient descent.");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
+   args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
+                  "Mass fraction for diffusion coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&momentum, "-mom", "--momentum", "-no-mom",
-                  "--no-momentum",
-                  "Enable gradient descent with momentum.");
    args.Parse();
    if (!args.Good())
    {
@@ -188,7 +187,19 @@ int main(int argc, char *argv[])
    vol_form.Assemble();
    double domain_volume = vol_form(onegf);
 
-   // 11. Perform projected gradient descent
+   // 11. Connect to GLVis. Prepare for VisIt output.
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sout_u,sout_p,sout_K;
+   if (visualization)
+   {
+      sout_u.open(vishost, visport);
+      sout_K.open(vishost, visport);
+      sout_u.precision(8);
+      sout_K.precision(8);
+   }
+
+   // 12. Perform projected gradient descent
    for (int k = 1; k < max_it; k++)
    {
       // A. Form state equation
@@ -206,13 +217,10 @@ int main(int argc, char *argv[])
       a.RecoverFEMSolution(X, b, u);
 
       // D. Send the solution by socket to a GLVis server.
-      if (visualization && (k % int(max_it/5) == 0) )
+      if (visualization)
       {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream sol_sock(vishost, visport);
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << mesh << K << flush;
+         sout_u << "solution\n" << mesh << u
+                << "window_title 'State u'" << flush;
       }
 
       // H. Constuct gradient function (i.e., |\nabla u|^2)
@@ -230,26 +238,25 @@ int main(int argc, char *argv[])
       K *= scale;
 
       // I. Compute norm of update.
-    //   double norm = grad.ComputeL1Error(zero);
+      GridFunctionCoefficient tmp(&K_old);
+      double norm = K.ComputeL2Error(tmp)/step_length;
+      K_old = K;
       double compliance = b(u);
 
       // L. Exit if norm of grad is small enough.
-    //   mfem::out << "norm of update = " << norm << endl;
+      mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
-    //   if (norm < tol)
-    //   {
-    //      break;
-    //   }
+      if (norm < tol)
+      {
+         break;
+      }
 
-   }
+    if (visualization)
+    {
+        sout_K << "solution\n" << mesh << K
+            << "window_title 'Control K'" << flush;
+    }
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << u << flush;
    }
 
    return 0;
