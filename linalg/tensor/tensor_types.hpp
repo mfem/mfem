@@ -58,9 +58,29 @@ template <int Rank, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic2dThreadDTensor = Dynamic2dThreadTensor<Rank,double,BatchSize,MaxSize>;
 
 /// A Tensor statically distributed over a plane of threads
+constexpr int get_Static2dThreadTensor_size(int Size0)
+{
+   return 1;
+}
+
+constexpr int get_Static2dThreadTensor_size(int Size0, int Size1)
+{
+   return 1;
+}
+
+template <typename... Sizes>
+constexpr int get_Static2dThreadTensor_size(int Size0, int Size1, Sizes... sizes)
+{
+   return prod(sizes...);
+}
+
 template <typename T, int BatchSize, int... Sizes>
-using Static2dThreadTensor = Tensor<Static2dThreadContainer<T, Sizes...>,
-                                 Static2dThreadLayout<BatchSize, Sizes...> >;
+using Static2dThreadTensor = Tensor<StaticContainer<
+                                       T,
+                                       get_Static2dThreadTensor_size(Sizes...)
+                                    >,
+                                    Static2dThreadLayout<BatchSize, Sizes...>
+                             >;
 
 template <int BatchSize, int... Sizes>
 using Static2dThreadDTensor = Static2dThreadTensor<double,BatchSize,Sizes...>;

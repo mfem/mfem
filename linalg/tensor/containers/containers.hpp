@@ -16,7 +16,6 @@
 #include "read_container.hpp"
 #include "memory_container.hpp"
 #include "static_container.hpp"
-#include "static_2dthread_container.hpp"
 #include "view_container.hpp"
 
 #endif // MFEM_CONTAINERS
