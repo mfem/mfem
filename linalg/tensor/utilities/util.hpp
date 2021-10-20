@@ -12,6 +12,8 @@
 #ifndef MFEM_TENSOR_UTIL
 #define MFEM_TENSOR_UTIL
 
+#include "../../../general/forall.hpp"
+
 namespace mfem
 {
 
