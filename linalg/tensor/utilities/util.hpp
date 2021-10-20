@@ -26,6 +26,7 @@ struct get_value_v<0, Dim0, Dims...>
 {
    static constexpr int value = Dim0;
 };
+
 template <int N, int Dim0, int... Dims>
 struct get_value_v<N, Dim0, Dims...>
 {
