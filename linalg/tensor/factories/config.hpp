@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR_CONFIG
 #define MFEM_TENSOR_CONFIG
 
-#include "../details/util.hpp"
+#include "../utilities/utilities.hpp"
 #include "../tensor.hpp"
 #include "../tensor_types.hpp"
 

@@ -16,6 +16,7 @@
 
 #include "../linalg/tensor/factories/factories.hpp"
 #include "../linalg/tensor/operators/operators.hpp"
+#include "../linalg/tensor/utilities/utilities.hpp"
 
 using namespace std;
 

@@ -12,6 +12,8 @@
 #ifndef MFEM_LAYOUT_TRAITS
 #define MFEM_LAYOUT_TRAITS
 
+#include "../utilities/helper_constants.hpp"
+
 namespace mfem
 {
 

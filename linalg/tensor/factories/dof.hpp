@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR_DOF
 #define MFEM_TENSOR_DOF
 
-#include "../details/util.hpp"
+#include "../utilities/utilities.hpp"
 #include "../tensor.hpp"
 #include "config.hpp"
 

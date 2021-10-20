@@ -12,7 +12,7 @@
 #ifndef MFEM_BASIS
 #define MFEM_BASIS
 
-#include "../details/util.hpp"
+#include "../utilities/utilities.hpp"
 #include "../tensor.hpp"
 #include "config.hpp"
 

@@ -9,15 +9,22 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_TENSOR_OPERATORS
-#define MFEM_TENSOR_OPERATORS
+#ifndef MFEM_TENSOR_UTIL_CONSTANTS
+#define MFEM_TENSOR_UTIL_CONSTANTS
 
-#include "contractions/contractions.hpp"
-#include "interpolations/interpolations.hpp"
-#include "gradients/gradients.hpp"
-#include "divergence.hpp"
-#include "curl.hpp"
-#include "cwisemult.hpp"
-#include "determinant.hpp"
+namespace mfem
+{
 
-#endif // MFEM_TENSOR_OPERATORS
+static constexpr int Dynamic = 0;
+static constexpr int Error = -1;
+static constexpr int DynamicMaxSize = 16;
+
+#if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__))
+static constexpr bool is_device = true;
+#else
+static constexpr bool is_device = false;
+#endif
+
+} // mfem namespace
+
+#endif // MFEM_TENSOR_UTIL_CONSTANTS

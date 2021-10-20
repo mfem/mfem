@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR_QDATA
 #define MFEM_TENSOR_QDATA
 
-#include "../details/util.hpp"
+#include "../utilities/utilities.hpp"
 #include "../tensor.hpp"
 #include "diagonal_tensor.hpp"
 #include "config.hpp"

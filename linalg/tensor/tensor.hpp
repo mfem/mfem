@@ -15,7 +15,7 @@
 #include "tensor_traits.hpp"
 #include "containers/containers.hpp"
 #include "layouts/layouts.hpp"
-#include "operators/foreach.hpp"
+#include "utilities/foreach.hpp"
 #include <iostream>
 
 namespace mfem

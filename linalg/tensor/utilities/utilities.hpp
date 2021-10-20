@@ -9,15 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_TENSOR_OPERATORS
-#define MFEM_TENSOR_OPERATORS
+#ifndef MFEM_TENSOR_UTILITIES
+#define MFEM_TENSOR_UTILITIES
 
-#include "contractions/contractions.hpp"
-#include "interpolations/interpolations.hpp"
-#include "gradients/gradients.hpp"
-#include "divergence.hpp"
-#include "curl.hpp"
-#include "cwisemult.hpp"
-#include "determinant.hpp"
+#include "helper_constants.hpp"
+#include "foreach.hpp"
+#include "forall.hpp"
+#include "util.hpp"
 
-#endif // MFEM_TENSOR_OPERATORS
+#endif // MFEM_TENSOR_UTILITIES
