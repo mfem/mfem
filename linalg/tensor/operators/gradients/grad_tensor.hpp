@@ -25,7 +25,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
-             get_basis_dim<Basis> == 1,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Dofs> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -44,7 +45,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -77,7 +79,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
@@ -115,7 +118,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
-             get_basis_dim<Basis> == 1,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Dofs> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
@@ -132,7 +136,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
-             get_basis_dim<Basis> == 2,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
@@ -159,7 +164,8 @@ template <typename Basis,
           typename Dofs,
           std::enable_if_t<
              get_grad_algo<Basis,Dofs> == GradAlgo::Tensor &&
-             get_basis_dim<Basis> == 3,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Dofs> == 4,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)

@@ -14,6 +14,7 @@
 
 #include "grad_non-tensor.hpp"
 #include "grad_tensor.hpp"
+#include "grad_tensor_with_vdim.hpp"
 #include "grad_legacy.hpp"
 #include "grad_untensorized.hpp"
 
