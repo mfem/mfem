@@ -501,6 +501,7 @@ int main (int argc, char *argv[])
       //      pmesh->PrintAsOne(mesh_ofs);
    }
 
+   x.HostReadWrite();
    // Add benchmark transformation
    if (benchmark)
    {
@@ -555,6 +556,7 @@ int main (int argc, char *argv[])
       }
    }
 
+   x.HostReadWrite();
    // Change boundary attribute for boundary element if tangential relaxation is allowed
    if (move_bnd && benchmark)
    {
