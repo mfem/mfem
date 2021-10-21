@@ -1843,12 +1843,10 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
-   DenseMatrix skM(width, m), ykM(width, m);
-   Array<Vector *> skMV(m), ykMV(m);
    for (int i = 0; i < m; i++)
    {
-      skMV[i] = new Vector(width);
-      ykMV[i] = new Vector(width);
+      skMV[i]->SetSize(width);
+      ykMV[i]->SetSize(width);
    }
 
    // r - r_{k+1}, c - descent direction
@@ -1939,33 +1937,23 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
-      skM.SetCol(last_saved_id, sk);
-      ykM.SetCol(last_saved_id, yk);
       *skMV[last_saved_id] = sk;
       *ykMV[last_saved_id] = yk;
 
       c = r;
       for (int i = last_saved_id; i > -1; i--)
       {
-         sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
-         yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
-         //         skM.GetColumn(i, sk);
-         //         ykM.GetColumn(i, yk);
-         rho(i) = 1./Dot(sk, yk);
-         alpha(i) = rho(i)*Dot(sk,c);
-         add(c, -alpha(i), yk, c);
+         rho(i) = 1.0/Dot((*skMV[i]),(*ykMV[i]));
+         alpha(i) = rho(i)*Dot((*skMV[i]),c);
+         add(c, -alpha(i), (*ykMV[i]), c);
       }
       if (it > m-1)
       {
          for (int i = m-1; i > last_saved_id; i--)
          {
-            //            skM.GetColumn(i, sk);
-            //            ykM.GetColumn(i, yk);
-            sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
-            yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
-            rho(i) = 1./Dot(sk, yk);
-            alpha(i) = rho(i)*Dot(sk,c);
-            add(c, -alpha(i), yk, c);
+            rho(i) = 1./Dot((*skMV[i]), (*ykMV[i]));
+            alpha(i) = rho(i)*Dot((*skMV[i]),c);
+            add(c, -alpha(i), (*ykMV[i]), c);
          }
       }
 
@@ -1974,34 +1962,20 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            //            skM.GetColumn(i,sk);
-            //            ykM.GetColumn(i,yk);
-            sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
-            yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
-            double betai = rho(i)*Dot(yk, c);
+            double betai = rho(i)*Dot((*ykMV[i]), c);
             add(c, alpha(i)-betai, sk, c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         //         skM.GetColumn(i,sk);
-         //         ykM.GetColumn(i,yk);
-         sk.SetDataAndSize(skMV[i]->GetData(), skMV[i]->Size());
-         yk.SetDataAndSize(ykMV[i]->GetData(), ykMV[i]->Size());
-         double betai = rho(i)*Dot(yk, c);
+         double betai = rho(i)*Dot((*ykMV[i]), c);
          add(c, alpha(i)-betai, sk, c);
       }
+
       TimePrecMult.Stop();
 
       norm = Norm(r);
    }
-
-   for (int i = 0; i < m; i++)
-   {
-      skMV[i]->Destroy();
-      ykMV[i]->Destroy();
-   }
-
    final_iter = it;
    final_norm = norm;
 }
