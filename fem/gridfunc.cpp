@@ -502,25 +502,24 @@ const
    {
       doftrans->InvTransformPrimal(loc_data);
    }
-   for (int k = 0; k < n; k++)
-      if (FElem->GetMapType() == FiniteElement::VALUE)
+   if (FElem->GetMapType() == FiniteElement::VALUE)
+   {
+      for (int k = 0; k < n; k++)
       {
-         for (int k = 0; k < n; k++)
-         {
-            FElem->CalcShape(ir.IntPoint(k), DofVal);
-            vals(k) = DofVal * loc_data;
-         }
+         FElem->CalcShape(ir.IntPoint(k), DofVal);
+         vals(k) = DofVal * loc_data;
       }
-      else
+   }
+   else
+   {
+      ElementTransformation *Tr = fes->GetElementTransformation(i);
+      for (int k = 0; k < n; k++)
       {
-         ElementTransformation *Tr = fes->GetElementTransformation(i);
-         for (int k = 0; k < n; k++)
-         {
-            Tr->SetIntPoint(&ir.IntPoint(k));
-            FElem->CalcPhysShape(*Tr, DofVal);
-            vals(k) = DofVal * loc_data;
-         }
+         Tr->SetIntPoint(&ir.IntPoint(k));
+         FElem->CalcPhysShape(*Tr, DofVal);
+         vals(k) = DofVal * loc_data;
       }
+   }
 }
 
 void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
@@ -1342,21 +1341,20 @@ void GridFunction::ProjectVectorFieldOn(GridFunction &vec_field, int comp)
    }
 }
 
-void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
+void GridFunction::AccumulateAndCountDerivativeValues(int comp, int der_comp,
+                                                      GridFunction &der,
+                                                      Array<int> &zones_per_dof)
 {
    FiniteElementSpace * der_fes = der.FESpace();
    ElementTransformation * transf;
-   Array<int> overlap(der_fes->GetVSize());
+   zones_per_dof.SetSize(der_fes->GetVSize());
    Array<int> der_dofs, vdofs;
    DenseMatrix dshape, inv_jac;
    Vector pt_grad, loc_func;
    int i, j, k, dim, dof, der_dof, ind;
    double a;
 
-   for (i = 0; i < overlap.Size(); i++)
-   {
-      overlap[i] = 0;
-   }
+   zones_per_dof = 0;
    der = 0.0;
 
    comp--;
@@ -1391,11 +1389,17 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
             a += inv_jac(j, der_comp) * pt_grad(j);
          }
          der(der_dofs[k]) += a;
-         overlap[der_dofs[k]]++;
+         zones_per_dof[der_dofs[k]]++;
       }
    }
+}
 
-   for (i = 0; i < overlap.Size(); i++)
+void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
+{
+   Array<int> overlap;
+   AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);
+
+   for (int i = 0; i < overlap.Size(); i++)
    {
       der(i) /= overlap[i];
    }
@@ -2257,9 +2261,10 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
       }
       fe = fes->GetBE(i);
       T = fes->GetBdrElementTransformation(i);
-      fes->GetBdrElementDofs(i, dofs);
+      DofTransformation *dof_tr = fes->GetBdrElementDofs(i, dofs);
       lvec.SetSize(fe->GetDof());
       fe->Project(vcoeff, *T, lvec);
+      if (dof_tr) { dof_tr->TransformPrimal(lvec); }
       accumulate_dofs(dofs, lvec, *this, values_counter);
    }
 

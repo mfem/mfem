@@ -780,14 +780,14 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    else
    {
       // Some shared dofs will be linear combinations of others
-      int ldof  = GetVSize();
-      int ltdof = TrueVSize();
+      HYPRE_BigInt ldof  = GetVSize();
+      HYPRE_BigInt ltdof = TrueVSize();
 
-      HYPRE_Int gdof  = -1;
-      HYPRE_Int gtdof = -1;
+      HYPRE_BigInt gdof  = -1;
+      HYPRE_BigInt gtdof = -1;
 
-      MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
-      MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
+      MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
+      MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
 
       // Ensure face orientations have been communicated
       pmesh->ExchangeFaceNbrData();
@@ -1530,12 +1530,17 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 {
+   P -> StealData();
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrix *csrP = (hypre_ParCSRMatrix*)(*P);
    hypre_ParCSRMatrixOwnsRowStarts(csrP) = 1;
    hypre_ParCSRMatrixOwnsColStarts(csrP) = 1;
-   P -> StealData();
    dof_offsets.LoseData();
    tdof_offsets.LoseData();
+#else
+   dof_offsets.DeleteAll();
+   tdof_offsets.DeleteAll();
+#endif
 }
 
 void ParFiniteElementSpace::ConstructTrueDofs()
@@ -2289,6 +2294,12 @@ int ParFiniteElementSpace
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
+   // TODO: general face DOF transformations in NeighborRowMessage::Decode()
+   MFEM_VERIFY(!(fec->GetOrder() >= 2
+                 && pmesh->HasGeometry(Geometry::TETRAHEDRON)
+                 && fec->GetContType() == FiniteElementCollection::TANGENTIAL),
+               "Nedelec NC tets of order >= 2 are not supported yet.");
+
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
 #ifdef MFEM_PMATRIX_STATS
@@ -3184,8 +3195,11 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)
    {
+      // Note: although n and fes.GetVSize() are typically equal, in
+      // variable-order spaces they may differ, since nonconforming edges/faces
+      // my have fictitious DOFs.
       int n = perm->Size();
-      perm_mat = new SparseMatrix(n, n);
+      perm_mat = new SparseMatrix(n, fes.GetVSize());
       for (int i=0; i<n; ++i)
       {
          double s;
@@ -3202,10 +3216,25 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
       else { P = new HypreParMatrix(*pfes->P); }
       nonconf_P = true;
    }
+   else if (perm != NULL)
+   {
+      HYPRE_BigInt glob_nrows = GlobalVSize();
+      HYPRE_BigInt glob_ncols = GlobalTrueVSize();
+      HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+      HYPRE_BigInt *row_starts = GetDofOffsets();
+      P = new HypreParMatrix(MyComm, glob_nrows, glob_ncols, row_starts,
+                             col_starts, perm_mat);
+      nonconf_P = true;
+   }
    if (pfes->R != NULL)
    {
       if (perm) { R = Mult(*pfes->R, *perm_mat_tr); }
       else { R = new SparseMatrix(*pfes->R); }
+   }
+   else if (perm != NULL)
+   {
+      R = perm_mat_tr;
+      perm_mat_tr = NULL;
    }
 
    delete perm_mat;
