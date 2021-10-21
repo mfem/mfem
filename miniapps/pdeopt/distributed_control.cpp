@@ -73,14 +73,7 @@ using namespace mfem;
 
 double indicator_function(const Vector & x)
 {
-   double x1 = x(0);
-   double x2 = x(1);
-   // double x3 = 0.0;
-   // if (x.Size() == 3)
-   // {
-   //    x3 = x(2);
-   // }
-   double r = sqrt(x1*x1 + x2*x2);
+   double r = sqrt(x[0]*x[0] + x[1]*x[1]);
    if (r <= 0.5)
    {
       return 1.0;
@@ -91,15 +84,15 @@ double indicator_function(const Vector & x)
    }
 }
 
-// double line_search(auto compute_energy, GridFunction u, GridFunction grad, double step_length)
-// {
-//    double current_energy = compute_energy(u);
-//    f -= grad;
-//    while (true)
-//    {
-
-//    }
-// }
+double compute_energy(const GridFunction & u, FunctionCoefficient & w_coeff, const GridFunction & f, double alpha)
+{
+   ConstantCoefficient zero(0.0);
+   double energy = f.ComputeL2Error(zero);
+   energy *= energy*alpha;
+   double diff = u.ComputeL2Error(w_coeff);
+   energy += diff * diff;
+   return energy/2.0;
+}
 
 int main(int argc, char *argv[])
 {
@@ -110,6 +103,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double alpha = 1e-4;
    double step_length = 1e0;
+   double epsilon = 1.0;
    int max_it = 1e3;
    double tol = 1e-4;
    bool momentum = false;
@@ -161,7 +155,7 @@ int main(int argc, char *argv[])
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
    H1_FECollection state_fec(order, dim);
-   L2_FECollection control_fec(order, dim);
+   L2_FECollection control_fec(order-1, dim);
    FiniteElementSpace state_fes(&mesh, &state_fec);
    FiniteElementSpace control_fes(&mesh, &control_fec);
 
@@ -188,65 +182,18 @@ int main(int argc, char *argv[])
 
    // 8. Set up the bilinear form a(.,.) for the state and adjoint equation.
    BilinearForm a(&state_fes);
-   ConstantCoefficient one(1.0);
+   ConstantCoefficient diffusion_coeff(epsilon);
    ConstantCoefficient zero(0.0);
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
    a.Assemble();
    OperatorPtr A;
-   Vector B, C, X;
+   // Vector B, C, X;
 
    // 9. Define the gradient function
    GridFunction grad(&control_fes);
    grad = 0.0;
 
-   // 10. Define the energy functional
-   auto compute_energy = [alpha,&zero,&f,&w_coeff] (GridFunction &u)
-   {
-      double energy = f.ComputeL2Error(zero);
-      energy *= energy*alpha;
-      double diff = u.ComputeL2Error(w_coeff);
-      energy += diff * diff;
-      return energy/2.0;
-   };
-
-   // 11. Solve state equation.
-   auto solve_state_eqn = [&ess_tdof_list,&state_fes,&u,&a,&A,&X,&B] (GridFunction &f)
-   {
-      // A. Form state equation
-      LinearForm b(&state_fes);
-      GridFunctionCoefficient f_coeff(&f);
-      b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
-      b.Assemble();
-      a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
-
-      // B. Solve state equation
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
-
-      // C. Recover state variable
-      a.RecoverFEMSolution(X, b, u);
-   };
-
-   // // 12. Solve adjoint equation.
-   // auto solve_adjoint_eqn = [&ess_tdof_list,&state_fes,&negative_w_coeff,&p,&a,&A,&X,&B] (GridFunction &u)
-   // {
-   //    // A. Form adjoint equation
-   //    LinearForm b(&state_fes);
-   //    GridFunctionCoefficient u_coeff(&u);
-   //    b.AddDomainIntegrator(new DomainLFIntegrator(u_coeff));
-   //    b.AddDomainIntegrator(new DomainLFIntegrator(negative_w_coeff));
-   //    b.Assemble();
-   //    a.FormLinearSystem(ess_tdof_list, p, b, A, X, B);
-
-   //    // B. Solve adjoint equation
-   //    GSSmoother M((SparseMatrix&)(*A));
-   //    PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
-
-   //    // C. Recover adjoint variable
-   //    a.RecoverFEMSolution(X, b, p);
-   // };
-
-   // 13. Connect to GLVis. Prepare for VisIt output.
+   // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sout_u,sout_p,sout_f;
@@ -258,14 +205,39 @@ int main(int argc, char *argv[])
       sout_u.precision(8);
       sout_p.precision(8);
       sout_f.precision(8);
-   };
+   }
 
+   // State equation system
+   GridFunctionCoefficient f_coeff;
+   GridFunctionCoefficient u_coeff;
+   a.FormSystemMatrix(ess_tdof_list, A);
+   GSSmoother M((SparseMatrix&)(*A));
+   CGSolver pcg;
+   double rtol = 1e-12;
+   double atol = 0.;
+   int max_cgit = 200;
+   int print_level = 0;
+
+   pcg.SetMaxIter(max_cgit);
+   pcg.SetRelTol(rtol);
+   pcg.SetAbsTol(atol);
+   pcg.SetPrintLevel(print_level);
+   pcg.SetOperator(*A);
+   pcg.SetPreconditioner(M);
 
    // 11. Perform projected gradient descent
    for (int k = 1; k < max_it; k++)
    {
-      // Solve state equation for f (updates u)
-      solve_state_eqn(f);
+      // A. Form state equation
+      LinearForm b(&state_fes);
+      f_coeff.SetGridFunction(&f);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
+      b.Assemble();
+      a.EliminateVDofsInRHS(ess_tdof_list,u,b);
+      
+      // B. Solve state equation
+      pcg.Mult(b,u);
+
 
       // D. Send the solution by socket to a GLVis server.
       // if (visualization && (k % int(max_it/5) == 0) )
@@ -277,18 +249,14 @@ int main(int argc, char *argv[])
 
       // E. Form adjoint equation
       LinearForm c(&state_fes);
-      GridFunctionCoefficient u_coeff(&u);
+      u_coeff.SetGridFunction(&u);
       c.AddDomainIntegrator(new DomainLFIntegrator(u_coeff));
       c.AddDomainIntegrator(new DomainLFIntegrator(negative_w_coeff));
       c.Assemble();
-      a.FormLinearSystem(ess_tdof_list, p, c, A, X, C);
-
+      a.EliminateVDofsInRHS(ess_tdof_list,p,c);
+      
       // F. Solve adjoint equation
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, C, X, 0, 200, 1e-12, 0.0);
-
-      // G. Recover adjoint variable
-      a.RecoverFEMSolution(X, c, p);
+      pcg.Mult(c,p);
 
       if (visualization)
       {
@@ -296,12 +264,27 @@ int main(int argc, char *argv[])
                 << "window_title 'Adjoint p'" << flush;
       }
 
-      // // Solve state equation for u (updates p)
-      // solve_adjoint_eqn(u);
-
       // H. Constuct gradient function (i.e., \alpha f + p)
       GridFunction p_L2(&control_fes);
-      p_L2.ProjectGridFunction(p);
+      // p_L2.ProjectGridFunction(p);
+
+      GridFunctionCoefficient pcoeff(&p);
+      
+      LinearForm d(&control_fes);
+      d.AddDomainIntegrator(new DomainLFIntegrator(pcoeff));
+      d.Assemble();
+      BilinearForm L2proj(&control_fes);
+      InverseIntegrator * m = new InverseIntegrator(new MassIntegrator());
+      L2proj.AddDomainIntegrator(m);
+      L2proj.Assemble();
+      Array<int> empty_list;
+      OperatorPtr invM;
+      L2proj.FormSystemMatrix(empty_list,invM);   
+      invM->Mult(d,p_L2);
+
+
+
+
       if (momentum)
       {
          grad *= momentum_param;
@@ -318,11 +301,29 @@ int main(int argc, char *argv[])
 
       // I. Compute norm of gradient.
       double norm = grad.ComputeL2Error(zero);
-      double energy = compute_energy(u);
+      double energy = compute_energy(u, w_coeff, f, alpha);
 
       // J. Update control.
       grad *= step_length;
       f -= grad;
+
+
+      // "Project" to [a,b]
+      double cmin = -1., cmax = 1.;
+      for (int i = 0; i < f.Size(); i++)
+      {
+         if (f[i] > cmax) 
+         {
+            f[i] = cmax;
+         }
+         else if (f[i] < cmin)
+         {
+            f[i] = cmin;
+         }
+         else
+         { // do nothing
+         }
+      }
 
       if (visualization)
       {
