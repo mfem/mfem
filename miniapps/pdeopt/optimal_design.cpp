@@ -26,8 +26,6 @@
 using namespace std;
 using namespace mfem;
 
-class ReducedSystemOperator;
-
 /** The Lagrangian for this problem is
  *    
  *    L(u,K,p) = (f,u) - (K \nabla u, \nabla p) + (f,p)
