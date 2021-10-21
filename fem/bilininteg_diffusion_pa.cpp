@@ -1944,8 +1944,8 @@ static void PADiffusionApply(const int dim,
          case 0x46: return ApplyDiff<3,0,true,4,6>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x56: return ApplyDiff<3,0,true,5,6>(NE,symm,B,G,Bt,Gt,D,X,Y);
          case 0x67: return ApplyDiff<3,0,true,6,7>(NE,symm,B,G,Bt,Gt,D,X,Y);
-         case 0x78: return ApplyDiff<3,0,true,7,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
-         case 0x89: return ApplyDiff<3,0,true,8,9>(NE,symm,B,G,Bt,Gt,D,X,Y);
+            // case 0x78: return ApplyDiff<3,0,true,7,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+            // case 0x89: return ApplyDiff<3,0,true,8,9>(NE,symm,B,G,Bt,Gt,D,X,Y);
             // default:   return ApplyDiff<3,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
