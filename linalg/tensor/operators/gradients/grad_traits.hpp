@@ -40,6 +40,7 @@ struct get_grad_algo_v<Basis, Dofs,
    std::enable_if_t<
       is_tensor_basis<Basis> &&
       !(get_basis_dim<Basis> == 3 &&
+        get_tensor_rank<Dofs> == 3 &&
       is_device)
    > >
 {
@@ -51,6 +52,7 @@ struct get_grad_algo_v<Basis, Dofs,
    std::enable_if_t<
       is_tensor_basis<Basis> &&
       (get_basis_dim<Basis> == 3 &&
+        get_tensor_rank<Dofs> == 3 &&
       is_device)
    > >
 {
