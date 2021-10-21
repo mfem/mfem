@@ -48,7 +48,8 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
      b_(NULL),
      h_(NULL),
      jr_(NULL),
-     j_(NULL),
+     j_nd_(NULL),
+     j_rt_(NULL),
      k_(NULL),
      m_(NULL),
      bd_(NULL),
@@ -151,7 +152,8 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
    if ( jCoef_ )
    {
       jr_          = new ParGridFunction(HCurlFESpace_);
-      j_           = new ParGridFunction(HCurlFESpace_);
+      j_nd_        = new ParGridFunction(HCurlFESpace_);
+      j_rt_        = new ParGridFunction(HDivFESpace_);
       DivFreeProj_ = new DivergenceFreeProjector(*H1FESpace_, *HCurlFESpace_,
                                                  irOrder, NULL, NULL, grad_);
    }
@@ -188,7 +190,8 @@ TeslaSolver::~TeslaSolver()
    delete b_;
    delete h_;
    delete jr_;
-   delete j_;
+   delete j_nd_;
+   delete j_rt_;
    delete k_;
    delete m_;
    delete bd_;
@@ -285,7 +288,8 @@ TeslaSolver::Update()
    bd_->Update();
    jd_->Update();
    if ( jr_ ) { jr_->Update(); }
-   if ( j_  ) {  j_->Update(); }
+   if ( j_nd_ ) { j_nd_->Update(); }
+   if ( j_rt_ ) { j_rt_->Update(); }
    if ( k_  ) {  k_->Update(); }
    if ( m_  ) {  m_->Update(); }
 
@@ -327,12 +331,13 @@ TeslaSolver::Solve()
    if ( jr_ )
    {
       jr_->ProjectCoefficient(*jCoef_);
+      j_rt_->ProjectCoefficient(*jCoef_); // For visualization
 
       // Compute the discretely divergence-free portion of jr_
-      DivFreeProj_->Mult(*jr_, *j_);
+      DivFreeProj_->Mult(*jr_, *j_nd_);
 
-      // Compute the dual of j_
-      hCurlMass_->AddMult(*j_, *jd_);
+      // Compute the dual of j_nd_
+      hCurlMass_->AddMult(*j_nd_, *jd_);
    }
 
    // Initialize the Magnetization
@@ -432,7 +437,7 @@ TeslaSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    visit_dc.RegisterField("A", a_);
    visit_dc.RegisterField("B", b_);
    visit_dc.RegisterField("H", h_);
-   if ( j_ ) { visit_dc.RegisterField("J", j_); }
+   if ( j_rt_ ) { visit_dc.RegisterField("J", j_rt_); }
    if ( k_ ) { visit_dc.RegisterField("K", k_); }
    if ( m_ ) { visit_dc.RegisterField("M", m_); }
    if ( SurfCur_ ) { visit_dc.RegisterField("Psi", SurfCur_->GetPsi()); }
@@ -468,7 +473,7 @@ TeslaSolver::InitializeGLVis()
    socks_["H"] = new socketstream;
    socks_["H"]->precision(8);
 
-   if ( j_ )
+   if ( j_rt_ )
    {
       socks_["J"] = new socketstream;
       socks_["J"]->precision(8);
@@ -513,10 +518,10 @@ TeslaSolver::DisplayToGLVis()
                   *h_, "Magnetic Field (H)", Wx, Wy, Ww, Wh);
    Wx += offx;
 
-   if ( j_ )
+   if ( j_rt_ )
    {
       VisualizeField(*socks_["J"], vishost, visport,
-                     *j_, "Current Density (J)", Wx, Wy, Ww, Wh);
+                     *j_rt_, "Current Density (J)", Wx, Wy, Ww, Wh);
    }
 
    Wx = 0; Wy += offy; // next line
