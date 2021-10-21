@@ -501,6 +501,7 @@ int main (int argc, char *argv[])
       //      pmesh->PrintAsOne(mesh_ofs);
    }
 
+   x.HostReadWrite();
    // Add benchmark transformation
    if (benchmark)
    {
@@ -555,6 +556,7 @@ int main (int argc, char *argv[])
       }
    }
 
+   x.HostReadWrite();
    // Change boundary attribute for boundary element if tangential relaxation is allowed
    if (move_bnd && benchmark)
    {
@@ -1070,7 +1072,7 @@ int main (int argc, char *argv[])
    }
 #else
    static Vector x_out_loc(pfespace->GetVSize());
-   pfespace->GetProlongationMatrix()->Mult(x, x_out_loc);
+   pfespace->GetProlongationMatrix()->Mult(x.GetTrueVector(), x_out_loc);
    tauval = dim == 2 ? solver.MinDetJpr_2D(pfespace,x_out_loc):
             dim == 3 ? solver.MinDetJpr_3D(pfespace,x_out_loc): -1.0;
    //dbg("tauval: %.15e, det: %.15e",tauval, det);
