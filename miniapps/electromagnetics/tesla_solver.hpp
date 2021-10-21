@@ -67,6 +67,10 @@ public:
    void DisplayToGLVis();
 
    const ParGridFunction & GetVectorPotential() { return *a_; }
+   const ParGridFunction & GetMagneticFlux()    { return *b_; }
+   const ParGridFunction & GetMagneticField()   { return *h_; }
+   const ParGridFunction & GetCurrentDensity()  { return *j_rt_; }
+   const ParGridFunction & GetMagnetization()   { return *m_; }
 
 private:
 
