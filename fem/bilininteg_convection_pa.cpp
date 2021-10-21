@@ -15,6 +15,10 @@
 #include "ceed/convection.hpp"
 #include "quadinterpolator.hpp"
 
+#include "../linalg/tensor/factories/factories.hpp"
+#include "../linalg/tensor/operators/operators.hpp"
+#include "../linalg/tensor/utilities/utilities.hpp"
+
 namespace mfem
 {
 
@@ -766,6 +770,38 @@ void SmemPAConvectionApply3D(const int ne,
    });
 }
 
+template <int Dim,
+          int VDim,
+          bool IsTensor,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void ApplyConvection(const int ne,
+                            const Array<double> &b,
+                            const Array<double> &g,
+                            const Array<double> &bt,
+                            const Array<double> &gt,
+                            const Vector &d,
+                            const Vector &x,
+                            Vector &y,
+                            int dofs = Dofs,
+                            int quads = Quads)
+{
+   config_dim_is<Dim> param1;
+   config_is_tensor<IsTensor> param2;
+   config_dofs_is<Dofs> param3;
+   config_quads_is<Quads> param4;
+   auto config  = MakeConfig(dofs, quads, param1, param2, param3, param4);
+   auto B       = MakeBasis(config, b.Read(), bt.Read(), g.Read(), gt.Read());
+   const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
+   const auto D = MakeQData<1>(config, d.Read(), ne);
+   auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
+   MFEM_FORALL_CONFIG(config, e, ne,
+   {
+      Y(e) += transpose(B) * ( D(e) * ( grad(B) * X(e) ) );
+   });
+}
+
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -871,17 +907,28 @@ static void PAConvectionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPAConvectionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return SmemPAConvectionApply2D<3,3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPAConvectionApply2D<3,4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPAConvectionApply2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x46: return SmemPAConvectionApply2D<4,6,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPAConvectionApply2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x58: return SmemPAConvectionApply2D<5,8,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return SmemPAConvectionApply2D<6,6,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return SmemPAConvectionApply2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x88: return SmemPAConvectionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x99: return SmemPAConvectionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x22: return SmemPAConvectionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x33: return SmemPAConvectionApply2D<3,3,4>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x34: return SmemPAConvectionApply2D<3,4,4>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x44: return SmemPAConvectionApply2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x46: return SmemPAConvectionApply2D<4,6,4>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x55: return SmemPAConvectionApply2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x58: return SmemPAConvectionApply2D<5,8,2>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x66: return SmemPAConvectionApply2D<6,6,1>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x77: return SmemPAConvectionApply2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x88: return SmemPAConvectionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x99: return SmemPAConvectionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x22: return ApplyConvection<2,0,true,2,2,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return ApplyConvection<2,0,true,3,3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x34: return ApplyConvection<2,0,true,3,4,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return ApplyConvection<2,0,true,4,4,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x46: return ApplyConvection<2,0,true,4,6,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return ApplyConvection<2,0,true,5,5,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x58: return ApplyConvection<2,0,true,5,8,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return ApplyConvection<2,0,true,6,6,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return ApplyConvection<2,0,true,7,7,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return ApplyConvection<2,0,true,8,8,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x99: return ApplyConvection<2,0,true,9,9,1>(NE,B,G,Bt,Gt,op,x,y);
          default:   return PAConvectionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
@@ -889,17 +936,28 @@ static void PAConvectionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x24: return SmemPAConvectionApply3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x26: return SmemPAConvectionApply3D<2,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPAConvectionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x35: return SmemPAConvectionApply3D<3,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x45: return SmemPAConvectionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x48: return SmemPAConvectionApply3D<4,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x56: return SmemPAConvectionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x67: return SmemPAConvectionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x78: return SmemPAConvectionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x89: return SmemPAConvectionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x24: return SmemPAConvectionApply3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x26: return SmemPAConvectionApply3D<2,6>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x34: return SmemPAConvectionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x35: return SmemPAConvectionApply3D<3,5>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x45: return SmemPAConvectionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x48: return SmemPAConvectionApply3D<4,8>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x56: return SmemPAConvectionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x67: return SmemPAConvectionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x78: return SmemPAConvectionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
+         // case 0x89: return SmemPAConvectionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x23: return ApplyConvection<3,0,true,2,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x24: return ApplyConvection<3,0,true,2,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x26: return ApplyConvection<3,0,true,2,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x34: return ApplyConvection<3,0,true,3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x35: return ApplyConvection<3,0,true,3,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x45: return ApplyConvection<3,0,true,4,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x48: return ApplyConvection<3,0,true,4,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x56: return ApplyConvection<3,0,true,5,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x67: return ApplyConvection<3,0,true,6,7>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x78: return ApplyConvection<3,0,true,7,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x89: return ApplyConvection<3,0,true,8,9>(NE,B,G,Bt,Gt,op,x,y);
          default:   return PAConvectionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
