@@ -8,7 +8,17 @@
                                https://mfem.org
 
 
-Version 4.3, released on June XX, 2021
+Version 4.3.1 (development)
+===========================
+- Added support for hr-adaptivity using TMOP-based error estimator.
+
+- Tetrahedral meshes no longer need to be reordered to support high order
+  Nedelec basis functions. This will allow future support for Nedelec basis
+  functions on wedges and pyramids which are not amenable to reordering. The
+  ReorientTetMesh method of the Mesh and ParMesh classes has been deprecated.
+
+
+Version 4.3, released on July 29, 2021
 ======================================
 
 Discretization improvements
@@ -49,6 +59,13 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
+- Added support for AMG preconditioners on GPUs based on the hypre library
+  (version 2.22.0 or later). These include BoomerAMG, AMS and ADS and most
+  MFEM examples that use hypre have been ported to support this functionality.
+  The GPU preconditioners require that both hypre and MFEM are built with CUDA
+  support. Hypre builds with CUDA and unified memory are also supported and
+  can be used with `-d cuda:uvm` as a command-line option.
+
 - Added support for AMG preconditioners for non-symmetric systems (e.g.
   advection-dominated problems) using hypre's approximate ideal restriction
   (AIR) AMG. Requires hypre version 2.14.0 or newer. Usage is illustrated in
@@ -76,18 +93,14 @@ Linear and nonlinear solvers
   free operators in Ginkgo solvers, new wrappers for Ginkgo preconditioners, HIP
   support, and reduction of unnecessary data copies.
 
-- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
-  diffusion problems with the Ceed backend.
-
 - Added initial support for hypre's mixed integer (mixedint) capability, which
   uses different data types for local and global indices in order to save memory
   in large problems. This capability requires that hypre was configured with the
   --enable-mixedint option. Note that this option is currently tested only in
-  ex1p and may not work in more general settings.
+  ex1p, ex3p, and ex4p, and may not work in more general settings.
 
-- Improved the interface for using the Ginkgo library, including: support for
-  matrix-free operators in Ginkgo solvers, new wrappers for Ginkgo
-  preconditioners, HIP support, and reduction of unnecessary data copies.
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
 
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
@@ -114,15 +127,20 @@ Meshing improvements
   NC data files are compatible with serial code, e.g., can be viewed with serial
   GLVis. Loading of legacy NC mesh files is still supported.
 
+- Added FMS support (https://github.com/CEED/FMS) to mfem. FMS can represent
+  unstructured high-order meshes with general high-order finite element fields
+  on them. When enabled, mfem can convert data collections to/from FMS data
+  collections in memory. In addition, an FMS data collection class was added so
+  the convert-dc miniapp can read and generate data files in FMS format.
+
 - Added new mesh quality metrics and improved the untangling capabilities of the
   TMOP-based mesh optimization algorithms.
 
 - The TMOP mesh optimization algorithms were extended to GPU:
-   - QualityMetric #1, #2, #7 and #77 are available in 2D, #302, #303, #315
-     and #321 in 3D
-   - Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
-   - Kernels for normalization and limiting have been added
-   - The AdvectorCG now also supports AssemblyLevel::PARTIAL
+  * QualityMetric 1, 2, 7, 77 are available in 2D, 302, 303, 315, 321 in 3D
+  * Both AnalyticAdaptTC and DiscreteAdaptTC TargetConstructor are available
+  * Kernels for normalization and limiting have been added
+  * The AdvectorCG now also supports AssemblyLevel::PARTIAL
 
 - Added support for creating refined meshes for all element types (e.g. by
   splitting high-order elements into low-order refined elements), including
@@ -224,10 +242,16 @@ New and updated examples and miniapps
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
-- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
-  help identify elements with poor mesh quality.
+Improved testing
+----------------
+- Transitioned from Travis to GitHub Action for testing/CI on GitHub.
 
-- Added support for reading VTK meshes in XML format.
+- Use Spack (and Uberenv) to automate TPL building in LLNL GitLab tests.
+
+- Extended `make test` to include GPU tests when MFEM is built with CUDA or HIP
+  support.
+
+- Added a set of suggested git hooks for developers in config/githooks.
 
 - Added support for Caliper: a library to integrate performance profiling
   capabilities into applications. See examples/caliper for more details.
@@ -237,13 +261,39 @@ New and updated examples and miniapps
 
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
-- Added makefile rule to generate TAGS table for vi or Emacs users.
+Miscellaneous
+-------------
+- The following integrations have updated minimum version requirements:
+  * CUDA >= 10.1.168
+  * Ginkgo >= 1.4.0
+  * GSLIB >= 1.0.7
+  * HIOP >= 0.4
+  * HYPRE >= 2.20.0 for mixedint support
+  * HYPRE >= 2.22.0 for CUDA support
+  * libCEED >= 0.8
+  * PETSc >= 3.15.0 for CUDA support
+  * RAJA >= 0.13.0
+  see INSTALL for more details.
 
-- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
+- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
+  help identify elements with poor mesh quality.
+
+- Added support for reading VTK meshes in XML format.
+
+- Added makefile rule to generate TAGS table for vi or Emacs users.
 
 - Added HIP support to the CMake build system.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+API changes
+-----------
+- Added an abstract interface `mfem::FaceRestriction` for `H1FaceRestriction`
+  and `L2FaceRestriction`.
+  In order to conform with the semantic of `MultTranspose` in `mfem::Operator`,
+  `mfem::FaceRestriction::MultTranspose` now sets instead of adding values, and
+  `mfem::FaceRestriction::AddMultTranspose` should replace previous calls to
+  `mfem::FaceRestriction::MultTranspose`.
 
 
 Version 4.2, released on October 30, 2020
@@ -330,9 +380,6 @@ Linear and nonlinear solvers
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
-
-- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
-  modification of Example 9/9p.
 
 - Added wrappers for hypre's flexible GMRES solver and the new parallel ILU
   preconditioner. The latter requires hypre version 2.19.0 or later.

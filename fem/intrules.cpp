@@ -34,6 +34,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
    nx = irx.GetNPoints();
    ny = iry.GetNPoints();
    SetSize(nx * ny);
+   SetPointIndices();
 
    for (j = 0; j < ny; j++)
    {
@@ -48,8 +49,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
          ip.weight = ipx.weight * ipy.weight;
       }
    }
-
-   SetPointIndices();
 }
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
@@ -59,6 +58,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    const int ny = iry.GetNPoints();
    const int nz = irz.GetNPoints();
    SetSize(nx*ny*nz);
+   SetPointIndices();
 
    for (int iz = 0; iz < nz; ++iz)
    {
@@ -78,8 +78,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
          }
       }
    }
-
-   SetPointIndices();
 }
 
 const Array<double> &IntegrationRule::GetWeights() const
@@ -125,6 +123,7 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    }
    np /= f;
    SetSize(np);
+   SetPointIndices();
 
    int pt = 0;
    for (int i = 0; i <= s; i++)
@@ -375,6 +374,7 @@ public:
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    switch (np)
    {
@@ -477,6 +477,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
    */
 
    ir->SetSize(np);
+   ir->SetPointIndices();
    if ( np == 1 )
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -576,6 +577,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 void QuadratureFunctions1D::OpenUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    // The Newton-Cotes quadrature is based on weights that integrate exactly the
    // interpolatory polynomial through the equally spaced quadrature points.
@@ -591,6 +593,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
                                           IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
    if ( np == 1 ) // allow this case as "closed"
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -608,6 +611,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
 void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
 
    // Open half points: the centers of np uniform intervals
    for (int i = 0; i < np ; ++i)
@@ -621,6 +625,7 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
+   ir->SetPointIndices();
    ir->IntPoint(0).x = 0.0;
    ir->IntPoint(np-1).x = 1.0;
 

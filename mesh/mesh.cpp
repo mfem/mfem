@@ -75,7 +75,7 @@ void Mesh::GetElementCenter(int i, Vector &center)
 
 double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
-   DenseMatrix J(Dim);
+   DenseMatrix J(spaceDim,Dim);
 
    Geometry::Type geom = T->GetGeometryType();
    T->SetIntPoint(&Geometries.GetCenter(geom));
@@ -83,7 +83,7 @@ double Mesh::GetElementSize(ElementTransformation *T, int type)
 
    if (type == 0)
    {
-      return pow(fabs(J.Det()), 1./Dim);
+      return pow(fabs(J.Weight()), 1./Dim);
    }
    else if (type == 1)
    {
@@ -102,7 +102,7 @@ double Mesh::GetElementSize(int i, int type)
 
 double Mesh::GetElementSize(int i, const Vector &dir)
 {
-   DenseMatrix J(Dim);
+   DenseMatrix J(spaceDim,Dim);
    Vector d_hat(Dim);
    GetElementJacobian(i, J);
    J.MultTranspose(dir, d_hat);
@@ -599,6 +599,8 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
    else
    {
       const FiniteElement *edge_el = Nodes->FESpace()->GetEdgeElement(EdgeNo);
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       if (edge_el)
       {
          Array<int> vdofs;
@@ -609,7 +611,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
          {
             for (int j = 0; j < n; j++)
             {
-               pm(i, j) = (*Nodes)(vdofs[n*i+j]);
+               pm(i, j) = nodes(vdofs[n*i+j]);
             }
          }
          EdTr->SetFE(edge_el);
@@ -4023,6 +4025,12 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
          }
          AddElement(elem);
       }
+   }
+
+   if (Dim > 2)
+   {
+      GetElementToFaceTable(false);
+      GenerateFaces();
    }
 
    // Add refined boundary elements
@@ -7691,6 +7699,8 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
    // Map from edge-index to vertex-index, needed for ReorientTetMesh() for
    // parallel meshes.
+   // Note: with the removal of ReorientTetMesh() this may no longer
+   // be needed.  Unfortunately, it's hard to be sure.
    Array<int> e2v;
    if (HasGeometry(Geometry::TETRAHEDRON))
    {
@@ -11535,10 +11545,10 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const int NF   = fespace->GetNFbyType(type);
    const int NQ   = ir.GetNPoints();
 
-   const Operator *face_restr = fespace->GetFaceRestriction(
-                                   ElementDofOrdering::LEXICOGRAPHIC,
-                                   type,
-                                   L2FaceValues::SingleValued );
+   const FaceRestriction *face_restr = fespace->GetFaceRestriction(
+                                          ElementDofOrdering::LEXICOGRAPHIC,
+                                          type,
+                                          L2FaceValues::SingleValued );
    Vector Fnodes(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
 

@@ -68,7 +68,11 @@ struct CoarseFineTransformations
                            Table &coarse_to_fine,
                            Array<int> &coarse_to_ref_type,
                            Table &ref_type_to_matrix,
-                           Array<Geometry::Type> &ref_type_to_geom) const;
+                           Array<Geometry::Type> &ref_type_to_geom,
+                           bool get_coarse_to_fine_only = false) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine) const;
 
    void Clear();
    bool IsInitialized() const;
@@ -127,6 +131,7 @@ public:
    int GetNVertices() const { return NVertices; }
    int GetNEdges() const { return NEdges; }
    int GetNFaces() const { return NFaces; }
+   virtual int GetNGhostElements() const { return 0; }
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -155,7 +160,6 @@ public:
        Note that if anisotropic refinements are present in the mesh, some of the
        derefinements may have to be skipped to preserve mesh consistency. */
    virtual void Derefine(const Array<int> &derefs);
-
 
    // master/slave lists
 
