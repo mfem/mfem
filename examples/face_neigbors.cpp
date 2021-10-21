@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
       Array<int> elems;
       int type = mesh.GetFaceElements2(faces[i],elems);
       cout << "type = " << type << endl;
-      cout << "elems = " ; elems.Print(); 
+      cout << "elems = " ; elems.Print();
       if (vis)
       {
          char vishost[] = "localhost";
