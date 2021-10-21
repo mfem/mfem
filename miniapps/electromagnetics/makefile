@@ -57,6 +57,11 @@ all: $(MINIAPPS)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_LIB) \
 	  $(MFEM_LIBS)
 
+tesla_ierus: $(SRC)tesla_ierus.cpp tesla_solver.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o tesla_solver.o $(COMMON_LIB) \
+	  $(MFEM_LIBS)
+
 # Rules for compiling miniapp dependencies
 $(addsuffix _solver.o,$(MINIAPPS)): \
 %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
