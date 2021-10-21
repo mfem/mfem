@@ -12,12 +12,13 @@
 #ifndef MFEM_TENSOR_CWISEMULT
 #define MFEM_TENSOR_CWISEMULT
 
-#include "../tensor.hpp"
+#include "../tensor_traits.hpp"
 #include "../factories/diagonal_tensor.hpp"
 
 namespace mfem
 {
 
+// Scalar values at quadrature point
 // 1D
 template <typename DiagonalTensor,
           typename Tensor,
@@ -195,7 +196,114 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    return Du;
 }
 
+// Vector values at quadrature point
+// 1D
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 1 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 1 &&
+             get_tensor_rank<Tensor> == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   constexpr int QuadsX = 0;
+   constexpr int CompDim = 1;
+   constexpr int Q_c = get_tensor_size<QuadsX,Tensor>;
+   const int Q_r = u.template Size<QuadsX>();
+   StaticResultTensor<Tensor,Q_c> Du(Q_r);
+   Foreach<QuadsX>(u, [&](int qx)
+   {
+      double res = 0.0;
+      Foreach<CompDim>(u, [&](int d)
+      {
+         res += D(qx,d) * u(qx,d);
+      });
+      Du(qx) = res;
+   });
+   return Du;
+}
+
+// 2D
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 2 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 1 &&
+             get_tensor_rank<Tensor> == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   constexpr int QuadsX = 0;
+   constexpr int QuadsY = 1;
+   constexpr int CompDim = 2;
+   constexpr int QX_c = get_tensor_size<QuadsX,Tensor>;
+   constexpr int QY_c = get_tensor_size<QuadsY,Tensor>;
+   const int QX_r = u.template Size<QuadsX>();
+   const int QY_r = u.template Size<QuadsY>();
+   StaticResultTensor<Tensor,QX_c,QY_c> Du(QX_r,QY_r);
+   Foreach<QuadsX>(u, [&](int qx)
+   {
+      Foreach<QuadsY>(u, [&](int qy)
+      {
+         double res = 0.0;
+         Foreach<CompDim>(u, [&](int d)
+         {
+            res += D(qx,qy,d) * u(qx,qy,d);
+         });
+         Du(qx,qy) = res;
+      });
+   });
+   return Du;
+}
+
+// 3D
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 3 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 1 &&
+             get_tensor_rank<Tensor> == 4,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
+{
+   constexpr int QuadsX = 0;
+   constexpr int QuadsY = 1;
+   constexpr int QuadsZ = 2;
+   constexpr int CompDim = 3;
+   constexpr int QX_c = get_tensor_size<QuadsX,Tensor>;
+   constexpr int QY_c = get_tensor_size<QuadsY,Tensor>;
+   constexpr int QZ_c = get_tensor_size<QuadsZ,Tensor>;
+   const int QX_r = u.template Size<QuadsX>();
+   const int QY_r = u.template Size<QuadsY>();
+   const int QZ_r = u.template Size<QuadsZ>();
+   StaticResultTensor<Tensor,QX_c,QY_c,QZ_c> Du(QX_r,QY_r,QZ_r);
+   Foreach<QuadsX>(u, [&](int qx)
+   {
+      Foreach<QuadsY>(u, [&](int qy)
+      {
+         Foreach<QuadsZ>(u, [&](int qz)
+         {
+            double res = 0.0;
+            Foreach<CompDim>(u, [&](int d)
+            {
+               res += D(qx,qy,qz,d) * u(qx,qy,qz,d);
+            });
+            Du(qx,qy,qz) = res;
+         });
+      });
+   });
+   return Du;
+}
+
 /// Diagonal Symmetric Tensor product with a Tensor
+/// Symmetric matrix at quadrature point
 // 1D
 template <typename DiagonalSymmTensor,
           typename Tensor,
