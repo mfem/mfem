@@ -1963,13 +1963,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          for (int i = last_saved_id+1; i < m ; i++)
          {
             double betai = rho(i)*Dot((*ykMV[i]), c);
-            add(c, alpha(i)-betai, sk, c);
+            add(c, alpha(i)-betai, (*skMV[i]), c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
          double betai = rho(i)*Dot((*ykMV[i]), c);
-         add(c, alpha(i)-betai, sk, c);
+         add(c, alpha(i)-betai, (*skMV[i]), c);
       }
 
       TimePrecMult.Stop();
