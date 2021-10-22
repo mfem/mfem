@@ -68,7 +68,7 @@ protected:
    FiniteElementSpace *fes;
    BilinearForm *a;
    OperatorHandle A;
-   mutable Array<int> perm;
+   mutable Array<int> dof_perm, tdof_perm;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
@@ -78,10 +78,6 @@ protected:
    /// Construct the permutation that maps LOR DOFs to high-order DOFs. See
    /// GetDofPermutation.
    void ConstructDofPermutation() const;
-
-   /// Returns true if the LOR space and HO space have the same DOF numbering
-   /// (H1 or L2 spaces), false otherwise (ND or RT spaces).
-   bool HasSameDofNumbering() const;
 
    /// Sets up the prolongation and restriction operators required in the case
    /// of different DOF numberings (ND or RT spaces) or nonconforming spaces.
@@ -108,14 +104,35 @@ public:
    ///
    /// This permutation is constructed the first time it is requested, and then
    /// is cached. For H1 and L2 finite element spaces (or for nonconforming
-   /// spaces) this is the identity. In these cases, RequiresDofPermutation will
-   /// return false. However, if the DOF permutation is requested, an identity
+   /// spaces) this is the identity. In these cases, HasSameDofNumbering will
+   /// return true. However, if the DOF permutation is requested, an identity
    /// permutation will be built and returned.
    ///
    /// For vector finite element spaces (ND and RT), the DOF permutation is
    /// nontrivial. Returns an array @a perm such that, given an index @a i of a
    /// LOR dof, @a perm[i] is the index of the corresponding HO dof.
+   ///
+   /// @note This function returns a @a DOF permutation (operating on the
+   /// L-vector, i.e. GridFunction level), as opposed to a _true DOF_
+   /// permutation.
+   ///
+   /// @sa GetTrueDofPermutation
    const Array<int> &GetDofPermutation() const;
+
+   /// @brief Returns the _true DOF_ permutation that maps LOR TDOFs to
+   /// high-order TDOFs.
+   ///
+   /// See @ref GetDofPermutation for details.
+   ///
+   /// @note This function returns a _true DOF_ permutation vector as opposed to
+   /// a @a DOF permutation.
+   ///
+   /// @sa GetDofPermutation.
+   const Array<int> &GetTrueDofPermutation() const;
+
+   /// @brief Returns true if the LOR space and HO space have the same DOF
+   /// numbering (H1 or L2 spaces), false otherwise (ND or RT spaces).
+   bool HasSameDofNumbering() const;
 
    /// Returns the low-order refined finite element space.
    FiniteElementSpace &GetFESpace() const { return *fes; }
