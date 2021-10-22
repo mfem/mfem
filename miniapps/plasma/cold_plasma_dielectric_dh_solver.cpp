@@ -1729,8 +1729,15 @@ CPDSolverDH::Solve()
          {
             attr_marker[dbcs_[i]->attr[j] - 1] = 1;
          }
-         h_->ProjectCoefficient(*dbcs_[i]->real,
-                                *dbcs_[i]->imag);
+
+         ComplexPhaseVectorCoefficient re_h_dbc(kReCoef_, kImCoef_,
+                                                dbcs_[i]->real,
+                                                dbcs_[i]->imag, true, true);
+         ComplexPhaseVectorCoefficient im_h_dbc(kReCoef_, kImCoef_,
+                                                dbcs_[i]->real,
+                                                dbcs_[i]->imag, false, true);
+
+         h_->ProjectCoefficient(re_h_dbc, im_h_dbc);
       }
       if (logging_ > 1)
       {

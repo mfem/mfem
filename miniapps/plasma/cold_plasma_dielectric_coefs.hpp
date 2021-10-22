@@ -577,6 +577,36 @@ public:
              const IntegrationPoint &ip);
 };
 
+class ComplexPhaseVectorCoefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient * kReCoef_;
+   VectorCoefficient * kImCoef_;
+   VectorCoefficient * vReCoef_;
+   VectorCoefficient * vImCoef_;
+
+   bool realPart_;
+   bool inv_k_;
+   int kdim_;
+
+   mutable Vector xk_;
+   mutable Vector xs_;
+   mutable Vector kRe_;
+   mutable Vector kIm_;
+   mutable Vector vRe_;
+   mutable Vector vIm_;
+
+public:
+   ComplexPhaseVectorCoefficient(VectorCoefficient *kRe,
+                                 VectorCoefficient *kIm,
+                                 VectorCoefficient *vRe,
+                                 VectorCoefficient *vIm,
+                                 bool realPart, bool inv_k);
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+};
 
 } // namespace plasma
 

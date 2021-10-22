@@ -1281,6 +1281,85 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
    }
 }
 
+ComplexPhaseVectorCoefficient::ComplexPhaseVectorCoefficient(
+   VectorCoefficient *kRe,
+   VectorCoefficient *kIm,
+   VectorCoefficient *vRe,
+   VectorCoefficient *vIm,
+   bool realPart, bool inv_k)
+   : VectorCoefficient(vRe ? vRe->GetVDim() :(vIm ? vIm->GetVDim() : 0)),
+     kReCoef_(kRe), kImCoef_(kIm), vReCoef_(vRe), vImCoef_(vIm),
+     realPart_(realPart), inv_k_(inv_k),
+     kdim_(kRe ? kRe->GetVDim() :(kIm ? kIm->GetVDim() : 0)),
+     xk_(kdim_), xs_(xk_.GetData(), kdim_),
+     kRe_(kdim_), kIm_(kdim_),
+     vRe_(vdim), vIm_(vdim)
+{
+   if ( vRe && vIm )
+   {
+      MFEM_ASSERT(vRe->GetVDim() == vIm->GetVDim(),
+                  "Vector dimension mismatch in "
+                  "ComplexPhaseVectorCoefficient");
+   }
+   if ( kRe && kIm )
+   {
+      MFEM_ASSERT(kRe->GetVDim() == kIm->GetVDim(),
+                  "Wave vector dimension mismatch in "
+                  "ComplexPhaseVectorCoefficient");
+   }
+
+   xk_  = 0.0;
+   kRe_ = 0.0;
+   kIm_ = 0.0;
+   vRe_ = 0.0;
+   vIm_ = 0.0;
+}
+
+void ComplexPhaseVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                         const IntegrationPoint &ip)
+{
+   T.Transform(ip, xs_);
+
+   double sinkx = 0.0;
+   double coskx = 1.0;
+
+   if (kReCoef_)
+   {
+      kReCoef_->Eval(kRe_, T, ip);
+      double phase = kRe_ * xk_;
+
+      sinkx = sin(phase) * (inv_k_ ? -1.0 : 1.0);
+      coskx = cos(phase);
+   }
+   if (kImCoef_)
+   {
+      kImCoef_->Eval(kIm_, T, ip);
+      double phase = kIm_ * xk_;
+      double expkx = exp((inv_k_ ? -1.0 : 1.0) * phase);
+
+      sinkx *= expkx;
+      coskx *= expkx;
+   }
+
+   if (vReCoef_)
+   {
+      vReCoef_->Eval(vRe_, T, ip);
+   }
+   if (vImCoef_)
+   {
+      vImCoef_->Eval(vIm_, T, ip);
+   }
+
+   V.SetSize(vdim);
+   if (realPart_)
+   {
+      add(coskx, vRe_, -sinkx, vIm_, V);
+   }
+   else
+   {
+      add(sinkx, vRe_, coskx, vIm_, V);
+   }
+}
 
 } // namespace plasma
 
