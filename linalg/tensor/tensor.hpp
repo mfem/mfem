@@ -44,27 +44,26 @@ public:
    MFEM_HOST_DEVICE
    Tensor() : Container(), Layout() { }
 
-   /// Main Constructor
+   /// Main Constructors
    template <typename... Sizes> MFEM_HOST_DEVICE
    Tensor(int size0, Sizes... sizes)
    : Container(size0,sizes...), Layout(size0,sizes...) { }
 
-   /// Utility Constructor
+   template <typename... Sizes> MFEM_HOST_DEVICE
+   Tensor(T* ptr, Sizes... sizes)
+   : Container(ptr), Layout(sizes...) { }
+
+   /// Utility Constructors
    MFEM_HOST_DEVICE
    Tensor(Layout index): Container(), Layout(index) { }
 
    MFEM_HOST_DEVICE
    Tensor(Container data, Layout index): Container(data), Layout(index) { }
 
-   template <typename... Sizes> MFEM_HOST_DEVICE
-   Tensor(T* ptr, Sizes... sizes)
-   : Container(ptr), Layout(sizes...) { }
-
-   /// Copy Constructor
+   /// Copy Constructors
    MFEM_HOST_DEVICE
    Tensor(const Tensor &rhs): Container(rhs), Layout(rhs) { }
 
-   // TODO default constructor for Container?
    template <typename OtherTensor> MFEM_HOST_DEVICE
    Tensor(const OtherTensor &rhs): Container(), Layout(rhs)
    {
@@ -103,6 +102,7 @@ public:
       return *this;
    }
 
+   /// operator=, compatible with other types of Tensors
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator=(const OtherTensor &rhs)
    {
@@ -113,6 +113,7 @@ public:
       return *this;
    }
 
+   /// operator+=, compatible with other types of Tensors
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator+=(const OtherTensor &rhs)
    {
