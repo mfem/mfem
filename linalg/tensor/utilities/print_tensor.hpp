@@ -18,6 +18,7 @@
 namespace mfem
 {
 
+/// Function to print tensors
 template <typename C, typename L>
 std::ostream& operator<<(std::ostream &os, const Tensor<C,L> &t)
 {

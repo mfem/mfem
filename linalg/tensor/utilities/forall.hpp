@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+/// Macro to launch kernels that uses the config to choose the appropriate
+/// threading strategy.
 #define MFEM_FORALL_CONFIG(config,i,N,...)                                     \
    const int threads = config.quads > config.dofs ?                            \
                        config.quads : config.dofs;                             \

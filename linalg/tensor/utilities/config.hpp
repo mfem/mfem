@@ -19,6 +19,7 @@
 namespace mfem
 {
 
+/// Structure containing the default kernel configurations
 struct DefaultKernelConfig
 {
    static constexpr bool IsTensor = false;
@@ -122,6 +123,7 @@ class ConfigSelector
   public Discriminator<Setter8,8>
 { };
 
+/// Structure that stores the kernel configurations
 template <typename ConfigSetter1 = DefaultKernelConfigArgs,
           typename ConfigSetter2 = DefaultKernelConfigArgs,
           typename ConfigSetter3 = DefaultKernelConfigArgs,
