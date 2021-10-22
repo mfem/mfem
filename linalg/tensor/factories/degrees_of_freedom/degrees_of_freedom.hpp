@@ -12,9 +12,11 @@
 #ifndef MFEM_TENSOR_DEGREES_OF_FREEDOM
 #define MFEM_TENSOR_DEGREES_OF_FREEDOM
 
+/// Factory for regular degrees of freedom
 #include "dof.hpp"
+/// Factory for Nedelec degrees of freedom
 #include "nedelec_dof.hpp"
+/// Factory for Raviart-Thomas degrees of freedom
 #include "raviart-thomas_dof.hpp"
-
 
 #endif // MFEM_TENSOR_DEGREES_OF_FREEDOM
