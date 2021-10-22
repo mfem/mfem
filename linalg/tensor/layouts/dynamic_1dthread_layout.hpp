@@ -26,7 +26,7 @@ private:
    DynamicLayout<Rank-1> layout;
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   Dynamic1dThreadLayout(int size0 Sizes... sizes)
+   Dynamic1dThreadLayout(int size0, Sizes... sizes)
    : size0(size0), layout(sizes...)
    {
       // TODO verify that size0 < BlockSizeX
