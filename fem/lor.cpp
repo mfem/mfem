@@ -91,7 +91,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    {
       const FiniteElement *fe = fes.GetFE(i);
       auto tfe = dynamic_cast<const TensorBasisElement*>(fe);
-      MFEM_ASSERT(tfe != NULL, "");
+      MFEM_ASSERT(tfe != nullptr, "");
       return tfe->GetDofMap();
    };
 
@@ -265,7 +265,7 @@ bool LORBase::HasSameDofNumbering() const
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
    return A;
 }
 
@@ -302,7 +302,7 @@ void LORBase::SetupProlongationAndRestriction()
    }
    else
    {
-      fes->CopyProlongationAndRestriction(fes_ho, NULL);
+      fes->CopyProlongationAndRestriction(fes_ho, nullptr);
    }
 }
 
@@ -367,10 +367,10 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_)
    }
    else
    {
-      ir_el = NULL;
-      ir_face = NULL;
+      ir_el = nullptr;
+      ir_face = nullptr;
    }
-   a = NULL;
+   a = nullptr;
 }
 
 LORBase::~LORBase()
@@ -422,7 +422,7 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<SparseMatrix>();
 }
 
@@ -469,7 +469,7 @@ void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 
