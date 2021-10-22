@@ -14,7 +14,7 @@
 
 #include "interp_traits.hpp"
 #include "../../tensor.hpp"
-#include "../../factories/basis.hpp"
+#include "../../factories/basis/basis.hpp"
 #include "../contractions/contractions.hpp"
 
 namespace mfem

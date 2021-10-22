@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,13 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_FACTORIES
-#define MFEM_FACTORIES
+#ifndef MFEM_TENSOR_DOF_RT
+#define MFEM_TENSOR_DOF_RT
 
-#include "basis/basis.hpp"
-#include "degrees_of_freedom/degrees_of_freedom.hpp"
-#include "qdata/qdata.hpp"
-#include "qdata/symm_qdata.hpp"
-#include "diagonal_tensor.hpp"
+#include "dof_impl.hpp"
 
-#endif // MFEM_FACTORIES
+namespace mfem
+{
+
+
+
+} // mfem namespace
+
+#endif // MFEM_TENSOR_DOF_RT

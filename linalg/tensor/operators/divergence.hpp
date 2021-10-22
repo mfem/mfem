@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_DIV
 
 #include "../tensor.hpp"
-#include "../factories/basis.hpp"
+#include "../factories/basis/basis.hpp"
 #include "contractions/contractions.hpp"
 #include "concatenate.hpp"
 

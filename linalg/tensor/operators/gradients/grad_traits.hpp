@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_GRAD_TRAITS
 
 #include "../../tensor.hpp"
-#include "../../factories/basis.hpp"
+#include "../../factories/basis/basis.hpp"
 
 namespace mfem
 {

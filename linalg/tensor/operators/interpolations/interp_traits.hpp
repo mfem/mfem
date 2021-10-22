@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_INTERP_TRAITS
 
 #include "../../tensor.hpp"
-#include "../../factories/basis.hpp"
+#include "../../factories/basis/basis.hpp"
 #include "../contractions/contractions.hpp"
 
 namespace mfem

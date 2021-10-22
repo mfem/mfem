@@ -13,7 +13,7 @@
 #define MFEM_2D_THREAD_STATIC_CONTRACTIONS
 
 #include "../../../tensor.hpp"
-#include "../../../factories/basis.hpp"
+#include "../../../factories/basis/basis.hpp"
 
 namespace mfem
 {
