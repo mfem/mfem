@@ -15,7 +15,6 @@
 #include "../utilities/utilities.hpp"
 #include "../tensor.hpp"
 #include "diagonal_tensor.hpp"
-#include "config.hpp"
 
 namespace mfem
 {

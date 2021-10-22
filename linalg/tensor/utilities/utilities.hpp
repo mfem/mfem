@@ -13,6 +13,7 @@
 #define MFEM_TENSOR_UTILITIES
 
 #include "helper_constants.hpp"
+#include "config.hpp"
 #include "foreach.hpp"
 #include "forall.hpp"
 #include "util.hpp"

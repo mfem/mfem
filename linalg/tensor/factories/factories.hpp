@@ -12,7 +12,6 @@
 #ifndef MFEM_FACTORIES
 #define MFEM_FACTORIES
 
-#include "config.hpp"
 #include "basis.hpp"
 #include "dof.hpp"
 #include "qdata.hpp"

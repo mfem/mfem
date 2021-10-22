@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR_FORALL
 #define MFEM_TENSOR_FORALL
 
-#include "../factories/config.hpp"
+#include "config.hpp"
 
 namespace mfem
 {

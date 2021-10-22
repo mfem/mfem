@@ -14,7 +14,6 @@
 
 #include "../utilities/utilities.hpp"
 #include "../tensor.hpp"
-#include "config.hpp"
 
 namespace mfem
 {
