@@ -12,10 +12,15 @@
 #ifndef MFEM_TENSOR_UTILITIES
 #define MFEM_TENSOR_UTILITIES
 
+/// Helper constants
 #include "helper_constants.hpp"
+/// Factories for kernel configurations
 #include "config.hpp"
+/// Function to iterate on tensor dimensions
 #include "foreach.hpp"
+/// MFEM_FORALL_CONFIG selecting threading strategy according to the KernelConfig
 #include "forall.hpp"
+/// Utility functions, and TMP patterns
 #include "util.hpp"
 
 #endif // MFEM_TENSOR_UTILITIES
