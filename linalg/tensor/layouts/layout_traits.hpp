@@ -57,6 +57,16 @@ struct is_serial_layout_v
 template <typename Layout>
 constexpr bool is_serial_layout = is_serial_layout_v<Layout>::value;
 
+// is_1d_threaded_layout
+template <typename Layout>
+struct is_1d_threaded_layout_v
+{
+   static constexpr bool value = false;
+};
+
+template <typename Layout>
+constexpr bool is_1d_threaded_layout = is_1d_threaded_layout_v<Layout>::value;
+
 // is_2d_threaded_layout
 template <typename Layout>
 struct is_2d_threaded_layout_v
