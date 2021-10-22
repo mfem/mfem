@@ -12,10 +12,15 @@
 #ifndef MFEM_CONTAINERS
 #define MFEM_CONTAINERS
 
+/// A read/write access pointer container
 #include "device_container.hpp"
+/// A read access pointer container
 #include "read_container.hpp"
+/// A container using the Memory<T> class
 #include "memory_container.hpp"
+/// A statically sized container allocated on the stack
 #include "static_container.hpp"
+/// A view container (reference) to another container
 #include "view_container.hpp"
 
 #endif // MFEM_CONTAINERS
