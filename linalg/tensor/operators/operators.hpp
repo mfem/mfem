@@ -15,9 +15,9 @@
 #include "contractions/contractions.hpp"
 #include "interpolations/interpolations.hpp"
 #include "gradients/gradients.hpp"
-#include "divergence.hpp"
-#include "curl.hpp"
-#include "cwisemult.hpp"
+#include "divergence/divergence.hpp"
+#include "curl/curl.hpp"
+#include "point-wise_multiplications/point-wise_multiplications.hpp"
 #include "determinant.hpp"
 
 #endif // MFEM_TENSOR_OPERATORS

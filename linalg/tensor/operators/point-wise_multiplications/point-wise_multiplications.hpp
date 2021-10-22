@@ -9,12 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_TENSOR_DEGREES_OF_FREEDOM
-#define MFEM_TENSOR_DEGREES_OF_FREEDOM
+#ifndef MFEM_TENSOR_POINTWISEMULTS
+#define MFEM_TENSOR_POINTWISEMULTS
 
-#include "dof.hpp"
-#include "nedelec_dof.hpp"
-#include "raviart-thomas_dof.hpp"
+#include "scalar_pt-wise_mults.hpp"
+#include "vector_pt-wise_mults.hpp"
+#include "symm-matrix_pt-wise_mults.hpp"
 
-
-#endif // MFEM_TENSOR_DEGREES_OF_FREEDOM
+#endif // MFEM_TENSOR_POINTWISEMULTS
