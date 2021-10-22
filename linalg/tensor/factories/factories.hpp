@@ -12,11 +12,17 @@
 #ifndef MFEM_FACTORIES
 #define MFEM_FACTORIES
 
+/// Factories to build objects representing basis functions
 #include "basis/basis.hpp"
+/// Factories to build objects representing degrees of freedom
 #include "degrees_of_freedom/degrees_of_freedom.hpp"
+/// Factories to build objects representing quadrature data
 #include "qdata/qdata.hpp"
+/// Factories to build objects representing symmetric quadrature data
 #include "qdata/symm_qdata.hpp"
+/// Factories to build diagonal tensors
 #include "diagonal_tensor.hpp"
+/// Factories to build symmetric diagonal tensors
 #include "diagonal_symm_tensor.hpp"
 
 #endif // MFEM_FACTORIES
