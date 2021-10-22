@@ -207,8 +207,10 @@ void LORBase::ConstructDofPermutation() const
    if (type == H1 || type == L2)
    {
       // H1 and L2: no permutation necessary, return identity
-      perm.SetSize(fes->GetTrueVSize());
-      for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
+      dof_perm.SetSize(fes->GetVSize());
+      for (int i=0; i<dof_perm.Size(); ++i) { dof_perm[i] = i; }
+      tdof_perm.SetSize(fes->GetTrueVSize());
+      for (int i=0; i<tdof_perm.Size(); ++i) { tdof_perm[i] = i; }
       return;
    }
 
@@ -218,12 +220,11 @@ void LORBase::ConstructDofPermutation() const
    ParFiniteElementSpace *pfes_lor = dynamic_cast<ParFiniteElementSpace*>(fes);
    if (pfes_ho && pfes_lor)
    {
-      Array<int> l_perm;
-      ConstructLocalDofPermutation(l_perm);
-      perm.SetSize(pfes_lor->GetTrueVSize());
-      for (int i=0; i<l_perm.Size(); ++i)
+      ConstructLocalDofPermutation(dof_perm);
+      tdof_perm.SetSize(pfes_lor->GetTrueVSize());
+      for (int i=0; i<dof_perm.Size(); ++i)
       {
-         int j = l_perm[i];
+         int j = dof_perm[i];
          int s = j < 0 ? -1 : 1;
          int t_i = pfes_lor->GetLocalTDofNumber(i);
          int t_j = pfes_ho->GetLocalTDofNumber(absdof(j));
@@ -233,20 +234,27 @@ void LORBase::ConstructDofPermutation() const
             MFEM_ABORT("Inconsistent DOF numbering");
          }
          if (t_i < 0) { continue; }
-         perm[t_i] = s < 0 ? -1 - t_j : t_j;
+         tdof_perm[t_i] = s < 0 ? -1 - t_j : t_j;
       }
    }
    else
 #endif
    {
-      ConstructLocalDofPermutation(perm);
+      ConstructLocalDofPermutation(dof_perm);
+      tdof_perm.MakeRef(dof_perm);
    }
 }
 
 const Array<int> &LORBase::GetDofPermutation() const
 {
-   if (perm.Size() == 0) { ConstructDofPermutation(); }
-   return perm;
+   if (dof_perm.Size() == 0) { ConstructDofPermutation(); }
+   return dof_perm;
+}
+
+const Array<int> &LORBase::GetTrueDofPermutation() const
+{
+   if (tdof_perm.Size() == 0) { ConstructDofPermutation(); }
+   return tdof_perm;
 }
 
 bool LORBase::HasSameDofNumbering() const
