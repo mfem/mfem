@@ -12,6 +12,8 @@
 #ifndef MFEM_TENSOR_OPERATORS
 #define MFEM_TENSOR_OPERATORS
 
+/// Get a slice of a tensor (lazy operation)
+#include "get.hpp"
 /// All the contractions for the tensors
 #include "contractions/contractions.hpp"
 /// Interpolation operators at quadrature points, ex: B * u

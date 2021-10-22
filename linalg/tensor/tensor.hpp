@@ -123,33 +123,6 @@ public:
       });
       return *this;
    }
-
-   /// Lazy accessor for the sub-Tensor extracted from idx in Nth dimension.
-   template <int N> MFEM_HOST_DEVICE inline
-   auto Get(int idx)
-   {
-      static_assert(N>=0 && N<get_layout_rank<Layout>,
-         "Cannot access this dimension with Get");
-      using C = ViewContainer<T,Container>;
-      using L = RestrictedLayout<N,Layout>;
-      using RestrictedTensor = Tensor<C,L>;
-      C data(*this);
-      L layout(idx,*this);
-      return RestrictedTensor(data,layout);
-   }
-
-   template <int N> MFEM_HOST_DEVICE inline
-   auto Get(int idx) const
-   {
-      static_assert(N>=0 && N<get_layout_rank<Layout>,
-         "Cannot access this dimension with Get");
-      using C = ConstViewContainer<T,Container>;
-      using L = RestrictedLayout<N,Layout>;
-      using RestrictedTensor = Tensor<C,L>;
-      C data(*this);
-      L layout(idx,*this);
-      return RestrictedTensor(data,layout);
-   }
 };
 
 } // namespace mfem

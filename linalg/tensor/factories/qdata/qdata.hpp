@@ -36,14 +36,14 @@ public:
    auto operator()(int e) const
    {
       constexpr int Rank = get_tensor_rank<QuadTensor>;
-      return makeDiagonalTensor<DiagDim>(this->template Get<Rank-1>(e));
+      return makeDiagonalTensor<DiagDim>(Get<Rank-1>(e,*this));
    }
 
    MFEM_HOST_DEVICE inline
    auto operator()(int e)
    {
       constexpr int Rank = get_tensor_rank<QuadTensor>;
-      return makeDiagonalTensor<DiagDim>(this->template Get<Rank-1>(e));
+      return makeDiagonalTensor<DiagDim>(Get<Rank-1>(e,*this));
    }
 };
 

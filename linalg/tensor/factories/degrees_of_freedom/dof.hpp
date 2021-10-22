@@ -13,6 +13,7 @@
 #define MFEM_TENSOR_DOF
 
 #include "dof_impl.hpp"
+#include "../../operators/get.hpp"
 
 namespace mfem
 {
@@ -35,14 +36,14 @@ public:
    auto operator()(int e) const
    {
       constexpr int Rank = get_tensor_rank<DofTensor>;
-      return this->template Get<Rank-1>(e); // TODO batchsize so +tidz or something?
+      return Get<Rank-1>(e,*this); // TODO batchsize so +tidz or something?
    }
 
    MFEM_HOST_DEVICE inline
    auto operator()(int e)
    {
       constexpr int Rank = get_tensor_rank<DofTensor>;
-      return this->template Get<Rank-1>(e);
+      return Get<Rank-1>(e,*this);
    }
 };
 

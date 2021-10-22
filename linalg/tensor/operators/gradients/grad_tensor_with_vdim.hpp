@@ -26,7 +26,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
    constexpr int VDim = get_tensor_rank<Dofs> - 1;
    constexpr int VD = get_tensor_size<VDim,Dofs>;
@@ -34,9 +34,9 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    const int Q_r = basis.GetQuads();
 
    ResultTensor<Basis,Q,VD> v(Q_r,VD);
-   Foreach<VDim>(u_e,[&](int vd)
+   Foreach<VDim>(u,[&](int vd)
    {
-      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+      Get<VDim>(vd, v) = basis * Get<VDim>(vd, u);
    });
    return v;
 }
@@ -50,7 +50,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
    constexpr int Dim = get_basis_dim<Basis>;
    constexpr int VDim = get_tensor_rank<Dofs> - 1;
@@ -59,9 +59,9 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    const int Q_r = basis.GetQuads();
 
    ResultTensor<Basis,Q,Q,Dim,VD> v(Q_r,Q_r,Dim,VD);
-   Foreach<VDim>(u_e,[&](int vd)
+   Foreach<VDim>(u,[&](int vd)
    {
-      v.template Get<VDim+1>(vd) = basis * u_e.template Get<VDim>(vd);
+      Get<VDim+1>(vd, v) = basis * Get<VDim>(vd, u);
    });
    return v;
 }
@@ -75,7 +75,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 4,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
+auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
    constexpr int Dim = get_basis_dim<Basis>;
    constexpr int VDim = get_tensor_rank<Dofs> - 1;
@@ -84,9 +84,9 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    const int Q_r = basis.GetQuads();
 
    ResultTensor<Basis,Q,Q,Q,Dim,VD> v(Q_r,Q_r,Q_r,Dim,VD);
-   Foreach<VDim>(u_e,[&](int vd)
+   Foreach<VDim>(u,[&](int vd)
    {
-      v.template Get<VDim+1>(vd) = basis * u_e.template Get<VDim>(vd);
+      Get<VDim+1>(vd, v) = basis * Get<VDim>(vd, u);
    });
    return v;
 }
@@ -100,7 +100,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u_e)
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int VDim = get_tensor_rank<Dofs> - 1;
    constexpr int VD = get_tensor_size<VDim,Dofs>;
@@ -108,9 +108,9 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u_e)
    const int D_r = basis.GetDofs();
 
    ResultTensor<Basis,D,VD> v(D_r,VD);
-   Foreach<VDim>(u_e,[&](int vd)
+   Foreach<VDim>(u,[&](int vd)
    {
-      v.template Get<VDim>(vd) = basis * u_e.template Get<VDim>(vd);
+      Get<VDim>(vd, v) = basis * Get<VDim>(vd, u);
    });
    return v;
 }
@@ -124,7 +124,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 4,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u_e)
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int VDim = get_tensor_rank<Dofs> - 1;
    constexpr int VD = get_tensor_size<VDim,Dofs>;
@@ -132,9 +132,9 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u_e)
    const int D_r = basis.GetDofs();
 
    ResultTensor<Basis,D,D,VD> v(D_r,D_r,VD);
-   Foreach<VDim>(u_e,[&](int vd)
+   Foreach<VDim>(u,[&](int vd)
    {
-      v.template Get<VDim-1>(vd) = basis * u_e.template Get<VDim>(vd);
+      Get<VDim-1>(vd, v) = basis * Get<VDim>(vd, u);
    });
    return v;
 }
@@ -148,7 +148,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 5,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u_e)
+auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int VDim = get_tensor_rank<Dofs> - 1;
    constexpr int VD = get_tensor_size<VDim,Dofs>;
@@ -156,9 +156,9 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u_e)
    const int D_r = basis.GetDofs();
 
    ResultTensor<Basis,D,D,D,VD> v(D_r,D_r,D_r,VD);
-   Foreach<VDim>(u_e,[&](int vd)
+   Foreach<VDim>(u,[&](int vd)
    {
-      v.template Get<VDim-1>(vd) = basis * u_e.template Get<VDim>(vd);
+      Get<VDim-1>(vd, v) = basis * Get<VDim>(vd, u);
    });
    return v;
 }
