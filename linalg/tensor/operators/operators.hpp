@@ -12,12 +12,19 @@
 #ifndef MFEM_TENSOR_OPERATORS
 #define MFEM_TENSOR_OPERATORS
 
+/// All the contractions for the tensors
 #include "contractions/contractions.hpp"
+/// Interpolation operators at quadrature points, ex: B * u
 #include "interpolations/interpolations.hpp"
+/// Gradients operators at quadratire points, ex: grad(B) * u
 #include "gradients/gradients.hpp"
+/// Divergence operators at quadrature points, ex: div(B) * u
 #include "divergence/divergence.hpp"
+/// Curl operators at quadrature points, ex: curl(B) * u
 #include "curl/curl.hpp"
+/// Point-wise multiplications at quadrature points
 #include "point-wise_multiplications/point-wise_multiplications.hpp"
+/// Determinant operators for matrices
 #include "determinant.hpp"
 
 #endif // MFEM_TENSOR_OPERATORS
