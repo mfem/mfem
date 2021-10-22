@@ -69,6 +69,7 @@ protected:
    BilinearForm *a;
    OperatorHandle A;
    mutable Array<int> dof_perm, tdof_perm;
+   bool supports_batched_assembly;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see

@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor.hpp"
+#include "lor_assembly.hpp"
 #include "pbilinearform.hpp"
 
 namespace mfem
@@ -24,9 +25,11 @@ void LORBase::AddIntegrators(BilinearForm &a_from,
    Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
-      (a_to.*add_integrator)((*integrators)[i]);
-      ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
-      if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
+      BilinearFormIntegrator *integrator = (*integrators)[i];
+      if (!integrator->SupportsBatchedLOR()) { supports_batched_assembly = false; }
+      (a_to.*add_integrator)(integrator);
+      ir_map[integrator] = integrator->GetIntegrationRule();
+      if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
 
@@ -43,16 +46,18 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
 
    for (int i=0; i<integrators->Size(); ++i)
    {
+      BilinearFormIntegrator *integrator = (*integrators)[i];
       if (*markers[i])
       {
-         (a_to.*add_integrator_marker)((*integrators)[i], *(*markers[i]));
+         (a_to.*add_integrator_marker)(integrator, *(*markers[i]));
       }
       else
       {
-         (a_to.*add_integrator)((*integrators)[i]);
+         (a_to.*add_integrator)(integrator);
       }
-      ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
-      if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
+      if (!integrator->SupportsBatchedLOR()) { supports_batched_assembly = false; }
+      ir_map[integrator] = integrator->GetIntegrationRule();
+      if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
 
@@ -271,6 +276,11 @@ const OperatorHandle &LORBase::GetAssembledSystem() const
 
 void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
+   // By default, we want to use "batched assembly", however this is only
+   // supported for certain integrators. We set it to true here, and then when
+   // we loop through the integrators, if we encounter unsupported integrators,
+   // we set it to false.
+   supports_batched_assembly = true;
    a->UseExternalIntegrators();
    AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
                   &BilinearForm::AddDomainIntegrator, ir_el);
@@ -284,8 +294,22 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
                             &BilinearForm::GetBFBFI_Marker,
                             &BilinearForm::AddBdrFaceIntegrator,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
+   // if (supports_batched_assembly)
+   // {
+   //    AssembleBatchedLOR(*a, fes_ho, ess_dofs, A);
+   // }
+   // else
+   // {
    a->Assemble();
    a->FormSystemMatrix(ess_dofs, A);
+   OperatorHandle A_batched;
+   AssembleBatchedLOR(*a, fes_ho, ess_dofs, A_batched);
+
+   std::ofstream f1("A1.txt"), f2("A2.txt");
+   A.As<SparseMatrix>()->PrintMatlab(f1);
+   A_batched.As<SparseMatrix>()->PrintMatlab(f2);
+
+   // }
    ResetIntegrationRules(&BilinearForm::GetDBFI);
    ResetIntegrationRules(&BilinearForm::GetFBFI);
    ResetIntegrationRules(&BilinearForm::GetBBFI);
@@ -371,6 +395,7 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_)
       ir_face = nullptr;
    }
    a = nullptr;
+   supports_batched_assembly = true;
 }
 
 LORBase::~LORBase()
