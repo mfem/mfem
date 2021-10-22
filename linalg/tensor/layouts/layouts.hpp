@@ -12,13 +12,25 @@
 #ifndef MFEM_LAYOUTS
 #define MFEM_LAYOUTS
 
+/// A dynamically sized layout
 #include "dynamic_layout.hpp"
+/// A dynamically sized layout where the first dimension is threaded
+#include "dynamic_1dthread_layout.hpp"
+/// A dynamically sized layout where the two first dimensions are threaded
 #include "dynamic_2dthread_layout.hpp"
+/// A dynamically sized layout where the three first dimensions are threaded
 #include "dynamic_3dthread_layout.hpp"
+/// A statically sized layout
 #include "static_layout.hpp"
+/// A statically sized layout, except for the last dimension (used for E-vectors)
 #include "static_E_layout.hpp"
+/// A statically sized layout where the first dimension is threaded
+#include "static_1dthread_layout.hpp"
+/// A statically sized layout where the two first dimensions are threaded
 #include "static_2dthread_layout.hpp"
+/// A statically sized layout where the three first dimensions are threaded
 #include "static_3dthread_layout.hpp"
+/// A layout that removes one chosen dimension to another layout (used in Get)
 #include "restricted_layout.hpp"
 
 namespace mfem
@@ -70,12 +82,6 @@ namespace mfem
 //       }
 //    };
 // };
-
-/// Layout for Nedelec finite elements dofs TODO
-class NDLayout;
-
-/// Layout for Raviart-Thomas finite elements dofs TODO
-class RTLayout;
 
 } // namespace mfem
 
