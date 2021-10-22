@@ -13,6 +13,7 @@
 #define MFEM_TENSOR_SYMM_QDATA
 
 #include "qdata_impl.hpp"
+#include "../diagonal_symm_tensor.hpp"
 
 namespace mfem
 {

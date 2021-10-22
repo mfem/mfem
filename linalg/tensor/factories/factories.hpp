@@ -17,5 +17,6 @@
 #include "qdata/qdata.hpp"
 #include "qdata/symm_qdata.hpp"
 #include "diagonal_tensor.hpp"
+#include "diagonal_symm_tensor.hpp"
 
 #endif // MFEM_FACTORIES

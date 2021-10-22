@@ -13,7 +13,7 @@
 #define MFEM_TENSOR_SYMM_MAT_PTWMULTS
 
 #include "../../tensor_traits.hpp"
-#include "../../factories/diagonal_tensor.hpp"
+#include "../../factories/diagonal_symm_tensor.hpp"
 
 namespace mfem
 {
