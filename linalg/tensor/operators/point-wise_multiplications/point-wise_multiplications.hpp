@@ -12,8 +12,11 @@
 #ifndef MFEM_TENSOR_POINTWISEMULTS
 #define MFEM_TENSOR_POINTWISEMULTS
 
+/// Point-wise multiplications with scalar quadrature data
 #include "scalar_pt-wise_mults.hpp"
+/// Point-wise multiplications with vector quadrature data
 #include "vector_pt-wise_mults.hpp"
+/// Point-wise multiplications with symmetric matrix quadrature data
 #include "symm-matrix_pt-wise_mults.hpp"
 
 #endif // MFEM_TENSOR_POINTWISEMULTS
