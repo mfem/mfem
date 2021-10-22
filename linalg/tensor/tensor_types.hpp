@@ -39,6 +39,47 @@ using dTensor = StaticTensor<double,Sizes...>; // TODO remove
 template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
 
+/// A Tensor dynamically distributed over threads
+constexpr int get_Dynamic1dThreadLayout_size(int MaxSize, int Rank)
+{
+   return Rank>2 ? pow(MaxSize,Rank-1) : 1;
+}
+
+template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
+using Dynamic1dThreadTensor = Tensor<
+                              StaticContainer<
+                                 T,
+                                 get_Dynamic1dThreadLayout_size(MaxSize,Rank)
+                              >,
+                              Dynamic1dThreadLayout<Rank,BatchSize>
+                           >;
+
+template <int Rank, int BatchSize, int MaxSize = DynamicMaxSize>
+using Dynamic1dThreadDTensor = Dynamic1dThreadTensor<Rank,double,BatchSize,MaxSize>;
+
+/// A Tensor statically distributed over threads
+constexpr int get_Static1dThreadTensor_size(int Size0)
+{
+   return 1;
+}
+
+template <typename... Sizes>
+constexpr int get_Static1dThreadTensor_size(int Size0, Sizes... sizes)
+{
+   return prod(sizes...);
+}
+
+template <typename T, int BatchSize, int... Sizes>
+using Static1dThreadTensor = Tensor<StaticContainer<
+                                       T,
+                                       get_Static1dThreadTensor_size(Sizes...)
+                                    >,
+                                    Static1dThreadLayout<BatchSize, Sizes...>
+                             >;
+
+template <int BatchSize, int... Sizes>
+using Static1dThreadDTensor = Static1dThreadTensor<double,BatchSize,Sizes...>;
+
 /// A Tensor dynamically distributed over a plane of threads
 constexpr int get_Dynamic2dThreadLayout_size(int MaxSize, int Rank)
 {
@@ -103,7 +144,7 @@ using Dynamic3dThreadTensor = Tensor<
 template <int Rank, int BatchSize, int MaxSize = DynamicMaxSize>
 using Dynamic3dThreadDTensor = Dynamic3dThreadTensor<Rank,double,BatchSize,MaxSize>;
 
-/// A Tensor statically distributed over a plane of threads
+/// A Tensor statically distributed over a cube of threads
 constexpr int get_Static3dThreadTensor_size(int Size0)
 {
    return 1;
