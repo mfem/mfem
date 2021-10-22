@@ -12,10 +12,16 @@
 #ifndef MFEM_TENSOR_GRAD
 #define MFEM_TENSOR_GRAD
 
+/// Non-tensor gradient algorithms for non-tensor elements
 #include "grad_non-tensor.hpp"
+/// Tensor gradient algorithms for tensor elements
 #include "grad_tensor.hpp"
+/// Tensor gradient algorithms for non-tensor elements with vdim
 #include "grad_tensor_with_vdim.hpp"
+/// Tensor gradient algorithms from: SmemPADiffusionApply3D
 #include "grad_legacy.hpp"
+/// Tensor gradient that compute matrix entries instead of using tensor
+/// contractions
 #include "grad_untensorized.hpp"
 
 #endif // MFEM_TENSOR_GRAD
