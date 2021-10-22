@@ -16,7 +16,6 @@
 #include "containers/containers.hpp"
 #include "layouts/layouts.hpp"
 #include "utilities/foreach.hpp"
-#include <iostream>
 
 namespace mfem
 {
@@ -149,34 +148,6 @@ public:
       C data(*this);
       L layout(idx,*this);
       return RestrictedTensor(data,layout);
-   }
-
-   /// Generate a Tensor that be read on device
-   auto Read()
-   {
-      return Tensor<ReadContainer<T>,Layout>(this->ReadData(),*this);
-   }
-
-   /// Generate a Tensor that be writen on device (read is unsafe)
-   auto Write()
-   {
-      return Tensor<DeviceContainer<T>,Layout>(this->WriteData(),*this);
-   }
-
-   /// Generate a Tensor that be read and writen on device
-   auto ReadWrite()
-   {
-      return Tensor<DeviceContainer<T>,Layout>(this->ReadWriteData(),*this);
-   }
-
-   friend std::ostream& operator<<(std::ostream &os, const Tensor &t)
-   {
-      ForallDims<Tensor>::Apply(t,[&](auto... idx)
-      {
-         os << t(idx...) << " ";
-      });
-      os << std::endl;
-      return os;
    }
 };
 
