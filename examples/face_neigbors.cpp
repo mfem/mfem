@@ -32,14 +32,23 @@ int main(int argc, char *argv[])
    ref_elems = 5;
    mesh.GeneralRefinement(ref_elems,-1,0);
 
+   <<<<<<< HEAD
    Array<int> faces({0,1,10,26,28,29});
+   =======
+      Array<int> faces({0,10,26,28,29});
+   >>>>>>> zz_test
 
    for (int i = 0; i<faces.Size(); i++)
    {
       Array<int> elems;
+      <<<<<<< HEAD
       int type = mesh.GetFaceElements2(faces[i],elems);
       cout << "type = " << type << endl;
       cout << "elems = " ; elems.Print();
+      =======
+         mesh.GetFaceElements(faces[i],elems);
+
+      >>>>>>> zz_test
       if (vis)
       {
          char vishost[] = "localhost";

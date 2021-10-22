@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
    // 4. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
    //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
+   // mesh.UniformRefinement();
    if (mesh.NURBSext)
    {
       for (int i = 0; i < 2; i++)
@@ -152,8 +153,11 @@ int main(int argc, char *argv[])
    //     flux to get an error indicator. We need to supply the space for the
    //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
    FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
+   // ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+
+   NewZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+
+   estimator.SetAnisotropic(false);
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
@@ -161,6 +165,7 @@ int main(int argc, char *argv[])
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
+   // refiner.SetNCLimit(1);
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
@@ -220,6 +225,7 @@ int main(int argc, char *argv[])
       // 19. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
+         cout << "num elements = " << mesh.GetNE() << endl;
          sol_sock.precision(8);
          sol_sock << "solution\n" << mesh << x << flush;
       }
@@ -230,11 +236,23 @@ int main(int argc, char *argv[])
          break;
       }
 
+      // ParaViewDataCollection paraview_dc("Example5", &mesh);
+      // paraview_dc.SetPrefixPath("ParaView");
+      // paraview_dc.SetLevelsOfDetail(order);
+      // paraview_dc.SetCycle(0);
+      // paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      // paraview_dc.SetHighOrderOutput(true);
+      // paraview_dc.SetTime(0.0); // set the time
+      // paraview_dc.RegisterField("solution",&x);
+      // paraview_dc.Save();
+
       // 20. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
       refiner.Apply(mesh);
+      cout << "error = " << estimator.GetTotalError() << endl;
+      // cin.get();
       if (refiner.Stop())
       {
          cout << "Stopping criterion satisfied. Stop." << endl;

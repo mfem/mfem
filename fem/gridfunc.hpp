@@ -582,10 +582,17 @@ public:
        the Vector @a error. The result should be of length number of elements,
        for example an L2 GridFunction of order zero using map type VALUE. */
    virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
-                                       Vector &error,
+                                       Vector &errors,
                                        Coefficient *weight = NULL,
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
+
+   /** Compute the Lp error in one specific element of the mesh. */
+   virtual double ComputeElementLpError(int ielem,
+                                        const double p, Coefficient &exsol,
+                                        Coefficient *weight = NULL,
+                                        const IntegrationRule *irs[] = NULL
+                                       ) const;
 
    virtual void ComputeElementL1Errors(Coefficient &exsol,
                                        Vector &error,
@@ -928,6 +935,19 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         Array<int> *aniso_flags = NULL,
                         int with_subdomains = 1,
                         bool with_coeff = false);
+
+/// Defines the global polynomial space used by NewZZErorrEstimator
+Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
+                  int order, int dim);
+
+/// A ``true'' ZZ error estimator which uses face-based patches
+double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
+                           GridFunction &u,
+                           GridFunction &flux,
+                           Vector &error_estimates,
+                           int with_subdomains = 1,
+                           bool with_coeff = false,
+                           double tichonov_coeff = 0.0);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

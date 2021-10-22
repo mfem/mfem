@@ -1197,7 +1197,9 @@ public:
        For an NCMesh and a master face the function will return more than 2 elements.
        For the other two cases (conforming or slave face) it falls back to the
        original GetFaceElements function above */
-   int GetFaceElementsAndFaces(int Face, Array<int> & elems,
+   void GetFaceElements (int Face, Array<int> & elems) const;
+
+   int GetFaceElementsAndFaces(int face, Array<int> & elems,
                                Array<int> & faces) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
