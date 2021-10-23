@@ -12,6 +12,7 @@
 #ifndef MFEM_STATIC_2DTHREAD_LAYOUT
 #define MFEM_STATIC_2DTHREAD_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "static_layout.hpp"
 #include "layout_traits.hpp"
 
@@ -27,38 +28,58 @@ class Static2dThreadLayout<BatchSize, DimX>
 {
 public:
    MFEM_HOST_DEVICE
-   constexpr Static2dThreadLayout()
+   Static2dThreadLayout()
    {
-      // TODO verify that size0 < BlockSizeX
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         DimX<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr Static2dThreadLayout(int size0)
+   Static2dThreadLayout(int size0)
    {
-      // TODO Verify in debug that size0==DimX
-      // TODO verify that size0 < BlockSizeX
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0==DimX,
+         "The runtime first dimension is different to the compilation one.");
+      MFEM_ASSERT_KERNEL(
+         DimX<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   constexpr Static2dThreadLayout(const Layout& rhs)
+   Static2dThreadLayout(const Layout& rhs)
    {
-      // TODO verifications
+      static_assert(
+         1 == get_layout_rank<Layout>,
+         "Can't copy-construct a layout of different rank.");
+      MFEM_ASSERT_KERNEL(
+         rhs.template size<0>() == DimX,
+         "Layouts sizes don't match.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0) const
+   int index(int idx0) const
    {
-      // TODO verify that idx0 < DimX
-      // TODO verify that idx0 == threadIdx.x
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Static2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N==0,
+         "Accessed size is higher than the rank of the Tensor.");
       return DimX;
    }
 };
@@ -68,38 +89,75 @@ class Static2dThreadLayout<BatchSize, DimX, DimY>
 {
 public:
    MFEM_HOST_DEVICE
-   constexpr Static2dThreadLayout()
+   Static2dThreadLayout()
    {
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         DimX<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         DimY<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr Static2dThreadLayout(int size0, int size1)
+   Static2dThreadLayout(int size0, int size1)
    {
-      // TODO Verify in debug that size0==DimX && size1==DimY
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0==DimX,
+         "The runtime first dimension is different to the compilation one.");
+      MFEM_ASSERT_KERNEL(
+         DimX<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         size1==DimY,
+         "The runtime second dimension is different to the compilation one.");
+      MFEM_ASSERT_KERNEL(
+         DimY<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   constexpr Static2dThreadLayout(const Layout& rhs)
+   Static2dThreadLayout(const Layout& rhs)
    {
-      // TODO verifications
+      static_assert(
+         2 == get_layout_rank<Layout>,
+         "Can't copy-construct a layout of different rank.");
+      MFEM_ASSERT_KERNEL(
+         rhs.template size<0>() == DimX,
+         "Layouts sizes don't match.");
+      MFEM_ASSERT_KERNEL(
+         rhs.template size<1>() == DimY,
+         "Layouts sizes don't match.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, int idx1) const
+   int index(int idx0, int idx1) const
    {
-      // TODO verify that idx0 < DimX && idx1 < DimY
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Static2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx1==MFEM_THREAD_ID(y),
+         "The second index must be equal to the y thread index"
+         " when using Static2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<2,
+         "Accessed size is higher than the rank of the Tensor.");
       return get_value<N,DimX,DimY>;
    }
 };
@@ -111,39 +169,76 @@ private:
    StaticLayout<Dims...> layout;
 public:
    MFEM_HOST_DEVICE
-   constexpr Static2dThreadLayout()
+   Static2dThreadLayout()
    {
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         DimX<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         DimY<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   constexpr Static2dThreadLayout(int size0, int size1, Sizes... sizes)
+   Static2dThreadLayout(int size0, int size1, Sizes... sizes)
    : layout(sizes...)
    {
-      // TODO Verify in debug that size0==DimX && size1==DimY
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0==DimX,
+         "The runtime first dimension is different to the compilation one.");
+      MFEM_ASSERT_KERNEL(
+         DimX<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         size1==DimY,
+         "The runtime second dimension is different to the compilation one.");
+      MFEM_ASSERT_KERNEL(
+         DimY<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   constexpr Static2dThreadLayout(const Layout& rhs)
+   Static2dThreadLayout(const Layout& rhs)
    {
-      // TODO verifications
+      static_assert(
+         2 + sizeof...(Dims) == get_layout_rank<Layout>,
+         "Can't copy-construct a layout of different rank.");
+      MFEM_ASSERT_KERNEL(
+         rhs.template size<0>() == DimX,
+         "Layouts sizes don't match.");
+      MFEM_ASSERT_KERNEL(
+         rhs.template size<1>() == DimY,
+         "Layouts sizes don't match.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, int idx1, Idx... idx) const
+   int index(int idx0, int idx1, Idx... idx) const
    {
-      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Static2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx1==MFEM_THREAD_ID(y),
+         "The second index must be equal to the y thread index"
+         " when using Static2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return layout.index(idx...);
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<rank<DimX,DimY,Dims...>,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<rank<DimX,DimY,Dims...>,
+         "Accessed size is higher than the rank of the Tensor.");
       return get_value<N,DimX,DimY,Dims...>;
    }
 };
