@@ -17,34 +17,100 @@
 namespace mfem
 {
 
-/// A class to encapsulate degrees of freedom in a Tensor.
-template <typename DofTensor>
-class NedelecDegreesOfFreedom
-: public DofTensor
+/// A class to encapsulate Nedelec degrees of freedom in with Tensors.
+template <typename... DofTensors>
+class NedelecDegreesOfFreedom;
+
+template <typename DofTensorX, typename DofTensorY, typename DofTensorZ>
+class NedelecDegreesOfFreedom<DofTensorX,DofTensorY,DofTensorZ>
 {
+private:
+   mutable int element;
+   DofTensorX x_dofs;
+   DofTensorY y_dofs;
+   DofTensorZ z_dofs;
+
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
-   NedelecDegreesOfFreedom(double *x, Sizes... sizes)
-   : DofTensor(x, sizes...)
+   NedelecDegreesOfFreedom(double *x, double *y, double *z,
+                           int sizeX0, int sizeX1, int sizeX2,
+                           int sizeY0, int sizeY1, int sizeY2,
+                           int sizeZ0, int sizeZ1, int sizeZ2)
+   : DofTensorX(x, sizeX0, sizeX1, sizeX2),
+     DofTensorY(y, sizeY0, sizeY1, sizeY2),
+     DofTensorZ(z, sizeZ0, sizeZ1, sizeZ2)
    {
       // TODO static asserts Config values
    }
 
-   /// Returns a Tensor corresponding to the DoFs of element e
    MFEM_HOST_DEVICE inline
    auto operator()(int e) const
    {
-      constexpr int Rank = get_tensor_rank<DofTensor>;
-      return this->template Get<Rank-1>(e); // TODO batchsize so +tidz or something?
+      element = e;
+      return (*this);
+   }
+
+   /// Returns a Tensor corresponding to the X DoFs of element e
+   MFEM_HOST_DEVICE inline
+   auto getX() const
+   {
+      constexpr int Rank = get_tensor_rank<DofTensorX>;
+      return Get<Rank-1>(element, x_dofs); // TODO batchsize so +tidz or something?
    }
 
    MFEM_HOST_DEVICE inline
-   auto operator()(int e)
+   auto getX()
    {
-      constexpr int Rank = get_tensor_rank<DofTensor>;
-      return this->template Get<Rank-1>(e);
+      constexpr int Rank = get_tensor_rank<DofTensorX>;
+      return Get<Rank-1>(element, x_dofs);
+   }
+
+   /// Returns a Tensor corresponding to the Y DoFs of element e
+   MFEM_HOST_DEVICE inline
+   auto getY() const
+   {
+      constexpr int Rank = get_tensor_rank<DofTensorY>;
+      return Get<Rank-1>(element, y_dofs); // TODO batchsize so +tidz or something?
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto getY()
+   {
+      constexpr int Rank = get_tensor_rank<DofTensorY>;
+      return Get<Rank-1>(element, y_dofs);
+   }
+
+   /// Returns a Tensor corresponding to the Z DoFs of element e
+   MFEM_HOST_DEVICE inline
+   auto getZ() const
+   {
+      constexpr int Rank = get_tensor_rank<DofTensorZ>;
+      return Get<Rank-1>(element, z_dofs); // TODO batchsize so +tidz or something?
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto getZ()
+   {
+      constexpr int Rank = get_tensor_rank<DofTensorZ>;
+      return Get<Rank-1>(element, z_dofs);
    }
 };
+
+// is_nedelec_dof
+template <typename Dofs>
+struct is_nedelec_dof_v
+{
+   static constexpr bool value = false;
+};
+
+template <typename... DofTensors>
+struct is_nedelec_dof_v<NedelecDegreesOfFreedom<DofTensors...>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename Dofs>
+constexpr bool is_nedelec_dof = is_nedelec_dof_v<Dofs>::value;
 
 } // mfem namespace
 
