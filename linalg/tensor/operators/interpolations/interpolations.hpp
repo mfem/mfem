@@ -12,16 +12,15 @@
 #ifndef MFEM_TENSOR_INTERP
 #define MFEM_TENSOR_INTERP
 
-/// Non-tensor interpolation algorithms for non-tensor elements
+/// Interpolation algorithms for non-tensor elements
 #include "intepr_non-tensor.hpp"
-/// Tensor interpolation algorithms for tensor elements
+/// Interpolation algorithms for tensor elements
 #include "interp_tensor.hpp"
-/// Tensor interpolation algorithms for non-tensor elements with vdim
+/// Interpolation algorithms for non-tensor elements with vdim
 #include "interp_tensor_with_vdim.hpp"
-/// Tensor interpolation algorithms from: SmemPAMassApply3D
+/// Interpolation algorithms from: SmemPAMassApply3D
 #include "interp_legacy.hpp"
-/// Tensor interpolation that compute matrix entries instead of tensor
-/// contractions
+/// Interpolation that compute matrix entries instead of tensor contractions
 #include "interp_untensorized.hpp"
 /// Interpolation algorithms for Nedelec elements
 #include "interp_nedelec.hpp"
