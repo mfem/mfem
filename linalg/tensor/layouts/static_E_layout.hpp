@@ -59,15 +59,18 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(Idx... idx) const
    {
-      static_assert(sizeof...(Sizes)+1==sizeof...(Idx), "Wrong number of arguments.");
+      static_assert(
+         sizeof...(Sizes)+1==sizeof...(Idx),
+         "Wrong number of arguments.");
       return StaticELayoutIndex<Sizes...>::eval(idx...);
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    int Size() const
    {
-      static_assert(N>=0 && N<sizeof...(Sizes)+1,"Accessed size is higher than the rank of the Tensor.");
-      // return N==sizeof...(Sizes) ? last_size : Dim<N,Sizes...>::val;
+      static_assert(
+         N>=0 && N<sizeof...(Sizes)+1,
+         "Accessed size is higher than the rank of the Tensor.");
       return StaticELayoutSize<sizeof...(Sizes),N,Sizes...>::eval(last_size);
    }
 };

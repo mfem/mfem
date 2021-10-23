@@ -12,6 +12,7 @@
 #ifndef MFEM_STATIC_3DTHREAD_LAYOUT
 #define MFEM_STATIC_3DTHREAD_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "static_layout.hpp"
 #include "layout_traits.hpp"
 
@@ -62,7 +63,7 @@ public:
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
          "The first index must be equal to the x thread index"
-         " when using Static2dThreadLayout. Use shared memory"
+         " when using Static3dThreadLayout. Use shared memory"
          " to access values stored in a different thread.");
       return 0;
    }
@@ -129,12 +130,12 @@ public:
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
          "The first index must be equal to the x thread index"
-         " when using Static2dThreadLayout. Use shared memory"
+         " when using Static3dThreadLayout. Use shared memory"
          " to access values stored in a different thread.");
       MFEM_ASSERT_KERNEL(
          idx1==MFEM_THREAD_ID(y),
          "The second index must be equal to the y thread index"
-         " when using Static2dThreadLayout. Use shared memory"
+         " when using Static3dThreadLayout. Use shared memory"
          " to access values stored in a different thread.");
       return 0;
    }
@@ -142,7 +143,9 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<2,
+         "Accessed size is higher than the rank of the Tensor.");
       return get_value<N,DimX,DimY>;
    }
 };
@@ -322,7 +325,9 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<rank<DimX,DimY,DimZ,Dims...>,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<rank<DimX,DimY,DimZ,Dims...>,
+         "Accessed size is higher than the rank of the Tensor.");
       return get_value<N,DimX,DimY,DimZ,Dims...>;
    }
 };
