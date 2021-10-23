@@ -40,9 +40,8 @@ protected:
       the BilinearForm. */
    long sequence;
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #domain_integs,
-    #boundary_integs, #interior_face_integs, and #boundary_face_integs are
-    owned by another BilinearForm. */
+   /** @brief Indicates the BlockBilinearFormIntegrator%s stored in #domain_integs,
+     are owned by another BlockBilinearForm. */
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
