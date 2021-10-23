@@ -22,10 +22,17 @@ namespace mfem
 template <typename Container, typename Layout>
 class Tensor;
 
-/////////////////
-// Tensor Traits
+/**
+ * Tensor Traits:
+ *    Traits can be seen as compilation time functions operating on types.
+ * There is two types of traits, traits returning values, and traits returning
+ * types. The following traits allow to analyze tensors at compilation.
+*/
 
-// get_tensor_rank
+/// get_tensor_rank
+/** Trait to get the rank of a tensor at compilation.
+    ex: `constexpr int Rank = get_tensor_rank<Tensor>;'
+*/
 template <typename Tensor>
 struct get_tensor_rank_v
 {
@@ -35,7 +42,10 @@ struct get_tensor_rank_v
 template <typename Tensor>
 constexpr int get_tensor_rank = get_tensor_rank_v<Tensor>::value;
 
-// get_tensor_value_type
+/// get_tensor_value_type
+/** Return the type of values stored by the Tensor's container.
+    ex: `using T = get_tensor_value_type<Tensor>;'
+*/
 template <typename Tensor>
 struct get_tensor_value_type_t;
 
@@ -57,7 +67,9 @@ using get_tensor_value_type = typename get_tensor_value_type_t<Tensor>::type;
 template <typename Tensor>
 using get_tensor_type = typename get_tensor_value_type_t<Tensor>::type;
 
-// is_dynamic_tensor
+/// is_dynamic_tensor
+/** Return true if the tensor's layout is dynamically sized.
+*/
 template <typename Tensor>
 struct is_dynamic_tensor_v
 {
@@ -79,7 +91,9 @@ struct is_dynamic_tensor_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool is_dynamic_tensor = is_dynamic_tensor_v<Tensor>::value;
 
-// is_static_tensor
+/// is_static_tensor
+/** Return true if the tensor's layout is statically sized.
+*/
 template <typename Tensor>
 struct is_static_tensor_v
 {
@@ -101,7 +115,9 @@ struct is_static_tensor_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool is_static_tensor = is_static_tensor_v<Tensor>::value;
 
-// is_serial_tensor
+/// is_serial_tensor
+/** Return true if the tensor's is not distributed over threads.
+*/
 template <typename Tensor>
 struct is_serial_tensor_v
 {
@@ -123,7 +139,9 @@ struct is_serial_tensor_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool is_serial_tensor = is_serial_tensor_v<Tensor>::value;
 
-// is_2d_threaded_tensor
+/// is_2d_threaded_tensor
+/** Return true if the tensor's layout is 2d threaded.
+*/
 template <typename Tensor>
 struct is_2d_threaded_tensor_v
 {
@@ -145,7 +163,9 @@ struct is_2d_threaded_tensor_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool is_2d_threaded_tensor = is_2d_threaded_tensor_v<Tensor>::value;
 
-// is_3d_threaded_tensor
+/// is_3d_threaded_tensor
+/** Return true if the tensor's layout is 3d threaded.
+*/
 template <typename Tensor>
 struct is_3d_threaded_tensor_v
 {
@@ -167,21 +187,28 @@ struct is_3d_threaded_tensor_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool is_3d_threaded_tensor = is_3d_threaded_tensor_v<Tensor>::value;
 
-// is_serial_tensor_dim
+/// is_serial_tensor_dim
+/** Return true if the tensor's layout dimension N is not threaded.
+*/
 template <typename Tensor, int N>
 constexpr bool is_serial_tensor_dim = is_serial_layout_dim<
                                          typename Tensor::layout,
                                          N
                                       >;
 
-// is_threaded_tensor_dim
+/// is_threaded_tensor_dim
+/** Return true if the tensor's layout dimension N is threaded.
+*/
 template <typename Tensor, int N>
 constexpr bool is_threaded_tensor_dim = is_threaded_layout_dim<
                                            typename Tensor::layout,
                                            N
                                         >;
 
-// get_tensor_size
+/// get_tensor_size
+/** Return the compilation time size of the dimension N, returns Dynamic for
+    dynamic sizes.
+*/
 template <int N, typename Tensor>
 struct get_tensor_size_v;
 // {
@@ -203,7 +230,10 @@ struct get_tensor_size_v<N, const Tensor<C,L>>
 template <int N, typename Tensor>
 constexpr int get_tensor_size = get_tensor_size_v<N, Tensor>::value;
 
-// get_tensor_batch_size
+/// get_tensor_batch_size
+/** Return the tensor's batchsize, the batchsize being the number of elements
+    treated per block of threads.
+*/
 template <typename Tensor>
 struct get_tensor_batch_size_v
 {
@@ -225,7 +255,9 @@ struct get_tensor_batch_size_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr int get_tensor_batch_size = get_tensor_batch_size_v<Tensor>::value;
 
-// get_tensor_capacity
+/// get_tensor_capacity
+/** Return the number of values stored per thread.
+*/
 template <typename Tensor>
 struct get_tensor_capacity_v
 {
@@ -247,7 +279,9 @@ struct get_tensor_capacity_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr int get_tensor_capacity = get_tensor_capacity_v<Tensor>::value;
 
-// has_pointer_container
+/// has_pointer_container
+/** Return true if the tensor's container is a pointer type.
+*/
 template <typename Tensor>
 struct has_pointer_container_v
 {
@@ -269,7 +303,9 @@ struct has_pointer_container_v<const Tensor<C,L>>
 template <typename Tensor>
 constexpr bool has_pointer_container = has_pointer_container_v<Tensor>::value;
 
-// is_static_matrix
+/// is_static_matrix
+/** Return true if the tensor is a statically sized matrix.
+*/
 template <int N, int M, typename Tensor>
 struct is_static_matrix_v
 {
@@ -282,7 +318,9 @@ struct is_static_matrix_v
 template <int N, int M, typename Tensor>
 constexpr bool is_static_matrix = is_static_matrix_v<N,M,Tensor>::value;
 
-// is_dynamic_matrix
+/// is_dynamic_matrix
+/** Return true if the tensor is a dynamically sized matrix.
+*/
 template <typename Tensor>
 struct is_dynamic_matrix_v
 {
@@ -294,7 +332,16 @@ template <typename Tensor>
 constexpr bool is_dynamic_matrix = is_dynamic_matrix_v<Tensor>::value;
 
 
-// get_tensor_result_type
+/// get_tensor_result_type
+/** Return a tensor type with static sizing (even for dynamic layouts)
+    compatible with the result of an operator on the Tensor type.
+    ex:
+    ```
+    using Tensor = DynamicTensor<4>;
+    StaticResultTensor<Tensor,Dynamic,Dynamic> u;// the type is DynamicTensor<2>
+    ```
+    Allows to write algorithms which are agnostic of the input type Tensor.
+*/
 template <typename Tensor, typename Enable = void>
 struct get_tensor_result_type;
 
