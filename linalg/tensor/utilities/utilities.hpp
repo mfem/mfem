@@ -12,6 +12,11 @@
 #ifndef MFEM_TENSOR_UTILITIES
 #define MFEM_TENSOR_UTILITIES
 
+/**
+ * Utilities regroup important tensor abstractions to implement algorithms on
+ * tensors.
+ * */
+
 /// Helper constants
 #include "helper_constants.hpp"
 /// Factories for kernel configurations
