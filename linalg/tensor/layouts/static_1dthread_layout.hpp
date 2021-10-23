@@ -128,7 +128,7 @@ public:
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, Idx... idx) const
+   int index(int idx0, Idx... idx) const
    {
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),

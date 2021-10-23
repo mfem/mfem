@@ -12,6 +12,7 @@
 #ifndef MFEM_DYNAMIC_2DTHREAD_LAYOUT
 #define MFEM_DYNAMIC_2DTHREAD_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "dynamic_layout.hpp"
 #include "layout_traits.hpp"
 
@@ -30,8 +31,15 @@ public:
    Dynamic2dThreadLayout(int size0, int size1,  Sizes... sizes)
    : size0(size0), size1(size1), layout(sizes...)
    {
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         size1<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
@@ -40,22 +48,33 @@ public:
      size1(rhs.template Size<1>()),
      layout(rhs.template Get<0>(0).template Get<0>(0))
    {
-      // static_assert(Rank == get_layout_rank<Layout>,
-      //               "Can't copy-construct with a layout of different rank.");
+      static_assert(
+         Rank-2 == get_layout_rank<Layout>,
+         "Can't copy-construct a layout of different rank.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, int idx1, Idx... idx) const
+   int index(int idx0, int idx1, Idx... idx) const
    {
-      // TODO verify that idx0 < size0 && idx1 < size1
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx1==MFEM_THREAD_ID(y),
+         "The second index must be equal to the y thread index"
+         " when using Dynamic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return layout.index(idx...);
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<Rank,
+         "Accessed size is higher than the rank of the Tensor.");
       return DynamicBlockLayoutSize<N,Rank>::eval(size0,size1,layout);
    }
 };
@@ -70,29 +89,40 @@ public:
    Dynamic2dThreadLayout(int size0)
    : size0(size0)
    {
-      // TODO verify that size0 < BlockSizeX
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
    Dynamic2dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>())
    {
-      // static_assert(1 == get_layout_rank<Layout>,
-      //               "Can't copy-construct with a layout of different rank.");
+      static_assert(
+         1 == get_layout_rank<Layout>,
+         "Can't copy-construct a layout of different rank.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx) const
+   int index(int idx) const
    {
-      // TODO verify that idx < DimX
+      MFEM_ASSERT_KERNEL(
+         idx==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N==0,
+         "Accessed size is higher than the rank of the Tensor.");
       return size0;
    }
 };
@@ -108,8 +138,15 @@ public:
    Dynamic2dThreadLayout(int size0, int size1)
    : size0(size0), size1(size1)
    {
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         size1<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
@@ -117,22 +154,33 @@ public:
    : size0(rhs.template Size<0>()),
      size1(rhs.template Size<1>())
    {
-      // static_assert(2 == get_layout_rank<Layout>,
-      //               "Can't copy-construct with a layout of different rank.");
+      static_assert(
+         2 == get_layout_rank<Layout>,
+         "Can't copy-construct a layout of different rank.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, int idx1) const
+   int index(int idx0, int idx1) const
    {
-      // TODO verify that idx0 < size0 && idx1 < size1
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx1==MFEM_THREAD_ID(y),
+         "The second index must be equal to the y thread index"
+         " when using Dynamic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<2,
+         "Accessed size is higher than the rank of the Tensor.");
       return N==0? size0 : size1;
    }
 };
