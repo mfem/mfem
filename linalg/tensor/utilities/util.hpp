@@ -12,6 +12,7 @@
 #ifndef MFEM_TENSOR_UTIL
 #define MFEM_TENSOR_UTIL
 
+#include "../../../general/error.hpp"
 #include "../../../general/forall.hpp"
 
 namespace mfem
@@ -216,9 +217,9 @@ struct DynamicLayoutIndex
    template <typename... Args> MFEM_HOST_DEVICE inline
    static int eval(const int* sizes, int first, Args... args)
    {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
-#endif
+      MFEM_ASSERT_KERNEL(
+         first<sizes[N-1],
+         "Trying to access out of boundary.");
       return first + sizes[N - 1] * DynamicLayoutIndex<Dim,N+1>::eval(sizes, args...);
    }
 };
@@ -230,9 +231,9 @@ struct DynamicLayoutIndex<Dim, Dim>
    MFEM_HOST_DEVICE inline
    static int eval(const int* sizes, int first)
    {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
-#endif
+      MFEM_ASSERT_KERNEL(
+         first<sizes[Dim-1],
+         "Trying to access out of boundary.");
       return first;
    }
 };
@@ -281,9 +282,9 @@ struct StaticIndex
    static int eval(int first, Idx... args)
    {
       constexpr int size = get_value<Cpt-1,Dims...>;
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<size,"Trying to access out of boundary.");
-#endif
+      MFEM_ASSERT_KERNEL(
+         first<size,
+         "Trying to access out of boundary.");
       return first + size * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
    }
 };

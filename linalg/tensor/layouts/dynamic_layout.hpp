@@ -12,6 +12,7 @@
 #ifndef MFEM_DYNAMIC_LAYOUT
 #define MFEM_DYNAMIC_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "../utilities/utilities.hpp"
 #include "layout_traits.hpp"
 
@@ -41,14 +42,18 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    int index(Idx... idx) const
    {
-      static_assert(Rank==sizeof...(Idx), "Wrong number of arguments.");
+      static_assert(
+         Rank==sizeof...(Idx),
+         "Wrong number of arguments.");
       return DynamicLayoutIndex<Rank>::eval(sizes, idx...);
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    int Size() const
    {
-      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<Rank,
+         "Accessed size is higher than the rank of the Tensor.");
       return sizes[N];
    }
 };

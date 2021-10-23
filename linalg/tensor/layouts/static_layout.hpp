@@ -12,6 +12,7 @@
 #ifndef MFEM_STATIC_LAYOUT
 #define MFEM_STATIC_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "../utilities/utilities.hpp"
 #include "layout_traits.hpp"
 
@@ -23,6 +24,9 @@ template <int... Sizes>
 class StaticLayout
 {
 public:
+   MFEM_HOST_DEVICE
+   constexpr StaticLayout() { }
+
    template <typename... Dims> MFEM_HOST_DEVICE
    constexpr StaticLayout(Dims... args)
    {
