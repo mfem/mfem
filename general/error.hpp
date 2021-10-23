@@ -179,4 +179,18 @@ __device__ void abort_msg(T & msg)
 #define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
 #endif
 
+#define MFEM_VERIFY_KERNEL(x,msg) \
+   i (!(x))                       \
+   {                              \
+      MFEM_ABORT_KERNEL(msg)      \
+   }                              \
+
+#ifdef MFEM_DEBUG
+#define MFEM_ASSERT_KERNEL(x,msg) \
+   i (!(x))                       \
+   {                              \
+      MFEM_ABORT_KERNEL(msg)      \
+   }
+#else
+#define MFEM_ASSERT_KERNEL(x,msg)
 #endif
