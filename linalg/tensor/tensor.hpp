@@ -20,7 +20,9 @@
 namespace mfem
 {
 
-/** A tensor class
+/** A generic tensor class using a linear memory container storing the values,
+    and a layout mapping a rank N index to a linear index corresponding to the
+    values indices in the container.
     @a Container is the type of data container, they can either be statically or
        dynamically allocated,
     @a Layout is a class that represents the data layout

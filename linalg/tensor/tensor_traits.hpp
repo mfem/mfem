@@ -19,6 +19,7 @@
 namespace mfem
 {
 
+/// Forward declaration of the Tensor class
 template <typename Container, typename Layout>
 class Tensor;
 
@@ -69,6 +70,7 @@ using get_tensor_type = typename get_tensor_value_type_t<Tensor>::type;
 
 /// is_dynamic_tensor
 /** Return true if the tensor's layout is dynamically sized.
+    ex: `constexpr bool is_dynamic = is_dynamic_tensor<Tensor>;'
 */
 template <typename Tensor>
 struct is_dynamic_tensor_v

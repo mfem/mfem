@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-/// Apply a lambda function based on the dimensions of a Tensor.
+/// Apply a lambda function with the index of the Nth dimension as parameter.
 template <int N,
             typename Tensor,
             typename Lambda,

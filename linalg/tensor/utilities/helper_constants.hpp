@@ -15,10 +15,16 @@
 namespace mfem
 {
 
+/// Compile time constant used to signify dynamic dimensions.
 static constexpr int Dynamic = 0;
+
+/// Compile time constant used to signify an error.
 static constexpr int Error = -1;
+
+/// The arbitrary maximum dynamic dimension size for stack allocated tensors.
 static constexpr int DynamicMaxSize = 16;
 
+/// Compile time constant indicating if the code being compiled is for device.
 #if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__))
 static constexpr bool is_device = true;
 #else

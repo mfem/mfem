@@ -25,8 +25,8 @@
 #include "point-wise_multiplications/point-wise_multiplications.hpp"
 
 /**
- * These are the main mathematical operatiosns applicable on
- * Basis + Degrees of freedom
+ * These are the main mathematical operatiosns using a Basis, and Degrees of
+ * freedom.
  * */
 
 /// Basis contractions for the tensors
