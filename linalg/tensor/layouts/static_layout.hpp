@@ -26,7 +26,9 @@ public:
    template <typename... Dims> MFEM_HOST_DEVICE
    constexpr StaticLayout(Dims... args)
    {
-      // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
+      static_assert(
+         sizeof...(Dims)==sizeof...(Sizes),
+         "Static and dynamic sizes don't match.");
       // TODO verify that Dims == sizes in Debug mode
    }
 
@@ -42,16 +44,18 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(Idx... idx) const
    {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      static_assert(sizeof...(Sizes)==sizeof...(Idx), "Wrong number of arguments.");
-   #endif
+      static_assert(
+         sizeof...(Sizes)==sizeof...(Idx),
+         "Wrong number of arguments.");
       return StaticLayoutIndex<Sizes...>::eval(idx...);
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<sizeof...(Sizes),"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<sizeof...(Sizes),
+         "Accessed size is higher than the rank of the Tensor.");
       return get_value<N,Sizes...>;
    }
 };
