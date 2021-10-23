@@ -12,9 +12,13 @@
 #ifndef MFEM_TENSOR
 #define MFEM_TENSOR
 
+/// Contain compilation time functions used with tensors
 #include "tensor_traits.hpp"
+/// The values memory storage of tensors
 #include "containers/containers.hpp"
+/// The rank N index mapping to linear memory index
 #include "layouts/layouts.hpp"
+/// Utility functions to abstract iterating over tensors' dimensions
 #include "utilities/foreach.hpp"
 
 namespace mfem
