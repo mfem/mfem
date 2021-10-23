@@ -12,6 +12,7 @@
 #ifndef MFEM_RESTRICTED_LAYOUT
 #define MFEM_RESTRICTED_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "layout_traits.hpp"
 
 namespace mfem
@@ -33,7 +34,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
-      // TODO Check i < layout.Size<0>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<0>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -60,7 +63,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
-      // TODO Check i < layout.Size<1>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<1>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -87,7 +92,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
-      // TODO Check i < layout.Size<2>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<2>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -114,7 +121,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
-      // TODO Check i < layout.Size<3>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<3>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -141,7 +150,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
-      // TODO Check i < layout.Size<4>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<4>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -168,7 +179,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
-      // TODO Check i < layout.Size<5>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<5>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -195,7 +208,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
-      // TODO Check i < layout.Size<6>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<6>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -222,7 +237,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i)
    {
-      // TODO Check i < layout.Size<7>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<7>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -249,7 +266,9 @@ public:
    MFEM_HOST_DEVICE
    RestrictedLayout(int i, const Layout &layout): i(i)
    {
-      // TODO Check i < layout.Size<8>()
+      MFEM_ASSERT_KERNEL(
+         i<layout.template Size<8>(),
+         "The RestrictedLayout is out of bounds.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
