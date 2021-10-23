@@ -88,6 +88,16 @@ void BlockBilinearForm::Assemble(int skip_zeros)
    int nblocks = fespaces.Size();
    Array<const FiniteElement *> fe(nblocks);
    Array<int> vdofs_j, vdofs_k;
+   Array<int> offsetvdofs_j, offsetvdofs_k;
+   Array<int> elementblockoffsets(nblocks+1);
+   elementblockoffsets[0] = 0;
+   Array<int> blockoffsets(nblocks+1);
+   blockoffsets[0] = 0;
+   for (int i =0; i<nblocks; i++)
+   {
+      blockoffsets[i+1] = fespaces[i]->GetVSize();
+   }
+   blockoffsets.PartialSum();
 
    if (domain_integs.Size())
    {
@@ -106,7 +116,9 @@ void BlockBilinearForm::Assemble(int skip_zeros)
                for (int j = 0; j<nblocks; j++)
                {
                   fe[j] = fespaces[j]->GetFE(i);
+                  elementblockoffsets[j+1] = fe[j]->GetDof();
                }
+               elementblockoffsets.PartialSum();
                eltrans = fespaces[0]->GetElementTransformation(i);
                domain_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
                if (elmat.Size() == 0)
@@ -130,10 +142,22 @@ void BlockBilinearForm::Assemble(int skip_zeros)
          for (int j = 0; j<nblocks; j++)
          {
             doftrans_j = fespaces[j]->GetElementVDofs(i, vdofs_j);
+            int offset_j = blockoffsets[j];
+            offsetvdofs_j.SetSize(vdofs_j.Size());
+            for (int l = 0; l<vdofs_j.Size(); l++)
+            {
+               offsetvdofs_j[i] = offset_j + vdofs_j[l];
+            }
             for (int k = 0; k<nblocks; k++)
             {
                doftrans_k = fespaces[k]->GetElementVDofs(i, vdofs_k);
-               // extract sub matrix
+               int offset_k = blockoffsets[k];
+               offsetvdofs_k.SetSize(vdofs_k.Size());
+               for (int l = 0; l<vdofs_k.Size(); l++)
+               {
+                  offsetvdofs_k[i] = offset_k + vdofs_k[l];
+               }
+               // extract sub matrix (using elementblockoffsets)
                DenseMatrix temp(vdofs_j.Size(), vdofs_k.Size());
                MFEM_ABORT("BlockBilinearForm::extract dense submatrix");
                if (doftrans_k || doftrans_j)
@@ -141,7 +165,7 @@ void BlockBilinearForm::Assemble(int skip_zeros)
                   TransformDual(doftrans_j, doftrans_k, temp);
                }
                // extract temp matrix
-               mat->AddSubMatrix(vdofs_j, vdofs_k, temp, skip_zeros);
+               mat->AddSubMatrix(offsetvdofs_j, offsetvdofs_k, temp, skip_zeros);
             }
          }
       }
