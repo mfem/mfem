@@ -23,5 +23,7 @@
 /// Tensor interpolation that compute matrix entries instead of tensor
 /// contractions
 #include "interp_untensorized.hpp"
+/// Interpolation algorithms for Nedelec elements
+#include "interp_nedelec.hpp"
 
 #endif // MFEM_TENSOR_INTERP

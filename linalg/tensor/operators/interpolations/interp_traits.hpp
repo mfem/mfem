@@ -19,7 +19,14 @@
 namespace mfem
 {
 
-enum class InterpAlgo { NonTensor, Tensor, Untensorized, Legacy, NA };
+enum class InterpAlgo {
+   NonTensor,
+   Tensor,
+   Untensorized,
+   Legacy,
+   Nedelec,
+   NA
+};
 
 template <typename Basis, typename Dofs, typename Enable = void>
 struct get_interp_algo_v
