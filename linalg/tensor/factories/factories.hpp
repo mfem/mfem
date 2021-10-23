@@ -12,6 +12,12 @@
 #ifndef MFEM_FACTORIES
 #define MFEM_FACTORIES
 
+/**
+ * Factories are functions creating different types of objects according to
+ * their inputs. The following factories represent higher level mathematical
+ * concepts using tensors as their main data structure representation.
+ * */
+
 /// Factories to build objects representing basis functions
 #include "basis/basis.hpp"
 /// Factories to build objects representing degrees of freedom
