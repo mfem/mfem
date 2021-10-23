@@ -12,9 +12,14 @@
 #ifndef MFEM_CONTAINERS
 #define MFEM_CONTAINERS
 
+/**
+ *  The container classes represent different types of linear memories
+ *  storing the values of a tensor.
+ * */
+
 /// A read/write access pointer container
 #include "device_container.hpp"
-/// A read access pointer container
+/// A read only access pointer container
 #include "read_container.hpp"
 /// A container using the Memory<T> class
 #include "memory_container.hpp"
