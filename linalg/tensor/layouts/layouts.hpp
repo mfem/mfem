@@ -12,6 +12,16 @@
 #ifndef MFEM_LAYOUTS
 #define MFEM_LAYOUTS
 
+/**
+ * Layouts are simple data structures (often empty) representing the mapping
+ * from a rank N index to a linear index. The linear index representing the
+ * tensor's associated index in the container for the value.
+ * Their main purpose is to differentiate statically/dynamically known sizes
+ * for the tensors, and to abstract threading models when utilizing tensors.
+ * Layouts also defines the thread block sizes to run a kernel, and handle it
+ * automatically for the user.
+ * */
+
 /// A dynamically sized layout
 #include "dynamic_layout.hpp"
 /// A dynamically sized layout where the first dimension is threaded
@@ -30,7 +40,7 @@
 #include "static_2dthread_layout.hpp"
 /// A statically sized layout where the three first dimensions are threaded
 #include "static_3dthread_layout.hpp"
-/// A layout that removes one chosen dimension to another layout (used in Get)
+/// A layout that removes a chosen dimension to a given layout (used in Get)
 #include "restricted_layout.hpp"
 
 namespace mfem
