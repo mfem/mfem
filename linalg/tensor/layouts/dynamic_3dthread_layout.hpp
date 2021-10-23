@@ -12,6 +12,7 @@
 #ifndef MFEM_DYNAMIC_3DTHREAD_LAYOUT
 #define MFEM_DYNAMIC_3DTHREAD_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "dynamic_layout.hpp"
 #include "layout_traits.hpp"
 
@@ -31,15 +32,35 @@ public:
    Dynamic3dThreadLayout(int size0, int size1, int size2, Sizes... sizes)
    : size0(size0), size1(size1), size2(size2), layout(sizes...)
    {
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         size1<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         size2<MFEM_THREAD_SIZE(z),
+         "The third dimension exceeds the number of z threads.");
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, int idx1, int idx2, Idx... idx) const
+   int index(int idx0, int idx1, int idx2, Idx... idx) const
    {
-      // TODO verify that idx0 < size0 && idx1 < size1 && idx2 < size2
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx1==MFEM_THREAD_ID(y),
+         "The second index must be equal to the y thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx2==MFEM_THREAD_ID(z),
+         "The third index must be equal to the z thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return layout.index(idx...);
    }
 
@@ -47,7 +68,9 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<Rank,
+         "Accessed size is higher than the rank of the Tensor.");
       return Dynamic3dThreadLayoutSize<N,Rank>::eval(size0,size1,size2,layout);
    }
 };
@@ -62,14 +85,19 @@ public:
    Dynamic3dThreadLayout(int size0)
    : size0(size0)
    {
-      // TODO verify that size0 < BlockSizeX
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx) const
+   int index(int idx) const
    {
-      // TODO verify that idx < DimX
+      MFEM_ASSERT_KERNEL(
+         idx==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
@@ -77,7 +105,9 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N==0,
+         "Accessed size is higher than the rank of the Tensor.");
       return size0;
    }
 };
@@ -93,22 +123,36 @@ public:
    Dynamic3dThreadLayout(int size0, int size1)
    : size0(size0), size1(size1)
    {
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
-      // TODO verify that BlockSizeZ == BatchSize
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         size1<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, int idx1) const
+   int index(int idx0, int idx1) const
    {
-      // TODO verify that idx0 < size0 && idx1 < size1
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx1==MFEM_THREAD_ID(y),
+         "The second index must be equal to the y thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<2,
+         "Accessed size is higher than the rank of the Tensor.");
       return N==0? size0 : size1;
    }
 };
@@ -125,14 +169,35 @@ public:
    Dynamic3dThreadLayout(int size0, int size1, int size2)
    : size0(size0), size1(size1), size2(size2)
    {
-      // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY && size2 < BlockSizeZ
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         size1<MFEM_THREAD_SIZE(y),
+         "The second dimension exceeds the number of y threads.");
+      MFEM_ASSERT_KERNEL(
+         size2<MFEM_THREAD_SIZE(z),
+         "The third dimension exceeds the number of z threads.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, int idx1, int idx2) const
+   int index(int idx0, int idx1, int idx2) const
    {
-      // TODO verify that idx0 < size0 && idx1 < size1 && idx2 < size2
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y && idx2 == threadIdx.z
+      MFEM_ASSERT_KERNEL(
+         idx0==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx1==MFEM_THREAD_ID(y),
+         "The second index must be equal to the y thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx2==MFEM_THREAD_ID(z),
+         "The third index must be equal to the z thread index"
+         " when using Dynamic3dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
@@ -140,7 +205,9 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<3,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N>=0 && N<3,
+         "Accessed size is higher than the rank of the Tensor.");
       return N==0? size0 : (N==1? size1 : size2);
    }
 };
