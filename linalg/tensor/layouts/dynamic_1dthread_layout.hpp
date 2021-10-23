@@ -12,6 +12,7 @@
 #ifndef MFEM_DYNAMIC_1DTHREAD_LAYOUT
 #define MFEM_DYNAMIC_1DTHREAD_LAYOUT
 
+#include "../../../general/error.hpp"
 #include "dynamic_layout.hpp"
 #include "layout_traits.hpp"
 
@@ -48,7 +49,7 @@ public:
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int index(int idx0, Idx... idx) const
+   int index(int idx0, Idx... idx) const
    {
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
@@ -78,34 +79,40 @@ public:
    Dynamic1dThreadLayout(int size0)
    : size0(size0)
    {
-      MFEM_ASSERT_KERNEL(size0<MFEM_THREAD_SIZE(x),
-                         "The first dimension exceeds the number of x threads.");
-      MFEM_ASSERT_KERNEL(BatchSize==MFEM_THREAD_SIZE(z),
-                         "The batchsize is not equal to the number of z threads.");
+      MFEM_ASSERT_KERNEL(
+         size0<MFEM_THREAD_SIZE(x),
+         "The first dimension exceeds the number of x threads.");
+      MFEM_ASSERT_KERNEL(
+         BatchSize==MFEM_THREAD_SIZE(z),
+         "The batchsize is not equal to the number of z threads.");
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
    Dynamic1dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>())
    {
-      static_assert(1 == get_layout_rank<Layout>,
-                    "Can't copy-construct with a layout of different rank.");
+      static_assert(
+         1 == get_layout_rank<Layout>,
+         "Can't copy-construct with a layout of different rank.");
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int index(int idx) const
+   int index(int idx) const
    {
-      MFEM_ASSERT_KERNEL(idx0==MFEM_THREAD_ID(x),
-                         "The first index must be equal to the x thread index"
-                         " when using Dynamic1dThreadLayout. Use shared memory"
-                         " to access values stored in a different thread.");
+      MFEM_ASSERT_KERNEL(
+         idx==MFEM_THREAD_ID(x),
+         "The first index must be equal to the x thread index"
+         " when using Dynamic1dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.");
       return 0;
    }
 
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
+      static_assert(
+         N==0,
+         "Accessed size is higher than the rank of the Tensor.");
       return size0;
    }
 };
