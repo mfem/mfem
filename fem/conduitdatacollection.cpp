@@ -836,6 +836,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       n_adjset["groups"].set(DataType::object());
 
       const GroupTopology &pmesh_gtopo = pmesh->gtopo;
+      const int local_rank = pmesh->GetMyRank();
       const int num_groups = pmesh_gtopo.NGroups();
       // NOTE: skip the first group since its the local-only group
       for (int i = 1; i < num_groups; i++)
@@ -844,25 +845,30 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
          const int *group_nbrs = pmesh_gtopo.GetGroup(i);
          const int num_group_verts = pmesh->GroupNVertices(i);
 
-         // FIXME: each group must have a unique name that matches across ranks,
-         // which is easiest to accomplish by using a sorted list of all neighbors
-         // involved in the rank; however, this may not be the preferred long-term
-         // solution
+         // NOTE: 'neighbor' values are local to this processor, but Blueprint
+         // expects global domain identifiers, so we collapse this layer of
+         // indirection
+         Array<int> group_ranks(num_group_nbrs);
          std::string group_name = "group";
          {
-            Array<int> group_nbrs_sorted(num_group_nbrs);
-            group_nbrs_sorted.CopyFrom(group_nbrs);
-            group_nbrs_sorted.Sort();
-
             for (int j = 0; j < num_group_nbrs; j++)
             {
-               group_name += "_" + std::to_string(group_nbrs_sorted[j]);
+               group_ranks[j] = pmesh_gtopo.GetNeighborRank(group_nbrs[j]);
             }
+            group_ranks.Sort();
+            for (int j = 0; j < num_group_nbrs; j++)
+            {
+               group_name += "_" + std::to_string(group_ranks[j]);
+            }
+
+            // NOTE: Blueprint only wants remote ranks in its neighbor list,
+            // so we remove this rank after the canonicalized Bluepring group
+            // name is formed
+            group_ranks.DeleteFirst(local_rank);
          }
          Node &n_group = n_adjset["groups"][group_name];
 
-         // NOTE: skip the first group item since it's the local processor
-         n_group["neighbors"].set(group_nbrs + 1, num_group_nbrs - 1);
+         n_group["neighbors"].set(group_ranks.GetData(), group_ranks.Size());
          n_group["values"].set(DataType::c_int(num_group_verts));
 
          int_array group_vals = n_group["values"].value();
@@ -878,6 +884,13 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       // elements and void). To include a face neighbor data adjset, this
       // function would need to export a topology with either (1) all faces
       // in the mesh topology or (2) all boundary faces, including neighbors.
+
+      ////////////////////////////////////////////
+      // Setup distributed state
+      ////////////////////////////////////////////
+
+      Node &n_domid = n_mesh["state/domain_id"];
+      n_domid.set(local_rank);
    }
 #endif
 }
