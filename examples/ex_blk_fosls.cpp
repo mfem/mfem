@@ -12,7 +12,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    bool visualization = true;
 
@@ -51,25 +51,50 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace2(&mesh, fec2);
    FiniteElementSpace fespace3(&mesh, fec3);
 
-   Array<FiniteElementSpace *> fespaces(4);
+   Array<FiniteElementSpace *> fespaces(3);
    fespaces[0] = &fespace0;
    fespaces[1] = &fespace1;
    fespaces[2] = &fespace2;
-   fespaces[3] = &fespace3;
+   // fespaces[3] = &fespace3;
 
    BlockBilinearForm a(fespaces);
+   a.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
 
    cout << "H1 fespace 0 = " << fespace0.GetVSize() << endl;
    cout << "ND fespace 1 = " << fespace1.GetVSize() << endl;
    cout << "RT fespace 2 = " << fespace2.GetVSize() << endl;
-   cout << "L2 fespace 3 = " << fespace3.GetVSize() << endl;
-   cout << "Total dofs   = " << fespace0.GetVSize() + fespace1.GetVSize()
-        + fespace2.GetVSize() + fespace3.GetVSize()
-        << endl;
+   // cout << "L2 fespace 3 = " << fespace3.GetVSize() << endl;
+   // cout << "Total dofs   = " << fespace0.GetVSize() + fespace1.GetVSize()
+   //      + fespace2.GetVSize() + fespace3.GetVSize()
+   //      << endl;
 
 
    cout << "height = " << a.Height() << endl;
    cout << "width = " << a.Width() << endl;
+   ConstantCoefficient one(1.0);
+   // TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator(one);
+   // BlockBilinearFormIntegrator * integ = new BlockBilinearFormIntegrator();
+   // TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator();
+   TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator(
+      one);
+   // TestBlockLinearFormIntegrator * integ = new TestBlockLinearFormIntegrator(one);
+   a.AddDomainIntegrator(integ);
+   a.Assemble();
+   a.Finalize();
+
+   OperatorPtr A;
+   Array<int> ess_tdofs;
+   ess_tdofs.Append(2);
+   ess_tdofs.Append(6);
+   // ess_tdofs[1] = 89;
+   // ess_tdofs[2] = 150;
+   a.FormSystemMatrix(ess_tdofs,A);
+
+   // ((SparseMatrix&)(*A)).Threshold(0.);
+   // ((SparseMatrix&)(*A)).SortColumnIndices();
+   // ((SparseMatrix&)(*A)).PrintMatlab();
+   // a.FormSystem
+
 
    delete fec0;
 

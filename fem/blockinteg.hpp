@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_BLOCKLININTEG
-#define MFEM_BLOCKLININTEG
+#ifndef MFEM_BLOCKINTEG
+#define MFEM_BLOCKINTEG
 
 #include "../config/config.hpp"
 #include "fe.hpp"
@@ -25,9 +25,12 @@ namespace mfem
 class BlockBilinearFormIntegrator
 {
 protected:
-   BlockBilinearFormIntegrator(const IntegrationRule *ir = NULL) {}
-
+   const IntegrationRule *IntRule;
+   BlockBilinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : IntRule(ir) { }
 public:
+
+
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const Array<const FiniteElement *> &el,
                                       ElementTransformation &Trans,
@@ -42,7 +45,9 @@ public:
 class BlockLinearFormIntegrator
 {
 protected:
-   BlockLinearFormIntegrator(const IntegrationRule *ir = NULL) {}
+   const IntegrationRule *IntRule;
+   BlockLinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : IntRule(ir) { }
 
 public:
    /// Given a particular Finite Element computes the element matrix elmat.
@@ -56,7 +61,6 @@ public:
 
 
 
-/** Class for local matrix assembling a(u,v) := (u, v) */
 class TestBlockBilinearFormIntegrator: public BlockBilinearFormIntegrator
 {
 protected:
@@ -68,16 +72,21 @@ protected:
 
 public:
 
+   TestBlockBilinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : BlockBilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
+
    /// Construct a mass integrator with coefficient q
    TestBlockBilinearFormIntegrator(Coefficient &q,
                                    const IntegrationRule *ir = NULL)
-      : BlockBilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
+      : BlockBilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL)   { }
 
    /** Given a particular Finite Element computes the element matrix
        elmat. */
    virtual void AssembleElementMatrix(const Array<const FiniteElement *> &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual ~TestBlockBilinearFormIntegrator() { }
 
 };
 
@@ -93,7 +102,10 @@ protected:
 
 public:
 
-   /// Construct a mass integrator with coefficient q
+   TestBlockLinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : BlockLinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
+
+   /// Construct a test linear integrator with coefficient q
    TestBlockLinearFormIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BlockLinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
 

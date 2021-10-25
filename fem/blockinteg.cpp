@@ -14,6 +14,24 @@
 namespace mfem
 {
 
+void BlockBilinearFormIntegrator::AssembleElementMatrix(
+   const Array<const FiniteElement *> &el,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   mfem_error ("BlockBilinearFormIntegrator::AssembleElementMatrix\n"
+               "   is not implemented for this class.");
+}
+
+void BlockLinearFormIntegrator::AssembleElementVector(
+   const Array<const FiniteElement *> &el,
+   ElementTransformation &Trans,
+   Vector &elvect)
+{
+   mfem_error ("BlockLinearFormIntegrator::AssembleElementVector\n"
+               "   is not implemented for this class.");
+}
+
 /** Given a particular Finite Element computes the element vector */
 void TestBlockBilinearFormIntegrator::AssembleElementMatrix
 (const Array<const FiniteElement *> &el,
@@ -29,7 +47,7 @@ void TestBlockBilinearFormIntegrator::AssembleElementMatrix
 
    elmat.SetSize(nd);
 
-   elmat = 1.0;
+   elmat = 25.0;
    // TODO
 
 }

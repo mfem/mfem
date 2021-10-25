@@ -1720,6 +1720,91 @@ void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
    }
 }
 
+void DenseMatrix::GetSubMatrix(const Array<int> & idx, DenseMatrix & A)
+{
+   int k = idx.Size();
+   A.SetSize(k);
+   int ha = A.Height();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx[i];
+      for (int j = 0; j<k; j++)
+      {
+         jj = idx[j];
+         adata[i+j*ha] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(const Array<int> & idx_i,
+                               const Array<int> & idx_j, DenseMatrix & A)
+{
+   int k = idx_i.Size();
+   int l = idx_j.Size();
+   A.SetSize(k,l);
+   int ha = A.Height();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx_i[i];
+      for (int j = 0; j<l; j++)
+      {
+         jj = idx_j[j];
+         adata[i+j*ha] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(int ibeg, int iend, DenseMatrix & A)
+{
+   int k = iend - ibeg + 1;
+   A.SetSize(k);
+   int ha = A.Height();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<k; j++)
+      {
+         jj = ibeg + j;
+         adata[i+j*ha] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(int ibeg, int iend, int jbeg, int jend,
+                               DenseMatrix & A)
+{
+   int k = iend - ibeg + 1;
+   int l = jend - jbeg + 1;
+   A.SetSize(k,l);
+   int ha = A.Height();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<l; j++)
+      {
+         jj = jbeg + j;
+         adata[i+j*ha] = this->data[ii+jj*height];
+      }
+   }
+
+}
+
+
+
+
+
 void DenseMatrix::AddToVector(int offset, Vector &v) const
 {
    const int n = height * width;

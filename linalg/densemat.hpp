@@ -355,6 +355,13 @@ public:
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
+   /// GetSubMatrix
+   void GetSubMatrix(const Array<int> & idx, DenseMatrix & A);
+   void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     DenseMatrix & A);
+   void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
+   void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
+
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
    /// Get the matrix 'data' from the Vector 'v' at the given 'offset'
