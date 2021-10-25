@@ -1,18 +1,18 @@
-//                        MFEM Example 30+ - Parallel Version
+//                        MFEM Example 30 - Parallel Version
 //
-// Compile with: make oscp
+// Compile with: make ex30p
 //
-// Sample runs:  mpirun -np 4 oscp -m ../data/square-disc.mesh -o 1
-//               mpirun -np 4 oscp -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 oscp -m ../data/square-disc.mesh -o 2 -me 1e3
-//               mpirun -np 4 oscp -m ../data/square-disc-nurbs.mesh -o 2
-//               mpirun -np 4 oscp -m ../data/star.mesh -o 2 -eo 4
+// Sample runs:  mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 1
+//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2 -me 1e3
+//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/star.mesh -o 2 -eo 4
 //               mpirun -np 4 oscp -m ../data/fichera.mesh -o 2 -me 1e4
-//               mpirun -np 4 oscp -m ../data/disc-nurbs.mesh -o 2
-//               mpirun -np 4 oscp -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2
-//               mpirun -np 4 oscp -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 oscp -m ../data/square-disc-surf.mesh -o 2
-//               mpirun -np 4 oscp -m ../data/amr-quad.mesh -l 2
+//               mpirun -np 4 ex30p -m ../data/disc-nurbs.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2
+//               mpirun -np 4 ex30p -m ../data/star-surf.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/square-disc-surf.mesh -o 2
+//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh -l 2
 //
 // Description:  This is an example of adaptive mesh refinement preprocessing
 //               which lowers the data oscillation [1] to a user-defined
@@ -34,14 +34,12 @@
 //                   problems for testing adaptive grid refinement algorithms.
 //                   Applied mathematics and computation, 220, 350-364.
 
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-
 
 // Piecewise-affine function which is sometimes mesh-conforming
 double affine_function(const Vector &p)
@@ -237,7 +235,6 @@ int main(int argc, char *argv[])
    sol_sock.precision(8);
    sol_sock << "parallel " << num_procs << " " << myid << "\n";
    sol_sock << "mesh\n" << pmesh << flush;
-
 
    MPI_Finalize();
    return 0;
