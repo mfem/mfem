@@ -18,6 +18,10 @@
 namespace mfem
 {
 
+/// Forward declaration of the Tensor class
+template <typename Container, typename Layout>
+class Tensor;
+
 /////////////////
 // Layout Traits
 
@@ -27,6 +31,12 @@ struct get_layout_rank_v;
 
 template <typename Layout>
 constexpr int get_layout_rank = get_layout_rank_v<Layout>::value;
+
+template <typename Container, typename Layout>
+struct get_layout_rank_v<Tensor<Container,Layout>>
+{
+   static constexpr int value = get_layout_rank<Layout>;
+};
 
 // is_dynamic_layout
 template <typename Layout>
