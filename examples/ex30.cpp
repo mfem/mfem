@@ -1,18 +1,18 @@
-//                            MFEM Example 30+
+//                            MFEM Example 30
 //
-// Compile with: make osc
+// Compile with: make ex30
 //
-// Sample runs:  osc -m ../data/square-disc.mesh -o 1
-//               osc -m ../data/square-disc.mesh -o 2
-//               osc -m ../data/square-disc.mesh -o 2 -me 1e3
-//               osc -m ../data/square-disc-nurbs.mesh -o 2
-//               osc -m ../data/star.mesh -o 2 -eo 4
-//               osc -m ../data/fichera.mesh -o 2 -me 1e4
-//               osc -m ../data/disc-nurbs.mesh -o 2
-//               osc -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
-//               osc -m ../data/star-surf.mesh -o 2
-//               osc -m ../data/square-disc-surf.mesh -o 2
-//               osc -m ../data/amr-quad.mesh -l 2
+// Sample runs:  ex30 -m ../data/square-disc.mesh -o 1
+//               ex30 -m ../data/square-disc.mesh -o 2
+//               ex30 -m ../data/square-disc.mesh -o 2 -me 1e3
+//               ex30 -m ../data/square-disc-nurbs.mesh -o 2
+//               ex30 -m ../data/star.mesh -o 2 -eo 4
+//               ex30 -m ../data/fichera.mesh -o 2 -me 1e4
+//               ex30 -m ../data/disc-nurbs.mesh -o 2
+//               ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
+//               ex30 -m ../data/star-surf.mesh -o 2
+//               ex30 -m ../data/square-disc-surf.mesh -o 2
+//               ex30 -m ../data/amr-quad.mesh -l 2
 //
 // Description:  This is an example of adaptive mesh refinement preprocessing
 //               which lowers the data oscillation [1] to a user-defined
@@ -33,8 +33,6 @@
 //               [2] Mitchell, W. F. (2013). A collection of 2D elliptic
 //                   problems for testing adaptive grid refinement algorithms.
 //                   Applied mathematics and computation, 220, 350-364.
-
-
 
 #include "mfem.hpp"
 #include <fstream>
@@ -192,7 +190,6 @@ int main(int argc, char *argv[])
 
    sol_sock.precision(8);
    sol_sock << "mesh\n" << mesh << flush;
-
 
    return 0;
 }
