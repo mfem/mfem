@@ -10,6 +10,10 @@
 
 Version 4.3.1 (development)
 ===========================
+- Added support for mesh preprocessing to resolve fine scale problem data
+  before simulation. This feature uses adaptive mesh refinement to control the
+  associated data oscillation error. See the new Example 30/30p.
+
 - Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
   formatting. See the "make style" target.
 
