@@ -296,6 +296,75 @@ private:
    complex<double> P_;
 };
 
+/** Vector coefficient to compute H field wrapping around
+    current-carrying rectangular antenna straps.
+    Any number of straps can be supported but the straps are assumed
+    to be rectangular and aligned with the x and y axes..
+    Each strap requires 6 parameters:
+      x0: x-position of the left hand side of the strap
+      x1: x-position of the right hand side of the strap
+      y0: y-position of the bottom side of the strap
+      y1: y-position of the top side of the strap
+      Re(I): Real part of the current in the strap
+      Im(I): Imaginary part of the current in the strap
+    The parameters should be grouped by strap so that the six params
+    for strap 1 are first then the six for strap 2, etc..
+*/
+class MultiStrapAntennaH : public VectorCoefficient
+{
+private:
+   bool real_part_;
+   int num_straps_;
+   double tol_;
+   Vector params_;
+   Vector x_;
+
+public:
+   MultiStrapAntennaH(int n, const Vector &params,
+                      bool real_part, double tol = 1e-6)
+      : VectorCoefficient(3), real_part_(real_part), num_straps_(n),
+        tol_(tol), params_(params), x_(2)
+   {
+      MFEM_ASSERT(params.Size() == 6 * n,
+                  "Incorrect number of parameters provided to "
+                  "MultiStrapAntennaH");
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      V.SetSize(3); V = 0.0;
+      T.Transform(ip, x_);
+      for (int i=0; i<num_straps_; i++)
+      {
+         double x0  = params_[6 * i + 0];
+         double x1  = params_[6 * i + 1];
+         double y0  = params_[6 * i + 2];
+         double y1  = params_[6 * i + 3];
+         double ReI = params_[6 * i + 4];
+         double ImI = params_[6 * i + 5];
+         double   H = 0.5 * (real_part_ ? ReI : ImI) / (x1 - x0 + y1 - y0);
+         if (fabs(x_[1] - y0) <= tol_ && x_[0] >= x0 && x_[0] <= x1)
+         {
+            V[0] = H; break;
+         }
+         else if (fabs(x_[0] - x1) <= tol_ && x_[1] >= y0 && x_[1] <= y1)
+         {
+            V[1] = H; break;
+         }
+         else if (fabs(x_[1] - y1) <= tol_ && x_[0] >= x0 && x_[0] <= x1)
+         {
+            V[0] = -H; break;
+         }
+         else if (fabs(x_[0] - x0) <= tol_ && x_[1] >= y0 && x_[1] <= y1)
+         {
+            V[1] = -H; break;
+         }
+      }
+   }
+};
+
+
 void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
@@ -376,6 +445,7 @@ int main(int argc, char *argv[])
    Array<int> peca; // Perfect Electric Conductor BC attributes
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
+   Array<int> dbcas; // Dirichlet BC attributes for multi-strap antenna source
    Array<int> dbcaw; // Dirichlet BC attributes for plane wave source
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
@@ -384,6 +454,9 @@ int main(int argc, char *argv[])
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv1; // Neumann BC values
    Vector nbcv2; // Neumann BC values
+
+   int msa_n = 0;
+   Vector msa_p(0);
 
    int num_elements = 10;
 
@@ -465,6 +538,8 @@ int main(int argc, char *argv[])
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
                   "followed by 3 imaginary phase shifts");
+   args.AddOption(&msa_n, "-ns", "--num-straps","");
+   args.AddOption(&msa_p, "-sp", "--strap-params","");
    //args.AddOption(&numbers, "-num", "--number-densites",
    //"Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
@@ -533,6 +608,9 @@ int main(int argc, char *argv[])
    args.AddOption(&dbcv2, "-dbcv2", "--dirichlet-bc-2-vals",
                   "Dirichlet Boundary Condition Value 2 (v_x v_y v_z)"
                   " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&dbcas, "-dbcs-msa", "--dirichlet-bc-straps",
+                   "Dirichlet Boundary Condition Surfaces Using "
+                   "Multi-Strap Antenna");
    args.AddOption(&nbca1, "-nbcs1", "--neumann-bc-1-surf",
                   "Neumann Boundary Condition Surfaces Using Value 1");
    args.AddOption(&nbca2, "-nbcs2", "--neumann-bc-2-surf",
@@ -1071,6 +1149,9 @@ int main(int argc, char *argv[])
    SheathImpedance z_i(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, false);
+   
+   MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
+   MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
 
    ColdPlasmaPlaneWaveH HReCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, nuprof, true);
@@ -1300,10 +1381,10 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
-                  (dbcaw.Size() > 0);
+    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
+                      (dbcas.Size() > 0) + (dbcaw.Size() > 0);
 
-   Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
+  Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
    Vector zeroVec(3); zeroVec = 0.0;
    Vector dbc1ReVec;
@@ -1377,6 +1458,14 @@ int main(int argc, char *argv[])
          dbcs[c]->imag = &dbc2ImCoef;
          c++;
       }
+      if (dbcas.Size() > 0)
+       {
+           dbcs[c] = new ComplexVectorCoefficientByAttr;
+           dbcs[c]->attr = dbcas;
+           dbcs[c]->real = &HReStrapCoef;
+           dbcs[c]->imag = &HImStrapCoef;
+           c++;
+       }
       if (dbcaw.Size() > 0)
       {
          dbcs[c] = new ComplexVectorCoefficientByAttr;
