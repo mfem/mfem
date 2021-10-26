@@ -12,6 +12,10 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 
+#include "../linalg/tensor/factories/factories.hpp"
+#include "../linalg/tensor/operators/operators.hpp"
+#include "../linalg/tensor/utilities/utilities.hpp"
+
 namespace mfem
 {
 
@@ -161,6 +165,41 @@ void PAHdivMassApply3D(const int D1D,
                        const Vector &op_,
                        const Vector &x_,
                        Vector &y_);
+
+template <int Dim,
+          bool IsTensor,
+          int OpenDofs = Dynamic,
+          int CloseDofs = Dynamic,
+          int Quads = Dynamic>
+void ApplyPAHdivMass(const int dofs,
+                     const int quads,
+                     const int ne,
+                     const Array<double> &Bo,
+                     const Array<double> &Bc,
+                     const Array<double> &Bot,
+                     const Array<double> &Bct,
+                     const Vector &op,
+                     const Vector &x,
+                     Vector &y)
+{
+   config_dim_is<Dim> param1;
+   config_is_tensor<IsTensor> param2;
+   config_quads_is<Quads> param4;
+   const int close_dofs = dofs;
+   const int open_dofs = dofs-1;
+   auto config  = MakeConfig(dofs, quads, param1, param2, param4);
+   auto B       = MakeNedelecBasis<OpenDofs,CloseDofs>(
+                     config, open_dofs, close_dofs, quads,
+                     Bo.Read(), Bot.Read(), Bc.Read(), Bct.Read());
+   const auto X = MakeNedelecDoFs(config, open_dofs, close_dofs, x.Read(), ne);
+   const auto D = MakeSymmQData<1>(config, op.Read(), ne);
+   auto Y       = MakeNedelecDoFs(config, open_dofs, close_dofs, y.ReadWrite(),
+                                  ne);
+   MFEM_FORALL_CONFIG(config, e, ne,
+   {
+      Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );
+   });
+}
 
 void PAHcurlL2Setup(const int NQ,
                     const int coeffDim,
@@ -995,8 +1034,10 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if (trial_div && test_div)
       {
-         PAHdivMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                           mapsC->Bt, pa_data, x, y);
+         // PAHdivMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+         //                   mapsC->Bt, pa_data, x, y);
+         ApplyPAHdivMass<3,true>(dofs1D, quad1D, ne, mapsO->B, mapsC->B,
+                                 mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
       else if (trial_curl && test_div)
       {
