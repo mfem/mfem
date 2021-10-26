@@ -48,24 +48,22 @@ public:
 };
 
 /// Functor to represent degrees of freedom
-template <int VDim, typename Config>
+template <int Dofs, int VDim = 0, typename Config>
 auto MakeDoFs(Config &config, double *x, int ne)
 {
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
-   constexpr int Dofs = get_config_dofs<Config>;
    using Layout = get_dof_layout<IsTensor,Dofs,Dim,VDim>;
    using DofTensor = Tensor<DeviceContainer<double>,Layout>;
    using Dof = DegreesOfFreedom<DofTensor>;
    return InitDof<Dof,IsTensor,Dim,VDim>::make(x,config.dofs,ne);
 }
 
-template <int VDim, typename Config>
+template <int Dofs, int VDim = 0, typename Config>
 auto MakeDoFs(Config &config, const double *x, int ne)
 {
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
-   constexpr int Dofs = get_config_dofs<Config>;
    using Layout = get_dof_layout<IsTensor,Dofs,Dim,VDim>;
    using DofTensor = Tensor<ReadContainer<double>,Layout>;
    using Dof = DegreesOfFreedom<DofTensor>;
