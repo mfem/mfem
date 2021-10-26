@@ -366,11 +366,11 @@ static void ApplyMass(const int ne,
 {
    auto config  = MakeConfig(dofs, quads,
                              config_dim_is<Dim>(), config_is_tensor<IsTensor>(),
-                             config_dofs_is<Dofs>(), config_quads_is<Quads>());
-   auto B       = MakeBasis(config, b.Read(), bt.Read());
-   const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
+                             config_quads_is<Quads>());
+   auto B       = MakeBasis<Dofs>(config, dofs, quads, b.Read(), bt.Read());
+   const auto X = MakeDoFs<Dofs,VDim>(config, x.Read(), ne);
    const auto D = MakeQData<0>(config, d.Read(), ne);
-   auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
+   auto Y       = MakeDoFs<Dofs,VDim>(config, y.ReadWrite(), ne);
    MFEM_FORALL_CONFIG(config, e, ne,
    {
       Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );
