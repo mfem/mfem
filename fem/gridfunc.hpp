@@ -950,15 +950,19 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            double tichonov_coeff = 0.0);
 
 
-void PatchBasedPolynomialEvaluation(GridFunction &u,
-                                    int el_id,
-                                    int patch_order,
-                                    int integ_order,
-                                    double tichonov_coeff,
-                                    Vector &coefficients,
-                                    Vector &xmin,
-                                    Vector &xmax);
+class PatchBasedPolynomialFit
+{
+private:
+    int el_id, patch_order, integ_order, dim;
+    Vector coefficients, xmin, xmax;
+public:
+    PatchBasedPolynomialFit(GridFunction &u, int el_id_,
+                            int patch_order_, int integ_order_,
+                            double tichonov_coeff);
 
+    double EvaluatePolynomial(const Vector &xloc);
+
+};
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

@@ -4528,21 +4528,19 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error/dim);
 }
 
-void PatchBasedPolynomialEvaluation(GridFunction &u,
-                                    int el_id,
-                                    int patch_order,
-                                    int integ_order,
-                                    double tichonov_coeff,
-                                    Vector &coefficients,
-                                    Vector &xmin,
-                                    Vector &xmax)
+PatchBasedPolynomialFit::PatchBasedPolynomialFit(GridFunction &u,
+                                                 int el_id_,
+                                                 int patch_order_,
+                                                 int integ_order_,
+                                                 double tichonov_coeff) :
+    el_id(el_id_), patch_order(patch_order_), integ_order(integ_order_)
 {
     MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
     FiniteElementSpace *ufes = u.FESpace();
     ElementTransformation *Transf;
 
     Mesh *mesh = ufes->GetMesh();
-    int dim = mesh->Dimension();
+    dim = mesh->Dimension();
 
     Array<int> udofs;
     Vector ul;
@@ -4569,7 +4567,6 @@ void PatchBasedPolynomialEvaluation(GridFunction &u,
     }
     neighbor_elems.Sort();
     neighbor_elems.Unique();
-    neighbor_elems.Print();
     int num_neighbor_elems = neighbor_elems.Size();
 
     // 2. Compute global flux polynomial.
@@ -4667,6 +4664,19 @@ void PatchBasedPolynomialEvaluation(GridFunction &u,
     for (int i = 0; i < b.Size(); i++) {
         coefficients(i) = b[i];
     }
+}
+
+double PatchBasedPolynomialFit::EvaluatePolynomial(const Vector &xloc)
+{
+    int num_basis_functions = coefficients.Size();
+    auto global_poly = [=] (const Vector &x)
+    {
+       Vector p(num_basis_functions);
+       p = LegendreND(x, xmax, xmin, patch_order, dim);
+       return coefficients*p;
+    };
+
+    return global_poly(xloc);
 }
 
 double ComputeElementLpDistance(double p, int i,
