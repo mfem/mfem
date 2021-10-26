@@ -238,6 +238,15 @@ using MyDeviceTensor = Tensor<DeviceContainer<T>,
 template <int Rank>
 using DeviceDTensor = MyDeviceTensor<Rank,double>;
 
+/// Dynamically sized tensors using a pointer as container.
+template <int Rank, typename T>
+using DynamicPointerTensor = Tensor<DeviceContainer<T>,
+                             DynamicLayout<Rank> >;
+
+template <int Rank>
+using DynamicPointerDTensor = DynamicPointerTensor<Rank,double>;
+
+/// Statically sized tensor using a pointer container.
 template <typename T, int... Sizes>
 using StaticPointerTensor = Tensor<DeviceContainer<T>,
                                    StaticLayout<Sizes...> >;
