@@ -27,6 +27,30 @@ struct NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>
    DofTensorX x;
    DofTensorY y;
    DofTensorZ z;
+
+   template <typename DofTensorXRHS,
+             typename DofTensorYRHS,
+             typename DofTensorZRHS>
+   NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>&
+   operator=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS,DofTensorZRHS>& rhs)
+   {
+      x = rhs.x;
+      y = rhs.y;
+      z = rhs.z;
+      return (*this);
+   }
+
+   template <typename DofTensorXRHS,
+             typename DofTensorYRHS,
+             typename DofTensorZRHS>
+   NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>&
+   operator+=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS,DofTensorZRHS>& rhs)
+   {
+      x += rhs.x;
+      y += rhs.y;
+      z += rhs.z;
+      return (*this);
+   }
 };
 
 template <typename DofTensorX, typename DofTensorY>
@@ -34,12 +58,48 @@ struct NedelecElementDofs<DofTensorX,DofTensorY>
 {
    DofTensorX x;
    DofTensorY y;
+
+   template <typename DofTensorXRHS,
+             typename DofTensorYRHS>
+   NedelecElementDofs<DofTensorX,DofTensorY>&
+   operator=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS>& rhs)
+   {
+      x = rhs.x;
+      y = rhs.y;
+      return (*this);
+   }
+
+   template <typename DofTensorXRHS,
+             typename DofTensorYRHS>
+   NedelecElementDofs<DofTensorX,DofTensorY>&
+   operator+=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS>& rhs)
+   {
+      x += rhs.x;
+      y += rhs.y;
+      return (*this);
+   }
 };
 
 template <typename DofTensorX>
 struct NedelecElementDofs<DofTensorX>
 {
    DofTensorX x;
+
+   template <typename DofTensorXRHS>
+   NedelecElementDofs<DofTensorX>&
+   operator=(const NedelecElementDofs<DofTensorXRHS>& rhs)
+   {
+      x = rhs.x;
+      return (*this);
+   }
+
+   template <typename DofTensorXRHS>
+   NedelecElementDofs<DofTensorX>&
+   operator+=(const NedelecElementDofs<DofTensorXRHS>& rhs)
+   {
+      x += rhs.x;
+      return (*this);
+   }
 };
 
 /// A class to encapsulate Nedelec degrees of freedom in with Tensors.
