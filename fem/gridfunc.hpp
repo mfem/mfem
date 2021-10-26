@@ -949,6 +949,17 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            bool with_coeff = false,
                            double tichonov_coeff = 0.0);
 
+
+void PatchBasedPolynomialEvaluation(GridFunction &u,
+                                    int el_id,
+                                    int patch_order,
+                                    int integ_order,
+                                    double tichonov_coeff,
+                                    Vector &coefficients,
+                                    Vector &xmin,
+                                    Vector &xmax);
+
+
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
                                 GridFunction& gf1, GridFunction& gf2);
