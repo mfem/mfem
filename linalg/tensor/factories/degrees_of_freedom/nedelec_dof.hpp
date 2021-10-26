@@ -209,11 +209,20 @@ public:
 };
 
 template <typename Config>
-auto MakeNedelecDoFs(Config &config, double *x,
-                     int dofs_open, int dofs_close, int ne)
+auto MakeNedelecDoFs(Config &config, int dofs_open, int dofs_close,
+                     double *x, int ne)
 {
    constexpr int Dim = get_config_dim<Config>;
    return NedelecDegreesOfFreedom<Dim>(x,dofs_open,dofs_close,ne);
+};
+
+template <typename Config>
+auto MakeNedelecDoFs(Config &config, int dofs_open, int dofs_close,
+                     const double *x, int ne)
+{
+   constexpr int Dim = get_config_dim<Config>;
+   // FIXME remove const_cast
+   return NedelecDegreesOfFreedom<Dim>(const_cast<double*>(x),dofs_open,dofs_close,ne);
 };
 
 // is_nedelec_dof
