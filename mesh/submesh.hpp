@@ -17,11 +17,13 @@
 namespace mfem
 {
 
-// Submesh represents a topological subset of a Mesh.
+// SubMesh represents a topological subset of a Mesh.
 class SubMesh : public Mesh
 {
 public:
    // Indicator from which part of the parent Mesh the SubMesh is created.
+   // PLEASE SUGGEST BETTER NAME!!!
+   // Origin?
    enum From
    {
       Domain,
@@ -50,6 +52,29 @@ public:
    static SubMesh CreateFromBoundary(Mesh &parent,
                                      Array<int> boundary_attributes);
 
+   const Mesh* GetParent() { return &parent_; }
+
+   const From GetFrom() { return from_; }
+
+   const Array<int>& GetParentElementIDMap() const
+   {
+      return parent_element_ids_;
+   }
+   // void GetParentElementIDMap(Array<int>& map);
+
+   // const Array<int>& GetParentEdgeIDMap() const;
+   // void GetParentEdgeIDMap(Array<int>& map);
+
+   const Array<int>& GetParentVertexIDMap() const
+   {
+      return parent_vertex_ids_;
+   }
+   // void GetParentVertexIDMap(Array<int>& map);
+
+   // Transfer the dofs of a GridFunction on a SubMesh to a GridFunction on the
+   // Mesh.
+   static void Transfer(GridFunction &src, GridFunction &dst);
+
    ~SubMesh();
 
 private:
@@ -64,27 +89,17 @@ private:
    Array<int> attributes_;
    Array<int> element_ids_;
 
-   // // Mapping from submesh element ids (index of the array), to
-   // // the parent element ids.
-   // Array<int> parent_element_ids_;
+   // Mapping from submesh element ids (index of the array), to
+   // the parent element ids.
+   Array<int> parent_element_ids_;
 
    // // Mapping from submesh edge ids (index of the array), to
    // // the parent edge ids.
    // Array<int> parent_edge_ids_;
 
-   // // Mapping from submesh vertex ids (index of the array), to
-   // // the parent vertex ids.
-   // Array<int> parent_vertex_ids_;
-
-
-   // const Array<int>& GetParentElementIDMap() const;
-   // void GetParentElementIDMap(Array<int>& map);
-
-   // const Array<int>& GetParentEdgeIDMap() const;
-   // void GetParentEdgeIDMap(Array<int>& map);
-
-   // const Array<int>& GetParentVertexIDMap() const;
-   // void GetParentVertexIDMap(Array<int>& map);
+   // Mapping from submesh vertex ids (index of the array), to
+   // the parent vertex ids.
+   Array<int> parent_vertex_ids_;
 
 };
 };
