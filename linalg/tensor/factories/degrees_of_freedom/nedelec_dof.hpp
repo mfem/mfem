@@ -128,7 +128,7 @@ private:
          e<ne,
          "Element index is superior to the number of elements. ");
       constexpr int dim = Dim;
-      const int comp_size = dofs_close * pow(dofs_open,dim-1);
+      const int comp_size = dofs_close * dofs_open * dofs_open;
       const int elem_size = dim * comp_size;
       Container X_dofs(x + e*elem_size );
       Container Y_dofs(x + e*elem_size + comp_size);
@@ -186,7 +186,7 @@ private:
          e<ne,
          "Element index is superior to the number of elements. ");
       constexpr int dim = Dim;
-      const int comp_size = dofs_close * pow(dofs_open,dim-1);
+      const int comp_size = dofs_close * dofs_open;
       const int elem_size = dim * comp_size;
       Container X_dofs(x + e*elem_size );
       Container Y_dofs(x + e*elem_size + comp_size);
