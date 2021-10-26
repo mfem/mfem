@@ -17,83 +17,203 @@
 namespace mfem
 {
 
-/// A class to encapsulate Nedelec degrees of freedom in with Tensors.
+/// A structure to describe Nedelec degrees of freedom in one element.
 template <typename... DofTensors>
-class NedelecDegreesOfFreedom;
+struct NedelecElementDofs;
 
 template <typename DofTensorX, typename DofTensorY, typename DofTensorZ>
-class NedelecDegreesOfFreedom<DofTensorX,DofTensorY,DofTensorZ>
+struct NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>
+{
+   DofTensorX x;
+   DofTensorY y;
+   DofTensorZ z;
+};
+
+template <typename DofTensorX, typename DofTensorY>
+struct NedelecElementDofs<DofTensorX,DofTensorY>
+{
+   DofTensorX x;
+   DofTensorY y;
+};
+
+template <typename DofTensorX>
+struct NedelecElementDofs<DofTensorX>
+{
+   DofTensorX x;
+};
+
+/// A class to encapsulate Nedelec degrees of freedom in with Tensors.
+template <int Dim>
+class NedelecDegreesOfFreedom;
+
+// 3D
+template <>
+class NedelecDegreesOfFreedom<3>
 {
 private:
-   mutable int element;
-   DofTensorX x_dofs;
-   DofTensorY y_dofs;
-   DofTensorZ z_dofs;
+   static constexpr int Dim = 3;
+   using T = double;
+   using XLayout = DynamicLayout<Dim>;
+   using YLayout = DynamicLayout<Dim>;
+   using ZLayout = DynamicLayout<Dim>;
+   T* x;
+   int dofs_open;
+   int dofs_close;
+   int ne;
+
+   template <typename Container> MFEM_HOST_DEVICE
+   auto build(int e) const
+   {
+      MFEM_ASSERT_KERNEL(
+         e<ne,
+         "Element index is superior to the number of elements. ");
+      constexpr int dim = Dim;
+      const int comp_size = dofs_close * pow(dofs_open,dim-1);
+      const int elem_size = dim * comp_size;
+      Container X_dofs(x + e*elem_size );
+      Container Y_dofs(x + e*elem_size + comp_size);
+      Container Z_dofs(x + e*elem_size + 2*comp_size);
+      XLayout X_layout(dofs_close, dofs_open, dofs_open);
+      YLayout Y_layout(dofs_open, dofs_close, dofs_open);
+      ZLayout Z_layout(dofs_open, dofs_open, dofs_close);
+      using DofX = Tensor<Container, XLayout>;
+      using DofY = Tensor<Container, YLayout>;
+      using DofZ = Tensor<Container, ZLayout>;
+      NedelecElementDofs<DofX,DofY,DofZ> res = { DofX(X_dofs,X_layout),
+                                                 DofY(Y_dofs,Y_layout),
+                                                 DofZ(Z_dofs,Z_layout) };
+      return res;
+   }
 
 public:
-   template <typename... Sizes> MFEM_HOST_DEVICE
-   NedelecDegreesOfFreedom(double *x, double *y, double *z,
-                           int sizeX0, int sizeX1, int sizeX2,
-                           int sizeY0, int sizeY1, int sizeY2,
-                           int sizeZ0, int sizeZ1, int sizeZ2)
-   : DofTensorX(x, sizeX0, sizeX1, sizeX2),
-     DofTensorY(y, sizeY0, sizeY1, sizeY2),
-     DofTensorZ(z, sizeZ0, sizeZ1, sizeZ2)
-   {
-      // TODO static asserts Config values
-   }
+   NedelecDegreesOfFreedom(T *x, int dofs_open, int dofs_close, int ne)
+   : x(x), dofs_open(dofs_open), dofs_close(dofs_close), ne(ne)
+   { }
 
    MFEM_HOST_DEVICE inline
    auto operator()(int e) const
    {
-      element = e;
-      return (*this);
-   }
-
-   /// Returns a Tensor corresponding to the X DoFs of element e
-   MFEM_HOST_DEVICE inline
-   auto getX() const
-   {
-      constexpr int Rank = get_tensor_rank<DofTensorX>;
-      return Get<Rank-1>(element, x_dofs); // TODO batchsize so +tidz or something?
+      using Container = ReadContainer<T>;
+      return build<Container>(e);
    }
 
    MFEM_HOST_DEVICE inline
-   auto getX()
+   auto operator()(int e)
    {
-      constexpr int Rank = get_tensor_rank<DofTensorX>;
-      return Get<Rank-1>(element, x_dofs);
+      using Container = DeviceContainer<T>;
+      return build<Container>(e);
+   }
+};
+
+/// 2D
+template <>
+class NedelecDegreesOfFreedom<2>
+{
+private:
+   static constexpr int Dim = 2;
+   using T = double;
+   using XLayout = DynamicLayout<Dim>;
+   using YLayout = DynamicLayout<Dim>;
+   T* x;
+   int dofs_open;
+   int dofs_close;
+   int ne;
+
+   template <typename Container> MFEM_HOST_DEVICE
+   auto build(int e) const
+   {
+      MFEM_ASSERT_KERNEL(
+         e<ne,
+         "Element index is superior to the number of elements. ");
+      constexpr int dim = Dim;
+      const int comp_size = dofs_close * pow(dofs_open,dim-1);
+      const int elem_size = dim * comp_size;
+      Container X_dofs(x + e*elem_size );
+      Container Y_dofs(x + e*elem_size + comp_size);
+      XLayout X_layout(dofs_close, dofs_open, dofs_open);
+      YLayout Y_layout(dofs_open, dofs_close, dofs_open);
+      using DofX = Tensor<Container, XLayout>;
+      using DofY = Tensor<Container, YLayout>;
+      NedelecElementDofs<DofX,DofY> res = { DofX(X_dofs,X_layout),
+                                            DofY(Y_dofs,Y_layout) };
+      return res;
    }
 
-   /// Returns a Tensor corresponding to the Y DoFs of element e
+public:
+   NedelecDegreesOfFreedom(T *x, int dofs_open, int dofs_close, int ne)
+   : x(x), dofs_open(dofs_open), dofs_close(dofs_close), ne(ne)
+   { }
+
    MFEM_HOST_DEVICE inline
-   auto getY() const
+   auto operator()(int e) const
    {
-      constexpr int Rank = get_tensor_rank<DofTensorY>;
-      return Get<Rank-1>(element, y_dofs); // TODO batchsize so +tidz or something?
+      using Container = ReadContainer<T>;
+      return build<Container>(e);
    }
 
    MFEM_HOST_DEVICE inline
-   auto getY()
+   auto operator()(int e)
    {
-      constexpr int Rank = get_tensor_rank<DofTensorY>;
-      return Get<Rank-1>(element, y_dofs);
+      using Container = DeviceContainer<T>;
+      return build<Container>(e);
+   }
+};
+
+/// 1D
+template <>
+class NedelecDegreesOfFreedom<1>
+{
+private:
+   static constexpr int Dim = 1;
+   using T = double;
+   using XLayout = DynamicLayout<Dim>;
+   T* x;
+   int dofs_open;
+   int dofs_close;
+   int ne;
+
+   template <typename Container> MFEM_HOST_DEVICE
+   auto build(int e) const
+   {
+      MFEM_ASSERT_KERNEL(
+         e<ne,
+         "Element index is superior to the number of elements. ");
+      constexpr int dim = Dim;
+      const int comp_size = dofs_close;
+      const int elem_size = dim * comp_size;
+      Container X_dofs(x + e*elem_size );
+      XLayout X_layout(dofs_close, dofs_open, dofs_open);
+      using DofX = Tensor<Container, XLayout>;
+      NedelecElementDofs<DofX> res = { DofX(X_dofs,X_layout) };
+      return res;
    }
 
-   /// Returns a Tensor corresponding to the Z DoFs of element e
+public:
+   NedelecDegreesOfFreedom(T *x, int dofs_open, int dofs_close, int ne)
+   : x(x), dofs_open(dofs_open), dofs_close(dofs_close), ne(ne)
+   { }
+
    MFEM_HOST_DEVICE inline
-   auto getZ() const
+   auto operator()(int e) const
    {
-      constexpr int Rank = get_tensor_rank<DofTensorZ>;
-      return Get<Rank-1>(element, z_dofs); // TODO batchsize so +tidz or something?
+      using Container = ReadContainer<T>;
+      return build<Container>(e);
    }
 
    MFEM_HOST_DEVICE inline
-   auto getZ()
+   auto operator()(int e)
    {
-      constexpr int Rank = get_tensor_rank<DofTensorZ>;
-      return Get<Rank-1>(element, z_dofs);
+      using Container = DeviceContainer<T>;
+      return build<Container>(e);
    }
+};
+
+template <typename Config>
+auto MakeNedelecDoFs(Config &config, double *x,
+                     int dofs_open, int dofs_close, int ne)
+{
+   constexpr int Dim = get_config_dim<Config>;
+   return NedelecDegreesOfFreedom<Dim>(x,dofs_open,dofs_close,ne);
 };
 
 // is_nedelec_dof
@@ -103,8 +223,8 @@ struct is_nedelec_dof_v
    static constexpr bool value = false;
 };
 
-template <typename... DofTensors>
-struct is_nedelec_dof_v<NedelecDegreesOfFreedom<DofTensors...>>
+template <int Dim>
+struct is_nedelec_dof_v<NedelecDegreesOfFreedom<Dim>>
 {
    static constexpr bool value = true;
 };
