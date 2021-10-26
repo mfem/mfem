@@ -35,7 +35,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    auto B_c = basis.GetCloseB(s_B_c);
 
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   ResultTensor<Basis,D_c> u_x(u_e.GetX());
+   ResultTensor<Basis,D_c> u_x(u_e.x);
 
    return ContractX(B_c,u_x);
 }
@@ -59,8 +59,8 @@ auto operator*(const Basis &basis, const Dofs &u_e)
 
    constexpr int D_o = get_open_basis_dofs<Basis>;
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   ResultTensor<Basis,D_c,D_o> u_x(u_e.GetX());
-   ResultTensor<Basis,D_o,D_c> u_y(u_e.GetY());
+   ResultTensor<Basis,D_c,D_o> u_x(u_e.x);
+   ResultTensor<Basis,D_o,D_c> u_y(u_e.y);
    constexpr int Dim = 2;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
@@ -95,9 +95,9 @@ auto operator*(const Basis &basis, const Dofs &u_e)
 
    constexpr int D_o = get_open_basis_dofs<Basis>;
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   ResultTensor<Basis,D_c,D_o,D_o> u_x(u_e.GetX());
-   ResultTensor<Basis,D_o,D_c,D_o> u_y(u_e.GetY());
-   ResultTensor<Basis,D_o,D_o,D_c> u_z(u_e.GetZ());
+   ResultTensor<Basis,D_c,D_o,D_o> u_x(u_e.x);
+   ResultTensor<Basis,D_o,D_c,D_o> u_y(u_e.y);
+   ResultTensor<Basis,D_o,D_o,D_c> u_z(u_e.z);
    constexpr int Dim = 3;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
@@ -136,13 +136,8 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    MFEM_SHARED double s_B_c[close_basis_size];
    auto Bt_c = basis.GetCloseBt(s_B_c);
 
-   constexpr int D_o = get_open_basis_dofs<Basis>;
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   const int D_or = basis.GetOpenDofs();
-   const int D_cr = basis.GetCloseDofs();
-   constexpr int Dim = 1;
-   NedelecResult<Dim,D_c,D_o> v(D_cr,D_or);
-   v.GetX() = ContractX(Bt_c,u);
+   NedelecElementDofs<ResultTensor<Basis,D_c>> v = { ContractX(Bt_c,u) };
    return v;
 }
 
@@ -165,19 +160,15 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
 
    constexpr int D_o = get_open_basis_dofs<Basis>;
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   const int D_or = basis.GetOpenDofs();
-   const int D_cr = basis.GetCloseDofs();
-   constexpr int Dim = 2;
    constexpr int Comp = 2;
-   NedelecResult<Dim,D_c,D_o> v(D_cr,D_or);
    auto u_x = Get<Comp>(0, u);
    auto Bu_x = ContractY(Bt_o,u_x);
    auto BBu_x = ContractX(Bt_c,Bu_x);
-   v.GetX() = BBu_x;
    auto u_y = Get<Comp>(1, u);
    auto Bu_y = ContractY(Bt_c,u_y);
    auto BBu_y = ContractX(Bt_o,Bu_y);
-   v.GetY() = BBu_y;
+   NedelecElementDofs<ResultTensor<Basis,D_c,D_o>,
+                      ResultTensor<Basis,D_o,D_c>> v = { BBu_x, BBu_y };
    return v;
 }
 
@@ -200,26 +191,23 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
 
    constexpr int D_o = get_open_basis_dofs<Basis>;
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   const int D_or = basis.GetOpenDofs();
-   const int D_cr = basis.GetCloseDofs();
-   constexpr int Dim = 3;
    constexpr int Comp = 3;
-   NedelecResult<Dim,D_c,D_o> v(D_cr,D_or);
    auto u_x = Get<Comp>(0, u);
    auto Bu_x = ContractZ(Bt_o,u_x);
    auto BBu_x = ContractY(Bt_o,Bu_x);
    auto BBBu_x = ContractX(Bt_c,BBu_x);
-   v.GetX() = BBBu_x;
    auto u_y = Get<Comp>(1, u);
    auto Bu_y = ContractZ(Bt_o,u_y);
    auto BBu_y = ContractY(Bt_c,Bu_y);
    auto BBBu_y = ContractX(Bt_o,BBu_y);
-   v.GetY() = BBBu_x;
    auto u_z = Get<Comp>(2, u);
    auto Bu_z = ContractZ(Bt_c,u_z);
    auto BBu_z = ContractY(Bt_o,Bu_z);
    auto BBBu_z = ContractX(Bt_o,BBu_z);
-   v.GetZ() = BBBu_z;
+   NedelecElementDofs<
+      ResultTensor<Basis,D_c,D_o,D_o>,
+      ResultTensor<Basis,D_o,D_c,D_o>,
+      ResultTensor<Basis,D_o,D_o,D_c>> v = { BBBu_x, BBBu_y, BBBu_z};
    return v;
 }
 
