@@ -199,6 +199,13 @@ struct is_nedelec_basis_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
 template <typename Basis>
 constexpr bool is_nedelec_basis = is_nedelec_basis_v<Basis>::value;
 
+// get_basis_dim
+template <int OpenDofs, int CloseDofs, typename Config>
+struct get_basis_dim_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   static constexpr int value = get_config_dim<Config>;
+};
+
 // get_open_basis_dofs
 template <typename Basis, typename Enable = void>
 struct get_open_basis_dofs_v
@@ -206,7 +213,11 @@ struct get_open_basis_dofs_v
    static constexpr int value = DynamicMaxSize*DynamicMaxSize;
 };
 
-// TODO
+template <int OpenDofs, int CloseDofs, typename Config>
+struct get_open_basis_dofs_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   static constexpr int value = OpenDofs;
+};
 
 template <typename Basis>
 constexpr int get_open_basis_dofs = get_open_basis_dofs_v<Basis>::value;
@@ -218,10 +229,21 @@ struct get_close_basis_dofs_v
    static constexpr int value = DynamicMaxSize*DynamicMaxSize;
 };
 
-// TODO
+template <int OpenDofs, int CloseDofs, typename Config>
+struct get_close_basis_dofs_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   static constexpr int value = CloseDofs;
+};
 
 template <typename Basis>
 constexpr int get_close_basis_dofs = get_close_basis_dofs_v<Basis>::value;
+
+// get_basis_quads
+template <int OpenDofs, int CloseDofs, typename Config>
+struct get_basis_quads_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   static constexpr int value = get_config_quads<Config>;
+};
 
 // get_open_basis_capacity
 template <typename Basis, typename Enable = void>
@@ -230,7 +252,11 @@ struct get_open_basis_capacity_v
    static constexpr int value = DynamicMaxSize*DynamicMaxSize;
 };
 
-// TODO
+template <int OpenDofs, int CloseDofs, typename Config>
+struct get_open_basis_capacity_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   static constexpr int value = OpenDofs * get_config_quads<Config>;
+};
 
 template <typename Basis>
 constexpr int get_open_basis_capacity = get_open_basis_capacity_v<Basis>::value;
@@ -242,10 +268,23 @@ struct get_close_basis_capacity_v
    static constexpr int value = DynamicMaxSize*DynamicMaxSize;
 };
 
-// TODO
+template <int OpenDofs, int CloseDofs, typename Config>
+struct get_close_basis_capacity_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   static constexpr int value = CloseDofs * get_config_quads<Config>;
+};
 
 template <typename Basis>
 constexpr int get_close_basis_capacity = get_close_basis_capacity_v<Basis>::value;
+
+// ResultTensor
+template <int OpenDofs, int CloseDofs, typename Config>
+struct basis_result_tensor<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   template <int... Sizes>
+   using type = typename config_result_tensor<Config>
+                   ::template type<Sizes...>;
+};
 
 } // mfem namespace
 
