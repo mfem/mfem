@@ -158,6 +158,28 @@ struct NedelecBasis
    }
 };
 
+template <int OpenDofs, int CloseDofs, typename Config>
+auto MakeNedelecBasis(Config &config,
+                      const int open_dofs,
+                      const int close_dofs,
+                      const int quads,
+                      const double *b_open,
+                      const double *bt_open,
+                      const double *b_close,
+                      const double *bt_close,
+                      const double *g_open = nullptr,
+                      const double *gt_open = nullptr,
+                      const double *g_close = nullptr,
+                      const double *gt_close = nullptr)
+{
+   return NedelecBasis<OpenDofs,CloseDofs,Config>(config,
+                                                  open_dofs,close_dofs,quads,
+                                                  b_open,bt_open,
+                                                  b_close,bt_close,
+                                                  g_open,gt_open,
+                                                  g_close,gt_close);
+}
+
 ///////////////////////
 // Nedelec Basis Traits
 
