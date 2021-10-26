@@ -28,12 +28,14 @@ enum class InterpAlgo {
    NA
 };
 
+// Default
 template <typename Basis, typename Dofs, typename Enable = void>
 struct get_interp_algo_v
 {
    static constexpr InterpAlgo value = InterpAlgo::NA;
 };
 
+// Non-tensor
 template <typename Basis, typename Dofs>
 struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
@@ -43,6 +45,7 @@ struct get_interp_algo_v<Basis, Dofs,
    static constexpr InterpAlgo value = InterpAlgo::NonTensor;
 };
 
+// Tensor
 template <typename Basis, typename Dofs>
 struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
@@ -55,6 +58,7 @@ struct get_interp_algo_v<Basis, Dofs,
    static constexpr InterpAlgo value = InterpAlgo::Tensor;
 };
 
+// Legacy
 template <typename Basis, typename Dofs>
 struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
@@ -67,6 +71,17 @@ struct get_interp_algo_v<Basis, Dofs,
    static constexpr InterpAlgo value = InterpAlgo::Legacy;
 };
 
+// Nedelec
+template <typename Basis, typename Dofs>
+struct get_interp_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_nedelec_basis<Basis>
+   > >
+{
+   static constexpr InterpAlgo value = InterpAlgo::Nedelec;
+};
+
+// Interpolation algorithm selection trait.
 template <typename Basis, typename Dofs>
 constexpr InterpAlgo get_interp_algo = get_interp_algo_v<Basis, Dofs>::value;
 
