@@ -417,6 +417,18 @@ struct Dynamic3dThreadLayoutSize<2, Rank>
    }
 };
 
+template <typename Matrix> MFEM_HOST_DEVICE inline
+void load_with_2dthreads(double *values, int nx, int ny, Matrix &mat)
+{
+   MFEM_FOREACH_THREAD(y,y,ny)
+   {
+      MFEM_FOREACH_THREAD(x,x,nx)
+      {
+         mat(x,y) = values[x+nx*y];
+      }
+   }
+}
+
 } // mfem namespace
 
 #endif // MFEM_TENSOR_UTIL
