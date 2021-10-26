@@ -2718,22 +2718,7 @@ struct TransPrecParams
    int log_lvl;
 };
 
-class TransportPrec : public BlockDiagonalPreconditioner
-{
-private:
-   Array<Operator*> diag_prec_;
-#ifdef MFEM_USE_SUPERLU
-   Array<SuperLURowLocMatrix*> slu_mat_;
-#endif
-
-   TransPrecParams p_;
-
-public:
-   TransportPrec(const Array<int> &offsets, const TransPrecParams &p);
-   ~TransportPrec();
-
-   virtual void SetOperator(const Operator &op);
-};
+class TransportPrec;
 
 struct SolverParams
 {
@@ -2756,6 +2741,38 @@ struct SolverParams
    TransPrecParams prec;
 };
 
+struct CG2DG : Operator
+{
+   const ParFiniteElementSpace &fes_dg;
+   H1_FECollection fec_cg;
+   ParFiniteElementSpace fes_cg;
+   const HypreParMatrix *P;
+   SparseMatrix C;
+   mutable Vector z;
+   CG2DG(const ParFiniteElementSpace &fes_dg, const Array<int> &cg_ess_tdof_list);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   HypreParMatrix *ParallelAssemble(); // Caller must delete returned matrix
+};
+
+struct DiscontPSCPreconditioner : Solver
+{
+   const CG2DG &cg2dg;
+   const Solver &cg_solver;
+   const Solver &smoother;
+   SparseMatrix Z;
+
+   mutable Vector x_z, b_cg, x_cg;
+   mutable Vector x_sm;
+
+   DiscontPSCPreconditioner(const CG2DG &cg2dg_,
+                            const Solver &cg_solver_,
+                            const Solver &smoother_);
+   virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void SetOperator(const Operator &op);
+};
+
+
 /** The DGTransportTDO class is designed to be used with an implicit
     ODESolver to solve a specific set of coupled transport equations
     using a Discontinuous Galerkin (DG) discretization of the relevant
@@ -2775,6 +2792,7 @@ struct SolverParams
 */
 class DGTransportTDO : public TimeDependentOperator
 {
+  friend class TransportPrec;
 private:
    const MPI_Session & mpi_;
    int logging_;
@@ -2788,7 +2806,7 @@ private:
 
    Array<int> &offsets_;
 
-   TransportPrec newton_op_prec_;
+   TransportPrec *newton_op_prec_;
    GMRESSolver   newton_op_solver_;
    NewtonSolver  newton_solver_;
 
@@ -2849,6 +2867,17 @@ private:
       Array<Array<int>*>           bflfi_marker_; ///< Entries are owned.
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
+      Array<ParBilinearForm*> cgblf_; // Bilinear Form Objects for Gradients
+
+     CG2DG *cg2dg_ = NULL;
+     HypreParMatrix *CG2DGmat_ = NULL;
+     HypreBoomerAMG *D_amg_ = NULL;
+     HypreSmoother *D_smoother_ = NULL;
+     HypreParMatrix *D_cg_ = NULL;
+
+     Array<int> cg_ess_tdof_list;
+
+     bool use_lor_cg = false;
 
       int term_flag_;
       int vis_flag_;
@@ -2895,6 +2924,8 @@ private:
       virtual void InitializeGLVis() = 0;
 
       virtual void DisplayToGLVis() = 0;
+
+     DiscontPSCPreconditioner *dg_precond_ = NULL;
    };
 
    class TransportOp : public NLOperator
@@ -2911,6 +2942,8 @@ private:
       Array<MatrixCoefficient*> mCoefs_;
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
+
+      ParFiniteElementSpace &h1_fes_;
 
    protected:
       const PlasmaParams &plasma_;
@@ -2953,6 +2986,7 @@ private:
                   const PlasmaParams & plasma, int index,
                   const std::string &eqn_name,
                   const std::string &field_name,
+		  ParFiniteElementSpace * h1_fes,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
                   const AdvectionDiffusionBC & bcs,
@@ -3210,6 +3244,7 @@ private:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    const PlasmaParams & plasma,
                    ParFiniteElementSpace & vfes,
+		   ParFiniteElementSpace & h1_fes,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
                    const AdvectionDiffusionBC & bcs,
@@ -3547,6 +3582,7 @@ private:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
                  const PlasmaParams & plasma, const Vector &eqn_weights,
                  ParFiniteElementSpace & vfes,
+		 ParFiniteElementSpace & h1_fes,
                  ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                  const TransportBCs & bcs,
                  const TransportCoefs & coefs,
@@ -3579,6 +3615,11 @@ private:
       { return op_[3]->GetDiffusionMatrixCoef(); }
       inline MatrixCoefficient * GetnXeCoef()
       { return op_[4]->GetDiffusionMatrixCoef(); }
+
+     inline Solver* GetIonDensityPreconditoner()
+     { 
+       return op_[1]->dg_precond_; 
+     }
 
       void Update();
 
@@ -3620,6 +3661,7 @@ public:
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,
+		  ParFiniteElementSpace &h1_fes,
                   Array<int> &offsets,
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
@@ -3658,6 +3700,25 @@ public:
    virtual void ImplicitSolve(const double dt, const Vector &y, Vector &k);
 
    void Update();
+};
+
+class TransportPrec : public BlockDiagonalPreconditioner
+{
+private:
+   Array<Operator*> diag_prec_;
+#ifdef MFEM_USE_SUPERLU
+   Array<SuperLURowLocMatrix*> slu_mat_;
+#endif
+
+   TransPrecParams p_;
+
+  DGTransportTDO::CombinedOp *combo_;
+
+public:
+  TransportPrec(const Array<int> &offsets, const TransPrecParams &p, DGTransportTDO::CombinedOp *op);
+   ~TransportPrec();
+
+   virtual void SetOperator(const Operator &op);
 };
 
 class MultiSpeciesDiffusion;

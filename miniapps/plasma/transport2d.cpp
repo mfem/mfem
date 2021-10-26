@@ -1381,9 +1381,9 @@ int main(int argc, char *argv[])
 
    // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   H1_FECollection fec_h1(order, dim);
-   RT_FECollection fec_rt(order-1, dim);
-   DG_FECollection fec(order, dim);
+   H1_FECollection fec_h1(order, dim, BasisType::GaussLobatto);
+   RT_FECollection fec_rt(order-1, dim, BasisType::GaussLobatto);
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes(&pmesh, &fec);
    ParFiniteElementSpace vfes(&pmesh, &fec, 2);
@@ -1478,7 +1478,7 @@ int main(int argc, char *argv[])
 
       coef_gf.ProjectCoefficient(coef);
 
-      L2_FECollection fec_l2_o0(0, dim);
+      L2_FECollection fec_l2_o0(0, dim, BasisType::GaussLobatto);
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
 
@@ -1902,7 +1902,7 @@ int main(int argc, char *argv[])
    }
    */
 
-   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes,
+   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes, fes_h1,
                        offsets, yGF, kGF,
                        bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp,
                        term_flags, vis_flags, imex, op_flag, logging);
@@ -1947,7 +1947,7 @@ int main(int argc, char *argv[])
       ode_controller.SetOutput(ofs_controller);
    }
 
-   L2_FECollection fec_l2_o0(0, dim);
+   L2_FECollection fec_l2_o0(0, dim, BasisType::GaussLobatto);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes_l2_o0(&pmesh, &fec_l2_o0);
 
@@ -1958,9 +1958,9 @@ int main(int argc, char *argv[])
    //     nodes and parallel partitioning. We need to supply a space for the
    //     discontinuous flux (L2) and a space for the smoothed flux (H(div) is
    //     used here).
-   L2_FECollection flux_fec(order, dim);
+   L2_FECollection flux_fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, sdim);
-   RT_FECollection smooth_flux_fec(order-1, dim);
+   RT_FECollection smooth_flux_fec(order-1, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
    // Another possible option for the smoothed flux space:
    // H1_FECollection smooth_flux_fec(order, dim);
