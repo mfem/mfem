@@ -24,7 +24,6 @@ struct DefaultKernelConfig
 {
    static constexpr bool IsTensor = false;
    static constexpr int Dim = Dynamic;
-   static constexpr int Dofs = Dynamic; // FIXME: Not sure this should be here
    static constexpr int Quads = Dynamic;
    static constexpr int BatchSize = 1;
 
@@ -67,12 +66,6 @@ template <int dim>
 struct config_dim_is : virtual public DefaultKernelConfig
 {
    static constexpr int Dim = dim;
-};
-
-template <int dofs>
-struct config_dofs_is : virtual public DefaultKernelConfig
-{
-   static constexpr int Dofs = dofs;
 };
 
 template <int quads>
@@ -243,19 +236,6 @@ struct is_tensor_config_v<KernelConfig<Configs...>>
 template <typename Config>
 constexpr bool is_tensor_config = is_tensor_config_v<Config>::value;
 
-// get_config_dofs
-template <typename Config>
-struct get_config_dofs_v;
-
-template <typename... Configs>
-struct get_config_dofs_v<KernelConfig<Configs...>>
-{
-   static constexpr int value = KernelConfig<Configs...>::configs::Dofs;
-};
-
-template <typename Config>
-constexpr int get_config_dofs = get_config_dofs_v<Config>::value;
-
 // get_config_quads
 template <typename Config>
 struct get_config_quads_v;
@@ -296,7 +276,6 @@ template <typename Config>
 struct config_result_tensor<Config,
 std::enable_if_t<
    is_config<Config> &&
-   get_config_dofs<Config> != Dynamic &&
    get_config_quads<Config> != Dynamic
 > >
 {
@@ -351,13 +330,6 @@ std::ostream& operator<<(std::ostream &os,
       << std::endl;
    os << "   Tensor: "
       << (is_tensor_config<C> ? "Yes":"No")
-      << std::endl;
-   os << "   Compilation Dofs is: "
-      << ( get_config_dofs<C> == 0 ?
-         "Dynamic" : std::to_string(get_config_dofs<C>) )
-      << std::endl;
-   os << "   Runtime Dofs is: "
-      << config.dofs
       << std::endl;
    os << "   Compilation Quads is: "
       << ( get_config_quads<C> == 0 ?
