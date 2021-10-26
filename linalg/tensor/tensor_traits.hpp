@@ -37,7 +37,13 @@ class Tensor;
 template <typename Tensor>
 struct get_tensor_rank_v
 {
-   static constexpr int value = get_layout_rank<typename Tensor::layout>;
+   static constexpr int value = Error;
+};
+
+template <typename Container, typename Layout>
+struct get_tensor_rank_v<Tensor<Container,Layout>>
+{
+   static constexpr int value = get_layout_rank<Layout>;
 };
 
 template <typename Tensor>
