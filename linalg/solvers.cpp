@@ -1680,6 +1680,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    norm_goal = std::max(rel_tol*norm, abs_tol);
 
    prec->iterative_mode = false;
+   IterativeSolver *preciter = dynamic_cast<IterativeSolver *>(prec);
 
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
@@ -1722,6 +1723,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       TimePrecMult.Start();
       prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
       TimePrecMult.Stop();
+      int prec_iters = preciter->GetNumIterations();
+      total_prec_iterations += prec_iters;
 
       if (lin_rtol_type)
       {
