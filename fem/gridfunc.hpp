@@ -953,10 +953,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 class PatchBasedPolynomialFit
 {
 private:
-    int el_id, patch_order, integ_order, dim;
+    int patch_order, integ_order, dim;
     Vector coefficients, xmin, xmax;
 public:
-    PatchBasedPolynomialFit(GridFunction &u, int el_id_,
+    PatchBasedPolynomialFit(GridFunction &u, Array<int> elems,
                             int patch_order_, int integ_order_,
                             double tichonov_coeff);
 

@@ -4529,11 +4529,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 }
 
 PatchBasedPolynomialFit::PatchBasedPolynomialFit(GridFunction &u,
-                                                 int el_id_,
+                                                 Array<int> elems,
                                                  int patch_order_,
                                                  int integ_order_,
                                                  double tichonov_coeff) :
-    el_id(el_id_), patch_order(patch_order_), integ_order(integ_order_)
+    patch_order(patch_order_), integ_order(integ_order_)
 {
     MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
     FiniteElementSpace *ufes = u.FESpace();
@@ -4545,29 +4545,7 @@ PatchBasedPolynomialFit::PatchBasedPolynomialFit(GridFunction &u,
     Array<int> udofs;
     Vector ul;
 
-    Array<int> faces, ori;
-    if (dim == 2) {
-        mesh->GetElementEdges(el_id, faces, ori);
-    }
-    else if (dim == 3) {
-        mesh->GetElementFaces(el_id, faces, ori);
-    }
-    int nfaces = faces.Size();
-
-    Array<int> neighbor_elems;
-    neighbor_elems.Append(el_id);
-
-    for (int i = 0; i < nfaces; i++) {
-        Array<int> elems;
-        int iface = faces[i];
-        mesh->GetFaceElements(iface, elems);
-        for (int j = 0; j < elems.Size(); j++) {
-            neighbor_elems.Append(elems[j]);
-        }
-    }
-    neighbor_elems.Sort();
-    neighbor_elems.Unique();
-    int num_neighbor_elems = neighbor_elems.Size();
+    int num_elems = elems.Size();
 
     // 2. Compute global flux polynomial.
     DofTransformation *udoftrans;
@@ -4584,9 +4562,9 @@ PatchBasedPolynomialFit::PatchBasedPolynomialFit(GridFunction &u,
     //      (this is used in 2.C.ii. to define a global polynomial basis)
     xmax = -std::numeric_limits<double>::max();
     xmin = std::numeric_limits<double>::max();
-    for (int i = 0; i < num_neighbor_elems; i++)
+    for (int i = 0; i < num_elems; i++)
     {
-       int ielem = neighbor_elems[i];
+       int ielem = elems[i];
        const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
                                                   integ_order));
        Transf = ufes->GetElementTransformation(ielem);
@@ -4601,13 +4579,12 @@ PatchBasedPolynomialFit::PatchBasedPolynomialFit(GridFunction &u,
        }
     }
 
-
     // 2.C. Compute the normal equations for the least-squares problem
     // 2.C.i. Evaluate the discrete flux at all integration points in all
     //        elements in the face patch
-    for (int i = 0; i < num_neighbor_elems; i++)
+    for (int i = 0; i < num_elems; i++)
     {
-       int ielem = neighbor_elems[i];
+       int ielem = elems[i];
        const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
                                                      integ_order));
        int num_integration_pts = irule->GetNPoints();
@@ -4668,10 +4645,9 @@ PatchBasedPolynomialFit::PatchBasedPolynomialFit(GridFunction &u,
 
 double PatchBasedPolynomialFit::EvaluatePolynomial(const Vector &xloc)
 {
-    int num_basis_functions = coefficients.Size();
     auto global_poly = [=] (const Vector &x)
     {
-       Vector p(num_basis_functions);
+       Vector p(coefficients.Size());
        p = LegendreND(x, xmax, xmin, patch_order, dim);
        return coefficients*p;
     };
