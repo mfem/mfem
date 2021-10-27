@@ -14,11 +14,7 @@
 
 /// Contain compilation time functions used with tensors
 #include "tensor_traits.hpp"
-/// The values memory storage of tensors
-#include "containers/containers.hpp"
-/// The rank N index mapping to linear memory index
-#include "layouts/layouts.hpp"
-/// Utility functions to abstract iterating over tensors' dimensions
+/// Utility functions to abstract iterating over the tensor dimensions
 #include "utilities/foreach.hpp"
 
 namespace mfem
@@ -42,7 +38,7 @@ template <typename Container,
 class Tensor: public Container, public Layout
 {
 public:
-   using T = get_container_type<Container>;
+   using T = get_tensor_value_type<Tensor>;
    using container = Container;
    using layout = Layout;
 
@@ -83,7 +79,7 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    T& operator()(Idx... args)
    {
-      static_assert(get_layout_rank<Layout> == sizeof...(Idx),
+      static_assert(get_tensor_rank<Tensor> == sizeof...(Idx),
                     "Wrong number of indices");
       return this->operator[]( this->index(args...) );
    }
@@ -92,7 +88,7 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    const T& operator()(Idx... args) const
    {
-      static_assert(get_layout_rank<Layout> == sizeof...(Idx),
+      static_assert(get_tensor_rank<Tensor> == sizeof...(Idx),
                     "Wrong number of indices");
       return this->operator[]( this->index(args...) );
    }
