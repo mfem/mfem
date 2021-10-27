@@ -13,6 +13,9 @@
 #define MFEM_TENSOR_GET
 
 #include "../containers/container_traits.hpp"
+#include "../containers/view_container.hpp"
+#include "../layouts/layout_traits.hpp"
+#include "../layouts/restricted_layout.hpp"
 
 namespace mfem
 {
