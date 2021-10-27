@@ -564,9 +564,10 @@ int main (int argc, char *argv[])
       {
          Array<int> dofs;
          pfespace->GetBdrElementDofs(e, dofs);
-         Array<bool> check(dim);
-         check = true;
          Array<double> x_c(dim);
+         Array<int> nnodes(dim);
+         nnodes = 0;
+         double tolerance = 1.e-6;
          for (int j = 0; j < dofs.Size(); j++)
          {
             if (j == 0)
@@ -574,20 +575,25 @@ int main (int argc, char *argv[])
                for (int d = 0; d < dim; d++)
                {
                   x_c[d] = x(pfespace->DofToVDof(dofs[j], d));
+                  nnodes[d]++;
                }
             }
             else
             {
                for (int d = 0; d < dim; d++)
                {
-                  check[d] = check[d] && (x_c[d] == x(pfespace->DofToVDof(dofs[j],d)));
+                  if (abs(x_c[d] - x(pfespace->DofToVDof(dofs[j],d))) < tolerance) {
+                      nnodes[d]++;
+                  }
                }
             }
-            Element *be = pmesh->GetBdrElement(e);
-            be->SetAttribute(4);
-            for (int d = 0; d < dim; d++)
-            {
-               if (check[d]) { be->SetAttribute(d+1); }
+         }
+         Element *be = pmesh->GetBdrElement(e);
+         be->SetAttribute(4);
+         for (int d = 0; d < dim; d++)
+         {
+            if (nnodes[d] == dofs.Size()) {
+                be->SetAttribute(d+1);
             }
          }
       }
@@ -1276,6 +1282,10 @@ int main (int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD);
    int NDofs = x.ParFESpace()->GlobalTrueVSize()/pmesh->Dimension(),
        NEGlob = pmesh->GetGlobalNE();
+   int device_tag  = 0; //gpu
+   const double fin_energy = a.GetParGridFunctionEnergy(x) /
+                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   if (strcmp(devopt,"cpu")==0) { device_tag = 1; } //not gpu
    if (myid == 0)
    {
       std::cout << "Monitoring info      :" << endl
@@ -1285,6 +1295,7 @@ int main (int argc, char *argv[])
                 << "Total TDofs          :" << NDofs << endl
                 << std::setprecision(4)
                 << "Total Iterations     :" << solver.GetNumIterations() << endl
+                << "Total Prec Iterations:" << solver.GetTotalPrecIterations() << endl
                 << "Total Solver Time (%):" << solvertime << " "
                 << (solvertime*100/solvertime) << endl
                 << "Assemble Vector Time :" << vectortime << " "
@@ -1296,7 +1307,10 @@ int main (int argc, char *argv[])
                 << "ProcessNewState Time :" << processnewstatetime << " "
                 << (processnewstatetime*100/solvertime) <<  endl
                 << "ComputeScale Time    :" << scalefactortime << " "
-                << (scalefactortime*100/solvertime) <<  endl;
+                << (scalefactortime*100/solvertime) <<  "  " << endl 
+                << "Device Tag (0 for gpu, 1 otherwise):" << device_tag << endl
+                << " Final energy: " << fin_energy << endl;
+                
 
       std::cout << "run_info: " << std::setprecision(4) << " "
                 << rs_levels << " "
@@ -1306,12 +1320,15 @@ int main (int argc, char *argv[])
                 << pa << " " << metric_id << " " << num_procs
                 << std::setprecision(10) << " "
                 << NEGlob << " " << NDofs << " "
-                << solver.GetNumIterations() << " " << solvertime << " "
+                << solver.GetNumIterations() << " "
+                << solver.GetTotalPrecIterations() << " "
+                 << solvertime << " "
                 << (vectortime*100/solvertime) << " "
                 << (gradtime*100/solvertime) << " "
                 << (prectime*100/solvertime) << " "
                 << (processnewstatetime*100/solvertime) << " "
-                << (scalefactortime*100/solvertime) << endl;
+                << (scalefactortime*100/solvertime) << " " <<
+                device_tag << " " << fin_energy << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
@@ -1321,12 +1338,12 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      //      pmesh->PrintAsOne(mesh_ofs);
+//      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 17. Compute the amount of energy decrease.
-   const double fin_energy = a.GetParGridFunctionEnergy(x) /
-                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   // const double fin_energy = a.GetParGridFunctionEnergy(x) /
+   //                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
    double metric_part = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
