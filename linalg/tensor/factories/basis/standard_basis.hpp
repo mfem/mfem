@@ -19,8 +19,9 @@
 namespace mfem
 {
 
+/// A simple basis structure meant to load basis operators in shared memory.
 template <int Dofs, typename KernelConfig>
-struct ConfigBasis
+struct SharedBasis
 {
    using Config = KernelConfig;
 
@@ -32,7 +33,7 @@ struct ConfigBasis
    const double *G;
    const double *Gt;
 
-   ConfigBasis(const Config &config,
+   SharedBasis(const Config &config,
                const int dofs,
                const int quads,
                const double *b,
@@ -108,7 +109,7 @@ auto MakeBasis(Config &config,
                const double *g = nullptr,
                const double *gt = nullptr)
 {
-   return ConfigBasis<Dofs,Config>(config,dofs,quads,b,bt,g,gt);
+   return SharedBasis<Dofs,Config>(config,dofs,quads,b,bt,g,gt);
 }
 
 /// A structure to represent a transposed basis
@@ -165,7 +166,7 @@ struct is_basis_v
 };
 
 template <int Dofs, typename Config>
-struct is_basis_v<ConfigBasis<Dofs, Config>>
+struct is_basis_v<SharedBasis<Dofs, Config>>
 {
    static constexpr bool value = true;
 };
@@ -181,7 +182,7 @@ struct get_basis_dim_v
 };
 
 template <int Dofs, typename Config>
-struct get_basis_dim_v<ConfigBasis<Dofs, Config>>
+struct get_basis_dim_v<SharedBasis<Dofs, Config>>
 {
    static constexpr int value = get_config_dim<Config>;
 };
@@ -209,7 +210,7 @@ struct is_tensor_basis_v
 };
 
 template <int Dofs, typename Config>
-struct is_tensor_basis_v<ConfigBasis<Dofs,Config>>
+struct is_tensor_basis_v<SharedBasis<Dofs,Config>>
 {
    static constexpr bool value = is_tensor_config<Config>;
 };
@@ -237,7 +238,7 @@ struct is_non_tensor_basis_v
 };
 
 template <int Dofs, typename Config>
-struct is_non_tensor_basis_v<ConfigBasis<Dofs,Config>>
+struct is_non_tensor_basis_v<SharedBasis<Dofs,Config>>
 {
    static constexpr bool value = !is_tensor_config<Config>;
 };
@@ -262,7 +263,7 @@ template <typename Basis>
 struct get_basis_quads_v;
 
 template <int Dofs, typename Config>
-struct get_basis_quads_v<ConfigBasis<Dofs,Config>>
+struct get_basis_quads_v<SharedBasis<Dofs,Config>>
 {
    static constexpr int value = get_config_quads<Config>;
 };
@@ -272,7 +273,7 @@ template <typename Basis>
 struct get_basis_dofs_v;
 
 template <int Dofs, typename Config>
-struct get_basis_dofs_v<ConfigBasis<Dofs,Config>>
+struct get_basis_dofs_v<SharedBasis<Dofs,Config>>
 {
    static constexpr int value = Dofs;
 };
@@ -340,7 +341,7 @@ struct get_basis_capacity_v
 };
 
 template <int Dofs, typename Config>
-struct get_basis_capacity_v<ConfigBasis<Dofs,Config>,
+struct get_basis_capacity_v<SharedBasis<Dofs,Config>,
 std::enable_if_t<
    Dofs != Dynamic &&
    get_config_quads<Config> != Dynamic
@@ -351,7 +352,7 @@ std::enable_if_t<
 };
 
 template <int Dofs, typename Config>
-struct get_basis_capacity_v<ConfigBasis<Dofs,Config>,
+struct get_basis_capacity_v<SharedBasis<Dofs,Config>,
 std::enable_if_t<
    Dofs == Dynamic &&
    get_config_quads<Config> == Dynamic &&
@@ -362,7 +363,7 @@ std::enable_if_t<
 };
 
 template <int Dofs, typename Config>
-struct get_basis_capacity_v<ConfigBasis<Dofs,Config>,
+struct get_basis_capacity_v<SharedBasis<Dofs,Config>,
 std::enable_if_t<
    Dofs == Dynamic &&
    get_config_quads<Config> == Dynamic &&
@@ -407,7 +408,7 @@ template <typename Basis>
 struct basis_result_tensor;
 
 template <int Dofs, typename Config>
-struct basis_result_tensor<ConfigBasis<Dofs,Config>>
+struct basis_result_tensor<SharedBasis<Dofs,Config>>
 {
    template <int... Sizes>
    using type = typename config_result_tensor<Config>
