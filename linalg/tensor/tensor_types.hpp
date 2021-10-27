@@ -74,11 +74,11 @@ using StaticDTensor = StaticTensor<double,Sizes...>;
     known at runtime, their data is distributed over threads (ThreadIdx.x).
     Shared memory MUST be used to read data located in a different thread.
    */
-template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
+template <int Rank, typename T, int BatchSize, int MaxSize = get_Dynamic1dThreadLayout_size(DynamicMaxSize,Rank)>
 using Dynamic1dThreadTensor = Tensor<
                               StaticContainer<
                                  T,
-                                 get_Dynamic1dThreadLayout_size(MaxSize,Rank)
+                                 MaxSize
                               >,
                               Dynamic1dThreadLayout<Rank,BatchSize>
                            >;
@@ -110,11 +110,11 @@ using Static1dThreadDTensor = Static1dThreadTensor<double,BatchSize,Sizes...>;
     (ThreadIdx.x and ThreadIdx.y).
     Shared memory MUST be used to read data located in a different thread.
    */
-template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
+template <int Rank, typename T, int BatchSize, int MaxSize = get_Dynamic2dThreadLayout_size(DynamicMaxSize,Rank)>
 using Dynamic2dThreadTensor = Tensor<
                               StaticContainer<
                                  T,
-                                 get_Dynamic2dThreadLayout_size(MaxSize,Rank)
+                                 MaxSize
                               >,
                               Dynamic2dThreadLayout<Rank,BatchSize>
                            >;
@@ -147,11 +147,11 @@ using Static2dThreadDTensor = Static2dThreadTensor<double,BatchSize,Sizes...>;
     (ThreadIdx.x, ThreadIdx.y, and ThreadIdx.z).
     Shared memory MUST be used to read data located in a different thread.
    */
-template <int Rank, typename T, int BatchSize, int MaxSize = DynamicMaxSize>
+template <int Rank, typename T, int BatchSize, int MaxSize = get_Dynamic3dThreadLayout_size(DynamicMaxSize,Rank)>
 using Dynamic3dThreadTensor = Tensor<
                                  StaticContainer<
                                     T,
-                                    get_Dynamic3dThreadLayout_size(MaxSize,Rank)
+                                    MaxSize
                                  >,
                                  Dynamic3dThreadLayout<Rank,BatchSize>
                               >;

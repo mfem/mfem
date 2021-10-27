@@ -26,7 +26,8 @@ struct DefaultKernelConfig
    static constexpr int BatchSize = 1;
 
    /// Defines the dynamic type of Tensor used for computation on CPU.
-   template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
+   template <int Rank, typename T, int BatchSize,
+             int MaxSize = pow(DynamicMaxSize,Rank)>
    using DynamicCPUTensor = DynamicTensor<Rank, T, MaxSize>;
 
    /// Defines the static type of Tensor used for computation on CPU.
@@ -34,7 +35,8 @@ struct DefaultKernelConfig
    using StaticCPUTensor = StaticTensor<T, Sizes...>;
 
    /// Defines the dynamic type of Tensor used for computation on CUDA.
-   template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
+   template <int Rank, typename T, int BatchSize,
+             int MaxSize = get_Dynamic2dThreadLayout_size(DynamicMaxSize,Rank)> // Bug prone
    using DynamicCUDATensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
    /// Defines the static type of Tensor used for computation on CUDA.
@@ -42,7 +44,8 @@ struct DefaultKernelConfig
    using StaticCUDATensor = Static2dThreadTensor<T, BatchSize, Sizes...>;
 
    /// Defines the dynamic type of Tensor used for computation on Hip.
-   template <int Rank, typename T, int BatchSize, int MaxSize = pow(DynamicMaxSize,Rank)>
+   template <int Rank, typename T, int BatchSize,
+             int MaxSize = get_Dynamic2dThreadLayout_size(DynamicMaxSize,Rank)> // Bug prone
    using DynamicHipTensor = Dynamic2dThreadTensor<Rank, T, BatchSize, MaxSize>;
 
    /// Defines the static type of Tensor used for computation on Hip.
