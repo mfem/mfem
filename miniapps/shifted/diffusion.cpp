@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool visualization = true;
    int ser_ref_levels = 0;
-   int dirichlet_level_set_type = 1;
+   int dirichlet_level_set_type = -1;
    int neumann_level_set_type = -1;
    bool dirichlet_combo = false;
    int ho_terms = 0;
