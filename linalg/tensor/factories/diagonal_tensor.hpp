@@ -29,9 +29,6 @@ public:
    DiagonalTensor(const Tensor<Container,Layout> &t)
    : Tensor<Container,Layout>(t)
    { }
-
-   // TODO define a DRank accessor? probably not possible
-   // private inheritance then?
 };
 
 template <int DRank, typename Tensor> MFEM_HOST_DEVICE inline
@@ -47,7 +44,7 @@ auto makeDiagonalTensor(const Tensor &t)
 /// DiagonalTensor Traits
 
 // is_diagonal_tensor
-template <typename Tensor>
+template <typename NotADiagTensor>
 struct is_diagonal_tensor_v
 {
    static constexpr bool value = false;
@@ -63,7 +60,7 @@ template <typename Tensor>
 constexpr bool is_diagonal_tensor = is_diagonal_tensor_v<Tensor>::value;
 
 // get_diagonal_tensor_rank
-template <typename Tensor>
+template <typename NotADiagTensor>
 struct get_diagonal_tensor_rank_v
 {
    static constexpr int value = Error;
@@ -79,7 +76,7 @@ template <typename Tensor>
 constexpr int get_diagonal_tensor_rank = get_diagonal_tensor_rank_v<Tensor>::value;
 
 // get_diagonal_tensor_diagonal_rank
-template <typename Tensor>
+template <typename NotADiagTensor>
 struct get_diagonal_tensor_diagonal_rank_v
 {
    static constexpr int value = Error;
@@ -95,7 +92,7 @@ template <typename Tensor>
 constexpr int get_diagonal_tensor_diagonal_rank = get_diagonal_tensor_diagonal_rank_v<Tensor>::value;
 
 // get_diagonal_tensor_values_rank
-template <typename Tensor>
+template <typename NotADiagTensor>
 struct get_diagonal_tensor_values_rank_v
 {
    static constexpr int value = Error;
