@@ -31,7 +31,7 @@ struct NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>
    template <typename DofTensorXRHS,
              typename DofTensorYRHS,
              typename DofTensorZRHS>
-   NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>&
+   NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>& MFEM_HOST_DEVICE
    operator=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS,DofTensorZRHS>& rhs)
    {
       x = rhs.x;
@@ -43,7 +43,7 @@ struct NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>
    template <typename DofTensorXRHS,
              typename DofTensorYRHS,
              typename DofTensorZRHS>
-   NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>&
+   NedelecElementDofs<DofTensorX,DofTensorY,DofTensorZ>& MFEM_HOST_DEVICE
    operator+=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS,DofTensorZRHS>& rhs)
    {
       x += rhs.x;
@@ -61,7 +61,7 @@ struct NedelecElementDofs<DofTensorX,DofTensorY>
 
    template <typename DofTensorXRHS,
              typename DofTensorYRHS>
-   NedelecElementDofs<DofTensorX,DofTensorY>&
+   NedelecElementDofs<DofTensorX,DofTensorY>& MFEM_HOST_DEVICE
    operator=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS>& rhs)
    {
       x = rhs.x;
@@ -71,7 +71,7 @@ struct NedelecElementDofs<DofTensorX,DofTensorY>
 
    template <typename DofTensorXRHS,
              typename DofTensorYRHS>
-   NedelecElementDofs<DofTensorX,DofTensorY>&
+   NedelecElementDofs<DofTensorX,DofTensorY>& MFEM_HOST_DEVICE
    operator+=(const NedelecElementDofs<DofTensorXRHS,DofTensorYRHS>& rhs)
    {
       x += rhs.x;
@@ -86,7 +86,7 @@ struct NedelecElementDofs<DofTensorX>
    DofTensorX x;
 
    template <typename DofTensorXRHS>
-   NedelecElementDofs<DofTensorX>&
+   NedelecElementDofs<DofTensorX>& MFEM_HOST_DEVICE
    operator=(const NedelecElementDofs<DofTensorXRHS>& rhs)
    {
       x = rhs.x;
@@ -94,7 +94,7 @@ struct NedelecElementDofs<DofTensorX>
    }
 
    template <typename DofTensorXRHS>
-   NedelecElementDofs<DofTensorX>&
+   NedelecElementDofs<DofTensorX>& MFEM_HOST_DEVICE
    operator+=(const NedelecElementDofs<DofTensorXRHS>& rhs)
    {
       x += rhs.x;
