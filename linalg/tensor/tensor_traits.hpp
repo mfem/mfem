@@ -13,8 +13,8 @@
 #define MFEM_TENSOR_TRAITS
 
 #include "containers/container_traits.hpp"
-#include "containers/static_container.hpp"
 #include "layouts/layout_traits.hpp"
+#include "containers/static_container.hpp"
 
 namespace mfem
 {
@@ -34,7 +34,7 @@ class Tensor;
 /** Trait to get the rank of a tensor at compilation.
     ex: `constexpr int Rank = get_tensor_rank<Tensor>;'
 */
-template <typename Tensor>
+template <typename NotATensor>
 struct get_tensor_rank_v
 {
    static constexpr int value = Error;
@@ -146,6 +146,30 @@ struct is_serial_tensor_v<const Tensor<C,L>>
 
 template <typename Tensor>
 constexpr bool is_serial_tensor = is_serial_tensor_v<Tensor>::value;
+
+/// is_1d_threaded_tensor
+/** Return true if the tensor's layout is 1d threaded.
+*/
+template <typename Tensor>
+struct is_1d_threaded_tensor_v
+{
+   static constexpr bool value = false;
+};
+
+template <typename C, typename L>
+struct is_1d_threaded_tensor_v<Tensor<C,L>>
+{
+   static constexpr bool value = is_1d_threaded_layout<L>;
+};
+
+template <typename C, typename L>
+struct is_1d_threaded_tensor_v<const Tensor<C,L>>
+{
+   static constexpr bool value = is_1d_threaded_layout<L>;
+};
+
+template <typename Tensor>
+constexpr bool is_1d_threaded_tensor = is_1d_threaded_tensor_v<Tensor>::value;
 
 /// is_2d_threaded_tensor
 /** Return true if the tensor's layout is 2d threaded.
