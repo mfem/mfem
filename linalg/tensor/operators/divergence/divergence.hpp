@@ -44,12 +44,12 @@ template <typename Basis,
             bool> = true >
 auto Div(const Basis &basis, const Dofs &u)
 {
-   constexpr int Rank = get_tensor_rank<Dofs>;
+   constexpr int Comp = get_tensor_rank<Dofs> - 1;
    auto G = basis.GetG();
-   auto Gx = G.template Get<2>(0);
-   auto Gy = G.template Get<2>(1);
-   auto ux = u.template Get<Rank-1>(0);
-   auto uy = u.template Get<Rank-1>(1);
+   auto Gx = Get<2>(0, G);
+   auto Gy = Get<2>(1, G);
+   auto ux = Get<Comp>(0, u);
+   auto uy = Get<Comp>(1, u);
    return Gx * ux + Gy * uy;
 }
 
@@ -63,14 +63,14 @@ template <typename Basis,
             bool> = true >
 auto Div(const Basis &basis, const Dofs &u)
 {
-   constexpr int Rank = get_tensor_rank<Dofs>;
+   constexpr int Comp = get_tensor_rank<Dofs> - 1;
    auto G = basis.GetG();
-   auto Gx = G.template Get<2>(0);
-   auto Gy = G.template Get<2>(1);
-   auto Gz = G.template Get<2>(2);
-   auto ux = u.template Get<Rank-1>(0);
-   auto uy = u.template Get<Rank-1>(1);
-   auto uz = u.template Get<Rank-1>(2);
+   auto Gx = Get<2>(0, G);
+   auto Gy = Get<2>(1, G);
+   auto Gz = Get<2>(2, G);
+   auto ux = Get<Comp>(0, u);
+   auto uy = Get<Comp>(1, u);
+   auto uz = Get<Comp>(2, u);
    return Gx * ux + Gy * uy + Gz * uz;
 }
 
@@ -101,8 +101,8 @@ auto Div(const Basis &basis, const Dofs &u)
    constexpr int Rank = get_tensor_rank<Dofs>;
    auto B = basis.GetB();
    auto G = basis.GetG();
-   auto ux  = u.template Get<Rank-1>(0);
-   auto uy  = u.template Get<Rank-1>(1);
+   auto ux  = Get<Rank-1>(0, u);
+   auto uy  = Get<Rank-1>(1, u);
    auto div = ContractY(B, ContractX(G,ux) );
    div += ContractY(G, ContractX(B,uy) );
    return div;
@@ -121,9 +121,9 @@ auto Div(const Basis &basis, const Dofs &u)
    constexpr int Rank = get_tensor_rank<Dofs>;
    auto B = basis.GetB();
    auto G = basis.GetG();
-   auto ux   = u.template Get<Rank-1>(0);
-   auto uy   = u.template Get<Rank-1>(1);
-   auto uz   = u.template Get<Rank-1>(2);
+   auto ux   = Get<Rank-1>(0, u);
+   auto uy   = Get<Rank-1>(1, u);
+   auto uz   = Get<Rank-1>(2, u);
    auto div  = ContractZ(B, ContractY(B, ContractX(G,ux) ) );
    div += ContractZ(B, ContractY(G, ContractX(B,uy) ) );
    div += ContractZ(G, ContractY(B, ContractX(B,uz) ) );
