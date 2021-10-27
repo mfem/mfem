@@ -50,7 +50,7 @@ public:
      layout( Get<0>( 0, Get<0>( 0, rhs ) ) )
    {
       static_assert(
-         Rank-2 == get_layout_rank<Layout>,
+         Rank == get_layout_rank<Layout>,
          "Can't copy-construct a layout of different rank.");
    }
 
