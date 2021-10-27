@@ -34,6 +34,7 @@
 // Sample runs:
 //   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 3 -rs 1 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 1 -sni 10 -oi 10 -ae 1 -fix-bnd
 //   mpirun -np 4 tmop_surface -m sqdisc.mesh -o 1 -rs 0 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 20 -sni 10 -oi 3 -ae 1 -fix-bnd -qo 8 -st 1
+//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 4 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 10 -sni 10 -oi 5 -ae 1 -fix-bnd -st 0
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -490,11 +491,25 @@ int main (int argc, char *argv[])
    Array<bool> marker(ls_0.Size());
    ConstantCoefficient coef_ls(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
+   AdaptivityEvaluator *adapt_surface_grad = NULL;
+   AdaptivityEvaluator *adapt_surface_grad_grad = NULL;
 
    pmesh_surf->SetCurvature(mesh_poly_deg);
    H1_FECollection sigma_source_fec(2*mesh_poly_deg, dim);
    ParFiniteElementSpace sigma_source_fes(pmesh_surf, &sigma_source_fec);
    ParGridFunction ls_source_0(&sigma_source_fes);
+
+   ParFiniteElementSpace ls_source_grad_fes(pmesh_surf, &sigma_source_fec, pmesh_surf->Dimension());
+   ParGridFunction ls_source_grad(&ls_source_grad_fes);
+   ParFiniteElementSpace sigma_grad_fes(pmesh, &sigma_fec, pmesh->Dimension());
+   ParGridFunction sigma_grad(&sigma_grad_fes);
+
+   int n_hessian_source = pmesh_surf->Dimension()*pmesh_surf->Dimension();
+   ParFiniteElementSpace ls_source_grad_grad_fes(pmesh_surf, &sigma_source_fec, n_hessian_source);
+   ParGridFunction ls_source_grad_grad(&ls_source_grad_grad_fes);
+   ParFiniteElementSpace sigma_grad_grad_fes(pmesh, &sigma_fec, pmesh->Dimension()*pmesh->Dimension());
+   ParGridFunction sigma_grad_grad(&sigma_grad_grad_fes);
+
 
    if (surface_fit_const > 0.0)
    {
@@ -507,6 +522,27 @@ int main (int argc, char *argv[])
       ls_0.ProjectCoefficient(ls_coeff);
       ls_source_0.ProjectCoefficient(ls_coeff);
 
+      //Setup gradient of the background mesh
+      ls_source_grad.ReorderByNodes();
+      for (int d = 0; d < pmesh_surf->Dimension(); d++) {
+          ParGridFunction ls_source_grad_comp(&sigma_source_fes,
+                                              ls_source_grad.GetData()+d*ls_source_0.Size());
+          ls_source_0.GetDerivative(1, d, ls_source_grad_comp);
+      }
+
+      //Setup Hessian on background mesh
+      ls_source_grad_grad.ReorderByNodes();
+      int id = 0;
+      for (int d = 0; d < pmesh_surf->Dimension(); d++) {
+          for (int idir = 0; idir < pmesh_surf->Dimension(); idir++) {
+              ParGridFunction ls_source_grad_comp(&sigma_source_fes,
+                                                  ls_source_grad.GetData()+d*ls_source_0.Size());
+              ParGridFunction ls_source_grad_grad_comp(&sigma_source_fes,
+                                                       ls_source_grad_grad.GetData()+id*ls_source_0.Size());
+              ls_source_grad_comp.GetDerivative(1, idir, ls_source_grad_grad_comp);
+              id++;
+          }
+      }
 
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
@@ -533,11 +569,15 @@ int main (int argc, char *argv[])
          }
       }
 
-      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+      if (adapt_eval == 0) {
+          adapt_surface = new AdvectorCG;
+      }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
+         adapt_surface_grad = new InterpolatorFP;
+         adapt_surface_grad_grad = new InterpolatorFP;
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
@@ -545,11 +585,18 @@ int main (int argc, char *argv[])
       else { MFEM_ABORT("Bad interpolation option."); }
 
       surf_integ->EnableSurfaceFitting(ls_0, marker, coef_ls, *adapt_surface);
-      surf_integ->SetSurfaceFittingSourceMeshandFunction(ls_source_0);
+      surf_integ->EnableSurfaceFittingWithBackgroundMesh(ls_source_0,
+                                                         *adapt_surface_grad,
+                                                         ls_source_grad,
+                                                         sigma_grad,
+                                                         *adapt_surface_grad_grad,
+                                                         ls_source_grad_grad,
+                                                         sigma_grad_grad);
+
 
       if (visualization)
       {
-         socketstream vis1, vis2, vis3, vis4;
+         socketstream vis1, vis2, vis3, vis4, vis5;
          common::VisualizeField(vis1, "localhost", 19916, ls_0, "Level Set 0",
                                 300, 600, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
@@ -558,6 +605,8 @@ int main (int argc, char *argv[])
                                 900, 600, 300, 300);
          common::VisualizeField(vis4, "localhost", 19916, ls_source_0, "Level Set 0 Source",
                                 300, 600, 300, 300);
+         common::VisualizeField(vis5, "localhost", 19916, ls_source_grad, "Level Set Gradient",
+                                600, 600, 300, 300);
       }
    }
 
@@ -784,13 +833,20 @@ int main (int argc, char *argv[])
    solver_surf.SetOperator(a_surf);
 
    for (int j = 0; j < outer_iter; j++) {
-       std::cout << "Outer iteration: " << j << std::endl;
+       if (myid == 0)
+       {
+           std::cout << "Outer iteration: " << j << std::endl;
+       }
        solver.Mult(b, x.GetTrueVector());
        x.SetFromTrueVector();
        solver_surf.Mult(b, x.GetTrueVector());
        x.SetFromTrueVector();
+       if ( j == 0) {
+           solver.SetAbsTol(solver.GetNormGoal());
+           solver_surf.SetAbsTol(solver_surf.GetNormGoal());
+       }
    }
-   solver.SetMaxIter(10*solver_iter);
+   solver.SetMaxIter(1*solver_iter);
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 

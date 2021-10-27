@@ -1884,6 +1884,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       rk = r;
+      double c_norm = Norm(c);
+      MFEM_ASSERT(IsFinite(c_norm), "norm = " << c_norm);
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {

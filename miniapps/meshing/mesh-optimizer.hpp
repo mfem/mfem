@@ -393,8 +393,11 @@ double surface_level_set(const Vector &x)
       {
          const double xc = x(0) - 0.5, yc = x(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
-         return r-0.1;
-         return std::tanh(2.0*(r-0.3));
+         double power = 4.0;
+         const double r2 = pow(xc/1.0, power) + pow(yc/1.0, 4.0);
+         return r2 - pow(0.1, power);
+
+         return r-0.1; // circle of radius 0.1
       }
       else
       {
