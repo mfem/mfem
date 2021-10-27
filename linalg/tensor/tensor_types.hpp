@@ -12,9 +12,13 @@
 #ifndef MFEM_TENSOR_TYPES
 #define MFEM_TENSOR_TYPES
 
-#include "utilities/tensor_types_impl.hpp"
 #include "tensor.hpp"
-#include "utilities/pow.hpp"
+/// The memory storage for the tensors' values
+#include "containers/containers.hpp"
+/// The rank N index mapping to linear memory index
+#include "layouts/layouts.hpp"
+/// Implementation details
+#include "utilities/tensor_types_impl.hpp"
 
 namespace mfem
 {
