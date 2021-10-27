@@ -12,8 +12,6 @@
 #ifndef MFEM_STATIC_LAYOUT
 #define MFEM_STATIC_LAYOUT
 
-#include "../../../general/error.hpp"
-#include "../utilities/utilities.hpp"
 #include "layout_traits.hpp"
 
 namespace mfem

@@ -25,6 +25,8 @@
 #include "foreach.hpp"
 /// MFEM_FORALL_CONFIG selecting threading strategy according to the KernelConfig
 #include "forall.hpp"
+/// TMP patterns to manipulate integer lists at compilation
+#include "int_list.hpp"
 /// Utility functions, and TMP patterns
 #include "util.hpp"
 

@@ -12,7 +12,6 @@
 #ifndef MFEM_STATIC_E_LAYOUT
 #define MFEM_STATIC_E_LAYOUT
 
-#include "../utilities/utilities.hpp"
 #include "layout_traits.hpp"
 #include "restricted_layout.hpp"
 

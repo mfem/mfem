@@ -12,8 +12,7 @@
 #ifndef MFEM_NEDELEC_BASIS
 #define MFEM_NEDELEC_BASIS
 
-#include "../../utilities/utilities.hpp"
-#include "../../tensor.hpp"
+#include "basis_impl.hpp"
 
 namespace mfem
 {

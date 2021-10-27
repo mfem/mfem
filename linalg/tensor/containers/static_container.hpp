@@ -13,7 +13,8 @@
 #define MFEM_STATIC_CONTAINER
 
 #include "container_traits.hpp"
-#include "../utilities/util.hpp"
+#include "../utilities/int_list.hpp"
+#include "../utilities/prod.hpp"
 
 namespace mfem
 {
@@ -32,7 +33,9 @@ public:
    template <typename... Sizes> MFEM_HOST_DEVICE
    StaticContainer(int size0, Sizes... sizes)
    {
-      // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
+      // static_assert(
+      //    sizeof...(Dims)==sizeof...(Sizes)+1,
+      //    "Wrong number of dynamic sizes.");
       // TODO verify that Dims == sizes in Debug mode
    }
 

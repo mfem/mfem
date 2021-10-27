@@ -12,8 +12,8 @@
 #ifndef MFEM_DYNAMIC_LAYOUT
 #define MFEM_DYNAMIC_LAYOUT
 
+#include "layout_impl.hpp"
 #include "../../../general/error.hpp"
-#include "../utilities/utilities.hpp"
 #include "layout_traits.hpp"
 
 namespace mfem

@@ -12,7 +12,8 @@
 #ifndef MFEM_TENSOR_TYPES_IMPL
 #define MFEM_TENSOR_TYPES_IMPL
 
-#include "util.hpp"
+#include "pow.hpp"
+#include "prod.hpp"
 
 namespace mfem
 {

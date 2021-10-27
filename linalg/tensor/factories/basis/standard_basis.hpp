@@ -12,46 +12,12 @@
 #ifndef MFEM_STANDARD_BASIS
 #define MFEM_STANDARD_BASIS
 
-#include "../../utilities/utilities.hpp"
-#include "../../tensor.hpp"
+#include "basis_impl.hpp"
+#include "../../utilities/load.hpp"
+#include "../../utilities/config.hpp"
 
 namespace mfem
 {
-// ALL THIS SHOULD BE REWRITTEN...
-// TODO Maybe remove this class?
-// TODO maybe D before Q?
-template <int Dim, bool IsTensor, typename TensorType>
-class BasisTensor : public TensorType
-{
-public:
-   MFEM_HOST_DEVICE
-   BasisTensor(int quads, int dofs): TensorType(quads,dofs) { }
-
-   MFEM_HOST_DEVICE
-   BasisTensor(double *shared_mem, int quads, int dofs)
-      : TensorType(shared_mem,quads,dofs) { }
-};
-
-/// Represent the rank 2 tensor containing B1d or G1d with dynamic sizes
-template <int Dim>
-using DynamicBasisTensor = BasisTensor<Dim,true,DynamicDTensor<2>>;
-template <int Dim>
-using DynamicSharedBasisTensor = BasisTensor<Dim,true,DeviceDTensor<2>>;
-
-/// Represent the rank 2 tensor containing B1d or G1d with static sizes
-template <int Dim, int Q, int D>
-using StaticBasisTensor = BasisTensor<Dim,true,StaticDTensor<Q,D>>;
-template <int Dim, int Q, int D>
-using StaticSharedBasisTensor = BasisTensor<Dim,true,StaticPointerDTensor<Q,D>>;
-
-/// Represent the rank 2 tensor containing B or G with dynamic sizes
-template <int Dim>
-using DynamicBasisNonTensor = BasisTensor<
-   Dim, false, DynamicDTensor<2,pow(DynamicMaxSize,2*Dim)>>;
-
-/// Represent the rank 2 tensor containing B or G with static sizes
-template <int Dim, int Q, int D>
-using StaticBasisNonTensor = BasisTensor<Dim,false,StaticDTensor<Q,D>>;
 
 template <int Dofs, typename KernelConfig>
 struct ConfigBasis
@@ -133,7 +99,7 @@ struct ConfigBasis
    }
 };
 
-template <typename Config>
+template <int Dofs, typename Config>
 auto MakeBasis(Config &config,
                const int dofs,
                const int quads,
