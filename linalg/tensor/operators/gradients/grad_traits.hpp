@@ -18,7 +18,14 @@
 namespace mfem
 {
 
-enum class GradAlgo { NonTensor, Tensor, Untensorized, Legacy, NA };
+enum class GradAlgo {
+   NonTensor,
+   Tensor,
+   Untensorized,
+   Legacy,
+   Nedelec,
+   NA
+};
 
 template <typename Basis, typename Dofs, typename Enable = void>
 struct get_grad_algo_v
