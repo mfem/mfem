@@ -56,10 +56,14 @@ auto MakeSymmQData(Config &config, double *x, int ne)
    constexpr int Quads = get_config_quads<Config>;
    constexpr int DiagDim = IsTensor ? Dim : 1;
    constexpr int SymmSize = Dim*(Dim+1)/2;
-   using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp,SymmSize>;
+   constexpr int SymmDims = DimComp/2;
+   static_assert(
+      DimComp%2 == 0,
+      "The number of symmetric dimensions must be even.");
+   using Layout = get_qdata_layout<IsTensor,Quads,Dim,SymmDims,SymmSize>;
    using QDataTensor = Tensor<DeviceContainer<double>,Layout>;
    using QD = SymmQData<DiagDim,QDataTensor>;
-   return InitQData<QD,IsTensor,Dim,DimComp>::
+   return InitQData<QD,IsTensor,Dim,SymmDims>::
       make(x,config.quads,SymmSize,ne);
 }
 
@@ -71,10 +75,14 @@ auto MakeSymmQData(Config &config, const double *x, int ne)
    constexpr int Quads = get_config_quads<Config>;
    constexpr int DiagDim = IsTensor? Dim : 1;
    constexpr int SymmSize = Dim*(Dim+1)/2;
-   using Layout = get_qdata_layout<IsTensor,Quads,Dim,DimComp,SymmSize>;
+   constexpr int SymmDims = DimComp/2;
+   static_assert(
+      DimComp%2 == 0,
+      "The number of symmetric dimensions must be even.");
+   using Layout = get_qdata_layout<IsTensor,Quads,Dim,SymmDims,SymmSize>;
    using QDataTensor = Tensor<ReadContainer<double>,Layout>;
    using QD = SymmQData<DiagDim,QDataTensor>;
-   return InitQData<QD,IsTensor,Dim,DimComp>::
+   return InitQData<QD,IsTensor,Dim,SymmDims>::
       make(const_cast<double*>(x),config.quads,SymmSize,ne);
 }
 

@@ -1858,8 +1858,7 @@ static void ApplyDiff(const int ne,
    auto B       = MakeBasis<Dofs>(config, dofs, quads, b.Read(), bt.Read(),
                                   g.Read(), gt.Read());
    const auto X = MakeDoFs<Dofs,VDim>(config, x.Read(), ne);
-   // TODO SRank = 1 until we really support symmetric layout...
-   const auto D = MakeSymmQData<1>(config, d.Read(), ne);
+   const auto D = MakeSymmQData<2>(config, d.Read(), ne);
    auto Y       = MakeDoFs<Dofs,VDim>(config, y.ReadWrite(), ne);
    MFEM_FORALL_CONFIG(config, e, ne,
    {

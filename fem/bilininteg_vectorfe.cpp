@@ -192,7 +192,7 @@ void ApplyPAHdivMass(const int dofs,
                      config, open_dofs, close_dofs, quads,
                      Bo.Read(), Bot.Read(), Bc.Read(), Bct.Read());
    const auto X = MakeNedelecDoFs(config, open_dofs, close_dofs, x.Read(), ne);
-   const auto D = MakeSymmQData<1>(config, op.Read(), ne);
+   const auto D = MakeSymmQData<2>(config, op.Read(), ne);
    auto Y       = MakeNedelecDoFs(config, open_dofs, close_dofs, y.ReadWrite(),
                                   ne);
    MFEM_FORALL_CONFIG(config, e, ne,
