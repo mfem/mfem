@@ -15,6 +15,7 @@
 #include "../../../general/error.hpp"
 #include "dynamic_layout.hpp"
 #include "layout_traits.hpp"
+#include "../utilities/get.hpp"
 
 namespace mfem
 {
