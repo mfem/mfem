@@ -372,6 +372,10 @@ public:
        in each element (not L2 projection). */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
+   /** @brief Project @a coeff Coefficient to @a this GridFunction, only onto
+    * a subset of elements */
+   void ProjectElemCoefficient(Coefficient &coeff, const Array<int> & elems);
+
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
        element for each degree of freedom in @a dofs and nodal interpolation on
        that element. */
@@ -953,14 +957,14 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 class PatchBasedPolynomialFit
 {
 private:
-    int patch_order, integ_order, dim;
-    Vector coefficients, xmin, xmax;
+   int patch_order, integ_order, dim;
+   Vector coefficients, xmin, xmax;
 public:
-    PatchBasedPolynomialFit(GridFunction &u, Array<int> elems,
-                            int patch_order_, int integ_order_,
-                            double tichonov_coeff);
+   PatchBasedPolynomialFit(GridFunction &u, Array<int> elems,
+                           int patch_order_, int integ_order_,
+                           double tichonov_coeff);
 
-    double EvaluatePolynomial(const Vector &xloc);
+   double EvaluatePolynomial(const Vector &xloc);
 
 };
 

@@ -2411,6 +2411,40 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+void GridFunction::ProjectElemCoefficient(Coefficient &coeff,
+                                          const Array<int> & elems)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+   DofTransformation * doftrans = NULL;
+
+   *this = 0.0;
+
+   if (delta_c == NULL)
+   {
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int k = 0; k < elems.Size(); k++)
+      {
+         int i = elems[k];
+         doftrans = fes->GetElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+         if (doftrans)
+         {
+            doftrans->TransformPrimal(vals);
+         }
+         SetSubVector(vdofs, vals);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("GridFunction::ProjectCoefficient: delta coefficient not implemented yet");
+   }
+
+}
+
+
 void GridFunction::ProjectCoefficient(
    Coefficient &coeff, Array<int> &dofs, int vd)
 {
@@ -4533,126 +4567,127 @@ PatchBasedPolynomialFit::PatchBasedPolynomialFit(GridFunction &u,
                                                  int patch_order_,
                                                  int integ_order_,
                                                  double tichonov_coeff) :
-    patch_order(patch_order_), integ_order(integ_order_)
+   patch_order(patch_order_), integ_order(integ_order_)
 {
-    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
-    FiniteElementSpace *ufes = u.FESpace();
-    ElementTransformation *Transf;
+   MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
+   FiniteElementSpace *ufes = u.FESpace();
+   ElementTransformation *Transf;
 
-    Mesh *mesh = ufes->GetMesh();
-    dim = mesh->Dimension();
+   Mesh *mesh = ufes->GetMesh();
+   dim = mesh->Dimension();
 
-    Array<int> udofs;
-    Vector ul;
+   Array<int> udofs;
+   Vector ul;
 
-    int num_elems = elems.Size();
+   int num_elems = elems.Size();
 
-    // 2. Compute global flux polynomial.
-    DofTransformation *udoftrans;
-    xmax.SetSize(dim);
-    xmin.SetSize(dim);
+   // 2. Compute global flux polynomial.
+   DofTransformation *udoftrans;
+   xmax.SetSize(dim);
+   xmin.SetSize(dim);
 
-    int num_basis_functions = pow(patch_order+1,dim);
-    DenseMatrix A(num_basis_functions);
-    Array<double> b(num_basis_functions);
-    A = 0.0;
-    b = 0.0;
+   int num_basis_functions = pow(patch_order+1,dim);
+   DenseMatrix A(num_basis_functions);
+   Array<double> b(num_basis_functions);
+   A = 0.0;
+   b = 0.0;
 
-    // 2.B. Estimate the smallest bounding box around the face patch
-    //      (this is used in 2.C.ii. to define a global polynomial basis)
-    xmax = -std::numeric_limits<double>::max();
-    xmin = std::numeric_limits<double>::max();
-    for (int i = 0; i < num_elems; i++)
-    {
-       int ielem = elems[i];
-       const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
-                                                  integ_order));
-       Transf = ufes->GetElementTransformation(ielem);
-       for (int k = 0; k < irule->GetNPoints(); k++)
-       {
-          const IntegrationPoint ip = irule->IntPoint(k);
-          double tmp[3];
-          Vector transip(tmp, 3);
-          Transf->Transform(ip, transip);
-          for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
-          for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
-       }
-    }
+   // 2.B. Estimate the smallest bounding box around the face patch
+   //      (this is used in 2.C.ii. to define a global polynomial basis)
+   xmax = -std::numeric_limits<double>::max();
+   xmin = std::numeric_limits<double>::max();
+   for (int i = 0; i < num_elems; i++)
+   {
+      int ielem = elems[i];
+      const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                    integ_order));
+      Transf = ufes->GetElementTransformation(ielem);
+      for (int k = 0; k < irule->GetNPoints(); k++)
+      {
+         const IntegrationPoint ip = irule->IntPoint(k);
+         double tmp[3];
+         Vector transip(tmp, 3);
+         Transf->Transform(ip, transip);
+         for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
+         for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
+      }
+   }
 
-    // 2.C. Compute the normal equations for the least-squares problem
-    // 2.C.i. Evaluate the discrete flux at all integration points in all
-    //        elements in the face patch
-    for (int i = 0; i < num_elems; i++)
-    {
-       int ielem = elems[i];
-       const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
-                                                     integ_order));
-       int num_integration_pts = irule->GetNPoints();
+   // 2.C. Compute the normal equations for the least-squares problem
+   // 2.C.i. Evaluate the discrete flux at all integration points in all
+   //        elements in the face patch
+   for (int i = 0; i < num_elems; i++)
+   {
+      int ielem = elems[i];
+      const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                    integ_order));
+      int num_integration_pts = irule->GetNPoints();
 
-       udoftrans = ufes->GetElementVDofs(i, udofs);
+      udoftrans = ufes->GetElementVDofs(i, udofs);
 
-       u.GetValues(ielem, *irule, ul);
-       Transf = ufes->GetElementTransformation(ielem);
+      u.GetValues(ielem, *irule, ul);
+      Transf = ufes->GetElementTransformation(ielem);
 
-       // 2.C.ii. Use global polynomial basis to construct normal
-       //         equations
-       for (int k = 0; k < num_integration_pts; k++)
-       {
-          const IntegrationPoint ip = irule->IntPoint(k);
-          double tmp[3];
-          Vector transip(tmp, 3);
-          Transf->Transform(ip, transip);
+      // 2.C.ii. Use global polynomial basis to construct normal
+      //         equations
+      for (int k = 0; k < num_integration_pts; k++)
+      {
+         const IntegrationPoint ip = irule->IntPoint(k);
+         double tmp[3];
+         Vector transip(tmp, 3);
+         Transf->Transform(ip, transip);
 
-          Vector p(num_basis_functions);
-          p = LegendreND(transip, xmax, xmin, patch_order, dim);
-          AddMultVVt(p, A);
+         Vector p(num_basis_functions);
+         p = LegendreND(transip, xmax, xmin, patch_order, dim);
+         AddMultVVt(p, A);
 
-          for (int l = 0; l < num_basis_functions; l++)
-          {
-              b[l] += p(l) * ul(k);
-          }
-       }
-    }
+         for (int l = 0; l < num_basis_functions; l++)
+         {
+            b[l] += p(l) * ul(k);
+         }
+      }
+   }
 
-    // 2.D. Shift spectrum of A with to avoid conditioning issues.
-    for (int i = 0; i < num_basis_functions; i++)
-    {
-       A(i,i) += tichonov_coeff;
-    }
+   // 2.D. Shift spectrum of A with to avoid conditioning issues.
+   for (int i = 0; i < num_basis_functions; i++)
+   {
+      A(i,i) += tichonov_coeff;
+   }
 
-    // 2.E. Solve for polynomial coefficients
-    Array<int> ipiv(num_basis_functions);
-    LUFactors lu(A.Data(), ipiv);
-    double TOL = 1e-9;
-    if (!lu.Factor(num_basis_functions,TOL))
-    {
-       // Singular matrix
-       mfem::out << "NewZZErrorEstimator: Matrix A is singular.\t"
-                 << "Consider increasing tichonov_coeff." << endl;
-       for (int i = 0; i < num_basis_functions; i++)
-       {
-          A(i,i) += 1e-8;
-       }
-       lu.Factor(num_basis_functions,TOL);
-    }
-    lu.Solve(num_basis_functions, 1, b);
+   // 2.E. Solve for polynomial coefficients
+   Array<int> ipiv(num_basis_functions);
+   LUFactors lu(A.Data(), ipiv);
+   double TOL = 1e-9;
+   if (!lu.Factor(num_basis_functions,TOL))
+   {
+      // Singular matrix
+      mfem::out << "NewZZErrorEstimator: Matrix A is singular.\t"
+                << "Consider increasing tichonov_coeff." << endl;
+      for (int i = 0; i < num_basis_functions; i++)
+      {
+         A(i,i) += 1e-8;
+      }
+      lu.Factor(num_basis_functions,TOL);
+   }
+   lu.Solve(num_basis_functions, 1, b);
 
-    coefficients.SetSize(b.Size());
-    for (int i = 0; i < b.Size(); i++) {
-        coefficients(i) = b[i];
-    }
+   coefficients.SetSize(b.Size());
+   for (int i = 0; i < b.Size(); i++)
+   {
+      coefficients(i) = b[i];
+   }
 }
 
 double PatchBasedPolynomialFit::EvaluatePolynomial(const Vector &xloc)
 {
-    auto global_poly = [=] (const Vector &x)
-    {
-       Vector p(coefficients.Size());
-       p = LegendreND(x, xmax, xmin, patch_order, dim);
-       return coefficients*p;
-    };
+   auto global_poly = [=] (const Vector &x)
+   {
+      Vector p(coefficients.Size());
+      p = LegendreND(x, xmax, xmin, patch_order, dim);
+      return coefficients*p;
+   };
 
-    return global_poly(xloc);
+   return global_poly(xloc);
 }
 
 double ComputeElementLpDistance(double p, int i,
