@@ -13,8 +13,7 @@
 #define MFEM_TENSOR_OPERATORS
 
 /**
- * These are the main mathematical operations applicable on tensors, and
- * factories' objects.
+ * These are the main mathematical operations applicable on tensors.
  * */
 
 /// Get a tensor slice (lazy operation)

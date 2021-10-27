@@ -99,8 +99,11 @@ auto Determinant(const Tensor &J)
 {
    MFEM_ABORT_KERNEL("Not yet supported.");
    using T = get_tensor_value_type<Tensor>;
-   // MFEM_SHARED T det{};
-   // Foreach<0>(J,[&](int row){
+   // MFEM_SHARED T shared_mem[get_tensor_batchsize];
+   // auto batch_id = 0; // <-- MFEM_THREAD_ID(z); ?
+   // T &det = shared_mem[get_tensor_batchsize];
+   // constexpr int Row = 0;
+   // Foreach<Row>(J,[&](int row){
    //    AtomicAdd(det,
    //              pow(-1,row) * J(row,0) * Determinant(
    //                                          Sub<0>(row,
@@ -125,7 +128,8 @@ auto Determinant(const Tensor &J)
    MFEM_ABORT_KERNEL("Not yet supported.");
    using T = get_tensor_value_type<Tensor>;
    // T det{};
-   // Foreach<0>(J,[&](int row){
+   // constexpr int Row = 0;
+   // Foreach<Row>(J,[&](int row){
    //    det += pow(-1,row) * J(row,0) * Determinant(Sub<0>(row,Sub<1>(0,J)));
    // });
    // return det;

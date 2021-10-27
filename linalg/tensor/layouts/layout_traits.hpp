@@ -14,6 +14,7 @@
 
 #include <type_traits>
 #include "../utilities/helper_constants.hpp"
+#include "../utilities/pow.hpp"
 
 namespace mfem
 {

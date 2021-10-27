@@ -21,28 +21,31 @@ namespace mfem
 {
 
 /// Lazy accessor for the sub-Tensor extracted from idx in Nth dimension.
-template <int N, typename Container, typename Layout> MFEM_HOST_DEVICE inline
+/** ex: `auto slice = Get<Dim>(idx, tensor);'
+*/
+template <int Dim, typename Container, typename Layout> MFEM_HOST_DEVICE inline
 auto Get(int idx, Tensor<Container,Layout> &t)
 {
-   static_assert(N>=0 && N<get_layout_rank<Layout>,
+   static_assert(Dim>=0 && Dim<get_layout_rank<Layout>,
       "Cannot access this dimension with Get");
    using T = get_container_type<Container>;
    using C = ViewContainer<T,Container>;
-   using L = RestrictedLayout<N,Layout>;
+   using L = RestrictedLayout<Dim,Layout>;
    using RestrictedTensor = Tensor<C,L>;
    C data(t);
    L layout(idx,t);
    return RestrictedTensor(data,layout);
 }
 
-template <int N, typename Container, typename Layout> MFEM_HOST_DEVICE inline
+/// Lazy const accessor for the sub-Tensor extracted from idx in Nth dimension.
+template <int Dim, typename Container, typename Layout> MFEM_HOST_DEVICE inline
 auto Get(int idx, const Tensor<Container,Layout> &t)
 {
-   static_assert(N>=0 && N<get_layout_rank<Layout>,
+   static_assert(Dim>=0 && Dim<get_layout_rank<Layout>,
       "Cannot access this dimension with Get");
    using T = get_container_type<Container>;
    using C = ConstViewContainer<T,Container>;
-   using L = RestrictedLayout<N,Layout>;
+   using L = RestrictedLayout<Dim,Layout>;
    using RestrictedTensor = Tensor<C,L>;
    C data(t);
    L layout(idx,t);
