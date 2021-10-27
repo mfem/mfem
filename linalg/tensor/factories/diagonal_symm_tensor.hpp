@@ -17,7 +17,6 @@
 namespace mfem
 {
 
-// TODO Rewrite only for 2D?
 /// Represent a SRank+2*DRank symmetric Tensor, where SRank dims are symmetric.
 template <int DRank, // The rank of diagonal values
           int SRank, // The rank of symmetric values
@@ -30,9 +29,6 @@ public:
    DiagonalSymmetricTensor(const Tensor<Container,Layout> &t)
    : Tensor<Container,Layout>(t)
    { }
-
-   // TODO define a DRank accessor? probably not possible
-   // private inheritance then?
 };
 
 template <int DRank, typename Tensor> MFEM_HOST_DEVICE inline
@@ -48,7 +44,7 @@ auto makeDiagonalSymmetricTensor(const Tensor &t)
 /// DiagonalSymmetricTensor Traits
 
 // is_diagonal_symmetric_tensor
-template <typename Tensor>
+template <typename NotADiagSymmTensor>
 struct is_diagonal_symmetric_tensor_v
 {
    static constexpr bool value = false;
@@ -64,7 +60,7 @@ template <typename Tensor>
 constexpr bool is_diagonal_symmetric_tensor = is_diagonal_symmetric_tensor_v<Tensor>::value;
 
 // get_diagonal_symmetric_tensor_rank
-template <typename Tensor>
+template <typename NotADiagSymmTensor>
 struct get_diagonal_symmetric_tensor_rank_v
 {
    static constexpr int value = Error;
@@ -80,7 +76,7 @@ template <typename Tensor>
 constexpr int get_diagonal_symmetric_tensor_rank = get_diagonal_symmetric_tensor_rank_v<Tensor>::value;
 
 // get_diagonal_symmetric_tensor_diagonal_rank
-template <typename Tensor>
+template <typename NotADiagSymmTensor>
 struct get_diagonal_symmetric_tensor_diagonal_rank_v
 {
    static constexpr int value = Error;
@@ -96,7 +92,7 @@ template <typename Tensor>
 constexpr int get_diagonal_symmetric_tensor_diagonal_rank = get_diagonal_symmetric_tensor_diagonal_rank_v<Tensor>::value;
 
 // get_diagonal_symmetric_tensor_values_rank
-template <typename Tensor>
+template <typename NotADiagSymmTensor>
 struct get_diagonal_symmetric_tensor_values_rank_v
 {
    static constexpr int value = Error;
@@ -110,35 +106,6 @@ struct get_diagonal_symmetric_tensor_values_rank_v<DiagonalSymmetricTensor<DRank
 
 template <typename Tensor>
 constexpr int get_diagonal_symmetric_tensor_values_rank = get_diagonal_symmetric_tensor_values_rank_v<Tensor>::value;
-
-// /// Represent a SRank+2*DRank symmetric Tensor, where SRank dims are symmetric.
-// template <int DRank, // The rank of diagonal values
-//           int SRank, // The rank of symmetric values
-//           typename T = double,
-//           typename Container = MemoryContainer<T>,
-//           typename Layout = DynamicLayout<1> >
-// class DiagonalSymmetricTensor: public Tensor<DRank+1,T,Container,Layout>
-// {
-// public:
-//    // Storing the symmetric values linearly for the moment
-//    DiagonalSymmetricTensor(const Tensor<DRank+1,T,Container,Layout> &t)
-//    : Tensor<DRank+1,T,Container,Layout>(t)
-//    { }
-
-//    // TODO define a DRank accessor? probably not possible
-//    // private inheritance then?
-// };
-
-// template <int DRank, typename Tensor>
-// auto makeDiagonalSymmetricTensor(const Tensor &t)
-// {
-//    return DiagonalSymmetricTensor<DRank,
-//                                   Tensor::rank-DRank,
-//                                   typename Tensor::type,
-//                                   typename Tensor::container,
-//                                   typename Tensor::layout
-//                                  >(t);
-// }
 
 } // namespace mfem
 
