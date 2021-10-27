@@ -13,6 +13,7 @@
 #define MFEM_STATIC_CONTAINER
 
 #include "container_traits.hpp"
+#include "../utilities/util.hpp"
 #include "../utilities/int_list.hpp"
 #include "../utilities/prod.hpp"
 
