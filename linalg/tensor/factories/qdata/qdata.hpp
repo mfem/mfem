@@ -35,15 +35,15 @@ public:
    MFEM_HOST_DEVICE inline
    auto operator()(int e) const
    {
-      constexpr int Rank = get_tensor_rank<QuadTensor>;
-      return makeDiagonalTensor<DiagDim>(Get<Rank-1>(e,*this));
+      constexpr int Element = get_tensor_rank<QuadTensor> - 1;
+      return makeDiagonalTensor<DiagDim>(Get<Element>(e, *this));
    }
 
    MFEM_HOST_DEVICE inline
    auto operator()(int e)
    {
-      constexpr int Rank = get_tensor_rank<QuadTensor>;
-      return makeDiagonalTensor<DiagDim>(Get<Rank-1>(e,*this));
+      constexpr int Element = get_tensor_rank<QuadTensor> - 1;
+      return makeDiagonalTensor<DiagDim>(Get<Element>(e, *this));
    }
 };
 

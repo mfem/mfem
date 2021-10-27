@@ -35,15 +35,15 @@ public:
    MFEM_HOST_DEVICE inline
    auto operator()(int e) const
    {
-      constexpr int Rank = get_tensor_rank<DofTensor>;
-      return Get<Rank-1>(e,*this); // TODO batchsize so +tidz or something?
+      constexpr int Element = get_tensor_rank<DofTensor> - 1;
+      return Get<Element>(e, *this); // TODO batchsize so +tidz or something?
    }
 
    MFEM_HOST_DEVICE inline
    auto operator()(int e)
    {
-      constexpr int Rank = get_tensor_rank<DofTensor>;
-      return Get<Rank-1>(e,*this);
+      constexpr int Element = get_tensor_rank<DofTensor> - 1;
+      return Get<Element>(e, *this);
    }
 };
 
