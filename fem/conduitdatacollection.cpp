@@ -862,8 +862,8 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
             }
 
             // NOTE: Blueprint only wants remote ranks in its neighbor list,
-            // so we remove this rank after the canonicalized Bluepring group
-            // name is formed
+            // so we remove the local rank after the canonicalized Blueprint
+            // group name is formed
             group_ranks.DeleteFirst(local_rank);
          }
          Node &n_group = n_adjset["groups"][group_name];
