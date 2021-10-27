@@ -46,7 +46,7 @@ public:
    Dynamic2dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>()),
      size1(rhs.template Size<1>()),
-     layout(rhs.template Get<0>(0).template Get<0>(0))
+     layout( Get<0>( 0, Get<0>( 0, rhs ) ) )
    {
       static_assert(
          Rank-2 == get_layout_rank<Layout>,
