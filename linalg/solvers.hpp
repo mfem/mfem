@@ -486,6 +486,7 @@ protected:
    double gamma;
    // Eisenstat-Walker factor alpha
    double alpha;
+   mutable int total_prec_iterations = 0;
    mutable StopWatch TimeVector,
            TimeGrad,
            TimePrecMult,
@@ -568,6 +569,8 @@ public:
    virtual double GetPrecMultTime() { return TimePrecMult.RealTime(); }
    virtual double GetProcessNewStateTime() { return TimeProcessNewState.RealTime(); }
    virtual double GetComputeScalingTime() { return TimeComputeScaling.RealTime(); }
+
+   virtual int GetTotalPrecIterations() { return total_prec_iterations; }
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
