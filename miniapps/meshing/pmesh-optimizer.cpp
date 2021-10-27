@@ -69,6 +69,10 @@
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
+//  Adaptive surface fitting:
+//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
+//    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -96,7 +100,6 @@
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
-//
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -124,7 +127,8 @@ int main (int argc, char *argv[])
    int metric_id         = 1;
    int target_id         = 1;
    double lim_const      = 0.0;
-   double adapt_lim_const = 0.0;
+   double adapt_lim_const   = 0.0;
+   double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
@@ -204,6 +208,8 @@ int main (int argc, char *argv[])
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
                   "Adaptive limiting coefficient constant.");
+   args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
+                  "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -294,13 +300,6 @@ int main (int argc, char *argv[])
       mesh->UniformRefinement();
    }
    const int dim = mesh->Dimension();
-   if (myid == 0)
-   {
-      cout << "Mesh curvature: ";
-      if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
-      else { cout << "(NONE)"; }
-      cout << endl;
-   }
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -760,8 +759,6 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
-   if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
-
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
    ParFiniteElementSpace dist_pfespace(pmesh, fec); // scalar space
@@ -802,6 +799,77 @@ int main (int argc, char *argv[])
                                 300, 600, 300, 300);
       }
    }
+
+   // Surface fitting.
+   L2_FECollection mat_coll(0, dim);
+   H1_FECollection sigma_fec(mesh_poly_deg, dim);
+   ParFiniteElementSpace sigma_fes(pmesh, &sigma_fec);
+   ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
+   ParGridFunction mat(&mat_fes);
+   ParGridFunction marker_gf(&sigma_fes);
+   ParGridFunction ls_0(&sigma_fes);
+   Array<bool> marker(ls_0.Size());
+   ConstantCoefficient coef_ls(surface_fit_const);
+   AdaptivityEvaluator *adapt_surface = NULL;
+   if (surface_fit_const > 0.0)
+   {
+      MFEM_VERIFY(hradaptivity == false,
+                  "Surface fitting with HR is not implemented yet.");
+      MFEM_VERIFY(pa == false,
+                  "Surface fitting with PA is not implemented yet.");
+
+      FunctionCoefficient ls_coeff(surface_level_set);
+      ls_0.ProjectCoefficient(ls_coeff);
+
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         mat(i) = material_id(i, ls_0);
+         pmesh->SetAttribute(i, mat(i) + 1);
+      }
+
+      GridFunctionCoefficient coeff_mat(&mat);
+      marker_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+      for (int j = 0; j < marker.Size(); j++)
+      {
+         if (marker_gf(j) > 0.1 && marker_gf(j) < 0.9)
+         {
+            marker[j] = true;
+            marker_gf(j) = 1.0;
+         }
+         else
+         {
+            marker[j] = false;
+            marker_gf(j) = 0.0;
+         }
+      }
+
+      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+      else if (adapt_eval == 1)
+      {
+#ifdef MFEM_USE_GSLIB
+         adapt_surface = new InterpolatorFP;
+#else
+         MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+      }
+      else { MFEM_ABORT("Bad interpolation option."); }
+
+      he_nlf_integ->EnableSurfaceFitting(ls_0, marker, coef_ls, *adapt_surface);
+      if (visualization)
+      {
+         socketstream vis1, vis2, vis3;
+         common::VisualizeField(vis1, "localhost", 19916, ls_0, "Level Set 0",
+                                300, 600, 300, 300);
+         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                600, 600, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Dofs to Move",
+                                900, 600, 300, 300);
+      }
+   }
+
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -899,6 +967,18 @@ int main (int argc, char *argv[])
    // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetParGridFunctionEnergy(x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   double init_metric_energy = init_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   {
+      lim_coeff.constant = 0.0;
+      coef_zeta.constant = 0.0;
+      coef_ls.constant   = 0.0;
+      init_metric_energy = a.GetParGridFunctionEnergy(x) /
+                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
+      lim_coeff.constant = lim_const;
+      coef_zeta.constant = adapt_lim_const;
+      coef_ls.constant   = surface_fit_const;
+   }
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.
@@ -1059,28 +1139,31 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // 17. Compute the amount of energy decrease.
+   // Compute the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(x) /
                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
-   double metric_part = fin_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0)
+   double fin_metric_energy = fin_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
-      metric_part = a.GetParGridFunctionEnergy(x) /
-                    (hradaptivity ? pmesh->GetGlobalNE() : 1);
+      coef_ls.constant   = 0.0;
+      fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
+                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
+      coef_ls.constant   = surface_fit_const;
    }
    if (myid == 0)
    {
+      std::cout << std::scientific << std::setprecision(4);
       cout << "Initial strain energy: " << init_energy
-           << " = metrics: " << init_energy
-           << " + limiting term: " << 0.0 << endl;
+           << " = metrics: " << init_metric_energy
+           << " + extra terms: " << init_energy - init_metric_energy << endl;
       cout << "  Final strain energy: " << fin_energy
-           << " = metrics: " << metric_part
-           << " + limiting term: " << fin_energy - metric_part << endl;
-      cout << "The strain energy decreased by: " << setprecision(12)
+           << " = metrics: " << fin_metric_energy
+           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+      cout << "The strain energy decreased by: "
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
@@ -1096,6 +1179,25 @@ int main (int argc, char *argv[])
       socketstream vis0;
       common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
                              600, 600, 300, 300);
+   }
+
+   if (surface_fit_const > 0.0)
+   {
+      if (visualization)
+      {
+         socketstream vis2, vis3;
+         common::VisualizeField(vis2, "localhost", 19916, mat,
+                                "Materials", 600, 900, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, marker_gf,
+                                "Surface dof", 900, 900, 300, 300);
+      }
+      double err_avg, err_max;
+      he_nlf_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      if (myid == 0)
+      {
+         std::cout << "Avg fitting error: " << err_avg << std::endl
+                   << "Max fitting error: " << err_max << std::endl;
+      }
    }
 
    // 19. Visualize the mesh displacement.
@@ -1126,6 +1228,7 @@ int main (int argc, char *argv[])
    delete metric2;
    delete coeff1;
    delete adapt_evaluator;
+   delete adapt_surface;
    delete target_c;
    delete hr_adapt_coeff;
    delete adapt_coeff;
