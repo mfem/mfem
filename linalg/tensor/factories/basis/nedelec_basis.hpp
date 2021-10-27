@@ -257,6 +257,12 @@ struct get_open_basis_capacity_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
    static constexpr int value = OpenDofs * get_config_quads<Config>;
 };
 
+template <typename Config>
+struct get_open_basis_capacity_v<NedelecBasis<Dynamic,Dynamic,Config>>
+{
+   static constexpr int value = DynamicMaxSize*DynamicMaxSize;
+};
+
 template <typename Basis>
 constexpr int get_open_basis_capacity = get_open_basis_capacity_v<Basis>::value;
 
@@ -271,6 +277,12 @@ template <int OpenDofs, int CloseDofs, typename Config>
 struct get_close_basis_capacity_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
 {
    static constexpr int value = CloseDofs * get_config_quads<Config>;
+};
+
+template <typename Config>
+struct get_close_basis_capacity_v<NedelecBasis<Dynamic,Dynamic,Config>>
+{
+   static constexpr int value = DynamicMaxSize*DynamicMaxSize;
 };
 
 template <typename Basis>
