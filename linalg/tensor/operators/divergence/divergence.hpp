@@ -12,14 +12,13 @@
 #ifndef MFEM_TENSOR_DIV
 #define MFEM_TENSOR_DIV
 
-#include "../../tensor.hpp"
-#include "../../factories/basis/basis.hpp"
-#include "../contractions/contractions.hpp"
-#include "../concatenate.hpp"
+#include "div_tensor.hpp"
+#include "div_nedelec.hpp"
 
 namespace mfem
 {
 
+/*
 // 1D Non-Tensor
 template <typename Basis,
           typename Dofs,
@@ -129,6 +128,7 @@ auto Div(const Basis &basis, const Dofs &u)
    div += ContractZ(G, ContractY(B, ContractX(B,uz) ) );
    return div;
 }
+*/
 
 } // namespace mfem
 
