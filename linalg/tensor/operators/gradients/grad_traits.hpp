@@ -27,12 +27,14 @@ enum class GradAlgo {
    NA
 };
 
+// Default
 template <typename Basis, typename Dofs, typename Enable = void>
 struct get_grad_algo_v
 {
    static constexpr GradAlgo value = GradAlgo::NA;
 };
 
+// Non-tensor
 template <typename Basis, typename Dofs>
 struct get_grad_algo_v<Basis, Dofs,
    std::enable_if_t<
@@ -42,28 +44,40 @@ struct get_grad_algo_v<Basis, Dofs,
    static constexpr GradAlgo value = GradAlgo::NonTensor;
 };
 
+// Tensor
 template <typename Basis, typename Dofs>
 struct get_grad_algo_v<Basis, Dofs,
    std::enable_if_t<
       is_tensor_basis<Basis> &&
       !(get_basis_dim<Basis> == 3 &&
         get_tensor_rank<Dofs> == 3 &&
-      is_device)
+        is_device)
    > >
 {
    static constexpr GradAlgo value = GradAlgo::Tensor;
 };
 
+// Legacy
 template <typename Basis, typename Dofs>
 struct get_grad_algo_v<Basis, Dofs,
    std::enable_if_t<
       is_tensor_basis<Basis> &&
       (get_basis_dim<Basis> == 3 &&
-        get_tensor_rank<Dofs> == 3 &&
-      is_device)
+       get_tensor_rank<Dofs> == 3 &&
+       is_device)
    > >
 {
    static constexpr GradAlgo value = GradAlgo::Legacy;
+};
+
+// Nedelec
+template <typename Basis, typename Dofs>
+struct get_grad_algo_v<Basis, Dofs,
+   std::enable_if_t<
+      is_nedelec_basis<Basis>
+   > >
+{
+   static constexpr GradAlgo value = GradAlgo::Nedelec;
 };
 
 template <typename Basis, typename Dofs>
