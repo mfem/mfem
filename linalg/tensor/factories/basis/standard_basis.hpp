@@ -120,6 +120,7 @@ struct Trans: public Basis
    Trans(const Basis &basis): Basis(basis) { }
 };
 
+/// A structure to represent a gradient basis
 template <typename Basis>
 struct Grad: public Basis
 {
@@ -127,22 +128,36 @@ struct Grad: public Basis
    Grad(const Basis &basis): Basis(basis) { }
 };
 
-/// Functor to transpose a Basis
+/// A structure to represent the divergence operator of a basis
+template <typename Basis>
+struct Div: public Basis
+{
+   MFEM_HOST_DEVICE
+   Div(const Basis &basis): Basis(basis) { }
+};
+
+/// Factory to transpose a Basis
 template <typename Basis> MFEM_HOST_DEVICE inline
 auto transpose(const Basis &basis)
 {
    return Trans<Basis>(basis);
 }
 
-/// Functor to transpose a Basis gradient
-
+/// Factory to transpose a Basis gradient
 template <typename Basis> MFEM_HOST_DEVICE inline
 auto transpose(const Grad<Basis> &G)
 {
    return Trans<Grad<Basis>>(G);
 }
 
-/// Functor to represent a Basis gradient
+/// Factory to transpose a Basis divergence
+template <typename Basis> MFEM_HOST_DEVICE inline
+auto transpose(const Div<Basis> &div)
+{
+   return Trans<Div<Basis>>(div);
+}
+
+/// Factory to represent a Basis gradient
 template <typename Basis> MFEM_HOST_DEVICE inline
 auto grad(const Basis &basis)
 {
@@ -153,6 +168,19 @@ template <typename Basis> MFEM_HOST_DEVICE inline
 auto grad(const Trans<Basis> &Bt)
 {
    return Trans<Grad<Basis>>(grad(Bt));
+}
+
+/// Factory to represent a Basis divergence operator
+template <typename Basis> MFEM_HOST_DEVICE inline
+auto div(const Basis &basis)
+{
+   return Div<Basis>(basis);
+}
+
+template <typename Basis> MFEM_HOST_DEVICE inline
+auto div(const Trans<Basis> &Bt)
+{
+   return Trans<Div<Basis>>(Bt);
 }
 
 ////////////////
