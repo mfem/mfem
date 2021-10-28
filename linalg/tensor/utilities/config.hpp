@@ -128,7 +128,6 @@ template <typename ConfigSetter1 = DefaultKernelConfigArgs,
           typename ConfigSetter8 = DefaultKernelConfigArgs>
 struct KernelConfig
 {
-   const int dofs;
    const int quads;
 
    using configs = ConfigSelector<ConfigSetter1, ConfigSetter2, ConfigSetter3,
@@ -180,7 +179,7 @@ struct KernelConfig
    template <int BatchSize, int... Sizes>
    using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 
-   KernelConfig(int dofs, int quads) : dofs(dofs), quads(quads)
+   KernelConfig(int quads) : quads(quads)
    {
       // TODO check that if Dofs!= 0 then dofs==Dofs
       // TODO check that if Quads!= 0 then quads==Quads
@@ -188,9 +187,9 @@ struct KernelConfig
 };
 
 template <typename... ConfigSetters>
-auto MakeConfig(int dofs, int quads, ConfigSetters... args)
+auto MakeConfig(int quads, ConfigSetters... args)
 {
-   return KernelConfig<ConfigSetters...>(dofs, quads);
+   return KernelConfig<ConfigSetters...>(quads);
 }
 
 /// KernelConfig Traits

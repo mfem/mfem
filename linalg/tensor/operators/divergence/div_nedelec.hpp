@@ -65,8 +65,6 @@ auto operator*(const Div<Basis> &basis, const Dofs &u_e)
    constexpr int D_c = get_close_basis_dofs<Basis>;
    ResultTensor<Basis,D_c,D_o> u_x(u_e.x);
    ResultTensor<Basis,D_o,D_c> u_y(u_e.y);
-   constexpr int Dim = 2;
-   constexpr int VDim = 2;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
    ResultTensor<Basis,Q,Q> divu_q(Q_r,Q_r);
@@ -108,8 +106,6 @@ auto operator*(const Div<Basis> &basis, const Dofs &u_e)
    ResultTensor<Basis,D_c,D_o,D_o> u_x(u_e.x);
    ResultTensor<Basis,D_o,D_c,D_o> u_y(u_e.y);
    ResultTensor<Basis,D_o,D_o,D_c> u_z(u_e.z);
-   constexpr int Dim = 3;
-   constexpr int VDim = 3;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
    ResultTensor<Basis,Q,Q,Q> divu_q(Q_r,Q_r,Q_r);

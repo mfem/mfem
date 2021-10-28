@@ -49,18 +49,18 @@ public:
 
 /// Functor to represent degrees of freedom
 template <int Dofs, int VDim = 0, typename Config>
-auto MakeDoFs(Config &config, double *x, int ne)
+auto MakeDoFs(Config &config, int dofs, double *x, int ne)
 {
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
    using Layout = get_dof_layout<IsTensor,Dofs,Dim,VDim>;
    using DofTensor = Tensor<DeviceContainer<double>,Layout>;
    using Dof = DegreesOfFreedom<DofTensor>;
-   return InitDof<Dof,IsTensor,Dim,VDim>::make(x,config.dofs,ne);
+   return InitDof<Dof,IsTensor,Dim,VDim>::make(x,dofs,ne);
 }
 
 template <int Dofs, int VDim = 0, typename Config>
-auto MakeDoFs(Config &config, const double *x, int ne)
+auto MakeDoFs(Config &config, int dofs, const double *x, int ne)
 {
    constexpr int Dim = get_config_dim<Config>;
    constexpr bool IsTensor = is_tensor_config<Config>;
@@ -68,8 +68,12 @@ auto MakeDoFs(Config &config, const double *x, int ne)
    using DofTensor = Tensor<ReadContainer<double>,Layout>;
    using Dof = DegreesOfFreedom<DofTensor>;
    return InitDof<Dof,IsTensor,Dim,VDim>::
-      make(const_cast<double*>(x),config.dofs,ne);
+      make(const_cast<double*>(x),dofs,ne);
 }
+
+/// get_dofs_vdim
+template <typename Dofs>
+constexpr int get_dofs_vdim = get_tensor_rank<Dofs> - 1;
 
 } // mfem namespace
 

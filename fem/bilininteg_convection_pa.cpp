@@ -787,15 +787,15 @@ static void ApplyConvection(const int ne,
                             int dofs = Dofs,
                             int quads = Quads)
 {
-   config_dim_is<Dim> param1;
-   config_is_tensor<IsTensor> param2;
-   config_quads_is<Quads> param3;
-   auto config  = MakeConfig(dofs, quads, param1, param2, param3);
+   auto config  = MakeConfig(quads,
+                             config_dim_is<Dim>(),
+                             config_is_tensor<IsTensor>(),
+                             config_quads_is<Quads>());
    auto B       = MakeBasis<Dofs>(config, dofs, quads, b.Read(), bt.Read(),
                                   g.Read(), gt.Read());
-   const auto X = MakeDoFs<Dofs,VDim>(config, x.Read(), ne);
+   const auto X = MakeDoFs<Dofs,VDim>(config, dofs, x.Read(), ne);
    const auto D = MakeQData<1>(config, d.Read(), ne);
-   auto Y       = MakeDoFs<Dofs,VDim>(config, y.ReadWrite(), ne);
+   auto Y       = MakeDoFs<Dofs,VDim>(config, dofs, y.ReadWrite(), ne);
    MFEM_FORALL_CONFIG(config, e, ne,
    {
       Y(e) += transpose(B) * ( D(e) * ( grad(B) * X(e) ) );

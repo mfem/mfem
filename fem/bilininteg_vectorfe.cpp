@@ -182,12 +182,12 @@ void ApplyPAHdivMass(const int dofs,
                      const Vector &x,
                      Vector &y)
 {
-   config_dim_is<Dim> param1;
-   config_is_tensor<IsTensor> param2;
-   config_quads_is<Quads> param4;
    const int close_dofs = dofs;
    const int open_dofs = dofs-1;
-   auto config  = MakeConfig(dofs, quads, param1, param2, param4);
+   auto config  = MakeConfig(quads,
+                             config_dim_is<Dim>(),
+                             config_is_tensor<IsTensor>(),
+                             config_quads_is<Quads>());
    auto B       = MakeNedelecBasis<OpenDofs,CloseDofs>(
                      config, open_dofs, close_dofs, quads,
                      Bo.Read(), Bot.Read(), Bc.Read(), Bct.Read());

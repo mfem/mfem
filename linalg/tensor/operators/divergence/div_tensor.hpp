@@ -56,12 +56,10 @@ auto operator*(const Div<Basis> &basis, const Dofs &u_e)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
-   constexpr int D = get_basis_dofs<Basis>;
    constexpr int VDim = 2;
-   constexpr int CDim = 3; // FIXME? Generalize to VDim + CDim
+   // constexpr int CDim = 3; // FIXME? Generalize to VDim + CDim
    auto u_x = Get<VDim>(0, u_e);
    auto u_y = Get<VDim>(1, u_e);
-   constexpr int Dim = 2;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
    ResultTensor<Basis,Q,Q> divu_q(Q_r,Q_r);
@@ -93,13 +91,11 @@ auto operator*(const Div<Basis> &basis, const Dofs &u_e)
    MFEM_SHARED double s_G[basis_size];
    auto G = basis.GetG(s_G);
 
-   constexpr int D = get_basis_dofs<Basis>;
    constexpr int VDim = 3;
-   constexpr int CDim = 4; // FIXME? Generalize to VDim + CDim
+   // constexpr int CDim = 4; // FIXME? Generalize to VDim + CDim
    auto u_x = Get<VDim>(0, u_e);
    auto u_y = Get<VDim>(1, u_e);
    auto u_z = Get<VDim>(2, u_e);
-   constexpr int Dim = 3;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
    ResultTensor<Basis,Q,Q,Q> divu_q(Q_r,Q_r,Q_r);

@@ -1199,17 +1199,17 @@ static void ApplyMass(const int ne,
                       const int dofs = Dofs,
                       const int quads = Quads)
 {
-   config_dim_is<Dim> param1;
-   config_is_tensor<IsTensor> param2;
-   config_quads_is<Quads> param3;
    // config_static_device_tensor_is<
    // ThreadTensor<Dim>::template static_type
-   // > param5;
-   auto config  = MakeConfig(dofs, quads, param1, param2, param3);
+   // > static_tensor;
+   auto config  = MakeConfig(quads,
+                             config_dim_is<Dim>(),
+                             config_is_tensor<IsTensor>(),
+                             config_quads_is<Quads>());
    auto B       = MakeBasis<Dofs>(config, dofs, quads, b.Read(), bt.Read());
-   const auto X = MakeDoFs<Dofs,VDim>(config, x.Read(), ne);
+   const auto X = MakeDoFs<Dofs,VDim>(config, dofs, x.Read(), ne);
    const auto D = MakeQData<0>(config, d.Read(), ne);
-   auto Y       = MakeDoFs<Dofs,VDim>(config, y.ReadWrite(), ne);
+   auto Y       = MakeDoFs<Dofs,VDim>(config, dofs, y.ReadWrite(), ne);
    MFEM_FORALL_CONFIG(config, e, ne,
    {
       Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );
