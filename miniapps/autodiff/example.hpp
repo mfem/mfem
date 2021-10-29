@@ -21,14 +21,14 @@
 namespace mfem
 {
 
-///Example: Implementation of the energy and the residual
-/// for p-Laplacian problem. Both, the energy and the residual
-/// are evaluated at the integration points for PDE parameters
+///Example: Implementation of the residual evaluation
+/// for p-Laplacian problem. The residual is
+/// evaluated at the integration points for PDE parameters
 /// vparam and state fields (derivatives with respect to x,y,z
 /// and primal field) stored in vector uu.
 template<typename TDataType, typename TParamVector, typename TStateVector,
          int residual_size, int state_size, int param_size>
-class MyVFunctor
+class MyResidualFunctor
 {
 public:
    ///The operator returns the first derivative of the energy with respect
@@ -71,7 +71,7 @@ public:
 /// vectors.
 template<typename TDataType, typename TParamVector, typename TStateVector
          , int state_size, int param_size>
-class MyQFunctor
+class MyEnergyFunctor
 {
 public:
    ///Returns the energy of a  p-Laplacian for state field input
@@ -79,8 +79,8 @@ public:
    /// vparam.
    TDataType operator()(TParamVector &vparam, TStateVector &uu)
    {
-      MFEM_ASSERT(state_size==4,"MyQFunctor state_size should be equal to 4!");
-      MFEM_ASSERT(param_size==3,"MyQFunctor param_size should be equal to 3!");
+      MFEM_ASSERT(state_size==4,"MyEnergyFunctor state_size should be equal to 4!");
+      MFEM_ASSERT(param_size==3,"MyEnergyFunctor param_size should be equal to 3!");
       double pp = vparam[0];
       double ee = vparam[1];
       double ff = vparam[2];
@@ -101,9 +101,9 @@ public:
 /// The template parameter CQVectAutoDiff represents the
 /// automatically differentiated energy or residual
 /// implemented by the user.
-/// CQVectAutoDiff::QVectorFunc(Vector parameters, Vector state,Vector residual)
+/// CQVectAutoDiff::VectorFunc(Vector parameters, Vector state,Vector residual)
 ///  evaluates the residual at an integration point.
-/// CQVectAutoDiff::QJacobian(Vector parameters, Vector state, Matrix  hessian)
+/// CQVectAutoDiff::Jacobian(Vector parameters, Vector state, Matrix  hessian)
 /// evaluates the Hessian of the energy(the Jacobian of the residual).
 template<class CQVectAutoDiff>
 class pLaplaceAD : public NonlinearFormIntegrator
@@ -149,7 +149,7 @@ public:
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
-                                   const Vector &elfun) override
+                                   const Vector &elfun) 
    {
       double energy = 0.0;
       const int ndof = el.GetDof();
@@ -158,7 +158,6 @@ public:
       bool square = (ndim == spaceDim);
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
-
 
       Vector shapef(ndof);
       // derivatives in isoparametric coordinates
@@ -172,7 +171,7 @@ public:
       uu = 0.0;
 
       // Calculates the functional/energy at an integration point.
-      MyQFunctor<double,Vector,Vector,4,3> qfunc;
+      MyEnergyFunctor<double,Vector,Vector,4,3> qfunc;
 
       double w;
       double detJ;
@@ -225,7 +224,7 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
-                                      Vector &elvect) override
+                                      Vector &elvect) 
    {
 MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
@@ -285,7 +284,7 @@ MFEM_PERF_BEGIN("AssembleElementVector");
          // calculate uu
          B.MultTranspose(elfun, uu);
          // calculate derivative of the energy with respect to uu
-         rdf.QVectorFunc(vparam,uu,du);
+         rdf.VectorFunc(vparam,uu,du);
          B.Mult(du, lvec);
          elvect.Add(w, lvec);
       } // end integration loop
@@ -295,7 +294,7 @@ MFEM_PERF_END("AssembleElementVector");
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
                                     const Vector &elfun,
-                                    DenseMatrix &elmat) override
+                                    DenseMatrix &elmat) 
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -356,7 +355,7 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
          // calculate uu
          B.MultTranspose(elfun, uu);
          // calculate derivative of the energy with respect to uu
-         rdf.QJacobian(vparam,uu,duu);
+         rdf.Jacobian(vparam,uu,duu);
          Mult(B, duu, A);
          AddMult_a_ABt(w, A, B, elmat);
 
@@ -397,7 +396,7 @@ public:
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
-                                   const Vector &elfun) override
+                                   const Vector &elfun) 
    {
       double energy = 0.0;
       const int ndof = el.GetDof();
@@ -462,7 +461,7 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
-                                      Vector &elvect) override
+                                      Vector &elvect) 
    {
 
 MFEM_PERF_BEGIN("AssembleElementVector");
@@ -537,7 +536,7 @@ MFEM_PERF_END("AssembleElementVector");
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
                                     const Vector &elfun,
-                                    DenseMatrix &elmat) override
+                                    DenseMatrix &elmat) 
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -639,7 +638,7 @@ public:
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
-                                   const Vector &elfun) override
+                                   const Vector &elfun) 
    {
       double energy = 0.0;
       const int ndof = el.GetDof();
@@ -704,7 +703,7 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
-                                      Vector &elvect) override
+                                      Vector &elvect) 
    {
 MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
@@ -778,7 +777,7 @@ MFEM_PERF_END("AssembleElementVector");
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
                                     const Vector &elfun,
-                                    DenseMatrix &elmat) override
+                                    DenseMatrix &elmat) 
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -867,7 +866,7 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
       mfem::Vector bla(elfun);
       //calculate the gradient - only for a fixed ndof
       mfem::VectorFuncAutoDiff<sizeres,sizeres,3> fdr(resfun);
-      fdr.QJacobian(param, bla, elmat);
+      fdr.Jacobian(param, bla, elmat);
 MFEM_PERF_END("AssembleElementGrad");
    }
 

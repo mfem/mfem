@@ -87,22 +87,22 @@ int main(int argc, char *argv[])
 
     mfem::Vector rr1(4);
     mfem::DenseMatrix hh1(4,4);
-MFEM_PERF_BEGIN("QGrad");
-    adf.QGrad(param,state,rr0);
-MFEM_PERF_END("QGrad");
-MFEM_PERF_BEGIN("QHessian");
-    adf.QHessian(param, state, hh0);
-MFEM_PERF_END("QHessian");
+MFEM_PERF_BEGIN("Grad");
+    adf.Grad(param,state,rr0);
+MFEM_PERF_END("Grad");
+MFEM_PERF_BEGIN("Hessian");
+    adf.Hessian(param, state, hh0);
+MFEM_PERF_END("Hessian");
     // dump out the results
     std::cout<<"FunctionAutoDiff"<<std::endl;
-    std::cout<< adf.QEval(param,state)<<std::endl;
+    std::cout<< adf.Eval(param,state)<<std::endl;
     rr0.Print(std::cout);
     hh0.Print(std::cout);
 
     mfem::QVectorFuncAutoDiff<DiffusionResidual,4,4,2> rdf;
-MFEM_PERF_BEGIN("QJacobian");
-    rdf.QJacobian(param, state, hh1);
-MFEM_PERF_END("QJacobian");
+MFEM_PERF_BEGIN("Jacobian");
+    rdf.Jacobian(param, state, hh1);
+MFEM_PERF_END("Jacobian");
 
     std::cout<<"ResidualAutoDiff"<<std::endl;
     hh1.Print(std::cout);
@@ -120,9 +120,9 @@ MFEM_PERF_END("QJacobian");
     };
 
     mfem::VectorFuncAutoDiff<4,4,2> fdr(func);
-MFEM_PERF_BEGIN("QJacobianV");
-    fdr.QJacobian(param,state,hh1); //computes the gradient of func and stores the result in hh1
-MFEM_PERF_END("QJacobianV");
+MFEM_PERF_BEGIN("JacobianV");
+    fdr.Jacobian(param,state,hh1); //computes the gradient of func and stores the result in hh1
+MFEM_PERF_END("JacobianV");
     std::cout<<"LambdaAutoDiff"<<std::endl;
     hh1.Print(std::cout);
 
@@ -140,9 +140,9 @@ MFEM_PERF_END("QJacobianV");
     };
 
     mfem::VectorFuncAutoDiff<4,4,2> fdr01(func01);
-MFEM_PERF_BEGIN("QJacobian1");
-    fdr01.QJacobian(param,state,hh1);
-MFEM_PERF_END("QJacobian1");
+MFEM_PERF_BEGIN("Jacobian1");
+    fdr01.Jacobian(param,state,hh1);
+MFEM_PERF_END("Jacobian1");
     std::cout<<"LambdaAutoDiff 01"<<std::endl;
     hh1.Print(std::cout);
 

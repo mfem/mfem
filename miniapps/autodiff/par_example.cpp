@@ -204,24 +204,24 @@ private:
       {
          // The template integrator is based on automatic differentiation.
          // For ADJacobianIntegrator the residual (vector function) at an
-         // integration point is implemented as a functor by MyVFunctor.
+         // integration point is implemented as a functor by MyResidualFunctor.
          // The vector function has a return size of four(4), four state
-         // arguments, and three(3) parameters. MyVFunctor is a template
+         // arguments, and three(3) parameters. MyResidualFunctor is a template
          // argument to the actual template class performing the
          // differentiation - in this case, QVectorFuncAutoDiff.
          // The derivatives are used in the integration loop in the integrator pLaplaceAD.
-         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyVFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyResidualFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
       else if (integ==IntegratorType::ADHessianIntegrator)
       {
          // The main difference from the previous case is that the user has
          // to implement only a functional evaluation at an integration point.
-         // The implementation is in MyQFunctor, which takes four state
+         // The implementation is in MyEnergyFunctor, which takes four state
          // arguments and three parameters. The residual vector is the first
          // derivative of the energy/functional with respect to the state
          // variables, and the Hessian is the second derivative. Automatic
          // differentiation is used for evaluating both of them.
-         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyQFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyEnergyFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
 
       nlform->SetEssentialBC(ess_bdr);
