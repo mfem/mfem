@@ -13,6 +13,8 @@
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
+//               mpirun -np 4 ex22p -m ../data/inline-wedge.mesh -o 1
+//               mpirun -np 4 ex22p -m ../data/inline-pyramid.mesh -o 1
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Device sample runs:
@@ -213,7 +215,7 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;

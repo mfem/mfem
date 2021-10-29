@@ -40,7 +40,7 @@
 #include "../config/config.hpp"
 #include "../fem/nonlininteg.hpp"
 #include "../fem/fespace.hpp"
-#include "../fem/libceed/ceed.hpp"
+//#include "../fem/libceed/ceed.hpp"
 #include "../fem/fem.hpp"
 
 #include "../fem/restriction.hpp"
@@ -250,10 +250,8 @@ int main(int argc, char *argv[])
    }
    else if (eta > 0)
    {
-      /*
-      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      */
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
    }
    else
    {

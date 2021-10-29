@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,7 @@ protected:
    double coord[3];
 
 public:
-   Vertex() { }
+   Vertex() = default;
 
    // Trivial copy constructor and trivial copy assignment operator
 

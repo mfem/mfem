@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 errors = 0 
 base_str = "./ex14 -pa "
@@ -47,8 +48,12 @@ for bas in ['--lob']:#,'--pos']:
                                        case = " "+str(I)+" "+str(B)+" "+str(bas)+" -i "+str(init)       
                                        hp = " -r "+str(r)+" -o "+str(o)
                                        runstr = base_str+mesh+params+case+hp+" &> ex14out.log"
-                                       #print(runstr)
-                                       os.system(runstr)
+                                       output = subprocess.Popen(runstr, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True)
+                                       (out, err) = output.communicate()
+                                       if output.returncode > 0 :
+                                          print("segmentation fault")
+                                          print(runstr)
+                                          quit()
                                        with open('ex14out.log') as f:
                                           for line in f:
                                              if 'Timing pa' in line:
@@ -57,8 +62,8 @@ for bas in ['--lob']:#,'--pos']:
                                                 fulltime = get_data(line)
                                              if '||ydiff||' in line:
                                                 error = get_data(line)                                                
-                                             if 'Segmentation Fault' in line:
-                                                print("Segmentation Fault")
+                                             if 'segmentation fault' in line:
+                                                print("segmentation fault")
                                                 print(runstr)
                                                 quit()
                                              if 'Assertion failed' in line:

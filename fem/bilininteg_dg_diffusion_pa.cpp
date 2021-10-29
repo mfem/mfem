@@ -249,28 +249,39 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             {
                CalcOrtho(Trans.Jacobian(), nor);
             }
-
+            double nor2 = nor*nor;
             double h1 = detJ(p,f_ind)/Trans.Elem1->Jacobian().Det();
 
-            double nor_norm = nor.Norml2();
-            double nor_norm2 = nor_norm*nor_norm;
-
-            double h = detJ(p,f_ind)/nor_norm;
+            //double h = detJ(p,f_ind)/nor_norm;
 
 #ifdef MFEM_DEBUG
             std::cout << "% nor.Norml2() " <<  nor.Norml2() << std::endl;
             std::cout << "% nor_norm " <<  nor_norm  << std::endl;
-            std::cout << "% nor_norm2 " <<  nor_norm2  << std::endl;
+            std::cout << "% nor2 " <<  nor2  << std::endl;
             std::cout << "% h " <<  h << std::endl;
 #endif
 
             if (bdy_type_match)
             {
+/*
+               std::cout << "% f2ev( " << 0 << "," << f_ind << ") =  " << f2ev(0,f_ind)  << std::endl;
+               std::cout << "% detJ( " << p << "," << f_ind << ") =  " << detJ(p,f_ind)  << std::endl;
+               std::cout << "% Trans.Elem1->Weight() " <<  Trans.Elem1->Weight()  << std::endl;
+               std::cout << "% Trans.Elem1->Jacobian().Det() " <<  Trans.Elem1->Jacobian().Det()  << std::endl;
+               std::cout << "% ip.weight " <<  ip.weight  << std::endl;
 
-               double t2w = Trans.Elem1->Weight();
+               std::cout << "% facedetJ/detJ = "  << detJ(p,f_ind)/Trans.Elem1->Jacobian().Det()  << std::endl;
+*/
+               double t2w = 0.2377649511;//Trans.Elem1->Weight();
                double ipw = ip.weight;
-               w = ipw*detJ(p,f_ind);
-               wq = ipw/t2w*nor_norm2;
+               w = 0.25;//ipw*detJ(p,f_ind);
+               wq = ipw/t2w*nor2;
+
+               std::cout << 
+               " ipw " << ipw <<
+               " detJ(" << p << "," << f_ind << ") " << detJ(p,f_ind) << 
+               " w " <<  w  << 
+               std::endl;
 
                op1(p,0,0,f_ind) =  beta*w;///detJ(p,f_ind);
                op1(p,1,0,f_ind) = -beta*w;///detJ(p,f_ind);
@@ -292,8 +303,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                double t2w = Trans.Elem2->Weight();
                double ipw = ip.weight;
                w = ipw/2.0*detJ(p,f_ind);
-               wq = ipw/t2w/2.0*nor_norm2;
-
+               wq = ipw/t2w/2.0*nor2;
 
                op1(p,0,0,f_ind) =  beta*w;
                op1(p,1,0,f_ind) = -beta*w;
@@ -303,13 +313,15 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                op2(p,1,f_ind) =  sigma*w;
                op2(p,0,f_ind) = -sigma*w;
 
-               op3(p,0,f_ind) = -kappa*w*nor_norm2;
-               op3(p,1,f_ind) = kappa*w*nor_norm2;
+               op3(p,0,f_ind) = -kappa*w*nor2;
+               op3(p,1,f_ind) = kappa*w*nor2;
             }
          }
          f_ind++;
       }
    }
+
+   //exit(1);
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
@@ -390,6 +402,13 @@ void PADGDiffusionApply2D(const int NF,
                // x(...,0) is the solution restricted to the face
                Bu0[q][c] += b*x(d,c,0,f,0);
                Bu1[q][c] += b*x(d,c,1,f,0);
+               /*
+               if( fabs(Bu1[q][c]) > 0.0 )
+               {
+                  std::cout << "Bu1["<<q<<"]["<<c<<"] = " << Bu1[q][c] << std::endl;   
+                  exit(1);
+               }
+               */
                // x(...,1) is the derivative of the solution normal to the face
                BGu0[q][c] += b*x(d,c,0,f,1);
                BGu1[q][c] += b*x(d,c,1,f,1);
@@ -411,6 +430,13 @@ void PADGDiffusionApply2D(const int NF,
             const double jump_Gu = BGu1[q][c] - BGu0[q][c];
             D0[q][c] = op1(q,0,0,f)*jump_Gu + op3(q,0,f)*jump_u;
             D1[q][c] = op1(q,1,0,f)*jump_Gu + op3(q,1,f)*jump_u;
+/*
+            if( fabs(D1[q][c]) > 0.0 )
+            {
+               std::cout << "D1["<<q<<"]["<<c<<"] = " << D1[q][c] << std::endl;   
+               exit(1);
+            }
+*/
             D0jumpu[q][c] = op2(q,0,f)*jump_u;
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
@@ -496,6 +522,10 @@ void PADGDiffusionApply2D(const int NF,
       }
    });
 
+
+   std::cout << " PA y" << std::endl;
+   _y.Print(std::cout,1);
+   std::cout << " end PA y" << std::endl;
 
 #ifdef MFEM_DEBUG
    std::cout << " PA y" << std::endl;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -316,7 +316,7 @@ public:
 
    /// Set the desired print level, useful for debugging.
    /** The valid options are: -1 - never print (default); 0 - print only errors;
-       1 - print the first and last last iterations; 2 - print every iteration;
+       1 - print the first and last iterations; 2 - print every iteration;
        and 3 - print every iteration including point coordinates. */
    void SetPrintLevel(int pr_level) { print_level = pr_level; }
 
