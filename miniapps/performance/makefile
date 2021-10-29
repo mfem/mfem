@@ -112,8 +112,8 @@ MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 MFEM_PERF_CXXFLAGS_icc += -xHost
 
 
-SEQ_MINIAPPS = ex1
-PAR_MINIAPPS = ex1p
+SEQ_MINIAPPS = ex1 ex1_2d
+PAR_MINIAPPS = ex1p ex1p_2d
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -132,6 +132,10 @@ endif
 	$(if $(DETECT_PERF_CXXFLAGS_DONE),,$(eval $(DETECT_PERF_CXXFLAGS)))
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
+%_2d: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(if $(DETECT_PERF_CXXFLAGS_DONE),,$(eval $(DETECT_PERF_CXXFLAGS)))
+	$(MFEM_CXX) $(MFEM_FLAGS) -DMFEM_HPC_EX1_2D $< -o $@ $(MFEM_LIBS)
+
 all: $(MINIAPPS)
 
 MFEM_TESTS = MINIAPPS
@@ -141,7 +145,11 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
+ex1p_2d-test-par: ex1p_2d
+	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
 ex1-test-seq: ex1
+	@$(call mfem-test,$<,, Performance miniapp,-r 2)
+ex1_2d-test-seq: ex1_2d
 	@$(call mfem-test,$<,, Performance miniapp,-r 2)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
@@ -153,7 +161,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ ex1 ex1p
+	rm -f *.o *~ ex1 ex1_2d ex1p ex1p_2d
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

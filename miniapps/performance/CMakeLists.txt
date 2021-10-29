@@ -37,6 +37,9 @@ elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
   list(APPEND PERFORMANCE_CXX_OPTIONS "-xHost")
 endif()
 
+set(PERFORMANCE_2D_CXX_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
+list(APPEND PERFORMANCE_2D_CXX_OPTIONS "-DMFEM_HPC_EX1_2D")
+
 add_mfem_miniapp(performance_ex1
   MAIN ex1.cpp
   LIBRARIES mfem
@@ -44,6 +47,14 @@ add_mfem_miniapp(performance_ex1
 
 add_test(NAME performance_ex1_ser
   COMMAND performance_ex1 -no-vis -r 2)
+
+add_mfem_miniapp(performance_ex1_2d
+  MAIN ex1.cpp
+  LIBRARIES mfem
+  EXTRA_OPTIONS ${PERFORMANCE_2D_CXX_OPTIONS})
+
+add_test(NAME performance_ex1_2d_ser
+  COMMAND performance_ex1_2d -no-vis -r 2)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(performance_ex1p
@@ -54,5 +65,15 @@ if (MFEM_USE_MPI)
   add_test(NAME performance_ex1p_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis -rs 2
+    ${MPIEXEC_POSTFLAGS})
+
+  add_mfem_miniapp(performance_ex1p_2d
+    MAIN ex1p.cpp
+    LIBRARIES mfem
+    EXTRA_OPTIONS ${PERFORMANCE_2D_CXX_OPTIONS})
+
+  add_test(NAME performance_ex1p_2d_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p_2d> -no-vis -rs 2
     ${MPIEXEC_POSTFLAGS})
 endif()

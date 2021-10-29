@@ -244,7 +244,9 @@ miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 
 miniapps/performance/ex1
+miniapps/performance/ex1_2d
 miniapps/performance/ex1p
+miniapps/performance/ex1p_2d
 miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
