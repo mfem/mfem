@@ -478,23 +478,30 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MUMPS
    if (!pa && mumps_solver)
    {
+
+      Vector Y(X);
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       MUMPSSolver mumps;
       mumps.SetPrintLevel(0);
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
-      mumps.Mult(B,X);
+
+      mumps.Mult(B,Y);
       delete A;
-   }
-#endif
-#ifdef MFEM_USE_MUMPS
-   if (!pa && mumps_solver)
-   {
-      ComplexHypreParMatrix * A = Ah.As<ComplexHypreParMatrix>();
+
+      // complex mumps
+      ComplexHypreParMatrix * Ac = Ah.As<ComplexHypreParMatrix>();
       ComplexMUMPSSolver cmumps;
       cmumps.SetPrintLevel(0);
-      cmumps.SetOperator(*A);
+      cmumps.SetOperator(*Ac);
       cmumps.Mult(B,X);
+
+      Y-=X;
+      double diff = Y.Norml2();
+      if (myid == 0)
+      {
+         cout << "||X - Y|| = " << diff << endl;
+      }
    }
 #endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
