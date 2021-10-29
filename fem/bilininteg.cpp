@@ -3155,7 +3155,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 
       el1.CalcShape(eip1, shape1);
       el1.CalcDShape(eip1, dshape1);
-      w = Trans.Elem1->Weight();
+      w = ip.weight/Trans.Elem1->Weight();
       if (ndof2)
       {
          w /= 2;
