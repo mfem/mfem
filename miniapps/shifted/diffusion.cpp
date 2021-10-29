@@ -145,11 +145,11 @@ int main(int argc, char *argv[])
    if (myid == 0) { args.PrintOptions(cout); }
 
    // Use Dirichlet level set if no level sets are specified.
-   if (dirichlet_level_set_type == 0 || neumann_level_set_type == 0)
+   if (dirichlet_level_set_type <= 0 && neumann_level_set_type <= 0)
    {
       dirichlet_level_set_type = 1;
    }
-   MFEM_VERIFY((neumann_level_set_type >= 0 && ho_terms < 1) == false,
+   MFEM_VERIFY((neumann_level_set_type > 0 && ho_terms < 1) == false,
                "Shifted Neumann BC requires extra terms, i.e., -ho >= 1.");
 
    // Enable hardware devices such as GPUs, and programming models such as CUDA,
