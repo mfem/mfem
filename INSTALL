@@ -700,7 +700,7 @@ The specific libraries and their options are:
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
-  Versions: HIOP >= 0.4.
+  Versions: HIOP >= 0.4.6.
 
 - CoDiPack (optiobal), used with MFEM_USE_CODIPACK = YES
   URL: https://www.scicomp.uni-kl.de/codi/

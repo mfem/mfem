@@ -10,7 +10,12 @@
 
 Version 4.3.1 (development)
 ===========================
+- Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
+  formatting. See the "make style" target.
+
 - Added support for hr-adaptivity using TMOP-based error estimator.
+
+- Added 'double' atomicAdd implementation for previous versions of CUDA.
 
 - Adding lowest order Nedelec and Raviart-Thomas basis functions on wedge
   shaped elements.
@@ -30,6 +35,11 @@ Version 4.3.1 (development)
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh
   output format if no physical groups are defined) are now successfully loaded,
   and elements are reassigned attribute number 1.
+
+- Fixed several MinGW build issues on Windows.
+
+- Remove the 'u' flag in the ar command, to update all files in the archive,
+  avoiding file name collisions from different subdirectories.
 
 Version 4.3, released on July 29, 2021
 ======================================
