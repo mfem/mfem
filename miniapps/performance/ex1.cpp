@@ -13,6 +13,15 @@
 //               ex1 -m ../../data/ball-nurbs.mesh -std  -asm -pc ho  -sc
 //               ex1 -m ../../data/pipe-nurbs.mesh -perf -mf  -pc lor
 //               ex1 -m ../../data/pipe-nurbs.mesh -std  -asm -pc ho  -sc
+//               ex1_2d -m ../../data/star.mesh -perf -mf  -pc lor
+//               ex1_2d -m ../../data/star.mesh -perf -asm -pc ho
+//               ex1_2d -m ../../data/star.mesh -perf -asm -pc ho -sc
+//               ex1_2d -m ../../data/star.mesh -std  -asm -pc ho
+//               ex1_2d -m ../../data/star.mesh -std  -asm -pc ho -sc
+//               ex1_2d -m ../../data/amr-quad.mesh -perf -asm -pc ho -sc
+//               ex1_2d -m ../../data/amr-quad.mesh -std  -asm -pc ho -sc
+//               ex1_2d -m ../../data/disc-nurbs.mesh -perf -asm -pc ho  -sc
+//               ex1_2d -m ../../data/disc-nurbs.mesh -std  -asm -pc ho  -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -37,7 +46,12 @@ using namespace std;
 using namespace mfem;
 
 // Define template parameters for optimized build.
-const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
+// mesh elements: default to hex, unless MFEM_HPC_EX1_2D is defined
+#ifdef MFEM_HPC_EX1_2D
+const Geometry::Type geom     = Geometry::SQUARE;
+#else
+const Geometry::Type geom     = Geometry::CUBE;
+#endif
 const int            mesh_p   = 3;              // mesh curvature (default: 3)
 const int            sol_p    = 3;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
@@ -63,7 +77,11 @@ typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
+#ifdef MFEM_HPC_EX1_2D
+   const char *mesh_file = "../../data/star.mesh";
+#else
    const char *mesh_file = "../../data/fichera.mesh";
+#endif
    int ref_levels = -1;
    int order = sol_p;
    const char *basis_type = "G"; // Gauss-Lobatto
