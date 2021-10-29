@@ -75,7 +75,7 @@ void Mesh::GetElementCenter(int i, Vector &center)
 
 double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
-   DenseMatrix J(spaceDim,Dim);
+   DenseMatrix J(spaceDim, Dim);
 
    Geometry::Type geom = T->GetGeometryType();
    T->SetIntPoint(&Geometries.GetCenter(geom));
@@ -102,7 +102,7 @@ double Mesh::GetElementSize(int i, int type)
 
 double Mesh::GetElementSize(int i, const Vector &dir)
 {
-   DenseMatrix J(spaceDim,Dim);
+   DenseMatrix J(spaceDim, Dim);
    Vector d_hat(Dim);
    GetElementJacobian(i, J);
    J.MultTranspose(dir, d_hat);
