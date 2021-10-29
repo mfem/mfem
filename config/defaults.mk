@@ -153,6 +153,8 @@ MFEM_USE_ADIOS2        = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_BENCHMARK     = NO
+MFEM_USE_PARELAG       = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -436,6 +438,11 @@ CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
 CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
 
+# BENCHMARK library configuration
+BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
+BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
+BENCHMARK_LIB = -L$(BENCHMARK_DIR)/lib -lbenchmark -lpthread
+
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
 CEED_OPT = -I$(CEED_DIR)/include
@@ -465,6 +472,11 @@ MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# PARELAG library configuration
+PARELAG_DIR = @MFEM_DIR@/../parelag
+PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
+PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # If YES, enable some informational messages
 VERBOSE = NO
