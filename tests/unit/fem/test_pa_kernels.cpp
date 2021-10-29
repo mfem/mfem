@@ -366,7 +366,8 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
    FiniteElementCollection *fec;
    if (prob)
    {
-      fec = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      auto basis = prob==3 ? BasisType::Positive : BasisType::GaussLobatto;
+      fec = new L2_FECollection(order, dim, basis);
    }
    else
    {
@@ -386,7 +387,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
    Coefficient *rho;
 
    // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
-   if (prob == 2)
+   if (prob >= 2)
    {
       vel_gf.Randomize(1);
       vel_coeff = new VectorGridFunctionCoefficient(&vel_gf);
@@ -428,8 +429,8 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 // Basic unit test for convection
 TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
 {
-   // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
-   auto prob = GENERATE(0, 1, 2);
+   // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff, 3: Bernstein
+   auto prob = GENERATE(0, 1, 2, 3);
    auto order_2d = GENERATE(2, 3, 4);
    auto order_3d = GENERATE(2);
    // refinement > 0 => Non-conforming mesh
