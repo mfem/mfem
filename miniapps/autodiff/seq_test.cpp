@@ -21,9 +21,9 @@ public:
     {
         MFEM_ASSERT(state_size==4,"ExampleFunctor state_size should be equal to 4!");
         MFEM_ASSERT(param_size==2,"ExampleFunctor param_size should be equal to 2!");
-        auto kapa = vparam[0]; //diffusion coefficient
+        auto kappa = vparam[0]; //diffusion coefficient
         auto load = vparam[1]; //volumetric influx
-        TDataType rez = kapa*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])/2.0 - load*uu[3];
+        TDataType rez = kappa*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])/2.0 - load*uu[3];
         return rez;
     }
 
