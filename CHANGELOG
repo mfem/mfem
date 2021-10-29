@@ -64,6 +64,10 @@ Version 4.3.1 (development)
 - Remove the 'u' flag in the ar command, to update all files in the archive,
   avoiding file name collisions from different subdirectories.
 
+- Added initial TMOP-based capabilities for surface fitting and tangential
+  relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
+
+
 Version 4.3, released on July 29, 2021
 ======================================
 
