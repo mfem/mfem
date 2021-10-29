@@ -123,7 +123,7 @@ EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted mtop
+MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted mtop parelag
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys shifted)
@@ -274,7 +274,7 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER CODIPACK 
+ OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER PARELAG BENCHMARK CODIPACK 
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
@@ -341,7 +341,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
- MFEM_USE_CALIPER MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -409,7 +409,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/ceed fem/qinterp fem/tmop
+DIRS = general linalg linalg/simd mesh fem fem/fe fem/ceed fem/qinterp fem/tmop
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -681,6 +681,8 @@ status info:
 	$(info MFEM_USE_CODIPACK      = $(MFEM_USE_CODIPACK))
 	$(info MFEM_USE_ADFORWARD     = $(MFEM_USE_ADFORWARD))
 	$(info MFEM_USE_MKL_CPARDISO  = $(MFEM_USE_MKL_CPARDISO))
+	$(info MFEM_USE_BENCHMARK     = $(MFEM_USE_BENCHMARK))
+	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
