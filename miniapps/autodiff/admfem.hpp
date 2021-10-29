@@ -55,7 +55,7 @@ class VectorFuncAutoDiff
 public:
     /// F_ is user implemented function to be differentiated by VectorFuncAutoDiff.
     /// The signature of the function is:
-    /// F_(mfem::Vector& parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
+    /// F_(mfem::Vector& parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
     /// The parameters vector should have size param_size. The state_vector should have size
     /// state_size, and the result vector should have size vector_size. All size parameters are
     /// teplate parameters in VectorFuncAutoDiff.
@@ -66,7 +66,7 @@ public:
 
     /// Evaluates the Jacobian of the vector function F_ for a set of parameters (vparam) and
     /// state vector vstate. The Jacobian (jac) has dimensions [vector_size x state_size].
-    void QJacobian(mfem::Vector &vparam, mfem::Vector &vstate, mfem::DenseMatrix &jac)
+    void Jacobian(mfem::Vector &vparam, mfem::Vector &vstate, mfem::DenseMatrix &jac)
     {
 #ifdef MFEM_USE_ADFORWARD
         // use forward mode
@@ -144,7 +144,7 @@ class QVectorFuncAutoDiff
 public:
     /// Evaluates the vector function for given set of parameters and state
     /// values in vector uu. The result is returned in vector rr.
-    void QVectorFunc(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector& rr)
+    void VectorFunc(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector& rr)
     {
         rf(vparam,uu,rr);
     }
@@ -152,7 +152,7 @@ public:
     /// Returns the gradient of TFunctor(...) in the dense matrix jac.
     /// The dimensions of jac are vector_size x state_size, where state_size is the
     /// length of vector uu.
-    void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
 #ifdef MFEM_USE_ADFORWARD
         // use forward mode
@@ -241,21 +241,21 @@ public:
     /// Evaluates a function for arguments vparam and uu.
     /// The evaluation is based on the operator() in the
     /// user provided functor TFunctor.
-    double QEval(const mfem::Vector &vparam, mfem::Vector &uu)
+    double Eval(const mfem::Vector &vparam, mfem::Vector &uu)
     {
         return rf(vparam,uu);
     }
 
-    /// Provides the same functionality as QGrad.
-    void QVectorFunc(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector &rr)
+    /// Provides the same functionality as Grad.
+    void VectorFunc(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector &rr)
     {
-        QGrad(vparam,uu,rr);
+        Grad(vparam,uu,rr);
     }
 
     /// Returns the first derivative of TFunctor(...) with
     /// respect to the active arguments proved in vector uu.
     /// The length of rr is the same as for uu.
-    void QGrad(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector &rr)
+    void Grad(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector &rr)
     {
 
 #ifdef MFEM_USE_ADFORWARD
@@ -306,10 +306,10 @@ public:
 #endif
     }
 
-    /// Provides same functionality as QHessian.
-    void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    /// Provides same functionality as Hessian.
+    void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
-        QHessian(vparam,uu,jac);
+        Hessian(vparam,uu,jac);
     }
 
 #ifdef MFEM_USE_ADFORWARD
@@ -336,7 +336,7 @@ public:
     /// Returns the Hessian of TFunctor(...) in the dense matrix jac.
     /// The dimensions of jac are state_size x state_size, where state_size is the
     /// length of vector uu.
-    void QHessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    void Hessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
 #ifdef MFEM_USE_ADFORWARD
         // use forward-forward mode
@@ -462,7 +462,7 @@ public:
 
     /// Evaluates the Jacobian of the vector function F_ for a set of parameters (vparam) and
     /// state vector uu. The Jacobian (jac) has dimensions [vector_size x state_size].
-    void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
@@ -503,8 +503,8 @@ private:
 /// passed to QVectorFuncAutoDiff. \n
 /// Example: f={sin(a*x*y), cos(b*x*y*z), x*x+y*x} \n
 /// The vector function has vector_size=3, and state_size=3, i.e., it has 
-/// three arguments [x,y,z]. The parameters are [a,b] and the vector has 
-/// size 2.  The functor class will have the following form 
+/// three arguments [x,y,z]. The parameters [a,b] size is 2. 
+/// The functor class will have the following form 
 /// \code{.cpp}
 /// template<typename TDataType, typename TParamVector, typename TStateVector,
 ///         int residual_size, int state_size, int param_size>
@@ -537,7 +537,7 @@ public:
     /// Returns a vector valued function rr for supplied passive arguments
     /// vparam and active arguments uu. The evaluation is based on the
     /// user supplied TFunctor template class.
-    void QVectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
+    void VectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
     {
        func(vparam, uu, rr);
     }
@@ -545,7 +545,7 @@ public:
     /// Returns the gradient of TFunctor(...) residual in the dense matrix jac.
     /// The dimensions of jac are vector_size x state_size, where state_size is the
     /// length of vector uu.
-    void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
         //use native AD package
         jac.SetSize(vector_size, state_size);
@@ -557,7 +557,7 @@ public:
            for (int ii = 0; ii < state_size; ii++)
            {
               aduu[ii].dual(1.0);
-              QEval(vparam, aduu, rr);
+              Eval(vparam, aduu, rr);
               for (int jj = 0; jj < vector_size; jj++)
               {
                  jac(jj, ii) = rr[jj].dual();
@@ -570,7 +570,7 @@ public:
 private:
     /// Evaluates the residual from TFunctor(...).
     /// Intended for internal use only.
-    void QEval(const Vector &vparam, ADFVector &uu, ADFVector &rr)
+    void Eval(const Vector &vparam, ADFVector &uu, ADFVector &rr)
     {
        tf(vparam, uu, rr);
     }
@@ -596,24 +596,24 @@ private:
 /// [Vector type for the state vector and the return residual].
 /// The integer template parameters are the same ones passed
 /// to QFunctionAutoDiff.
-/// The class duplicates QGrad and QHessian, i.e., QVectorFunc
-/// calls QGrad, and QJacobian calls QHessian. The main reason
+/// The class duplicates Grad and Hessian, i.e., VectorFunc
+/// calls Grad, and Jacobian calls Hessian. The main reason
 /// is to provide the same interface as the QVectorFuncAutoDiff
 /// class used to differentiate vector functions. Such
 /// compatibility allows users to start implementation of their
 /// problem based only on some energy or a weak form. The
-/// gradients, computed with QGrad/QVectorFunc, of the function
+/// gradients, computed with Grad/VectorFunc, of the function
 ///  will contribute to the FE residual. Computed with
-/// QHessian/QJacobian, the Hessian will contribute to the
+/// Hessian/Jacobian, the Hessian will contribute to the
 /// tangent matrix in Newton's iterations. Once the implementation
 ///  is complete and tested, the users can start improving the
-/// performance by replacing QGrad/QVectorFunc with a hand-coded
+/// performance by replacing Grad/VectorFunc with a hand-coded
 /// version. The gradient is a vector function and can be
 /// differentiated with the functionality implemented in
 /// QVectorFuncAutoDiff. Thus, the user can directly employ
 /// AD for computing the contributions to the global tangent
 /// matrix. The main code will not require changes as the
-/// names QGrad/QVectorFunc and QHessian/QJacobian are mirrored.
+/// names Grad/VectorFunc and Hessian/Jacobian are mirrored.
 template<template<typename, typename, typename, int, int> class TFunctor
          , int state_size=1, int param_size=0>
 class QFunctionAutoDiff
@@ -636,21 +636,21 @@ public:
     /// Evaluates a function for arguments vparam and uu.
     /// The evaluatin is based on the operator() in the
     /// user provided functor TFunctor.
-    double QEval(const Vector &vparam, Vector &uu)
+    double Eval(const Vector &vparam, Vector &uu)
     {
         return tf(vparam,uu);
     }
 
-    /// Provides the same functionality as QGrad.
-    void QVectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
+    /// Provides the same functionality as Grad.
+    void VectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
     {
-        QGrad(vparam,uu,rr);
+        Grad(vparam,uu,rr);
     }
 
     /// Returns the first derivative of TFunctor(...) with
     /// respect to the active arguments proved in vector uu.
     /// The length of rr is the same as for uu.
-    void QGrad(const Vector &vparam, Vector &uu, Vector &rr)
+    void Grad(const Vector &vparam, Vector &uu, Vector &rr)
     {
         int n = uu.Size();
         rr.SetSize(n);
@@ -665,16 +665,16 @@ public:
         }
     }
 
-    /// Provides same functionality as QHessian.
-    void QJacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    /// Provides same functionality as Hessian.
+    void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
-        QHessian(vparam,uu,jac);
+        Hessian(vparam,uu,jac);
     }
 
     /// Returns the Hessian of TFunctor(...) in the dense matrix jac.
     /// The dimensions of jac are state_size x state_size, where state_size is the
     /// length of vector uu.
-    void QHessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+    void Hessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
         int n = uu.Size();
         jac.SetSize(n);
