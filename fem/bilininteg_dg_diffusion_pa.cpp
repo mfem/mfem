@@ -252,8 +252,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             double nor2 = nor*nor;
             double h1 = detJ(p,f_ind)/Trans.Elem1->Jacobian().Det();
 
-            //double h = detJ(p,f_ind)/nor_norm;
-
 #ifdef MFEM_DEBUG
             std::cout << "% nor.Norml2() " <<  nor.Norml2() << std::endl;
             std::cout << "% nor_norm " <<  nor_norm  << std::endl;
@@ -272,9 +270,9 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
 
                std::cout << "% facedetJ/detJ = "  << detJ(p,f_ind)/Trans.Elem1->Jacobian().Det()  << std::endl;
 */
-               double t2w = 0.2377649511;//Trans.Elem1->Weight();
+               double t2w = Trans.Elem1->Weight();
                double ipw = ip.weight;
-               w = 0.25;//ipw*detJ(p,f_ind);
+               w = ipw*detJ(p,f_ind);
                wq = ipw/t2w*nor2;
 
                std::cout << 
@@ -320,8 +318,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
          f_ind++;
       }
    }
-
-   //exit(1);
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
