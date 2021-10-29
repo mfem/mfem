@@ -1632,110 +1632,142 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    Vector shape(face_dofs);
    IntegrationPoint f_ip;
 
-   switch (trace_fe->GetGeomType())
+   IsoparametricTransformation isotr;
+   isotr.SetIdentityTransformation(trace_fe->GetGeomType());
+   isotr.SetPointMat(*ptMat);
+   // trace_fe->GetLocalInterpolation(isotr, *interpolator);
+   DenseMatrix native_interpolator(face_dofs,face_dofs);
+   trace_fe->GetLocalInterpolation(isotr, native_interpolator);
+   const int dim = fes.GetMesh()->SpaceDimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int orientation = face.elem_2_orientation;
+   for (int i = 0; i < face_dofs; i++)
    {
-      case Geometry::SQUARE:
+      const int ni = (dof_map.Size()==0) ? i : dof_map[i];
+      int li = ToLexOrdering(dim, master_face_id, dof1d, i);
+      if ( !face.IsSharedNonConformingSlave() )
       {
-         MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
-         MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
-         // Reference coordinates (xi, eta) in [0,1]^2
-         // Fine face coordinates (x, y)
-         // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
-         // y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
-         double a0, a1, a2, a3, b0, b1, b2, b3;
-         a0 = (*ptMat)(0,0);
-         a1 = (*ptMat)(0,1);
-         a2 = (*ptMat)(0,2);
-         a3 = (*ptMat)(0,3);
-
-         b0 = (*ptMat)(1,0);
-         b1 = (*ptMat)(1,1);
-         b2 = (*ptMat)(1,2);
-         b3 = (*ptMat)(1,3);
-         const IntegrationRule & nodes = trace_fe->GetNodes();
-         const int dof1d = fes.GetFE(0)->GetOrder()+1;
-         const int dim = fes.GetMesh()->SpaceDimension();
-         const int orientation = face.elem_2_orientation;
-         for (int i = 0; i < face_dofs; i++)
-         {
-            const int ni = (dof_map.Size()==0) ? i : dof_map[i];
-            const IntegrationPoint &ip = nodes[ni];
-            double xi = ip.x, eta = ip.y;
-            f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
-            f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
-            trace_fe->CalcShape(f_ip, shape);
-            int li = ToLexOrdering(dim, master_face_id, dof1d, i);
-            if ( !face.IsSharedNonConformingSlave() )
-            {
-               // master side is elem 2, so we permute to order dofs as elem 1.
-               li = PermuteFaceL2(dim, face_id2, face_id1,
-                                  orientation, dof1d, li);
-            }
-            for (int j = 0; j < face_dofs; j++)
-            {
-               int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
-               if ( !face.IsSharedNonConformingSlave() )
-               {
-                  // master side is elem 2, so we permute to order dofs as elem 1.
-                  lj = PermuteFaceL2(dim, face_id2, face_id1,
-                                     orientation, dof1d, lj);
-               }
-               const int nj = (dof_map.Size()==0) ? j : dof_map[j];
-               (*interpolator)(li,lj) = shape(nj);
-            }
-         }
+         // master side is elem 2, so we permute to order dofs as elem 1.
+         li = PermuteFaceL2(dim, face_id2, face_id1,
+                            orientation, dof1d, li);
       }
-      break;
-      case Geometry::SEGMENT:
+      for (int j = 0; j < face_dofs; j++)
       {
-         const int orientation = face.elem_2_orientation;
-         MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
-         MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
-         double x_min, x_max;
-         // PointMatrix needs to be flipped
+         int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
          if ( !face.IsSharedNonConformingSlave() )
          {
-            x_min = (*ptMat)(0,1);
-            x_max = (*ptMat)(0,0);
+            // master side is elem 2, so we permute to order dofs as elem 1.
+            lj = PermuteFaceL2(dim, face_id2, face_id1,
+                               orientation, dof1d, lj);
          }
-         else
-         {
-            x_min = (*ptMat)(0,0);
-            x_max = (*ptMat)(0,1);
-         }
-         const IntegrationRule & nodes = trace_fe->GetNodes();
-         const int dof1d = fes.GetFE(0)->GetOrder()+1;
-         const int dim = fes.GetMesh()->SpaceDimension();
-         for (int i = 0; i < face_dofs; i++)
-         {
-            const int ni = (dof_map.Size()==0) ? i : dof_map[i];
-            const IntegrationPoint &ip = nodes[ni];
-            f_ip.x = x_min + (x_max - x_min) * ip.x;
-            trace_fe->CalcShape(f_ip, shape);
-            int li = ToLexOrdering(dim, master_face_id, dof1d, i);
-            if ( !face.IsSharedNonConformingSlave() )
-            {
-               // master side is elem 2, so we permute to order dofs as elem 1.
-               li = PermuteFaceL2(dim, face_id2, face_id1,
-                                  orientation, dof1d, li);
-            }
-            for (int j = 0; j < face_dofs; j++)
-            {
-               int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
-               if ( !face.IsSharedNonConformingSlave() )
-               {
-                  // master side is elem 2, so we permute to order dofs as elem 1.
-                  lj = PermuteFaceL2(dim, face_id2, face_id1,
-                                     orientation, dof1d, lj);
-               }
-               const int nj = (dof_map.Size()==0) ? j : dof_map[j];
-               (*interpolator)(li,lj) = shape(nj);
-            }
-         }
+         const int nj = (dof_map.Size()==0) ? j : dof_map[j];
+         (*interpolator)(li,lj) = native_interpolator(ni,nj);
       }
-      break;
-      default: MFEM_ABORT("unsupported geometry");
    }
+   // switch (trace_fe->GetGeomType())
+   // {
+   //    case Geometry::SQUARE:
+   //    {
+   //       MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
+   //       MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
+   //       // Reference coordinates (xi, eta) in [0,1]^2
+   //       // Fine face coordinates (x, y)
+   //       // x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+   //       // y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
+   //       double a0, a1, a2, a3, b0, b1, b2, b3;
+   //       a0 = (*ptMat)(0,0);
+   //       a1 = (*ptMat)(0,1);
+   //       a2 = (*ptMat)(0,2);
+   //       a3 = (*ptMat)(0,3);
+
+   //       b0 = (*ptMat)(1,0);
+   //       b1 = (*ptMat)(1,1);
+   //       b2 = (*ptMat)(1,2);
+   //       b3 = (*ptMat)(1,3);
+   //       const IntegrationRule & nodes = trace_fe->GetNodes();
+   //       const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   //       const int dim = fes.GetMesh()->SpaceDimension();
+   //       const int orientation = face.elem_2_orientation;
+   //       for (int i = 0; i < face_dofs; i++)
+   //       {
+   //          const int ni = (dof_map.Size()==0) ? i : dof_map[i];
+   //          const IntegrationPoint &ip = nodes[ni];
+   //          double xi = ip.x, eta = ip.y;
+   //          f_ip.x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta;
+   //          f_ip.y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta;
+   //          trace_fe->CalcShape(f_ip, shape);
+   //          int li = ToLexOrdering(dim, master_face_id, dof1d, i);
+   //          if ( !face.IsSharedNonConformingSlave() )
+   //          {
+   //             // master side is elem 2, so we permute to order dofs as elem 1.
+   //             li = PermuteFaceL2(dim, face_id2, face_id1,
+   //                                orientation, dof1d, li);
+   //          }
+   //          for (int j = 0; j < face_dofs; j++)
+   //          {
+   //             int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
+   //             if ( !face.IsSharedNonConformingSlave() )
+   //             {
+   //                // master side is elem 2, so we permute to order dofs as elem 1.
+   //                lj = PermuteFaceL2(dim, face_id2, face_id1,
+   //                                   orientation, dof1d, lj);
+   //             }
+   //             const int nj = (dof_map.Size()==0) ? j : dof_map[j];
+   //             (*interpolator)(li,lj) = shape(nj);
+   //          }
+   //       }
+   //    }
+   //    break;
+   //    case Geometry::SEGMENT:
+   //    {
+   //       const int orientation = face.elem_2_orientation;
+   //       MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
+   //       MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
+   //       double x_min, x_max;
+   //       // PointMatrix needs to be flipped
+   //       if ( !face.IsSharedNonConformingSlave() )
+   //       {
+   //          x_min = (*ptMat)(0,1);
+   //          x_max = (*ptMat)(0,0);
+   //       }
+   //       else
+   //       {
+   //          x_min = (*ptMat)(0,0);
+   //          x_max = (*ptMat)(0,1);
+   //       }
+   //       const IntegrationRule & nodes = trace_fe->GetNodes();
+   //       const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   //       const int dim = fes.GetMesh()->SpaceDimension();
+   //       for (int i = 0; i < face_dofs; i++)
+   //       {
+   //          const int ni = (dof_map.Size()==0) ? i : dof_map[i];
+   //          const IntegrationPoint &ip = nodes[ni];
+   //          f_ip.x = x_min + (x_max - x_min) * ip.x;
+   //          trace_fe->CalcShape(f_ip, shape);
+   //          int li = ToLexOrdering(dim, master_face_id, dof1d, i);
+   //          if ( !face.IsSharedNonConformingSlave() )
+   //          {
+   //             // master side is elem 2, so we permute to order dofs as elem 1.
+   //             li = PermuteFaceL2(dim, face_id2, face_id1,
+   //                                orientation, dof1d, li);
+   //          }
+   //          for (int j = 0; j < face_dofs; j++)
+   //          {
+   //             int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
+   //             if ( !face.IsSharedNonConformingSlave() )
+   //             {
+   //                // master side is elem 2, so we permute to order dofs as elem 1.
+   //                lj = PermuteFaceL2(dim, face_id2, face_id1,
+   //                                   orientation, dof1d, lj);
+   //             }
+   //             const int nj = (dof_map.Size()==0) ? j : dof_map[j];
+   //             (*interpolator)(li,lj) = shape(nj);
+   //          }
+   //       }
+   //    }
+   //    break;
+   //    default: MFEM_ABORT("unsupported geometry");
+   // }
    return interpolator;
 }
 
