@@ -1635,6 +1635,14 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    IsoparametricTransformation isotr;
    isotr.SetIdentityTransformation(trace_fe->GetGeomType());
    isotr.SetPointMat(*ptMat);
+   DenseMatrix& trans_pt_mat = isotr.GetPointMat();
+   trans_pt_mat = (*ptMat);
+   // PointMatrix needs to be flipped in 2D
+   if ( trace_fe->GetGeomType()==Geometry::SEGMENT &&
+        !face.IsSharedNonConformingSlave() )
+   {
+      std::swap(trans_pt_mat(0,0),trans_pt_mat(0,1));
+   }
    // trace_fe->GetLocalInterpolation(isotr, *interpolator);
    DenseMatrix native_interpolator(face_dofs,face_dofs);
    trace_fe->GetLocalInterpolation(isotr, native_interpolator);
