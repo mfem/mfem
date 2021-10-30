@@ -23,7 +23,7 @@ void BlockBilinearFormIntegrator::AssembleElementMatrix(
                "   is not implemented for this class.");
 }
 
-void BlockLinearFormIntegrator::AssembleElementVector(
+void BlockLinearFormIntegrator::AssembleRHSElementVect(
    const Array<const FiniteElement *> &el,
    ElementTransformation &Trans,
    Vector &elvect)
@@ -53,7 +53,7 @@ void TestBlockBilinearFormIntegrator::AssembleElementMatrix
 }
 
 /** Given a particular Finite Element computes the element vector */
-void TestBlockLinearFormIntegrator::AssembleElementVector
+void TestBlockLinearFormIntegrator::AssembleRHSElementVect
 (const Array<const FiniteElement *> &el,
  ElementTransformation &Trans,
  Vector &elvector)

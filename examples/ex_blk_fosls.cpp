@@ -51,10 +51,10 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace2(&mesh, fec2);
    FiniteElementSpace fespace3(&mesh, fec3);
 
-   Array<FiniteElementSpace *> fespaces(3);
+   Array<FiniteElementSpace *> fespaces(2);
    fespaces[0] = &fespace0;
    fespaces[1] = &fespace1;
-   fespaces[2] = &fespace2;
+   // fespaces[2] = &fespace2;
    // fespaces[3] = &fespace3;
 
    BlockBilinearForm a(fespaces);
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
 
    cout << "H1 fespace 0 = " << fespace0.GetVSize() << endl;
    cout << "ND fespace 1 = " << fespace1.GetVSize() << endl;
-   cout << "RT fespace 2 = " << fespace2.GetVSize() << endl;
+   // cout << "RT fespace 2 = " << fespace2.GetVSize() << endl;
    // cout << "L2 fespace 3 = " << fespace3.GetVSize() << endl;
    // cout << "Total dofs   = " << fespace0.GetVSize() + fespace1.GetVSize()
    //      + fespace2.GetVSize() + fespace3.GetVSize()
@@ -77,18 +77,59 @@ int main(int argc, char *argv[])
    // TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator();
    TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator(
       one);
+
    // TestBlockLinearFormIntegrator * integ = new TestBlockLinearFormIntegrator(one);
    a.AddDomainIntegrator(integ);
    a.Assemble();
    a.Finalize();
 
+
+   BlockLinearForm b(fespaces);
+
+   TestBlockLinearFormIntegrator * lfi = new TestBlockLinearFormIntegrator(one);
+
+   b.AddDomainIntegrator(lfi);
+   cout << "b size = " << b.Size() << endl;
+   b.Assemble();
+
+
    OperatorPtr A;
    Array<int> ess_tdofs;
    ess_tdofs.Append(2);
    ess_tdofs.Append(6);
+   ess_tdofs.Append(12);
+   ess_tdofs.Append(55);
    // ess_tdofs[1] = 89;
    // ess_tdofs[2] = 150;
    a.FormSystemMatrix(ess_tdofs,A);
+
+   // need to implement blkgridfunction later but for now Vector would do
+
+   int size = 0;
+
+   for (int i = 0; i<fespaces.Size(); i++)
+   {
+      size += fespaces[i]->GetVSize();
+   }
+
+   Vector x(size);
+
+   x = 10.;
+
+   // Vector b(size);
+
+   // b = 1.0;
+
+   Vector X,B;
+
+   a.FormLinearSystem(ess_tdofs,x,b,A,X,B);
+
+   x.Print();
+
+   cout << endl;
+
+   b.Print();
+
 
    // ((SparseMatrix&)(*A)).Threshold(0.);
    // ((SparseMatrix&)(*A)).SortColumnIndices();

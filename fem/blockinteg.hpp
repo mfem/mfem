@@ -51,9 +51,9 @@ protected:
 
 public:
    /// Given a particular Finite Element computes the element matrix elmat.
-   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
-                                      ElementTransformation &Trans,
-                                      Vector &elvect);
+   virtual void AssembleRHSElementVect(const Array<const FiniteElement *> &el,
+                                       ElementTransformation &Trans,
+                                       Vector &elvect);
 
    virtual ~BlockLinearFormIntegrator() { }
 };
@@ -110,9 +110,9 @@ public:
       : BlockLinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
 
    /** Given a particular Finite Element computes the element vector */
-   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
-                                      ElementTransformation &Trans,
-                                      Vector &elvector);
+   virtual void AssembleRHSElementVect(const Array<const FiniteElement *> &el,
+                                       ElementTransformation &Trans,
+                                       Vector &elvector);
 
 };
 
