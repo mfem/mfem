@@ -188,14 +188,18 @@ static void InitTensorBasis(const mfem::FiniteElementSpace &fes,
    const int ndofs = maps.ndof;
    const int nqpts = maps.nqpt;
    mfem::Vector qX(nqpts), qW(nqpts);
-   const mfem::IntegrationRule &ir1d =
-      IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
+   // The x-coordinates of the first `nqpts` points of the integration rule are
+   // the points of the corresponding 1D rule. We also scale the weights
+   // accordingly.
+   double w_sum = 0.0;
    for (int i = 0; i < nqpts; i++)
    {
-      const mfem::IntegrationPoint &ip = ir1d.IntPoint(i);
+      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
       qX(i) = ip.x;
       qW(i) = ip.weight;
+      w_sum += ip.weight;
    }
+   qW *= 1.0/w_sum;
    CeedBasisCreateTensorH1(ceed, mesh->Dimension(), fes.GetVDim(), ndofs,
                            nqpts, maps.Bt.GetData(),
                            maps.Gt.GetData(), qX.GetData(),
