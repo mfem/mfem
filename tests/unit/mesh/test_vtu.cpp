@@ -41,3 +41,24 @@ TEST_CASE("VTU XML Reader", "[Mesh][VTU][XML]")
       REQUIRE(mesh.GetNumGeometries(2) == 1);
    }
 }
+
+TEST_CASE("VTU XML Compressed Blocks", "[VTU][XML][MFEMData]")
+{
+#ifdef MFEM_USE_ZLIB
+   // VTU meshes with binary compression require zlib enabled
+   auto filename = GENERATE(
+                      "bracket_appended_compressed.vtu",
+                      "bracket_appended_encoded_compressed.vtu",
+                      "bracket_inline_compressed.vtu"
+                   );
+
+   std::string mesh_path = mfem_data_dir + "/vtk/" + filename;
+   Mesh mesh = Mesh::LoadFromFile(mesh_path.c_str());
+
+   REQUIRE(mesh.Dimension() == 3);
+   REQUIRE(mesh.GetNE() == 206208);
+   REQUIRE(mesh.GetNV() == 50000);
+   REQUIRE(mesh.HasGeometry(Geometry::TETRAHEDRON));
+   REQUIRE(mesh.GetNumGeometries(3) == 1);
+#endif
+}

@@ -92,7 +92,7 @@ class PMLDiagMatrixCoefficient : public VectorCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   void (*Function)(const Vector &, CartesianPML * , Vector &);
+   void (*Function)(const Vector &, CartesianPML *, Vector &);
 public:
    PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
                                               Vector &),
@@ -315,9 +315,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-
-   // 7a. Reorient mesh in case of a tet mesh
-   pmesh->ReorientTetMesh();
 
    // 8. Set element attributes in order to distinguish elements in the PML
    pml->SetAttributes(pmesh);
