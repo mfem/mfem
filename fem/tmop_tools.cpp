@@ -407,6 +407,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    {
       // Needed for the line search below. The untangling metrics see this
       // reference to detect deteriorations.
+      MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
+                  " intermediate mesh is invalid. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
@@ -576,7 +578,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *pfesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
@@ -586,7 +588,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *pfesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
@@ -613,7 +615,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
@@ -623,7 +625,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *fesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
