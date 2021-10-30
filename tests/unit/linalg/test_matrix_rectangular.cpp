@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,8 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
    SECTION("MixedBilinearForm::FormRectangularSystemMatrix")
    {
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
       int order = 4;
 
@@ -95,7 +96,8 @@ TEST_CASE("ParallelFormRectangular",
 {
    SECTION("ParMixedBilinearForm::FormRectangularSystemMatrix")
    {
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
       int order = 4;
 
@@ -151,6 +153,9 @@ TEST_CASE("ParallelFormRectangular",
 
       subtract(B, *field2_tdof, *field2_tdof);
       REQUIRE(field2_tdof->Norml2() == MFEM_Approx(0.0));
+
+      delete field2_tdof;
+      delete field_tdof;
    }
 }
 
@@ -162,7 +167,8 @@ TEST_CASE("HypreParMatrixBlocks",
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
       int order = 2;
 
@@ -256,6 +262,12 @@ TEST_CASE("HypreParMatrixBlocks",
       REQUIRE(error < 1.e-12);
 
       delete H;
+      delete BT;
+      delete B;
+      delete MW;
+      delete MR;
+      delete l2_coll;
+      delete hdiv_coll;
    }
 }
 

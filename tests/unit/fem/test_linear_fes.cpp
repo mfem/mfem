@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -192,6 +192,8 @@ TEST_CASE("Point mesh with linear grid function",
    int idx[1] = {0};
    mesh.AddElement(new mfem::Point(idx, attrib));
 
+   mesh.FinalizeMesh();
+
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
    REQUIRE( mesh.Dimension() == dim);
@@ -233,6 +235,8 @@ TEST_CASE("Segment mesh with linear grid function",
 
    int idx[2] = {0,1};
    mesh.AddElement(new Segment(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -276,6 +280,8 @@ TEST_CASE("Triangle mesh with linear grid function",
    int idx[3] = {0,1,2};
    mesh.AddElement(new Triangle(idx, attrib));
 
+   mesh.FinalizeMesh();
+
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
    REQUIRE( mesh.Dimension() == dim);
@@ -318,6 +324,8 @@ TEST_CASE("Quad mesh with linear grid function",
 
    int idx[4] = {0,1,2,3};
    mesh.AddElement(new Quadrilateral(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -363,6 +371,8 @@ TEST_CASE("Tet mesh with linear grid function",
 
    int idx[4] = {0,1,2,3};
    mesh.AddElement(new Tetrahedron(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -411,6 +421,8 @@ TEST_CASE("Hex mesh with linear grid function",
 
    int idx[8] = {0,1,2,3,4,5,6,7};
    mesh.AddElement(new Hexahedron(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);

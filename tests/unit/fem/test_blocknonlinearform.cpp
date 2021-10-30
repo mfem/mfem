@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -106,10 +106,11 @@ TEST_CASE("ParBlockNonlinearForm",
         type++)
    {
       int n = 4;
-      Mesh *mesh = new Mesh(n, n, n, (Element::Type) type, 0, 2.0, 2.0, 2.0);
-      int dim = mesh->Dimension();
-      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type) type, 2.0, 2.0, 2.0);
+      int dim = mesh.Dimension();
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
       pmesh->UniformRefinement();
       int uorder = 3;
       int rorder = 2;
@@ -151,7 +152,8 @@ TEST_CASE("ParBlockNonlinearForm",
 
       std::cout << "Rank " << my_rank
                 << ": ParBlockNonlinearForm::GetEnergy = " << A4
-                << " Expected" << M_PI / 6.0 << " diff=" << (A4 - M_PI / 6.0)
+                << ", expected = " << M_PI / 6.0
+                << ", diff = " << (A4 - M_PI / 6.0)
                 << std::endl;
 
       REQUIRE(fabs(A4 - M_PI / 6.0) < 1e-2);
