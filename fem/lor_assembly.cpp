@@ -244,8 +244,8 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
          const double J23 = J(iq,1,2,iel_lor);
          const double J33 = J(iq,2,2,iel_lor);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                             /* */               J21 * (J12 * J33 - J32 * J13) +
-                             /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
          const double w_detJ = ir[iq].weight / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
@@ -317,14 +317,10 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                                           int offset_x_i = (kx-ix+1)*2 + iqx;
                                           int offset_y_i = (ky-iy+1)*2 + iqy;
                                           int offset_z_i = (kz-iz+1)*2 + iqz;
-                                          int offset_i = offset_x_i + 4*offset_y_i + 16*offset_z_i;
 
                                           int offset_x_j = (kx-jx+1)*2 + iqx;
                                           int offset_y_j = (ky-jy+1)*2 + iqy;
                                           int offset_z_j = (kz-jz+1)*2 + iqz;
-                                          int offset_j = offset_x_j + 4*offset_y_j + 16*offset_z_j;
-
-                                          int iq = iqx + iqy*2 + iqz*4;
 
                                           double gix = btab[offset_y_i]*btab[offset_z_i]*(offset_x_i < 2 ? 1.0 : -1.0);
                                           double giy = btab[offset_x_i]*btab[offset_z_i]*(offset_y_i < 2 ? 1.0 : -1.0);
@@ -333,6 +329,8 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                                           double gjx = btab[offset_y_j]*btab[offset_z_j]*(offset_x_j < 2 ? 1.0 : -1.0);
                                           double gjy = btab[offset_x_j]*btab[offset_z_j]*(offset_y_j < 2 ? 1.0 : -1.0);
                                           double gjz = btab[offset_x_j]*btab[offset_y_j]*(offset_z_j < 2 ? 1.0 : -1.0);
+
+                                          int iq = iqx + iqy*2 + iqz*4;
 
                                           val += gix*gjx*invJ(0, iq, k, iel_ho);
                                           val += giy*gjx*invJ(1, iq, k, iel_ho);
