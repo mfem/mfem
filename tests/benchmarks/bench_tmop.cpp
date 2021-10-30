@@ -16,11 +16,13 @@
 #include "fem/tmop.hpp"
 #include <cassert>
 #include <memory>
+#include <string>
 #include <cmath>
 
 struct TMOP
 {
-   const int N, p, q, dim = 3;
+   const int p, q, n, nx, ny, nz, dim = 3;
+   const bool check_x, check_y, check_z, checked;
    Mesh mesh;
    TMOP_Metric_302 metric;
    TargetConstructor::TargetType target_t;
@@ -35,10 +37,18 @@ struct TMOP
    Vector de,xe,ye;
    double mdof;
 
-   TMOP(int p, bool p_eq_q = false):
-      N(Device::IsEnabled()?16:8),
-      p(p), q(2*p + (p_eq_q ? 0 : 2)),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
+   TMOP(int p, int c, bool p_eq_q = false):
+      p(p),
+      q(2*p + (p_eq_q ? 0 : 2)),
+      n((assert(c>=p),c/p)),
+      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
+      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
+      nz(n),
+      check_x(p*nx * p*ny * p*nz <= c*c*c),
+      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
+      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
+      checked((assert(check_x && check_y && check_z), true)),
+      mesh(Mesh::MakeCartesian3D(nx,ny,nz,Element::HEXAHEDRON)),
       target_t(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE),
       target_c(target_t),
       fec(p, dim),
@@ -62,54 +72,46 @@ struct TMOP
       nlfi.SetIntegrationRule(*ir);
       nlfi.AssemblePA(fes);
       nlfi.AssembleGradPA(xe,fes);
-
-      tic_toc.Clear();
    }
 
    void AddMultPA()
    {
-      tic_toc.Start();
       nlfi.AddMultPA(xe,ye);
       MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
    void AddMultGradPA()
    {
-      tic_toc.Start();
       nlfi.AddMultGradPA(xe,ye);
       MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
    void GetLocalStateEnergyPA()
    {
-      tic_toc.Start();
       const double energy = nlfi.GetLocalStateEnergyPA(xe);
       MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
       MFEM_CONTRACT_VAR(energy);
       mdof += 1e-6 * dofs;
    }
 
    void AssembleGradDiagonalPA()
    {
-      tic_toc.Start();
       nlfi.AssembleGradDiagonalPA(de);
       MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
    double Mdof() const { return mdof; }
-
-   double Mdofs() const { return mdof / tic_toc.RealTime(); }
 };
 
 // The different orders the tests can run
-#define P_ORDERS {1,2,3,4}
+#define P_ORDERS bm::CreateDenseRange(1,4,1)
+
+// The different sides of the mesh
+#define N_SIDES bm::CreateDenseRange(10,84,4)
+#define MAX_NUMBER_OF_DOFS 2*1024*1024
 
 // P_EQ_Q selects the D1D & Q1D to use instantiated kernels
 //  P_EQ_Q: 0x22, 0x33, 0x44, 0x55
@@ -117,47 +119,18 @@ struct TMOP
 #define P_EQ_Q {false,true}
 
 /**
- * @brief The Kernel bm::Fixture struct
- */
-struct Kernel: public bm::Fixture
-{
-   std::unique_ptr<TMOP> ker;
-   ~Kernel() { assert(ker == nullptr); }
-
-   using bm::Fixture::SetUp;
-   void SetUp(const bm::State& state) BENCHMARK_OVERRIDE
-   { ker.reset(new TMOP(state.range(1), state.range(0))); }
-
-   using bm::Fixture::TearDown;
-   void TearDown(const bm::State &) BENCHMARK_OVERRIDE { ker.reset(); }
-};
-
-/**
-  Fixture kernels definitions and registrations
-*/
-#define BENCHMARK_TMOP_F(Bench)\
-BENCHMARK_DEFINE_F(Kernel,Bench)(bm::State &state){\
-   assert(ker.get());\
-   while (state.KeepRunning()) { ker->Bench(); }\
-   state.counters["MDof"] = bm::Counter(ker->Mdof(), bm::Counter::kIsRate);\
-   state.counters["MDof/s"] = bm::Counter(ker->Mdofs());}\
- BENCHMARK_REGISTER_F(Kernel,Bench)->ArgsProduct({P_EQ_Q,P_ORDERS})->Unit(bm::kMicrosecond);
-/// creating/registering, not used
-//BENCHMARK_TMOP_F(AddMultPA)
-//BENCHMARK_TMOP_F(AddMultGradPA)
-//BENCHMARK_TMOP_F(GetLocalStateEnergyPA)
-//BENCHMARK_TMOP_F(AssembleGradDiagonalPA)
-
-/**
   Kernels definitions and registrations
 */
 #define BENCHMARK_TMOP(Bench)\
 static void Bench(bm::State &state){\
-   TMOP ker(state.range(1),state.range(0));\
+   const int p = state.range(0);\
+   TMOP ker(p, state.range(1), false);\
+   if (ker.dofs > MAX_NUMBER_OF_DOFS) { state.SkipWithError("MAX_NUMBER_OF_DOFS"); }\
    while (state.KeepRunning()) { ker.Bench(); }\
-   state.counters["MDof"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
-   state.counters["MDof/s"] = bm::Counter(ker.Mdofs());}\
- BENCHMARK(Bench)->ArgsProduct({P_EQ_Q,P_ORDERS})->Unit(bm::kMicrosecond);
+   state.counters["MDofs"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
+   state.counters["Dofs"] = bm::Counter(ker.dofs);\
+   state.counters["p"] = bm::Counter(p);}\
+ BENCHMARK(Bench)->ArgsProduct({P_ORDERS,N_SIDES})->Unit(bm::kMicrosecond);
 /// creating/registering
 BENCHMARK_TMOP(AddMultPA)
 BENCHMARK_TMOP(AddMultGradPA)
