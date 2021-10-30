@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -112,6 +112,10 @@ public:
        @note This version of the method will also perform bounds checks when the
        build option MFEM_DEBUG is enabled. */
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
+
+   void Assemble();
+
+   void AssembleSharedFaces();
 
    /// Assemble the vector on the true dofs, i.e. P^t v.
    void ParallelAssemble(Vector &tv);

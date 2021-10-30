@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -128,7 +128,8 @@ public:
    Surface(Opt &opt, bool): Mesh(), opt(opt) { }
 
    // Generate 2D quad surface mesh
-   Surface(Opt &opt): Mesh(opt.nx, opt.ny, QUAD, true), opt(opt) { }
+   Surface(Opt &opt)
+      : Mesh(Mesh::MakeCartesian2D(opt.nx, opt.ny, QUAD, true)), opt(opt) { }
 
    // Generate 2D generic surface mesh
    Surface(Opt &opt, int nv, int ne, int nbe):
@@ -1227,7 +1228,7 @@ static double qf(const int order, const int ker, Mesh &m,
 static int Problem1(Opt &opt)
 {
    const int order = opt.order;
-   Mesh smesh(opt.nx, opt.ny, QUAD);
+   Mesh smesh = Mesh::MakeCartesian2D(opt.nx, opt.ny, QUAD);
    smesh.SetCurvature(opt.order, false, DIM, Ordering::byNODES);
    for (int l = 0; l < opt.refine; l++) { smesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, smesh);
