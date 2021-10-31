@@ -123,7 +123,7 @@ then
     fi
 
     upstream_opt=""
-    if [[ ${CI_COMMIT_BRANCH:-"master"} != "master" && ${sys_type} != "" ]]
+    if [[ ${sys_type} != "" ]]
     then
         upstream_opt="--upstream=/usr/workspace/mfem/mfem-dependencies/install"
     fi
