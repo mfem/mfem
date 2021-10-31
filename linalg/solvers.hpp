@@ -56,7 +56,7 @@ public:
    {
    }
 
-   /** @brief This method is invoked by ItertiveSolver::SetMonitor, informing
+   /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
        the monitor which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
