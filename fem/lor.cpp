@@ -374,12 +374,13 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    SparseMatrix A_hpc;
    a_tmp.FormSystemMatrix(ess_dofs, A_hpc);
 
-   // {
-   //    std::ofstream f1("A1.txt"), f2("A2.txt"), f3("A3.txt");
-   //    A.As<SparseMatrix>()->PrintMatlab(f1);
-   //    A_batched.As<SparseMatrix>()->PrintMatlab(f2);
-   //    A_hpc.PrintMatlab(f3);
-   // }
+   if (false)
+   {
+      std::ofstream f1("A1.txt"), f2("A2.txt"), f3("A3.txt");
+      A.As<SparseMatrix>()->PrintMatlab(f1);
+      A_batched.As<SparseMatrix>()->PrintMatlab(f2);
+      A_hpc.PrintMatlab(f3);
+   }
 
    A_hpc.Add(-1.0, *A.As<SparseMatrix>());
    A_batched.As<SparseMatrix>()->Add(-1.0, *A.As<SparseMatrix>());
