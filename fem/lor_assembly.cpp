@@ -215,32 +215,81 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
    const IntegrationRule &ir = irs.Get(mesh_lor.GetElementGeometry(0), 1);
    int nq = ir.Size();
 
-   const GeometricFactors *geom
-      = mesh_lor.GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+   // const GeometricFactors *geom
+   //    = mesh_lor.GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
 
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
    Array<double> invJ_data(nel_ho*pow(order,dim)*nq*(dim*(dim+1))/2);
    auto invJ = Reshape(invJ_data.Write(), (dim*(dim+1))/2, nq, pow(order,dim),
                        nel_ho);
-   auto Jac = Reshape(geom->J.Read(), nq, dim, dim, nel_lor);
-
-   constexpr double btab[4] = {0.0,1.0,1.0,0.0};
+   // auto Jac = Reshape(geom->J.Read(), nq, dim, dim, nel_lor);
 
    for (int iel_lor=0; iel_lor<mesh_lor.GetNE(); ++iel_lor)
    {
       int iel_ho = cf_tr.embeddings[iel_lor].parent;
       int iref = cf_tr.embeddings[iel_lor].matrix;
+
+      Array<int> v;
+      mesh_lor.GetElementVertices(iel_lor, v);
+
+      double *v0 = mesh_lor.GetVertex(v[0]);
+      double *v1 = mesh_lor.GetVertex(v[1]);
+      double *v2 = mesh_lor.GetVertex(v[2]);
+      double *v3 = mesh_lor.GetVertex(v[3]);
+      double *v4 = mesh_lor.GetVertex(v[4]);
+      double *v5 = mesh_lor.GetVertex(v[5]);
+      double *v6 = mesh_lor.GetVertex(v[6]);
+      double *v7 = mesh_lor.GetVertex(v[7]);
+
       for (int iq=0; iq<nq; ++iq)
       {
-         const double J11 = Jac(iq,0,0,iel_lor);
-         const double J21 = Jac(iq,1,0,iel_lor);
-         const double J31 = Jac(iq,2,0,iel_lor);
-         const double J12 = Jac(iq,0,1,iel_lor);
-         const double J22 = Jac(iq,1,1,iel_lor);
-         const double J32 = Jac(iq,2,1,iel_lor);
-         const double J13 = Jac(iq,0,2,iel_lor);
-         const double J23 = Jac(iq,1,2,iel_lor);
-         const double J33 = Jac(iq,2,2,iel_lor);
+         const double x = ir[iq].x;
+         const double y = ir[iq].y;
+         const double z = ir[iq].z;
+
+         // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
+         //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
+
+         const double J11 = -(1-y)*(1-z)*v0[0] + (1-y)*(1-z)*v1[0] + y*(1-z)*v2[0] - y*
+                            (1-z)*v3[0]
+                            - (1-y)*z*v4[0] + (1-y)*z*v5[0] + y*z*v6[0] - y*z*v7[0];
+         const double J12 = -(1-x)*(1-z)*v0[0] - x*(1-z)*v1[0] + x*(1-z)*v2[0] + (1-x)*
+                            (1-z)*v3[0]
+                            - (1-x)*z*v4[0] - x*z*v5[0] + x*z*v6[0] + (1-x)*z*v7[0];
+         const double J13 = -(1-x)*(1-y)*v0[0] - x*(1-y)*v1[0] - x*y*v2[0] -
+                            (1-x)*y*v3[0]
+                            + (1-x)*(1-y)*v4[0] + x*(1-y)*v5[0] + x*y*v6[0] + (1-x)*y*v7[0];
+
+         const double J21 = -(1-y)*(1-z)*v0[1] + (1-y)*(1-z)*v1[1] + y*(1-z)*v2[1] - y*
+                            (1-z)*v3[1]
+                            - (1-y)*z*v4[1] + (1-y)*z*v5[1] + y*z*v6[1] - y*z*v7[1];
+         const double J22 = -(1-x)*(1-z)*v0[1] - x*(1-z)*v1[1] + x*(1-z)*v2[1] + (1-x)*
+                            (1-z)*v3[1]
+                            - (1-x)*z*v4[1] - x*z*v5[1] + x*z*v6[1] + (1-x)*z*v7[1];
+         const double J23 = -(1-x)*(1-y)*v0[1] - x*(1-y)*v1[1] - x*y*v2[1] -
+                            (1-x)*y*v3[1]
+                            + (1-x)*(1-y)*v4[1] + x*(1-y)*v5[1] + x*y*v6[1] + (1-x)*y*v7[1];
+
+         const double J31 = -(1-y)*(1-z)*v0[2] + (1-y)*(1-z)*v1[2] + y*(1-z)*v2[2] - y*
+                            (1-z)*v3[2]
+                            - (1-y)*z*v4[2] + (1-y)*z*v5[2] + y*z*v6[2] - y*z*v7[2];
+         const double J32 = -(1-x)*(1-z)*v0[2] - x*(1-z)*v1[2] + x*(1-z)*v2[2] + (1-x)*
+                            (1-z)*v3[2]
+                            - (1-x)*z*v4[2] - x*z*v5[2] + x*z*v6[2] + (1-x)*z*v7[2];
+         const double J33 = -(1-x)*(1-y)*v0[2] - x*(1-y)*v1[2] - x*y*v2[2] -
+                            (1-x)*y*v3[2]
+                            + (1-x)*(1-y)*v4[2] + x*(1-y)*v5[2] + x*y*v6[2] + (1-x)*y*v7[2];
+
+         // const double J11 = Jac(iq,0,0,iel_lor);
+         // const double J21 = Jac(iq,1,0,iel_lor);
+         // const double J31 = Jac(iq,2,0,iel_lor);
+         // const double J12 = Jac(iq,0,1,iel_lor);
+         // const double J22 = Jac(iq,1,1,iel_lor);
+         // const double J32 = Jac(iq,2,1,iel_lor);
+         // const double J13 = Jac(iq,0,2,iel_lor);
+         // const double J23 = Jac(iq,1,2,iel_lor);
+         // const double J33 = Jac(iq,2,2,iel_lor);
+
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
                              J21 * (J12 * J33 - J32 * J13) +
                              J31 * (J12 * J23 - J22 * J13);
@@ -360,8 +409,8 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                                  double gj_y = bxj*gyj*bzj;
                                  double gj_z = bxj*byj*gzj;
 
-                                 // int jj_el = (jx+kx) + (jy+ky)*nd1d + (jz+kz)*nd1d*nd1d;
-                                 // int jj = dofs[lex_map[jj_el]];
+                                 int jj_el = (jx+kx) + (jy+ky)*nd1d + (jz+kz)*nd1d*nd1d;
+                                 int jj = dofs[lex_map[jj_el]];
                                  int jj_loc = jx + 2*jy + 4*jz;
 
                                  for (int iz=0; iz<2; ++iz)
@@ -381,8 +430,8 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                                           double gi_y = bxi*gyi*bzi;
                                           double gi_z = bxi*byi*gzi;
 
-                                          // int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
-                                          // int ii = dofs[lex_map[ii_el]];
+                                          int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
+                                          int ii = dofs[lex_map[ii_el]];
                                           // int ii_offset = iel_ho*nnz_per_el + ii_el;
                                           int ii_loc = ix + 2*iy + 4*iz;
 
@@ -395,8 +444,6 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                                                        + (gi_z*gj_z)*J5;
 
                                           local_mat_ptr[ii_loc + 8*jj_loc] += val;
-                                          // local_mat(ix+2*iy+4*iz, jx+2*jy+4*jz) += val;
-                                          // V[ii_offset + jj_local] += val;
                                           // A_mat.Add(ii, jj, val);
                                        }
                                     }
