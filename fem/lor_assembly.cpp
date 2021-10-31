@@ -37,7 +37,6 @@ void Assemble2DBatchedLOR(Mesh &mesh_lor,
    // GeometricFactors?
    const GeometricFactors *geom
       = mesh_lor.GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
-   const Vector &J_data = geom->J;
 
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
    Array<double> invJ_data(nel_ho*pow(order,dim)*nq*(dim*(dim+1))/2);
@@ -218,13 +217,12 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
 
    const GeometricFactors *geom
       = mesh_lor.GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
-   const Vector &J_data = geom->J;
 
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
    Array<double> invJ_data(nel_ho*pow(order,dim)*nq*(dim*(dim+1))/2);
    auto invJ = Reshape(invJ_data.Write(), (dim*(dim+1))/2, nq, pow(order,dim),
                        nel_ho);
-   auto J = Reshape(geom->J.Read(), nq, dim, dim, nel_lor);
+   auto Jac = Reshape(geom->J.Read(), nq, dim, dim, nel_lor);
 
    constexpr double btab[4] = {0.0,1.0,1.0,0.0};
 
@@ -234,15 +232,15 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
       int iref = cf_tr.embeddings[iel_lor].matrix;
       for (int iq=0; iq<nq; ++iq)
       {
-         const double J11 = J(iq,0,0,iel_lor);
-         const double J21 = J(iq,1,0,iel_lor);
-         const double J31 = J(iq,2,0,iel_lor);
-         const double J12 = J(iq,0,1,iel_lor);
-         const double J22 = J(iq,1,1,iel_lor);
-         const double J32 = J(iq,2,1,iel_lor);
-         const double J13 = J(iq,0,2,iel_lor);
-         const double J23 = J(iq,1,2,iel_lor);
-         const double J33 = J(iq,2,2,iel_lor);
+         const double J11 = Jac(iq,0,0,iel_lor);
+         const double J21 = Jac(iq,1,0,iel_lor);
+         const double J31 = Jac(iq,2,0,iel_lor);
+         const double J12 = Jac(iq,0,1,iel_lor);
+         const double J22 = Jac(iq,1,1,iel_lor);
+         const double J32 = Jac(iq,2,1,iel_lor);
+         const double J13 = Jac(iq,0,2,iel_lor);
+         const double J23 = Jac(iq,1,2,iel_lor);
+         const double J33 = Jac(iq,2,2,iel_lor);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
                              J21 * (J12 * J33 - J32 * J13) +
                              J31 * (J12 * J23 - J22 * J13);
@@ -267,20 +265,149 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
       }
    }
 
+   int ndof_per_el = pow(order+1,3);
+
+   static constexpr int nvert = 8;
+   static constexpr int nedge = 12;
+   static constexpr int nface = 6;
+   int nvert_dof_per_el = nvert;
+   int nedge_dof_per_el = nedge*(order-1);
+   int nface_dof_per_el = nface*pow(order-1,2);
+   int nint_dof_per_el = pow(order-1,3);
+
+   MFEM_ASSERT(nvert_dof_per_el + nedge_dof_per_el + nface_dof_per_el +
+               nint_dof_per_el == ndof_per_el, "");
+
+   // We compute the stencil size for a DOF on a dim-d submanifold of a dim-D
+   // element. Let c = D - d denote the codimension.
+   //
+   // Then, the stencil size for that DOF is equal to 2^c 3^d
+   //
+   // So, vertices:  codim 3, stencil 2^3 3^0
+   //     edges:     codim 2, stencil 2^2 3^1
+   //     faces:     codim 1, stencil 2^1 3^2
+   //     interiors: codim 0, stencil 2^0 3^3
+
+   int nnz_per_el = 8*nvert_dof_per_el
+                    + 12*nedge_dof_per_el
+                    + 18*nface_dof_per_el
+                    + 27*nint_dof_per_el;
+
+   // Number of nonzeros *with duplication* of shared DOFs along common entities
+   int nnz_dup = nel_ho*nnz_per_el;
+
+   Array<int> I(nnz_dup);
+   Array<int> J(nnz_dup);
+   Array<double> V(nnz_dup);
+
    int nd1d = order + 1;
    Array<int> dofs;
    const Array<int> &lex_map = dynamic_cast<const NodalFiniteElement&>
                                (*fes_ho.GetFE(0)).GetLexicographicOrdering();
+
+   Array<double> local_mat(27);
+
    for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
       fes_ho.GetElementDofs(iel_ho, dofs);
-
       for (int iz=0; iz<nd1d; ++iz)
+      {
+         int kz_begin = iz > 0 ? iz-1 : iz;
+         int kz_end = iz < order ? iz+1 : iz;
          for (int iy=0; iy<nd1d; ++iy)
+         {
+            int ky_begin = iy > 0 ? iy-1 : iy;
+            int ky_end = iy < order ? iy+1 : iy;
             for (int ix=0; ix<nd1d; ++ix)
             {
+               int kx_begin = ix > 0 ? ix-1 : ix;
+               int kx_end = ix < order ? ix+1 : ix;
+
                int ii_local = ix + iy*nd1d + iz*nd1d*nd1d;
                int ii = dofs[lex_map[ii_local]];
+
+               int ii_offset = iel_ho*nnz_per_el + ii_local;
+               int local_j_idx = 0;
+
+               local_mat = 0.0;
+
+               for (int kz=kz_begin; kz<kz_end; ++kz)
+                  for (int ky=ky_begin; ky<ky_end; ++ky)
+                     for (int kx=kx_begin; kx<kx_end; ++kx)
+                     {
+                        int k = kx + ky*order + kz*order*order;
+                        for (int jz=0; jz<2; ++jz)
+                        {
+                           int jjz = kz+jz;
+                           for (int jy=0; jy<2; ++jy)
+                           {
+                              int jjy = ky+jy;
+                              for (int jx=0; jx<2; ++jx)
+                              {
+                                 int jjx = kx+jx;
+                                 int jj_local = jjx + jjy*nd1d + jjz*nd1d*nd1d;
+                                 int jj = dofs[lex_map[jj_local]];
+
+                                 int j = (jjx-ix+1) + 3*(jjy-iy+1) + 9*(jjz-iz+1);
+
+                                 double val = 0.0;
+                                 for (int iqz=0; iqz<2; ++iqz)
+                                    for (int iqy=0; iqy<2; ++iqy)
+                                       for (int iqx=0; iqx<2; ++iqx)
+                                       {
+                                          int offset_x_i = (kx-ix+1)*2 + iqx;
+                                          int offset_y_i = (ky-iy+1)*2 + iqy;
+                                          int offset_z_i = (kz-iz+1)*2 + iqz;
+
+                                          double gix = btab[offset_y_i]*btab[offset_z_i]*(offset_x_i < 2 ? 1.0 : -1.0);
+                                          double giy = btab[offset_x_i]*btab[offset_z_i]*(offset_y_i < 2 ? 1.0 : -1.0);
+                                          double giz = btab[offset_x_i]*btab[offset_y_i]*(offset_z_i < 2 ? 1.0 : -1.0);
+
+                                          double gjx = (jy == iqy)*(jz == iqz)*(jx == 0 ? -1.0 : 1.0);
+                                          double gjy = (jx == iqx)*(jz == iqz)*(jy == 0 ? -1.0 : 1.0);
+                                          double gjz = (jx == iqx)*(jy == iqy)*(jz == 0 ? -1.0 : 1.0);
+
+                                          int iq = iqx + iqy*2 + iqz*4;
+
+                                          val += gix*gjx*invJ(0, iq, k, iel_ho);
+                                          val += giy*gjx*invJ(1, iq, k, iel_ho);
+                                          val += gix*gjy*invJ(1, iq, k, iel_ho);
+                                          val += giz*gjx*invJ(2, iq, k, iel_ho);
+                                          val += gix*gjz*invJ(2, iq, k, iel_ho);
+                                          val += giy*gjy*invJ(3, iq, k, iel_ho);
+                                          val += giz*gjy*invJ(4, iq, k, iel_ho);
+                                          val += giy*gjz*invJ(4, iq, k, iel_ho);
+                                          val += giz*gjz*invJ(5, iq, k, iel_ho);
+                                       }
+                                 local_mat[j] += val;
+                              }
+                           }
+                        }
+                     }
+
+               for (int xshift=-1; xshift<=1; ++xshift)
+               {
+                  int jx = ix + xshift;
+                  if (jx < 0 || jx >= nd1d) { continue; }
+                  for (int yshift=-1; yshift<=1; ++yshift)
+                  {
+                     int jy = iy + yshift;
+                     if (jy < 0 || jy >= nd1d) { continue; }
+                     for (int zshift=-1; zshift<=1; ++zshift)
+                     {
+                        int jz = iz + zshift;
+                        if (jz < 0 || jz >= nd1d) { continue; }
+                        int jj_local = jx + jy*nd1d + jz*nd1d*nd1d;
+                        int jj = dofs[lex_map[jj_local]];
+
+                        int j = xshift+1 + 3*(yshift+1) + 9*(zshift+1);
+
+                        A_mat.Add(ii, jj, local_mat[j]);
+                     }
+                  }
+               }
+
+               /*
                for (int xshift=-1; xshift<=1; ++xshift)
                {
                   int jx = ix + xshift;
@@ -344,10 +471,14 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                                        }
                               }
                         A_mat.Add(ii, jj, val);
+                        // V[ii_offset + local_j_idx] = val;
+                        // local_j_idx += 1;
                      }
                   }
-               }
+               } */
             }
+         }
+      }
    }
 }
 
