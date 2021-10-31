@@ -3706,8 +3706,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          elements[new_e] = new Segment(new_v, vert[1], attr);
          vert[1] = new_v;
 
-         CoarseFineTr.embeddings[i] = Embedding(i, 1);
-         CoarseFineTr.embeddings[new_e] = Embedding(i, 2);
+         CoarseFineTr.embeddings[i] = Embedding(i, Geometry::SEGMENT, 1);
+         CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
@@ -6047,7 +6047,7 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
    }
 }
 
-void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalVertexIndices(Array<HYPRE_BigInt> &gi) const
 {
    H1_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
    ParMesh *pm = const_cast<ParMesh *>(this);
@@ -6063,7 +6063,7 @@ void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const
    }
 }
 
-void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_BigInt> &gi) const
 {
    if (Dim == 1)
    {
@@ -6086,7 +6086,7 @@ void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const
    }
 }
 
-void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalFaceIndices(Array<HYPRE_BigInt> &gi) const
 {
    if (Dim == 2)
    {
@@ -6114,11 +6114,11 @@ void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const
    }
 }
 
-void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const
 {
    ComputeGlobalElementOffset();
 
-   const HYPRE_Int offset = glob_elem_offset;  // Cast from long to HYPRE_Int
+   const HYPRE_BigInt offset = glob_elem_offset; // Cast from long to HYPRE_BigInt
 
    gi.SetSize(GetNE());
    for (int i=0; i<GetNE(); ++i)

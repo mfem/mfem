@@ -51,6 +51,8 @@ examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
+examples/ex30
+examples/ex30p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -303,6 +305,12 @@ tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
+
+# Benchmark binaries
+tests/benchmarks/bench_ceed
+tests/benchmarks/bench_tmop
+tests/benchmarks/bench_vector
+tests/benchmarks/bench_virtuals
 
 # Test script output
 tests/scripts/*.err
