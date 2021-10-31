@@ -13,9 +13,6 @@ Version 4.3.1 (development)
 - More explicit and consistent formating of the output of iterative solvers
   with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
 
-Changed the output formatting of all provided IterativeSolvers and added a new
-  mechanism to setup the output policy.
-
 - Added support for mesh preprocessing to resolve fine scale problem data
   before simulation. This feature uses adaptive mesh refinement to control the
   associated data oscillation error. See the new Example 30/30p.
