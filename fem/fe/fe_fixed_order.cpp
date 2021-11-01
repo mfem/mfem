@@ -6030,6 +6030,15 @@ void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       shape(4,1) = - 0.5;
       shape(4,2) =   1.0;
 
+      if (!rt0)
+      {
+         for (int i=1; i<5; i++)
+            for (int j=0; j<3; j++)
+            {
+               shape(i, j) *= 0.5;
+            }
+      }
+
       return;
    }
 
