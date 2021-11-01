@@ -320,7 +320,7 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    const int ir_order = 1;
 
    BilinearForm a_tmp(fes);
-   // a_tmp.UsePrecomputedSparsity();
+   a_tmp.UsePrecomputedSparsity();
 
    tic();
    if (mesh->Dimension() == 3)
@@ -374,7 +374,8 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    SparseMatrix A_hpc;
    a_tmp.FormSystemMatrix(ess_dofs, A_hpc);
 
-   if (false)
+   // Print out the matrices to disk if they're small
+   if (A->Height() <= 2000)
    {
       std::ofstream f1("A1.txt"), f2("A2.txt"), f3("A3.txt");
       A.As<SparseMatrix>()->PrintMatlab(f1);

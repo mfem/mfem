@@ -215,14 +215,10 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
    const IntegrationRule &ir = irs.Get(mesh_lor.GetElementGeometry(0), 1);
    int nq = ir.Size();
 
-   // const GeometricFactors *geom
-   //    = mesh_lor.GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
-
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
    Array<double> invJ_data(nel_ho*pow(order,dim)*nq*(dim*(dim+1))/2);
    auto invJ = Reshape(invJ_data.Write(), (dim*(dim+1))/2, nq, pow(order,dim),
                        nel_ho);
-   // auto Jac = Reshape(geom->J.Read(), nq, dim, dim, nel_lor);
 
    for (int iel_lor=0; iel_lor<mesh_lor.GetNE(); ++iel_lor)
    {
@@ -249,7 +245,6 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
 
          // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
          //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
-
          const double J11 = -(1-y)*(1-z)*v0[0] + (1-y)*(1-z)*v1[0] + y*(1-z)*v2[0] - y*
                             (1-z)*v3[0]
                             - (1-y)*z*v4[0] + (1-y)*z*v5[0] + y*z*v6[0] - y*z*v7[0];
@@ -280,16 +275,6 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                             (1-x)*y*v3[2]
                             + (1-x)*(1-y)*v4[2] + x*(1-y)*v5[2] + x*y*v6[2] + (1-x)*y*v7[2];
 
-         // const double J11 = Jac(iq,0,0,iel_lor);
-         // const double J21 = Jac(iq,1,0,iel_lor);
-         // const double J31 = Jac(iq,2,0,iel_lor);
-         // const double J12 = Jac(iq,0,1,iel_lor);
-         // const double J22 = Jac(iq,1,1,iel_lor);
-         // const double J32 = Jac(iq,2,1,iel_lor);
-         // const double J13 = Jac(iq,0,2,iel_lor);
-         // const double J23 = Jac(iq,1,2,iel_lor);
-         // const double J33 = Jac(iq,2,2,iel_lor);
-
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
                              J21 * (J12 * J33 - J32 * J13) +
                              J31 * (J12 * J23 - J22 * J13);
@@ -314,7 +299,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
       }
    }
 
-   int ndof_per_el = pow(order+1,3);
+   static constexpr int ndof_per_el = (order+1)*(order+1)*(order+1);
 
    static constexpr int nvert = 8;
    static constexpr int nedge = 12;
@@ -342,23 +327,36 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
    //                  + 18*nface_dof_per_el
    //                  + 27*nint_dof_per_el;
 
-   int nnz_per_el =
-      27*ndof_per_el; // <-- pessimsistic bound, doesn't distinguish vertices, edges, faces, interiors
+   static constexpr int nnz_per_row = 27;
+   static constexpr int nnz_per_el =
+      nnz_per_row*ndof_per_el; // <-- pessimsistic bound, doesn't distinguish vertices, edges, faces, interiors
 
    // Number of nonzeros *with duplication* of shared DOFs along common entities
    int nnz_dup = nel_ho*nnz_per_el;
 
-   Array<int> I(nnz_dup);
-   Array<int> J(nnz_dup);
    Array<double> V(nnz_dup);
+
+   V = 0.0;
 
    int nd1d = order + 1;
    Array<int> dofs;
    const Array<int> &lex_map = dynamic_cast<const NodalFiniteElement&>
                                (*fes_ho.GetFE(0)).GetLexicographicOrdering();
 
-   DenseMatrix local_mat(8, 8);
-   double *local_mat_ptr = local_mat.GetData();
+   static constexpr int sz_grad_A = 3*3*2*2*2*2;
+   static constexpr int sz_grad_B = sz_grad_A*2;
+   static constexpr int sz_grad = sz_grad_B*2;
+   double grad_A_[sz_grad_A];
+   double grad_B_[sz_grad_B];
+   double grad_[sz_grad];
+
+   auto grad_A = Reshape(grad_A_, 3, 3, 2, 2, 2, 2);
+   auto grad_B = Reshape(grad_B_, 3, 3, 2, 2, 2, 2, 2);
+   auto grad   = Reshape(grad_,   3, 3, 2, 2, 2, 2, 2, 2);
+
+   static constexpr int sz_local_mat = 8*8;
+   double local_mat_[sz_local_mat];
+   auto local_mat = Reshape(local_mat_, 8, 8);
 
    for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
@@ -371,82 +369,114 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
             for (int kx=0; kx<order; ++kx)
             {
                double k = kx + ky*order + kz*order*order;
-
-               local_mat = 0.0;
-               double v_tmp = 0.0;
-               // Loop over quadrature points within subelement
-               for (int iqz=0; iqz<2; ++iqz)
+               for (int i=0; i<sz_local_mat; ++i)
                {
-                  for (int iqy=0; iqy<2; ++iqy)
+                  local_mat[i] = 0.0;
+               }
+               for (int iqx=0; iqx<2; ++iqx)
+               {
+                  for (int jz=0; jz<2; ++jz)
                   {
-                     for (int iqx=0; iqx<2; ++iqx)
+                     for (int iz=jz; iz<2; ++iz)
                      {
-                        int iq = iqx + 2*iqy + 4*iqz;
-
-                        // Load metric terms (symmetric format)
-                        const double J0 = invJ(0, iq, k, iel_ho);
-                        const double J1 = invJ(1, iq, k, iel_ho);
-                        const double J2 = invJ(2, iq, k, iel_ho);
-                        const double J3 = invJ(3, iq, k, iel_ho);
-                        const double J4 = invJ(4, iq, k, iel_ho);
-                        const double J5 = invJ(5, iq, k, iel_ho);
-
-                        // Loop over test/trial DOFs in the subelement
-                        for (int jz=0; jz<2; ++jz)
+                        for (int i=0; i<sz_grad_A; ++i)
                         {
-                           double gzj = (jz == 0) ? -1.0 : 1.0;
-                           double bzj = (jz == iqz) ? 1.0 : 0.0;
+                           grad_A[i] = 0.0;
+                        }
+                        for (int i=0; i<sz_grad_B; ++i)
+                        {
+                           grad_B[i] = 0.0;
+                        }
+                        for (int iqy=0; iqy<2; ++iqy)
+                        {
+                           for (int iqz=0; iqz<2; ++iqz)
+                           {
+                              int iq = iqx + 2*iqy + 4*iqz;
+                              const double biz = (iz == iqz) ? 1.0 : 0.0;
+                              const double giz = (iz == 0) ? -1.0 : 1.0;
+
+                              const double bjz = (jz == iqz) ? 1.0 : 0.0;
+                              const double gjz = (jz == 0) ? -1.0 : 1.0;
+
+                              const double J11 = invJ(0,iq,k,iel_ho);
+                              const double J21 = invJ(1,iq,k,iel_ho);
+                              const double J31 = invJ(2,iq,k,iel_ho);
+                              const double J12 = J21;
+                              const double J22 = invJ(3,iq,k,iel_ho);
+                              const double J32 = invJ(4,iq,k,iel_ho);
+                              const double J13 = J31;
+                              const double J23 = J32;
+                              const double J33 = invJ(5,iq,k,iel_ho);
+                              // ** can use symmetries here?
+                              grad_A(0,0,iqy,iz,jz,iqx) += J11*biz*bjz;
+                              grad_A(1,0,iqy,iz,jz,iqx) += J21*biz*bjz;
+                              grad_A(2,0,iqy,iz,jz,iqx) += J31*giz*bjz;
+                              grad_A(0,1,iqy,iz,jz,iqx) += J12*biz*bjz;
+                              grad_A(1,1,iqy,iz,jz,iqx) += J22*biz*bjz;
+                              grad_A(2,1,iqy,iz,jz,iqx) += J32*giz*bjz;
+                              grad_A(0,2,iqy,iz,jz,iqx) += J13*biz*gjz;
+                              grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
+                              grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
+                           }
                            for (int jy=0; jy<2; ++jy)
                            {
-                              double gyj = (jy == 0) ? -1.0 : 1.0;
-                              double byj = (jy == iqy) ? 1.0 : 0.0;
-                              for (int jx=0; jx<2; ++jx)
+                              for (int iy=0; iy<2; ++iy)
                               {
-                                 double gxj = (jx == 0) ? -1.0 : 1.0;
-                                 double bxj = (jx == iqx) ? 1.0 : 0.0;
+                                 const double biy = (iy == iqy) ? 1.0 : 0.0;
+                                 const double giy = (iy == 0) ? -1.0 : 1.0;
 
-                                 double gj_x = gxj*byj*bzj;
-                                 double gj_y = bxj*gyj*bzj;
-                                 double gj_z = bxj*byj*gzj;
+                                 const double bjy = (jy == iqy) ? 1.0 : 0.0;
+                                 const double gjy = (jy == 0) ? -1.0 : 1.0;
 
-                                 int jj_el = (jx+kx) + (jy+ky)*nd1d + (jz+kz)*nd1d*nd1d;
-                                 int jj = dofs[lex_map[jj_el]];
-                                 int jj_loc = jx + 2*jy + 4*jz;
-
-                                 for (int iz=0; iz<2; ++iz)
+                                 grad_B(0,0,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,0,iqy,iz,jz,iqx);
+                                 grad_B(1,0,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,0,iqy,iz,jz,iqx);
+                                 grad_B(2,0,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(2,0,iqy,iz,jz,iqx);
+                                 grad_B(0,1,iy,jy,iz,jz,iqx) += biy*gjy*grad_A(0,1,iqy,iz,jz,iqx);
+                                 grad_B(1,1,iy,jy,iz,jz,iqx) += giy*gjy*grad_A(1,1,iqy,iz,jz,iqx);
+                                 grad_B(2,1,iy,jy,iz,jz,iqx) += biy*gjy*grad_A(2,1,iqy,iz,jz,iqx);
+                                 grad_B(0,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,2,iqy,iz,jz,iqx);
+                                 grad_B(1,2,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,2,iqy,iz,jz,iqx);
+                                 grad_B(2,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(2,2,iqy,iz,jz,iqx);
+                              }
+                           }
+                        }
+                        for (int jy=0; jy<2; ++jy)
+                        {
+                           for (int jx=0; jx<2; ++jx)
+                           {
+                              for (int iy=0; iy<2; ++iy)
+                              {
+                                 for (int ix=0; ix<2; ++ix)
                                  {
-                                    double gzi = (iz == 0) ? -1.0 : 1.0;
-                                    double bzi = (iz == iqz) ? 1.0 : 0.0;
-                                    for (int iy=0; iy<2; ++iy)
-                                    {
-                                       double gyi = (iy == 0) ? -1.0 : 1.0;
-                                       double byi = (iy == iqy) ? 1.0 : 0.0;
-                                       for (int ix=0; ix<2; ++ix)
-                                       {
-                                          double gxi = (ix == 0) ? -1.0 : 1.0;
-                                          double bxi = (ix == iqx) ? 1.0 : 0.0;
+                                    const double bix = (ix == iqx) ? 1.0 : 0.0;
+                                    const double gix = (ix == 0) ? -1.0 : 1.0;
 
-                                          double gi_x = gxi*byi*bzi;
-                                          double gi_y = bxi*gyi*bzi;
-                                          double gi_z = bxi*byi*gzi;
+                                    const double bjx = (jx == iqx) ? 1.0 : 0.0;
+                                    const double gjx = (jx == 0) ? -1.0 : 1.0;
 
-                                          int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
-                                          int ii = dofs[lex_map[ii_el]];
-                                          // int ii_offset = iel_ho*nnz_per_el + ii_el;
-                                          int ii_loc = ix + 2*iy + 4*iz;
+                                    int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
+                                    int jj_el = (jx+kx) + (jy+ky)*nd1d + (jz+kz)*nd1d*nd1d;
 
+                                    int ii = dofs[lex_map[ii_el]];
+                                    int ii_loc = ix + 2*iy + 4*iz;
 
-                                          double val = (gi_x*gj_x)*J0
-                                                       + (gi_y*gj_x + gi_x*gj_y)*J1
-                                                       + (gi_z*gj_x + gi_x*gj_z)*J2
-                                                       + (gi_y*gj_y)*J3
-                                                       + (gi_z*gj_y + gi_y*gj_z)*J4
-                                                       + (gi_z*gj_z)*J5;
+                                    int jj = dofs[lex_map[jj_el]];
+                                    int jj_loc = jx + 2*jy + 4*jz;
 
-                                          local_mat_ptr[ii_loc + 8*jj_loc] += val;
-                                          // A_mat.Add(ii, jj, val);
-                                       }
-                                    }
+                                    if (jj_loc > ii_loc) { continue; }
+
+                                    double val = 0.0;
+                                    val += gix*gjx*grad_B(0,0,iy,jy,iz,jz,iqx);
+                                    val += bix*gjx*grad_B(1,0,iy,jy,iz,jz,iqx);
+                                    val += bix*gjx*grad_B(2,0,iy,jy,iz,jz,iqx);
+                                    val += gix*bjx*grad_B(0,1,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(1,1,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(2,1,iy,jy,iz,jz,iqx);
+                                    val += gix*bjx*grad_B(0,2,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(2,2,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(1,2,iy,jy,iz,jz,iqx);
+
+                                    local_mat(ii_loc, jj_loc) += val;
                                  }
                               }
                            }
@@ -454,8 +484,71 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                      }
                   }
                }
+               for (int ii_loc=0; ii_loc<8; ++ii_loc)
+               {
+                  int ix = ii_loc%2;
+                  int iy = (ii_loc/2)%2;
+                  int iz = ii_loc/2/2;
+                  int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
+                  for (int jj_loc=0; jj_loc<8; ++jj_loc)
+                  {
+                     int jx = jj_loc%2;
+                     int jy = (jj_loc/2)%2;
+                     int jz = jj_loc/2/2;
+                     int jj_el = (jx+kx) + (jy+ky)*nd1d + (jz+kz)*nd1d*nd1d;
+
+                     int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+
+                     if (jj_loc <= ii_loc)
+                     {
+                        V[jj_off + ii_el*nnz_per_row + iel_ho*nnz_per_el] += local_mat(ii_loc, jj_loc);
+                     }
+                     else
+                     {
+                        V[jj_off + ii_el*nnz_per_row + iel_ho*nnz_per_el] += local_mat(jj_loc, ii_loc);
+                     }
+                  }
+               }
             }
          }
+      }
+   }
+
+   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
+   {
+      fes_ho.GetElementDofs(iel_ho, dofs);
+      for (int ii_el=0; ii_el<ndof_per_el; ++ii_el)
+      {
+         int ix = ii_el%nd1d;
+         int iy = (ii_el/nd1d)%nd1d;
+         int iz = ii_el/nd1d/nd1d;
+         int ii = dofs[lex_map[ii_el]];
+
+         A_mat.SetColPtr(ii);
+
+         int jx_begin = (ix > 0) ? ix - 1 : 0;
+         int jx_end = (ix < order) ? ix + 1 : order;
+
+         int jy_begin = (iy > 0) ? iy - 1 : 0;
+         int jy_end = (iy < order) ? iy + 1 : order;
+
+         int jz_begin = (iz > 0) ? iz - 1 : 0;
+         int jz_end = (iz < order) ? iz + 1 : order;
+
+         for (int jz=jz_begin; jz<=jz_end; ++jz)
+         {
+            for (int jy=jy_begin; jy<=jy_end; ++jy)
+            {
+               for (int jx=jx_begin; jx<=jx_end; ++jx)
+               {
+                  int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
+                  int jj = dofs[lex_map[jj_el]];
+                  int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                  A_mat._Add_(jj, V[jj_off + ii_el*nnz_per_row + iel_ho*nnz_per_el]);
+               }
+            }
+         }
+         A_mat.ClearColPtr();
       }
    }
 }
