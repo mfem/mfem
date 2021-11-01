@@ -43,42 +43,38 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec0 = new H1_FECollection(order, dim);
-   FiniteElementCollection *fec1 = new ND_FECollection(order, dim);
-   FiniteElementCollection *fec2 = new RT_FECollection(order-1, dim);
-   FiniteElementCollection *fec3 = new L2_FECollection(order-1, dim);
+   FiniteElementCollection *fec1 = new RT_FECollection(order, dim);
    FiniteElementSpace fespace0(&mesh, fec0);
    FiniteElementSpace fespace1(&mesh, fec1);
-   FiniteElementSpace fespace2(&mesh, fec2);
-   FiniteElementSpace fespace3(&mesh, fec3);
 
    Array<FiniteElementSpace *> fespaces(2);
    fespaces[0] = &fespace0;
    fespaces[1] = &fespace1;
-   // fespaces[2] = &fespace2;
-   // fespaces[3] = &fespace3;
 
    BlockBilinearForm a(fespaces);
    a.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
 
-   cout << "H1 fespace 0 = " << fespace0.GetVSize() << endl;
-   cout << "ND fespace 1 = " << fespace1.GetVSize() << endl;
-   // cout << "RT fespace 2 = " << fespace2.GetVSize() << endl;
-   // cout << "L2 fespace 3 = " << fespace3.GetVSize() << endl;
-   // cout << "Total dofs   = " << fespace0.GetVSize() + fespace1.GetVSize()
-   //      + fespace2.GetVSize() + fespace3.GetVSize()
-   //      << endl;
-
+   cout << "H1 fespace = " << fespace0.GetVSize() << endl;
+   cout << "RT fespace = " << fespace1.GetVSize() << endl;
 
    cout << "height = " << a.Height() << endl;
    cout << "width = " << a.Width() << endl;
    ConstantCoefficient one(1.0);
-   // TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator(one);
-   // BlockBilinearFormIntegrator * integ = new BlockBilinearFormIntegrator();
-   // TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator();
-   TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator(
-      one);
+   ConstantCoefficient negone(-1.0);
 
-   // TestBlockLinearFormIntegrator * integ = new TestBlockLinearFormIntegrator(one);
+   Array2D<BilinearFormIntegrator * > blfi(2,2);
+   blfi(0,0) = new DiffusionIntegrator(one);
+   blfi(0,1) = new MixedVectorWeakDivergenceIntegrator(one);
+   blfi(1,0) = new MixedVectorGradientIntegrator(negone);
+   BilinearFormIntegrator * divdiv = new DivDivIntegrator(one);
+   BilinearFormIntegrator * mass = new VectorFEMassIntegrator(one);
+   SumIntegrator * suminteg = new SumIntegrator();
+   suminteg->AddIntegrator(divdiv);
+   suminteg->AddIntegrator(mass);
+   blfi(1,1) = suminteg;
+
+   TestBlockBilinearFormIntegrator * integ = new TestBlockBilinearFormIntegrator();
+   integ->SetIntegrators(blfi);
    a.AddDomainIntegrator(integ);
    a.Assemble();
    a.Finalize();
@@ -86,56 +82,78 @@ int main(int argc, char *argv[])
 
    BlockLinearForm b(fespaces);
 
-   TestBlockLinearFormIntegrator * lfi = new TestBlockLinearFormIntegrator(one);
-
-   b.AddDomainIntegrator(lfi);
-   cout << "b size = " << b.Size() << endl;
+   // TestBlockLinearFormIntegrator * lfi = new TestBlockLinearFormIntegrator(one);
+   TestBlockLinearFormIntegrator * lininteg = new TestBlockLinearFormIntegrator();
+   Array<LinearFormIntegrator * > lfi(2);
+   lfi[0] = nullptr;
+   lfi[1] = new VectorFEDomainLFDivIntegrator(negone);
+   lininteg->SetIntegrators(lfi);
+   b.AddDomainIntegrator(lininteg);
+   // cout << "b size = " << b.Size() << endl;
    b.Assemble();
 
 
+   // b.Print();
+
+
    OperatorPtr A;
-   Array<int> ess_tdofs;
-   ess_tdofs.Append(2);
-   ess_tdofs.Append(6);
-   ess_tdofs.Append(12);
-   ess_tdofs.Append(55);
-   // ess_tdofs[1] = 89;
-   // ess_tdofs[2] = 150;
-   a.FormSystemMatrix(ess_tdofs,A);
+   Array<int> ess_bdr;
+   Array<int> ess_tdof_list;
+   if (mesh.bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      fespaces[0]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
 
    // need to implement blkgridfunction later but for now Vector would do
-
    int size = 0;
-
    for (int i = 0; i<fespaces.Size(); i++)
    {
       size += fespaces[i]->GetVSize();
    }
 
    Vector x(size);
-
-   x = 10.;
+   x = 0.0;
 
    // Vector b(size);
 
    // b = 1.0;
 
    Vector X,B;
-
-   a.FormLinearSystem(ess_tdofs,x,b,A,X,B);
-
-   x.Print();
-
-   cout << endl;
-
-   b.Print();
+   a.FormLinearSystem(ess_tdof_list,x,b,A,X,B);
 
 
-   // ((SparseMatrix&)(*A)).Threshold(0.);
-   // ((SparseMatrix&)(*A)).SortColumnIndices();
-   // ((SparseMatrix&)(*A)).PrintMatlab();
-   // a.FormSystem
+   GSSmoother M((SparseMatrix&)(*A));
+   CGSolver cg;
+   cg.SetRelTol(1e-6);
+   cg.SetMaxIter(200);
+   cg.SetPrintLevel(1);
+   cg.SetPreconditioner(M);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
 
+
+   GridFunction u_gf, sigma_gf;
+   double *data = x.GetData();
+   u_gf.MakeRef(fespaces[0],&data[0]);
+   sigma_gf.MakeRef(fespaces[1],&data[fespaces[0]->GetVSize()]);
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream solu_sock(vishost, visport);
+      solu_sock.precision(8);
+      solu_sock << "solution\n" << mesh << u_gf <<
+               "window_title 'Numerical u' "
+               << flush;
+      socketstream sols_sock(vishost, visport);
+      sols_sock.precision(8);
+      sols_sock << "solution\n" << mesh << sigma_gf <<
+               "window_title 'Numerical sigma' "
+               << flush;         
+   }
 
    delete fec0;
 
