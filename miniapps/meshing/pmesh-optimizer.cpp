@@ -1003,47 +1003,47 @@ int main (int argc, char *argv[])
    }
    else
    {
-       int n = 0;
-       for (int i = 0; i < pmesh->GetNBE(); i++)
-       {
-          const int nd = pfespace->GetBE(i)->GetDof();
-          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-          MFEM_VERIFY(!(dim == 2 && attr == 3),
-                      "Boundary attribute 3 must be used only for 3D meshes. "
-                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                      "components, rest for free nodes), or use -fix-bnd.");
-          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-          if (attr == 4) { n += nd * dim; }
-       }
-       Array<int> ess_vdofs(n), vdofs;
-       n = 0;
-       for (int i = 0; i < pmesh->GetNBE(); i++)
-       {
-          const int nd = pfespace->GetBE(i)->GetDof();
-          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-          pfespace->GetBdrElementVDofs(i, vdofs);
-          if (attr == 1) // Fix x components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-          else if (attr == 2) // Fix y components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+nd]; }
-          }
-          else if (attr == 3) // Fix z components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+2*nd]; }
-          }
-          else if (attr == 4) // Fix all components.
-          {
-             for (int j = 0; j < vdofs.Size(); j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-       }
-       a.SetEssentialVDofs(ess_vdofs);
+      int n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfespace->GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
+         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+         if (attr == 4) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n), vdofs;
+      n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfespace->GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         pfespace->GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+         else if (attr == 2) // Fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3) // Fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr == 4) // Fix all components.
+         {
+            for (int j = 0; j < vdofs.Size(); j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+      }
+      a.SetEssentialVDofs(ess_vdofs);
    }
 
    // 15. As we use the Newton method to solve the resulting nonlinear system,
