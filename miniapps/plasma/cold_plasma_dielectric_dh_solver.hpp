@@ -344,7 +344,9 @@ public:
       FGMRES      =  2,
       MINRES      =  3,
       SUPERLU     =  4,
-      STRUMPACK   =  5
+      STRUMPACK   =  5,
+      DMUMPS      =  6,
+      ZMUMPS      =  7
    };
 
    CPDSolverDH(ParMesh & pmesh, int order, double omega,
