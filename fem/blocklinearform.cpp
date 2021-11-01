@@ -23,7 +23,7 @@ BlockLinearForm::BlockLinearForm(Array<FiniteElementSpace * > & fespaces_) :
    {
       s += fespaces[i]->GetVSize();
    }
-   mfem::out << "size = " << size << std::endl;
+   // mfem::out << "size = " << size << std::endl;
 
    SetSize(s);
 
@@ -62,6 +62,7 @@ void BlockLinearForm::Assemble()
       // loop through elements
       for (int i = 0; i < mesh -> GetNE(); i++)
       {
+         elvect.SetSize(0);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
             for (int j = 0; j<nblocks; j++)
@@ -90,6 +91,7 @@ void BlockLinearForm::Assemble()
          {
             elvect_p = &elvect;
          }
+
          double *data = elvect_p->GetData();
 
          for (int j = 0; j<nblocks; j++)
@@ -99,14 +101,20 @@ void BlockLinearForm::Assemble()
             offsetvdofs.SetSize(vdofs.Size());
             for (int l = 0; l<vdofs.Size(); l++)
             {
-               MFEM_WARNING("need to modify  vector dofs according to vdofs sign");
-               int vdof_idx = vdofs[l] < 0 ? -1 -vdofs[l] : vdofs[l];
-               offsetvdofs[l] = offset + vdof_idx;
+               if (vdofs[l]<0)
+               {
+                 offsetvdofs[l] =  -(offset + (-1 -vdofs[l])+1);
+               }
+               else
+               {
+                  offsetvdofs[l] = offset + vdofs[l];
+               }
             }
             int jbeg = elementblockoffsets[j];
             int jend = elementblockoffsets[j+1]-1;
             subvect.SetSize(jend-jbeg+1);
             subvect.SetData(&data[jbeg]);
+
             if (doftrans)
             {
                doftrans->TransformDual(subvect);
