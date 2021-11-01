@@ -577,6 +577,35 @@ public:
              const IntegrationPoint &ip);
 };
 
+class ComplexPhaseCoefficient : public Coefficient
+{
+private:
+   VectorCoefficient * kReCoef_;
+   VectorCoefficient * kImCoef_;
+   Coefficient * vReCoef_;
+   Coefficient * vImCoef_;
+
+   bool realPart_;
+   bool inv_k_;
+   int kdim_;
+
+   mutable Vector xk_;
+   mutable Vector xs_;
+   mutable Vector kRe_;
+   mutable Vector kIm_;
+
+public:
+   ComplexPhaseCoefficient(VectorCoefficient *kRe,
+                           VectorCoefficient *kIm,
+                           Coefficient *vRe,
+                           Coefficient *vIm,
+                           bool realPart, bool inv_k);
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+};
+
 class ComplexPhaseVectorCoefficient : public VectorCoefficient
 {
 private:

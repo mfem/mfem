@@ -1281,6 +1281,80 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
    }
 }
 
+ComplexPhaseCoefficient::ComplexPhaseCoefficient(
+   VectorCoefficient *kRe,
+   VectorCoefficient *kIm,
+   Coefficient *vRe,
+   Coefficient *vIm,
+   bool realPart, bool inv_k)
+   : kReCoef_(kRe), kImCoef_(kIm), vReCoef_(vRe), vImCoef_(vIm),
+     realPart_(realPart), inv_k_(inv_k),
+     kdim_(kRe ? kRe->GetVDim() :(kIm ? kIm->GetVDim() : 0)),
+     xk_(kdim_), xs_(xk_.GetData(), kdim_),
+     kRe_(kdim_), kIm_(kdim_)
+{
+   if ( kRe && kIm )
+   {
+      MFEM_ASSERT(kRe->GetVDim() == kIm->GetVDim(),
+                  "Wave vector dimension mismatch in "
+                  "ComplexPhaseVectorCoefficient");
+   }
+
+   xk_  = 0.0;
+   kRe_ = 0.0;
+   kIm_ = 0.0;
+}
+
+double ComplexPhaseCoefficient::Eval(ElementTransformation &T,
+                                     const IntegrationPoint &ip)
+{
+   T.Transform(ip, xs_);
+
+   double sinkx = 0.0;
+   double coskx = 1.0;
+
+   if (kReCoef_)
+   {
+      kReCoef_->Eval(kRe_, T, ip);
+      double phase = kRe_ * xk_;
+
+      sinkx = sin(phase) * (inv_k_ ? -1.0 : 1.0);
+      coskx = cos(phase);
+   }
+   if (kImCoef_)
+   {
+      kImCoef_->Eval(kIm_, T, ip);
+      double phase = kIm_ * xk_;
+      double expkx = exp((inv_k_ ? -1.0 : 1.0) * phase);
+
+      sinkx *= expkx;
+      coskx *= expkx;
+   }
+
+   double vRe = 0.0;
+   double vIm = 0.0;
+
+   if (vReCoef_)
+   {
+      vRe = vReCoef_->Eval(T, ip);
+   }
+   if (vImCoef_)
+   {
+      vIm = vImCoef_->Eval(T, ip);
+   }
+
+   double v = 0.0;
+   if (realPart_)
+   {
+      v = coskx * vRe - sinkx * vIm;
+   }
+   else
+   {
+      v = sinkx * vRe + coskx * vIm;
+   }
+   return v;
+}
+
 ComplexPhaseVectorCoefficient::ComplexPhaseVectorCoefficient(
    VectorCoefficient *kRe,
    VectorCoefficient *kIm,
