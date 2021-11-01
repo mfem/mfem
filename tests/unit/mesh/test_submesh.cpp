@@ -10,30 +10,36 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include <iomanip>
 
 using namespace mfem;
 
 #include "unit_tests.hpp"
 
-TEST_CASE("Domain SubMesh construction", "[SubMesh]")
+enum FECType { H1, L2 };
+static const char *fectype_str[] = { "H1", "L2" };
+enum TransferType { ParentToSub, SubToParent };
+static const char *transfer_str[] = { "ParentToSub", "SubToParent" };
+static const char *element_str[] = { "POINT", "SEGMENT", "TRIANGLE", "QUADRILATERAL", "TETRAHEDRON", "HEXAHEDRON", "WEDGE", "PYRAMID" };
+
+FiniteElementCollection* create_fec(FECType fectype, int p, int dim)
 {
-   using namespace std;
+  switch(fectype)
+  {
+    case H1:
+      return new H1_FECollection(p, dim);
+      break;
+    case L2:
+      return new L2_FECollection(p, dim);
+      break;
+  }
 
-   // Create a cartesian mesh in 2D with two attributes that have the following
-   // topology.
-   //
-   // +--------------------------+
-   // |                          |
-   // |     +-------------+      |
-   // |     |             |      |
-   // |     |     2       |  1   |
-   // |     |             |      |
-   // |     +-------------+      |
-   // |                          |
-   // +--------------------------+
-   //
+  return nullptr;
+}
 
-   Mesh mesh = Mesh::MakeCartesian2D(5, 5, Element::QUADRILATERAL, true, 1.0, 1.0,
+void test_2d(int dim, Element::Type element_type, FECType fectype, int polynomial_order, int mesh_polynomial_order, TransferType transfer_type)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(5, 5, element_type, true, 1.0, 1.0,
                                      false);
 
    for (int i = 0; i < mesh.GetNE(); i++)
@@ -61,7 +67,7 @@ TEST_CASE("Domain SubMesh construction", "[SubMesh]")
 
    // Deform original mesh
    mesh.EnsureNodes();
-   mesh.SetCurvature(2);
+   mesh.SetCurvature(mesh_polynomial_order);
    GridFunction *nodes = mesh.GetNodes();
 
    auto node_movement_coeff = VectorFunctionCoefficient(mesh.Dimension(),
@@ -76,57 +82,48 @@ TEST_CASE("Domain SubMesh construction", "[SubMesh]")
 
    mesh.Transform(node_movement_coeff);
 
-   H1_FECollection h1_fec(1, 2);
-   FiniteElementSpace parent_h1_fes(&mesh, &h1_fec);
+   FiniteElementCollection *fec = create_fec(fectype, polynomial_order, dim);
+   FiniteElementSpace parent_fes(&mesh, fec);
 
-   GridFunction parent_gf(&parent_h1_fes);
+   GridFunction parent_gf(&parent_fes);
    parent_gf = 0.0;
 
-   auto parent_coeff = FunctionCoefficient([](const Vector &coords)
+   auto coeff = FunctionCoefficient([](const Vector &coords)
    {
       double x = coords(0);
       double y = coords(1);
       return y + 0.05 * sin(x*2.0*M_PI);
    });
 
-   parent_gf.ProjectCoefficient(parent_coeff);
-
    Array<int> subdomain_attributes(1);
    subdomain_attributes[0] = 2;
 
    SubMesh submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
-   FiniteElementSpace sub_h1_fes(&submesh, &h1_fec);
+   FiniteElementSpace sub_fes(&submesh, fec);
 
-   GridFunction sub_gf(&sub_h1_fes);
+   GridFunction sub_gf(&sub_fes);
    sub_gf = 0.0;
 
-   SubMesh::Transfer(parent_gf, sub_gf);
+   double l2err = 1e12;
+   if (transfer_type == ParentToSub)
+   {
+     parent_gf.ProjectCoefficient(coeff);
+     SubMesh::Transfer(parent_gf, sub_gf);
+     l2err = sub_gf.ComputeL2Error(coeff);
+     REQUIRE(l2err < 1e-2);
+   } else if (transfer_type == SubToParent)
+   {
+     sub_gf.ProjectCoefficient(coeff);
+     SubMesh::Transfer(sub_gf, parent_gf);
+     l2err = parent_gf.ComputeL2Error(coeff);
+     REQUIRE(l2err < 0.6);
+   }
 
-   out << "Domain SubMesh statistics:\n"
-       << "NE: " << submesh.GetNE() << "\n"
-       << "NVTX: " << submesh.GetNV() << "\n"
-       << std::endl;
-
-   // char vishost[] = "orchid-wired";
-   // int  visport   = 19916;
-
-   // socketstream meshsock(vishost, visport);
-   // meshsock.precision(8);
-   // meshsock << "solution\n" << mesh << parent_gf << flush;
-   // meshsock << "keys mrRjn" << flush;
-
-   // socketstream submeshsock(vishost, visport);
-   // submeshsock.precision(8);
-   // submeshsock << "solution\n" << submesh << sub_gf << flush;
-   // submeshsock << "keys mrRjn" << flush;
 }
 
-TEST_CASE("Surface SubMesh construction", "[SubMesh]")
+void test_3d(int dim, Element::Type element_type, FECType fectype, int polynomial_order, int mesh_polynomial_order, TransferType transfer_type)
 {
-   using namespace std;
-
    double Hy = 1.0;
-
    Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, Element::HEXAHEDRON, 1.0, Hy, 1.0, false);
 
    for (int i = 0; i < mesh.GetNBE(); i++)
@@ -154,7 +151,7 @@ TEST_CASE("Surface SubMesh construction", "[SubMesh]")
 
    // Deform original mesh
    mesh.EnsureNodes();
-   mesh.SetCurvature(2);
+   mesh.SetCurvature(mesh_polynomial_order);
    GridFunction *nodes = mesh.GetNodes();
 
    auto node_movement_coeff = VectorFunctionCoefficient(mesh.Dimension(),
@@ -171,47 +168,90 @@ TEST_CASE("Surface SubMesh construction", "[SubMesh]")
 
    mesh.Transform(node_movement_coeff);
 
-   H1_FECollection h1_fec(1, 3);
-   FiniteElementSpace parent_h1_fes(&mesh, &h1_fec);
+   FiniteElementCollection *fec = create_fec(fectype, polynomial_order, dim);
+   FiniteElementSpace parent_fes(&mesh, fec);
 
-   GridFunction parent_gf(&parent_h1_fes);
+   GridFunction parent_gf(&parent_fes);
    parent_gf = 0.0;
 
-   auto parent_coeff = FunctionCoefficient([](const Vector &coords)
+   auto coeff = FunctionCoefficient([](const Vector &coords)
    {
       double x = coords(0);
       double y = coords(1);
-      return y + 0.05 * sin(x*2.0*M_PI);
+      double z = coords(2);
+      return y + 0.05 * sin(x*2.0*M_PI) + z;
    });
-
-   parent_gf.ProjectCoefficient(parent_coeff);
 
    Array<int> subdomain_attributes(1);
    subdomain_attributes[0] = 2;
 
    SubMesh submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
-   FiniteElementSpace sub_h1_fes(&submesh, &h1_fec);
+   FiniteElementSpace sub_fes(&submesh, fec);
 
-   GridFunction sub_gf(&sub_h1_fes);
+   GridFunction sub_gf(&sub_fes);
    sub_gf = 0.0;
 
-   SubMesh::Transfer(parent_gf, sub_gf);
+   double l2err = 1e12;
+   if (transfer_type == ParentToSub)
+   {
+     parent_gf.ProjectCoefficient(coeff);
+     SubMesh::Transfer(parent_gf, sub_gf);
+     l2err = sub_gf.ComputeL2Error(coeff);
+     REQUIRE(l2err < 1e-2);
+   } else if (transfer_type == SubToParent)
+   {
+     sub_gf.ProjectCoefficient(coeff);
+     SubMesh::Transfer(sub_gf, parent_gf);
+     l2err = parent_gf.ComputeL2Error(coeff);
+     REQUIRE(l2err < 0.6);
+   }
 
-   out << "Boundary SubMesh statistics:\n"
-     << "NE: " << submesh.GetNE() << "\n"
-     << "NVTX: " << submesh.GetNV() << "\n"
-     << std::endl;
+   // char vishost[] = "orchid";
+   // int  visport   = 19916;
 
-   char vishost[] = "orchid-wired";
-   int  visport   = 19916;
+   // socketstream meshsock(vishost, visport);
+   // meshsock.precision(8);
+   // meshsock << "solution\n" << mesh << parent_gf << flush;
+   // meshsock << "keys mrRjn" << flush;
 
-   socketstream meshsock(vishost, visport);
-   meshsock.precision(8);
-   meshsock << "solution\n" << mesh << parent_gf << flush;
-   meshsock << "keys mrRjn" << flush;
-
-   socketstream submeshsock(vishost, visport);
-   submeshsock.precision(8);
-   submeshsock << "solution\n" << submesh << sub_gf << flush;
-   submeshsock << "keys mrRjn" << flush;
+   // socketstream submeshsock(vishost, visport);
+   // submeshsock.precision(8);
+   // submeshsock << "solution\n" << submesh << sub_gf << flush;
+   // submeshsock << "keys mrRjn" << flush;
 }
+
+TEST_CASE("GENERATE TEST", "[SubMesh]")
+{
+  auto fectype = GENERATE(FECType::H1, FECType::L2);
+  auto polynomial_order = GENERATE(1, 4);
+  auto mesh_polynomial_order = GENERATE(1, 2);
+  auto transfer_type = GENERATE(TransferType::ParentToSub, TransferType::SubToParent);
+  const char separator = ' ';
+
+  SECTION("2D") {
+    int dim = 2;
+    auto element = GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
+    out << std::setw(2) << std::setfill(separator) << dim;
+    out << std::setw(2) << std::setfill(separator) << mesh_polynomial_order;
+    out << std::setw(14) << std::setfill(separator) << element_str[element];
+    out << std::setw(3) << std::setfill(separator) << fectype_str[fectype];
+    out << std::setw(2) << std::setfill(separator) << polynomial_order;
+    out << std::setw(12) << std::setfill(separator) << transfer_str[transfer_type];
+    out << std::endl;
+    test_2d(dim, element, fectype, polynomial_order, mesh_polynomial_order, transfer_type);
+  }
+
+  SECTION("3D") {
+    int dim = 3;
+    auto element = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+    out << std::setw(2) << std::setfill(separator) << dim;
+    out << std::setw(2) << std::setfill(separator) << mesh_polynomial_order;
+    out << std::setw(14) << std::setfill(separator) << element_str[element];
+    out << std::setw(3) << std::setfill(separator) << fectype_str[fectype];
+    out << std::setw(2) << std::setfill(separator) << polynomial_order;
+    out << std::setw(12) << std::setfill(separator) << transfer_str[transfer_type];
+    out << std::endl;
+    test_3d(dim, element, fectype, polynomial_order, mesh_polynomial_order, transfer_type);
+  }
+}
+
