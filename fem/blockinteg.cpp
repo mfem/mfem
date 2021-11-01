@@ -40,13 +40,51 @@ void TestBlockBilinearFormIntegrator::AssembleElementMatrix
 {
    int nd = 0;
    int nblocks = el.Size();
+   Array<int> offsets(nblocks+1);
+   offsets[0] = 0;
    for (int i = 0; i<nblocks; i++)
    {
       nd += el[i]->GetDof();
+      offsets[i+1] = el[i]->GetDof();
+   }
+   offsets.PartialSum();
+   elmat.SetSize(nd);
+   elmat = 0.0;
+   DenseMatrix dmat;
+
+   if (blfis.NumRows())
+   {
+      // Get the matrices directly from the existing BilinearFormIntegrators
+      for (int i = 0; i<nblocks; i++)
+      {
+         // mfem::out << "i = " << i << std::endl;
+         int offset_i = offsets[i];
+         const FiniteElement * fe_i = el[i];
+         for (int j = 0; j<nblocks; j++)
+         {
+            // mfem::out << "j = " << j << std::endl;
+            BilinearFormIntegrator * blfi = blfis(i,j);
+            if (!blfi) continue;
+            if (j == i)
+            {
+               blfi->AssembleElementMatrix(*fe_i,Trans,dmat);
+               // mfem::out << "j 1 = " << j << std::endl;
+               elmat.SetSubMatrix(offset_i,dmat);
+            }
+            else
+            {
+               const FiniteElement * fe_j = el[j];
+               blfi->AssembleElementMatrix2(*fe_j,*fe_i,Trans,dmat);
+               // mfem::out << "j 2 = " << j << std::endl;
+               int offset_j = offsets[j];
+               elmat.SetSubMatrix(offset_i,offset_j,dmat);
+            }
+         }
+      }
+      return;
    }
 
-   elmat.SetSize(nd);
-
+   // else compute the matrices
    elmat = 25.0;
    // TODO
 
@@ -60,16 +98,37 @@ void TestBlockLinearFormIntegrator::AssembleRHSElementVect
 {
    int nd = 0;
    int nblocks = el.Size();
+   Array<int> offsets(nblocks+1);
+   offsets[0] = 0;
    for (int i = 0; i<nblocks; i++)
    {
       nd += el[i]->GetDof();
+      offsets[i+1] = el[i]->GetDof();
+   }
+   offsets.PartialSum();
+   elvector.SetSize(nd);
+   elvector = 0.0;
+   Vector subvector;
+
+   if (lfis.Size())
+   {
+      // Get the matrices directly from the existing BilinearFormIntegrators
+      for (int i = 0; i<nblocks; i++)
+      {
+         int offset = offsets[i];
+         const FiniteElement * fe_i = el[i];
+         LinearFormIntegrator * lfi = lfis[i];
+         if (!lfi) 
+         continue;
+         lfi->AssembleRHSElementVect(*fe_i,Trans,subvector);
+         elvector.SetVector(subvector,offset);
+      }
+      return;
    }
 
-   elvector.SetSize(nd);
-
-   elvector = 1.0;
+   // else, compute the block linear form integrator
+   // elvector = 1.0;
    // TODO
-
 }
 
 } // namespace mfem

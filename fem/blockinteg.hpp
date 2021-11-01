@@ -70,6 +70,9 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
+   Array2D<BilinearFormIntegrator *> blfis;
+
+
 public:
 
    TestBlockBilinearFormIntegrator(const IntegrationRule *ir = NULL)
@@ -79,6 +82,16 @@ public:
    TestBlockBilinearFormIntegrator(Coefficient &q,
                                    const IntegrationRule *ir = NULL)
       : BlockBilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL)   { }
+
+
+   TestBlockBilinearFormIntegrator(Array2D<BilinearFormIntegrator *> blfis_)
+      : BlockBilinearFormIntegrator(NULL), blfis(blfis_) { }
+
+   void SetIntegrators(Array2D<BilinearFormIntegrator *> blfis_)
+   {
+      blfis = blfis_;
+   } 
+
 
    /** Given a particular Finite Element computes the element matrix
        elmat. */
@@ -99,6 +112,7 @@ protected:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+   Array<LinearFormIntegrator *> lfis;
 
 public:
 
@@ -109,10 +123,20 @@ public:
    TestBlockLinearFormIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BlockLinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
 
+
+   TestBlockLinearFormIntegrator(Array<LinearFormIntegrator *> lfis_)
+      : BlockLinearFormIntegrator(NULL), lfis(lfis_) { }
+
+   void SetIntegrators(Array<LinearFormIntegrator *> lfis_)
+   {
+      lfis = lfis_;
+   } 
+
    /** Given a particular Finite Element computes the element vector */
    virtual void AssembleRHSElementVect(const Array<const FiniteElement *> &el,
                                        ElementTransformation &Trans,
                                        Vector &elvector);
+
 
 };
 
