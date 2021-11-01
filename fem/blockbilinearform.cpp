@@ -149,25 +149,33 @@ void BlockBilinearForm::Assemble(int skip_zeros)
          {
             doftrans_j = fespaces[j]->GetElementVDofs(i, vdofs_j);
             int offset_j = blockoffsets[j];
-            // mfem::out << "offset_j = " << offset_j << std::endl;
             offsetvdofs_j.SetSize(vdofs_j.Size());
             for (int l = 0; l<vdofs_j.Size(); l++)
             {
-               MFEM_WARNING("need to modify matrix dofs according to vdofs sign");
-               int vdof_idx = vdofs_j[l] < 0 ? -1 -vdofs_j[l] : vdofs_j[l];
-               offsetvdofs_j[l] = offset_j + vdof_idx;
+               if (vdofs_j[l]<0)
+               {
+                 offsetvdofs_j[l] =  -(offset_j + (-1 -vdofs_j[l])+1);
+               }
+               else
+               {
+                  offsetvdofs_j[l] = offset_j + vdofs_j[l];
+               }
             }
             for (int k = 0; k<nblocks; k++)
             {
                doftrans_k = fespaces[k]->GetElementVDofs(i, vdofs_k);
                int offset_k = blockoffsets[k];
-               mfem::out << "offset_k = " << offset_k << std::endl;
                offsetvdofs_k.SetSize(vdofs_k.Size());
                for (int l = 0; l<vdofs_k.Size(); l++)
                {
-                  MFEM_WARNING("need to modify matrix dofs according to vdofs sign");
-                  int vdof_idx = vdofs_k[l] < 0 ? -1 - vdofs_k[l] : vdofs_k[l];
-                  offsetvdofs_k[l] = offset_k + vdof_idx;
+                  if (vdofs_k[l]<0)
+                  {
+                     offsetvdofs_k[l] =  -(offset_k + (-1 -vdofs_k[l])+1);
+                  }
+                  else
+                  {
+                     offsetvdofs_k[l] = offset_k + vdofs_k[l];
+                  }
                }
                // extract sub matrix (using elementblockoffsets)
                DenseMatrix A;
@@ -180,8 +188,6 @@ void BlockBilinearForm::Assemble(int skip_zeros)
                {
                   TransformDual(doftrans_j, doftrans_k, A);
                }
-               // offsetvdofs_j.Print();
-               // offsetvdofs_k.Print();
                mat->AddSubMatrix(offsetvdofs_j, offsetvdofs_k, A, skip_zeros);
             }
          }
