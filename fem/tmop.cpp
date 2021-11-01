@@ -3154,6 +3154,8 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    Array<int> dofs;
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
    surf_fit_gf->GetSubVector(dofs, surf_fit_gf_e);
+   surf_fit_gf_bar->GetSubVector(dofs, surf_fit_gf_bar_e);
+   surf_fit_gf_bar->GetValues(el_id, ir_quad, surf_fit_gf_bar_q);
 
    // Project the gradient of surf_fit_gf in the same space.
    // The FE coefficients of the gradient go in surf_fit_gf_grad_e.
