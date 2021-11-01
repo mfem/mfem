@@ -362,6 +362,12 @@ public:
    void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
    void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
 
+   void SetSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+   void SetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+   void SetSubMatrix(int ibeg, const DenseMatrix & A);
+   void SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
    /// Get the matrix 'data' from the Vector 'v' at the given 'offset'
