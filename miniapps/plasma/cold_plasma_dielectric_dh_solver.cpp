@@ -670,9 +670,6 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
      negOmega2Coef_(new ConstantCoefficient(-pow(omega_, 2))),
      abcCoef_(NULL),
-     sinkx_(NULL),
-     coskx_(NULL),
-     negsinkx_(NULL),
      // negMuInvCoef_(NULL),
      massCoef_(NULL),
      posMassCoef_(NULL),
@@ -764,10 +761,6 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       // {
       //    phi_v_ = new ParComplexGridFunction(L2FESpace_);
       // }
-
-      sinkx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, sin);
-      coskx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, cos);
-      negsinkx_ = new ProductCoefficient(-1.0, *sinkx_);
 
       // negMuInvCoef_ = new ProductCoefficient(-1.0, *muInvCoef_);
       // negMuInvkCoef_ = new ScalarVectorProductCoefficient(*negMuInvCoef_,
@@ -1227,9 +1220,6 @@ CPDSolverDH::~CPDSolverDH()
    // delete negMuInvkxkxCoef_;
    // delete negMuInvkCoef_;
    // delete negMuInvCoef_;
-   delete negsinkx_;
-   delete coskx_;
-   delete sinkx_;
    // delete rhsrCoef_;
    // delete rhsiCoef_;
    delete jrCoef_;
@@ -2109,8 +2099,10 @@ void CPDSolverDH::prepareVectorVisField(const ParComplexGridFunction &u,
    {
       VectorGridFunctionCoefficient u_r(&u.real());
       VectorGridFunctionCoefficient u_i(&u.imag());
-      VectorSumCoefficient uk_r(u_r, u_i, *coskx_, *negsinkx_);
-      VectorSumCoefficient uk_i(u_i, u_r, *coskx_, *sinkx_);
+      ComplexPhaseVectorCoefficient uk_r(kReCoef_, kImCoef_, &u_r, &u_i,
+                                         true, false);
+      ComplexPhaseVectorCoefficient uk_i(kReCoef_, kImCoef_, &u_r, &u_i,
+                                         false, false);
 
       VectorR2DCoef uk_r_3D(uk_r, *pmesh_);
       VectorR2DCoef uk_i_3D(uk_i, *pmesh_);

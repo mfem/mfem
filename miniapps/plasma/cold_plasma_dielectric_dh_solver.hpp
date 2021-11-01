@@ -850,9 +850,6 @@ private:
    Coefficient * abcCoef_;       // -omega eta
    // Coefficient * sbcReCoef_;     //  omega Im(eta^{-1})
    // Coefficient * sbcImCoef_;     // -omega Re(eta^{-1})
-   Coefficient * sinkx_;         // sin(ky * y + kz * z)
-   Coefficient * coskx_;         // cos(ky * y + kz * z)
-   Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
    // Coefficient * negMuInvCoef_;  // -1.0 / mu
 
    Coefficient * massCoef_;  // -omega^2 mu
