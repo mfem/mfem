@@ -1751,22 +1751,56 @@ CPDSolverDH::Solve()
 
    a1_->FormLinearSystem(dbc_nd_tdofs_, *h_, *rhs1_, A1, H, RHS1);
 
-#ifdef MFEM_USE_SUPERLU
-   if ( myid_ == 0 && logging_ > 0 )
-   {
-      cout << "SuperLU Solver Requested" << endl;
-   }
    ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-   HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-   SuperLURowLocMatrix A_SuperLU(*A1C);
-   SuperLUSolver AInv(MPI_COMM_WORLD);
-   AInv.SetPrintStatistics(true);
-   // AInv.SetNumLookAheads(10);
-   // AInv.SetReplaceTinyPivot(true);
-   // AInv.SetEquilibriate(false);
-   // AInv.SetIterativeRefine(superlu::SLU_DOUBLE);
-   AInv.SetOperator(A_SuperLU);
-   // solver.Mult(RHS1, H);
+   HypreParMatrix * A1C = (sol_ != SolverType::ZMUMPS) ?
+                          A1Z->GetSystemMatrix() : NULL;
+
+   Solver * AInv = NULL;
+
+#ifdef MFEM_USE_SUPERLU
+   if (sol_ == SolverType::SUPERLU)
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "SuperLU Solver Requested" << endl;
+      }
+      SuperLURowLocMatrix A_SuperLU(*A1C);
+      SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
+      superlu->SetPrintStatistics(true);
+      // SuperLU Options
+      // AInv.SetNumLookAheads(10);
+      // AInv.SetReplaceTinyPivot(true);
+      // AInv.SetEquilibriate(false);
+      // AInv.SetIterativeRefine(superlu::SLU_DOUBLE);
+      superlu->SetOperator(A_SuperLU);
+      AInv = superlu;
+   }
+#endif
+#ifdef MFEM_USE_MUMPS
+   if (sol_ == SolverType::DMUMPS)
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "MUMPS (Real) Solver Requested" << endl;
+      }
+      MUMPSSolver * dmumps = new MUMPSSolver;
+      dmumps->SetPrintLevel(1);
+      dmumps->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      dmumps->SetOperator(*A1C);
+      AInv = dmumps;
+   }
+   if (sol_ == SolverType::ZMUMPS)
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "MUMPS (Complex) Solver Requested" << endl;
+      }
+      ComplexMUMPSSolver * zmumps = new ComplexMUMPSSolver;
+      zmumps->SetPrintLevel(1);
+      zmumps->SetOperator(*A1Z);
+      AInv = zmumps;
+   }
+#endif
 
    if (sbcs_.Size() > 0)
    {
@@ -1794,7 +1828,7 @@ CPDSolverDH::Solve()
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
 
-         SchurComplimentOperator schur(AInv, *B, *C, *D);
+         SchurComplimentOperator schur(*AInv, *B, *C, *D);
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
@@ -1830,13 +1864,13 @@ CPDSolverDH::Solve()
    }
    else
    {
-      AInv.Mult(RHS1, H);
+      AInv->Mult(RHS1, H);
 
       *phi_ = 0.0;
    }
 
+   delete AInv;
    delete A1C;
-#endif
 
    a1_->RecoverFEMSolution(H, *rhs1_, *h_);
 
