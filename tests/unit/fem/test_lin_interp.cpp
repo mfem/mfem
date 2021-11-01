@@ -56,6 +56,13 @@ void F3(const Vector & x, Vector & v)
    v[1] =  2.537 * x[0] + 4.321 * x[1] - 1.234 * x[2];
    v[2] = -2.572 * x[0] + 1.321 * x[1] + 3.234 * x[2];
 }
+void FR2D(const Vector & x, Vector & v)
+{
+   v.SetSize(3);
+   v[0] =  1.234 * x[0] - 2.357 * x[1];
+   v[1] =  2.537 * x[0] + 4.321 * x[1];
+   v[2] = -2.572 * x[0] + 1.321 * x[1];
+}
 
 void Grad_f3(const Vector & x, Vector & df)
 {
@@ -92,6 +99,13 @@ void G3(const Vector & x, Vector & v)
    v[1] = 4.537 * x[0] + 1.321 * x[1] + 2.234 * x[2];
    v[2] = 1.572 * x[0] + 2.321 * x[1] + 3.234 * x[2];
 }
+void GR2D(const Vector & x, Vector & v)
+{
+   v.SetSize(3);
+   v[0] = 4.234 * x[0] + 3.357 * x[1];
+   v[1] = 4.537 * x[0] + 1.321 * x[1];
+   v[2] = 1.572 * x[0] + 2.321 * x[1];
+}
 
 double fg1(const Vector & x) { return f1(x) * g1(x); }
 
@@ -116,6 +130,7 @@ double FdotG2(const Vector & x)
 
 double fg3(const Vector & x) { return f3(x) * g3(x); }
 void   fG3(const Vector & x, Vector & v) { G3(x, v); v *= f3(x); }
+void   fGR2D(const Vector & x, Vector & v) { GR2D(x, v); v *= f2(x); }
 void   Fg3(const Vector & x, Vector & v) { F3(x, v); v *= g3(x); }
 
 void FcrossG3(const Vector & x, Vector & FxG)
@@ -128,10 +143,27 @@ void FcrossG3(const Vector & x, Vector & FxG)
    FxG(2) = F(0) * G(1) - F(1) * G(0);
 }
 
+void FcrossGR2D(const Vector & x, Vector & FxG)
+{
+   Vector F; FR2D(x, F);
+   Vector G; GR2D(x, G);
+   FxG.SetSize(3);
+   FxG(0) = F(1) * G(2) - F(2) * G(1);
+   FxG(1) = F(2) * G(0) - F(0) * G(2);
+   FxG(2) = F(0) * G(1) - F(1) * G(0);
+}
+
 double FdotG3(const Vector & x)
 {
    Vector F; F3(x, F);
    Vector G; G3(x, G);
+   return F * G;
+}
+
+double FdotGR2D(const Vector & x)
+{
+   Vector F; FR2D(x, F);
+   Vector G; GR2D(x, G);
    return F * G;
 }
 
@@ -774,11 +806,16 @@ TEST_CASE("Product Linear Interpolators",
                                         (dim==2) ? F2 : F3);
       VectorFunctionCoefficient   GCoef(dim,
                                         (dim==2) ? G2 : G3);
+      VectorFunctionCoefficient   FR2DCoef(3, FR2D);
+      VectorFunctionCoefficient   GR2DCoef(3, GR2D);
 
       FunctionCoefficient        FGCoef((dim==2) ? FdotG2 : FdotG3);
+      FunctionCoefficient        FGR2DCoef(FdotGR2D);
       VectorFunctionCoefficient  fGCoef(dim, (dim==2) ? fG2 : fG3);
+      VectorFunctionCoefficient  fGR2DCoef(3, fGR2D);
       VectorFunctionCoefficient  FgCoef(dim, (dim==2) ? Fg2 : Fg3);
       VectorFunctionCoefficient FxGCoef(dim, (dim==2) ? FcrossG2 : FcrossG3);
+      VectorFunctionCoefficient FxGR2DCoef(3, FcrossGR2D);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -933,6 +970,67 @@ TEST_CASE("Product Linear Interpolators",
                OpF1.Mult(G2,FG3);
 
                REQUIRE( FG3.ComputeL2Error(FGCoef) < tol );
+            }
+         }
+      }
+      if (dim == 2)
+      {
+         SECTION("Operators on HCurl (R2D) for element type "
+                 + std::to_string(type))
+         {
+            ND_R2D_FECollection    fec_nd(order_nd, dim);
+            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+            GridFunction G1(&fespace_nd);
+            G1.ProjectCoefficient(GR2DCoef);
+
+            SECTION("Mapping HCurl (R2D) to HCurl (R2D)")
+            {
+               ND_R2D_FECollection    fec_ndp(order_nd+order_h1, dim);
+               FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
+
+               DiscreteLinearOperator Opf0(&fespace_nd,&fespace_ndp);
+               Opf0.AddDomainInterpolator(
+                  new ScalarVectorProductInterpolator(fCoef));
+               Opf0.Assemble();
+
+               GridFunction fG1(&fespace_ndp);
+               Opf0.Mult(G1,fG1);
+
+               REQUIRE( fG1.ComputeL2Error(fGR2DCoef) < tol );
+            }
+            SECTION("Mapping to HDiv (R2D)")
+            {
+               RT_R2D_FECollection    fec_rtp(2*order_nd-1, dim);
+               FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
+
+               DiscreteLinearOperator OpF1(&fespace_nd,&fespace_rtp);
+               OpF1.AddDomainInterpolator(
+                  new VectorCrossProductInterpolator(FR2DCoef));
+               OpF1.Assemble();
+
+               GridFunction FxG2(&fespace_rtp);
+               OpF1.Mult(G1,FxG2);
+
+               REQUIRE( FxG2.ComputeL2Error(FxGR2DCoef) < tol );
+            }
+            SECTION("Mapping to L2")
+            {
+               RT_R2D_FECollection    fec_rt(order_rt, dim);
+               FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+
+               L2_FECollection    fec_l2p(order_nd+order_rt, dim);
+               FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
+
+               DiscreteLinearOperator OpF2(&fespace_nd,&fespace_l2p);
+               OpF2.AddDomainInterpolator(
+                  new VectorInnerProductInterpolator(FR2DCoef));
+               OpF2.Assemble();
+
+               GridFunction FG3(&fespace_l2p);
+               OpF2.Mult(G1,FG3);
+
+               REQUIRE( FG3.ComputeL2Error(FGR2DCoef) < tol );
             }
          }
       }
