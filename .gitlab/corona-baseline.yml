@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 variables:
-  BASELINE_TEST: baseline
+  BASELINE_TEST: baseline-gpu
 
 stages:
   - setup
@@ -18,11 +18,11 @@ stages:
   - baseline_report
   - baseline_publish
 
-baselinecheck_mfem_intel_quartz:
-  extends: [.on_quartz]
+baselinecheck_mfem_intel_corona:
+  extends: [.on_corona]
   stage: baseline_check
   script:
-    - .gitlab/scripts/baseline
+    - salloc --exclusive --nodes=1 --partition=mi60 --time=60 .gitlab/scripts/baseline
   artifacts:
     when: always
     paths:
@@ -30,7 +30,7 @@ baselinecheck_mfem_intel_quartz:
   allow_failure: true
 
 report_baseline:
-  extends: [.on_quartz]
+  extends: [.on_corona]
   stage: baseline_report
   script:
     - cd ${AUTOTEST_ROOT}/autotest && git pull
@@ -50,8 +50,8 @@ report_baseline:
     - git push origin master
 
 # This job can only be manually triggered on a pipeline for master branch, or if the pipeline was triggered with REBASELINE="YES"
-baselinepublish_mfem_quartz:
-  extends: [.on_quartz]
+baselinepublish_mfem_corona:
+  extends: [.on_corona]
   stage: baseline_publish
   rules:
     - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
@@ -61,5 +61,5 @@ baselinepublish_mfem_quartz:
 
 include:
   - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/quartz-config.yml
+  - local: .gitlab/configs/corona-config.yml
   - local: .gitlab/configs/setup-baseline.yml
