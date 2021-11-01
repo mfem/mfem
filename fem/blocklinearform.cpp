@@ -103,7 +103,7 @@ void BlockLinearForm::Assemble()
             {
                if (vdofs[l]<0)
                {
-                 offsetvdofs[l] =  -(offset + (-1 -vdofs[l])+1);
+                  offsetvdofs[l] =  -(offset + (-1 -vdofs[l])+1);
                }
                else
                {

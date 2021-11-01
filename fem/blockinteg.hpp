@@ -90,7 +90,7 @@ public:
    void SetIntegrators(Array2D<BilinearFormIntegrator *> blfis_)
    {
       blfis = blfis_;
-   } 
+   }
 
 
    /** Given a particular Finite Element computes the element matrix
@@ -130,7 +130,7 @@ public:
    void SetIntegrators(Array<LinearFormIntegrator *> lfis_)
    {
       lfis = lfis_;
-   } 
+   }
 
    /** Given a particular Finite Element computes the element vector */
    virtual void AssembleRHSElementVect(const Array<const FiniteElement *> &el,

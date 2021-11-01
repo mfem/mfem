@@ -154,7 +154,7 @@ void BlockBilinearForm::Assemble(int skip_zeros)
             {
                if (vdofs_j[l]<0)
                {
-                 offsetvdofs_j[l] =  -(offset_j + (-1 -vdofs_j[l])+1);
+                  offsetvdofs_j[l] =  -(offset_j + (-1 -vdofs_j[l])+1);
                }
                else
                {

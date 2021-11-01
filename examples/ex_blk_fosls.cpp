@@ -146,13 +146,13 @@ int main(int argc, char *argv[])
       socketstream solu_sock(vishost, visport);
       solu_sock.precision(8);
       solu_sock << "solution\n" << mesh << u_gf <<
-               "window_title 'Numerical u' "
-               << flush;
+                "window_title 'Numerical u' "
+                << flush;
       socketstream sols_sock(vishost, visport);
       sols_sock.precision(8);
       sols_sock << "solution\n" << mesh << sigma_gf <<
-               "window_title 'Numerical sigma' "
-               << flush;         
+                "window_title 'Numerical sigma' "
+                << flush;
    }
 
    delete fec0;

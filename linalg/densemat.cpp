@@ -1799,7 +1799,8 @@ void DenseMatrix::GetSubMatrix(int ibeg, int iend, int jbeg, int jend,
 void DenseMatrix::SetSubMatrix(const Array<int> & idx, const DenseMatrix & A)
 {
    int k = idx.Size();
-   MFEM_VERIFY(A.Height() == k && A.Width() == k, "DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+   MFEM_VERIFY(A.Height() == k &&
+               A.Width() == k, "DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
    double * adata = A.Data();
 
    int ii, jj;
@@ -1819,7 +1820,8 @@ void DenseMatrix::SetSubMatrix(const Array<int> & idx_i,
 {
    int k = idx_i.Size();
    int l = idx_j.Size();
-   MFEM_VERIFY(k == A.Height() && l == A.Width(),"DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+   MFEM_VERIFY(k == A.Height() &&
+               l == A.Width(),"DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
    double * adata = A.Data();
 
    int ii, jj;

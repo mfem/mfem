@@ -64,7 +64,7 @@ void TestBlockBilinearFormIntegrator::AssembleElementMatrix
          {
             // mfem::out << "j = " << j << std::endl;
             BilinearFormIntegrator * blfi = blfis(i,j);
-            if (!blfi) continue;
+            if (!blfi) { continue; }
             if (j == i)
             {
                blfi->AssembleElementMatrix(*fe_i,Trans,dmat);
@@ -118,8 +118,10 @@ void TestBlockLinearFormIntegrator::AssembleRHSElementVect
          int offset = offsets[i];
          const FiniteElement * fe_i = el[i];
          LinearFormIntegrator * lfi = lfis[i];
-         if (!lfi) 
-         continue;
+         if (!lfi)
+         {
+            continue;
+         }
          lfi->AssembleRHSElementVect(*fe_i,Trans,subvector);
          elvector.SetVector(subvector,offset);
       }

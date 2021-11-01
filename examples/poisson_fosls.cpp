@@ -2,21 +2,21 @@
 //
 // Compile with: make poisson_fosls
 //
-//     - Δ u = f, in Ω 
-//         u = 0, on ∂Ω 
+//     - Δ u = f, in Ω
+//         u = 0, on ∂Ω
 
 // First Order System
 
-//   ∇ u - σ = 0, in Ω  
-// - ∇⋅σ     = f, in Ω 
-//        u  = 0, in ∂Ω 
+//   ∇ u - σ = 0, in Ω
+// - ∇⋅σ     = f, in Ω
+//        u  = 0, in ∂Ω
 
-// FOSLS: 
-//       minimize  1/2(||∇u - σ||^2 + ||∇ ⋅ σ - f||^2) 
+// FOSLS:
+//       minimize  1/2(||∇u - σ||^2 + ||∇ ⋅ σ - f||^2)
 
 
 // -------------------------------------------------
-// |   |    u    |         σ           |    RHS    | 
+// |   |    u    |         σ           |    RHS    |
 // -------------------------------------------------
 // | v | (∇u,∇v) |      -(σ,∇v)        |     0     |
 // |   |         |                     |           |
@@ -61,18 +61,18 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   FiniteElementCollection *H1fec = new H1_FECollection(order,dim); 
+   FiniteElementCollection *H1fec = new H1_FECollection(order,dim);
    FiniteElementSpace *H1fes = new FiniteElementSpace(&mesh, H1fec);
 
-   FiniteElementCollection *RTfec = new RT_FECollection(order,dim); 
+   FiniteElementCollection *RTfec = new RT_FECollection(order,dim);
    FiniteElementSpace *RTfes = new FiniteElementSpace(&mesh, RTfec);
 
 
-   // Coefficients 
+   // Coefficients
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
 
-   // Linear forms 
+   // Linear forms
    LinearForm b_0(H1fes);
    // (f,∇⋅τ )
    LinearForm b_1(RTfes);
@@ -83,16 +83,17 @@ int main(int argc, char *argv[])
    BilinearForm a_00(H1fes);
    a_00.AddDomainIntegrator(new DiffusionIntegrator(one));
 
-   //   -(σ,∇v)  
+   //   -(σ,∇v)
    MixedBilinearForm a_01(RTfes, H1fes);
-   a_01.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(one)); // (-1 is included)
+   a_01.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(
+                               one)); // (-1 is included)
 
    //    // -(∇u,τ)
    // MixedBilinearForm()
    MixedBilinearForm a_10(H1fes, RTfes);
    a_10.AddDomainIntegrator(new MixedVectorGradientIntegrator(negone));
 
-   // (∇⋅σ, ∇⋅τ) + (σ,τ) 
+   // (∇⋅σ, ∇⋅τ) + (σ,τ)
 
    BilinearForm a_11(RTfes);
    a_11.AddDomainIntegrator(new DivDivIntegrator(one));
@@ -155,7 +156,7 @@ int main(int argc, char *argv[])
 
    a_11.Assemble();
    a_11.Finalize();
-   
+
    SparseMatrix &A_11 = a_11.SpMat();
 
    BlockMatrix BlockA(block_offsets);
@@ -183,13 +184,13 @@ int main(int argc, char *argv[])
       socketstream solu_sock(vishost, visport);
       solu_sock.precision(8);
       solu_sock << "solution\n" << mesh << u_gf <<
-               "window_title 'Numerical u' "
-               << flush;
+                "window_title 'Numerical u' "
+                << flush;
       socketstream sols_sock(vishost, visport);
       sols_sock.precision(8);
       sols_sock << "solution\n" << mesh << sigma_gf <<
-               "window_title 'Numerical sigma' "
-               << flush;         
+                "window_title 'Numerical sigma' "
+                << flush;
    }
 
    return 0;
