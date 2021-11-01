@@ -302,16 +302,20 @@ private:
     Any number of straps can be supported but the straps are assumed
     to be rectangular and aligned with the x and y axes..
 
-    Each strap requires 6 parameters:
-      x0: x-position of the left hand side of the strap
-      x1: x-position of the right hand side of the strap
-      y0: y-position of the bottom side of the strap
-      y1: y-position of the top side of the strap
+    Each strap requires 10 parameters:
+      x0: x-position of the first corner of the strap
+      y0: y-position of the first corner of the strap
+      x1: x-position of the second corner of the strap
+      y1: y-position of the second corner of the strap
+      x2: "
+      y2: "
+      x3: "
+      y3: "
       Re(I): Real part of the current in the strap
       Im(I): Imaginary part of the current in the strap
 
-    The parameters should be grouped by strap so that the six params
-    for strap 1 are first then the six for strap 2, etc..
+    The parameters should be grouped by strap so that the ten params
+    for strap 1 are first then the ten for strap 2, etc..
 */
 class MultiStrapAntennaH : public VectorCoefficient
 {
@@ -328,7 +332,7 @@ public:
       : VectorCoefficient(3), real_part_(real_part), num_straps_(n),
         tol_(tol), params_(params), x_(2)
    {
-      MFEM_ASSERT(params.Size() == 6 * n,
+      MFEM_ASSERT(params.Size() == 10 * n,
                   "Incorrect number of parameters provided to "
                   "MultiStrapAntennaH");
    }
@@ -337,32 +341,69 @@ public:
              const IntegrationPoint &ip)
    {
       V.SetSize(3); V = 0.0;
-
       T.Transform(ip, x_);
       for (int i=0; i<num_straps_; i++)
       {
-         double x0  = params_[6 * i + 0];
-         double x1  = params_[6 * i + 1];
-         double y0  = params_[6 * i + 2];
-         double y1  = params_[6 * i + 3];
-         double ReI = params_[6 * i + 4];
-         double ImI = params_[6 * i + 5];
-         double   H = 0.5 * (real_part_ ? ReI : ImI) / (x1 - x0 + y1 - y0);
-         if (fabs(x_[1] - y0) <= tol_ && x_[0] >= x0 && x_[0] <= x1)
+         double x0  = params_[10 * i + 0];
+         double y0  = params_[10 * i + 1];
+         double x1  = params_[10 * i + 2];
+         double y1  = params_[10 * i + 3];
+         double x2  = params_[10 * i + 4];
+         double y2  = params_[10 * i + 5];
+         double x3  = params_[10 * i + 6];
+         double y3  = params_[10 * i + 7];
+
+         double ReI = params_[10 * i + 8];
+         double ImI = params_[10 * i + 9];
+
+         double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
+         double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+         double d23 = sqrt(pow(x3 - x2, 2) + pow(y3 - y2, 2));
+         double d30 = sqrt(pow(x0 - x3, 2) + pow(y0 - y3, 2));
+
+         double   H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
+
+         // *** The following will break on any vertical sides ***
+         // Bottom of Antenna Strap:
+         double s1 = (y1-y0)/(x1-x0);
+         double b1 = y1 - s1*x1;
+         // Right of Antenna Strap:
+         double s2 = (y2-y1)/(x2-x1);
+         double b2 = y2 - s2*x2;
+         // Top of Antenna Strap:
+         double s3 = (y3-y2)/(x3-x2);
+         double b3 = y3 - s3*x3;
+         // Left of Antenna Strap:
+         double s4 = (y3-y0)/(x3-x0);
+         double b4 = y3 - s4*x3;
+
+         if (fabs(x_[1] - (s1*x_[0]+b1)) <= tol_
+             && x_[0] >= x0 && x_[0] <= x1)
          {
-            V[0] = H; break;
+            V[0] = (x1 - x0) * H / d01;
+            V[1] = (y1 - y0) * H / d01;
+            break;
          }
-         else if (fabs(x_[0] - x1) <= tol_ && x_[1] >= y0 && x_[1] <= y1)
+         else if (fabs(x_[1] - (s2*x_[0]+b2)) <= tol_
+                  && x_[1] >= y1 && x_[1] <= y2)
          {
-            V[1] = H; break;
+            V[0] = (x2 - x1) * H / d12;
+            V[1] = (y2 - y1) * H / d12;
+            break;
          }
-         else if (fabs(x_[1] - y1) <= tol_ && x_[0] >= x0 && x_[0] <= x1)
+         else if (fabs(x_[1] - (s3*x_[0]+b3)) <= tol_
+                  && x_[0] >= x3 && x_[0] <= x2)
          {
-            V[0] = -H; break;
+            V[0] = (x3 - x2) * H / d23;
+            V[1] = (y3 - y2) * H / d23;
+            break;
          }
-         else if (fabs(x_[0] - x0) <= tol_ && x_[1] >= y0 && x_[1] <= y1)
+         else if (fabs(x_[1] - (s4*x_[0]+b4)) <= tol_
+                  && x_[1] >= y0 && x_[1] <= y3)
          {
-            V[1] = -H; break;
+            V[0] = (x0 - x3) * H / d03;
+            V[1] = (y0 - y3) * H / d03;
+            break;
          }
       }
    }
