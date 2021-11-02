@@ -10,7 +10,10 @@
 // CONTRIBUTING.md for details.
 
 #include "lor.hpp"
+#include "lor_assembly.hpp"
 #include "pbilinearform.hpp"
+
+#include "../mfem-performance.hpp"
 
 namespace mfem
 {
@@ -24,9 +27,11 @@ void LORBase::AddIntegrators(BilinearForm &a_from,
    Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
-      (a_to.*add_integrator)((*integrators)[i]);
-      ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
-      if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
+      BilinearFormIntegrator *integrator = (*integrators)[i];
+      if (!integrator->SupportsBatchedLOR()) { supports_batched_assembly = false; }
+      (a_to.*add_integrator)(integrator);
+      ir_map[integrator] = integrator->GetIntegrationRule();
+      if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
 
@@ -43,16 +48,18 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
 
    for (int i=0; i<integrators->Size(); ++i)
    {
+      BilinearFormIntegrator *integrator = (*integrators)[i];
       if (*markers[i])
       {
-         (a_to.*add_integrator_marker)((*integrators)[i], *(*markers[i]));
+         (a_to.*add_integrator_marker)(integrator, *(*markers[i]));
       }
       else
       {
-         (a_to.*add_integrator)((*integrators)[i]);
+         (a_to.*add_integrator)(integrator);
       }
-      ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
-      if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
+      if (!integrator->SupportsBatchedLOR()) { supports_batched_assembly = false; }
+      ir_map[integrator] = integrator->GetIntegrationRule();
+      if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
 
@@ -91,7 +98,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    {
       const FiniteElement *fe = fes.GetFE(i);
       auto tfe = dynamic_cast<const TensorBasisElement*>(fe);
-      MFEM_ASSERT(tfe != NULL, "");
+      MFEM_ASSERT(tfe != nullptr, "");
       return tfe->GetDofMap();
    };
 
@@ -207,8 +214,10 @@ void LORBase::ConstructDofPermutation() const
    if (type == H1 || type == L2)
    {
       // H1 and L2: no permutation necessary, return identity
-      perm.SetSize(fes->GetTrueVSize());
-      for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
+      dof_perm.SetSize(fes->GetVSize());
+      for (int i=0; i<dof_perm.Size(); ++i) { dof_perm[i] = i; }
+      tdof_perm.SetSize(fes->GetTrueVSize());
+      for (int i=0; i<tdof_perm.Size(); ++i) { tdof_perm[i] = i; }
       return;
    }
 
@@ -218,12 +227,11 @@ void LORBase::ConstructDofPermutation() const
    ParFiniteElementSpace *pfes_lor = dynamic_cast<ParFiniteElementSpace*>(fes);
    if (pfes_ho && pfes_lor)
    {
-      Array<int> l_perm;
-      ConstructLocalDofPermutation(l_perm);
-      perm.SetSize(pfes_lor->GetTrueVSize());
-      for (int i=0; i<l_perm.Size(); ++i)
+      ConstructLocalDofPermutation(dof_perm);
+      tdof_perm.SetSize(pfes_lor->GetTrueVSize());
+      for (int i=0; i<dof_perm.Size(); ++i)
       {
-         int j = l_perm[i];
+         int j = dof_perm[i];
          int s = j < 0 ? -1 : 1;
          int t_i = pfes_lor->GetLocalTDofNumber(i);
          int t_j = pfes_ho->GetLocalTDofNumber(absdof(j));
@@ -233,20 +241,27 @@ void LORBase::ConstructDofPermutation() const
             MFEM_ABORT("Inconsistent DOF numbering");
          }
          if (t_i < 0) { continue; }
-         perm[t_i] = s < 0 ? -1 - t_j : t_j;
+         tdof_perm[t_i] = s < 0 ? -1 - t_j : t_j;
       }
    }
    else
 #endif
    {
-      ConstructLocalDofPermutation(perm);
+      ConstructLocalDofPermutation(dof_perm);
+      tdof_perm.MakeRef(dof_perm);
    }
 }
 
 const Array<int> &LORBase::GetDofPermutation() const
 {
-   if (perm.Size() == 0) { ConstructDofPermutation(); }
-   return perm;
+   if (dof_perm.Size() == 0) { ConstructDofPermutation(); }
+   return dof_perm;
+}
+
+const Array<int> &LORBase::GetTrueDofPermutation() const
+{
+   if (tdof_perm.Size() == 0) { ConstructDofPermutation(); }
+   return tdof_perm;
 }
 
 bool LORBase::HasSameDofNumbering() const
@@ -257,12 +272,17 @@ bool LORBase::HasSameDofNumbering() const
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
    return A;
 }
 
 void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
+   // By default, we want to use "batched assembly", however this is only
+   // supported for certain integrators. We set it to true here, and then when
+   // we loop through the integrators, if we encounter unsupported integrators,
+   // we set it to false.
+   supports_batched_assembly = true;
    a->UseExternalIntegrators();
    AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
                   &BilinearForm::AddDomainIntegrator, ir_el);
@@ -276,8 +296,102 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
                             &BilinearForm::GetBFBFI_Marker,
                             &BilinearForm::AddBdrFaceIntegrator,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
+   // if (supports_batched_assembly)
+   // {
+   //    AssembleBatchedLOR(*a, fes_ho, ess_dofs, A);
+   // }
+   // else
+   // {
+
+   mesh->SetCurvature(1, false, -1, Ordering::byNODES);
+
+   tic();
    a->Assemble();
+   mfem::out << "Standard LOR assembly time = " << toc() << '\n';
    a->FormSystemMatrix(ess_dofs, A);
+   OperatorHandle A_batched;
+
+   tic();
+   AssembleBatchedLOR(*a, fes_ho, ess_dofs, A_batched);
+   mfem::out << "Batched LOR assembly time  = " << toc() << '\n';
+
+   const int mesh_p = 1;
+   const int sol_p = 1;
+   const int ir_order = 1;
+
+   BilinearForm a_tmp(fes);
+   a_tmp.UsePrecomputedSparsity();
+
+   tic();
+   if (mesh->Dimension() == 3)
+   {
+      const Geometry::Type geom = Geometry::CUBE;
+      // Static mesh type
+      using mesh_fe_t = H1_FiniteElement<geom,mesh_p>;
+      using mesh_fes_t = H1_FiniteElementSpace<mesh_fe_t>;
+      using mesh_t = TMesh<mesh_fes_t>;
+
+      // Static solution finite element space type
+      using sol_fe_t =  H1_FiniteElement<geom,sol_p>;
+      using sol_fes_t =  H1_FiniteElementSpace<sol_fe_t>;
+
+      // Static quadrature, coefficient and integrator types
+      using int_rule_t = TIntegrationRule<geom,ir_order>;
+      using coeff_t = TConstantCoefficient<>;
+      using integ_t = TIntegrator<coeff_t,TDiffusionKernel>;
+
+      // Static bilinear form type, combining the above types
+      using HPCBilinearForm = TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t>;
+
+      HPCBilinearForm a_hpc(integ_t(coeff_t(1.0)), *fes);
+      a_hpc.AssembleBilinearForm(a_tmp); // full matrix assembly
+   }
+   else
+   {
+      const Geometry::Type geom = Geometry::SQUARE;
+      // Static mesh type
+      using mesh_fe_t = H1_FiniteElement<geom,mesh_p>;
+      using mesh_fes_t = H1_FiniteElementSpace<mesh_fe_t>;
+      using mesh_t = TMesh<mesh_fes_t>;
+
+      // Static solution finite element space type
+      using sol_fe_t =  H1_FiniteElement<geom,sol_p>;
+      using sol_fes_t =  H1_FiniteElementSpace<sol_fe_t>;
+
+      // Static quadrature, coefficient and integrator types
+      using int_rule_t = TIntegrationRule<geom,ir_order>;
+      using coeff_t = TConstantCoefficient<>;
+      using integ_t = TIntegrator<coeff_t,TDiffusionKernel>;
+
+      // Static bilinear form type, combining the above types
+      using HPCBilinearForm = TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t>;
+
+      HPCBilinearForm a_hpc(integ_t(coeff_t(1.0)), *fes);
+      a_hpc.AssembleBilinearForm(a_tmp); // full matrix assembly
+   }
+   a_tmp.Finalize();
+   mfem::out << "HPC LOR assembly time      = " << toc() << '\n';
+
+   SparseMatrix A_hpc;
+   a_tmp.FormSystemMatrix(ess_dofs, A_hpc);
+
+   // Print out the matrices to disk if they're small
+   if (A->Height() <= 2000)
+   {
+      std::ofstream f1("A1.txt"), f2("A2.txt"), f3("A3.txt");
+      A.As<SparseMatrix>()->PrintMatlab(f1);
+      A_batched.As<SparseMatrix>()->PrintMatlab(f2);
+      A_hpc.PrintMatlab(f3);
+   }
+
+   A_hpc.Add(-1.0, *A.As<SparseMatrix>());
+   A_batched.As<SparseMatrix>()->Add(-1.0, *A.As<SparseMatrix>());
+
+   mfem::out << "Templated assembly difference: " << A_hpc.MaxNorm() << '\n';
+   mfem::out << "Batched assembly difference:   "
+             << A_batched.As<SparseMatrix>()->MaxNorm() << '\n';;
+   std::exit(0);
+
    ResetIntegrationRules(&BilinearForm::GetDBFI);
    ResetIntegrationRules(&BilinearForm::GetFBFI);
    ResetIntegrationRules(&BilinearForm::GetBBFI);
@@ -294,7 +408,7 @@ void LORBase::SetupProlongationAndRestriction()
    }
    else
    {
-      fes->CopyProlongationAndRestriction(fes_ho, NULL);
+      fes->CopyProlongationAndRestriction(fes_ho, nullptr);
    }
 }
 
@@ -359,10 +473,11 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_)
    }
    else
    {
-      ir_el = NULL;
-      ir_face = NULL;
+      ir_el = nullptr;
+      ir_face = nullptr;
    }
-   a = NULL;
+   a = nullptr;
+   supports_batched_assembly = true;
 }
 
 LORBase::~LORBase()
@@ -414,7 +529,7 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<SparseMatrix>();
 }
 
@@ -461,7 +576,7 @@ void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 
