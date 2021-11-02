@@ -309,8 +309,8 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    a->Assemble();
    mfem::out << "Standard LOR assembly time = " << toc() << '\n';
    a->FormSystemMatrix(ess_dofs, A);
-   OperatorHandle A_batched;
 
+   OperatorHandle A_batched;
    tic();
    AssembleBatchedLOR(*a, fes_ho, ess_dofs, A_batched);
    mfem::out << "Batched LOR assembly time  = " << toc() << '\n';
@@ -389,7 +389,7 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 
    mfem::out << "Templated assembly difference: " << A_hpc.MaxNorm() << '\n';
    mfem::out << "Batched assembly difference:   "
-             << A_batched.As<SparseMatrix>()->MaxNorm() << '\n';;
+             << A_batched.As<SparseMatrix>()->MaxNorm() << '\n';
    std::exit(0);
 
    ResetIntegrationRules(&BilinearForm::GetDBFI);

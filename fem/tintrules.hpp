@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-IntegrationRules LobattoIntRules(0, Quadrature1D::GaussLobatto);
+static IntegrationRules LobattoIntRules(0, Quadrature1D::GaussLobatto);
 
 // Templated integration rules, cf. intrules.?pp
 
