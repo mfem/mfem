@@ -1841,6 +1841,11 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    norm0 = norm = Norm(r);
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "Newton iteration " << setw(2) << 0
+                << " : ||r|| = " << norm << "...\n";
+   }
    norm_goal = std::max(rel_tol*norm, abs_tol);
 
    prec->iterative_mode = false;
@@ -1909,7 +1914,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_iter = it;
    final_norm = norm;
 
-   if (print_options.summary || (!converged && print_options.errors))
+   if (print_options.summary || (!converged && print_options.errors) || print_options.first_and_last)
    {
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
@@ -2034,6 +2039,11 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    c = r;           // initial descent direction
 
    norm0 = norm = Norm(r);
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "Newton iteration " << setw(2) << 0
+                << " : ||r|| = " << norm << "...\n";
+   }
    norm_goal = std::max(rel_tol*norm, abs_tol);
    for (it = 0; true; it++)
    {
@@ -2134,7 +2144,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    final_iter = it;
    final_norm = norm;
 
-   if (print_options.summary || (!converged && print_options.errors))
+   if (print_options.summary || (!converged && print_options.errors) || print_options.first_and_last)
    {
       mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
@@ -2371,7 +2381,7 @@ void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
 {
-   if (print_options.iterations)
+   if (print_options.iterations || (print_options.first_and_last && it == 0))
    {
       mfem::out << "SLBQP iteration " << it << ": residual = " << r
                 << ", lambda = " << l << '\n';
@@ -2535,7 +2545,7 @@ slbqp_done:
    final_iter = nclip;
    final_norm = r;
 
-   if (print_options.summary || (!converged && print_options.errors))
+   if (print_options.summary || (!converged && print_options.errors) || print_options.first_and_last)
    {
       mfem::out << "SLBQP: Number of iterations: " << final_iter << '\n'
                 << "   lambda = " << l << '\n'
