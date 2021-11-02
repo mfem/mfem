@@ -1529,7 +1529,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          if (!print_options.iterations && print_options.first_and_last)
          {
             mfem::out << "   Iteration : " << setw(3) << i
-                      << "   ||s|| = " << resid << '\n';
+                      << "   ||r|| = " << resid << '\n';
          }
          if (print_options.summary || (print_options.errors && !converged))
          {
@@ -1545,7 +1545,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          if (!print_options.iterations && print_options.first_and_last)
          {
             mfem::out << "   Iteration : " << setw(3) << i
-                      << "   ||s|| = " << resid << '\n';
+                      << "   ||r|| = " << resid << '\n';
          }
          if (print_options.summary || (print_options.errors && !converged))
          {
@@ -1565,8 +1565,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
    if (!print_options.iterations && print_options.first_and_last)
    {
-      mfem::out << "   Iteration : " << setw(3) << i
-                  << "   ||s|| = " << resid << '\n';
+      mfem::out << "   Iteration : " << setw(3) << final_iter
+                  << "   ||r|| = " << resid << '\n';
    }
    if (print_options.summary || (print_options.errors && !converged))
    {
