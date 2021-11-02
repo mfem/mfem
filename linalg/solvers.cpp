@@ -1331,15 +1331,16 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    converged = false;
 
+   // Note: j is off by one when we arrive here
    if (!print_options.iterations && print_options.first_and_last)
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                << "   Iteration : " << setw(3) << j
+                << "   Iteration : " << setw(3) << j-1
                 << "  ||r|| = " << resid << endl;
    }
    if (print_options.summary || (print_options.errors && !converged))
    {
-      mfem::out << "FGMRES: Number of iterations: " << j << '\n';
+      mfem::out << "FGMRES: Number of iterations: " << j-1 << '\n';
    }
    if (print_options.errors && !converged)
    {
