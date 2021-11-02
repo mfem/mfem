@@ -6,6 +6,7 @@
 //    optimal_design -r 3
 //    optimal_design -m ../../data/star.mesh -r 3
 //    optimal_design -sl 1 -m ../../data/mobius-strip.mesh -r 4
+//    optimal_design -m ../../data/star.mesh -sl 5 -r 3 -mf 0.5 -o 5 -max 0.75
 //
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
@@ -79,7 +80,14 @@ double load(const Vector & x)
    {
       return 0.0;
    }
-//    return 1.0;
+   // if (x1 < 0)
+   // {
+   //    return 1.0;
+   // }
+   // else
+   // {
+   //    return 0.0;
+   // }
 }
 
 int main(int argc, char *argv[])
@@ -89,10 +97,12 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
-   double step_length = 1e-2;
+   double step_length = 1.0;
    double mass_fraction = 0.5;
    int max_it = 1e3;
    double tol = 1e-4;
+   double K_max = 0.9;
+   double K_min = 1e-3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -107,6 +117,10 @@ int main(int argc, char *argv[])
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
                   "Mass fraction for diffusion coefficient.");
+   args.AddOption(&K_max, "-max", "--K-max",
+                  "Maximum of diffusion diffusion coefficient.");
+   args.AddOption(&K_min, "-min", "--K-min",
+                  "Minimum of diffusion diffusion coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -137,7 +151,8 @@ int main(int argc, char *argv[])
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
    H1_FECollection state_fec(order, dim);
-   L2_FECollection control_fec(order, dim);
+   // L2_FECollection control_fec(order, dim);
+   L2_FECollection control_fec(order-1, dim, BasisType::Positive);
    FiniteElementSpace state_fes(&mesh, &state_fec);
    FiniteElementSpace control_fes(&mesh, &control_fec);
 
@@ -232,8 +247,34 @@ int main(int argc, char *argv[])
 
       // K. Project onto constraint set
       double mass = vol_form(K);
-      double scale = mass_fraction * domain_volume / mass;
-      K *= scale;
+      while ( true )
+      {
+         // Project to \int K = mass_fraction * vol
+         double scale = mass_fraction * domain_volume / mass;
+         K *= scale;
+
+         // Project to [K_min,K_max]
+         for (int i = 0; i < K.Size(); i++)
+         {
+            if (K[i] > K_max) 
+            {
+               K[i] = K_max;
+            }
+            else if (K[i] < K_min)
+            {
+               K[i] = K_min;
+            }
+            else
+            { // do nothing
+            }
+         }
+
+         mass = vol_form(K);
+         if ( abs( mass / domain_volume - mass_fraction ) < 1e-4 )
+         {
+            break;
+         }
+      }
 
       // I. Compute norm of update.
       GridFunctionCoefficient tmp(&K_old);
@@ -244,6 +285,7 @@ int main(int argc, char *argv[])
       // L. Exit if norm of grad is small enough.
       mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
+      mfem::out << "mass_fraction = " << vol_form(K) / domain_volume << endl;
       if (norm < tol)
       {
          break;
