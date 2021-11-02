@@ -175,7 +175,7 @@ public:
    using GridFunction::GetTrueDofs;
 
    /// Returns the true dofs in a new HypreParVector
-   virtual HypreParVector *GetTrueDofs() const;
+   HypreParVector *GetTrueDofs() const;
 
    /// Returns the vector averaged on the true dofs.
    void ParallelAverage(Vector &tv) const;
