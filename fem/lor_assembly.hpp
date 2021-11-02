@@ -20,9 +20,7 @@ namespace mfem
 void AssembleBatchedLOR(BilinearForm &form_lo, FiniteElementSpace &fes_ho,
                         const Array<int> &ess_dofs, OperatorHandle &A);
 
-void AssembleBatchedLOR_GPU(BilinearForm &form_lo,
-                            FiniteElementSpace &fes_ho,
-                            FiniteElementSpace &fes_lo,
+void AssembleBatchedLOR_GPU(BilinearForm &form_lo, FiniteElementSpace &fes_ho,
                             const Array<int> &ess_dofs, OperatorHandle &A);
 
 } // namespace mfem

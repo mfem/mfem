@@ -100,7 +100,7 @@ struct LORBench
       //dbg("A_batched:"); A_batched.As<SparseMatrix>()->PrintMatlab();
 
       tic();
-      AssembleBatchedLOR_GPU(a_lo, fes_ho, fes_lo, ess_dofs, A_deviced);
+      AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_deviced);
       dbg(" Batched GPU time = %f",toc());
       const double dot_device = A_deviced.As<SparseMatrix>()->InnerProduct(x,y);
       A_deviced.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
@@ -148,7 +148,7 @@ struct LORBench
    {
       tic_toc.Start();
       OperatorHandle A_batched;
-      AssembleBatchedLOR_GPU(a_lo, fes_ho, fes_lo, ess_dofs, A_batched);
+      AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_batched);
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * dofs;
