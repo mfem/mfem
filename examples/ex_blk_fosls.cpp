@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec0 = new H1_FECollection(order, dim);
-   FiniteElementCollection *fec1 = new RT_FECollection(order, dim);
+   FiniteElementCollection *fec1 = new RT_FECollection(order-1, dim);
    FiniteElementSpace fespace0(&mesh, fec0);
    FiniteElementSpace fespace1(&mesh, fec1);
 
@@ -51,8 +51,17 @@ int main(int argc, char *argv[])
    fespaces[0] = &fespace0;
    fespaces[1] = &fespace1;
 
+   Array<int> ess_bdr;
+   Array<int> ess_tdof_list;
+   if (mesh.bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      fespaces[0]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
    BlockBilinearForm a(fespaces);
-   a.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+   a.SetDiagonalPolicy(mfem::Operator::DIAG_KEEP);
 
    cout << "H1 fespace = " << fespace0.GetVSize() << endl;
    cout << "RT fespace = " << fespace1.GetVSize() << endl;
@@ -97,14 +106,7 @@ int main(int argc, char *argv[])
 
 
    OperatorPtr A;
-   Array<int> ess_bdr;
-   Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
-   {
-      ess_bdr.SetSize(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespaces[0]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
+
 
    // need to implement blkgridfunction later but for now Vector would do
    int size = 0;
@@ -121,7 +123,19 @@ int main(int argc, char *argv[])
    // b = 1.0;
 
    Vector X,B;
+   // Array<int> empty;
+   // a.FormLinearSystem(empty,x,b,A,X,B);
+   ess_tdof_list.Print();
    a.FormLinearSystem(ess_tdof_list,x,b,A,X,B);
+
+
+   SparseMatrix * As = &(SparseMatrix&)(*A);
+
+   As->Threshold(0.0);
+   As->SortColumnIndices();
+   As->PrintMatlab();
+
+   return 0;
 
 
    GSSmoother M((SparseMatrix&)(*A));

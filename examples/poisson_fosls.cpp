@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *H1fec = new H1_FECollection(order,dim);
    FiniteElementSpace *H1fes = new FiniteElementSpace(&mesh, H1fec);
 
-   FiniteElementCollection *RTfec = new RT_FECollection(order,dim);
+   FiniteElementCollection *RTfec = new RT_FECollection(order-1,dim);
    FiniteElementSpace *RTfes = new FiniteElementSpace(&mesh, RTfec);
 
 
@@ -108,6 +108,11 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       H1fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+   cout << "H1 fes size = " << H1fes->GetVSize() << endl;
+   cout << "ess tdof size = " << ess_tdof_list.Size() << endl;
+   ess_tdof_list.Print();
+
+   return 0;
 
    Array<int> block_offsets(3);
    block_offsets[0] = 0;
@@ -167,7 +172,15 @@ int main(int argc, char *argv[])
 
    SparseMatrix * A = BlockA.CreateMonolithic();
 
+
+
    GSSmoother M(*A);
+
+
+   A->Threshold(0.0);
+   A->SortColumnIndices();
+   A->PrintMatlab();
+
 
    CGSolver cg;
    cg.SetRelTol(1e-6);
