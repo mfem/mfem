@@ -16,11 +16,13 @@
 #include "fem/lor.hpp"
 #include "fem/lor_assembly.hpp"
 
-#define MFEM_DEBUG_COLOR 206
+#define MFEM_DEBUG_COLOR 119
 #include "general/debug.hpp"
 
 #include <cassert>
 #include <cmath>
+
+constexpr int SEED = 0x100001b3;
 
 struct LORBench
 {
@@ -28,13 +30,14 @@ struct LORBench
    const bool check_x, check_y, check_z, checked;
    Mesh mesh;
    H1_FECollection fec;
-   FiniteElementSpace fes_ho;
+   FiniteElementSpace mfes, fes_ho;
    Array<int> ess_dofs;
    LORDiscretization lor_disc;
    IntegrationRules irs;
    const IntegrationRule &ir_el;
    FiniteElementSpace &fes_lo;
    BilinearForm a_ho, a_lo;
+   GridFunction x;
    const int dofs;
    double mdof;
 
@@ -51,6 +54,7 @@ struct LORBench
       checked((assert(check_x && check_y && check_z), true)),
       mesh(Mesh::MakeCartesian3D(nx,ny,nz, Element::HEXAHEDRON)),
       fec(p, dim, BasisType::GaussLobatto),
+      mfes(&mesh, &fec, dim),
       fes_ho(&mesh, &fec),
       lor_disc(fes_ho, BasisType::GaussLobatto),
       irs(0, Quadrature1D::GaussLobatto),
@@ -58,35 +62,67 @@ struct LORBench
       fes_lo(lor_disc.GetFESpace()),
       a_ho(&fes_ho),
       a_lo(&fes_lo),
+      x(&mfes),
       dofs(fes_ho.GetVSize()),
       mdof(0.0)
    {
       a_lo.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
       a_ho.AddDomainIntegrator(new DiffusionIntegrator);
       a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      MFEM_VERIFY(SanityCheck(), "Sanity check failed!");
+      SetupRandomMesh();
       tic_toc.Clear();
    }
 
-   bool SanityCheck()
+   bool SanityChecks()
    {
-      if (dofs > 4000) { return true; }
+      if (dofs > 100*1024) { return true; }
 
-      OperatorHandle A_lo;
+      OperatorHandle A_lo, A_batched, A_deviced;
       tic();
+      a_lo = 0.0; // have to flush these results
       a_lo.Assemble();
       dbg("Standard LOR time = %f",toc());
       a_lo.FormSystemMatrix(ess_dofs, A_lo);
 
+      Vector x(A_lo->Width()), y(A_lo->Height());
+      x.Randomize(SEED);
+      y.Randomize(SEED);
+      const double dot_lo = A_lo.As<SparseMatrix>()->InnerProduct(x,y);
+      //dbg("A_lo:"); A_lo.As<SparseMatrix>()->PrintMatlab();
+
       tic();
-      OperatorHandle A_batched;
       AssembleBatchedLOR(a_lo, fes_ho, ess_dofs, A_batched);
       dbg(" Batched LOR time = %f",toc());
-
+      const double dot_batch = A_batched.As<SparseMatrix>()->InnerProduct(x,y);
+      assert(almost_equal(dot_lo,dot_batch));
       A_batched.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
       const double max_norm = A_batched.As<SparseMatrix>()->MaxNorm();
+      //dbg("A_batched:"); A_batched.As<SparseMatrix>()->PrintMatlab();
 
-      return max_norm < 1.e-15;
+      tic();
+      AssembleBatchedLOR_GPU(a_lo, fes_ho, fes_lo, ess_dofs, A_deviced);
+      dbg(" Batched GPU time = %f",toc());
+      const double dot_device = A_deviced.As<SparseMatrix>()->InnerProduct(x,y);
+      A_deviced.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
+      const double max_norm_GPU = A_deviced.As<SparseMatrix>()->MaxNorm();
+      //dbg("A_deviced:"); A_deviced.As<SparseMatrix>()->PrintMatlab();
+      assert(almost_equal(dot_lo,dot_device));
+
+      constexpr double EPS = 1e-15;
+      return max_norm < EPS && max_norm_GPU < EPS;
+   }
+
+   void SetupRandomMesh() noexcept
+   {
+      mesh.SetNodalFESpace(&mfes);
+      mesh.SetNodalGridFunction(&x);
+      const double jitter = 1./(M_PI*M_PI);
+      const double h0 = mesh.GetElementSize(0);
+      GridFunction rdm(&mfes);
+      rdm.Randomize(SEED);
+      rdm -= 0.5; // Shift to random values in [-0.5,0.5]
+      rdm *= jitter * h0; // Scale the random values to be of same order
+      x -= rdm;
    }
 
    void Standard()
@@ -103,6 +139,16 @@ struct LORBench
       tic_toc.Start();
       OperatorHandle A_batched;
       AssembleBatchedLOR(a_lo, fes_ho, ess_dofs, A_batched);
+      tic_toc.Stop();
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * dofs;
+   }
+
+   void Deviced()
+   {
+      tic_toc.Start();
+      OperatorHandle A_batched;
+      AssembleBatchedLOR_GPU(a_lo, fes_ho, fes_lo, ess_dofs, A_batched);
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * dofs;
@@ -136,8 +182,10 @@ BENCHMARK(LOR_##Type)\
             -> ArgsProduct( {P_ORDERS,N_SIDES})\
             -> Unit(bm::kMillisecond);
 
+Bench_LOR(SanityChecks)
 Bench_LOR(Standard)
 Bench_LOR(Batched)
+Bench_LOR(Deviced)
 
 /**
  * @brief main entry point

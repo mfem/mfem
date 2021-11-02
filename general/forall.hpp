@@ -50,7 +50,7 @@ const int MAX_Q1D = 14;
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                             \
    ForallWrap<1>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&/*=*/] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
 
 // MFEM_FORALL with a 2D CUDA block
@@ -63,7 +63,7 @@ const int MAX_Q1D = 14;
 // MFEM_FORALL with a 3D CUDA block
 #define MFEM_FORALL_3D(i,N,X,Y,Z,...)                    \
    ForallWrap<3>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&/*=*/] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,Z)
 
