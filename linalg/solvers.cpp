@@ -1193,6 +1193,9 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       r = b;
    }
    double beta = Norm(r);  // beta = ||r||
+   // We need to preallocate this to report the correct result in the case of
+   // no convergence.
+   double resid;
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1267,7 +1270,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         double resid = fabs(s(i+1));
+         resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_options.iterations || (print_options.first_and_last &&
                                           resid <= final_norm))
@@ -1328,9 +1331,15 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    converged = false;
 
+   if (!print_options.iterations && print_options.first_and_last)
+   {
+      mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                << "   Iteration : " << setw(3) << j
+                << "  ||r|| = " << resid << endl;
+   }
    if (print_options.summary || (print_options.errors && !converged))
    {
-      mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
+      mfem::out << "FGMRES: Number of iterations: " << j << '\n';
    }
    if (print_options.errors && !converged)
    {
