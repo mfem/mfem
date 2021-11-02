@@ -1150,15 +1150,15 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    converged = false;
 
 finish:
+   if (print_options.iterations || print_options.first_and_last)
+   {
+      mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                << "   Iteration : " << setw(3) << final_iter
+                << "  ||B r|| = " << resid << '\n';
+   }
    if (print_options.summary || (print_options.errors && !converged))
    {
       mfem::out << "GMRES: Number of iterations: " << final_iter << '\n';
-   }
-   if (print_options.first_and_last)
-   {
-      mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                << "   Iteration : " << setw(3) << j
-                << "  ||B r|| = " << resid << '\n';
    }
    if (print_options.errors && !converged)
    {
