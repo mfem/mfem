@@ -120,12 +120,12 @@ int main(int argc, char *argv[])
 
    Array<int> ess_dofs;
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
-   if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
+   // if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
 
    BilinearForm a(&fes);
    if (H1 || L2)
    {
-      a.AddDomainIntegrator(new MassIntegrator);
+      // a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
@@ -142,6 +142,11 @@ int main(int argc, char *argv[])
    }
    // TODO: L2 diffusion not implemented with partial assembly
    if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
+   LORDiscretization lor_disc(a, ess_dofs);
+
+   return 0;
+
    a.Assemble();
 
    LinearForm b(&fes);
