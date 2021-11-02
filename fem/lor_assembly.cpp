@@ -327,8 +327,6 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
 
    for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
-      fes_ho.GetElementDofs(iel_ho, dofs);
-
       for (int i=0; i<nnz_per_el; ++i)
       {
          V[i] = 0.0;
@@ -346,20 +344,20 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                {
                   local_mat[i] = 0.0;
                }
+               for (int i=0; i<sz_grad_A; ++i)
+               {
+                  grad_A[i] = 0.0;
+               }
+               for (int i=0; i<sz_grad_B; ++i)
+               {
+                  grad_B[i] = 0.0;
+               }
                for (int iqx=0; iqx<2; ++iqx)
                {
                   for (int jz=0; jz<2; ++jz)
                   {
                      for (int iz=jz; iz<2; ++iz)
                      {
-                        for (int i=0; i<sz_grad_A; ++i)
-                        {
-                           grad_A[i] = 0.0;
-                        }
-                        for (int i=0; i<sz_grad_B; ++i)
-                        {
-                           grad_B[i] = 0.0;
-                        }
                         for (int iqy=0; iqy<2; ++iqy)
                         {
                            for (int iqz=0; iqz<2; ++iqz)
@@ -380,7 +378,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                               const double J13 = J31;
                               const double J23 = J32;
                               const double J33 = invJ(5,iq,k,iel_ho);
-                              // ** can use symmetries here?
+
                               grad_A(0,0,iqy,iz,jz,iqx) += J11*biz*bjz;
                               grad_A(1,0,iqy,iz,jz,iqx) += J21*biz*bjz;
                               grad_A(2,0,iqy,iz,jz,iqx) += J31*giz*bjz;
@@ -427,13 +425,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                                     const double bjx = (jx == iqx) ? 1.0 : 0.0;
                                     const double gjx = (jx == 0) ? -1.0 : 1.0;
 
-                                    int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
-                                    int jj_el = (jx+kx) + (jy+ky)*nd1d + (jz+kz)*nd1d*nd1d;
-
-                                    int ii = dofs[lex_map[ii_el]];
                                     int ii_loc = ix + 2*iy + 4*iz;
-
-                                    int jj = dofs[lex_map[jj_el]];
                                     int jj_loc = jx + 2*jy + 4*jz;
 
                                     if (jj_loc > ii_loc) { continue; }
@@ -486,6 +478,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
          }
       }
 
+      fes_ho.GetElementDofs(iel_ho, dofs);
       for (int ii_el=0; ii_el<ndof_per_el; ++ii_el)
       {
          int ix = ii_el%nd1d;
