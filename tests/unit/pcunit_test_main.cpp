@@ -11,51 +11,28 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "unit_tests.hpp"
+#include "run_unit_tests.hpp"
+
+bool launch_all_non_regression_tests = false;
+std::string mfem_data_dir;
 
 #ifdef MFEM_USE_MPI
 mfem::MPI_Session *GlobalMPISession;
+#else
+#error "This test should be disabled without MFEM_USE_MPI!"
 #endif
 
 int main(int argc, char *argv[])
 {
    mfem::Device device("cuda");
-
-   // There must be exactly one instance.
-   Catch::Session session;
-
-   // For floating point comparisons, print 8 digits for single precision
-   // values, and 16 digits for double precision values.
-   Catch::StringMaker<float>::precision = 8;
-   Catch::StringMaker<double>::precision = 16;
-
-   // Apply provided command line arguments.
-   int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
-
 #ifdef MFEM_USE_MPI
    mfem::MPI_Session mpi;
    GlobalMPISession = &mpi;
-
-   // Exclude all tests that are not labeled with Parallel and CUDA.
-   auto cfg = session.configData();
-   cfg.testsOrTags.push_back("[Parallel]");
-   cfg.testsOrTags.push_back("[CUDA]");
-
-   session.useConfigData(cfg);
-
-   if (mpi.Root())
-   {
-      mfem::out
-            << "WARNING: Only running the [Parallel] [CUDA] label."
-            << std::endl;
-   }
+   bool root = mpi.Root();
+#else
+   bool root = true;
 #endif
 
-   int result = session.run();
-
-   return result;
+   // Include only tests that are labeled with both CUDA and Parallel.
+   return RunCatchSession(argc, argv, {"[CUDA]","[Parallel]"}, root);
 }

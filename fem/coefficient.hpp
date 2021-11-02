@@ -58,9 +58,13 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
-   /** @brief Evaluate the derivative of a coefficient in the element
-       described by @a T at the point @a ip, with respect to the mesh nodes,
-       storing the result in @a PointMat_bar. */
+   /** @brief Reverse-mode differentiation of Eval w.r.t. the mesh node
+       locations in the element described by @a T, accumulating the result in
+       @a PointMat_bar */
+   /** @param[in] Q_bar - derivative of some output w.r.t. result of Eval */
+   /** @param[in] T - an element transformation */
+   /** @param[in] ip - defines location in reference space */
+   /** @param[inout] PointMat_bar - derivative of output w.r.t. mesh nodes */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
@@ -208,8 +212,6 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   /// Reverse Diff version of Eval
-   /// Q_bar: Derivative of functional with respect to Q
    virtual void EvalRevDiff(const double Q_bar,
                             ElementTransformation &T,
                             const IntegrationPoint &ip,
@@ -321,7 +323,7 @@ public:
    void SetDeltaCenter(const Vector& center);
 
    /// Set the scale value multiplying the delta function.
-   void SetScale(double _s) { scale = _s; }
+   void SetScale(double s_) { scale = s_; }
 
    /// Set a time-dependent function that multiplies the Scale().
    void SetFunction(double (*f)(double)) { tdf = f; }
@@ -329,7 +331,7 @@ public:
    /** @brief Set the tolerance used during projection onto GridFunction to
        identify the Mesh vertex where the Center() of the delta function
        lies. (default 1e-12)*/
-   void SetTol(double _tol) { tol = _tol; }
+   void SetTol(double tol_) { tol = tol_; }
 
    /// Set a weight Coefficient that multiplies the DeltaCoefficient.
    /** The weight Coefficient multiplies the value returned by EvalDelta() but
@@ -378,8 +380,8 @@ public:
    /** @brief Construct with a parent coefficient and an array with
        ones marking the attributes on which this coefficient should be
        active. */
-   RestrictedCoefficient(Coefficient &_c, Array<int> &attr)
-   { c = &_c; attr.Copy(active_attr); }
+   RestrictedCoefficient(Coefficient &c_, Array<int> &attr)
+   { c = &c_; attr.Copy(active_attr); }
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
@@ -414,9 +416,13 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   /** @brief Evaluate the derivative of a vector coefficient in the element
-       described by @a T at the point @a ip, with respect to the mesh nodes,
-       storing the result in @a PointMat_bar. */
+   /** @brief Reverse-mode differentiation of Eval w.r.t. the mesh node
+       locations in the element described by @a T, accumulating the result in
+       @a PointMat_bar */
+   /** @param[in] V_bar - derivative of some output with respect to `V` */
+   /** @param[in] T - an element transformation */
+   /** @param[in] ip - defines location in reference space */
+   /** @param[inout] PointMat_bar - derivative of output w.r.t. mesh nodes */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
@@ -457,6 +463,10 @@ public:
    ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar) { }
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
@@ -507,8 +517,8 @@ public:
                              std::function<void(const Vector &,
                                                 const Vector &,
                                                 Vector &)> dF)
-      : VectorCoefficient(dim), Function(std::move(F)), 
-      FunctionRevDiff(std::move(dF)), Q(NULL)
+      : VectorCoefficient(dim), Function(std::move(F)),
+        FunctionRevDiff(std::move(dF)), Q(NULL)
    { }
 
    /// Construct time-dependent vector coefficient that can be differentiated
@@ -518,8 +528,8 @@ public:
                                                 Vector &)> TDF,
                              std::function<void(const Vector &,
                                                 double, const Vector &, Vector &)> dTDF)
-      : VectorCoefficient(dim), TDFunction(std::move(TDF)), 
-      TDFunctionRevDiff(std::move(dTDF)), Q(NULL)
+      : VectorCoefficient(dim), TDFunction(std::move(TDF)),
+        TDFunctionRevDiff(std::move(dTDF)), Q(NULL)
    { }
 
    using VectorCoefficient::Eval;
@@ -527,11 +537,6 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /// Reverse-diff version of Eval
-   /// @param[in] V_bar - derivative of functional with respect to `V`
-   /// @param[in] T - an element transformation
-   /// @param[in] ip - defines location in reference space
-   /// @param[out] PointMat_bar - derivative of function w.r.t. mesh nodes
    virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
                             const IntegrationPoint &ip,
                             DenseMatrix &PointMat_bar);
@@ -705,41 +710,41 @@ protected:
    DeltaCoefficient d;
 
 public:
-   /// Construct with a vector of dimension @a _vdim.
-   VectorDeltaCoefficient(int _vdim)
-      : VectorCoefficient(_vdim), dir(_vdim), d() { }
+   /// Construct with a vector of dimension @a vdim_.
+   VectorDeltaCoefficient(int vdim_)
+      : VectorCoefficient(vdim_), dir(vdim_), d() { }
 
    /** @brief Construct with a Vector object representing the direction and a
        unit delta function centered at (0.0,0.0,0.0) */
-   VectorDeltaCoefficient(const Vector& _dir)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d() { }
+   VectorDeltaCoefficient(const Vector& dir_)
+      : VectorCoefficient(dir_.Size()), dir(dir_), d() { }
 
    /** @brief Construct with a Vector object representing the direction and a
        delta function scaled by @a s and centered at (x,0.0,0.0) */
-   VectorDeltaCoefficient(const Vector& _dir, double x, double s)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,s) { }
+   VectorDeltaCoefficient(const Vector& dir_, double x, double s)
+      : VectorCoefficient(dir_.Size()), dir(dir_), d(x,s) { }
 
    /** @brief Construct with a Vector object representing the direction and a
        delta function scaled by @a s and centered at (x,y,0.0) */
-   VectorDeltaCoefficient(const Vector& _dir, double x, double y, double s)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,s) { }
+   VectorDeltaCoefficient(const Vector& dir_, double x, double y, double s)
+      : VectorCoefficient(dir_.Size()), dir(dir_), d(x,y,s) { }
 
    /** @brief Construct with a Vector object representing the direction and a
        delta function scaled by @a s and centered at (x,y,z) */
-   VectorDeltaCoefficient(const Vector& _dir, double x, double y, double z,
+   VectorDeltaCoefficient(const Vector& dir_, double x, double y, double z,
                           double s)
-      : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,z,s) { }
+      : VectorCoefficient(dir_.Size()), dir(dir_), d(x,y,z,s) { }
 
    /// Replace the associated DeltaCoefficient with a new DeltaCoefficient.
    /** The new DeltaCoefficient cannot have a specified weight Coefficient, i.e.
        DeltaCoefficient::Weight() should return NULL. */
-   void SetDeltaCoefficient(const DeltaCoefficient& _d) { d = _d; }
+   void SetDeltaCoefficient(const DeltaCoefficient& d_) { d = d_; }
 
    /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
 
    void SetScale(double s) { d.SetScale(s); }
-   void SetDirection(const Vector& _d);
+   void SetDirection(const Vector& d_);
 
    void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
@@ -999,15 +1004,15 @@ private:
    double beta;
 
 public:
-   /// Constructor with one coefficient.  Result is _alpha * A + _beta * B
+   /// Constructor with one coefficient.  Result is alpha_ * A + beta_ * B
    SumCoefficient(double A, Coefficient &B,
-                  double _alpha = 1.0, double _beta = 1.0)
-      : aConst(A), a(NULL), b(&B), alpha(_alpha), beta(_beta) { }
+                  double alpha_ = 1.0, double beta_ = 1.0)
+      : aConst(A), a(NULL), b(&B), alpha(alpha_), beta(beta_) { }
 
-   /// Constructor with two coefficients.  Result is _alpha * A + _beta * B.
+   /// Constructor with two coefficients.  Result is alpha_ * A + beta_ * B.
    SumCoefficient(Coefficient &A, Coefficient &B,
-                  double _alpha = 1.0, double _beta = 1.0)
-      : aConst(0.0), a(&A), b(&B), alpha(_alpha), beta(_beta) { }
+                  double alpha_ = 1.0, double beta_ = 1.0)
+      : aConst(0.0), a(&A), b(&B), alpha(alpha_), beta(beta_) { }
 
    /// Reset the first term in the linear combination as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
@@ -1025,12 +1030,12 @@ public:
    Coefficient * GetBCoef() const { return b; }
 
    /// Reset the factor in front of the first term in the linear combination
-   void SetAlpha(double _alpha) { alpha = _alpha; }
+   void SetAlpha(double alpha_) { alpha = alpha_; }
    /// Return the factor in front of the first term in the linear combination
    double GetAlpha() const { return alpha; }
 
    /// Reset the factor in front of the second term in the linear combination
-   void SetBeta(double _beta) { beta = _beta; }
+   void SetBeta(double beta_) { beta = beta_; }
    /// Return the factor in front of the second term in the linear combination
    double GetBeta() const { return beta; }
 
@@ -1245,9 +1250,9 @@ private:
    double p;
 
 public:
-   /// Construct with a coefficient and a constant power @a _p.  Result is A^p.
-   PowerCoefficient(Coefficient &A, double _p)
-      : a(&A), p(_p) { }
+   /// Construct with a coefficient and a constant power @a p_.  Result is A^p.
+   PowerCoefficient(Coefficient &A, double p_)
+      : a(&A), p(p_) { }
 
    /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
@@ -1255,7 +1260,7 @@ public:
    Coefficient * GetACoef() const { return a; }
 
    /// Reset the exponent
-   void SetExponent(double _p) { p = _p; }
+   void SetExponent(double p_) { p = p_; }
    /// Return the exponent
    double GetExponent() const { return p; }
 
@@ -1369,14 +1374,14 @@ public:
    VectorSumCoefficient(int dim);
 
    /** Constructor with two vector coefficients.
-       Result is _alpha * A + _beta * B */
+       Result is alpha_ * A + beta_ * B */
    VectorSumCoefficient(VectorCoefficient &A, VectorCoefficient &B,
-                        double _alpha = 1.0, double _beta = 1.0);
+                        double alpha_ = 1.0, double beta_ = 1.0);
 
    /** Constructor with scalar coefficients.
-       Result is _alpha * _A + _beta * B_ */
-   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &B_,
-                        Coefficient &_alpha, Coefficient &_beta);
+       Result is alpha_ * A_ + beta_ * B_ */
+   VectorSumCoefficient(VectorCoefficient &A_, VectorCoefficient &B_,
+                        Coefficient &alpha_, Coefficient &beta_);
 
    /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A) { ACoef = &A; }
@@ -1399,7 +1404,7 @@ public:
    Coefficient * GetBetaCoef() const { return betaCoef; }
 
    /// Reset the first vector as a constant
-   void SetA(const Vector &_A) { A = _A; ACoef = NULL; }
+   void SetA(const Vector &A_) { A = A_; ACoef = NULL; }
    /// Return the first vector constant
    const Vector & GetA() const { return A; }
 
@@ -1409,12 +1414,12 @@ public:
    const Vector & GetB() const { return B; }
 
    /// Reset the factor in front of the first vector coefficient as a constant
-   void SetAlpha(double _alpha) { alpha = _alpha; alphaCoef = NULL; }
+   void SetAlpha(double alpha_) { alpha = alpha_; alphaCoef = NULL; }
    /// Return the factor in front of the first vector coefficient
    double GetAlpha() const { return alpha; }
 
    /// Reset the factor in front of the second vector coefficient as a constant
-   void SetBeta(double _beta) { beta = _beta; betaCoef = NULL; }
+   void SetBeta(double beta_) { beta = beta_; betaCoef = NULL; }
    /// Return the factor in front of the second vector coefficient
    double GetBeta() const { return beta; }
 
@@ -1431,6 +1436,9 @@ private:
    double aConst;
    Coefficient * a;
    VectorCoefficient * b;
+#ifndef MFEM_THREAD_SAFE
+   Vector W, W_bar;
+#endif
 
 public:
    /// Constructor with constant and vector coefficient.  Result is A * B.
@@ -1458,6 +1466,11 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
+
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
+
 };
 
 /// Vector coefficient defined as a normalized vector field (returns v/|v|)
@@ -1581,9 +1594,9 @@ private:
    mutable DenseMatrix ma;
 
 public:
-   /// Construct with the two coefficients.  Result is _alpha * A + _beta * B.
+   /// Construct with the two coefficients.  Result is alpha_ * A + beta_ * B.
    MatrixSumCoefficient(MatrixCoefficient &A, MatrixCoefficient &B,
-                        double _alpha = 1.0, double _beta = 1.0);
+                        double alpha_ = 1.0, double beta_ = 1.0);
 
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1596,12 +1609,12 @@ public:
    MatrixCoefficient * GetBCoef() const { return b; }
 
    /// Reset the factor in front of the first matrix coefficient
-   void SetAlpha(double _alpha) { alpha = _alpha; }
+   void SetAlpha(double alpha_) { alpha = alpha_; }
    /// Return the factor in front of the first matrix coefficient
    double GetAlpha() const { return alpha; }
 
    /// Reset the factor in front of the second matrix coefficient
-   void SetBeta(double _beta) { beta = _beta; }
+   void SetBeta(double beta_) { beta = beta_; }
    /// Return the factor in front of the second matrix coefficient
    double GetBeta() const { return beta; }
 
@@ -1774,7 +1787,7 @@ public:
    /** Set the starting index within the QuadFunc that'll be used to project
        outwards as well as the corresponding length. The projected length should
        have the bounds of 1 <= length <= (length QuadFunc - index). */
-   void SetComponent(int _index, int _length);
+   void SetComponent(int index_, int length_);
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 

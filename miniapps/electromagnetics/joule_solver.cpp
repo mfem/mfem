@@ -820,8 +820,8 @@ void MagneticDiffusionEOperator::GetJouleHeating(ParGridFunction &E_gf,
    w_gf.ProjectCoefficient(w_coeff);
 }
 
-void MagneticDiffusionEOperator::SetTime(const double _t)
-{ t = _t; }
+void MagneticDiffusionEOperator::SetTime(const double t_)
+{ t = t_; }
 
 MagneticDiffusionEOperator::~MagneticDiffusionEOperator()
 {
@@ -908,7 +908,8 @@ double JouleHeatingCoefficient::Eval(ElementTransformation &T,
    double thisSigma;
    E_gf.GetVectorValue(T, ip, E);
    thisSigma = sigma.Eval(T, ip);
-   std::cout << "thisSigma: " << thisSigma <<" joule coeff: " << thisSigma*(E*E) << "\n";
+   std::cout << "thisSigma: " << thisSigma <<" joule coeff: " << thisSigma*
+             (E*E) << "\n";
    return thisSigma*(E*E);
 }
 

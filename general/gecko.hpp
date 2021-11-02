@@ -600,10 +600,10 @@ public:
    class Comparator
    {
    public:
-      Comparator(ConstPtr node) : _node(node) {}
-      bool operator()(uint k, uint l) const { return _node[k].pos < _node[l].pos; }
+      Comparator(ConstPtr node_) : node(node_) {}
+      bool operator()(uint k, uint l) const { return node[k].pos < node[l].pos; }
    private:
-      const ConstPtr _node;
+      const ConstPtr node;
    };
 
    // constructor

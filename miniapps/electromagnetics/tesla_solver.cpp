@@ -213,7 +213,7 @@ TeslaSolver::~TeslaSolver()
    }
 }
 
-HYPRE_Int
+HYPRE_BigInt
 TeslaSolver::GetProblemSize()
 {
    return HCurlFESpace_->GlobalTrueVSize();
@@ -222,9 +222,9 @@ TeslaSolver::GetProblemSize()
 void
 TeslaSolver::PrintSizes()
 {
-   HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
-   HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_h1 = H1FESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_nd = HCurlFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_rt = HDivFESpace_->GlobalTrueVSize();
    if (myid_ == 0)
    {
       cout << "Number of H1      unknowns: " << size_h1 << endl;
@@ -335,7 +335,8 @@ TeslaSolver::Solve()
       hCurlMass_->AddMult(*j_, *jd_);
       auto *jd_true = jd_->GetTrueDofs();
       std::cout.precision(16);
-      std::cout << "norm of jd_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *jd_true, *jd_true)) << "\n";
+      std::cout << "norm of jd_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *jd_true,
+                                                             *jd_true)) << "\n";
    }
 
    // Initialize the Magnetization
@@ -347,7 +348,8 @@ TeslaSolver::Solve()
 
    auto *a_true = a_->GetTrueDofs();
    std::cout.precision(16);
-   std::cout << "norm of a_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *a_true, *a_true)) << "\n";
+   std::cout << "norm of a_: " << std::sqrt(InnerProduct(MPI_COMM_WORLD, *a_true,
+                                                         *a_true)) << "\n";
 
    // Apply Dirichlet BCs to matrix and right hand side and otherwise
    // prepare the linear system
@@ -452,7 +454,7 @@ TeslaSolver::WriteVisItFields(int it)
    {
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
 
-      HYPRE_Int prob_size = this->GetProblemSize();
+      HYPRE_BigInt prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
       visit_dc_->SetTime(prob_size);
       visit_dc_->Save();

@@ -10,9 +10,89 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
+
+NonlinearForm::NonlinearForm(NonlinearForm &&other)
+   : Operator(other.fes->GetTrueVSize()), assembly(other.assembly),
+     ext(other.ext), fes(other.fes), Grad(other.Grad), cGrad(other.cGrad),
+     sequence(other.fes->GetSequence()), P(other.fes->GetProlongationMatrix()),
+     cP(dynamic_cast<const SparseMatrix*>(P))
+{
+   other.cGrad = nullptr;
+   other.Grad = nullptr;
+   dnfi.SetSize(other.dnfi.Size());
+   for (int i = 0; i <  dnfi.Size(); i++)
+   {
+      dnfi[i] = other.dnfi[i];
+      other.dnfi[i] = nullptr;
+   }
+
+   fnfi.SetSize(other.fnfi.Size());
+   for (int i = 0; i <  fnfi.Size(); i++)
+   {
+      fnfi[i] = other.fnfi[i];
+      other.fnfi[i] = nullptr;
+   }
+
+   bfnfi.SetSize(other.bfnfi.Size());
+   bfnfi_marker.SetSize(other.bfnfi_marker.Size());
+   for (int i = 0; i <  bfnfi.Size(); i++)
+   {
+      bfnfi[i] = other.bfnfi[i];
+      other.bfnfi[i] = nullptr;
+      bfnfi_marker[i] = other.bfnfi_marker[i];
+   }
+   other.ext = nullptr;
+}
+
+NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
+{
+   if (this != &other)
+   {
+      Operator::operator=(std::move(other));
+      delete cGrad;
+      delete Grad;
+      for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
+      for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
+      for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+      delete ext;
+
+      Grad = other.Grad;
+      other.Grad = nullptr;
+      cGrad = other.cGrad;
+      other.cGrad = nullptr;
+
+      dnfi.SetSize(other.dnfi.Size());
+      for (int i = 0; i <  dnfi.Size(); i++)
+      {
+         dnfi[i] = other.dnfi[i];
+         other.dnfi[i] = nullptr;
+      }
+
+      fnfi.SetSize(other.fnfi.Size());
+      for (int i = 0; i <  fnfi.Size(); i++)
+      {
+         fnfi[i] = other.fnfi[i];
+         other.fnfi[i] = nullptr;
+      }
+
+      bfnfi.SetSize(other.bfnfi.Size());
+      bfnfi_marker.SetSize(other.bfnfi_marker.Size());
+      for (int i = 0; i <  bfnfi.Size(); i++)
+      {
+         bfnfi[i] = other.bfnfi[i];
+         other.bfnfi[i] = nullptr;
+         bfnfi_marker[i] = other.bfnfi_marker[i];
+      }
+
+      ext = other.ext;
+      other.ext = nullptr;
+   }
+   return *this;
+}
 
 void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
@@ -36,6 +116,7 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          mfem_error("Unknown assembly level for this form.");
    }
 }
+
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                    Vector *rhs)
 {
@@ -83,10 +164,18 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
 
 double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
+   if (ext)
+   {
+      MFEM_VERIFY(!fnfi.Size(), "Interior faces terms not yet implemented!");
+      MFEM_VERIFY(!bfnfi.Size(), "Boundary face terms not yet implemented!");
+      return ext->GetGridFunctionEnergy(x);
+   }
+
    Array<int> vdofs;
    Vector el_x;
    const FiniteElement *fe;
    ElementTransformation *T;
+   DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
 
    double energy = 0.0;
@@ -96,9 +185,10 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
             energy += dnfi[k]->GetElementEnergy(*fe, *T, el_x);
@@ -204,12 +294,21 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (P) { aux2.SetSize(P->Height()); }
 
    // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector. In
-   // serial, place the result directly in y.
+   // serial, place the result directly in y (when there is no P).
    Vector &py = P ? aux2 : y;
 
    if (ext)
    {
       ext->Mult(px, py);
+      if (Serial())
+      {
+         if (cP) { cP->MultTranspose(py, y); }
+         const int N = ess_tdof_list.Size();
+         const auto tdof = ess_tdof_list.Read();
+         auto Y = y.ReadWrite();
+         MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
+      }
+      // In parallel, the result is in 'py' which is an alias for 'aux2'.
       return;
    }
 
@@ -217,6 +316,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    Vector el_x, el_y;
    const FiniteElement *fe;
    ElementTransformation *T;
+   DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
 
    py = 0.0;
@@ -226,12 +326,14 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
+            if (doftrans) {doftrans->TransformDual(el_y); }
             py.AddElementVector(vdofs, el_y);
          }
       }
@@ -330,13 +432,21 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       }
       // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
+   // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
    if (ext)
    {
-      MFEM_ABORT("Not yet implemented!");
+      hGrad.Clear();
+      Operator &grad = ext->GetGradient(Prolongate(x));
+      Operator *Gop;
+      grad.FormSystemOperator(ess_tdof_list, Gop);
+      hGrad.Reset(Gop);
+      // In both serial and parallel, when using extension, we return the final
+      // global true-dof gradient with imposed b.c.
+      return *hGrad;
    }
 
    const int skip_zeros = 0;
@@ -345,6 +455,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    DenseMatrix elmat;
    const FiniteElement *fe;
    ElementTransformation *T;
+   DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
    const Vector &px = Prolongate(x);
 
@@ -362,12 +473,14 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
+            if (doftrans) { doftrans->TransformDual(elmat); }
             Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
          }
@@ -482,23 +595,24 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
 void NonlinearForm::Update()
 {
-   if (ext) { MFEM_ABORT("Not yet implemented!"); }
-
    if (sequence == fes->GetSequence()) { return; }
 
    height = width = fes->GetTrueVSize();
    delete cGrad; cGrad = NULL;
    delete Grad; Grad = NULL;
+   hGrad.Clear();
    ess_tdof_list.SetSize(0); // essential b.c. will need to be set again
    sequence = fes->GetSequence();
    // Do not modify aux1 and aux2, their size will be set before use.
    P = fes->GetProlongationMatrix();
    cP = dynamic_cast<const SparseMatrix*>(P);
+
+   if (ext) { ext->Update(); }
 }
 
 void NonlinearForm::Setup()
 {
-   if (ext) { return ext->Assemble(); }
+   if (ext) { ext->Assemble(); }
 }
 
 NonlinearForm::~NonlinearForm()
@@ -672,7 +786,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
 
 double BlockNonlinearForm::GetEnergy(const Vector &x) const
 {
-   xs.Update(x.GetData(), block_offsets);
+   xs.Update(const_cast<Vector&>(x), block_offsets);
    return GetEnergyBlocked(xs);
 }
 
@@ -688,7 +802,9 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
    Array<const FiniteElement *> fe2(fes.Size());
    ElementTransformation *T;
 
+   by.UseDevice(true);
    by = 0.0;
+   by.SyncToBlocks();
    for (int s=0; s<fes.Size(); ++s)
    {
       el_x_const[s] = el_x[s] = new Vector();
@@ -827,6 +943,8 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       delete el_y[s];
       delete el_x[s];
    }
+
+   by.SyncFromBlocks();
 }
 
 const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
@@ -847,8 +965,8 @@ const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
 
 void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   BlockVector bx(x.GetData(), block_trueOffsets);
-   BlockVector by(y.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(x), block_trueOffsets);
+   BlockVector by(y, block_trueOffsets);
 
    const BlockVector &pbx = Prolongate(bx);
    if (needs_prolongation)
@@ -857,8 +975,8 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
    BlockVector &pby = needs_prolongation ? aux2 : by;
 
-   xs.Update(pbx.GetData(), block_offsets);
-   ys.Update(pby.GetData(), block_offsets);
+   xs.Update(const_cast<BlockVector&>(pbx), block_offsets);
+   ys.Update(pby, block_offsets);
    MultBlocked(xs, ys);
 
    for (int s = 0; s < fes.Size(); s++)
@@ -1015,12 +1133,14 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
                fe[s] = fes[s]->GetFE(tr->Elem1No);
                fe2[s] = fe[s];
 
-               fes[s]->GetElementVDofs(i, *vdofs[s]);
+               fes[s]->GetElementVDofs(tr->Elem1No, *vdofs[s]);
                bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
             }
 
             for (int k = 0; k < bfnfi.Size(); ++k)
             {
+               if (bfnfi_marker[k] &&
+                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
                bfnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
                for (int l=0; l<fes.Size(); ++l)
                {
@@ -1061,7 +1181,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
 
 Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 {
-   BlockVector bx(x.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(x), block_trueOffsets);
    const BlockVector &pbx = Prolongate(bx);
 
    ComputeGradientBlocked(pbx);

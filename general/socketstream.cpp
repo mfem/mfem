@@ -28,7 +28,9 @@
 #define closesocket (::close)
 #else
 #include <winsock.h>
+#ifdef _MSC_VER
 typedef int ssize_t;
+#endif
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
 #endif
@@ -216,21 +218,21 @@ socketbuf::int_type socketbuf::overflow(int_type c)
    return c;
 }
 
-std::streamsize socketbuf::xsgetn(char_type *__s, std::streamsize __n)
+std::streamsize socketbuf::xsgetn(char_type *s__, std::streamsize n__)
 {
-   // mfem::out << "[socketbuf::xsgetn __n=" << __n << ']'
+   // mfem::out << "[socketbuf::xsgetn n__=" << n__ << ']'
    //           << std::endl;
    const std::streamsize bn = egptr() - gptr();
-   if (__n <= bn)
+   if (n__ <= bn)
    {
-      traits_type::copy(__s, gptr(), __n);
-      gbump(__n);
-      return __n;
+      traits_type::copy(s__, gptr(), n__);
+      gbump(n__);
+      return n__;
    }
-   traits_type::copy(__s, gptr(), bn);
+   traits_type::copy(s__, gptr(), bn);
    setg(NULL, NULL, NULL);
-   std::streamsize remain = __n - bn;
-   char_type *end = __s + __n;
+   std::streamsize remain = n__ - bn;
+   char_type *end = s__ + n__;
    ssize_t br;
    while (remain > 0)
    {
@@ -243,30 +245,30 @@ std::streamsize socketbuf::xsgetn(char_type *__s, std::streamsize __n)
             mfem::out << "Error in recv(): " << strerror(errno) << std::endl;
          }
 #endif
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= br;
    }
-   return __n;
+   return n__;
 }
 
-std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
+std::streamsize socketbuf::xsputn(const char_type *s__, std::streamsize n__)
 {
-   // mfem::out << "[socketbuf::xsputn __n=" << __n << ']'
+   // mfem::out << "[socketbuf::xsputn n__=" << n__ << ']'
    //           << std::endl;
-   if (pptr() + __n <= epptr())
+   if (pptr() + n__ <= epptr())
    {
-      traits_type::copy(pptr(), __s, __n);
-      pbump(__n);
-      return __n;
+      traits_type::copy(pptr(), s__, n__);
+      pbump(n__);
+      return n__;
    }
    if (sync() < 0)
    {
       return 0;
    }
    ssize_t bw;
-   std::streamsize remain = __n;
-   const char_type *end = __s + __n;
+   std::streamsize remain = n__;
+   const char_type *end = s__ + n__;
    while (remain > buflen)
    {
 #ifdef MSG_NOSIGNAL
@@ -279,7 +281,7 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
 #ifdef MFEM_DEBUG
          mfem::out << "Error in send(): " << strerror(errno) << std::endl;
 #endif
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= bw;
    }
@@ -288,7 +290,7 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
       traits_type::copy(pptr(), end - remain, remain);
       pbump(remain);
    }
-   return __n;
+   return n__;
 }
 
 
@@ -842,24 +844,24 @@ GnuTLS_socketbuf::int_type GnuTLS_socketbuf::underflow()
    return traits_type::to_int_type(*ibuf);
 }
 
-std::streamsize GnuTLS_socketbuf::xsgetn(char_type *__s, std::streamsize __n)
+std::streamsize GnuTLS_socketbuf::xsgetn(char_type *s__, std::streamsize n__)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   mfem::out << "[GnuTLS_socketbuf::xsgetn __n=" << __n << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::xsgetn n__=" << n__ << ']' << std::endl;
 #endif
    if (!session_started || !status.good()) { return 0; }
 
    const std::streamsize bn = egptr() - gptr();
-   if (__n <= bn)
+   if (n__ <= bn)
    {
-      traits_type::copy(__s, gptr(), __n);
-      gbump(__n);
-      return __n;
+      traits_type::copy(s__, gptr(), n__);
+      gbump(n__);
+      return n__;
    }
-   traits_type::copy(__s, gptr(), bn);
+   traits_type::copy(s__, gptr(), bn);
    setg(NULL, NULL, NULL);
-   std::streamsize remain = __n - bn;
-   char_type *end = __s + __n;
+   std::streamsize remain = n__ - bn;
+   char_type *end = s__ + n__;
    ssize_t br;
    while (remain > 0)
    {
@@ -881,34 +883,34 @@ std::streamsize GnuTLS_socketbuf::xsgetn(char_type *__s, std::streamsize __n)
             status.print_on_error("gnutls_record_recv");
 #endif
          }
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= br;
    }
-   return __n;
+   return n__;
 }
 
-std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
-                                         std::streamsize __n)
+std::streamsize GnuTLS_socketbuf::xsputn(const char_type *s__,
+                                         std::streamsize n__)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   mfem::out << "[GnuTLS_socketbuf::xsputn __n=" << __n << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::xsputn n__=" << n__ << ']' << std::endl;
 #endif
    if (!session_started || !status.good()) { return 0; }
 
-   if (pptr() + __n <= epptr())
+   if (pptr() + n__ <= epptr())
    {
-      traits_type::copy(pptr(), __s, __n);
-      pbump(__n);
-      return __n;
+      traits_type::copy(pptr(), s__, n__);
+      pbump(n__);
+      return n__;
    }
    if (sync() < 0)
    {
       return 0;
    }
    ssize_t bw;
-   std::streamsize remain = __n;
-   const char_type *end = __s + __n;
+   std::streamsize remain = n__;
+   const char_type *end = s__ + n__;
    while (remain > buflen)
    {
       bw = gnutls_record_send(session, end - remain, remain);
@@ -922,7 +924,7 @@ std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
 #ifdef MFEM_DEBUG
          status.print_on_error("gnutls_record_send");
 #endif
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= bw;
    }
@@ -931,7 +933,7 @@ std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
       traits_type::copy(pptr(), end - remain, remain);
       pbump(remain);
    }
-   return __n;
+   return n__;
 }
 
 
