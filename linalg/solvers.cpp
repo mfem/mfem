@@ -1400,10 +1400,10 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
    resid = Norm(r);
    MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-   if (print_options.iterations)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0
-                << "   ||r|| = " << resid << '\n';
+                << "   ||r|| = " << resid << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
    Monitor(0, resid, r, x);
@@ -1423,7 +1423,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       rho_1 = Dot(rtilde, r);
       if (rho_1 == 0)
       {
-         if (print_options.iterations)
+         if (print_options.iterations || print_options.first_and_last)
          {
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
@@ -1434,6 +1434,14 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = false;
+         if (print_options.summary || (print_options.errors && !converged))
+         {
+            mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
+         }
+         if (print_options.errors)
+         {
+            mfem::err << "BiCGStab: No convergence!\n";
+         }
          return;
       }
       if (i == 1)
@@ -1462,7 +1470,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
-         if (print_options.iterations)
+         if (print_options.iterations || print_options.first_and_last)
          {
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||s|| = " << resid << '\n';
@@ -1470,6 +1478,10 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = true;
+         if (print_options.summary || (print_options.errors && !converged))
+         {
+            mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
+         }
          return;
       }
       if (print_options.iterations)
@@ -1505,6 +1517,15 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = true;
+         if (!print_options.iterations && print_options.first_and_last)
+         {
+            mfem::out << "   Iteration : " << setw(3) << i
+                      << "   ||s|| = " << resid << '\n';
+         }
+         if (print_options.summary || (print_options.errors && !converged))
+         {
+            mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
+         }
          return;
       }
       if (omega == 0)
@@ -1512,6 +1533,19 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          final_norm = resid;
          final_iter = i;
          converged = false;
+         if (!print_options.iterations && print_options.first_and_last)
+         {
+            mfem::out << "   Iteration : " << setw(3) << i
+                      << "   ||s|| = " << resid << '\n';
+         }
+         if (print_options.summary || (print_options.errors && !converged))
+         {
+            mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
+         }
+         if (print_options.errors)
+         {
+            mfem::err << "BiCGStab: No convergence!\n";
+         }
          return;
       }
    }
@@ -1519,6 +1553,20 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    final_norm = resid;
    final_iter = max_iter;
    converged = false;
+
+   if (!print_options.iterations && print_options.first_and_last)
+   {
+      mfem::out << "   Iteration : " << setw(3) << i
+                  << "   ||s|| = " << resid << '\n';
+   }
+   if (print_options.summary || (print_options.errors && !converged))
+   {
+      mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_options.errors)
+   {
+      mfem::err << "BiCGStab: No convergence!\n";
+   }
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
