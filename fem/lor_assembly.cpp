@@ -300,43 +300,10 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
    }
 
    static constexpr int ndof_per_el = (order+1)*(order+1)*(order+1);
-
-   static constexpr int nvert = 8;
-   static constexpr int nedge = 12;
-   static constexpr int nface = 6;
-   int nvert_dof_per_el = nvert;
-   int nedge_dof_per_el = nedge*(order-1);
-   int nface_dof_per_el = nface*pow(order-1,2);
-   int nint_dof_per_el = pow(order-1,3);
-
-   MFEM_ASSERT(nvert_dof_per_el + nedge_dof_per_el + nface_dof_per_el +
-               nint_dof_per_el == ndof_per_el, "");
-
-   // We compute the stencil size for a DOF on a dim-d submanifold of a dim-D
-   // element. Let c = D - d denote the codimension.
-   //
-   // Then, the stencil size for that DOF is equal to 2^c 3^d
-   //
-   // So, vertices:  codim 3, stencil 2^3 3^0
-   //     edges:     codim 2, stencil 2^2 3^1
-   //     faces:     codim 1, stencil 2^1 3^2
-   //     interiors: codim 0, stencil 2^0 3^3
-
-   // int nnz_per_el = 8*nvert_dof_per_el
-   //                  + 12*nedge_dof_per_el
-   //                  + 18*nface_dof_per_el
-   //                  + 27*nint_dof_per_el;
-
    static constexpr int nnz_per_row = 27;
    static constexpr int nnz_per_el =
       nnz_per_row*ndof_per_el; // <-- pessimsistic bound, doesn't distinguish vertices, edges, faces, interiors
-
-   // Number of nonzeros *with duplication* of shared DOFs along common entities
-   int nnz_dup = nel_ho*nnz_per_el;
-
-   Array<double> V(nnz_dup);
-
-   V = 0.0;
+   Array<double> V(nnz_per_el);
 
    int nd1d = order + 1;
    Array<int> dofs;
@@ -361,6 +328,12 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
    for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
       fes_ho.GetElementDofs(iel_ho, dofs);
+
+      for (int i=0; i<nnz_per_el; ++i)
+      {
+         V[i] = 0.0;
+      }
+
       // Loop over sub-elements
       for (int kz=0; kz<order; ++kz)
       {
@@ -501,22 +474,18 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
 
                      if (jj_loc <= ii_loc)
                      {
-                        V[jj_off + ii_el*nnz_per_row + iel_ho*nnz_per_el] += local_mat(ii_loc, jj_loc);
+                        V[jj_off + ii_el*nnz_per_row] += local_mat(ii_loc, jj_loc);
                      }
                      else
                      {
-                        V[jj_off + ii_el*nnz_per_row + iel_ho*nnz_per_el] += local_mat(jj_loc, ii_loc);
+                        V[jj_off + ii_el*nnz_per_row] += local_mat(jj_loc, ii_loc);
                      }
                   }
                }
             }
          }
       }
-   }
 
-   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
-   {
-      fes_ho.GetElementDofs(iel_ho, dofs);
       for (int ii_el=0; ii_el<ndof_per_el; ++ii_el)
       {
          int ix = ii_el%nd1d;
@@ -544,7 +513,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                   int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
                   int jj = dofs[lex_map[jj_el]];
                   int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                  A_mat._Add_(jj, V[jj_off + ii_el*nnz_per_row + iel_ho*nnz_per_el]);
+                  A_mat._Add_(jj, V[jj_off + ii_el*nnz_per_row]);
                }
             }
          }
@@ -566,7 +535,21 @@ void AssembleBatchedLOR(BilinearForm &form_lor, FiniteElementSpace &fes_ho,
    int dim = mesh_ho.Dimension();
    int order = fes_ho.GetMaxElementOrder();
    int ndofs = fes_ho.GetTrueVSize();
-   SparseMatrix *A_mat = new SparseMatrix(ndofs, ndofs);
+
+   const Table &elem_dof = form_lor.FESpace()->GetElementToDofTable();
+   Table dof_dof;
+   // the sparsity pattern is defined from the map: element->dof
+   Table dof_elem;
+   Transpose(elem_dof, dof_elem, ndofs);
+   mfem::Mult(dof_elem, elem_dof, dof_dof);
+   dof_dof.SortRows();
+   int *I = dof_dof.GetI();
+   int *J = dof_dof.GetJ();
+   double *data = Memory<double>(I[ndofs]);
+   SparseMatrix *A_mat = new SparseMatrix(I,J,data,ndofs,ndofs,true,true,true);
+   *A_mat = 0.0;
+
+   dof_dof.LoseData();
 
    if (dim == 2)
    {

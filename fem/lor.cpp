@@ -369,6 +369,7 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
       HPCBilinearForm a_hpc(integ_t(coeff_t(1.0)), *fes);
       a_hpc.AssembleBilinearForm(a_tmp); // full matrix assembly
    }
+   a_tmp.Finalize();
    mfem::out << "HPC LOR assembly time      = " << toc() << '\n';
 
    SparseMatrix A_hpc;
