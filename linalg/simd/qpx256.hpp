@@ -105,6 +105,11 @@ template <> struct AutoSIMD<double,4,32>
       return r;
    }
 
+   inline __ATTRS_ai AutoSIMD operator+() const
+   {
+      return *this;
+   }
+
    inline __ATTRS_ai AutoSIMD operator+(const AutoSIMD &v) const
    {
       AutoSIMD r;
