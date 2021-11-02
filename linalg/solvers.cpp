@@ -1567,7 +1567,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    if (!print_options.iterations && print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << final_iter
-                  << "   ||r|| = " << resid << '\n';
+                << "   ||r|| = " << resid << '\n';
    }
    if (print_options.summary || (print_options.errors && !converged))
    {
@@ -1914,7 +1914,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_iter = it;
    final_norm = norm;
 
-   if (print_options.summary || (!converged && print_options.errors) || print_options.first_and_last)
+   if (print_options.summary || (!converged && print_options.errors) ||
+       print_options.first_and_last)
    {
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
@@ -2144,7 +2145,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    final_iter = it;
    final_norm = norm;
 
-   if (print_options.summary || (!converged && print_options.errors) || print_options.first_and_last)
+   if (print_options.summary || (!converged && print_options.errors) ||
+       print_options.first_and_last)
    {
       mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
@@ -2545,7 +2547,8 @@ slbqp_done:
    final_iter = nclip;
    final_norm = r;
 
-   if (print_options.summary || (!converged && print_options.errors) || print_options.first_and_last)
+   if (print_options.summary || (!converged && print_options.errors) ||
+       print_options.first_and_last)
    {
       mfem::out << "SLBQP: Number of iterations: " << final_iter << '\n'
                 << "   lambda = " << l << '\n'
