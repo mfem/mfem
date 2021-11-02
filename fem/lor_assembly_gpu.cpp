@@ -23,7 +23,7 @@ template <int order> static
 void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               Mesh &mesh_ho,
                               FiniteElementSpace &fes_ho,
-                              FiniteElementSpace &fes_lo,
+                              FiniteElementSpace &/*fes_lo*/,
                               SparseMatrix &A_mat)
 {
    const int nel_lo = mesh_lor.GetNE();
@@ -36,7 +36,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    const int nq = ir.Size();
 
    constexpr int Q1D = 2;
-   assert(Q1D==order);
 
    static bool ini = true;
    if (ini)
@@ -107,53 +106,42 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
    static constexpr int ndof_per_el = (order+1)*(order+1)*(order+1);
    static constexpr int nnz_per_row = 27;
-   static constexpr int nnz_per_el =
-      nnz_per_row*ndof_per_el; // <-- pessimsistic bound, doesn't distinguish vertices, edges, faces, interiors
-   dbg("nnz_per_el:%d",nnz_per_el);
-   Array<double> V(nnz_per_el);
-   auto d_V = Reshape(V.ReadWrite(), nnz_per_el);
+   // pessimsistic bound, doesn't distinguish vertices, edges, faces, interiors
+   static constexpr int nnz_per_el = nnz_per_row*ndof_per_el;
 
    const int nd1d = order + 1;
-   //Array<int> dofs;
    const Array<int> &lex_map = dynamic_cast<const NodalFiniteElement&>
                                (*fes_ho.GetFE(0)).GetLexicographicOrdering();
 
    static constexpr int sz_grad_A = 3*3*2*2*2*2;
    static constexpr int sz_grad_B = sz_grad_A*2;
-   double grad_A_[sz_grad_A];
-   double grad_B_[sz_grad_B];
-
-   auto grad_A = Reshape(grad_A_, 3, 3, 2, 2, 2, 2);
-   auto grad_B = Reshape(grad_B_, 3, 3, 2, 2, 2, 2, 2);
-
    static constexpr int sz_local_mat = 8*8;
-   double local_mat_[sz_local_mat];
-   auto local_mat = Reshape(local_mat_, 8, 8);
 
-   MFEM_FORALL_3D(iel_ho, nel_ho, Q1D, Q1D, Q1D,
+   MFEM_FORALL_3D(iel_ho, nel_ho, order, order, order,
    {
-      for (int i=0; i<nnz_per_el; ++i) { V[i] = 0.0; }
+      double V_[nnz_per_el];
+      double grad_A_[sz_grad_A];
+      double grad_B_[sz_grad_B];
+      double local_mat_[sz_local_mat];
+
+      DeviceVector V(V_, nnz_per_el);
+      DeviceTensor<2> local_mat(local_mat_, 8, 8);
+      DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
+      DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
+
+      for (int i=0; i<nnz_per_el; ++i) { V(i) = 0.0; }
 
       // Loop over sub-elements
-      MFEM_FOREACH_THREAD(kz,z,Q1D)
+      MFEM_FOREACH_THREAD(kz,z,order)
       {
-         MFEM_FOREACH_THREAD(ky,y,Q1D)
+         MFEM_FOREACH_THREAD(ky,y,order)
          {
-            MFEM_FOREACH_THREAD(kx,x,Q1D)
+            MFEM_FOREACH_THREAD(kx,x,order)
             {
                double k = kx + ky*order + kz*order*order;
-               for (int i=0; i<sz_local_mat; ++i)
-               {
-                  local_mat[i] = 0.0;
-               }
-               for (int i=0; i<sz_grad_A; ++i)
-               {
-                  grad_A[i] = 0.0;
-               }
-               for (int i=0; i<sz_grad_B; ++i)
-               {
-                  grad_B[i] = 0.0;
-               }
+               for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
+               for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
+               for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
 
                MFEM_UNROLL(2)
                for (int iqx=0; iqx<2; ++iqx)
@@ -264,24 +252,24 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                }
                for (int ii_loc=0; ii_loc<8; ++ii_loc)
                {
-                  int ix = ii_loc%2;
-                  int iy = (ii_loc/2)%2;
-                  int iz = ii_loc/2/2;
-                  int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
+                  const int ix = ii_loc%2;
+                  const int iy = (ii_loc/2)%2;
+                  const int iz = ii_loc/2/2;
+                  const int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
                   for (int jj_loc=0; jj_loc<8; ++jj_loc)
                   {
-                     int jx = jj_loc%2;
-                     int jy = (jj_loc/2)%2;
-                     int jz = jj_loc/2/2;
-                     int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                     const int jx = jj_loc%2;
+                     const int jy = (jj_loc/2)%2;
+                     const int jz = jj_loc/2/2;
+                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
 
                      if (jj_loc <= ii_loc)
                      {
-                        d_V[jj_off + ii_el*nnz_per_row] += local_mat(ii_loc, jj_loc);
+                        V(jj_off + ii_el*nnz_per_row) += local_mat(ii_loc, jj_loc);
                      }
                      else
                      {
-                        d_V[jj_off + ii_el*nnz_per_row] += local_mat(jj_loc, ii_loc);
+                        V(jj_off + ii_el*nnz_per_row) += local_mat(jj_loc, ii_loc);
                      }
                   }
                }
@@ -367,7 +355,8 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
          //case 1: Assemble3DBatchedLOR_GPU<1>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
          case 2: Assemble3DBatchedLOR_GPU<2>(mesh_lor, mesh_ho, fes_ho, fes_lo, *A_mat);
             break;
-         //case 3: Assemble3DBatchedLOR_GPU<3>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 3: Assemble3DBatchedLOR_GPU<3>(mesh_lor, mesh_ho, fes_ho, fes_lo, *A_mat);
+            break;
          //case 4: Assemble3DBatchedLOR_GPU<4>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
          default: MFEM_ABORT("Kernel not ready!");
       }
