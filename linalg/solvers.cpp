@@ -1746,7 +1746,7 @@ loop_end:
    final_iter = it;
    final_norm = fabs(eta);
 
-   if (print_options.iterations || print_options.first_and_last)
+   if (!print_options.iterations && print_options.first_and_last)
    {
       mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                 << fabs(eta) << '\n';
