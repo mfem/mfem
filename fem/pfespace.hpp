@@ -68,6 +68,8 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
+   /// The matrix P (interpolation from true dof to dof). Owned.
+   mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
 
@@ -316,7 +318,7 @@ public:
    void GetSharedQuadrilateralDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
-   virtual HypreParMatrix *Dof_TrueDof_Matrix() const
+   HypreParMatrix *Dof_TrueDof_Matrix() const
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
    /** @brief For a non-conforming mesh, construct and return the interpolation
@@ -326,7 +328,7 @@ public:
 
    /** Create and return a new HypreParVector on the true dofs, which is
        owned by (i.e. it must be destroyed by) the calling function. */
-   virtual HypreParVector *NewTrueDofVector()
+   HypreParVector *NewTrueDofVector()
    { return (new HypreParVector(MyComm,GlobalTrueVSize(),GetTrueDofOffsets()));}
 
    /// Scale a vector of true dofs
