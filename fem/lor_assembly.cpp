@@ -11,6 +11,7 @@
 
 #include "lor_assembly.hpp"
 #include "../linalg/dtensor.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -360,19 +361,19 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                   grad_B[i] = 0.0;
                }
 
-#pragma unroll 2
+               MFEM_UNROLL(2)
                for (int iqx=0; iqx<2; ++iqx)
                {
-#pragma unroll 2
+                  MFEM_UNROLL(2)
                   for (int jz=0; jz<2; ++jz)
                   {
-#pragma unroll 2
+                     MFEM_UNROLL(2)
                      for (int iz=jz; iz<2; ++iz)
                      {
-#pragma unroll 2
+                        MFEM_UNROLL(2)
                         for (int iqy=0; iqy<2; ++iqy)
                         {
-#pragma unroll 2
+                           MFEM_UNROLL(2)
                            for (int iqz=0; iqz<2; ++iqz)
                            {
                               int iq = iqz + 2*iqy + 4*iqx;
@@ -402,10 +403,10 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                               grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
                               grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
                            }
-#pragma unroll 2
+                           MFEM_UNROLL(2)
                            for (int jy=0; jy<2; ++jy)
                            {
-#pragma unroll 2
+                              MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
                                  const double biy = (iy == iqy) ? 1.0 : 0.0;
@@ -426,16 +427,16 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                               }
                            }
                         }
-#pragma unroll 2
+                        MFEM_UNROLL(2)
                         for (int jy=0; jy<2; ++jy)
                         {
-#pragma unroll 2
+                           MFEM_UNROLL(2)
                            for (int jx=0; jx<2; ++jx)
                            {
-#pragma unroll 2
+                              MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
-#pragma unroll 2
+                                 MFEM_UNROLL(2)
                                  for (int ix=0; ix<2; ++ix)
                                  {
                                     const double bix = (ix == iqx) ? 1.0 : 0.0;
