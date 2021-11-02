@@ -98,6 +98,13 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    return GridF -> GetValue (T, ip, Component);
 }
 
+void TransformedCoefficient::SetTime(double t)
+{
+   if (Q1) { Q1->SetTime(t); }
+   if (Q2) { Q2->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
 double TransformedCoefficient::Eval(ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
@@ -110,6 +117,12 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
    {
       return (*Transform1)(Q1->Eval(T, ip, GetTime()));
    }
+}
+
+void DeltaCoefficient::SetTime(double t)
+{
+   if (weight) { weight->SetTime(t); }
+   this->Coefficient::SetTime(t);
 }
 
 void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
@@ -131,6 +144,12 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
 {
    double w = Scale();
    return weight ? weight->Eval(T, ip, GetTime())*w : w;
+}
+
+void RestrictedCoefficient::SetTime(double t)
+{
+   if (c) { c->SetTime(t); }
+   this->Coefficient::SetTime(t);
 }
 
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
@@ -235,6 +254,15 @@ VectorArrayCoefficient::VectorArrayCoefficient (int dim)
       Coeff[i] = NULL;
       ownCoeff[i] = true;
    }
+}
+
+void VectorArrayCoefficient::SetTime(double t)
+{
+   for (int i = 0; i < vdim; i++)
+   {
+      if (Coeff[i]) { Coeff[i]->SetTime(t); }
+   }
+   this->VectorCoefficient::SetTime(t);
 }
 
 void VectorArrayCoefficient::Set(int i, Coefficient *c, bool own)
@@ -350,6 +378,12 @@ double DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
    return GridFunc->GetDivergence(T);
 }
 
+void VectorDeltaCoefficient::SetTime(double t)
+{
+   d.SetTime(t);
+   this->VectorCoefficient::SetTime(t);
+}
+
 void VectorDeltaCoefficient::SetDirection(const Vector &d_)
 {
    dir = d_;
@@ -362,6 +396,12 @@ void VectorDeltaCoefficient::EvalDelta(
    V = dir;
    d.SetTime(GetTime());
    V *= d.EvalDelta(T, ip);
+}
+
+void VectorRestrictedCoefficient::SetTime(double t)
+{
+   if (c) { c->SetTime(t); }
+   this->VectorCoefficient::SetTime(t);
 }
 
 void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -461,6 +501,12 @@ void PWMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    K = 0.0;
 }
 
+void MatrixFunctionCoefficient::SetTime(double t)
+{
+   if (Q) { Q->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
@@ -541,6 +587,12 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    }
 }
 
+void SymmetricMatrixFunctionCoefficient::SetTime(double t)
+{
+   if (Q) { Q->SetTime(t); }
+   this->SymmetricMatrixCoefficient::SetTime(t);
+}
+
 void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
                                               ElementTransformation &T,
                                               const IntegrationPoint &ip)
@@ -583,6 +635,15 @@ MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    }
 }
 
+void MatrixArrayCoefficient::SetTime(double t)
+{
+   for (int i=0; i < height*width; i++)
+   {
+      if (Coeff[i]) { Coeff[i]->SetTime(t); }
+   }
+   this->MatrixCoefficient::SetTime(t);
+}
+
 void MatrixArrayCoefficient::Set(int i, int j, Coefficient * c, bool own)
 {
    if (ownCoeff[i*width+j]) { delete Coeff[i*width+j]; }
@@ -611,6 +672,12 @@ void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
+void MatrixRestrictedCoefficient::SetTime(double t)
+{
+   if (c) { c->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
 void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                        const IntegrationPoint &ip)
 {
@@ -626,6 +693,33 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
+void SumCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+void ProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+void RatioCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+void PowerCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
 InnerProductCoefficient::InnerProductCoefficient(VectorCoefficient &A,
                                                  VectorCoefficient &B)
    : a(&A), b(&B)
@@ -633,6 +727,13 @@ InnerProductCoefficient::InnerProductCoefficient(VectorCoefficient &A,
    MFEM_ASSERT(A.GetVDim() == B.GetVDim(),
                "InnerProductCoefficient:  "
                "Arguments have incompatible dimensions.");
+}
+
+void InnerProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->Coefficient::SetTime(t);
 }
 
 double InnerProductCoefficient::Eval(ElementTransformation &T,
@@ -652,6 +753,13 @@ VectorRotProductCoefficient::VectorRotProductCoefficient(VectorCoefficient &A,
                "Arguments must have dimension equal to two.");
 }
 
+void VectorRotProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
 double VectorRotProductCoefficient::Eval(ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
@@ -666,6 +774,12 @@ DeterminantCoefficient::DeterminantCoefficient(MatrixCoefficient &A)
    MFEM_ASSERT(A.GetHeight() == A.GetWidth(),
                "DeterminantCoefficient:  "
                "Argument must be a square matrix.");
+}
+
+void DeterminantCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
 }
 
 double DeterminantCoefficient::Eval(ElementTransformation &T,
@@ -716,6 +830,15 @@ VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A_,
                "Arguments must have the same dimension.");
 }
 
+void VectorSumCoefficient::SetTime(double t)
+{
+   if (ACoef) { ACoef->SetTime(t); }
+   if (BCoef) { BCoef->SetTime(t); }
+   if (alphaCoef) { alphaCoef->SetTime(t); }
+   if (betaCoef) { betaCoef->SetTime(t); }
+   this->VectorCoefficient::SetTime(t);
+}
+
 void VectorSumCoefficient::Eval(Vector &V, ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
@@ -739,6 +862,13 @@ ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(
    : VectorCoefficient(B.GetVDim()), aConst(0.0), a(&A), b(&B)
 {}
 
+void ScalarVectorProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->VectorCoefficient::SetTime(t);
+}
+
 void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
@@ -751,6 +881,12 @@ NormalizedVectorCoefficient::NormalizedVectorCoefficient(VectorCoefficient &A,
                                                          double tol_)
    : VectorCoefficient(A.GetVDim()), a(&A), tol(tol_)
 {}
+
+void NormalizedVectorCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   this->VectorCoefficient::SetTime(t);
+}
 
 void NormalizedVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
                                        const IntegrationPoint &ip)
@@ -768,6 +904,13 @@ VectorCrossProductCoefficient::VectorCrossProductCoefficient(
    MFEM_ASSERT(A.GetVDim() == 3 && B.GetVDim() == 3,
                "VectorCrossProductCoefficient:  "
                "Arguments must have dimension equal to three.");
+}
+
+void VectorCrossProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->VectorCoefficient::SetTime(t);
 }
 
 void VectorCrossProductCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -789,6 +932,13 @@ MatrixVectorProductCoefficient::MatrixVectorProductCoefficient(
    MFEM_ASSERT(A.GetWidth() == B.GetVDim(),
                "MatrixVectorProductCoefficient:  "
                "Arguments have incompatible dimensions.");
+}
+
+void MatrixVectorProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->VectorCoefficient::SetTime(t);
 }
 
 void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -820,6 +970,13 @@ MatrixSumCoefficient::MatrixSumCoefficient(MatrixCoefficient &A,
                "Arguments must have the same dimensions.");
 }
 
+void MatrixSumCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
 void MatrixSumCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
@@ -841,6 +998,13 @@ ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
    : MatrixCoefficient(B.GetHeight(), B.GetWidth()), aConst(0.0), a(&A), b(&B)
 {}
 
+void ScalarMatrixProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
 void ScalarMatrixProductCoefficient::Eval(DenseMatrix &M,
                                           ElementTransformation &T,
                                           const IntegrationPoint &ip)
@@ -853,6 +1017,12 @@ void ScalarMatrixProductCoefficient::Eval(DenseMatrix &M,
 TransposeMatrixCoefficient::TransposeMatrixCoefficient(MatrixCoefficient &A)
    : MatrixCoefficient(A.GetWidth(), A.GetHeight()), a(&A)
 {}
+
+void TransposeMatrixCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
 
 void TransposeMatrixCoefficient::Eval(DenseMatrix &M,
                                       ElementTransformation &T,
@@ -870,6 +1040,12 @@ InverseMatrixCoefficient::InverseMatrixCoefficient(MatrixCoefficient &A)
                "Argument must be a square matrix.");
 }
 
+void InverseMatrixCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
 void InverseMatrixCoefficient::Eval(DenseMatrix &M,
                                     ElementTransformation &T,
                                     const IntegrationPoint &ip)
@@ -883,6 +1059,13 @@ OuterProductCoefficient::OuterProductCoefficient(VectorCoefficient &A,
    : MatrixCoefficient(A.GetVDim(), B.GetVDim()), a(&A), b(&B),
      va(A.GetVDim()), vb(B.GetVDim())
 {}
+
+void OuterProductCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (b) { b->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
 
 void OuterProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                                    const IntegrationPoint &ip)
@@ -909,6 +1092,13 @@ CrossCrossCoefficient::CrossCrossCoefficient(Coefficient &A,
    : MatrixCoefficient(K.GetVDim(), K.GetVDim()), aConst(0.0), a(&A), k(&K),
      vk(K.GetVDim())
 {}
+
+void CrossCrossCoefficient::SetTime(double t)
+{
+   if (a) { a->SetTime(t); }
+   if (k) { k->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
 
 void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                                  const IntegrationPoint &ip)
