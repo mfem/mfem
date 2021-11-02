@@ -152,14 +152,8 @@ void BlockBilinearForm::Assemble(int skip_zeros)
             offsetvdofs_j.SetSize(vdofs_j.Size());
             for (int l = 0; l<vdofs_j.Size(); l++)
             {
-               if (vdofs_j[l]<0)
-               {
-                  offsetvdofs_j[l] =  -(offset_j + (-1 -vdofs_j[l])+1);
-               }
-               else
-               {
-                  offsetvdofs_j[l] = offset_j + vdofs_j[l];
-               }
+               offsetvdofs_j[l] = vdofs_j[l]<0 ? -offset_j + vdofs_j[l]
+                                  :  offset_j + vdofs_j[l];
             }
             for (int k = 0; k<nblocks; k++)
             {
@@ -168,14 +162,8 @@ void BlockBilinearForm::Assemble(int skip_zeros)
                offsetvdofs_k.SetSize(vdofs_k.Size());
                for (int l = 0; l<vdofs_k.Size(); l++)
                {
-                  if (vdofs_k[l]<0)
-                  {
-                     offsetvdofs_k[l] =  -(offset_k + (-1 -vdofs_k[l])+1);
-                  }
-                  else
-                  {
-                     offsetvdofs_k[l] = offset_k + vdofs_k[l];
-                  }
+                  offsetvdofs_k[l] = vdofs_k[l]<0 ? -offset_k + vdofs_k[l]
+                                     :  offset_k + vdofs_k[l];
                }
                // extract sub matrix (using elementblockoffsets)
                DenseMatrix A;
@@ -183,11 +171,13 @@ void BlockBilinearForm::Assemble(int skip_zeros)
                int jend = elementblockoffsets[j+1]-1;
                int kbeg = elementblockoffsets[k];
                int kend = elementblockoffsets[k+1]-1;
+               // probably we can use BlockOperator here instead
                elmat_p->GetSubMatrix(jbeg,jend,kbeg, kend, A);
                if (doftrans_k || doftrans_j)
                {
                   TransformDual(doftrans_j, doftrans_k, A);
                }
+               // probably we can use BlockOperator here instead
                mat->AddSubMatrix(offsetvdofs_j, offsetvdofs_k, A, skip_zeros);
             }
          }

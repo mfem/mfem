@@ -101,14 +101,8 @@ void BlockLinearForm::Assemble()
             offsetvdofs.SetSize(vdofs.Size());
             for (int l = 0; l<vdofs.Size(); l++)
             {
-               if (vdofs[l]<0)
-               {
-                  offsetvdofs[l] =  -(offset + (-1 -vdofs[l])+1);
-               }
-               else
-               {
-                  offsetvdofs[l] = offset + vdofs[l];
-               }
+               offsetvdofs[l] = vdofs[l]<0 ? -offset + vdofs[l]
+                                :  offset + vdofs[l];
             }
             int jbeg = elementblockoffsets[j];
             int jend = elementblockoffsets[j+1]-1;
