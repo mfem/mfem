@@ -290,12 +290,19 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
 
-         invJ(0,iq,iref,iel_ho) = w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-         invJ(1,iq,iref,iel_ho) = w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-         invJ(2,iq,iref,iel_ho) = w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-         invJ(3,iq,iref,iel_ho) = w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-         invJ(4,iq,iref,iel_ho) = w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-         invJ(5,iq,iref,iel_ho) = w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+         int iqx = iq%2;
+         int iqy = (iq/2)%2;
+         int iqz = (iq/2)/2;
+
+         // Put these in the opposite order...
+         int iq2 = iqz + 2*iqy + 4*iqx;
+
+         invJ(0,iq2,iref,iel_ho) = w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+         invJ(1,iq2,iref,iel_ho) = w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+         invJ(2,iq2,iref,iel_ho) = w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+         invJ(3,iq2,iref,iel_ho) = w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+         invJ(4,iq2,iref,iel_ho) = w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+         invJ(5,iq2,iref,iel_ho) = w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
       }
    }
 
@@ -362,7 +369,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                         {
                            for (int iqz=0; iqz<2; ++iqz)
                            {
-                              int iq = iqx + 2*iqy + 4*iqz;
+                              int iq = iqz + 2*iqy + 4*iqx;
                               const double biz = (iz == iqz) ? 1.0 : 0.0;
                               const double giz = (iz == 0) ? -1.0 : 1.0;
 
