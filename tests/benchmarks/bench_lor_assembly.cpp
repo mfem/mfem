@@ -94,7 +94,7 @@ struct LORBench
       y.Randomize(SEED);
       a_lo.Finalize();
       const double dot_lo = A_lo.As<SparseMatrix>()->InnerProduct(x,y);
-      dbg("    dot_lo:%.15e",dot_lo);
+      //dbg("    dot_lo:%.15e",dot_lo);
       //dbg("A_lo:"); A_lo.As<SparseMatrix>()->PrintMatlab();
 
       tic();
@@ -104,7 +104,7 @@ struct LORBench
       A_batched.As<SparseMatrix>()->HostReadWriteData();
       //dbg(" Batched LOR time = %f",toc());
       const double dot_batch = A_batched.As<SparseMatrix>()->InnerProduct(x,y);
-      dbg(" dot_batch:%.15e",dot_batch);
+      //dbg(" dot_batch:%.15e",dot_batch);
       assert(almost_equal(dot_lo,dot_batch));
       A_batched.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
       const double max_norm = A_batched.As<SparseMatrix>()->MaxNorm();
@@ -119,7 +119,7 @@ struct LORBench
       A_deviced.As<SparseMatrix>()->HostReadWriteJ();
       A_deviced.As<SparseMatrix>()->HostReadWriteData();
       const double dot_device = A_deviced.As<SparseMatrix>()->InnerProduct(x,y);
-      dbg("dot_device:%.15e",dot_device);
+      //dbg("dot_device:%.15e",dot_device);
       A_deviced.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
       const double max_norm_GPU = A_deviced.As<SparseMatrix>()->MaxNorm();
       //dbg("A_deviced:"); A_deviced.As<SparseMatrix>()->PrintMatlab();
@@ -177,7 +177,7 @@ struct LORBench
 #define P_ORDERS bm::CreateDenseRange(1,4,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(4,64,4)
+#define N_SIDES bm::CreateDenseRange(4,64,1)
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
