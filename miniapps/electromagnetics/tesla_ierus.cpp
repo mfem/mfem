@@ -158,6 +158,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = true;
 
+   Array<int> dbcs;
    Array<int> kbcs;
    Array<int> vbcs;
 
@@ -193,6 +194,9 @@ int main(int argc, char *argv[])
                   "Axis End Points, Radius, and Magnetic Field of Cylindrical Magnet");
    args.AddOption(&ha_params_, "-ha", "--halbach-array-params",
                   "Bounding Box Corners and Number of Segments");
+   args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc",
+                  "Surfaces for the Dirichlet Boundary Condition - "
+		  " either homogeneous or uniform B");
    args.AddOption(&kbcs, "-kbcs", "--surface-current-bc",
                   "Surfaces for the Surface Current (K) Boundary Condition");
    args.AddOption(&vbcs, "-vbcs", "--voltage-bc-surf",
@@ -301,7 +305,7 @@ int main(int argc, char *argv[])
    Coefficient * muInvCoef = SetupInvPermeabilityCoefficient();
 
    // Create the Magnetostatic solver
-   TeslaSolver Tesla(pmesh, order, kbcs, vbcs, vbcv, *muInvCoef,
+   TeslaSolver Tesla(pmesh, order, dbcs, kbcs, vbcs, vbcv, *muInvCoef,
                      (b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
                      (cr_params_.Size() > 0 ) ? current_ring  :
                      ((ct_params_.Size() > 0 ) ? current_torus : NULL),

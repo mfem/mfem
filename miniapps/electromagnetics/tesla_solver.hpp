@@ -38,7 +38,8 @@ class SurfaceCurrent;
 class TeslaSolver
 {
 public:
-   TeslaSolver(ParMesh & pmesh, int order, Array<int> & kbcs,
+   TeslaSolver(ParMesh & pmesh, int order,
+               Array<int> & dbcs, Array<int> & kbcs,
                Array<int> & vbcs, Vector & vbcv,
                Coefficient & muInvCoef,
                void   (*a_bc )(const Vector&, Vector&),
@@ -119,6 +120,8 @@ private:
 
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
+   Array<int> dbcs_;
+   Array<int> dir_bdr_;
    Array<int> non_k_bdr_;
 
    std::map<std::string,socketstream*> socks_;

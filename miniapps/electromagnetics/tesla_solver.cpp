@@ -24,6 +24,7 @@ namespace electromagnetics
 {
 
 TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
+                         Array<int> & dbcs,
                          Array<int> & kbcs,
                          Array<int> & vbcs, Vector & vbcv,
                          Coefficient & muInvCoef,
@@ -62,7 +63,8 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
      mCoef_(NULL),
      a_bc_(a_bc),
      j_src_(j_src),
-     m_src_(m_src)
+     m_src_(m_src),
+     dbcs_(dbcs)
 {
    // Initialize MPI variables
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
@@ -82,12 +84,20 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
 
    // Select surface attributes for Dirichlet BCs
    ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
+   dir_bdr_.SetSize(pmesh.bdr_attributes.Max());
    non_k_bdr_.SetSize(pmesh.bdr_attributes.Max());
-   ess_bdr_ = 1;   // All outer surfaces
+   ess_bdr_ = 0;   // All outer surfaces
+   dir_bdr_ = 0;   // All outer surfaces
    non_k_bdr_ = 1; // Surfaces without applied surface currents
 
+   for (int i=0; i<dbcs.Size(); i++)
+   {
+      ess_bdr_[dbcs[i]-1] = 1;
+      dir_bdr_[dbcs[i]-1] = 1;
+   }
    for (int i=0; i<kbcs.Size(); i++)
    {
+      ess_bdr_[kbcs[i]-1] = 1;
       non_k_bdr_[kbcs[i]-1] = 0;
    }
 
@@ -156,6 +166,7 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
       j_rt_        = new ParGridFunction(HDivFESpace_);
       DivFreeProj_ = new DivergenceFreeProjector(*H1FESpace_, *HCurlFESpace_,
                                                  irOrder, NULL, NULL, grad_);
+      DivFreeProj_->SetBoundary(dbcs);
    }
 
    if ( kbcs.Size() > 0 )
@@ -322,7 +333,7 @@ TeslaSolver::Solve()
    }
 
    // Apply uniform B boundary condition on remaining surfaces
-   a_->ProjectBdrCoefficientTangent(*aBCCoef_, non_k_bdr_);
+   a_->ProjectBdrCoefficientTangent(*aBCCoef_, dir_bdr_);
 
    // Initialize the RHS vector to zero
    *jd_ = 0.0;
