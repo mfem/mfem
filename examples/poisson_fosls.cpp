@@ -115,20 +115,21 @@ int main(int argc, char *argv[])
    block_offsets[2] = RTfes->GetVSize();
    block_offsets.PartialSum();
 
+   Array<int> block_Toffsets(3);
+   block_Toffsets[0] = 0;
+   block_Toffsets[1] = H1fes->GetTrueVSize();
+   block_Toffsets[2] = RTfes->GetTrueVSize();
+   block_Toffsets.PartialSum();
 
    BlockVector x(block_offsets), rhs(block_offsets);
+   BlockVector X(block_Toffsets), RHS(block_Toffsets);
    x = 0.0;  rhs = 0.0;
+   X = 0.0; RHS =  0.0;
 
-   GridFunction u_gf, sigma_gf;
-   u_gf.MakeRef(H1fes,x.GetBlock(0));
-   u_gf = 0.0;
-   sigma_gf.MakeRef(RTfes,x.GetBlock(1));
-   sigma_gf = 0.0;
 
 
    b_0.Update(H1fes,rhs.GetBlock(0),0);
    b_0.Assemble();
-
 
    b_1.Update(RTfes,rhs.GetBlock(1),0);
    b_1.Assemble();
@@ -136,26 +137,36 @@ int main(int argc, char *argv[])
 
    // Assembly and BC
    a_00.Assemble();
-   a_00.EliminateEssentialBC(ess_bdr,x.GetBlock(0), rhs.GetBlock(0));
-   a_00.Finalize();
-   SparseMatrix &A_00 = a_00.SpMat();
+   SparseMatrix A_00;
+   a_00.FormLinearSystem(ess_tdof_list,x.GetBlock(0),rhs.GetBlock(0),
+                         A_00,X.GetBlock(0),RHS.GetBlock(0));
+
+   RHS.GetBlock(0).SyncAliasMemory(RHS);
+
+
+   cout << "A size = " << A_00.Height() << " x " << A_00.Width() << endl;                      
 
    a_01.Assemble();
-   a_01.EliminateTestDofs(ess_bdr);
-   a_01.Finalize();
-   SparseMatrix &A_01 = a_01.SpMat();
+   SparseMatrix A_01;
+   Array<int> empty;
+   a_01.FormRectangularSystemMatrix(empty, ess_tdof_list,A_01);
+
 
    a_10.Assemble();
-   a_10.EliminateTrialDofs(ess_bdr,x.GetBlock(0), rhs.GetBlock(1));
-   a_10.Finalize();
-   SparseMatrix &A_10 = a_10.SpMat();
+   SparseMatrix A_10;
+
+   a_10.FormRectangularLinearSystem(ess_tdof_list,empty,x.GetBlock(0),rhs.GetBlock(1),
+                                    A_10,X.GetBlock(0),RHS.GetBlock(1));
+
+   RHS.GetBlock(1).SyncAliasMemory(RHS);
 
    a_11.Assemble();
-   a_11.Finalize();
+   SparseMatrix A_11;
+   a_11.FormSystemMatrix(empty,A_11);
 
-   SparseMatrix &A_11 = a_11.SpMat();
 
-   BlockMatrix BlockA(block_offsets);
+
+   BlockMatrix BlockA(block_Toffsets);
    BlockA.SetBlock(0,0,&A_00);
    BlockA.SetBlock(0,1,&A_01);
    BlockA.SetBlock(1,0,&A_10);
@@ -172,7 +183,14 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(1);
    cg.SetPreconditioner(M);
    cg.SetOperator(*A);
-   cg.Mult(rhs, x);
+   cg.Mult(RHS, X);
+
+   a_00.RecoverFEMSolution(X.GetBlock(0),RHS.GetBlock(0),x.GetBlock(0));
+   a_11.RecoverFEMSolution(X.GetBlock(1),RHS.GetBlock(1),x.GetBlock(1));
+
+   GridFunction u_gf, sigma_gf;
+   u_gf.MakeRef(H1fes,x.GetBlock(0));
+   sigma_gf.MakeRef(RTfes,x.GetBlock(1));
 
    if (visualization)
    {
