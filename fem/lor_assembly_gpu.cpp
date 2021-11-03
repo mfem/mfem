@@ -66,8 +66,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
       if (ini)
       {
-         dbg("order:%d nel_lor:%d nel_ho:%d nq:%d ddm2:%d",
-             order, nel_lor, nel_ho, nq, ddm2);
+         dbg("order:%d nel_lor:%d nel_ho:%d nq:%d ddm2:%d A_mat.Height():%d",
+             order, nel_lor, nel_ho, nq, ddm2, A_mat.Height());
       }
 
       Array<int> lor2ho_(nel_lor), lor2ref_(nel_lor);
@@ -150,7 +150,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
    const auto Q = Reshape(Q_.Read(), ddm2, 2,2,2, pow(order,dim), nel_ho);
 
-   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, 1, 1, 1, GRID,
+   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, order, order, order, GRID,
    {
       // nnz_per_el = nnz_per_row(=27) * (order+1) * (order+1) * (order+1);
       MFEM_SHARED double V_[nnz_per_el];
@@ -160,13 +160,13 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       // subelement.
       //
       // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
-      for (int i=0; i<nnz_per_row; ++i)
+      MFEM_FOREACH_THREAD(kz,z,nd1d)
       {
-         MFEM_FOREACH_THREAD(kz,z,nd1d)
+         MFEM_FOREACH_THREAD(ky,y,nd1d)
          {
-            MFEM_FOREACH_THREAD(ky,y,nd1d)
+            MFEM_FOREACH_THREAD(kx,x,nd1d)
             {
-               MFEM_FOREACH_THREAD(kx,x,nd1d)
+               for (int i=0; i<nnz_per_row; ++i)
                {
                   V(i,kx,ky,kz) = 0.0;
                }
@@ -177,13 +177,10 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
       // Loop over sub-elements
       MFEM_FOREACH_THREAD(kz,z,order)
-      //for (int kz=0; kz<order; ++kz)
       {
          MFEM_FOREACH_THREAD(ky,y,order)
-         //for (int ky=0; ky<order; ++ky)
          {
             MFEM_FOREACH_THREAD(kx,x,order)
-            //for (int kx=0; kx<order; ++kx)
             {
                double grad_A_[sz_grad_A];
                double grad_B_[sz_grad_B];
@@ -325,7 +322,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                   const int ix = ii_loc%2;
                   const int iy = (ii_loc/2)%2;
                   const int iz = ii_loc/2/2;
-                  //const int ii_el = (ix+kx) + (iy+ky)*nd1d + (iz+kz)*nd1d*nd1d;
                   for (int jj_loc=0; jj_loc<8; ++jj_loc)
                   {
                      const int jx = jj_loc%2;
@@ -335,14 +331,11 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
                      if (jj_loc <= ii_loc)
                      {
-                        V(jj_off, ix+kx, iy+ky, iz+kz) += local_mat(ii_loc, jj_loc);
-                        //V(jj_off, ii_el) += local_mat(ii_loc, jj_loc);
-                        //AtomicAdd(V(jj_off, ii_el),local_mat(ii_loc, jj_loc));
+                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(ii_loc, jj_loc));
                      }
                      else
                      {
-                        V(jj_off, ix+kx, iy+ky, iz+kz) += local_mat(jj_loc, ii_loc);
-                        //AtomicAdd(V(jj_off, ii_el), local_mat(jj_loc, ii_loc));
+                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(jj_loc, ii_loc));
                      }
                   }
                }
@@ -351,47 +344,69 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       }
       MFEM_SYNC_THREAD;
 
-      DeviceTensor<1,int> col_ptr(col_ptr_base + A_height*MFEM_BLOCK_ID(x), A_height);
+      DeviceTensor<1,int> col_ptr(col_ptr_base + A_height*MFEM_BLOCK_ID(x),
+                                  A_height);
 
-      // Place the macro-element sparse matrix into the global sparse matrix.
-      MFEM_FOREACH_THREAD(iz,z,nd1d)
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
+      const int tidz = MFEM_THREAD_ID(z);
+      if (tidx==0 && tidy==0 && tidz==0)
       {
-         MFEM_FOREACH_THREAD(iy,y,nd1d)
+
+         // Place the macro-element sparse matrix into the global sparse matrix.
+         //MFEM_FOREACH_THREAD(iz,z,nd1d)
+         for (int ii_el=0; ii_el<ndof_per_el; ++ii_el)
          {
-            MFEM_FOREACH_THREAD(ix,x,nd1d)
+            /* MFEM_FOREACH_THREAD(iy,y,nd1d)
+             {
+                MFEM_FOREACH_THREAD(ix,x,nd1d)
+                {
+                   const int ii_el = ix + nd1d*(iy + nd1d*iz);*/
+            const int ix = ii_el%nd1d;
+            const int iy = (ii_el/nd1d)%nd1d;
+            const int iz = ii_el/nd1d/nd1d;
+            const int ii = el_dof_lex(ii_el, iel_ho);
+
+            // Set column pointer to avoid searching in the row
+            for (int j = I[ii], end = I[ii+1]; j < end; j++)
             {
-               const int ii_el = ix + nd1d*(iy + nd1d*iz);
-               const int ii = el_dof_lex(ii_el, iel_ho);
+               col_ptr(J[j]) = j;
+            }
 
-               // Set column pointer to avoid searching in the row
-               for (int j = I[ii], end = I[ii+1]; j < end; j++)
+            const int jx_begin = (ix > 0) ? ix - 1 : 0;
+            const int jx_end = (ix < order) ? ix + 1 : order;
+
+            const int jy_begin = (iy > 0) ? iy - 1 : 0;
+            const int jy_end = (iy < order) ? iy + 1 : order;
+
+            const int jz_begin = (iz > 0) ? iz - 1 : 0;
+            const int jz_end = (iz < order) ? iz + 1 : order;
+
+            for (int jz=jz_begin; jz<=jz_end; ++jz)
+            {
+               for (int jy=jy_begin; jy<=jy_end; ++jy)
                {
-                  col_ptr(J[j]) = j;
-               }
-
-               const int jx_begin = (ix > 0) ? ix - 1 : 0;
-               const int jx_end = (ix < order) ? ix + 1 : order;
-
-               const int jy_begin = (iy > 0) ? iy - 1 : 0;
-               const int jy_end = (iy < order) ? iy + 1 : order;
-
-               const int jz_begin = (iz > 0) ? iz - 1 : 0;
-               const int jz_end = (iz < order) ? iz + 1 : order;
-
-               for (int jz=jz_begin; jz<=jz_end; ++jz)
-               {
-                  for (int jy=jy_begin; jy<=jy_end; ++jy)
+                  for (int jx=jx_begin; jx<=jx_end; ++jx)
                   {
-                     for (int jx=jx_begin; jx<=jx_end; ++jx)
+                     const int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
+                     const int jj = el_dof_lex(jj_el, iel_ho);
+                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                     const int col_ptr_jj = col_ptr(jj);
+                     const double Vji = V(jj_off, ix, iy, iz);
+                     if ((ix == 0 && jx == 0) || (ix == order && jx == order) ||
+                         (iy == 0 && jy == 0) || (iy == order && jy == order) ||
+                         (iz == 0 && jz == 0) || (iz == order && jz == order))
                      {
-                        const int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
-                        const int jj = el_dof_lex(jj_el, iel_ho);
-                        const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                        const int col_ptr_jj = col_ptr(jj);
-                        AtomicAdd(A[col_ptr_jj], V(jj_off, ix, iy, iz));
+                        AtomicAdd(A[col_ptr_jj], Vji);
+                     }
+                     else
+                     {
+                        A[col_ptr_jj] += Vji;
                      }
                   }
                }
+               //}
+               //}
             }
          }
       }
