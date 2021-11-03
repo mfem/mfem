@@ -184,7 +184,7 @@ struct LORBench
 #define P_ORDERS bm::CreateDenseRange(1,4,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(4,64,4)
+#define N_SIDES bm::CreateDenseRange(4,84,4)
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
