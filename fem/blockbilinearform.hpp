@@ -52,6 +52,9 @@ protected:
 
    DenseTensor *element_matrices; ///< Owned.
 
+   SparseMatrix * P = nullptr; // Block Prolongation
+   SparseMatrix * R = nullptr; // Block Restriction
+
    /** This data member allows one to specify what should be done to the
     diagonal matrix entries and corresponding RHS values upon elimination of
     the constrained DoFs. */
@@ -61,6 +64,8 @@ protected:
    void AllocMat();
 
    void ConformingAssemble();
+
+   void BuildProlongation();
 
 
 private:

@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
 
    OperatorPtr A;
    Vector X,B;
+   cout << "x size = " << x.Size() << endl;
    a.FormLinearSystem(ess_tdof_list,x,b,A,X,B);
 
 
@@ -126,6 +127,7 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.Mult(B, X);
 
+   a.RecoverFEMSolution(X,b,x);
 
    GridFunction u_gf, sigma_gf;
    double *data = x.GetData();

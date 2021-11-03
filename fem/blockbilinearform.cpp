@@ -37,12 +37,68 @@ void BlockBilinearForm::AllocMat()
    mat = new SparseMatrix(height);
 }
 
+void BlockBilinearForm::BuildProlongation()
+{
+   int nblocks = fespaces.Size();
+   Array<int> offsets_i(nblocks+1);
+   Array<int> offsets_j(nblocks+1);
+   offsets_i[0] = 0;
+   offsets_j[0] = 0;
+   for (int i = 0; i<nblocks; i++)
+   {
+      const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
+      offsets_i[i+1] = P_->Height();
+      offsets_j[i+1] = P_->Width();
+   }
+   offsets_i.PartialSum();
+   offsets_j.PartialSum();
+   BlockMatrix  BlockP(offsets_i, offsets_j);
+   for (int i = 0; i<nblocks; i++)
+   {
+      const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
+      BlockP.SetBlock(i,i,const_cast<SparseMatrix*>(P_));
+   }
+
+   P = BlockP.CreateMonolithic();
+
+   mfem::out << "P height, width = " << P->Height() << " x " << P->Width() <<
+             std::endl;
+
+   R = Transpose(*P);
+
+   mfem::out << "R height, width  = " << R->Height() <<" x "<< R->Width() <<
+             std::endl;
+
+
+}
+
 void BlockBilinearForm::ConformingAssemble()
 {
-   // TODO
-   // Finalize(0);
-   // MFEM_ASSERT(mat, "the BilinearForm is not assembled");
+   Finalize(0);
+   MFEM_ASSERT(mat, "the BilinearForm is not assembled");
 
+   if (!P) { BuildProlongation(); }
+
+   SparseMatrix *RA = mfem::Mult(*R, *mat);
+   delete mat;
+   if (mat_e)
+   {
+      SparseMatrix *RAe = mfem::Mult(*R, *mat_e);
+      delete mat_e;
+      mat_e = RAe;
+   }
+   // delete R;
+   mat = mfem::Mult(*RA, *P);
+   delete RA;
+   if (mat_e)
+   {
+      SparseMatrix *RAeP = mfem::Mult(*mat_e, *P);
+      delete mat_e;
+      mat_e = RAeP;
+   }
+
+   height = mat->Height();
+   width = mat->Width();
 }
 
 void BlockBilinearForm::Mult(const Vector &x, Vector &y) const
@@ -184,17 +240,28 @@ void BlockBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                          Vector &b, OperatorHandle &A, Vector &X,
                                          Vector &B, int copy_interior)
 {
-   const SparseMatrix *P = fespaces[0]->GetConformingProlongation();
-   if (P)
-   {
-      MFEM_ABORT("BlockBilinearForm::FormLinearSystem:: Non-conforming not implemented yet")
-   }
    FormSystemMatrix(ess_tdof_list, A);
 
-   EliminateVDofsInRHS(ess_tdof_list, x, b);
-   X.MakeRef(x, 0, x.Size());
-   B.MakeRef(b, 0, b.Size());
-   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   if (!P)
+   {
+      EliminateVDofsInRHS(ess_tdof_list, x, b);
+      X.MakeRef(x, 0, x.Size());
+      B.MakeRef(b, 0, b.Size());
+      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   }
+   else // non conforming space
+   {
+      B.SetSize(P->Width());
+      P->MultTranspose(b, B);
+      X.SetSize(R->Height());
+
+      mfem::out << "R height, width  = " << R->Height() <<" x "<< R->Width() <<
+                std::endl;
+
+      R->Mult(x, X);
+      EliminateVDofsInRHS(ess_tdof_list, X, B);
+      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   }
 
 }
 
@@ -203,14 +270,8 @@ void BlockBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 {
    if (!mat_e)
    {
-      const SparseMatrix *P = fespaces[0]->GetConformingProlongation();
-      if (P)
-      {
-         MFEM_ABORT("BlockBilinearForm::FormSystemMatrix:: Non-conforming not implemented yet")
-      }
-
-      // TODO
-      // need to change this so that it can work with non-symmetric Matrices
+      const SparseMatrix *P_ = fespaces[0]->GetConformingProlongation();
+      if (P_) { ConformingAssemble(); }
       EliminateVDofs(ess_tdof_list, diag_policy);
       const int remove_zeros = 0;
       Finalize(remove_zeros);
@@ -221,12 +282,16 @@ void BlockBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void BlockBilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
                                            Vector &x)
 {
-   const SparseMatrix *P = fespaces[0]->GetConformingProlongation();
-   if (P)
+   if (!P)
    {
-      MFEM_ABORT("BlockBilinearForm::RecoverFEMSolution:: Non-conforming not implemented yet")
+      x.SyncMemory(X);
    }
-   x.SyncMemory(X);
+   else
+   {
+      // Apply conforming prolongation
+      x.SetSize(P->Height());
+      P->Mult(X, x);
+   }
 }
 
 

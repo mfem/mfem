@@ -108,9 +108,6 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       H1fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   cout << "H1 fes size = " << H1fes->GetVSize() << endl;
-   cout << "ess tdof size = " << ess_tdof_list.Size() << endl;
-   ess_tdof_list.Print();
 
    Array<int> block_offsets(3);
    block_offsets[0] = 0;
@@ -132,14 +129,10 @@ int main(int argc, char *argv[])
    b_0.Update(H1fes,rhs.GetBlock(0),0);
    b_0.Assemble();
 
-   // b_0.Print();
-
 
    b_1.Update(RTfes,rhs.GetBlock(1),0);
    b_1.Assemble();
 
-
-   // b_1.Print();
 
    // Assembly and BC
    a_00.Assemble();
@@ -170,22 +163,7 @@ int main(int argc, char *argv[])
 
    SparseMatrix * A = BlockA.CreateMonolithic();
 
-   // A->Threshold(1e-16);
-   // A->SortColumnIndices();
-   // // A->PrintMatlab();
-
-   // ofstream mat_ofs("Sp2.mat");
-   // mat_ofs.precision(8);
-   // A->PrintMatlab(mat_ofs);
-
-   // return 0;
-
    GSSmoother M(*A);
-
-
-   A->Threshold(0.0);
-   A->SortColumnIndices();
-   A->PrintMatlab();
 
 
    CGSolver cg;
