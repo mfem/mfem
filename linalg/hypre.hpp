@@ -143,6 +143,8 @@ public:
                   HYPRE_BigInt *col, bool is_device_ptr = false);
    /// Creates vector compatible with y
    HypreParVector(const HypreParVector &y);
+   /// Move constructor for HypreParVector. "Steals" data from its argument.
+   HypreParVector(HypreParVector&& other);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
    explicit HypreParVector(const HypreParMatrix &A, int transpose = 0);
    /// Creates vector wrapping y
