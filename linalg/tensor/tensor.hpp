@@ -125,6 +125,17 @@ public:
       });
       return *this;
    }
+
+   /// operator-=, compatible with other types of Tensors
+   template <typename OtherTensor> MFEM_HOST_DEVICE inline
+   Tensor<Container,Layout>& operator-=(const OtherTensor &rhs)
+   {
+      ForallDims<Tensor>::ApplyBinOp(*this, rhs, [&](auto... idx)
+      {
+         (*this)(idx...) -= rhs(idx...);
+      });
+      return *this;
+   }
 };
 
 } // namespace mfem
