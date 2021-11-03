@@ -1090,7 +1090,8 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    int fn = GetBdrFace(BdrElemNo);
 
    // Check if the face is interior, shared, or non-conforming.
-   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
+   // if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
+   if (faces_info[fn].NCFace >= 0)
    {
       return NULL;
    }
