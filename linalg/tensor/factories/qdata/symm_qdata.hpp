@@ -12,6 +12,7 @@
 #ifndef MFEM_TENSOR_SYMM_QDATA
 #define MFEM_TENSOR_SYMM_QDATA
 
+#include "qdata_traits.hpp"
 #include "qdata_impl.hpp"
 #include "../diagonal_symm_tensor.hpp"
 
@@ -85,6 +86,22 @@ auto MakeSymmQData(Config &config, const double *x, int ne)
    return InitQData<QD,IsTensor,Dim,SymmDims>::
       make(const_cast<double*>(x),config.quads,SymmSize,ne);
 }
+
+/// is_qdata
+template <int DiagDim, typename QuadTensor>
+struct is_qdata_v<SymmQData<DiagDim,QuadTensor>>
+{
+   static constexpr bool value = true;
+};
+
+template <int DRank,
+          int SRank,
+          typename Container,
+          typename Layout>
+struct is_qdata_v<DiagonalSymmetricTensor<DRank,SRank,Container,Layout>>
+{
+   static constexpr bool value = true;
+};
 
 } // mfem namespace
 

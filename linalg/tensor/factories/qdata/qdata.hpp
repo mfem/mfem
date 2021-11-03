@@ -12,6 +12,7 @@
 #ifndef MFEM_TENSOR_QDATA
 #define MFEM_TENSOR_QDATA
 
+#include "qdata_traits.hpp"
 #include "qdata_impl.hpp"
 #include "../diagonal_tensor.hpp"
 
@@ -74,6 +75,22 @@ auto MakeQData(Config &config, const double *x, int ne)
    return InitQData<QD,IsTensor,Dim,DimComp>::
       make(const_cast<double*>(x),config.quads,Dim,ne);
 }
+
+/// is_qdata
+template <int DiagDim, typename QuadTensor>
+struct is_qdata_v<QData<DiagDim,QuadTensor>>
+{
+   static constexpr bool value = true;
+};
+
+template <int DRank,
+          int Rank,
+          typename Container,
+          typename Layout>
+struct is_qdata_v<DiagonalTensor<DRank,Rank,Container,Layout>>
+{
+   static constexpr bool value = true;
+};
 
 } // mfem namespace
 
