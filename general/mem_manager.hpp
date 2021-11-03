@@ -368,8 +368,7 @@ public:
        be updated as described above. */
    inline void SetDeviceMemoryType(MemoryType d_mt);
 
-   /** @brief Delete the owned pointers. The Memory is not reset by this method,
-       i.e. it will, generally, not be Empty() after this call. */
+   /** @brief Delete the owned pointers and reset the Memory object. */
    inline void Delete();
 
    /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
@@ -494,8 +493,7 @@ public:
    /// Copy @a size entries from @a *this to @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this and the
        destination, @a dest. */
-   inline void CopyTo(Memory &dest, int size) const
-   { dest.CopyFrom(*this, size); }
+   inline void CopyTo(Memory &dest, int size) const;
 
    /// Copy @a size entries from @a *this to the host pointer @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this. */
@@ -923,6 +921,11 @@ inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
+   MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
+   MFEM_ASSERT(0 <= size, "invalid size = " << size);
+   MFEM_ASSERT(offset + size <= base.capacity,
+               "invalid offset + size = " << offset + size
+               << " > base capacity = " << base.capacity);
    capacity = size;
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
@@ -982,6 +985,7 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
+   Reset(h_mt);
 }
 
 template <typename T>
@@ -1136,6 +1140,7 @@ inline bool Memory<T>::DeviceIsValid() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
+   MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
    {
       if (h_ptr != src.h_ptr && size != 0)
@@ -1155,6 +1160,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != src && size != 0)
@@ -1172,8 +1178,16 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 }
 
 template <typename T>
+inline void Memory<T>::CopyTo(Memory &dest, int size) const
+{
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
+   dest.CopyFrom(*this, size);
+}
+
+template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != dest && size != 0)
