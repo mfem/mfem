@@ -22,6 +22,17 @@
 #include "determinant.hpp"
 /// Point-wise multiplications at quadrature points
 #include "point-wise_multiplications/point-wise_multiplications.hpp"
+/// Dot product
+#include "dot_product.hpp"
+/// Norm functions
+#include "norms.hpp"
+/// Matrix multiplications
+#include "matrix_multiplication.hpp"
+/// An identity operator (useful when no preconditioner for instance)
+#include "identity.hpp"
+/// A generic conjugate gradient algorithm
+#include "conjugate_gradient.hpp"
+
 
 /**
  * These are the main mathematical operatiosns using a Basis, and Degrees of
@@ -38,5 +49,9 @@
 #include "divergence/divergence.hpp"
 /// Curl operators at quadrature point, ex: curl(B) * u
 #include "curl/curl.hpp"
+/// Quadrature operators
+#include "quadrature_operator.hpp"
+/// Element local operators
+#include "element_operator.hpp"
 
 #endif // MFEM_TENSOR_OPERATORS
