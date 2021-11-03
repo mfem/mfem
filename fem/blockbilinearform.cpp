@@ -53,22 +53,17 @@ void BlockBilinearForm::BuildProlongation()
    offsets_i.PartialSum();
    offsets_j.PartialSum();
    BlockMatrix  BlockP(offsets_i, offsets_j);
+   BlockMatrix  BlockR(offsets_j, offsets_i);
    for (int i = 0; i<nblocks; i++)
    {
       const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
+      const SparseMatrix *R_ = fespaces[i]->GetRestrictionMatrix();
       BlockP.SetBlock(i,i,const_cast<SparseMatrix*>(P_));
+      BlockR.SetBlock(i,i,const_cast<SparseMatrix*>(R_));
    }
 
    P = BlockP.CreateMonolithic();
-
-   mfem::out << "P height, width = " << P->Height() << " x " << P->Width() <<
-             std::endl;
-
-   R = Transpose(*P);
-
-   mfem::out << "R height, width  = " << R->Height() <<" x "<< R->Width() <<
-             std::endl;
-
+   R = BlockR.CreateMonolithic();
 
 }
 
@@ -79,22 +74,24 @@ void BlockBilinearForm::ConformingAssemble()
 
    if (!P) { BuildProlongation(); }
 
-   SparseMatrix *RA = mfem::Mult(*R, *mat);
+   SparseMatrix *Pt = Transpose(*P);
+
+   SparseMatrix *PtA = mfem::Mult(*Pt, *mat);
    delete mat;
    if (mat_e)
    {
-      SparseMatrix *RAe = mfem::Mult(*R, *mat_e);
+      SparseMatrix *PtAe = mfem::Mult(*Pt, *mat_e);
       delete mat_e;
-      mat_e = RAe;
+      mat_e = PtAe;
    }
-   // delete R;
-   mat = mfem::Mult(*RA, *P);
-   delete RA;
+   delete Pt;
+   mat = mfem::Mult(*PtA, *P);
+   delete PtA;
    if (mat_e)
    {
-      SparseMatrix *RAeP = mfem::Mult(*mat_e, *P);
+      SparseMatrix *PtAeP = mfem::Mult(*mat_e, *P);
       delete mat_e;
-      mat_e = RAeP;
+      mat_e = PtAeP;
    }
 
    height = mat->Height();
@@ -254,10 +251,6 @@ void BlockBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
       X.SetSize(R->Height());
-
-      mfem::out << "R height, width  = " << R->Height() <<" x "<< R->Width() <<
-                std::endl;
-
       R->Mult(x, X);
       EliminateVDofsInRHS(ess_tdof_list, X, B);
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }

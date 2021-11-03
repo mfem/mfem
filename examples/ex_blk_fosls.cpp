@@ -91,7 +91,6 @@ int main(int argc, char *argv[])
 
    BlockLinearForm b(fespaces);
 
-   // TestBlockLinearFormIntegrator * lfi = new TestBlockLinearFormIntegrator(one);
    TestBlockLinearFormIntegrator * lininteg = new TestBlockLinearFormIntegrator();
    Array<LinearFormIntegrator * > lfi(2);
    lfi[0] = nullptr;
@@ -111,12 +110,9 @@ int main(int argc, char *argv[])
    Vector x(size);
    x = 0.0;
 
-
    OperatorPtr A;
    Vector X,B;
-   cout << "x size = " << x.Size() << endl;
    a.FormLinearSystem(ess_tdof_list,x,b,A,X,B);
-
 
    GSSmoother M((SparseMatrix&)(*A));
    CGSolver cg;
