@@ -20,22 +20,25 @@ namespace mfem
 {
 
 /// A dynamic layout with first index fastest
-template <int Rank>
+template <int... Sizes>
 class DynamicLayout
 {
 private:
+   static constexpr int Rank = sizeof...(Sizes);
    int sizes[Rank];
 
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
    DynamicLayout(int arg0, Sizes... args)
    {
+      // TODO Add Sizes checks
       InitDynamicLayout<Rank>::result(sizes, arg0, args...);
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
    DynamicLayout(const Layout &rhs)
    {
+      // TODO Add Sizes checks
       InitDynamicLayout<Rank>::result(sizes,rhs);
    }
 
