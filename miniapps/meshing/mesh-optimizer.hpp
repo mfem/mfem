@@ -376,6 +376,54 @@ double adapt_lim_fun(const Vector &x)
    return val;
 }
 
+// Used for exact surface alignment
+double surface_level_set(const Vector &x)
+{
+   const int type = 1;
+
+   const int dim = x.Size();
+   if (type == 0)
+   {
+      const double sine = 0.25 * std::sin(4 * M_PI * x(0));
+      return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
+   }
+   else
+   {
+      if (dim == 2)
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         return std::tanh(2.0*(r-0.3));
+      }
+      else
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc + zc*zc);
+         return std::tanh(2.0*(r-0.3));
+      }
+   }
+}
+
+int material_id(int el_id, const GridFunction &g)
+{
+   const FiniteElementSpace *fes = g.FESpace();
+   const FiniteElement *fe = fes->GetFE(el_id);
+   Vector g_vals;
+   const IntegrationRule &ir =
+      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+
+   double integral = 0.0;
+   g.GetValues(el_id, ir, g_vals);
+   ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      Tr->SetIntPoint(&ip);
+      integral += ip.weight * g_vals(q) * Tr->Weight();
+   }
+   return (integral > 0.0) ? 1.0 : 0.0;
+}
+
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
    // Setup the Laplacian operator
