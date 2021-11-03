@@ -413,7 +413,7 @@ HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
 # CoDiPack
 CODIPACK_DIR = @MFEM_DIR@/../CoDiPack
 CODIPACK_OPT = -I$(CODIPACK_DIR)
-CODIPACK_LIB = -L.
+CODIPACK_LIB = 
 
 # GSLIB library
 GSLIB_DIR = @MFEM_DIR@/../gslib/build
