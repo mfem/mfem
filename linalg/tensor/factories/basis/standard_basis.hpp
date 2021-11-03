@@ -193,6 +193,9 @@ struct is_basis_v
    static constexpr bool value = false;
 };
 
+template <typename Basis>
+constexpr bool is_basis = is_basis_v<Basis>::value;
+
 template <int Dofs, typename Config>
 struct is_basis_v<SharedBasis<Dofs, Config>>
 {
@@ -200,7 +203,22 @@ struct is_basis_v<SharedBasis<Dofs, Config>>
 };
 
 template <typename Basis>
-constexpr bool is_basis = is_basis_v<Basis>::value;
+struct is_basis_v<Trans<Basis>>
+{
+   static constexpr bool value = is_basis<Basis>;
+};
+
+template <typename Basis>
+struct is_basis_v<Grad<Basis>>
+{
+   static constexpr bool value = is_basis<Basis>;
+};
+
+template <typename Basis>
+struct is_basis_v<Trans<Grad<Basis>>>
+{
+   static constexpr bool value = is_basis<Basis>;
+};
 
 // get_basis_dim
 template <typename Basis>
