@@ -579,7 +579,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
             }
          }
       }
-      //MFEM_SYNC_THREAD;
+      MFEM_SYNC_THREAD;
 
       // Place the macro-element sparse matrix into the global sparse matrix.
       for (int ii_el=0; ii_el<ndof_per_el; ++ii_el)
