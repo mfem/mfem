@@ -82,9 +82,13 @@ struct LORBench
       constexpr double EPS = 1e-15;
 
       OperatorHandle A_lo, A_batched, A_deviced;
-      tic();
+
+      MFEM_DEVICE_SYNC;
       a_lo = 0.0; // have to flush these results
+      MFEM_DEVICE_SYNC;
+      tic();
       a_lo.Assemble();
+      MFEM_DEVICE_SYNC;
       dbg("Standard LOR time = %f",toc());
       a_lo.FormSystemMatrix(ess_dofs, A_lo);
       A_lo.As<SparseMatrix>()->HostReadWriteI();
@@ -97,12 +101,14 @@ struct LORBench
       a_lo.Finalize();
       const double dot_lo = A_lo.As<SparseMatrix>()->InnerProduct(x,y);
 
+      MFEM_DEVICE_SYNC;
       tic();
       AssembleBatchedLOR(a_lo, fes_ho, ess_dofs, A_batched);
+      MFEM_DEVICE_SYNC;
+      dbg(" Batched LOR time = %f",toc());
       A_batched.As<SparseMatrix>()->HostReadWriteI();
       A_batched.As<SparseMatrix>()->HostReadWriteJ();
       A_batched.As<SparseMatrix>()->HostReadWriteData();
-      dbg(" Batched LOR time = %f",toc());
       const double dot_batch = A_batched.As<SparseMatrix>()->InnerProduct(x,y);
       assert(almost_equal(dot_lo,dot_batch));
       A_batched.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
@@ -110,8 +116,10 @@ struct LORBench
 
       if (max_norm > EPS) { return false; }
 
+      MFEM_DEVICE_SYNC;
       tic();
       AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_deviced);
+      MFEM_DEVICE_SYNC;
       dbg(" Batched GPU time = %f",toc());
       A_deviced.As<SparseMatrix>()->HostReadWriteI();
       A_deviced.As<SparseMatrix>()->HostReadWriteJ();
@@ -139,6 +147,7 @@ struct LORBench
 
    void Standard()
    {
+      MFEM_DEVICE_SYNC;
       tic_toc.Start();
       a_lo.Assemble();
       tic_toc.Stop();
@@ -148,6 +157,7 @@ struct LORBench
 
    void Batched()
    {
+      MFEM_DEVICE_SYNC;
       tic_toc.Start();
       OperatorHandle A_batched;
       AssembleBatchedLOR(a_lo, fes_ho, ess_dofs, A_batched);
@@ -158,9 +168,10 @@ struct LORBench
 
    void Deviced()
    {
+      MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      OperatorHandle A_batched;
-      AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_batched);
+      OperatorHandle A_deviced;
+      AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_deviced);
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * dofs;
