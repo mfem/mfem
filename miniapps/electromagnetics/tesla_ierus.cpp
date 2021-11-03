@@ -109,6 +109,8 @@ double phi_m_bc_uniform(const Vector &x);
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
+void record_cmd_line(int argc, char *argv[]);
+
 class MagneticEnergy
 {
 private:
@@ -145,6 +147,8 @@ int main(int argc, char *argv[])
 
    if ( mpi.Root() ) { display_banner(cout); }
 
+   if ( mpi.Root() ) { record_cmd_line(argc, argv); }
+   
    // Parse command-line options.
    const char *mesh_file = "./torqueRings.g";
    int order = 1;
@@ -488,6 +492,33 @@ void display_banner(ostream & os)
       << "    |    |\\  ___/ \\___ \\|  |__/ __ \\_  " << endl
       << "    |____| \\___  >____  >____(____  /  " << endl
       << "               \\/     \\/          \\/   " << endl << flush;
+}
+
+void record_cmd_line(int argc, char *argv[])
+{
+   ofstream ofs("tesla_ierus_cmd.txt");
+
+   for (int i=0; i<argc; i++)
+   {
+      ofs << argv[i] << " ";
+      if (strcmp(argv[i], "-cent") == 0 ||
+          strcmp(argv[i], "-ubbc") == 0 ||
+          strcmp(argv[i], "-pwm" ) == 0 ||
+          strcmp(argv[i], "-ms"  ) == 0 ||
+          strcmp(argv[i], "-cr"  ) == 0 ||
+          strcmp(argv[i], "-ct"  ) == 0 ||
+          strcmp(argv[i], "-bm"  ) == 0 ||
+          strcmp(argv[i], "-ha"  ) == 0 ||
+          strcmp(argv[i], "-dbcs") == 0 ||
+          strcmp(argv[i], "-kbcs") == 0 ||
+          strcmp(argv[i], "-vbcs") == 0 ||
+          strcmp(argv[i], "-vbcv") == 0)
+      {
+         ofs << "'" << argv[++i] << "' ";
+      }
+   }
+   ofs << endl << flush;
+   ofs.close();
 }
 
 // The Permeability is a required coefficient which may be defined in
