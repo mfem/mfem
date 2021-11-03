@@ -109,42 +109,38 @@ int main(int argc, char *argv[])
       H1fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   Array<int> block_offsets(3);
-   block_offsets[0] = 0;
-   block_offsets[1] = H1fes->GetVSize();
-   block_offsets[2] = RTfes->GetVSize();
-   block_offsets.PartialSum();
-
    Array<int> block_Toffsets(3);
    block_Toffsets[0] = 0;
    block_Toffsets[1] = H1fes->GetTrueVSize();
    block_Toffsets[2] = RTfes->GetTrueVSize();
    block_Toffsets.PartialSum();
 
-   BlockVector x(block_offsets), rhs(block_offsets);
-   BlockVector X(block_Toffsets), RHS(block_Toffsets);
-   x = 0.0;  rhs = 0.0;
-   X = 0.0; RHS =  0.0;
+   Vector rhs_H1(H1fes->GetVSize()); rhs_H1 = 0.;
+   Vector rhs_RT(RTfes->GetVSize()); rhs_RT = 0.;
+
+   Vector x_H1(H1fes->GetVSize()); x_H1 = 0.;
+   Vector x_RT(RTfes->GetVSize()); x_RT = 0.;
 
 
+   Vector RHS_H1(H1fes->GetTrueVSize()); RHS_H1 = 0.0;
+   Vector RHS_RT(RTfes->GetTrueVSize()); RHS_RT = 0.0;
 
-   b_0.Update(H1fes,rhs.GetBlock(0),0);
+   Vector X_H1(H1fes->GetTrueVSize()); X_H1 = 0.0;
+   Vector X_RT(RTfes->GetTrueVSize()); X_RT = 0.0;
+
+
+   b_0.Update(H1fes,rhs_H1,0);
    b_0.Assemble();
 
-   b_1.Update(RTfes,rhs.GetBlock(1),0);
+   b_1.Update(RTfes,rhs_RT,0);
    b_1.Assemble();
 
 
    // Assembly and BC
    a_00.Assemble();
    SparseMatrix A_00;
-   a_00.FormLinearSystem(ess_tdof_list,x.GetBlock(0),rhs.GetBlock(0),
-                         A_00,X.GetBlock(0),RHS.GetBlock(0));
-
-   RHS.GetBlock(0).SyncAliasMemory(RHS);
-
-
-   cout << "A size = " << A_00.Height() << " x " << A_00.Width() << endl;                      
+   a_00.FormLinearSystem(ess_tdof_list,x_H1,rhs_H1,
+                         A_00,X_H1,RHS_H1);
 
    a_01.Assemble();
    SparseMatrix A_01;
@@ -155,15 +151,12 @@ int main(int argc, char *argv[])
    a_10.Assemble();
    SparseMatrix A_10;
 
-   a_10.FormRectangularLinearSystem(ess_tdof_list,empty,x.GetBlock(0),rhs.GetBlock(1),
-                                    A_10,X.GetBlock(0),RHS.GetBlock(1));
-
-   RHS.GetBlock(1).SyncAliasMemory(RHS);
+   a_10.FormRectangularLinearSystem(ess_tdof_list,empty,x_H1,rhs_RT,
+                                    A_10,X_H1,RHS_RT);
 
    a_11.Assemble();
    SparseMatrix A_11;
    a_11.FormSystemMatrix(empty,A_11);
-
 
 
    BlockMatrix BlockA(block_Toffsets);
@@ -172,10 +165,19 @@ int main(int argc, char *argv[])
    BlockA.SetBlock(1,0,&A_10);
    BlockA.SetBlock(1,1,&A_11);
 
+
+   BlockVector RHS(block_Toffsets);
+   RHS.GetBlock(0) = RHS_H1;
+   RHS.GetBlock(1) = RHS_RT;
+
+   BlockVector X(block_Toffsets);
+   X.GetBlock(0) = X_H1;
+   X.GetBlock(1) = X_RT;
+
+
    SparseMatrix * A = BlockA.CreateMonolithic();
 
    GSSmoother M(*A);
-
 
    CGSolver cg;
    cg.SetRelTol(1e-6);
@@ -185,12 +187,21 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.Mult(RHS, X);
 
-   a_00.RecoverFEMSolution(X.GetBlock(0),RHS.GetBlock(0),x.GetBlock(0));
-   a_11.RecoverFEMSolution(X.GetBlock(1),RHS.GetBlock(1),x.GetBlock(1));
+   GridFunction u_gf(H1fes), sigma_gf(RTfes);
+   u_gf = 0.;
+   sigma_gf = 0.;
 
-   GridFunction u_gf, sigma_gf;
-   u_gf.MakeRef(H1fes,x.GetBlock(0));
-   sigma_gf.MakeRef(RTfes,x.GetBlock(1));
+   const SparseMatrix * P = H1fes->GetConformingProlongation();
+   if (P)
+   {
+      a_00.RecoverFEMSolution(X.GetBlock(0),rhs_H1,u_gf);
+      a_11.RecoverFEMSolution(X.GetBlock(1),rhs_RT,sigma_gf);
+   }
+   else
+   {
+      u_gf.MakeRef(X.GetBlock(0),0);
+      sigma_gf.MakeRef(X.GetBlock(1),0);
+   }
 
    if (visualization)
    {
