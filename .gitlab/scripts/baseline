@@ -20,7 +20,8 @@ base_out=${base}.out
 artifacts_path=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
 
 # prepare
-cd ${BUILD_ROOT}
+cd ${BUILD_ROOT} || \
+  { echo "Invalid BUILD_ROOT=$BUILD_ROOT"; exit 1; }
 ln -snf ${CI_PROJECT_DIR} mfem
 cd tests
 [[ -d _${BASELINE_TEST} ]] && rm -rf _${BASELINE_TEST}
@@ -33,6 +34,9 @@ elif [[ ${MACHINE_NAME} == "corona" ]]; then
   srun --nodes=1 -t 60 -p mi60 ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "lassen" ]]; then
   lalloc 1 -q pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+else
+  echo "Unknown machine: MACHINE_NAME=$MACHINE_NAME"
+  exit 1
 fi
 
 # post
@@ -58,6 +62,10 @@ elif [[ -f ${base_out} ]]
 then
   echo "${BASELINE_TEST}: Differences found, replacement file generated"
   cp ${base_out} ${artifacts_path}/${base_out}
+fi
+
+if [[ -f ${BASELINE_TEST}.out ]]; then
+  cp ${BASELINE_TEST}.out ${artifacts_path}
 fi
 
 # base_diff won't even exist if there is no difference.
