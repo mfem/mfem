@@ -421,7 +421,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
                DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
 
-               double k = kx + ky*order + kz*order*order;
+               const int k = kx + ky*order + kz*order*order;
                // local_mat is the local (dense) stiffness matrix
                for (int i=0; i<sz_local_mat; ++i)
                {
