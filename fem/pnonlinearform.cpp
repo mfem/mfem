@@ -133,7 +133,9 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    ParFiniteElementSpace *pfes = ParFESpace();
 
    pGrad.Clear();
+
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
+
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
 
    if (fnfi.Size() == 0)
