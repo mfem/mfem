@@ -112,8 +112,6 @@ int main(int argc, char *argv[])
    cout << "ess tdof size = " << ess_tdof_list.Size() << endl;
    ess_tdof_list.Print();
 
-   return 0;
-
    Array<int> block_offsets(3);
    block_offsets[0] = 0;
    block_offsets[1] = H1fes->GetVSize();
@@ -172,7 +170,15 @@ int main(int argc, char *argv[])
 
    SparseMatrix * A = BlockA.CreateMonolithic();
 
+   // A->Threshold(1e-16);
+   // A->SortColumnIndices();
+   // // A->PrintMatlab();
 
+   // ofstream mat_ofs("Sp2.mat");
+   // mat_ofs.precision(8);
+   // A->PrintMatlab(mat_ofs);
+
+   // return 0;
 
    GSSmoother M(*A);
 

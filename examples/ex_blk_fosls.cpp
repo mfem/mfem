@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
    blfi(0,0) = new DiffusionIntegrator(one);
    blfi(0,1) = new MixedVectorWeakDivergenceIntegrator(one);
    blfi(1,0) = new MixedVectorGradientIntegrator(negone);
+
    BilinearFormIntegrator * divdiv = new DivDivIntegrator(one);
    BilinearFormIntegrator * mass = new VectorFEMassIntegrator(one);
    SumIntegrator * suminteg = new SumIntegrator();
@@ -86,7 +87,6 @@ int main(int argc, char *argv[])
    integ->SetIntegrators(blfi);
    a.AddDomainIntegrator(integ);
    a.Assemble();
-   a.Finalize();
 
 
    BlockLinearForm b(fespaces);
@@ -98,14 +98,7 @@ int main(int argc, char *argv[])
    lfi[1] = new VectorFEDomainLFDivIntegrator(negone);
    lininteg->SetIntegrators(lfi);
    b.AddDomainIntegrator(lininteg);
-   // cout << "b size = " << b.Size() << endl;
    b.Assemble();
-
-
-   // b.Print();
-
-
-   OperatorPtr A;
 
 
    // need to implement blkgridfunction later but for now Vector would do
@@ -118,24 +111,10 @@ int main(int argc, char *argv[])
    Vector x(size);
    x = 0.0;
 
-   // Vector b(size);
 
-   // b = 1.0;
-
+   OperatorPtr A;
    Vector X,B;
-   // Array<int> empty;
-   // a.FormLinearSystem(empty,x,b,A,X,B);
-   ess_tdof_list.Print();
    a.FormLinearSystem(ess_tdof_list,x,b,A,X,B);
-
-
-   SparseMatrix * As = &(SparseMatrix&)(*A);
-
-   As->Threshold(0.0);
-   As->SortColumnIndices();
-   As->PrintMatlab();
-
-   return 0;
 
 
    GSSmoother M((SparseMatrix&)(*A));

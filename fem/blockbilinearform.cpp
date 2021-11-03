@@ -88,7 +88,7 @@ void BlockBilinearForm::Assemble(int skip_zeros)
    int nblocks = fespaces.Size();
    Array<const FiniteElement *> fe(nblocks);
    Array<int> vdofs_j, vdofs_k;
-   Array<int> offsetvdofs_j, offsetvdofs_k;
+   Array<int> offsetvdofs_j;
    Array<int> elementblockoffsets(nblocks+1);
    elementblockoffsets[0] = 0;
    Array<int> blockoffsets(nblocks+1);
@@ -145,46 +145,39 @@ void BlockBilinearForm::Assemble(int skip_zeros)
          {
             elmat_p = &elmat;
          }
+         vdofs.SetSize(0);
          for (int j = 0; j<nblocks; j++)
          {
             doftrans_j = fespaces[j]->GetElementVDofs(i, vdofs_j);
+            int jbeg = elementblockoffsets[j];
+            int jend = elementblockoffsets[j+1]-1;
             int offset_j = blockoffsets[j];
             offsetvdofs_j.SetSize(vdofs_j.Size());
+
             for (int l = 0; l<vdofs_j.Size(); l++)
             {
                offsetvdofs_j[l] = vdofs_j[l]<0 ? -offset_j + vdofs_j[l]
                                   :  offset_j + vdofs_j[l];
             }
+            vdofs.Append(offsetvdofs_j);
             for (int k = 0; k<nblocks; k++)
             {
                doftrans_k = fespaces[k]->GetElementVDofs(i, vdofs_k);
-               int offset_k = blockoffsets[k];
-               offsetvdofs_k.SetSize(vdofs_k.Size());
-               for (int l = 0; l<vdofs_k.Size(); l++)
-               {
-                  offsetvdofs_k[l] = vdofs_k[l]<0 ? -offset_k + vdofs_k[l]
-                                     :  offset_k + vdofs_k[l];
-               }
-               // extract sub matrix (using elementblockoffsets)
-               DenseMatrix A;
-               int jbeg = elementblockoffsets[j];
-               int jend = elementblockoffsets[j+1]-1;
-               int kbeg = elementblockoffsets[k];
-               int kend = elementblockoffsets[k+1]-1;
-               // probably we can use BlockOperator here instead
-               elmat_p->GetSubMatrix(jbeg,jend,kbeg, kend, A);
                if (doftrans_k || doftrans_j)
                {
+                  int kbeg = elementblockoffsets[k];
+                  int kend = elementblockoffsets[k+1]-1;
+                  DenseMatrix A;
+                  elmat_p->GetSubMatrix(jbeg,jend,kbeg, kend, A);
                   TransformDual(doftrans_j, doftrans_k, A);
+                  elmat_p->SetSubMatrix(jbeg,kbeg,A);
                }
-               // probably we can use BlockOperator here instead
-               mat->AddSubMatrix(offsetvdofs_j, offsetvdofs_k, A, skip_zeros);
             }
          }
+         mat->AddSubMatrix(vdofs,vdofs,*elmat_p, skip_zeros);
       }
    }
 }
-
 
 void BlockBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                          Vector &x,
@@ -215,6 +208,9 @@ void BlockBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       {
          MFEM_ABORT("BlockBilinearForm::FormSystemMatrix:: Non-conforming not implemented yet")
       }
+
+      // TODO
+      // need to change this so that it can work with non-symmetric Matrices
       EliminateVDofs(ess_tdof_list, diag_policy);
       const int remove_zeros = 0;
       Finalize(remove_zeros);
@@ -362,6 +358,8 @@ void BlockBilinearForm::EliminateVDofs(const Array<int> &vdofs,
    {
       mat_e = new SparseMatrix(height);
    }
+
+   // mat -> EliminateCols(vdofs, *mat_e,)
 
    for (int i = 0; i < vdofs.Size(); i++)
    {
