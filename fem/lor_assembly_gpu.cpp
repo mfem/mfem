@@ -27,6 +27,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 {
    const int nel_ho = mesh_ho.GetNE();
    const int nel_lor = mesh_lor.GetNE();
+   const int ndof = fes_ho.GetVSize();
 
    static bool ini = true;
    static constexpr int dim = 3;
@@ -41,18 +42,41 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    static constexpr int sz_local_mat = 8*8;
 
    // Set up element to dof mapping (in lexicographic ordering)
+   Array<int> dof_glob2loc_(2*ndof_per_el*nel_ho);
+   Array<int> dof_glob2loc_offsets_(ndof+1);
    Array<int> el_dof_lex_(ndof_per_el*nel_ho);
    {
       Array<int> dofs;
       const Array<int> &lex_map =
          dynamic_cast<const NodalFiniteElement&>
          (*fes_ho.GetFE(0)).GetLexicographicOrdering();
+      dof_glob2loc_offsets_ = 0;
+
       for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
       {
          fes_ho.GetElementDofs(iel_ho, dofs);
          for (int i=0; i<ndof_per_el; ++i)
          {
-            el_dof_lex_[i + iel_ho*ndof_per_el] = dofs[lex_map[i]];
+            const int dof = dofs[lex_map[i]];
+            el_dof_lex_[i + iel_ho*ndof_per_el] = dof;
+            dof_glob2loc_offsets_[dof+1] += 2;
+         }
+      }
+
+      dof_glob2loc_offsets_.PartialSum();
+      // Sanity check
+      MFEM_VERIFY(dof_glob2loc_offsets_[ndof] == dof_glob2loc_.Size(), "");
+
+      Array<int> dof_ptr(ndof);
+      for (int i=0; i<ndof; ++i) { dof_ptr[i] = dof_glob2loc_offsets_[i]; }
+      for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
+      {
+         fes_ho.GetElementDofs(iel_ho, dofs);
+         for (int i=0; i<ndof_per_el; ++i)
+         {
+            const int dof = dofs[lex_map[i]];
+            dof_glob2loc_[dof_ptr[dof]++] = iel_ho;
+            dof_glob2loc_[dof_ptr[dof]++] = i;
          }
       }
    }
@@ -139,15 +163,18 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    }
 
    constexpr int GRID = 256;
-   //const int A_height = A_mat.Height();
-   //Array<int> col_ptr_grid_arrays(A_height*GRID);
-   //auto col_ptr_base = col_ptr_grid_arrays.Write();
+
+   //Array<int> col_ptr_(nnz_per_row);
+   //auto col_ptr = Reshape(col_ptr_.Write(), nnz_per_row);
 
    const auto I = A_mat.ReadI();
    const auto J = A_mat.ReadJ();
    auto A = A_mat.ReadWriteData();
 
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
+   const auto dof_glob2loc = dof_glob2loc_.Read();
+   const auto K = dof_glob2loc_offsets_.Read();
+
    const auto Q = Reshape(Q_.Read(), ddm2, 2,2,2, pow(order,dim), nel_ho);
 
    MFEM_FORALL_3D_GRID(iel_ho, nel_ho, order, order, order, GRID,
@@ -160,15 +187,15 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       // subelement.
       //
       // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
-      MFEM_FOREACH_THREAD(kz,z,nd1d)
+      MFEM_FOREACH_THREAD(iz,z,nd1d)
       {
-         MFEM_FOREACH_THREAD(ky,y,nd1d)
+         MFEM_FOREACH_THREAD(iy,y,nd1d)
          {
-            MFEM_FOREACH_THREAD(kx,x,nd1d)
+            MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
-               for (int i=0; i<nnz_per_row; ++i)
+               for (int j=0; j<nnz_per_row; ++j)
                {
-                  V(i,kx,ky,kz) = 0.0;
+                  V(j,ix,iy,iz) = 0.0;
                }
             }
          }
@@ -344,76 +371,78 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       }
       MFEM_SYNC_THREAD;
 
-      /*DeviceTensor<1,int> col_ptr(col_ptr_base + A_height*MFEM_BLOCK_ID(x),
-                                  A_height);*/
-
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
-      const int tidz = MFEM_THREAD_ID(z);
-      if (tidx==0 && tidy==0 && tidz==0)
+      // Place the macro-element sparse matrix into the global sparse matrix.
+      MFEM_FOREACH_THREAD(iz,z,nd1d)
       {
-
-         // Place the macro-element sparse matrix into the global sparse matrix.
-         //MFEM_FOREACH_THREAD(iz,z,nd1d)
-         for (int ii_el=0; ii_el<ndof_per_el; ++ii_el)
+         MFEM_FOREACH_THREAD(iy,y,nd1d)
          {
-            /* MFEM_FOREACH_THREAD(iy,y,nd1d)
-             {
-                MFEM_FOREACH_THREAD(ix,x,nd1d)
-                {
-                   const int ii_el = ix + nd1d*(iy + nd1d*iz);*/
-            const int ix = ii_el%nd1d;
-            const int iy = (ii_el/nd1d)%nd1d;
-            const int iz = ii_el/nd1d/nd1d;
-            const int ii = el_dof_lex(ii_el, iel_ho);
-
-            // Set column pointer to avoid searching in the row
-            /*for (int j = I[ii], end = I[ii+1]; j < end; j++)
+            MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
-               col_ptr(J[j]) = j;
-            }*/
+               double col_ptr[nnz_per_row]; // 27
+               const int ii_el = ix + nd1d*(iy + nd1d*iz);
+               const int ii = el_dof_lex(ii_el, iel_ho);
 
-            const int jx_begin = (ix > 0) ? ix - 1 : 0;
-            const int jx_end = (ix < order) ? ix + 1 : order;
-
-            const int jy_begin = (iy > 0) ? iy - 1 : 0;
-            const int jy_end = (iy < order) ? iy + 1 : order;
-
-            const int jz_begin = (iz > 0) ? iz - 1 : 0;
-            const int jz_end = (iz < order) ? iz + 1 : order;
-
-            for (int jz=jz_begin; jz<=jz_end; ++jz)
-            {
-               for (int jy=jy_begin; jy<=jy_end; ++jy)
+               // Set column pointer to avoid searching in the row
+               for (int j = I[ii], end = I[ii+1]; j < end; j++)
                {
-                  for (int jx=jx_begin; jx<=jx_end; ++jx)
+                  const int jj = J[j];
+                  int jj_el = -1;
+                  for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 2)
                   {
-                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                     const double Vji = V(jj_off, ix, iy, iz);
+                     if (dof_glob2loc[k] == iel_ho)
+                     {
+                        jj_el = dof_glob2loc[k+1];
+                        break;
+                     }
+                  }
+                  if (jj_el < 0) { continue; }
+                  const int jx = jj_el%nd1d;
+                  const int jy = (jj_el/nd1d)%nd1d;
+                  const int jz = jj_el/nd1d/nd1d;
+                  const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                  col_ptr[jj_off] = j;
+               }
 
-                     const int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
-                     const int jj = el_dof_lex(jj_el, iel_ho);
-                     int col_ptr_jj = -1;
-                     // Row search to get col_ptr_jj
-                     for (int j = I[ii], end = I[ii+1]; j < end; j++)
+               const int jx_begin = (ix > 0) ? ix - 1 : 0;
+               const int jx_end = (ix < order) ? ix + 1 : order;
+
+               const int jy_begin = (iy > 0) ? iy - 1 : 0;
+               const int jy_end = (iy < order) ? iy + 1 : order;
+
+               const int jz_begin = (iz > 0) ? iz - 1 : 0;
+               const int jz_end = (iz < order) ? iz + 1 : order;
+
+               for (int jz=jz_begin; jz<=jz_end; ++jz)
+               {
+                  for (int jy=jy_begin; jy<=jy_end; ++jy)
+                  {
+                     for (int jx=jx_begin; jx<=jx_end; ++jx)
                      {
-                        if (J[j]==jj) { col_ptr_jj = j; break; }
-                     }
-                     //assert(col_ptr_jj>=0);
-                     if ((ix == 0 && jx == 0) || (ix == order && jx == order) ||
-                         (iy == 0 && jy == 0) || (iy == order && jy == order) ||
-                         (iz == 0 && jz == 0) || (iz == order && jz == order))
-                     {
-                        AtomicAdd(A[col_ptr_jj], Vji);
-                     }
-                     else
-                     {
-                        A[col_ptr_jj] += Vji;
+                        const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                        const double Vji = V(jj_off, ix, iy, iz);
+
+                        //const int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
+                        //const int jj = el_dof_lex(jj_el, iel_ho);
+                        /*int col_ptr_jj = -1;
+                        // Row search to get col_ptr_jj
+                        for (int j = I[ii], end = I[ii+1]; j < end; j++)
+                        {
+                           if (J[j]==jj) { col_ptr_jj = j; break; }
+                        }*/
+                        const int col_ptr_jj = col_ptr[jj_off];
+                        if ((ix == 0 && jx == 0) || (ix == order && jx == order) ||
+                            (iy == 0 && jy == 0) || (iy == order && jy == order) ||
+                            (iz == 0 && jz == 0) || (iz == order && jz == order))
+                        {
+                           AtomicAdd(A[col_ptr_jj], Vji);
+                        }
+                        else
+                        {
+                           A[col_ptr_jj] += Vji;
+                        }
                      }
                   }
                }
-               //}
-               //}
             }
          }
       }
@@ -421,6 +450,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    });
    ini = false;
 }
+// LOR_Deviced/4/32   787.97k/s  0.794512    35.937k      4
+// LOR_Deviced/4/40   904.87k/s  0.910222    68.921k      4
 
 void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
                             FiniteElementSpace &fes_ho,
