@@ -126,6 +126,9 @@ public:
                          ParDiscreteGradOperator * grad = NULL);
    virtual ~IrrotationalProjector();
 
+   // Identify the attributes associated with the Dirichlet boundary
+   virtual void SetBoundary(const Array<int> &bdr_attr);
+
    // Given a GridFunction 'x' of Nedelec DoFs for an arbitrary vector field,
    // compute the Nedelec DoFs of the irrotational portion, 'y', of
    // this vector field.  The resulting GridFunction will satisfy Curl y = 0
@@ -174,6 +177,9 @@ public:
                            ParMixedBilinearForm    * weakDiv = NULL,
                            ParDiscreteGradOperator * grad = NULL);
    virtual ~DivergenceFreeProjector();
+
+   // Identify the attributes associated with the Dirichlet boundary
+   virtual void SetBoundary(const Array<int> &bdr_attr);
 
    // Given a vector 'x' of Nedelec DoFs for an arbitrary vector field,
    // compute the Nedelec DoFs of the divergence free portion, 'y', of

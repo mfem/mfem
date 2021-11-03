@@ -167,6 +167,17 @@ IrrotationalProjector::~IrrotationalProjector()
 }
 
 void
+IrrotationalProjector::SetBoundary(const Array<int> &bdr_attr)
+{
+   ess_bdr_ = 0;
+   for (int i=0; i<bdr_attr.Size(); i++)
+   {
+      ess_bdr_[bdr_attr[i]-1] = 1;
+   }
+   H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+}
+
+void
 IrrotationalProjector::InitSolver() const
 {
    delete pcg_;
@@ -246,6 +257,12 @@ DivergenceFreeProjector
 
 DivergenceFreeProjector::~DivergenceFreeProjector()
 {}
+
+void
+DivergenceFreeProjector::SetBoundary(const Array<int> &bdr_attr)
+{
+   IrrotationalProjector::SetBoundary(bdr_attr);
+}
 
 void
 DivergenceFreeProjector::Mult(const Vector &x, Vector &y) const
